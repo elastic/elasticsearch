@@ -31,6 +31,7 @@ import java.io.BufferedInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.PushbackInputStream;
+import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -276,16 +277,25 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             schema = NdJsonSchemaInferrer.inferSchema(stream, schemaSampleSize);
         }
         String location = object.path().toString();
-        // Publish sizeInBytes + mtime even on row-count cache miss — see CsvFormatReader.metadata
-        // for the rationale and the stream-only-compression catch.
-        long sizeInBytes;
+        // See CsvFormatReader.metadata: mtime is required for cache participation, sizeInBytes is
+        // best-effort (stream-only compression formats can't compute it and are still cacheable).
         long mtimeMillis;
         try {
-            sizeInBytes = object.length();
-            mtimeMillis = object.lastModified() == null ? 0L : object.lastModified().toEpochMilli();
-        } catch (IOException | UnsupportedOperationException e) {
+            Instant mtime = object.lastModified();
+            if (mtime == null) {
+                return new SimpleSourceMetadata(schema, formatName(), location);
+            }
+            mtimeMillis = mtime.toEpochMilli();
+        } catch (IOException e) {
             return new SimpleSourceMetadata(schema, formatName(), location);
         }
+        OptionalLong cachedSize;
+        try {
+            cachedSize = OptionalLong.of(object.length());
+        } catch (IOException | UnsupportedOperationException e) {
+            cachedSize = OptionalLong.empty();
+        }
+        final OptionalLong sizeInBytes = cachedSize;
         OptionalLong cachedRowCount = ExternalRowCountCache.lookup(object);
         SourceStatistics stats = new SourceStatistics() {
             @Override
@@ -295,7 +305,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
 
             @Override
             public OptionalLong sizeInBytes() {
-                return OptionalLong.of(sizeInBytes);
+                return sizeInBytes;
             }
         };
         Map<String, Object> sourceMetadata = Map.of(ExternalRowCountCache.MTIME_MILLIS_KEY, mtimeMillis);

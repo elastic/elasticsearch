@@ -20,11 +20,12 @@ import java.util.OptionalLong;
  * {@code PushStatsToExternalSource} short-circuit {@code COUNT(*)} to a {@code LocalSourceExec}
  * once a file has been drained at least once.
  * <p>
- * Key is {@code (path, length, mtimeMillis)}. Including mtime makes same-length file mutations
- * resolve to a fresh key automatically — no cross-cache invalidation hook, so this JVM-static
- * cache stays correct when warm queries route to a different node from the cold producer.
- * {@link FooterByteCache#EXPIRE_AFTER_ACCESS_SECONDS} bounds residual staleness in the brief
- * window where two writes share both length and mtime resolution.
+ * Key is {@code (path, mtimeMillis)}. mtime is the canonical "file version" discriminator on every
+ * production filesystem and object store — it advances on every write, no extra storage round-trip,
+ * works for stream-only compression formats (bzip2, zstd-streamed) where decompressed length is
+ * unknown. {@link FooterByteCache#EXPIRE_AFTER_ACCESS_SECONDS} bounds residual staleness on the
+ * coarsest filesystems (1-2s mtime resolution) where two writes inside the same second could share
+ * an mtime value.
  */
 public final class ExternalRowCountCache {
 
@@ -37,7 +38,7 @@ public final class ExternalRowCountCache {
 
     private static final int MAX_ENTRIES = 10_000;
 
-    private record Key(String path, long length, long mtimeMillis) {}
+    private record Key(String path, long mtimeMillis) {}
 
     private static final Cache<Key, Long> CACHE = CacheBuilder.<Key, Long>builder()
         .setMaximumWeight(MAX_ENTRIES)
@@ -49,16 +50,20 @@ public final class ExternalRowCountCache {
     public static OptionalLong lookup(StorageObject object) {
         try {
             Instant mtime = object.lastModified();
-            return lookup(object.path().toString(), object.length(), mtime == null ? 0L : mtime.toEpochMilli());
+            if (mtime == null) {
+                return OptionalLong.empty();
+            }
+            return lookup(object.path().toString(), mtime.toEpochMilli());
         } catch (Exception e) {
+            // IOException from lastModified() or any cache-internal failure → miss.
             return OptionalLong.empty();
         }
     }
 
-    /** Overload used by the warm-query path, where length + mtime are already resolved from the cached schema entry. */
-    public static OptionalLong lookup(String path, long length, long mtimeMillis) {
+    /** Overload used by the warm-query path, where mtime is already resolved from the cached schema entry. */
+    public static OptionalLong lookup(String path, long mtimeMillis) {
         try {
-            Long v = CACHE.get(new Key(path, length, mtimeMillis));
+            Long v = CACHE.get(new Key(path, mtimeMillis));
             return v == null ? OptionalLong.empty() : OptionalLong.of(v);
         } catch (Exception e) {
             return OptionalLong.empty();
@@ -67,12 +72,17 @@ public final class ExternalRowCountCache {
 
     /**
      * Write the row count. The gate (whole-file context, natural EOF, zero observed parse errors)
-     * lives at the caller — see the iterator {@code close()} paths.
+     * lives at the caller — see the iterator {@code close()} paths. A {@code null} mtime (e.g.
+     * an HTTP source without a {@code Last-Modified} header) drops the write — no identity we
+     * can trust, so we never serve a count keyed on it.
      */
     public static void put(StorageObject object, long rowCount) {
         try {
             Instant mtime = object.lastModified();
-            CACHE.put(new Key(object.path().toString(), object.length(), mtime == null ? 0L : mtime.toEpochMilli()), rowCount);
+            if (mtime == null) {
+                return;
+            }
+            CACHE.put(new Key(object.path().toString(), mtime.toEpochMilli()), rowCount);
         } catch (Exception e) {
             // Cache write failures degrade silently — next query repopulates.
         }

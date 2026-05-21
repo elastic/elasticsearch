@@ -78,14 +78,15 @@ public class CsvRowCountMetadataLookupTests extends ESTestCase {
 
     /**
      * Stream-only compression wrappers (bzip2, zstd-indexed) throw {@code UnsupportedOperationException}
-     * from {@code length()}. {@code metadata()} must fall through to no-stats without propagating —
-     * any thrown exception breaks {@code ExternalSourceResolver.resolveSingleSource} and fails the
-     * whole external-source resolution for the file.
+     * from {@code length()}. {@code metadata()} must NOT propagate — sizeInBytes simply isn't
+     * published, but the rest of the stats block (mtime in sourceMetadata + the rowCount the
+     * cache may serve) still flows so the cache participates and warm short-circuit applies.
      */
-    public void testLengthUnsupportedDegradesToNoStats() throws Exception {
+    public void testLengthUnsupportedStillProducesStats() throws Exception {
         StorageObject streamOnly = streamOnlyObject("id:integer,n:integer\n1,10\n2,20\n");
         SourceMetadata md = new CsvFormatReader(blockFactory).metadata(streamOnly);
-        assertFalse("stream-only compression must produce no-stats, not throw", md.statistics().isPresent());
+        assertTrue("stream-only compression must still produce stats keyed on mtime", md.statistics().isPresent());
+        assertFalse("sizeInBytes must be absent when length() is unsupported", md.statistics().get().sizeInBytes().isPresent());
     }
 
     /** StorageObject that mirrors a bzip2-wrapped source: stream-only, length() throws {@code UnsupportedOperationException}. */

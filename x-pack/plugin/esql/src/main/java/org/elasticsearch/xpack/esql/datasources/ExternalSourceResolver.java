@@ -445,25 +445,33 @@ public class ExternalSourceResolver {
         // Re-check the row-count cache here and inject STATS_ROW_COUNT if it has since landed.
         Map<String, Object> effectiveMetadata = entry.safeMetadata();
         if (effectiveMetadata.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false
-            && effectiveMetadata.get(SourceStatisticsSerializer.STATS_SIZE_BYTES) instanceof Number sizeBytes
             && effectiveMetadata.get(ExternalRowCountCache.MTIME_MILLIS_KEY) instanceof Number mtimeMillis
             && entry.location() != null) {
-            OptionalLong cachedRowCount = ExternalRowCountCache.lookup(entry.location(), sizeBytes.longValue(), mtimeMillis.longValue());
+            OptionalLong cachedRowCount = ExternalRowCountCache.lookup(entry.location(), mtimeMillis.longValue());
             if (cachedRowCount.isPresent()) {
                 long count = cachedRowCount.getAsLong();
-                long size = sizeBytes.longValue();
-                // Sanity bounds: the cached count must be physically realisable inside the file
-                // size. The minimum row encoding in CSV/TSV/NDJSON is one byte (record terminator
-                // alone), so count must be in [0, size]. Anything outside indicates cache poisoning
-                // or a serialization bug; treat as a miss and warn so the next query repopulates.
-                if (count < 0 || count > size) {
-                    LOGGER.warn(
-                        "ExternalRowCountCache returned implausible count [{}] for file [{}] of size [{}]; ignoring",
-                        count,
-                        entry.location(),
-                        size
-                    );
-                } else {
+                // Sanity bound: when sizeInBytes is also published (CSV/TSV/NDJSON over a backend
+                // that knows the file's byte length), the cached count must be physically
+                // realisable inside the file size — minimum row encoding is one byte (record
+                // terminator alone). Out-of-bounds indicates cache poisoning or a serialization
+                // bug. Stream-only compression sources don't publish sizeInBytes; skip the check
+                // for them (the gate is the cache key's mtime discriminator, not byte budget).
+                boolean plausible = true;
+                if (effectiveMetadata.get(SourceStatisticsSerializer.STATS_SIZE_BYTES) instanceof Number sizeBytes) {
+                    long size = sizeBytes.longValue();
+                    if (count < 0 || count > size) {
+                        LOGGER.warn(
+                            "ExternalRowCountCache returned implausible count [{}] for file [{}] of size [{}]; ignoring",
+                            count,
+                            entry.location(),
+                            size
+                        );
+                        plausible = false;
+                    }
+                } else if (count < 0) {
+                    plausible = false;
+                }
+                if (plausible) {
                     Map<String, Object> augmented = new HashMap<>(effectiveMetadata);
                     augmented.put(SourceStatisticsSerializer.STATS_ROW_COUNT, count);
                     effectiveMetadata = Map.copyOf(augmented);

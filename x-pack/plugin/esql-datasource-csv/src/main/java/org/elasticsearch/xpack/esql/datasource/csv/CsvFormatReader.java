@@ -447,19 +447,28 @@ public class CsvFormatReader implements SegmentableFormatReader {
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<Attribute> schema = readSchema(object);
         String location = object.path().toString();
-        // Publish sizeInBytes + mtime even on a row-count cache miss: the SchemaCacheEntry caches
-        // metadata, and warm queries need both fields to reconstruct the row-count cache key
-        // without a fresh storage call. Stream-only compression wrappers (bzip2, zstd-indexed, …)
-        // throw UnsupportedOperationException from length(); treat the same as IOException and
-        // fall through to no-stats so planning still runs.
-        long sizeInBytes;
+        // mtime is the cache-key discriminator and must be readable for any cache participation;
+        // if it isn't (e.g. an HTTP source missing Last-Modified), publish no stats and let the
+        // file run cold every time. sizeInBytes is best-effort — published as a stat when length()
+        // is computable, omitted otherwise (stream-only compression formats like bzip2 throw
+        // UnsupportedOperationException here; that's expected and doesn't disqualify caching).
         long mtimeMillis;
         try {
-            sizeInBytes = object.length();
-            mtimeMillis = object.lastModified() == null ? 0L : object.lastModified().toEpochMilli();
-        } catch (IOException | UnsupportedOperationException e) {
+            Instant mtime = object.lastModified();
+            if (mtime == null) {
+                return new SimpleSourceMetadata(schema, formatName(), location);
+            }
+            mtimeMillis = mtime.toEpochMilli();
+        } catch (IOException e) {
             return new SimpleSourceMetadata(schema, formatName(), location);
         }
+        OptionalLong cachedSize;
+        try {
+            cachedSize = OptionalLong.of(object.length());
+        } catch (IOException | UnsupportedOperationException e) {
+            cachedSize = OptionalLong.empty();
+        }
+        final OptionalLong sizeInBytes = cachedSize;
         OptionalLong cachedRowCount = ExternalRowCountCache.lookup(object);
         SourceStatistics stats = new SourceStatistics() {
             @Override
@@ -469,7 +478,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
             @Override
             public OptionalLong sizeInBytes() {
-                return OptionalLong.of(sizeInBytes);
+                return sizeInBytes;
             }
         };
         Map<String, Object> sourceMetadata = Map.of(ExternalRowCountCache.MTIME_MILLIS_KEY, mtimeMillis);

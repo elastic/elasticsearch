@@ -73,11 +73,16 @@ public class NdJsonRowCountMetadataLookupTests extends ESTestCase {
         assertEquals(content.getBytes(StandardCharsets.UTF_8).length, md.statistics().get().sizeInBytes().getAsLong());
     }
 
-    /** Stream-only compression (bzip2, zstd-indexed) throws {@code UnsupportedOperationException} from {@code length()}; metadata() must not propagate. */
-    public void testLengthUnsupportedDegradesToNoStats() throws Exception {
+    /**
+     * Stream-only compression (bzip2, zstd-streamed) throws {@code UnsupportedOperationException}
+     * from {@code length()}; {@code metadata()} must not propagate and must still produce stats
+     * (without sizeInBytes) so the cache key — keyed on mtime alone — still participates.
+     */
+    public void testLengthUnsupportedStillProducesStats() throws Exception {
         StorageObject streamOnly = streamOnlyObject("{\"a\":1}\n{\"a\":2}\n");
         SourceMetadata md = new NdJsonFormatReader(null, blockFactory).metadata(streamOnly);
-        assertFalse("stream-only compression must produce no-stats, not throw", md.statistics().isPresent());
+        assertTrue("stream-only compression must still produce stats keyed on mtime", md.statistics().isPresent());
+        assertFalse("sizeInBytes must be absent when length() is unsupported", md.statistics().get().sizeInBytes().isPresent());
     }
 
     private StorageObject streamOnlyObject(String ndjson) {

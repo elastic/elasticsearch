@@ -14,13 +14,12 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import java.io.InputStream;
 import java.time.Instant;
 import java.util.OptionalLong;
-import java.util.UUID;
 
 /**
- * Defense-in-depth: directly exercise {@link ExternalRowCountCache} key semantics. The cache
- * keys files by {@code (path, length)} — same-path-different-length and same-length-different-path
- * must resolve to distinct entries. Without this isolation a file rewritten to a new size, or two
- * differently-named files of identical size, would cross-contaminate row counts.
+ * Directly exercises {@link ExternalRowCountCache} key semantics. The cache keys files by
+ * {@code (path, mtimeMillis)}; same-path-different-mtime resolves to distinct entries (any
+ * write changes mtime), and stream-only sources whose {@code length()} throws are still
+ * cacheable as long as {@code lastModified()} is known.
  */
 public class ExternalRowCountCacheTests extends ESTestCase {
 
@@ -37,66 +36,63 @@ public class ExternalRowCountCacheTests extends ESTestCase {
     }
 
     public void testMissReturnsEmpty() {
-        StorageObject o = obj("memory://a.csv", 100L);
+        StorageObject o = obj("memory://a.csv");
         assertTrue(ExternalRowCountCache.lookup(o).isEmpty());
     }
 
     public void testPutThenLookupReturnsValue() {
-        StorageObject o = obj("memory://a.csv", 100L);
+        StorageObject o = obj("memory://a.csv");
         ExternalRowCountCache.put(o, 42L);
         OptionalLong v = ExternalRowCountCache.lookup(o);
         assertTrue(v.isPresent());
         assertEquals(42L, v.getAsLong());
     }
 
-    public void testSamePathDifferentLengthsAreDistinct() {
-        StorageObject smaller = obj("memory://same.csv", 100L);
-        StorageObject larger = obj("memory://same.csv", 200L);
-        ExternalRowCountCache.put(smaller, 10L);
-        assertEquals(10L, ExternalRowCountCache.lookup(smaller).getAsLong());
-        assertTrue("different length must not see another length's entry", ExternalRowCountCache.lookup(larger).isEmpty());
-    }
-
-    public void testSameLengthDifferentPathsAreDistinct() {
-        StorageObject a = obj("memory://a.csv", 100L);
-        StorageObject b = obj("memory://b.csv", 100L);
+    public void testDifferentPathsAreDistinct() {
+        StorageObject a = obj("memory://a.csv");
+        StorageObject b = obj("memory://b.csv");
         ExternalRowCountCache.put(a, 7L);
         assertEquals(7L, ExternalRowCountCache.lookup(a).getAsLong());
         assertTrue("different path must not see another path's entry", ExternalRowCountCache.lookup(b).isEmpty());
     }
 
-    public void testPathLengthMtimeOverloadMatchesStorageObjectLookup() throws Exception {
-        StorageObject o = obj("memory://c.csv", 150L);
-        ExternalRowCountCache.put(o, 13L);
-        OptionalLong viaObject = ExternalRowCountCache.lookup(o);
-        OptionalLong viaTriple = ExternalRowCountCache.lookup("memory://c.csv", 150L, o.lastModified().toEpochMilli());
-        assertTrue(viaObject.isPresent());
-        assertTrue(viaTriple.isPresent());
-        assertEquals(viaObject.getAsLong(), viaTriple.getAsLong());
-        // A (path, length, mtime) lookup with the wrong length is a miss.
-        assertTrue(ExternalRowCountCache.lookup("memory://c.csv", 151L, o.lastModified().toEpochMilli()).isEmpty());
-        // A (path, length, mtime) lookup with the wrong mtime is a miss — same-length file mutation
-        // produces a fresh mtime, which is exactly what makes that case automatically invalidate.
-        assertTrue(ExternalRowCountCache.lookup("memory://c.csv", 150L, o.lastModified().toEpochMilli() + 1).isEmpty());
-    }
-
-    public void testSameLengthDifferentMtimesAreDistinct() {
-        // The cache's safety story for same-length file mutations: a fresh mtime is a fresh key,
-        // so the previous version's count cannot leak across the mutation boundary.
+    public void testSamePathDifferentMtimesAreDistinct() {
+        // Any file mutation advances mtime, producing a fresh cache key and forcing a cold scan.
+        // This is the cache's correctness story for same-length mutations and for any other write
+        // that doesn't change byte length.
         Instant tNow = Instant.now();
         Instant tLater = tNow.plusMillis(1);
-        StorageObject before = objWithMtime("memory://mutated.csv", 100L, tNow);
-        StorageObject after = objWithMtime("memory://mutated.csv", 100L, tLater);
+        StorageObject before = objWithMtime("memory://mutated.csv", tNow);
+        StorageObject after = objWithMtime("memory://mutated.csv", tLater);
         ExternalRowCountCache.put(before, 50L);
         assertEquals(50L, ExternalRowCountCache.lookup(before).getAsLong());
         assertTrue(
-            "same (path, length) but different mtime must miss — proves no stale serve on same-length mutation",
+            "fresh mtime must produce a fresh key — no stale serve across a mutation",
             ExternalRowCountCache.lookup(after).isEmpty()
         );
     }
 
-    public void testStorageObjectLengthIOExceptionDegradesToMiss() {
-        StorageObject throwsOnLength = new StorageObject() {
+    public void testPathMtimeOverloadMatchesStorageObjectLookup() throws Exception {
+        StorageObject o = obj("memory://c.csv");
+        ExternalRowCountCache.put(o, 13L);
+        long mtimeMillis = o.lastModified().toEpochMilli();
+        OptionalLong viaObject = ExternalRowCountCache.lookup(o);
+        OptionalLong viaPair = ExternalRowCountCache.lookup("memory://c.csv", mtimeMillis);
+        assertTrue(viaObject.isPresent());
+        assertTrue(viaPair.isPresent());
+        assertEquals(viaObject.getAsLong(), viaPair.getAsLong());
+        // Lookup with the wrong mtime is a miss — same-path file mutation produces a fresh mtime,
+        // which is exactly what makes that case automatically invalidate.
+        assertTrue(ExternalRowCountCache.lookup("memory://c.csv", mtimeMillis + 1).isEmpty());
+    }
+
+    public void testStreamOnlySourceIsStillCacheable() {
+        // Stream-only compression (bzip2, zstd-streamed) throws UnsupportedOperationException
+        // from length() because the decompressed length is unknown. mtime is independent and
+        // works for these sources, so the cache remains usable.
+        StorageObject streamOnly = new StorageObject() {
+            private final Instant mtime = Instant.now();
+
             @Override
             public InputStream newStream() {
                 throw new UnsupportedOperationException();
@@ -108,13 +104,13 @@ public class ExternalRowCountCacheTests extends ESTestCase {
             }
 
             @Override
-            public long length() throws java.io.IOException {
-                throw new java.io.IOException("simulated length() failure");
+            public long length() {
+                throw new UnsupportedOperationException("Decompressed length is unknown for stream-only compression");
             }
 
             @Override
             public Instant lastModified() {
-                return Instant.now();
+                return mtime;
             }
 
             @Override
@@ -124,18 +120,93 @@ public class ExternalRowCountCacheTests extends ESTestCase {
 
             @Override
             public StoragePath path() {
-                return StoragePath.of("memory://broken.csv");
+                return StoragePath.of("memory://stream-only.csv.bz2");
             }
         };
-        // Must not propagate the IOException; degrades to a clean miss.
-        assertTrue(ExternalRowCountCache.lookup(throwsOnLength).isEmpty());
+        ExternalRowCountCache.put(streamOnly, 99L);
+        OptionalLong v = ExternalRowCountCache.lookup(streamOnly);
+        assertTrue("stream-only sources are cacheable: lookup must hit on the same mtime", v.isPresent());
+        assertEquals(99L, v.getAsLong());
     }
 
-    private StorageObject obj(String pathStr, long lengthBytes) {
-        return objWithMtime(pathStr, lengthBytes, Instant.now());
+    public void testNullMtimeIsNotCacheable() {
+        // Sources without a discoverable mtime (e.g. HTTP without Last-Modified) have no
+        // trustworthy identity, so the cache deliberately drops both put and lookup.
+        StorageObject noMtime = new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                return 0L;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return null;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://no-mtime");
+            }
+        };
+        ExternalRowCountCache.put(noMtime, 5L);
+        assertTrue("null-mtime sources must not produce a cache entry", ExternalRowCountCache.lookup(noMtime).isEmpty());
     }
 
-    private StorageObject objWithMtime(String pathStr, long lengthBytes, Instant mtime) {
+    public void testStorageObjectLastModifiedIOExceptionDegradesToMiss() {
+        StorageObject throwsOnMtime = new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                return 0L;
+            }
+
+            @Override
+            public Instant lastModified() throws java.io.IOException {
+                throw new java.io.IOException("simulated lastModified() failure");
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("memory://broken-mtime");
+            }
+        };
+        assertTrue(ExternalRowCountCache.lookup(throwsOnMtime).isEmpty());
+    }
+
+    private StorageObject obj(String pathStr) {
+        return objWithMtime(pathStr, Instant.now());
+    }
+
+    private StorageObject objWithMtime(String pathStr, Instant mtime) {
         return new StorageObject() {
             @Override
             public InputStream newStream() {
@@ -149,7 +220,7 @@ public class ExternalRowCountCacheTests extends ESTestCase {
 
             @Override
             public long length() {
-                return lengthBytes;
+                return 0L;
             }
 
             @Override
@@ -167,10 +238,5 @@ public class ExternalRowCountCacheTests extends ESTestCase {
                 return StoragePath.of(pathStr);
             }
         };
-    }
-
-    @SuppressWarnings("unused")
-    private static String uniquePath() {
-        return "memory://" + UUID.randomUUID() + ".csv";
     }
 }

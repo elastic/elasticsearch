@@ -95,13 +95,6 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             expressions.add(new ResolvedIndexExpression(original, LocalExpressions.NONE, remoteExpressions));
         }
 
-        /**
-         * Reset the local side of every previously added {@link ResolvedIndexExpression} to {@link LocalExpressions#NONE},
-         * preserving the per-expression remote contributions. Used when a project-wildcard exclusion (e.g. {@code -_origin:*})
-         * fully removes the origin project from the target set mid-stream, mirroring how
-         * {@link org.elasticsearch.transport.RemoteClusterAware#groupClusterIndices} drops a remote cluster's accumulated
-         * indices on {@code -cluster:*}.
-         */
         public void clearAllLocalExpressions() {
             for (int i = 0; i < expressions.size(); i++) {
                 ResolvedIndexExpression current = expressions.get(i);

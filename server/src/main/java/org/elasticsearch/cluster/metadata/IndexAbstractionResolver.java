@@ -94,7 +94,7 @@ public class IndexAbstractionResolver {
                 .rewriteIndexExpression(originalIndexExpression, originProjectAlias, linkedProjectAliases, projectRouting);
 
             if (originProjectAlias != null && indexRewriteResult.excludedProjects().contains(originProjectAlias)) {
-                resolvedExpressionsBuilder.clearAllLocalExpressions();
+                resolvedExpressionsBuilder.setAllLocalExpressionsToNone();
                 originProjectExcluded = true;
             }
 

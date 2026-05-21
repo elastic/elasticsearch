@@ -270,9 +270,9 @@ required_capability: fn_field_extract
 
 FROM flattened_otel_logs
 | STATS count = COUNT(*) BY resource.attributes
-| EVAL hn = field_extract(resource.attributes, "host.name")
-| SORT count DESC, hn
-| DROP hn
+| EVAL host_name = FIELD_EXTRACT(resource.attributes, "host.name")
+| SORT count DESC, host_name
+| KEEP count, resource.attributes
 ;
 
 count:long | resource.attributes:flattened

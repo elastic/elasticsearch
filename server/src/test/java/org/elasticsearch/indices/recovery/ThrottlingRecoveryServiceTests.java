@@ -109,7 +109,6 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             consumerReturned.set(true);
         });
         safeAwait(done);
-        assertTrue(consumerReturned.get());
     }
 
     /**

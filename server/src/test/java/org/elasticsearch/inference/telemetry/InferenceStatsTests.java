@@ -372,6 +372,8 @@ public class InferenceStatsTests extends ESTestCase {
                 TEST_STACK_VERSION,
                 ES_PRODUCTION_RELEASE,
                 TEST_IS_PRODUCTION_RELEASE,
+                ES_DEPLOYMENT_TYPE,
+                TEST_DEPLOYMENT_TYPE,
                 ES_PLUGIN_NAME,
                 ES_PLUGIN_NAME_VALUE
             )
@@ -391,6 +393,8 @@ public class InferenceStatsTests extends ESTestCase {
                     TEST_STACK_VERSION,
                     ES_PRODUCTION_RELEASE,
                     TEST_IS_PRODUCTION_RELEASE,
+                    ES_DEPLOYMENT_TYPE,
+                    TEST_DEPLOYMENT_TYPE,
                     STATUS_CODE_ATTRIBUTE,
                     200,
                     ES_PLUGIN_NAME,

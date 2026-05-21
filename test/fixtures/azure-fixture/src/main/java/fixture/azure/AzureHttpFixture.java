@@ -216,7 +216,7 @@ public class AzureHttpFixture extends ExternalResource {
                     30,
                     TimeUnit.SECONDS,
                     true,
-                    TestEsExecutors.testOnlyDaemonThreadFactory("s3-http-fixture"),
+                    TestEsExecutors.testOnlyDaemonThreadFactory("azure-http-fixture"),
                     new ThreadContext(Settings.EMPTY)
                 );
             }

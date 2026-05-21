@@ -192,7 +192,6 @@ public abstract class StringFieldType extends TermBasedFieldType {
             // expansion + second determinize + ByteRunAutomaton). If construction throws after
             // this point, releaseQueryConstructionMemory at request end refunds the reservation.
             reservation = AutomatonQueries.compiledAutomatonReservationBytes(dfa.ramBytesUsed());
-            // Reservation and swap below intentionally use the same label so es.breaker.memory.held{category} is balanced per label.
             context.addCircuitBreakerMemory(reservation, "wildcard:" + name());
             if (caseInsensitive) {
                 query = method == null
@@ -240,7 +239,6 @@ public abstract class StringFieldType extends TermBasedFieldType {
         if (circuitBreaker != null) {
             Automaton dfa = AutomatonQueries.toRegexpAutomaton(term, syntaxFlags, matchFlags, maxDeterminizedStates, circuitBreaker);
             reservation = AutomatonQueries.compiledAutomatonReservationBytes(dfa.ramBytesUsed());
-            // Reservation and swap below intentionally use the same label so es.breaker.memory.held{category} is balanced per label.
             context.addCircuitBreakerMemory(reservation, "regexp:" + name());
             query = method == null
                 ? new AutomatonQueryWithDescription(term, dfa, "/" + term.text() + "/")

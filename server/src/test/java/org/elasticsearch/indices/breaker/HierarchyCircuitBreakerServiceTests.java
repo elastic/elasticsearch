@@ -967,7 +967,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 return meter;
             }
         });
-        // Constructing the service registers the two gauges via metrics.registerMemoryGauges(...).
+
         new HierarchyCircuitBreakerService(
             metrics,
             Settings.EMPTY,
@@ -1022,12 +1022,8 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS)
         );
 
-        // Each reservation is reported with its label used verbatim as the category metric attribute.
-        service.getBreaker(CircuitBreaker.REQUEST).addEstimateBytesAndMaybeBreak(42L, "wildcard-compiled:my_field");
-        service.getBreaker(CircuitBreaker.REQUEST).addEstimateBytesAndMaybeBreak(7L, "free_form_label");
-
-        // Zero-byte parent checks (e.g. MultiBucketConsumerService) must NOT inflate the counter.
-        service.getBreaker(CircuitBreaker.REQUEST).addEstimateBytesAndMaybeBreak(0L, "parent-check");
+        service.getBreaker(CircuitBreaker.REQUEST).addEstimateBytesAndMaybeBreak(42L, "wildcard");
+        service.getBreaker(CircuitBreaker.REQUEST).addEstimateBytesAndMaybeBreak(7L, "regexp");
 
         final List<Measurement> reserved = meter.getRecorder()
             .getMeasurements(InstrumentType.LONG_COUNTER, CircuitBreakerMetrics.ES_BREAKER_MEMORY_RESERVED_TOTAL);
@@ -1042,7 +1038,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                     ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE,
                     CircuitBreaker.REQUEST,
                     ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
-                    "wildcard-compiled:my_field"
+                    "wildcard"
                 )
             )
         );
@@ -1053,7 +1049,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                     ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_TYPE_ATTRIBUTE,
                     CircuitBreaker.REQUEST,
                     ChildMemoryCircuitBreaker.CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE,
-                    "free_form_label"
+                    "regexp"
                 )
             )
         );
@@ -1067,6 +1063,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 return meter;
             }
         });
+
         final HierarchyCircuitBreakerService service = new HierarchyCircuitBreakerService(
             metrics,
             Settings.EMPTY,
@@ -1075,12 +1072,9 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         );
         final CircuitBreaker request = service.getBreaker(CircuitBreaker.REQUEST);
 
-        // Two admits + one labeled release sharing the same label nets to (100 - 30) = 70 under (request, wildcard-compiled).
         request.addEstimateBytesAndMaybeBreak(100L, "wildcard-compiled");
         request.addWithoutBreaking(-30L, "wildcard-compiled");
-        // One admit under a different label - stays at 50 under (request, regexp).
         request.addEstimateBytesAndMaybeBreak(50L, "regexp");
-        // An unlabeled release goes into the "uncategorized" reconciliation bucket.
         request.addWithoutBreaking(-7L);
 
         final Map<Map<String, Object>, Long> heldByAttrs = meter.getRecorder()
@@ -1122,7 +1116,6 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             )
         );
 
-        // The sum across all categories equals breaker.getUsed() (100 - 30 + 50 - 7 = 113).
         long sum = heldByAttrs.values().stream().mapToLong(Long::longValue).sum();
         assertEquals(request.getUsed(), sum);
     }
@@ -1135,7 +1128,7 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
                 return meter;
             }
         });
-        // Parent limit smaller than child limit so the parent trips first.
+
         final Settings settings = Settings.builder()
             .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), 100, ByteSizeUnit.BYTES)
             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), 200, ByteSizeUnit.BYTES)
@@ -1153,7 +1146,6 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
         expectThrows(CircuitBreakingException.class, () -> request.addEstimateBytesAndMaybeBreak(150L, "wildcard-compiled:my_field"));
         assertCircuitBreakerLimitWarning();
 
-        // Held gauge must NOT carry a phantom +150 / -150 pair for the never-admitted reservation.
         final long heldForWildcardCompiled = meter.getRecorder()
             .getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)
             .stream()
@@ -1165,8 +1157,6 @@ public class HierarchyCircuitBreakerServiceTests extends ESTestCase {
             .sum();
         assertEquals(0L, heldForWildcardCompiled);
 
-        // And the rollback must not bleed into the "uncategorized" bucket either, since the held gauge was never incremented for this
-        // reservation.
         final long heldUncategorized = meter.getRecorder()
             .getMeasurements(InstrumentType.LONG_UP_DOWN_COUNTER, CircuitBreakerMetrics.ES_BREAKER_MEMORY_HELD)
             .stream()

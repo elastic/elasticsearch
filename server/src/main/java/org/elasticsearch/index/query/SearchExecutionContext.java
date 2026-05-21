@@ -140,8 +140,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
     @Nullable
     private final CircuitBreaker circuitBreaker;
     private final AtomicLong queryConstructionMemoryUsed = new AtomicLong(0);
-    // Per-label running totals, kept in lock-step with queryConstructionMemoryUsed so that releaseQueryConstructionMemory() can decrement
-    // the circuit breaker with the original labels and keep the es.breaker.memory.held per-category gauge balanced.
     private final ConcurrentMap<String, AtomicLong> queryConstructionMemoryByLabel = new ConcurrentHashMap<>();
 
     public SearchExecutionContext(
@@ -822,7 +820,6 @@ public class SearchExecutionContext extends QueryRewriteContext {
         if (delta > 0) {
             circuitBreaker.addEstimateBytesAndMaybeBreak(delta, label);
         } else if (delta < 0) {
-            // Use the labeled release variant so es.breaker.memory.held{category=label} stays balanced.
             circuitBreaker.addWithoutBreaking(delta, label);
         }
         if (delta != 0) {
@@ -854,15 +851,12 @@ public class SearchExecutionContext extends QueryRewriteContext {
      * across the request lifetime.
      */
     public void releaseQueryConstructionMemory() {
-        if (circuitBreaker == null) {
-            queryConstructionMemoryUsed.set(0);
-            queryConstructionMemoryByLabel.clear();
-            return;
-        }
-        for (var entry : queryConstructionMemoryByLabel.entrySet()) {
-            long held = entry.getValue().getAndSet(0);
-            if (held != 0) {
-                circuitBreaker.addWithoutBreaking(-held, entry.getKey());
+        if (circuitBreaker != null) {
+            for (var entry : queryConstructionMemoryByLabel.entrySet()) {
+                long held = entry.getValue().getAndSet(0);
+                if (held != 0) {
+                    circuitBreaker.addWithoutBreaking(-held, entry.getKey());
+                }
             }
         }
         queryConstructionMemoryByLabel.clear();

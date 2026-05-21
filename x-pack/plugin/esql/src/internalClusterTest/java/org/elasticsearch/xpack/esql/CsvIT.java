@@ -233,10 +233,12 @@ public class CsvIT extends ESTestCase {
             "CSV tests cannot handle EXTERNAL sources (requires QA integration tests)",
             testCase.query.trim().toUpperCase(java.util.Locale.ROOT).startsWith("EXTERNAL")
         );
-        assumeTrueLogging("CSV tests don't support missing data node capabilities", testCase.missingCapabilitiesDataNode.isEmpty());
+        assumeTrueLogging(
+            "CSV tests don't support remote cluster capability requirements",
+            testCase.missingCapabilitiesRemoteCluster.isEmpty()
+        );
         CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilities);
-        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesCoordinator);
-        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesDataNode);
+        CsvTestUtils.checkTestCapabilities(ALL_CAPS, ENABLED_CAPS, testCase.requiredCapabilitiesLocalCluster);
 
         currentGroupName = groupName;
         // verify no prior failures

@@ -171,11 +171,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         // Check all capabilities on the local cluster first.
         super.shouldSkipTest(testName);
 
-        checkCapabilities(adminClient(), testFeatureService, testName, testCase.requiredCapabilitiesCoordinator);
-        checkCapabilities(remoteClusterClient(), remoteFeaturesService(), testName, testCase.requiredCapabilitiesDataNode);
         assumeTrue(
-            "Remote cluster must not support " + testCase.missingCapabilitiesDataNode + " for test " + testName,
-            doesntHaveCapabilities(remoteClusterClient(), testCase.missingCapabilitiesDataNode)
+            "Remote cluster must not support " + testCase.missingCapabilitiesRemoteCluster + " for test " + testName,
+            doesntHaveCapabilities(remoteClusterClient(), testCase.missingCapabilitiesRemoteCluster)
         );
 
         // Filter out capabilities that are required only on the local cluster and then check the remaining on the remote cluster.

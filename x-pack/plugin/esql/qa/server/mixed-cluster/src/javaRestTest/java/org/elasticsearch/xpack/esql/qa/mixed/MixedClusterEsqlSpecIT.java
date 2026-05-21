@@ -76,10 +76,8 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
         // The request is sent to a random node, so at this stage it's
         // undetermined which node is the coordinator or data node.
         CsvTestUtils.assumeTrueLogging(
-            "Mixed-cluster tests don't support node-specific capability requirements for " + testName,
-            testCase.requiredCapabilitiesCoordinator.isEmpty()
-                && testCase.requiredCapabilitiesDataNode.isEmpty()
-                && testCase.missingCapabilitiesDataNode.isEmpty()
+            "Mixed-cluster tests don't support remote cluster capability requirements",
+            testCase.missingCapabilitiesRemoteCluster.isEmpty()
         );
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
     }

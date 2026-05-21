@@ -57,10 +57,8 @@ public class EsqlSpecIT extends EsqlSpecTestCase {
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
         CsvTestUtils.assumeTrueLogging(
-            "EsqlSpecIT tests don't support node-specific capability requirements for " + testName,
-            testCase.requiredCapabilitiesCoordinator.isEmpty()
-                && testCase.requiredCapabilitiesDataNode.isEmpty()
-                && testCase.missingCapabilitiesDataNode.isEmpty()
+            "Multi-node tests don't support remote cluster capability requirements",
+            testCase.missingCapabilitiesRemoteCluster.isEmpty()
         );
     }
 }

@@ -242,16 +242,7 @@ abstract class DataNodeRequestSender {
                 } finally {
                     sendingLock.unlock();
                 }
-                /*
-                 * Check changed *after* releasing the lock to close the following race:
-                 * 1. Thread A holds the lock, CAS(true→false) returns false (no work), about to break.
-                 * 2. Thread B sets changed=true, calls tryLock() — fails because A is still in finally.
-                 * 3. A's finally runs the unlock; A exits the while via break.
-                 * 4. B's tryLock already failed, so B also exits — leaving work unprocessed.
-                 * Moving the break outside the try-finally means A sees B's changed=true after the
-                 * unlock and loops back to process B's work instead of exiting.
-                 * NOCOMMIT AI generated explanation needs sharpening/moving
-                 */
+                // recheck after releasing the lock as another response might have set changed, but failed to acquire the lock
                 if (changed.get() == false) {
                     break;
                 }

@@ -338,6 +338,10 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.util.DelayErrorTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.scalar.util.DelayTests is missing")
                 .item("org.elasticsearch.xpack.esql.expression.function.vector.MagnitudeErrorTests is missing")
+                // TODO: Atan2 tests live in the x-pack:plugin:esql:function:math module, same as Abs above
+                .item("org.elasticsearch.xpack.esql.function.math.Atan2ErrorTests is missing")
+                .item("org.elasticsearch.xpack.esql.function.math.Atan2SerializationTests is missing")
+                .item("org.elasticsearch.xpack.esql.function.math.Atan2Tests is missing")
         );
     }
 

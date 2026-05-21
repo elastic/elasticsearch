@@ -32,6 +32,16 @@ import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceFi
 public class ViewAndDatasetDlsFlsRequestInterceptor implements RequestInterceptor {
     private static final Logger logger = LogManager.getLogger(ViewAndDatasetDlsFlsRequestInterceptor.class);
 
+    static final String VIEWS_WITH_DLS_OR_FLS_METADATA_KEY = "es.views_with_dls_or_fls";
+    static final String DATASETS_WITH_DLS_OR_FLS_METADATA_KEY = "es.datasets_with_dls_or_fls";
+
+    private static final String VIEWS_DLS_FLS_MESSAGE = "Views with document or field level security restrictions are not supported."
+        + " Remove DLS/FLS restrictions from the affected views in the role definition, or exclude them from the request.";
+    private static final String DATASETS_DLS_FLS_MESSAGE = "Datasets with document or field level security restrictions are not supported."
+        + " Remove DLS/FLS restrictions from the affected datasets in the role definition, or exclude them from the request.";
+    private static final String VIEWS_AND_DATASETS_DLS_FLS_MESSAGE = "Views and datasets with document or field level security"
+        + " restrictions are not supported. See views_with_dls_or_fls and datasets_with_dls_or_fls for the affected names.";
+
     private final ThreadContext threadContext;
     private final Supplier<ProjectMetadata> projectMetadataSupplier;
 
@@ -56,19 +66,8 @@ public class ViewAndDatasetDlsFlsRequestInterceptor implements RequestIntercepto
             if (requestedViews.isEmpty() == false || requestedDatasets.isEmpty() == false) {
                 final IndicesAccessControl indicesAccessControl = INDICES_PERMISSIONS_VALUE.get(threadContext);
                 if (indicesAccessControl != null) {
-                    List<String> viewsWithDlsOrFls = requestedViews.stream().filter(view -> {
-                        var indexAccessControl = indicesAccessControl.getIndexPermissions(view);
-                        return indexAccessControl != null
-                            && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
-                                || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions());
-                    }).toList();
-
-                    List<String> datasetsWithDlsOrFls = requestedDatasets.stream().filter(dataset -> {
-                        var indexAccessControl = indicesAccessControl.getIndexPermissions(dataset);
-                        return indexAccessControl != null
-                            && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
-                                || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions());
-                    }).toList();
+                    List<String> viewsWithDlsOrFls = indicesWithDlsOrFls(requestedViews, indicesAccessControl);
+                    List<String> datasetsWithDlsOrFls = indicesWithDlsOrFls(requestedDatasets, indicesAccessControl);
 
                     if (viewsWithDlsOrFls.isEmpty() == false || datasetsWithDlsOrFls.isEmpty() == false) {
                         logger.debug(
@@ -96,18 +95,31 @@ public class ViewAndDatasetDlsFlsRequestInterceptor implements RequestIntercepto
             && DlsFlsInterceptorUtils.isCurrentRoleNullOrHasDlsFlsPermissions(threadContext);
     }
 
+    private static List<String> indicesWithDlsOrFls(List<String> names, IndicesAccessControl indicesAccessControl) {
+        return names.stream().filter(name -> hasDlsOrFls(indicesAccessControl.getIndexPermissions(name))).toList();
+    }
+
+    private static boolean hasDlsOrFls(IndicesAccessControl.IndexAccessControl indexAccessControl) {
+        return indexAccessControl != null
+            && (indexAccessControl.getFieldPermissions().hasFieldLevelSecurity()
+                || indexAccessControl.getDocumentPermissions().hasDocumentLevelPermissions());
+    }
+
     private static ElasticsearchSecurityException getDlsFlsException(List<String> viewsWithDlsOrFls, List<String> datasetsWithDlsOrFls) {
-        ElasticsearchSecurityException dlsFlsException = new ElasticsearchSecurityException(
-            "Views and datasets with document or field level security restrictions are not supported."
-                + " Remove DLS/FLS restrictions from the affected views or datasets in the role definition,"
-                + " or exclude them from the request.",
-            RestStatus.FORBIDDEN
-        );
+        final String message;
+        if (viewsWithDlsOrFls.isEmpty() == false && datasetsWithDlsOrFls.isEmpty() == false) {
+            message = VIEWS_AND_DATASETS_DLS_FLS_MESSAGE;
+        } else if (viewsWithDlsOrFls.isEmpty() == false) {
+            message = VIEWS_DLS_FLS_MESSAGE;
+        } else {
+            message = DATASETS_DLS_FLS_MESSAGE;
+        }
+        ElasticsearchSecurityException dlsFlsException = new ElasticsearchSecurityException(message, RestStatus.FORBIDDEN);
         if (viewsWithDlsOrFls.isEmpty() == false) {
-            dlsFlsException.addMetadata("es.views_with_dls_or_fls", viewsWithDlsOrFls);
+            dlsFlsException.addMetadata(VIEWS_WITH_DLS_OR_FLS_METADATA_KEY, viewsWithDlsOrFls);
         }
         if (datasetsWithDlsOrFls.isEmpty() == false) {
-            dlsFlsException.addMetadata("es.datasets_with_dls_or_fls", datasetsWithDlsOrFls);
+            dlsFlsException.addMetadata(DATASETS_WITH_DLS_OR_FLS_METADATA_KEY, datasetsWithDlsOrFls);
         }
         return dlsFlsException;
     }

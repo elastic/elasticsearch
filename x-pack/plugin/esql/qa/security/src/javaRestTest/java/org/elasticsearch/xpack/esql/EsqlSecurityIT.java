@@ -1269,8 +1269,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
             assertThat(
                 errorMap.get("reason"),
                 equalTo(
-                    "Views and datasets with document or field level security restrictions are not supported."
-                        + " Remove DLS/FLS restrictions from the affected views or datasets in the role definition,"
+                    "Views with document or field level security restrictions are not supported."
+                        + " Remove DLS/FLS restrictions from the affected views in the role definition,"
                         + " or exclude them from the request."
                 )
             );

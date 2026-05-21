@@ -241,6 +241,55 @@ public class ViewAndDatasetDlsFlsRequestInterceptorTests extends ESTestCase {
         validateNoException(interceptor, request);
     }
 
+    public void testRejectsViewAndDatasetWithDls() {
+        String viewName = "test-view";
+        String datasetName = "test-dataset";
+        ProjectMetadata projectMetadata = mock(ProjectMetadata.class);
+        when(projectMetadata.hasView(viewName)).thenReturn(true);
+        when(projectMetadata.hasDataset(datasetName)).thenReturn(true);
+        ViewAndDatasetDlsFlsRequestInterceptor interceptor = new ViewAndDatasetDlsFlsRequestInterceptor(
+            threadContext,
+            () -> projectMetadata
+        );
+
+        DocumentPermissions docPerms = DocumentPermissions.filteredBy(Set.of(new BytesArray("{\"terms\" : { \"tk1\" : [\"tv1\"] } }")));
+        setAccessControl(
+            Map.of(
+                viewName,
+                new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, docPerms),
+                datasetName,
+                new IndicesAccessControl.IndexAccessControl(FieldPermissions.DEFAULT, docPerms)
+            )
+        );
+
+        TestIndicesRequest request = mock(TestIndicesRequest.class);
+        when(request.indices()).thenReturn(new String[] { viewName, datasetName });
+        when(request.indicesOptions()).thenReturn(
+            IndicesOptions.builder()
+                .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveViews(true).resolveDatasets(true).build())
+                .build()
+        );
+
+        RequestInfo requestInfo = new RequestInfo(authentication, request, "indices:data/read/esql", null);
+        PlainActionFuture<Void> future = new PlainActionFuture<>();
+        interceptor.intercept(requestInfo, null, null).addListener(future);
+        ElasticsearchSecurityException ex = expectThrows(ElasticsearchSecurityException.class, future::actionGet);
+
+        assertThat(ex.status(), equalTo(RestStatus.FORBIDDEN));
+        assertThat(
+            ex.getMessage(),
+            equalTo(
+                "Views and datasets with document or field level security restrictions are not supported."
+                    + " See views_with_dls_or_fls and datasets_with_dls_or_fls for the affected names."
+            )
+        );
+        assertThat(ex.getMetadata(ViewAndDatasetDlsFlsRequestInterceptor.VIEWS_WITH_DLS_OR_FLS_METADATA_KEY), containsInAnyOrder(viewName));
+        assertThat(
+            ex.getMetadata(ViewAndDatasetDlsFlsRequestInterceptor.DATASETS_WITH_DLS_OR_FLS_METADATA_KEY),
+            containsInAnyOrder(datasetName)
+        );
+    }
+
     public void testMixedViewsAndIndicesOnlyReportsViews() {
         String viewName = "test-view";
         String indexName = "regular-index";
@@ -305,13 +354,13 @@ public class ViewAndDatasetDlsFlsRequestInterceptorTests extends ESTestCase {
         assertThat(
             ex.getMessage(),
             equalTo(
-                "Views and datasets with document or field level security restrictions are not supported."
-                    + " Remove DLS/FLS restrictions from the affected views or datasets in the role definition,"
-                    + " or exclude them from the request."
+                "Views with document or field level security restrictions are not supported."
+                    + " Remove DLS/FLS restrictions from the affected views in the role definition, or exclude them from the request."
             )
         );
-        List<String> metadata = ex.getMetadata("es.views_with_dls_or_fls");
+        List<String> metadata = ex.getMetadata(ViewAndDatasetDlsFlsRequestInterceptor.VIEWS_WITH_DLS_OR_FLS_METADATA_KEY);
         assertThat(metadata, containsInAnyOrder(expectedViewNames));
+        assertNull(ex.getMetadata(ViewAndDatasetDlsFlsRequestInterceptor.DATASETS_WITH_DLS_OR_FLS_METADATA_KEY));
     }
 
     private void validateDatasetException(ElasticsearchSecurityException ex, String... expectedDatasetNames) {
@@ -319,13 +368,14 @@ public class ViewAndDatasetDlsFlsRequestInterceptorTests extends ESTestCase {
         assertThat(
             ex.getMessage(),
             equalTo(
-                "Views and datasets with document or field level security restrictions are not supported."
-                    + " Remove DLS/FLS restrictions from the affected views or datasets in the role definition,"
+                "Datasets with document or field level security restrictions are not supported."
+                    + " Remove DLS/FLS restrictions from the affected datasets in the role definition,"
                     + " or exclude them from the request."
             )
         );
-        List<String> metadata = ex.getMetadata("es.datasets_with_dls_or_fls");
+        List<String> metadata = ex.getMetadata(ViewAndDatasetDlsFlsRequestInterceptor.DATASETS_WITH_DLS_OR_FLS_METADATA_KEY);
         assertThat(metadata, containsInAnyOrder(expectedDatasetNames));
+        assertNull(ex.getMetadata(ViewAndDatasetDlsFlsRequestInterceptor.VIEWS_WITH_DLS_OR_FLS_METADATA_KEY));
     }
 
     private void setAccessControl(Map<String, IndicesAccessControl.IndexAccessControl> indexPermissions) {

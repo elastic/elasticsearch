@@ -75,6 +75,7 @@ public class ParquetFilterPushdownSupport implements FilterPushdownSupport {
 
     static final Predicate<DataType> TYPE_SUPPORTED = dt -> dt == DataType.INTEGER
         || dt == DataType.LONG
+        || dt == DataType.UNSIGNED_LONG
         || dt == DataType.DOUBLE
         || dt == DataType.KEYWORD
         || dt == DataType.BOOLEAN

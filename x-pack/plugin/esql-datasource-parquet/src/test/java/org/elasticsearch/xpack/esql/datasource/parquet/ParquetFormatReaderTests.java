@@ -2537,7 +2537,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
             .as(LogicalTypeAnnotation.intType(8, false)) // unsigned
             .named("object_id")
             .named("test_schema");
-        int unsignedBits = 200; // negative in signed byte
+        int unsignedBits = 200;
         byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("object_id", unsignedBits)));
         StorageObject storageObject = createStorageObject(data);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
@@ -2562,7 +2562,7 @@ public class ParquetFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(data);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         var meta = reader.metadata(storageObject);
-        assertEquals("UINT_8 should map to INT to hold unsigned 8-bit range", DataType.UNSIGNED_LONG, meta.schema().get(0).dataType());
+        assertEquals("UINT_64 should map to UNSIGNED_LONG", DataType.UNSIGNED_LONG, meta.schema().get(0).dataType());
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();

@@ -1204,7 +1204,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             }
             case INT64 -> {
                 if (logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical) {
-                    if (intLogical.isSigned() == false) {
+                    if (intLogical.isSigned() == false && intLogical.getBitWidth() == 64) {
                         yield DataType.UNSIGNED_LONG;
                     }
                 } else if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {

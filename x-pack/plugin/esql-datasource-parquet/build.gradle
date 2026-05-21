@@ -35,6 +35,10 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
+  // Shared Panama FFI zstd helper (PanamaZstd) and bundled compression libraries. Provided
+  // at runtime via the esql-datasource-compression-libs parent plugin classloader chain
+  // declared by extendedPlugins.
+  compileOnly project(':x-pack:plugin:esql-datasource-compression-libs')
 
   // Parquet format support - using parquet-hadoop-bundle to avoid jar hell from duplicate shaded classes
   implementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")

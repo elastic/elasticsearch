@@ -39,6 +39,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasItem;
 
 /**
  * End-to-end correctness check for the {@code EXTERNAL ... | STATS} pipeline against a
@@ -117,6 +119,7 @@ public class ExternalParquetMultiRowGroupCorrectnessIT extends AbstractEsqlInteg
         try {
             String query = "EXTERNAL \"" + StoragePath.fileUri(parquetFile) + "\" | STATS c = COUNT(*) BY bucket | KEEP c, bucket";
             var request = syncEsqlQueryRequest(query);
+            request.profile(true);
 
             try (var response = run(request)) {
                 List<? extends ColumnInfo> columns = response.columns();
@@ -135,6 +138,17 @@ public class ExternalParquetMultiRowGroupCorrectnessIT extends AbstractEsqlInteg
                     total += count;
                 }
                 assertThat("sum of grouped counts must equal the row count written", total, equalTo((long) rowCount));
+
+                var profile = response.profile();
+                assertNotNull("profile must be present (request had profile=true)", profile);
+                List<String> driverDescriptions = profile.drivers().stream().map(d -> d.description()).toList();
+                assertThat(
+                    "distributed external path must surface both the data-node and coordinator drivers, got " + driverDescriptions,
+                    driverDescriptions.size(),
+                    greaterThanOrEqualTo(2)
+                );
+                assertThat("coordinator 'final' driver missing from profile: " + driverDescriptions, driverDescriptions, hasItem("final"));
+                assertThat("data-node 'data' driver missing from profile: " + driverDescriptions, driverDescriptions, hasItem("data"));
             }
         } finally {
             Files.deleteIfExists(parquetFile);

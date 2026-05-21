@@ -380,57 +380,51 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         for (int t = 0; t < producerThreads; t++) {
             final int index = t;
             Thread thread = new Thread(() -> {
-                try {
-                    while (totalTasksEnqueued.get() < maxNumberOfTasks) {
-                        boolean highContention = (totalTasksEnqueued.get() / 100) % 2 == 0;
-                        if (index == 0 && rarely()) {
-                            int nextLimit = between(1, 20);
-                            clusterSettings.applySettings(
-                                Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), nextLimit).build()
-                            );
-                            peakLimitCeiling.accumulateAndGet(nextLimit, Integer::max);
-                        }
-                        if (highContention) {
-                            int burst = between(highContentionBurstSizeMin, highContentionBurstSizeMax);
-                            for (int b = 0; b < burst && totalTasksEnqueued.get() < maxNumberOfTasks; b++) {
-                                taskLatch.incRef();
-                                totalTasksEnqueued.incrementAndGet();
-                                service.enqueue(
-                                    noopUserListener,
-                                    schedulingListener -> runStressInboundRecoveryTask(
-                                        schedulingListener,
-                                        running,
-                                        peakRunning,
-                                        totalTasksFinished,
-                                        taskLatch,
-                                        random().nextBoolean() ? threadPool.generic() : DIRECT_EXECUTOR_SERVICE
-                                    )
-                                );
-                            }
-                        } else {
-                            int sleepMs = between(1, 5);
-                            Thread.sleep(sleepMs);
-                            if (totalTasksEnqueued.get() < maxNumberOfTasks) {
-                                taskLatch.incRef();
-                                totalTasksEnqueued.incrementAndGet();
-                                service.enqueue(
-                                    noopUserListener,
-                                    schedulingListener -> runStressInboundRecoveryTask(
-                                        schedulingListener,
-                                        running,
-                                        peakRunning,
-                                        totalTasksFinished,
-                                        taskLatch,
-                                        random().nextBoolean() ? threadPool.generic() : DIRECT_EXECUTOR_SERVICE
-                                    )
-                                );
-                            }
-                        }
-                        Thread.yield();
+                while (totalTasksEnqueued.get() < maxNumberOfTasks) {
+                    boolean highContention = (totalTasksEnqueued.get() / 100) % 2 == 0;
+                    if (index == 0 && rarely()) {
+                        int nextLimit = between(1, 20);
+                        clusterSettings.applySettings(
+                            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), nextLimit).build()
+                        );
+                        peakLimitCeiling.accumulateAndGet(nextLimit, Integer::max);
                     }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    throw new RuntimeException(e);
+                    if (highContention) {
+                        int burst = between(highContentionBurstSizeMin, highContentionBurstSizeMax);
+                        for (int b = 0; b < burst && totalTasksEnqueued.get() < maxNumberOfTasks; b++) {
+                            taskLatch.incRef();
+                            totalTasksEnqueued.incrementAndGet();
+                            service.enqueue(
+                                noopUserListener,
+                                schedulingListener -> runStressInboundRecoveryTask(
+                                    schedulingListener,
+                                    running,
+                                    peakRunning,
+                                    totalTasksFinished,
+                                    taskLatch,
+                                    random().nextBoolean() ? threadPool.generic() : DIRECT_EXECUTOR_SERVICE
+                                )
+                            );
+                        }
+                    } else {
+                        Thread.yield();
+                        if (totalTasksEnqueued.get() < maxNumberOfTasks) {
+                            taskLatch.incRef();
+                            totalTasksEnqueued.incrementAndGet();
+                            service.enqueue(
+                                noopUserListener,
+                                schedulingListener -> runStressInboundRecoveryTask(
+                                    schedulingListener,
+                                    running,
+                                    peakRunning,
+                                    totalTasksFinished,
+                                    taskLatch,
+                                    random().nextBoolean() ? threadPool.generic() : DIRECT_EXECUTOR_SERVICE
+                                )
+                            );
+                        }
+                    }
+                    Thread.yield();
                 }
             }, "recovery-inbound-throttle-stress-" + t);
             threads.add(thread);

@@ -319,30 +319,24 @@ public class TimeSeriesES95FullClusterRestartIT extends ParameterizedFullCluster
 
     private void createTSDBIndex(final String indexName, boolean enableES95) throws IOException {
         final String extraSetting = enableES95 ? ",\"index.time_series.es95_codec.enabled\":true" : "";
-        final String body = String.format(
-            Locale.ROOT,
-            """
-                {
-                  "settings": {
-                    "index.mode": "time_series",
-                    "index.routing_path": ["hostname"],
-                    "index.time_series.start_time": "%s",
-                    "index.time_series.end_time": "%s",
-                    "index.number_of_shards": 1,
-                    "index.number_of_replicas": 0%s
-                  },
-                  "mappings": {
-                    "properties": {
-                      "@timestamp": { "type": "date" },
-                      "hostname": { "type": "keyword", "time_series_dimension": true },
-                      "gauge": { "type": "long", "time_series_metric": "gauge" }
-                    }
-                  }
-                }""",
-            TS_START,
-            TS_END,
-            extraSetting
-        );
+        final String body = String.format(Locale.ROOT, """
+            {
+              "settings": {
+                "index.mode": "time_series",
+                "index.routing_path": ["hostname"],
+                "index.time_series.start_time": "%s",
+                "index.time_series.end_time": "%s",
+                "index.number_of_shards": 1,
+                "index.number_of_replicas": 0%s
+              },
+              "mappings": {
+                "properties": {
+                  "@timestamp": { "type": "date" },
+                  "hostname": { "type": "keyword", "time_series_dimension": true },
+                  "gauge": { "type": "long", "time_series_metric": "gauge" }
+                }
+              }
+            }""", TS_START, TS_END, extraSetting);
         final Request request = new Request("PUT", "/" + indexName);
         request.setJsonEntity(body);
         assertOK(client().performRequest(request));

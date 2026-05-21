@@ -234,7 +234,7 @@ public class WorkerBulkByPaginatedSearchTaskStateTests extends ESTestCase {
             // Have the task use the thread pool to delay a task that does nothing
             workerState.delayPrepareBulkRequest(threadPool, 0, 1, new AbstractRunnable() {
                 @Override
-                protected void doRun() throws Exception {}
+                protected void doRun() {}
 
                 @Override
                 public void onFailure(Exception e) {
@@ -285,7 +285,7 @@ public class WorkerBulkByPaginatedSearchTaskStateTests extends ESTestCase {
         assertThat(slicedTask.getStatus().getRequestsPerSecond(), equalTo(newRps));
     }
 
-    public void testCaptureAndRethrottleRaceCondition() throws Exception {
+    public void testCaptureAndRethrottleRaceCondition() {
         final float initialRps = randomFloatBetween(0.1f, 500f, true);
         final float rethrottledRps = randomFloatBetween(501f, 1000f, true);
         workerState.rethrottleWithRelocationGuard(initialRps);

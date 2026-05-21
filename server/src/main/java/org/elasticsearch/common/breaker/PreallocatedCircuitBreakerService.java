@@ -34,9 +34,12 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
             throw new IllegalArgumentException("can't preallocate negative or zero bytes but got [" + bytesToPreallocate + "]");
         }
         CircuitBreaker nextBreaker = next.getBreaker(breakerToPreallocate);
-        nextBreaker.addEstimateBytesAndMaybeBreak(bytesToPreallocate, "preallocate[" + label + "]");
+        // Compose the preallocation label once so the admit on construction and the release on close()
+        // share the exact same metric attribute and the per-category es.breaker.memory.held gauge balances.
+        final String preallocateLabel = "preallocate[" + label + "]";
+        nextBreaker.addEstimateBytesAndMaybeBreak(bytesToPreallocate, preallocateLabel);
         this.next = next;
-        this.preallocated = new PreallocatedCircuitBreaker(nextBreaker, bytesToPreallocate);
+        this.preallocated = new PreallocatedCircuitBreaker(nextBreaker, bytesToPreallocate, preallocateLabel);
     }
 
     @Override
@@ -91,12 +94,14 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
     private static class PreallocatedCircuitBreaker implements CircuitBreaker, Releasable {
         private final CircuitBreaker next;
         private final long preallocated;
+        private final String preallocateLabel;
         private long preallocationUsed;
         private boolean closed;
 
-        PreallocatedCircuitBreaker(CircuitBreaker next, long preallocated) {
+        PreallocatedCircuitBreaker(CircuitBreaker next, long preallocated, String preallocateLabel) {
             this.next = next;
             this.preallocated = preallocated;
+            this.preallocateLabel = preallocateLabel;
         }
 
         @Override
@@ -183,8 +188,12 @@ public class PreallocatedCircuitBreakerService extends CircuitBreakerService imp
                  * deallocations. This is using up the bytes is a one way
                  * transition - as soon as we transition we know all
                  * deallocations will go directly to the underlying breaker.
+                 *
+                 * The release reuses the same label that was used for the admit on construction so that
+                 * the per-category es.breaker.memory.held gauge stays balanced (admit and release cancel
+                 * out under category="preallocate[<label>]").
                  */
-                next.addWithoutBreaking(-preallocated);
+                next.addWithoutBreaking(-preallocated, preallocateLabel);
             }
             closed = true;
         }

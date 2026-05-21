@@ -21,6 +21,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
@@ -47,13 +48,15 @@ public class IncrementalBulkService {
     private final Client client;
     private final AtomicBoolean enabledForTests = new AtomicBoolean(true);
     private final IndexingPressure indexingPressure;
+    private final TaskManager taskManager;
 
     /* Capture in milliseconds because the APM histogram only has a range of 100,000 */
     private final LongHistogram chunkWaitTimeMillisHistogram;
 
-    public IncrementalBulkService(Client client, IndexingPressure indexingPressure, MeterRegistry meterRegistry) {
+    public IncrementalBulkService(Client client, IndexingPressure indexingPressure, MeterRegistry meterRegistry, TaskManager taskManager) {
         this.client = client;
         this.indexingPressure = indexingPressure;
+        this.taskManager = taskManager;
         this.chunkWaitTimeMillisHistogram = meterRegistry.registerLongHistogram(
             CHUNK_WAIT_TIME_HISTOGRAM_NAME,
             "Total time in millis spent waiting for next chunk of a bulk request",

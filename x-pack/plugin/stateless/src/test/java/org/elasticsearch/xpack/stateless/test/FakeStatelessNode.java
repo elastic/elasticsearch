@@ -638,12 +638,7 @@ public class FakeStatelessNode implements Closeable {
     protected ClusterService createClusterService() {
         // TODO: stateless enabled should be part of nodeSettings
         final Settings settings = Settings.builder().put(nodeSettings).put(StatelessPlugin.STATELESS_ENABLED.getKey(), true).build();
-        return ClusterServiceUtils.createClusterService(
-            threadPool,
-            DiscoveryNodeUtils.create("node", "node"),
-            settings,
-            new ClusterSettings(settings, BUILT_IN_CLUSTER_SETTINGS)
-        );
+        return ClusterServiceUtils.createClusterService(threadPool, DiscoveryNodeUtils.create("node", "node"), settings, clusterSettings);
     }
 
     protected NodeClient createClient(Settings nodeSettings, ThreadPool threadPool) {

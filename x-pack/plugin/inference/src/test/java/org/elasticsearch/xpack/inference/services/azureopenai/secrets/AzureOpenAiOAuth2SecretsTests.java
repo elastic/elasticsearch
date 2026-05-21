@@ -73,10 +73,7 @@ public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationT
     }
 
     private static void assertRejected(AzureOpenAiOAuth2Secrets initialSettings, Map<String, Object> request, String expectedDisallowed) {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> initialSettings.newSecretSettings(new HashMap<>(request))
-        );
+        var thrownException = expectThrows(ValidationException.class, () -> initialSettings.newSecretSettings(new HashMap<>(request)));
         assertThat(
             thrownException.getMessage(),
             containsString(

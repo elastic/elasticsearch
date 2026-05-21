@@ -110,24 +110,14 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
         var initialSettings = new AzureOpenAiEntraIdApiKeySecrets(randomSecureStringOfLength(15), null);
         assertRejected(initialSettings, API_KEY, Map.of(ENTRA_ID, randomAlphaOfLength(10)), "[entra_id]");
         assertRejected(initialSettings, API_KEY, Map.of(CLIENT_SECRET_FIELD, randomAlphaOfLength(10)), "[client_secret]");
-        assertRejected(
-            initialSettings,
-            API_KEY,
-            Map.of(API_KEY, randomAlphaOfLength(10), ENTRA_ID, randomAlphaOfLength(10)),
-            "[entra_id]"
-        );
+        assertRejected(initialSettings, API_KEY, Map.of(API_KEY, randomAlphaOfLength(10), ENTRA_ID, randomAlphaOfLength(10)), "[entra_id]");
     }
 
     public void testNewSecretSettings_EntraIdMode_RejectsOtherFields() {
         var initialSettings = new AzureOpenAiEntraIdApiKeySecrets(null, randomSecureStringOfLength(15));
         assertRejected(initialSettings, ENTRA_ID, Map.of(API_KEY, randomAlphaOfLength(10)), "[api_key]");
         assertRejected(initialSettings, ENTRA_ID, Map.of(CLIENT_SECRET_FIELD, randomAlphaOfLength(10)), "[client_secret]");
-        assertRejected(
-            initialSettings,
-            ENTRA_ID,
-            Map.of(API_KEY, randomAlphaOfLength(10), ENTRA_ID, randomAlphaOfLength(10)),
-            "[api_key]"
-        );
+        assertRejected(initialSettings, ENTRA_ID, Map.of(API_KEY, randomAlphaOfLength(10), ENTRA_ID, randomAlphaOfLength(10)), "[api_key]");
     }
 
     private static void assertRejected(
@@ -136,10 +126,7 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
         Map<String, Object> request,
         String expectedDisallowed
     ) {
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> initialSettings.newSecretSettings(new HashMap<>(request))
-        );
+        var thrownException = expectThrows(ValidationException.class, () -> initialSettings.newSecretSettings(new HashMap<>(request)));
         assertThat(
             thrownException.getMessage(),
             containsString(Strings.format("only [%s] can be updated for this secret, received: %s", allowedField, expectedDisallowed))

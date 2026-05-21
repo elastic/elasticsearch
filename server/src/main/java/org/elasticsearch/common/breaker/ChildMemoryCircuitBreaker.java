@@ -40,9 +40,7 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
 
     public static final String CIRCUIT_BREAKER_TYPE_ATTRIBUTE = "type";
 
-
     public static final String BREAKER_METRIC_TYPE_ATTRIBUTE = "es_breaker_type";
-
 
     public static final String CIRCUIT_BREAKER_CATEGORY_ATTRIBUTE = "es_breaker_category";
 

@@ -35,7 +35,6 @@ class AbstractRateGroupingFunction {
         private final CircuitBreaker breaker;
         private long acquiredBytes;
         LongBuffer timestamps;
-        int valueCount;
 
         int[] sliceStarts;
         int[] sliceGroupIds;
@@ -54,8 +53,8 @@ class AbstractRateGroupingFunction {
         }
 
         final void prepareSlicesOnly(int groupId, long firstTimestamp) {
-            if (lastGroupId == groupId && valueCount > 0) {
-                if (timestamps.get(valueCount - 1) > firstTimestamp) {
+            if (lastGroupId == groupId && timestamps.size() > 0) {
+                if (timestamps.get(timestamps.size() - 1) > firstTimestamp) {
                     return; // continue with the current slice
                 }
             }
@@ -73,7 +72,7 @@ class AbstractRateGroupingFunction {
             if (groupId > maxGroupId) {
                 maxGroupId = groupId;
             }
-            sliceStarts[sliceCount] = valueCount;
+            sliceStarts[sliceCount] = timestamps.size();
             sliceGroupIds[sliceCount] = groupId;
             lastGroupId = groupId;
             sliceCount++;
@@ -98,12 +97,12 @@ class AbstractRateGroupingFunction {
             for (int i = 0; i < sliceCount; i++) {
                 int groupIndex = sliceGroupIds[i] - minGroupId;
                 int startOffset = sliceStarts[i];
-                int endOffset = (i + 1) < sliceCount ? sliceStarts[i + 1] : valueCount;
+                int endOffset = (i + 1) < sliceCount ? sliceStarts[i + 1] : timestamps.size();
                 int dstIndex = runningOffsets[groupIndex]++;
                 sliceOffsets[dstIndex * 2] = startOffset;
                 sliceOffsets[dstIndex * 2 + 1] = endOffset;
             }
-            valueCount = 0;
+            clearBuffers();
             sliceCount = 0;
             lastGroupId = -1;
             var queues = new FlushQueues(this, minGroupId, maxGroupId, runningOffsets, sliceOffsets);
@@ -111,6 +110,8 @@ class AbstractRateGroupingFunction {
             maxGroupId = Integer.MIN_VALUE;
             return queues;
         }
+
+        abstract void clearBuffers();
 
         @Override
         public void close() {
@@ -220,6 +221,7 @@ class AbstractRateGroupingFunction {
         private long acquiredBytes;
         protected long capacity;
         protected int numPages;
+        int size;
 
         BufferedArray(CircuitBreaker breaker, long initialCapacity, int bytesPerElement) {
             this.breaker = breaker;
@@ -243,6 +245,14 @@ class AbstractRateGroupingFunction {
             capacity = (long) newNumPages << PAGE_SHIFT;
         }
 
+        final int size() {
+            return size;
+        }
+
+        final void clear() {
+            size = 0;
+        }
+
         @Override
         public void close() {
             if (acquiredBytes > 0) {
@@ -261,8 +271,8 @@ class AbstractRateGroupingFunction {
     }
 
     /**
-     * Paged long array backed by {@code long[][]}
-     * Avoids the VarHandle byte[]-backed LongArray and leverage {@link System#arraycopy} when possible
+     * Append-only paged long array backed by {@code long[][]}.
+     * Avoids the VarHandle byte[]-backed LongArray and leverages {@link System#arraycopy} when possible.
      */
     static final class LongBuffer extends BufferedArray {
         long[][] pages;
@@ -279,20 +289,22 @@ class AbstractRateGroupingFunction {
             return pages[pageIndex(index)][indexInPage(index)];
         }
 
-        void set(long index, long value) {
-            pages[pageIndex(index)][indexInPage(index)] = value;
+        void append(long value) {
+            pages[pageIndex(size)][indexInPage(size)] = value;
+            size++;
         }
 
-        void appendRange(long dst, LongVector src, int from, int count) {
-            int indexInPageStart = indexInPage(dst);
+        void appendRange(LongVector src, int from, int count) {
+            int indexInPageStart = indexInPage(size);
             if (indexInPageStart + count <= PAGE_SIZE) {
-                src.copyTo(from, pages[pageIndex(dst)], indexInPageStart, count);
-                return;
+                src.copyTo(from, pages[pageIndex(size)], indexInPageStart, count);
+            } else {
+                for (int i = 0; i < count; i++) {
+                    long d = size + i;
+                    pages[pageIndex(d)][indexInPage(d)] = src.getLong(from + i);
+                }
             }
-            for (int i = 0; i < count; i++) {
-                long d = dst + i;
-                pages[pageIndex(d)][indexInPage(d)] = src.getLong(from + i);
-            }
+            size += count;
         }
 
         void ensureCapacity(long minCapacity) {
@@ -308,8 +320,8 @@ class AbstractRateGroupingFunction {
     }
 
     /**
-     * Paged double array backed by {@code double[][]}
-     * Avoids the VarHandle byte[]-backed DoubleArray and leverage {@link System#arraycopy} when possible
+     * Append-only paged double array backed by {@code double[][]}.
+     * Avoids the VarHandle byte[]-backed DoubleArray and leverages {@link System#arraycopy} when possible.
      */
     static final class DoubleBuffer extends BufferedArray {
         double[][] pages;
@@ -326,20 +338,22 @@ class AbstractRateGroupingFunction {
             return pages[pageIndex(index)][indexInPage(index)];
         }
 
-        void set(long index, double value) {
-            pages[pageIndex(index)][indexInPage(index)] = value;
+        void append(double value) {
+            pages[pageIndex(size)][indexInPage(size)] = value;
+            size++;
         }
 
-        void appendRange(long dst, DoubleVector src, int from, int count) {
-            int indexInPageStart = indexInPage(dst);
+        void appendRange(DoubleVector src, int from, int count) {
+            int indexInPageStart = indexInPage(size);
             if (indexInPageStart + count <= PAGE_SIZE) {
-                src.copyTo(from, pages[pageIndex(dst)], indexInPageStart, count);
-                return;
+                src.copyTo(from, pages[pageIndex(size)], indexInPageStart, count);
+            } else {
+                for (int i = 0; i < count; i++) {
+                    long d = size + i;
+                    pages[pageIndex(d)][indexInPage(d)] = src.getDouble(from + i);
+                }
             }
-            for (int i = 0; i < count; i++) {
-                long d = dst + i;
-                pages[pageIndex(d)][indexInPage(d)] = src.getDouble(from + i);
-            }
+            size += count;
         }
 
         void ensureCapacity(long minCapacity) {
@@ -355,8 +369,8 @@ class AbstractRateGroupingFunction {
     }
 
     /**
-     * Paged int array backed by {@code int[][]}
-     * Avoids the VarHandle byte[]-backed IntArray and leverage {@link System#arraycopy} when possible
+     * Append-only paged int array backed by {@code int[][]}.
+     * Avoids the VarHandle byte[]-backed IntArray and leverages {@link System#arraycopy} when possible.
      */
     static final class IntBuffer extends BufferedArray {
         int[][] pages;
@@ -373,20 +387,22 @@ class AbstractRateGroupingFunction {
             return pages[pageIndex(index)][indexInPage(index)];
         }
 
-        void set(long index, int value) {
-            pages[pageIndex(index)][indexInPage(index)] = value;
+        void append(int value) {
+            pages[pageIndex(size)][indexInPage(size)] = value;
+            size++;
         }
 
-        void appendRange(long dst, IntVector src, int from, int count) {
-            int indexInPageStart = indexInPage(dst);
+        void appendRange(IntVector src, int from, int count) {
+            int indexInPageStart = indexInPage(size);
             if (indexInPageStart + count <= PAGE_SIZE) {
-                src.copyTo(from, pages[pageIndex(dst)], indexInPageStart, count);
-                return;
+                src.copyTo(from, pages[pageIndex(size)], indexInPageStart, count);
+            } else {
+                for (int i = 0; i < count; i++) {
+                    long d = size + i;
+                    pages[pageIndex(d)][indexInPage(d)] = src.getInt(from + i);
+                }
             }
-            for (int i = 0; i < count; i++) {
-                long d = dst + i;
-                pages[pageIndex(d)][indexInPage(d)] = src.getInt(from + i);
-            }
+            size += count;
         }
 
         void ensureCapacity(long minCapacity) {

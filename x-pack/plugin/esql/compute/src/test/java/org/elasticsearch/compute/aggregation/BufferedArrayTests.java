@@ -26,8 +26,9 @@ public class BufferedArrayTests extends ComputeTestCase {
             long[] expected = new long[count];
             for (int i = 0; i < count; i++) {
                 expected[i] = randomLong();
-                buf.set(i, expected[i]);
+                buf.append(expected[i]);
             }
+            assertThat(buf.size(), equalTo(count));
             for (int i = 0; i < count; i++) {
                 assertThat(buf.get(i), equalTo(expected[i]));
             }
@@ -41,8 +42,9 @@ public class BufferedArrayTests extends ComputeTestCase {
             double[] expected = new double[count];
             for (int i = 0; i < count; i++) {
                 expected[i] = randomDouble();
-                buf.set(i, expected[i]);
+                buf.append(expected[i]);
             }
+            assertThat(buf.size(), equalTo(count));
             for (int i = 0; i < count; i++) {
                 assertThat(buf.get(i), equalTo(expected[i]));
             }
@@ -56,8 +58,9 @@ public class BufferedArrayTests extends ComputeTestCase {
             int[] expected = new int[count];
             for (int i = 0; i < count; i++) {
                 expected[i] = randomInt();
-                buf.set(i, expected[i]);
+                buf.append(expected[i]);
             }
+            assertThat(buf.size(), equalTo(count));
             for (int i = 0; i < count; i++) {
                 assertThat(buf.get(i), equalTo(expected[i]));
             }

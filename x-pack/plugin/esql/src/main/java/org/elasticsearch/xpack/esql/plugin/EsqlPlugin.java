@@ -118,6 +118,7 @@ import org.elasticsearch.xpack.esql.enrich.StreamingLookupFromIndexOperator;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.spi.FunctionPlugin;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.ExpressionQueryBuilder;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamWrapperQueryBuilder;
@@ -240,6 +241,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     private final List<PlanCheckerProvider> extraCheckerProviders = new ArrayList<>();
     private final List<DataSourcePlugin> dataSourcePlugins = new ArrayList<>();
+    private final SetOnce<EsqlFunctionRegistry> functionRegistry = new SetOnce<>();
 
     private final SetOnce<EsqlCapabilities> capabilities = new SetOnce<>();
 
@@ -288,7 +290,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             services.threadPool().executor(ThreadPool.Names.GENERIC)
         );
 
-        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
+        EsqlFunctionRegistry functionRegistry = this.functionRegistry.get();
         EsqlParser parser = new EsqlParser(new EsqlConfig(functionRegistry));
         capabilities.set(EsqlCapabilities.capabilities(functionRegistry, false));
 
@@ -549,6 +551,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         entries.addAll(ExpressionWritables.getNamedWriteables());
         entries.addAll(PlanWritables.getNamedWriteables());
+        entries.addAll(functionRegistry.get().writeables());
         return entries;
     }
 
@@ -585,10 +588,15 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         );
     }
 
+    protected final void initFunctionRegistry(List<FunctionPlugin> plugins) {
+        functionRegistry.set(new EsqlFunctionRegistry(plugins));
+    }
+
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         extraCheckerProviders.addAll(loader.loadExtensions(PlanCheckerProvider.class));
         dataSourcePlugins.addAll(loader.loadExtensions(DataSourcePlugin.class));
+        initFunctionRegistry(loader.loadExtensions(FunctionPlugin.class));
     }
 
     @Override

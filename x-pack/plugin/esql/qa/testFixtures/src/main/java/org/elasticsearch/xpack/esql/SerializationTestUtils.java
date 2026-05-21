@@ -125,6 +125,7 @@ public class SerializationTestUtils {
         entries.add(new NamedWriteableRegistry.Entry(QueryBuilder.class, KqlQueryBuilder.NAME, KqlQueryBuilder::new));
         entries.add(SingleValueQuery.ENTRY);
         entries.addAll(ExpressionWritables.getNamedWriteables());
+        entries.addAll(EsqlTestUtils.TEST_FUNCTION_REGISTRY.writeables());
         entries.addAll(PlanWritables.getNamedWriteables());
         entries.add(
             new NamedWriteableRegistry.Entry(

@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.Histogr
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.NetworkDirection;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.CopySign;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.E;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Hypot;
@@ -80,7 +79,6 @@ public class ScalarFunctionWritables {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
         entries.add(And.ENTRY);
-        entries.add(Atan2.ENTRY);
         entries.add(BitLength.ENTRY);
         entries.add(Case.ENTRY);
         entries.add(CIDRMatch.ENTRY);

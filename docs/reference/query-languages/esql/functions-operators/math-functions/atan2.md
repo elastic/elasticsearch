@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ATAN2` function [esql-atan2]
 
-:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/atan2.md
+:::{include} ../../_snippets/generated/x-pack-esql-function-math/functions/layout/atan2.md
 :::

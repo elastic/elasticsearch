@@ -61,6 +61,8 @@ dependencies {
   testImplementation project(path: xpackModule('inference'))
   testImplementation project(path: xpackModule('kql'))
   testImplementation project(path: xpackModule('mapper-unsigned-long'))
+  // TODO: global integration tests (CsvIT etc) should move to a test suite that loads all function plugins
+  testImplementation project(path: ':x-pack:plugin:esql:function:math')
 
   testImplementation project(path: xpackModule('esql-datasource-csv'))
   testImplementation project(path: xpackModule('esql-datasource-ndjson'))

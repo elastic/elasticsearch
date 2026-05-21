@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.expression.function;
 
 import org.elasticsearch.Build;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.plugins.spi.SPIClassIterator;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -132,13 +134,11 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.IpPrefix;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.NetworkDirection;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Acosh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Asinh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atan2;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Atanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cbrt;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Ceil;
@@ -240,6 +240,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
+import org.elasticsearch.xpack.esql.expression.function.spi.FunctionPlugin;
 import org.elasticsearch.xpack.esql.expression.function.vector.CosineSimilarity;
 import org.elasticsearch.xpack.esql.expression.function.vector.DotProduct;
 import org.elasticsearch.xpack.esql.expression.function.vector.Hamming;
@@ -260,6 +261,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.stream.Collectors;
 
@@ -326,15 +328,46 @@ public class EsqlFunctionRegistry {
 
     private final EsqlFunctionRegistry snapshotRegistry;
 
+    // TODO remove this constructor once all callers pass plugins explicitly or use initFunctionRegistry
     @SuppressWarnings("this-escape")
     public EsqlFunctionRegistry() {
-        this(false);
+        this(List.of());
     }
 
     @SuppressWarnings("this-escape")
-    private EsqlFunctionRegistry(boolean snapshot) {
+    public EsqlFunctionRegistry(List<FunctionPlugin> plugins) {
+        this(plugins, false);
+    }
+
+    @SuppressWarnings("this-escape")
+    private EsqlFunctionRegistry(List<FunctionPlugin> plugins, boolean snapshot) {
         register(functions());
         buildDataTypesForStringLiteralConversion(functions());
+
+        /*
+         * Register any functions in plugins on the classpath. This includes any functions
+         * registered via SPI in ESQL's classloader. And, when testing, this will load
+         * functions registered via SPI in ESQL's tests.
+         */
+        SPIClassIterator<FunctionPlugin> it = SPIClassIterator.get(FunctionPlugin.class, EsqlFunctionRegistry.class.getClassLoader());
+        while (it.hasNext()) {
+            Class<? extends FunctionPlugin> pluginClass = it.next();
+            try {
+                FunctionDefinition[] pluginFunctions = pluginClass.getConstructor().newInstance().functions();
+                register(pluginFunctions);
+                buildDataTypesForStringLiteralConversion(pluginFunctions);
+            } catch (Exception e) {
+                throw new IllegalStateException("Failed to instantiate FunctionPlugin: " + pluginClass.getName(), e);
+            }
+        }
+
+        // Register functions from plugins passed explicitly (e.g. via ExtensionLoader).
+        for (FunctionPlugin plugin : plugins) {
+            FunctionDefinition[] pluginFunctions = plugin.functions();
+            register(pluginFunctions);
+            buildDataTypesForStringLiteralConversion(pluginFunctions);
+        }
+
         nameSurrogates();
         if (snapshot) {
             if (Build.current().isSnapshot() == false) {
@@ -344,7 +377,7 @@ public class EsqlFunctionRegistry {
             buildDataTypesForStringLiteralConversion(snapshotFunctions());
             snapshotRegistry = this;
         } else {
-            snapshotRegistry = Build.current().isSnapshot() ? new EsqlFunctionRegistry(true) : this;
+            snapshotRegistry = Build.current().isSnapshot() ? new EsqlFunctionRegistry(plugins, true) : this;
         }
     }
 
@@ -394,6 +427,14 @@ public class EsqlFunctionRegistry {
         return defs.values();
     }
 
+    /**
+     * {@return {@link NamedWriteableRegistry.Entry}s for registered function.}
+     */
+    public List<NamedWriteableRegistry.Entry> writeables() {
+        // TODO remove null filter once this is required
+        return defs.values().stream().map(FunctionDefinition::writeableEntry).filter(Objects::nonNull).toList();
+    }
+
     private static FunctionDefinition[][] functions() {
         return new FunctionDefinition[][] {
             // grouping functions
@@ -426,11 +467,9 @@ public class EsqlFunctionRegistry {
                 Latest.DEFINITION, },
             // math
             new FunctionDefinition[] {
-                Abs.DEFINITION,
                 Acos.DEFINITION,
                 Asin.DEFINITION,
                 Atan.DEFINITION,
-                Atan2.DEFINITION,
                 Cbrt.DEFINITION,
                 Ceil.DEFINITION,
                 Cos.DEFINITION,

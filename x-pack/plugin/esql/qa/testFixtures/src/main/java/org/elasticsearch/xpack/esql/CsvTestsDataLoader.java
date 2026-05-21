@@ -252,6 +252,7 @@ public class CsvTestsDataLoader {
         new TestDataset("mmr_text_vector_keyword"),
         new TestDataset("json_logs"),
         new TestDataset("flattened_otel_logs"),
+        new TestDataset("flattened_many"),
         new TestDataset("host_threat_list").withSetting("lookup-settings.json"),
         new TestDataset(
             "metric_temporality",
@@ -302,6 +303,9 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_all"),
         new ViewConfig("employees_extra"),
         new ViewConfig("view_with_subquery"),
+        new ViewConfig("view_row_constants", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("view_row_eval", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("view_employees_row_subquery", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
         new ViewConfig("view_k8s_max_bytes_by_cluster", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_max_rate", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),
         new ViewConfig("view_k8s_downsampled_low_tx_count", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_TS)),

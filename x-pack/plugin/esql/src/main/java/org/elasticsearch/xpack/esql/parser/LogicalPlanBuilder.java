@@ -425,7 +425,6 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitSubquery(EsqlBaseParser.SubqueryContext ctx) {
-        // build a subquery tree
         LogicalPlan plan = visitSubquerySourceCommand(ctx.subquerySourceCommand());
         List<PlanFactory> processingCommands = visitList(this, ctx.processingCommand(), PlanFactory.class);
         for (PlanFactory processingCommand : processingCommands) {
@@ -438,8 +437,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlan visitSubquerySourceCommand(EsqlBaseParser.SubquerySourceCommandContext ctx) {
         if (ctx.fromCommand() != null) {
             return visitFromCommand(ctx.fromCommand());
-        } else {
+        } else if (ctx.timeSeriesCommand() != null) {
             return visitTimeSeriesCommand(ctx.timeSeriesCommand());
+        } else {
+            return visitRowCommand(ctx.rowCommand());
         }
     }
 

@@ -149,6 +149,33 @@ public class EsqlTestUtilsTests extends ESTestCase {
         );
     }
 
+    public void testConvertSubqueryToRemoteIndicesRowSubqueryBodyUnchanged() {
+        String in = """
+            FROM (ROW emp_no = 99999, languages = 99)
+            | KEEP emp_no, languages""";
+        String out = "FROM (ROW emp_no = 99999, languages = 99) | KEEP emp_no, languages";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(out));
+    }
+
+    public void testConvertSubqueryToRemoteIndicesRowSubqueryWithIndexPattern() {
+        String in = """
+            FROM employees, (ROW emp_no = 99999)
+            | KEEP emp_no""";
+        String out = "FROM *:employees,employees, (ROW emp_no = 99999) | KEEP emp_no";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(out));
+    }
+
+    public void testConvertSubqueryToRemoteIndicesMultipleRowSubqueries() {
+        String in = """
+            FROM
+                (ROW emp_no = 1, languages = 5),
+                (ROW emp_no = 2, languages = 10)
+            | SORT emp_no
+            | KEEP emp_no, languages""";
+        String out = "FROM (ROW emp_no = 1, languages = 5), (ROW emp_no = 2, languages = 10) | SORT emp_no | KEEP emp_no, languages";
+        assertThat(EsqlTestUtils.convertSubqueryToRemoteIndices(in), equalTo(out));
+    }
+
     public void testConvertSubqueryToRemoteIndicesFromOnly() {
         assertThat(
             EsqlTestUtils.convertSubqueryToRemoteIndices("FROM employees, (FROM employees_incompatible | KEEP emp_no) | SORT emp_no"),

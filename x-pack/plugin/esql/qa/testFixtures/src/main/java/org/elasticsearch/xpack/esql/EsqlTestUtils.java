@@ -1672,8 +1672,8 @@ public final class EsqlTestUtils {
         // Detect whether the outer source command is FROM or TS so that we preserve the
         // command keyword when rebuilding. TS cannot host nested subqueries, but it may
         // appear as the body of a subquery passed recursively to this method.
-        String sourceCommand = startsWithCommandKeyword(mainFrom, "from") ? "FROM"
-            : startsWithCommandKeyword(mainFrom, "ts") ? "TS"
+        String sourceCommand = startsWithCommandKeyword(mainFrom, FROM_COMMAND_PATTERN) ? "FROM"
+            : startsWithCommandKeyword(mainFrom, TS_COMMAND_PATTERN) ? "TS"
             : "FROM";
         // check for metadata in the main from command (TS does not currently support METADATA;
         // for FROM, capture and re-append after we rewrite the sources)
@@ -1682,14 +1682,21 @@ public final class EsqlTestUtils {
         // if there is metadata, we need to add it back later
         String metadata = mainFromCommandWithMetadata.size() > 1 ? " metadata " + mainFromCommandWithMetadata.get(1) : "";
         // the main source command could be a comma separated list of index patterns, and subqueries
+        // Subqueries whose outer command is ROW (rather than FROM) still contain commas as part of ROW
+        // syntax — those must never be interpreted as UNION-of-sources branches nor rewritten into a FROM.
+        // Example: ROW emp_no = 99999, languages = 99
+        if (startsWithCommandKeyword(mainFrom, ROW_COMMAND_PATTERN)) {
+            return query;
+        }
+        // the main from command could be a comma separated list of index patterns, and subqueries
         List<String> indexPatternsAndSubqueries = splitIgnoringParentheses(mainFrom, ",");
         List<String> transformed = new ArrayList<>();
         for (String indexPatternOrSubquery : indexPatternsAndSubqueries) {
             // remove the FROM or TS keyword if it's there
             indexPatternOrSubquery = indexPatternOrSubquery.strip();
-            if (startsWithCommandKeyword(indexPatternOrSubquery, "from")) {
+            if (startsWithCommandKeyword(indexPatternOrSubquery, FROM_COMMAND_PATTERN)) {
                 indexPatternOrSubquery = indexPatternOrSubquery.substring(4).strip();
-            } else if (startsWithCommandKeyword(indexPatternOrSubquery, "ts")) {
+            } else if (startsWithCommandKeyword(indexPatternOrSubquery, TS_COMMAND_PATTERN)) {
                 indexPatternOrSubquery = indexPatternOrSubquery.substring(2).strip();
             }
             // substitute the index patterns or subquery with remote index patterns
@@ -1714,15 +1721,21 @@ public final class EsqlTestUtils {
         return testQuery;
     }
 
+    private static final Pattern FROM_COMMAND_PATTERN = commandPattern("from");
+    private static final Pattern TS_COMMAND_PATTERN = commandPattern("ts");
+    private static final Pattern ROW_COMMAND_PATTERN = commandPattern("row");
+
+    private static Pattern commandPattern(String keyword) {
+        return Pattern.compile(Pattern.quote(keyword) + "\\p{javaWhitespace}", Pattern.CASE_INSENSITIVE);
+    }
+
     /**
-     * Returns true if the given input begins with the given command keyword (case-insensitive)
-     * followed by whitespace. Useful for detecting source commands such as {@code FROM} or {@code TS}.
+     * Returns true if the given input begins with the command keyword represented by {@code commandPattern}
+     * (case-insensitive) followed by whitespace. Useful for detecting source commands such as
+     * {@code FROM}, {@code TS}, or {@code ROW}.
      */
-    private static boolean startsWithCommandKeyword(String input, String keyword) {
-        int len = keyword.length();
-        return input.length() > len
-            && input.substring(0, len).toLowerCase(Locale.ROOT).equals(keyword)
-            && Character.isWhitespace(input.charAt(len));
+    private static boolean startsWithCommandKeyword(String input, Pattern commandPattern) {
+        return commandPattern.matcher(input.strip()).lookingAt();
     }
 
     /**

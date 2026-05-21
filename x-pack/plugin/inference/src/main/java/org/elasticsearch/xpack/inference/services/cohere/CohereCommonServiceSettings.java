@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xcontent.AbstractObjectParser;
@@ -80,7 +81,10 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
      * onto the given parser. The deprecated {@code model} alias is also registered and emits a
      * log warning when encountered in request context.
      */
-    public static <B extends Builder> void declareCommonFields(AbstractObjectParser<B, ?> parser, ConfigurationParseContext context) {
+    public static <B extends Builder> void declareCommonFields(
+        AbstractObjectParser<B, ConfigurationParseContext> parser,
+        ConfigurationParseContext context
+    ) {
         parser.declareString((b, v) -> {
             if (context == ConfigurationParseContext.REQUEST) {
                 logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
@@ -92,7 +96,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         parser.declareString(Builder::setApiVersion, new ParseField(API_VERSION));
         parser.declareObject(
             Builder::setRateLimitSettings,
-            (p, c) -> RateLimitSettings.PARSER.parse(p, null),
+            (p, c) -> RateLimitSettings.createParser(c).parse(p, c),
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
         // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
@@ -216,10 +220,16 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
     }
 
     public abstract static class Builder<T> {
+        protected final ConfigurationParseContext context;
+
         protected String url;
         protected String modelId;
         protected String apiVersionRaw;
         protected RateLimitSettings rateLimitSettings;
+
+        protected Builder(ConfigurationParseContext context) {
+            this.context = Objects.requireNonNull(context);
+        }
 
         public void setUrl(String url) {
             this.url = url;
@@ -257,14 +267,12 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
     /**
      * Creates a {@link CohereServiceSettings} from a map of settings using the given parser.
      *
-     * @param serviceSettingsName the name of the service settings, used for error reporting
      * @param map     the map to parse
      * @param context the context in which the parsing is done
      * @param parser  the parser to use for parsing the settings.
      * @return the created {@link CohereServiceSettings}
      */
     public static <T extends CohereServiceSettings> T fromMap(
-        String serviceSettingsName,
         Map<String, Object> map,
         ConfigurationParseContext context,
         ObjectParser<? extends Builder<T>, ConfigurationParseContext> parser
@@ -272,7 +280,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
             return parser.parse(xParser, context).build(context);
         } catch (IOException e) {
-            throw new ElasticsearchParseException("[{}] Failed to parse", e, serviceSettingsName);
+            throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
         }
     }
 }

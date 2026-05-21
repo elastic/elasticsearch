@@ -13,6 +13,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -39,6 +40,10 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
 
     public static class Builder extends CohereCommonServiceSettings.Builder<CohereRerankServiceSettings> {
 
+        protected Builder(ConfigurationParseContext context) {
+            super(context);
+        }
+
         private CohereRerankServiceSettings mergeInto(CohereRerankServiceSettings existing) {
             var updatedRateLimitSettings = rateLimitSettings != null ? rateLimitSettings : existing.rateLimitSettings();
             return new CohereRerankServiceSettings(existing.commonSettings().update(updatedRateLimitSettings));
@@ -60,7 +65,11 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
     );
 
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(NAME, ignoreUnknownFields, Builder::new);
+        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
+            ModelConfigurations.SERVICE_SETTINGS,
+            ignoreUnknownFields,
+            () -> new Builder(context)
+        );
         CohereCommonServiceSettings.declareCommonFields(parser, context);
         return parser;
     }
@@ -74,7 +83,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
      */
     public static CohereRerankServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
-        return CohereCommonServiceSettings.fromMap(NAME, map, context, parser);
+        return CohereCommonServiceSettings.fromMap(map, context, parser);
     }
 
     private final CohereCommonServiceSettings commonSettings;

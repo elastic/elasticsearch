@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -450,6 +451,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
         );
 
         assertThat(thrownException.getMessage(), containsString("failed to parse field [embedding_type]"));
+        assertThat(thrownException.getCause().getMessage(), containsString("invalid value [bfloat16]; expected one of [byte, float, bit]"));
     }
 
     public void testFromMap_ConvertsInt8_ToCohereEmbeddingTypeInt8() {
@@ -598,6 +600,40 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
                 )
             )
         );
+    }
+
+    public void testParse_GivenDimensionsIsNegativeInt() throws IOException {
+        String json = Strings.format("""
+            {
+              "model_id": "test-model-id",
+              "dimensions": %d
+            }
+            """, randomNegativeInt());
+
+        testParse_GivenExpectedParseException(json, "dimensions", "dimensions must be a positive integer");
+    }
+
+    public void testParse_GivenMaxInputTokensIsNegativeInt() throws IOException {
+        String json = Strings.format("""
+            {
+              "model_id": "test-model-id",
+              "max_input_tokens": %d
+            }
+            """, randomNegativeInt());
+
+        testParse_GivenExpectedParseException(json, "max_input_tokens", "max_input_tokens must be a positive integer");
+    }
+
+    private void testParse_GivenExpectedParseException(String json, String field, String expectedMessage) throws IOException {
+        final ConfigurationParseContext context = randomFrom(ConfigurationParseContext.values());
+        try (var parser = createParser(JsonXContent.jsonXContent, json)) {
+            var e = expectThrows(
+                XContentParseException.class,
+                () -> CohereEmbeddingsServiceSettings.createParser(randomBoolean(), context).apply(parser, context)
+            );
+            assertThat(e.getMessage(), containsString("failed to parse field [" + field + "]"));
+            assertThat(e.getCause().getMessage(), containsString(expectedMessage));
+        }
     }
 
     @Override

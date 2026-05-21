@@ -38,19 +38,18 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     public static final String REQUESTS_PER_MINUTE_FIELD = "requests_per_minute";
     public static final RateLimitSettings DISABLED_INSTANCE = new RateLimitSettings(1, TimeUnit.MINUTES, false);
 
-    /**
-     * Parses a {@link RateLimitSettings} from an XContent object containing only
-     * the {@link #REQUESTS_PER_MINUTE_FIELD} field. The wrapping {@code rate_limit} object
-     * must be consumed by the caller before handing the parser to this instance.
-     */
-    public static final ConstructingObjectParser<RateLimitSettings, Void> PARSER;
-
-    static {
-        PARSER = new ConstructingObjectParser<>("rate_limit_settings", true, args -> {
-            Long requestsPerMinute = (Long) args[0];
-            return requestsPerMinute != null ? new RateLimitSettings(requestsPerMinute) : null;
-        });
-        PARSER.declareLong(optionalConstructorArg(), new ParseField(REQUESTS_PER_MINUTE_FIELD));
+    public static ConstructingObjectParser<RateLimitSettings, ConfigurationParseContext> createParser(ConfigurationParseContext context) {
+        boolean ignoreUnknownFields = context != ConfigurationParseContext.REQUEST;
+        ConstructingObjectParser<RateLimitSettings, ConfigurationParseContext> parser = new ConstructingObjectParser<>(
+            "rate_limit",
+            ignoreUnknownFields,
+            args -> {
+                Long requestsPerMinute = (Long) args[0];
+                return requestsPerMinute != null ? new RateLimitSettings(requestsPerMinute) : null;
+            }
+        );
+        parser.declareLong(optionalConstructorArg(), new ParseField(REQUESTS_PER_MINUTE_FIELD));
+        return parser;
     }
 
     private static final TransportVersion INFERENCE_API_DISABLE_EIS_RATE_LIMITING = TransportVersion.fromName(

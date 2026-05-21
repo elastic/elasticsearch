@@ -261,7 +261,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
 
             var failureListener = getModelListenerForException(
                 XContentParseException.class,
-                "[cohere_embeddings_service_settings] unknown field [extra_key]"
+                "[service_settings] unknown field [extra_key]"
             );
             service.parseRequestConfig(INFERENCE_ENTITY_ID, TaskType.TEXT_EMBEDDING, config, failureListener);
         }
@@ -298,7 +298,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
 
             var failureListener = getModelListenerForException(
                 XContentParseException.class,
-                "[cohere_embeddings_service_settings] unknown field [extra_key]"
+                "[service_settings] unknown field [extra_key]"
             );
             service.parseRequestConfig(INFERENCE_ENTITY_ID, TaskType.TEXT_EMBEDDING, config, failureListener);
         }

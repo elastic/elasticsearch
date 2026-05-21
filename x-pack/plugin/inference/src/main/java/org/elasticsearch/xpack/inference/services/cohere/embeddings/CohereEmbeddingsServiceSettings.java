@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -21,13 +22,13 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
@@ -47,26 +48,41 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
 
     public static final String NAME = "cohere_embeddings_service_settings";
 
-    public static class Builder extends CohereCommonServiceSettings.Builder<CohereEmbeddingsServiceSettings> {
+    static class Builder extends CohereCommonServiceSettings.Builder<CohereEmbeddingsServiceSettings> {
+
         private SimilarityMeasure similarity;
         private Integer dimensions;
         private Integer maxInputTokens;
         private CohereEmbeddingType embeddingType;
 
-        public void setSimilarity(SimilarityMeasure similarity) {
+        Builder(ConfigurationParseContext context) {
+            super(context);
+        }
+
+        void setSimilarity(SimilarityMeasure similarity) {
             this.similarity = similarity;
         }
 
-        public void setDimensions(Integer dimensions) {
+        void setDimensions(Integer dimensions) {
+            if (dimensions != null && dimensions <= 0) {
+                throw new IllegalArgumentException("dimensions must be a positive integer");
+            }
             this.dimensions = dimensions;
         }
 
-        public void setMaxInputTokens(Integer maxInputTokens) {
+        void setMaxInputTokens(Integer maxInputTokens) {
+            if (maxInputTokens != null && maxInputTokens <= 0) {
+                throw new IllegalArgumentException("max_input_tokens must be a positive integer");
+            }
             this.maxInputTokens = maxInputTokens;
         }
 
-        public void setEmbeddingType(CohereEmbeddingType embeddingType) {
-            this.embeddingType = embeddingType;
+        void setEmbeddingType(String embeddingType) {
+            if (context == ConfigurationParseContext.REQUEST) {
+                this.embeddingType = CohereEmbeddingType.fromString(embeddingType);
+            } else {
+                this.embeddingType = fromCohereOrDenseVectorEnumValues(embeddingType);
+            }
         }
 
         @Override
@@ -75,7 +91,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
             return new CohereEmbeddingsServiceSettings(commonSettings, similarity, dimensions, maxInputTokens, resolvedEmbeddingType);
         }
 
-        private CohereEmbeddingsServiceSettings mergeInto(CohereEmbeddingsServiceSettings existing) {
+        CohereEmbeddingsServiceSettings mergeInto(CohereEmbeddingsServiceSettings existing) {
             var updatedRateLimitSettings = rateLimitSettings != null ? rateLimitSettings : existing.rateLimitSettings();
             var updatedMaxInputTokens = maxInputTokens != null ? maxInputTokens : existing.maxInputTokens();
             return new CohereEmbeddingsServiceSettings(
@@ -98,19 +114,16 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     );
 
     static ObjectParser<Builder, ConfigurationParseContext> createParser(boolean ignoreUnknownFields, ConfigurationParseContext context) {
-        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(NAME, ignoreUnknownFields, Builder::new);
+        ObjectParser<Builder, ConfigurationParseContext> parser = new ObjectParser<>(
+            ModelConfigurations.SERVICE_SETTINGS,
+            ignoreUnknownFields,
+            () -> new Builder(context)
+        );
         CohereCommonServiceSettings.declareCommonFields(parser, context);
         parser.declareString(Builder::setSimilarity, SimilarityMeasure::fromString, new ParseField(SIMILARITY));
-        parser.declareField((b, v) -> b.setDimensions(v), p -> p.intValue(), new ParseField(DIMENSIONS), ObjectParser.ValueType.INT);
+        parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
-        parser.declareField(
-            (b, v) -> b.setEmbeddingType(v),
-            (p, ctx) -> ctx == ConfigurationParseContext.REQUEST
-                ? CohereEmbeddingType.fromString(p.text())
-                : fromCohereOrDenseVectorEnumValues(p.text()),
-            new ParseField(ServiceFields.EMBEDDING_TYPE),
-            ObjectParser.ValueType.STRING
-        );
+        parser.declareString(Builder::setEmbeddingType, new ParseField(ServiceFields.EMBEDDING_TYPE));
         return parser;
     }
 
@@ -123,7 +136,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
      */
     public static CohereEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
-        return CohereCommonServiceSettings.fromMap(NAME, map, context, parser);
+        return CohereCommonServiceSettings.fromMap(map, context, parser);
     }
 
     /**
@@ -148,7 +161,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
                     .map(value -> value.toString().toLowerCase(Locale.ROOT))
                     .toArray(String[]::new);
                 throw new IllegalArgumentException(
-                    ServiceUtils.invalidValue(ServiceFields.EMBEDDING_TYPE, "service_settings", enumString, validValuesAsStrings)
+                    Strings.format("invalid value [%s]; expected one of %s", enumString, Arrays.toString(validValuesAsStrings))
                 );
             }
         }

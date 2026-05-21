@@ -1232,6 +1232,9 @@ rollover logsdb_columnar data stream with host as keyword:
 
 ---
 "Columnar index rejects dynamic runtime at root":
+  - requires:
+      cluster_features: ["mapper.columnar_rejects_runtime_dynamic"]
+      reason: "strict columnar modes reject dynamic:runtime only from this version"
   - do:
       catch: bad_request
       indices.create:
@@ -1247,6 +1250,9 @@ rollover logsdb_columnar data stream with host as keyword:
 
 ---
 "Logsdb columnar index rejects dynamic runtime at root":
+  - requires:
+      cluster_features: ["mapper.columnar_rejects_runtime_dynamic"]
+      reason: "strict columnar modes reject dynamic:runtime only from this version"
   - do:
       catch: bad_request
       indices.create:

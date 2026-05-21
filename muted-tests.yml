@@ -477,6 +477,9 @@ tests:
 - class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
   method: test {yaml=data_stream/110_update_by_query/Update by query from data stream}
   issue: https://github.com/elastic/elasticsearch/issues/149042
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=delete_by_query/10_basic/Response for version conflict with conflicts=proceed}
+  issue: https://github.com/elastic/elasticsearch/issues/145253
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:fuse.fuseWithRowRRFAndMultiValueGroupColumn}
   issue: https://github.com/elastic/elasticsearch/issues/149046
@@ -566,9 +569,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
   method: test {csv-spec:csv-union-by-name.* [LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/149482
-- class: org.elasticsearch.xpack.esql.qa.parquet.ParquetFormatSpecIT
-  method: test {csv-spec:external-hive-partitioned.* [LOCAL]}
-  issue: https://github.com/elastic/elasticsearch/issues/149495
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:flattened.statsByFlattenedAllRows}
   issue: https://github.com/elastic/elasticsearch/issues/149549
@@ -581,3 +581,12 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReaderTests
   method: testMalformedRowErrorAnchorsOnQuoteOffset
   issue: https://github.com/elastic/elasticsearch/issues/149567
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:stats.sumWithOverflowRow}
+  issue: https://github.com/elastic/elasticsearch/issues/149574
+- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
+  method: testGetVirtualBatchedCompoundCommitChunkFailureWhenIndexCloses
+  issue: https://github.com/elastic/elasticsearch/issues/149586
+- class: org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadataIT
+  method: testStatsWithMultiBucket
+  issue: https://github.com/elastic/elasticsearch/issues/149595

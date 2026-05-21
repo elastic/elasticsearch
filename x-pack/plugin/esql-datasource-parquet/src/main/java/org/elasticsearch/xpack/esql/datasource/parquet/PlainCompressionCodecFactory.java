@@ -19,6 +19,7 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.compute.data.UninitializedArrays;
+import org.elasticsearch.xpack.esql.datasource.compress.PanamaZstd;
 import org.xerial.snappy.Snappy;
 
 import java.io.ByteArrayOutputStream;
@@ -30,21 +31,25 @@ import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 
 /**
- * Hadoop-free {@link CompressionCodecFactory} that delegates to native JNI libraries already on the
- * plugin classpath (snappy-java, zstd-jni, aircompressor for LZ4, JDK GZIP). Decompressors and
- * compressors are created lazily on first use so native libraries are only loaded when a Parquet
- * file actually uses that codec.
+ * Hadoop-free {@link CompressionCodecFactory} that delegates to native libraries already on the
+ * plugin classpath. Zstd page decompression goes through {@link PanamaZstd}, the shared Panama
+ * FFI binding to libzstd in {@code esql-datasource-compression-libs} (the same binding Lucene's
+ * {@code ZstdCompressionMode} uses since 8.14), avoiding zstd-jni's
+ * {@code GetPrimitiveArrayCritical} G1GC region pinning. Snappy and the LZ4 fallback still use
+ * JNI (snappy-java, aircompressor); GZIP uses the JDK. Decompressors and compressors are created
+ * lazily on first use so native libraries are only loaded when a Parquet file actually uses that
+ * codec.
  *
  * <p>This replaces Parquet-MR's default {@code CodecFactory} which requires Hadoop's
  * {@code Configuration} and pulls in ~50MB of Hadoop JARs.
  *
  * <p>Each decompressor supports both heap and direct {@link ByteBuffer}s. When both buffers are
- * direct, the JNI fast path is used (zero-copy for Snappy and Zstd). When either buffer is heap,
- * the decompressor falls back to the byte-array path. Parquet-MR's
- * {@code ColumnChunkPageReadStore} calls the {@code ByteBuffer} overload only when the allocator
- * is direct and {@code useOffHeapDecryptBuffer} is enabled; the current read path uses
- * {@code HeapByteBufferAllocator} so the {@code BytesInput} path is the hot path today, but the
- * direct path is ready for when we switch to a direct allocator.
+ * direct, the zero-copy fast path is taken: Snappy uses its JNI binding, Zstd routes through
+ * {@link PanamaZstd} (the shared Panama FFI binding to libzstd, the same one Lucene's
+ * {@code ZstdCompressionMode} uses, eliminating zstd-jni's {@code GetPrimitiveArrayCritical}
+ * G1GC region pinning). When either buffer is heap, the decompressor falls back to the
+ * byte-array path. Parquet-MR's {@code ColumnChunkPageReadStore} calls the {@code ByteBuffer}
+ * overload only when the allocator is direct and {@code useOffHeapDecryptBuffer} is enabled.
  *
  * <p>This factory is shared across all driver threads of a query, so {@link #getDecompressor} and
  * {@link #getCompressor} must be safe under concurrent access. Thread-safety is achieved without
@@ -240,11 +245,33 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
     }
 
     /**
-     * Zstd decompressor. Uses {@code Zstd.decompressDirectByteBuffer} for direct buffers to get
-     * explicit offset/length control. Heap buffers fall back to the byte-array path. The JNI call
-     * returns the number of decompressed bytes written; we advance the output buffer position.
+     * Zstd decompressor.
+     *
+     * <p>The hot path — direct→direct decompression invoked by parquet-mr's
+     * {@code ColumnChunkPageReadStore} and our own {@code PrefetchedPageReader} — delegates to
+     * {@link PanamaZstd}, the shared Panama FFI binding that lives in
+     * {@code esql-datasource-compression-libs} (so Iceberg/ORC adopters can route their direct
+     * paths through the same code). This avoids zstd-jni's {@code GetPrimitiveArrayCritical}
+     * pinning on heap byte arrays (a G1GC evacuation-failure source for large column chunks) and
+     * the JNI calling-convention overhead. The Panama API accepts plain direct {@link ByteBuffer}s
+     * with absolute offsets and leaves both buffers' {@code position}/{@code limit} unchanged;
+     * this method advances them itself to match the parquet SPI contract.
+     *
+     * <p>The {@link BytesInput} overload (cold path: {@code byte[]} input, write path) stays on
+     * zstd-jni for now since it has no direct-buffer call site and the public Panama API does not
+     * expose a {@code byte[]} entry point. Removing zstd-jni entirely is blocked on the streaming
+     * decompressor (issue #811).
+     *
+     * <p>If the Panama binding is unavailable on this platform ({@link PanamaZstd#isAvailable()}
+     * returns {@code false}), the direct path drops down to zstd-jni's
+     * {@code decompressDirectByteBuffer} second-tier fallback (preserving the pre-Panama
+     * direct→direct behavior on platforms where {@code libs/native} could not load libzstd),
+     * and only falls all the way through to {@link #decompressViaHeapCopy} when at least one
+     * buffer is heap-backed.
      */
     private static class ZstdBytesDecompressor implements BytesInputDecompressor {
+        private final PanamaZstd panamaZstd = PanamaZstd.instance();
+
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
             byte[] out = UninitializedArrays.newByteArray(decompressedSize);
@@ -258,7 +285,26 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
 
         @Override
         public void decompress(ByteBuffer input, int compressedSize, ByteBuffer output, int decompressedSize) throws IOException {
-            if (input.isDirect() && output.isDirect()) {
+            if (panamaZstd.isAvailable() && input.isDirect() && output.isDirect()) {
+                int inputPos = input.position();
+                int outputPos = output.position();
+                int written;
+                try {
+                    written = panamaZstd.decompressDirect(output, outputPos, decompressedSize, input, inputPos, compressedSize);
+                } catch (RuntimeException e) {
+                    throw new IOException("Zstd decompression failed: " + e.getMessage(), e);
+                }
+                if (written != decompressedSize) {
+                    throw new IOException(
+                        "Zstd decompression produced " + written + " bytes, expected " + decompressedSize + " from page header"
+                    );
+                }
+                output.position(outputPos + written);
+                input.position(inputPos + compressedSize);
+            } else if (input.isDirect() && output.isDirect()) {
+                // Panama unavailable but both buffers are direct: keep the pre-Panama zstd-jni
+                // direct path as a second-tier fallback so we don't regress to heap copy on the
+                // (rare) platforms where libs/native could not load libzstd.
                 int inputPos = input.position();
                 int outputPos = output.position();
                 long written = Zstd.decompressDirectByteBuffer(output, outputPos, decompressedSize, input, inputPos, compressedSize);

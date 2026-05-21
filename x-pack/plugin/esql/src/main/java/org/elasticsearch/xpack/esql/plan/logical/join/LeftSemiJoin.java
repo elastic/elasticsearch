@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSingleValueOrNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
@@ -28,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 
@@ -139,15 +141,16 @@ public class LeftSemiJoin extends SemiJoin {
         // The natural three-valued semantics of {@link In} produce exactly the mark we want:
         // match → TRUE; no match, non-NULL key → FALSE; NULL key → NULL;
         // no match with NULL in the literal list → NULL.
-        // We strip NULLs from the dedup input for efficiency, so we re-introduce a single NULL
-        // literal here when {@code rightHadNulls} so In's no-match-with-NULL-in-list branch fires.
+        // {@link SemiJoin#inlineData} hands us the BlockHash-deduplicated keys directly, including
+        // the NULL position at index 0 when {@code rightHadNulls} (BlockHash collapses every NULL
+        // / MV-derived NULL into its reserved group 0). The iteration below therefore emits a
+        // NULL literal naturally at that position, so we don't need to re-introduce one
+        // explicitly — and {@code rightHadNulls} survives only as a sanity hint for the
+        // hash-join path (see {@link #buildHashJoinPathPlan}).
         int positionCount = dedupKeys.getPositionCount();
-        List<Expression> literals = new ArrayList<>(positionCount + (rightHadNulls ? 1 : 0));
+        List<Expression> literals = new ArrayList<>(positionCount);
         for (int i = 0; i < positionCount; i++) {
             literals.add(new Literal(source, toJavaObject(dedupKeys, i), keyType));
-        }
-        if (rightHadNulls) {
-            literals.add(new Literal(source, null, keyType));
         }
         Expression in = new In(source, leftField, literals);
         return new Eval(source, left(), List.of(markAlias(source, in)));
@@ -162,16 +165,24 @@ public class LeftSemiJoin extends SemiJoin {
         Source source,
         boolean rightHadNulls
     ) {
-        // LEFT join → Eval($mark = CASE …) → Project(left output + mark).
-        // The CASE turns the join's sentinel-IS-NOT-NULL match indicator plus the
-        // right-had-NULLs flag into a three-valued mark.
+        // LEFT join → Eval($mark = CASE …) → Project(original left output + mark).
+        //
+        // The left side has already been wrapped in an {@code Eval(svKey = MvSingleValueOrNull(
+        // leftField))} by {@link SemiJoin#inlineAsHashJoin} so that multi-valued left positions
+        // become NULL (with the standard "single-value function encountered multi-value" warning)
+        // before the join. {@code leftJoinConfig.leftFields()} therefore already refers to the
+        // SV-guarded attribute — we use it directly in the CASE so NULL-keyed rows (originally
+        // NULL or originally MV) collapse to {@code mark=NULL}, matching the filter path's
+        // three-valued {@link In} semantics.
         Join leftJoin = new Join(source, leftSide, deduplicatedData, leftJoinConfig);
-        Expression caseExpr = buildMarkCase(source, sentinelAttr, rightHadNulls);
+        Attribute svKeyAttr = leftJoinConfig.leftFields().get(0);
+        Expression caseExpr = buildMarkCase(source, svKeyAttr, sentinelAttr, rightHadNulls);
         Eval eval = new Eval(source, leftJoin, List.of(markAlias(source, caseExpr)));
-        // Drop the right-side columns (the sentinel; the join key is already dropped by LEFT
-        // join semantics). Keep the original left output and append the mark attribute so
-        // downstream Filter/Project nodes see exactly what the LeftSemiJoin's output schema
-        // promised.
+        // Drop the synthetic SV-guard attribute and the sentinel (the right-side join key is
+        // already stripped by LEFT join semantics). Keep the original left output and append the
+        // mark attribute so downstream Filter/Project nodes see the schema the LeftSemiJoin
+        // promised. Use {@code left().output()} (not {@code leftSide.output()}) because the
+        // latter now includes the SV-guard attribute.
         List<NamedExpression> projection = new ArrayList<>(left().output());
         projection.add(markAttribute);
         return new Project(source, eval, projection);
@@ -186,10 +197,13 @@ public class LeftSemiJoin extends SemiJoin {
 
     /**
      * Build the CASE expression that converts the LEFT-join sentinel + the right-had-NULLs flag
-     * into the three-valued mark.
+     * into the three-valued mark. The {@code keyAttr} is the SV-guarded left key attribute
+     * produced by {@link #buildHashJoinPathPlan} — its NULL covers both originally NULL keys and
+     * originally multi-valued keys (which {@link MvSingleValueOrNull} folds to NULL with a
+     * warning).
      * <ul>
      *   <li>{@code rightHadNulls = false}:
-     *       {@code CASE WHEN leftField IS NULL THEN NULL WHEN sentinel IS NOT NULL THEN TRUE ELSE FALSE END}
+     *       {@code CASE WHEN keyAttr IS NULL THEN NULL WHEN sentinel IS NOT NULL THEN TRUE ELSE FALSE END}
      *       — explicit NULL-key check is required because the dedup right side has no NULLs and
      *       the join would otherwise route the row to the FALSE branch.</li>
      *   <li>{@code rightHadNulls = true}:
@@ -197,17 +211,16 @@ public class LeftSemiJoin extends SemiJoin {
      *       (including NULL-keyed rows whose sentinel is also NULL) produce the implicit NULL.</li>
      * </ul>
      */
-    private Expression buildMarkCase(Source source, Attribute sentinelAttr, boolean rightHadNulls) {
+    private Expression buildMarkCase(Source source, Attribute keyAttr, Attribute sentinelAttr, boolean rightHadNulls) {
         Expression matched = new IsNotNull(source, sentinelAttr);
         if (rightHadNulls) {
             // Two children → 1 condition, no else → implicit NULL on no-match.
             return new Case(source, matched, List.of(Literal.TRUE));
         }
-        Attribute leftField = config().leftFields().get(0);
-        Expression leftIsNull = new IsNull(source, leftField);
+        Expression keyIsNull = new IsNull(source, keyAttr);
         Expression nullLit = new Literal(source, null, DataType.BOOLEAN);
-        // (leftIsNull, NULL), (matched, TRUE), else FALSE
-        return new Case(source, leftIsNull, List.of(nullLit, matched, Literal.TRUE, Literal.FALSE));
+        // (keyIsNull, NULL), (matched, TRUE), else FALSE
+        return new Case(source, keyIsNull, List.of(nullLit, matched, Literal.TRUE, Literal.FALSE));
     }
 
     /**
@@ -218,5 +231,19 @@ public class LeftSemiJoin extends SemiJoin {
      */
     private Alias markAlias(Source source, Expression value) {
         return new Alias(source, markAttribute.name(), value, markAttribute.id(), true);
+    }
+
+    // The mark attribute is part of this node's identity (it carries the NameId that the
+    // surrounding boolean condition references); two LeftSemiJoins with identical config and
+    // children but different marks must not compare equal, otherwise tree transformations that
+    // detect no-op replacements via equals could propagate the wrong mark.
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), markAttribute);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        return super.equals(obj) && Objects.equals(markAttribute, ((LeftSemiJoin) obj).markAttribute);
     }
 }

@@ -20,15 +20,23 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.test.TestBlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
+import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvSingleValueOrNull;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -66,7 +74,7 @@ public class SemiJoinTests extends ESTestCase {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
 
-        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
 
         // 3 distinct values so the dedup-first filter path produces an IN list of size 3.
         Block[] blocks = new Block[] { intBlock(1, 2, 3) };
@@ -88,7 +96,7 @@ public class SemiJoinTests extends ESTestCase {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
 
-        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
 
         // Many duplicates of one value: raw count > threshold, dedup count == 1.
         int count = HASH_JOIN_THRESHOLD + 1;
@@ -105,12 +113,12 @@ public class SemiJoinTests extends ESTestCase {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
 
-        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.ANTI);
+        SemiJoin antiJoin = makeJoin(leftField, rightField, JoinTypes.ANTI);
 
         Block[] blocks = new Block[] { BlockUtils.constantBlock(TestBlockFactory.getNonBreakingInstance(), 10, 2) };
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(blocks)));
 
-        LogicalPlan inlined = SemiJoin.inlineData(semiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        LogicalPlan inlined = SemiJoin.inlineData(antiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
         var filter = as(inlined, Filter.class);
         var not = as(filter.condition(), Not.class);
         as(not.field(), In.class);
@@ -123,12 +131,12 @@ public class SemiJoinTests extends ESTestCase {
         LocalRelation emptyResult = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(0)));
 
         // SEMI with empty result -> FALSE
-        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
         var inlined = as(SemiJoin.inlineData(semiJoin, emptyResult, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null), Filter.class);
         assertThat(inlined.condition(), equalTo(Literal.FALSE));
 
         // ANTI with empty result -> TRUE
-        SemiJoin antiJoin = makeSemiJoin(leftField, rightField, JoinTypes.ANTI);
+        SemiJoin antiJoin = makeJoin(leftField, rightField, JoinTypes.ANTI);
         inlined = as(SemiJoin.inlineData(antiJoin, emptyResult, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null), Filter.class);
         assertThat(inlined.condition(), equalTo(Literal.TRUE));
     }
@@ -139,7 +147,7 @@ public class SemiJoinTests extends ESTestCase {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
 
-        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
 
         // Distinct values so dedup count exceeds the threshold and the hash-join branch is taken.
         int count = HASH_JOIN_THRESHOLD + 1;
@@ -159,7 +167,7 @@ public class SemiJoinTests extends ESTestCase {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
 
-        SemiJoin antiJoin = makeSemiJoin(leftField, rightField, JoinTypes.ANTI);
+        SemiJoin antiJoin = makeJoin(leftField, rightField, JoinTypes.ANTI);
 
         int count = HASH_JOIN_THRESHOLD + 1;
         Block[] blocks = new Block[] { distinctIntBlock(count) };
@@ -178,7 +186,7 @@ public class SemiJoinTests extends ESTestCase {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
 
-        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
 
         // Distinct values: dedup count == threshold, still uses filter path.
         Block[] blocks = new Block[] { distinctIntBlock(HASH_JOIN_THRESHOLD) };
@@ -207,7 +215,7 @@ public class SemiJoinTests extends ESTestCase {
     public void testInlineAsHashJoinDropsNullFromSemiJoinDedupOutput() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
 
         // 4 positions: 10, null, 20, null -> non-null filter to {10, 20} -> dedup to {10, 20}
         Block keyBlock = intBlockWithNulls(new int[] { 10, 0, 20, 0 }, new boolean[] { false, true, false, true });
@@ -232,7 +240,7 @@ public class SemiJoinTests extends ESTestCase {
     public void testInlineAsHashJoinAntiJoinWithNullOnRightShortCircuitsToFalse() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        SemiJoin antiJoin = makeSemiJoin(leftField, rightField, JoinTypes.ANTI);
+        SemiJoin antiJoin = makeJoin(leftField, rightField, JoinTypes.ANTI);
 
         Block keyBlock = intBlockWithNulls(new int[] { 10, 0, 20 }, new boolean[] { false, true, false });
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
@@ -249,7 +257,7 @@ public class SemiJoinTests extends ESTestCase {
     public void testInlineAsHashJoinSemiJoinAllNullRightShortCircuitsToFalse() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
 
         Block keyBlock = intBlockWithNulls(new int[] { 0, 0 }, new boolean[] { true, true });
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
@@ -260,14 +268,18 @@ public class SemiJoinTests extends ESTestCase {
     }
 
     /**
-     * Complementing the right-side NULL stripping above, {@code inlineAsHashJoin} also wraps
-     * {@code semiJoin.left()} in {@code Filter(IsNotNull(leftField))} so a NULL-keyed left row
-     * can't reach the LEFT join. Together these two changes give full SQL {@code IN} semantics.
+     * Complementing the right-side NULL stripping above, {@code inlineAsHashJoin} wraps
+     * {@code semiJoin.left()} in {@code Eval(svKey = MvSingleValueOrNull(leftField))} followed by
+     * {@code Filter(IsNotNull(svKey))}. The Eval folds multi-valued positions to NULL (with the
+     * standard "single-value function encountered multi-value" warning) and the Filter drops both
+     * NULL-keyed and MV-keyed left rows uniformly — matching the filter path's three-valued
+     * {@link In} semantics (where {@code null IN (...)} and {@code mv IN (...)} are both NULL,
+     * treated as FALSE under WHERE).
      */
-    public void testInlineAsHashJoinInsertsIsNotNullOnLeftField() {
+    public void testInlineAsHashJoinInsertsSvGuardOnLeftField() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
 
         Block keyBlock = intBlock(10, 20, 30);
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
@@ -277,20 +289,28 @@ public class SemiJoinTests extends ESTestCase {
         Filter sentinelFilter = as(project.child(), Filter.class);
         Join join = as(sentinelFilter.child(), Join.class);
 
-        Filter leftFilter = as(join.left(), Filter.class);
-        IsNotNull condition = as(leftFilter.condition(), IsNotNull.class);
-        assertThat(condition.field(), equalTo(leftField));
+        Filter svKeyFilter = as(join.left(), Filter.class);
+        IsNotNull svKeyNotNull = as(svKeyFilter.condition(), IsNotNull.class);
+        Eval svGuardEval = as(svKeyFilter.child(), Eval.class);
+        assertThat(svGuardEval.fields(), hasSize(1));
+        MvSingleValueOrNull svKey = as(svGuardEval.fields().get(0).child(), MvSingleValueOrNull.class);
+        assertThat(svKey.field(), equalTo(leftField));
+        // The IsNotNull guard is on the SV-guarded attribute, not the raw leftField.
+        assertThat(svKeyNotNull.field(), equalTo(svGuardEval.fields().get(0).toAttribute()));
+        // The LEFT join also joins on the SV-guarded attribute.
+        assertThat(join.config().leftFields(), equalTo(List.of(svGuardEval.fields().get(0).toAttribute())));
     }
 
     /**
-     * Same {@code IsNotNull(leftField)} wrapping applies to ANTI joins (when not short-circuited
-     * by a NULL on the right): {@code null NOT IN (...)} is NULL ⇒ filtered out, so NULL-keyed
-     * left rows must be dropped before the LEFT join.
+     * Same {@code Eval(svKey) + Filter(IsNotNull(svKey))} wrapping applies to ANTI joins (when
+     * not short-circuited by a NULL on the right): {@code null NOT IN (...)} and
+     * {@code mv NOT IN (...)} are both NULL ⇒ filtered out under WHERE, so NULL-keyed and
+     * MV-keyed left rows must be dropped before the LEFT join.
      */
-    public void testInlineAsHashJoinAntiJoinInsertsIsNotNullOnLeftField() {
+    public void testInlineAsHashJoinAntiJoinInsertsSvGuardOnLeftField() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        SemiJoin antiJoin = makeSemiJoin(leftField, rightField, JoinTypes.ANTI);
+        SemiJoin antiJoin = makeJoin(leftField, rightField, JoinTypes.ANTI);
 
         Block keyBlock = intBlock(10, 20);
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
@@ -301,9 +321,14 @@ public class SemiJoinTests extends ESTestCase {
         as(sentinelFilter.condition(), IsNull.class);
         Join join = as(sentinelFilter.child(), Join.class);
 
-        Filter leftFilter = as(join.left(), Filter.class);
-        IsNotNull condition = as(leftFilter.condition(), IsNotNull.class);
-        assertThat(condition.field(), equalTo(leftField));
+        Filter svKeyFilter = as(join.left(), Filter.class);
+        IsNotNull svKeyNotNull = as(svKeyFilter.condition(), IsNotNull.class);
+        Eval svGuardEval = as(svKeyFilter.child(), Eval.class);
+        assertThat(svGuardEval.fields(), hasSize(1));
+        MvSingleValueOrNull svKey = as(svGuardEval.fields().get(0).child(), MvSingleValueOrNull.class);
+        assertThat(svKey.field(), equalTo(leftField));
+        assertThat(svKeyNotNull.field(), equalTo(svGuardEval.fields().get(0).toAttribute()));
+        assertThat(join.config().leftFields(), equalTo(List.of(svGuardEval.fields().get(0).toAttribute())));
     }
 
     /**
@@ -315,7 +340,7 @@ public class SemiJoinTests extends ESTestCase {
     public void testInlineAsHashJoinUniqueInputProducesUniqueOutput() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
 
         Block keyBlock = intBlock(1, 2, 3, 4, 5);
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
@@ -334,7 +359,7 @@ public class SemiJoinTests extends ESTestCase {
     public void testInlineAsHashJoinDeduplicatesInteger() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
 
         // 6 positions, 3 unique values: 10, 20, 10, 20, 30, 10
         Block keyBlock = intBlock(10, 20, 10, 20, 30, 10);
@@ -354,7 +379,7 @@ public class SemiJoinTests extends ESTestCase {
     public void testInlineAsHashJoinDeduplicatesLong() {
         FieldAttribute leftField = getFieldAttribute("ts", DataType.LONG);
         FieldAttribute rightField = getFieldAttribute("ts", DataType.LONG);
-        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
 
         Block keyBlock = longBlock(100L, 200L, 100L, 300L, 200L);
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
@@ -377,7 +402,7 @@ public class SemiJoinTests extends ESTestCase {
     public void testInlineAsHashJoinDeduplicatesDouble() {
         FieldAttribute leftField = getFieldAttribute("height", DataType.DOUBLE);
         FieldAttribute rightField = getFieldAttribute("height", DataType.DOUBLE);
-        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
 
         Block keyBlock = doubleBlock(1.5, 1.7, 1.5, 1.7, 1.9);
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
@@ -400,7 +425,7 @@ public class SemiJoinTests extends ESTestCase {
     public void testInlineAsHashJoinDeduplicatesKeyword() {
         FieldAttribute leftField = getFieldAttribute("name", DataType.KEYWORD);
         FieldAttribute rightField = getFieldAttribute("name", DataType.KEYWORD);
-        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
 
         Block keyBlock = bytesRefBlock("alice", "bob", "alice", "carol", "bob");
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
@@ -421,25 +446,18 @@ public class SemiJoinTests extends ESTestCase {
     /**
      * ANTI join with duplicates uses the same dedup machinery but wraps the sentinel filter in
      * {@link IsNull} instead of {@link IsNotNull}. Verifies the dedup page is identical and the
-     * filter condition is the ANTI variant.
+     * filter condition is the ANTI variant; {@link #extractHashJoinDedupPage} picks the right
+     * sentinel-condition class via {@link SemiJoin#isAntiJoin()}.
      */
     public void testInlineAsHashJoinAntiJoinDedupAndIsNullFilter() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        SemiJoin antiJoin = makeSemiJoin(leftField, rightField, JoinTypes.ANTI);
+        SemiJoin antiJoin = makeJoin(leftField, rightField, JoinTypes.ANTI);
 
         Block keyBlock = intBlock(10, 10, 20);
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
 
-        LogicalPlan inlined = SemiJoin.inlineData(antiJoin, result, 0, BLOCK_FACTORY, null);
-        Project project = as(inlined, Project.class);
-        Filter filter = as(project.child(), Filter.class);
-        as(filter.condition(), IsNull.class);
-        Join join = as(filter.child(), Join.class);
-        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
-
-        LocalRelation dedupRelation = as(join.right(), LocalRelation.class);
-        Page dedup = ((ImmediateLocalSupplier) dedupRelation.supplier()).get();
+        Page dedup = extractHashJoinDedupPage(antiJoin, result, DataType.INTEGER);
         assertThat(dedup.getPositionCount(), equalTo(2));
         assertThat(intValuesOf(dedup, 0), equalTo(new LinkedHashSet<>(List.of(10, 20))));
         assertSentinelAllTrue(dedup);
@@ -452,7 +470,7 @@ public class SemiJoinTests extends ESTestCase {
     public void testInlineAsHashJoinSchemaAndProjectShape() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
 
         Block keyBlock = intBlock(1, 2, 3);
         LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
@@ -482,7 +500,7 @@ public class SemiJoinTests extends ESTestCase {
     public void testInlineAsHashJoinSwapsPageHolderToDedupPage() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
 
         Block keyBlock = intBlock(1, 1, 2, 2, 3);
         Page sourcePage = new Page(keyBlock);
@@ -509,7 +527,7 @@ public class SemiJoinTests extends ESTestCase {
     public void testInlineAsFilterReleasesSourcePage() {
         FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
         FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
-        SemiJoin semiJoin = makeSemiJoin(leftField, rightField, JoinTypes.SEMI);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
 
         Block keyBlock = intBlock(1, 2, 3);
         Page sourcePage = new Page(keyBlock);
@@ -520,6 +538,376 @@ public class SemiJoinTests extends ESTestCase {
 
         as(inlined, Filter.class);
         assertThat("pageHolder should be cleared after filter path consumed the page", pageHolder.get(), nullValue());
+    }
+
+    // -- right-side NULL / MV canonicalization tests --
+    //
+    // These pin the post-refactor contract: {@code SemiJoin#inlineData} no longer pre-strips
+    // NULL/MV positions from the BlockHash input. Instead it converts MV positions to NULL via
+    // {@link SemiJoin#convertMvPositionsToNull} and lets BlockHash collapse every NULL (original
+    // or MV-derived) into its reserved group 0, which surfaces as a single NULL position at index
+    // 0 of the dedup output. The filter path keeps that NULL position as a NULL Literal in the
+    // {@code In} list; the hash-join path strips it before the {@link LocalRelation} so the
+    // runtime {@code BlockHash} can't match {@code null = null}; ANTI short-circuits on any NULL.
+
+    /**
+     * SEMI filter path with a pure NULL on the right: BlockHash collapses the NULL to its
+     * reserved group 0 → dedup output has a single NULL position at index 0 → the IN list
+     * built from the dedup output contains a NULL literal alongside the distinct values. We
+     * keep the NULL even though {@code x IN (a, b, NULL)} ≡ {@code x IN (a, b)} under WHERE
+     * (in case the surrounding rewrite ever wants the unfiltered three-valued result, e.g. via
+     * LEFT_SEMI's mark expression).
+     */
+    public void testInlineDataFilterPathKeepsNullLiteralWhenRightHasNulls() {
+        FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
+        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
+
+        // Right side: 10, null, 20 -> BlockHash dedup output: {null, 10, 20}
+        Block keyBlock = intBlockWithNulls(new int[] { 10, 0, 20 }, new boolean[] { false, true, false });
+        LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
+
+        LogicalPlan inlined = SemiJoin.inlineData(semiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        Filter filter = as(inlined, Filter.class);
+        In inExpr = as(filter.condition(), In.class);
+        assertThat("two distinct values + one NULL literal", inExpr.list(), hasSize(3));
+
+        boolean hasNullLiteral = false;
+        Set<Integer> nonNullValues = new LinkedHashSet<>();
+        for (Expression e : inExpr.list()) {
+            Literal lit = (Literal) e;
+            if (lit.value() == null) {
+                hasNullLiteral = true;
+            } else {
+                nonNullValues.add((Integer) lit.value());
+            }
+        }
+        assertTrue("IN list must carry the BlockHash NULL group as a NULL literal", hasNullLiteral);
+        assertThat(nonNullValues, equalTo(new LinkedHashSet<>(List.of(10, 20))));
+    }
+
+    /**
+     * SEMI filter path with a multi-valued position on the right: {@link SemiJoin#convertMvPositionsToNull}
+     * folds the MV to NULL before BlockHash, so the MV's element values ({@code 20, 30} here) are
+     * <strong>not</strong> matchable — the dedup output carries the MV as a single NULL position,
+     * mirroring the left-side {@link MvSingleValueOrNull} guard. This is the core right-side
+     * contribution to the {@link In}-operator parity between filter and hash-join paths.
+     */
+    public void testInlineDataFilterPathConvertsMvOnRightToSingleNullLiteral() {
+        FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
+        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
+
+        // Right side: 10, [20, 30] (MV), 40 -> after MV→NULL: 10, null, 40 -> dedup: {null, 10, 40}
+        Block keyBlock = intBlockMv(new int[] { 10 }, new int[] { 20, 30 }, new int[] { 40 });
+        LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
+
+        LogicalPlan inlined = SemiJoin.inlineData(semiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        Filter filter = as(inlined, Filter.class);
+        In inExpr = as(filter.condition(), In.class);
+        assertThat("MV folds to a single NULL, not to its expanded values", inExpr.list(), hasSize(3));
+
+        boolean hasNullLiteral = false;
+        Set<Integer> nonNullValues = new LinkedHashSet<>();
+        for (Expression e : inExpr.list()) {
+            Literal lit = (Literal) e;
+            if (lit.value() == null) {
+                hasNullLiteral = true;
+            } else {
+                nonNullValues.add((Integer) lit.value());
+            }
+        }
+        assertTrue("MV → NULL must surface as a NULL literal in the IN list", hasNullLiteral);
+        assertThat("only the SV positions contribute matchable values", nonNullValues, equalTo(new LinkedHashSet<>(List.of(10, 40))));
+        assertFalse("MV element 20 must not become a matchable literal", nonNullValues.contains(20));
+        assertFalse("MV element 30 must not become a matchable literal", nonNullValues.contains(30));
+    }
+
+    /**
+     * BlockHash collapses <em>all</em> NULL inputs into the single group 0 — multiple original
+     * NULLs plus MV-derived NULLs all share that one group. The dedup output therefore contains
+     * at most one NULL position regardless of how many NULL/MV positions were on the right side.
+     * This is what lets us key {@code rightHadNulls} off {@code dedupKeys[0].isNull(0)}.
+     */
+    public void testInlineDataFilterPathCollapsesMultipleNullsAndMvToSingleNullLiteral() {
+        FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
+        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
+
+        // 10, null, MV[20,30], null, 40, MV[50,60] -> after MV→NULL: 10, null, null, null, 40, null
+        // BlockHash collapses every null to group 0 -> dedup: {null, 10, 40}
+        Block keyBlock = intBlockMv(new int[] { 10 }, null, new int[] { 20, 30 }, null, new int[] { 40 }, new int[] { 50, 60 });
+        LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
+
+        LogicalPlan inlined = SemiJoin.inlineData(semiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        Filter filter = as(inlined, Filter.class);
+        In inExpr = as(filter.condition(), In.class);
+        assertThat(inExpr.list(), hasSize(3));
+
+        int nullCount = 0;
+        Set<Integer> nonNullValues = new LinkedHashSet<>();
+        for (Expression e : inExpr.list()) {
+            Literal lit = (Literal) e;
+            if (lit.value() == null) {
+                nullCount++;
+            } else {
+                nonNullValues.add((Integer) lit.value());
+            }
+        }
+        assertThat("BlockHash collapses every NULL/MV input into a single NULL group", nullCount, equalTo(1));
+        assertThat(nonNullValues, equalTo(new LinkedHashSet<>(List.of(10, 40))));
+    }
+
+    /**
+     * SEMI when every right position is multi-valued: {@link SemiJoin#convertMvPositionsToNull}
+     * folds every position to NULL, BlockHash emits exactly one NULL group, and the post-dedup
+     * "all right NULL" check ({@code dedupPositions == 1 && rightHadNulls}) fires the
+     * {@link SemiJoin#buildShortCircuitPlan} branch, returning {@code Filter(FALSE)} without ever
+     * constructing an {@link In} or a LEFT join.
+     */
+    public void testInlineDataAllMvRightShortCircuitsToFalseForSemi() {
+        FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
+        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
+
+        Block keyBlock = intBlockMv(new int[] { 1, 2 }, new int[] { 3, 4 });
+        LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
+
+        LogicalPlan inlined = SemiJoin.inlineData(semiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        Filter filter = as(inlined, Filter.class);
+        assertThat(filter.condition(), equalTo(Literal.FALSE));
+    }
+
+    /**
+     * ANTI: {@code shortCircuitOnAnyRightNull()} is true, so any NULL position in the dedup
+     * output (including one produced from an MV input via {@link SemiJoin#convertMvPositionsToNull})
+     * forces a {@code Filter(FALSE)} short-circuit. This mirrors {@code x NOT IN (..., NULL, ...)}
+     * semantics — never TRUE for any row.
+     */
+    public void testInlineDataAntiJoinMvRightShortCircuitsToFalse() {
+        FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
+        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
+        SemiJoin antiJoin = makeJoin(leftField, rightField, JoinTypes.ANTI);
+
+        // Mix of SV and MV: MV → NULL → ANTI short-circuits even though there are SV values too.
+        Block keyBlock = intBlockMv(new int[] { 10 }, new int[] { 20, 30 });
+        LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
+
+        LogicalPlan inlined = SemiJoin.inlineData(antiJoin, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        Filter filter = as(inlined, Filter.class);
+        assertThat(filter.condition(), equalTo(Literal.FALSE));
+    }
+
+    /**
+     * Hash-join path: the MV-derived NULL produced by {@link SemiJoin#convertMvPositionsToNull}
+     * surfaces at index 0 of the dedup output, then {@link SemiJoin#stripFirstPosition} drops it
+     * before constructing the right-side {@link LocalRelation}. The dedup page handed to the LEFT
+     * join therefore has no NULL key — important because the runtime BlockHash would otherwise
+     * route a NULL left key to that same NULL group and produce {@code null = null} matches.
+     */
+    public void testInlineAsHashJoinDropsMvDerivedNullFromDedupOutput() {
+        FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
+        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
+        SemiJoin semiJoin = makeJoin(leftField, rightField, JoinTypes.SEMI);
+
+        // 10, MV[1,2], 20, MV[3,4] -> MV→NULL: 10, null, 20, null -> dedup {null, 10, 20}
+        // -> hash-join strips the NULL -> LocalRelation carries {10, 20} only.
+        Block keyBlock = intBlockMv(new int[] { 10 }, new int[] { 1, 2 }, new int[] { 20 }, new int[] { 3, 4 });
+        LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
+
+        Page dedup = extractHashJoinDedupPage(semiJoin, result, DataType.INTEGER);
+        assertThat(dedup.getPositionCount(), equalTo(2));
+        IntBlock keys = dedup.getBlock(0);
+        for (int i = 0; i < keys.getPositionCount(); i++) {
+            assertFalse("dedup right side must not contain MV-derived NULL", keys.isNull(i));
+        }
+        assertThat(intValuesOf(dedup, 0), equalTo(new LinkedHashSet<>(List.of(10, 20))));
+        assertSentinelAllTrue(dedup);
+    }
+
+    // -- LeftSemiJoin terminal-plan hook tests --
+    //
+    // LeftSemiJoin overrides every terminal-plan hook on {@link SemiJoin} so the produced plan
+    // materializes the mark attribute (via {@link Alias} sharing the markAttribute's NameId)
+    // instead of dropping rows. Six tests, one per scenario:
+    // - {@code buildEmptyRightSidePlan} -> {@code Eval(mark = FALSE)}
+    // - {@code buildShortCircuitPlan} -> {@code Eval(mark = NULL)} (only when every right value is NULL)
+    // - {@code buildFilterPathPlan} -> {@code Eval(mark = In(...))}, no-null + has-null
+    // - {@code buildHashJoinPathPlan} -> {@code Project(Eval(mark = CASE), Join)}, no-null + has-null CASE shapes
+    // The has-null filter-path test also pins {@code shortCircuitOnAnyRightNull == false} and both
+    // hash-join tests pin {@code filterNullLeftKeysBeforeHashJoin == false} (no
+    // {@code Filter(IsNotNull(svKey))} above the SV-guard Eval) via {@link #assertHashJoinPathShape}.
+
+    /**
+     * Empty subquery: x IN () is FALSE for every non-NULL row, NULL for NULL rows. With no NULLs
+     * on the right side, the mark collapses to a constant FALSE — preserving every left row.
+     */
+    public void testInlineDataLeftSemiJoinEmptyResultProducesMarkFalseEval() {
+        FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
+        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
+        LeftSemiJoin lsj = makeLeftSemiJoin(leftField, rightField);
+        LocalRelation emptyResult = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(0)));
+
+        LogicalPlan inlined = SemiJoin.inlineData(lsj, emptyResult, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        Eval eval = as(inlined, Eval.class);
+        Alias markAlias = singleMarkAlias(eval, lsj);
+        assertThat("mark is FALSE for empty subquery", markAlias.child(), equalTo(Literal.FALSE));
+    }
+
+    /**
+     * All-NULL right side: no candidate match key exists and the subquery contains NULL, so the
+     * mark is NULL for every row. Reaches {@link SemiJoin#buildShortCircuitPlan} with
+     * {@code allRightNull = true}; the mixed-NULL case lives in
+     * {@link #testInlineDataLeftSemiJoinFilterPathWithNullRight} to also pin
+     * {@link SemiJoin#shortCircuitOnAnyRightNull()} {@code == false}.
+     */
+    public void testInlineDataLeftSemiJoinAllNullRightProducesMarkNullEval() {
+        FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
+        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
+        LeftSemiJoin lsj = makeLeftSemiJoin(leftField, rightField);
+
+        Block keyBlock = intBlockWithNulls(new int[] { 0, 0 }, new boolean[] { true, true });
+        LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
+
+        LogicalPlan inlined = SemiJoin.inlineData(lsj, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        Eval eval = as(inlined, Eval.class);
+        Alias markAlias = singleMarkAlias(eval, lsj);
+        Literal nullLit = as(markAlias.child(), Literal.class);
+        assertThat("mark is the NULL boolean literal", nullLit.value(), nullValue());
+        assertThat(nullLit.dataType(), equalTo(DataType.BOOLEAN));
+    }
+
+    /**
+     * Below the hash-join threshold, no NULLs on the right: build {@code Eval(mark = In(leftField, [literals]))}.
+     * {@link In}'s three-valued semantics produce the correct mark — TRUE / FALSE / NULL —
+     * without any extra wrapping. The alias's NameId matches {@link LeftSemiJoin#markAttribute()}
+     * so existing references in the surrounding boolean expression keep resolving, and the Eval
+     * sits directly atop {@code left()} (no SV-guard, no IsNotNull filter) — the filter path
+     * relies on {@link In}'s NULL handling for MV / NULL left keys.
+     */
+    public void testInlineDataLeftSemiJoinFilterPathWithoutNullRight() {
+        FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
+        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
+        LeftSemiJoin lsj = makeLeftSemiJoin(leftField, rightField);
+
+        Block keyBlock = intBlock(1, 2, 3);
+        LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
+
+        LogicalPlan inlined = SemiJoin.inlineData(lsj, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        Eval eval = as(inlined, Eval.class);
+        In in = as(singleMarkAlias(eval, lsj).child(), In.class);
+        assertThat(in.value(), equalTo(leftField));
+        assertThat(in.list(), hasSize(3));
+        for (Expression e : in.list()) {
+            assertThat("no-null filter path must contain only non-null literals", ((Literal) e).value(), notNullValue());
+        }
+        assertThat(eval.child(), sameInstance(lsj.left()));
+    }
+
+    /**
+     * Filter path with mixed NULL right side. Two things to pin:
+     * <ol>
+     *   <li>{@link SemiJoin#shortCircuitOnAnyRightNull()} returns false for LeftSemiJoin, so a
+     *       NULL on the right alongside non-NULL values does NOT collapse to {@code Eval(mark = NULL)} —
+     *       that would lose the TRUE mark for matching rows. We still take the filter path
+     *       (proved by the {@link In} below — a short-circuit would have produced a constant).</li>
+     *   <li>{@code buildFilterPathPlan} iterates dedup positions verbatim and BlockHash collapses
+     *       every NULL/MV-derived NULL into group 0, so the resulting IN list carries a NULL
+     *       literal — required for the three-valued mark when the right side has any NULL.</li>
+     * </ol>
+     */
+    public void testInlineDataLeftSemiJoinFilterPathWithNullRight() {
+        FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
+        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
+        LeftSemiJoin lsj = makeLeftSemiJoin(leftField, rightField);
+
+        Block keyBlock = intBlockWithNulls(new int[] { 10, 0, 20 }, new boolean[] { false, true, false });
+        LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
+
+        LogicalPlan inlined = SemiJoin.inlineData(lsj, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        Eval eval = as(inlined, Eval.class);
+        In in = as(singleMarkAlias(eval, lsj).child(), In.class);
+        assertThat(in.value(), equalTo(leftField));
+        assertThat("two distinct non-null values + one NULL literal", in.list(), hasSize(3));
+
+        boolean hasNullLiteral = false;
+        Set<Integer> nonNullValues = new LinkedHashSet<>();
+        for (Expression e : in.list()) {
+            Literal lit = (Literal) e;
+            if (lit.value() == null) {
+                hasNullLiteral = true;
+            } else {
+                nonNullValues.add((Integer) lit.value());
+            }
+        }
+        assertTrue("IN list must carry the BlockHash NULL group as a NULL literal", hasNullLiteral);
+        assertThat(nonNullValues, equalTo(new LinkedHashSet<>(List.of(10, 20))));
+        assertThat(eval.child(), sameInstance(lsj.left()));
+    }
+
+    /**
+     * Hash-join path with no NULLs on the right side. The surrounding {@code Project / Eval / Join}
+     * shape and the {@code filterNullLeftKeysBeforeHashJoin == false} contract (no
+     * {@code Filter(IsNotNull(svKey))} above the SV-guard Eval) are pinned by
+     * {@link #assertHashJoinPathShape}; this test focuses on the no-null CASE shape:
+     * {@code [keyIsNull, NULL, matched, TRUE, FALSE]} — the explicit "key IS NULL ⇒ NULL" branch
+     * is needed because the dedup right has no NULL group for the LEFT join to route NULL-keyed
+     * left rows to.
+     */
+    public void testInlineDataLeftSemiJoinHashJoinPathWithoutNullRight() {
+        FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
+        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
+        LeftSemiJoin lsj = makeLeftSemiJoin(leftField, rightField);
+
+        Block keyBlock = distinctIntBlock(HASH_JOIN_THRESHOLD + 1);
+        LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
+
+        Case caseExpr = assertHashJoinPathShape(lsj, result);
+
+        // WHEN keyIsNull THEN NULL WHEN matched THEN TRUE ELSE FALSE
+        assertThat(caseExpr.children(), hasSize(5));
+        as(caseExpr.children().get(0), IsNull.class);
+        Literal nullLit = as(caseExpr.children().get(1), Literal.class);
+        assertThat(nullLit.value(), nullValue());
+        assertThat(nullLit.dataType(), equalTo(DataType.BOOLEAN));
+        as(caseExpr.children().get(2), IsNotNull.class);
+        assertThat(caseExpr.children().get(3), equalTo(Literal.TRUE));
+        assertThat(caseExpr.children().get(4), equalTo(Literal.FALSE));
+    }
+
+    /**
+     * Hash-join path with NULL on the right side. Same surrounding shape and
+     * {@code filterNullLeftKeysBeforeHashJoin == false} contract as
+     * {@link #testInlineDataLeftSemiJoinHashJoinPathWithoutNullRight} (pinned again via
+     * {@link #assertHashJoinPathShape}); the CASE collapses to the 2-child form
+     * {@code [matched, TRUE]} because the absent ELSE clause already yields the implicit NULL
+     * mark for both non-matches and NULL-keyed left rows (their sentinel is NULL too).
+     */
+    public void testInlineDataLeftSemiJoinHashJoinPathWithNullRight() {
+        FieldAttribute leftField = getFieldAttribute("emp_no", DataType.INTEGER);
+        FieldAttribute rightField = getFieldAttribute("emp_no", DataType.INTEGER);
+        LeftSemiJoin lsj = makeLeftSemiJoin(leftField, rightField);
+
+        // One NULL plus enough distinct non-null values to exceed the threshold so we take the
+        // hash-join path with rightHadNulls = true.
+        int count = HASH_JOIN_THRESHOLD + 1;
+        int[] values = new int[count + 1];
+        boolean[] nulls = new boolean[count + 1];
+        values[0] = 0;
+        nulls[0] = true;
+        for (int i = 0; i < count; i++) {
+            values[i + 1] = i;
+            nulls[i + 1] = false;
+        }
+        Block keyBlock = intBlockWithNulls(values, nulls);
+        LocalRelation result = new LocalRelation(Source.EMPTY, List.of(rightField), LocalSupplier.of(new Page(keyBlock)));
+
+        Case caseExpr = assertHashJoinPathShape(lsj, result);
+
+        // WHEN matched THEN TRUE (no else — implicit NULL on no-match)
+        assertThat(caseExpr.children(), hasSize(2));
+        as(caseExpr.children().get(0), IsNotNull.class);
+        assertThat(caseExpr.children().get(1), equalTo(Literal.TRUE));
     }
 
     // -- subplan discovery tests --
@@ -607,7 +995,90 @@ public class SemiJoinTests extends ESTestCase {
         return new LocalRelation(Source.EMPTY, output, LocalSupplier.of(new Page(0)));
     }
 
-    private static SemiJoin makeSemiJoin(FieldAttribute leftField, FieldAttribute rightField, JoinType joinType) {
+    /**
+     * Constructs a {@link LeftSemiJoin} wrapping empty left/right local relations on the given
+     * fields, with a freshly-allocated synthetic mark attribute (matching what
+     * {@link org.elasticsearch.xpack.esql.analysis.InSubqueryResolver InSubqueryResolver}
+     * produces in the analyzer's rewrite).
+     */
+    private static LeftSemiJoin makeLeftSemiJoin(FieldAttribute leftField, FieldAttribute rightField) {
+        Attribute markAttribute = new ReferenceAttribute(
+            Source.EMPTY,
+            null,
+            "$$mark",
+            DataType.BOOLEAN,
+            Nullability.TRUE,
+            new NameId(),
+            true
+        );
+        return new LeftSemiJoin(
+            Source.EMPTY,
+            emptyLocalRelation(List.of(leftField)),
+            emptyLocalRelation(List.of(rightField)),
+            List.of(leftField),
+            List.of(rightField),
+            markAttribute
+        );
+    }
+
+    /**
+     * Reads the single {@link Alias} produced by a LeftSemiJoin terminal Eval and asserts that
+     * its NameId matches {@link LeftSemiJoin#markAttribute()}'s — the contract that lets the
+     * surrounding boolean expression keep resolving against the mark.
+     */
+    private static Alias singleMarkAlias(Eval eval, LeftSemiJoin lsj) {
+        assertThat(eval.fields(), hasSize(1));
+        Alias markAlias = eval.fields().get(0);
+        assertThat("mark alias must share markAttribute's NameId", markAlias.id(), equalTo(lsj.markAttribute().id()));
+        return markAlias;
+    }
+
+    /**
+     * Walks a LeftSemiJoin hash-join plan and pins every invariant that does not depend on the
+     * specific CASE shape, then returns the {@link Case} for the caller to assert on:
+     * <ul>
+     *   <li>top-level {@link Project} whose projections include {@link LeftSemiJoin#markAttribute()}'s NameId
+     *       (so the mark is in scope for downstream Filter/Project nodes);</li>
+     *   <li>{@link Eval} with a single mark alias under {@link #singleMarkAlias};</li>
+     *   <li>{@link Join} with {@link JoinTypes#LEFT};</li>
+     *   <li>{@code join.right()} is the dedup {@link LocalRelation};</li>
+     *   <li>{@code join.left()} is the SV-guard {@link Eval} directly — NOT wrapped in
+     *       {@code Filter(IsNotNull(svKey))} (this is the {@link LeftSemiJoin#filterNullLeftKeysBeforeHashJoin}
+     *       {@code == false} contract; SEMI / ANTI would have wrapped it via that hook).</li>
+     * </ul>
+     * Forces the hash-join path via {@code hashJoinThreshold = 0} — callers can use a small dedup
+     * block and don't need to construct above-threshold data themselves.
+     */
+    private static Case assertHashJoinPathShape(LeftSemiJoin lsj, LocalRelation result) {
+        LogicalPlan inlined = SemiJoin.inlineData(lsj, result, HASH_JOIN_THRESHOLD, BLOCK_FACTORY, null);
+        Project project = as(inlined, Project.class);
+        boolean hasMarkAttr = project.projections().stream().anyMatch(ne -> ne.id().equals(lsj.markAttribute().id()));
+        assertTrue("projection must include the mark attribute", hasMarkAttr);
+
+        Eval eval = as(project.child(), Eval.class);
+        Alias markAlias = singleMarkAlias(eval, lsj);
+        Case caseExpr = as(markAlias.child(), Case.class);
+
+        Join join = as(eval.child(), Join.class);
+        assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
+        as(join.right(), LocalRelation.class);
+        // filterNullLeftKeysBeforeHashJoin() == false: the SV-guard Eval is here directly,
+        // not wrapped in Filter(IsNotNull(svKey)) — that's what lets NULL-keyed and MV-keyed
+        // left rows survive so the CASE can assign them mark = NULL.
+        Eval svGuardEval = as(join.left(), Eval.class);
+        assertThat(svGuardEval.fields(), hasSize(1));
+
+        return caseExpr;
+    }
+
+    /**
+     * Constructs a SEMI / ANTI join wrapping empty left and right local relations on the given
+     * fields. The return type stays as {@link SemiJoin} (its common supertype) so call sites can
+     * use it interchangeably with {@link SemiJoin#inlineData}, but ANTI requests actually return
+     * an {@link AntiJoin} so the {@code shortCircuitOnAnyRightNull} / {@code Filter(NOT IN)}
+     * overrides take effect.
+     */
+    private static SemiJoin makeJoin(FieldAttribute leftField, FieldAttribute rightField, JoinType joinType) {
         if (JoinTypes.ANTI.equals(joinType)) {
             return new AntiJoin(
                 Source.EMPTY,
@@ -632,12 +1103,16 @@ public class SemiJoinTests extends ESTestCase {
      * down to the dedup {@link LocalRelation}, and returns its {@link Page}. The test then asserts
      * on the dedup keys and the sentinel column directly. Centralizes plan-shape navigation so
      * the dedup-correctness tests stay focused on data.
+     * <p>
+     * The expected sentinel-filter class is derived from {@link SemiJoin#isAntiJoin()}:
+     * {@link IsNotNull} for SEMI / LEFT_SEMI, {@link IsNull} for ANTI.
      */
     private static Page extractHashJoinDedupPage(SemiJoin semiJoin, LocalRelation result, DataType expectedKeyType) {
+        Class<? extends Expression> expectedSentinelCondition = semiJoin.isAntiJoin() ? IsNull.class : IsNotNull.class;
         LogicalPlan inlined = SemiJoin.inlineData(semiJoin, result, 0, BLOCK_FACTORY, null);
         Project project = as(inlined, Project.class);
         Filter filter = as(project.child(), Filter.class);
-        as(filter.condition(), IsNotNull.class);
+        as(filter.condition(), expectedSentinelCondition);
         Join join = as(filter.child(), Join.class);
         assertThat(join.config().type(), equalTo(JoinTypes.LEFT));
         LocalRelation dedupRelation = as(join.right(), LocalRelation.class);
@@ -703,6 +1178,32 @@ public class SemiJoinTests extends ESTestCase {
                     builder.appendNull();
                 } else {
                     builder.appendInt(values[i]);
+                }
+            }
+            return builder.build();
+        }
+    }
+
+    /**
+     * Builds an {@link IntBlock} where each varargs entry describes one position: {@code null}
+     * encodes a NULL position, a single-element array encodes a single-valued position, and a
+     * multi-element array encodes a multi-valued position. Convenience for tests that need to
+     * mix SV, NULL, and MV positions in a single right-side block — see the right-side MV / NULL
+     * canonicalization tests above.
+     */
+    private static IntBlock intBlockMv(int[]... positions) {
+        try (IntBlock.Builder builder = TestBlockFactory.getNonBreakingInstance().newIntBlockBuilder(positions.length)) {
+            for (int[] values : positions) {
+                if (values == null) {
+                    builder.appendNull();
+                } else if (values.length == 1) {
+                    builder.appendInt(values[0]);
+                } else {
+                    builder.beginPositionEntry();
+                    for (int v : values) {
+                        builder.appendInt(v);
+                    }
+                    builder.endPositionEntry();
                 }
             }
             return builder.build();

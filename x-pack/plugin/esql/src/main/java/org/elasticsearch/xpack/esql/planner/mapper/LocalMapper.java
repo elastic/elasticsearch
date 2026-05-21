@@ -146,14 +146,8 @@ public class LocalMapper {
 
             PhysicalPlan left = map(binary.left());
             // if the right is data we can use a hash join directly
-            // The right side may be a bare LocalRelation, or a Filter(LocalRelation) when the optimizer
-            // pushed a filter (e.g. from semi-join sentinel IS NOT NULL check) into the join's right child.
-            LogicalPlan rightLogical = binary.right();
-            if (rightLogical instanceof Filter f && f.child() instanceof LocalRelation) {
-                rightLogical = f.child();
-            }
-            if (rightLogical instanceof LocalRelation) {
-                PhysicalPlan right = map(rightLogical);
+            if (binary.right() instanceof LocalRelation) {
+                PhysicalPlan right = map(binary.right());
                 if (right instanceof LocalSourceExec localData) {
                     return new HashJoinExec(
                         join.source(),

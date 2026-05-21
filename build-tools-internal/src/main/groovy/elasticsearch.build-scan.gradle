@@ -162,6 +162,14 @@ develocity {
 
           if (GcpPreemptionWatchdog.isPreempted()) {
             tag 'PREEMPTED'
+            try {
+              def taskStatusService = gradle.sharedServices.registrations.findByName('taskStatusTracker')?.service?.orNull
+              if (taskStatusService?.hadFailuresBeforePreemption()) {
+                tag 'FAILED_BEFORE_PREEMPTION'
+              }
+            } catch (Exception e) {
+              logger.warn("Could not check for pre-preemption failures", e)
+            }
           }
 
           buildScanPublished { scan ->

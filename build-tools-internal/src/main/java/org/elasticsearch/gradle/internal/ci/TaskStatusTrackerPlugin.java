@@ -259,5 +259,23 @@ public abstract class TaskStatusTrackerPlugin implements Plugin<Project> {
         public Map<String, TaskOutcome> getOutcomes() {
             return Collections.unmodifiableMap(outcomes);
         }
+
+        /**
+         * Whether any task genuinely failed or any test reported a failure before
+         * preemption cancelled the remaining work. INTERRUPTED tasks (those running
+         * when cancellation fired) are not counted — only pre-existing FAILED
+         * outcomes and FAILURE test results.
+         */
+        public boolean hadFailuresBeforePreemption() {
+            if (outcomes.containsValue(TaskOutcome.FAILED)) {
+                return true;
+            }
+            for (TaskStatusReport.TestEntry entry : testEntries) {
+                if ("FAILURE".equals(entry.result())) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 }

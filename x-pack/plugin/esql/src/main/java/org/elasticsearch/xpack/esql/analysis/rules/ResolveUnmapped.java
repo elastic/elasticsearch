@@ -122,11 +122,8 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     private static LogicalPlan nullify(LogicalPlan plan, LinkedHashSet<UnresolvedAttribute> unresolved) {
         // For EsRelation sources: add null-typed fields to the relation's output
         var transformed = plan.transformUp(EsRelation.class, esr -> {
-            if (esr.indexMode() == IndexMode.LOOKUP) {
-                return esr;
-            }
             List<FieldAttribute> fieldsToNullify = fieldsToNullify(unresolved, Expressions.names(esr.output()));
-            return fieldsToNullify.isEmpty() ? esr : esr.withAttributes(combine(esr.output(), fieldsToNullify));
+            return esr.withAddedFields(fieldsToNullify);
         });
 
         // For non-EsRelation sources (Row, LocalRelation): insert Eval nodes with null assignments
@@ -171,12 +168,8 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
     private static LogicalPlan load(LogicalPlan plan, Set<UnresolvedAttribute> unresolved) {
         // TODO: this will need to be revisited for non-lookup joining or scenarios where we won't want extraction from specific sources
         return plan.transformUp(EsRelation.class, esr -> {
-            if (esr.indexMode() == IndexMode.LOOKUP) {
-                return esr;
-            }
             List<FieldAttribute> fieldsToLoad = fieldsToLoad(unresolved, Expressions.names(esr.output()));
-            // there shouldn't be any duplicates, we can just merge the two lists
-            return fieldsToLoad.isEmpty() ? esr : esr.withAttributes(combine(esr.output(), fieldsToLoad));
+            return esr.withAddedFields(fieldsToLoad);
         });
     }
 

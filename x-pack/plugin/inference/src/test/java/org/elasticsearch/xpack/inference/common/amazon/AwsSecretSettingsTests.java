@@ -189,7 +189,7 @@ public class AwsSecretSettingsTests extends AbstractBWCWireSerializationTestCase
 
     private static String mustBeUpdatedTogetherError(String missingField) {
         return Strings.format(
-            "[service_settings] [%s] and [%s] must be updated together; missing: [%s]",
+            "[secret_settings] [%s] and [%s] must be updated together; missing: [%s]",
             ACCESS_KEY_FIELD,
             SECRET_KEY_FIELD,
             missingField

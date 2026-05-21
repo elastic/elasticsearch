@@ -24,6 +24,8 @@ import org.elasticsearch.datageneration.datasource.DataSourceHandler;
 import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandler;
+import org.elasticsearch.datageneration.matchers.MatchResult;
+import org.elasticsearch.datageneration.matchers.Matcher;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.MultiValuedSortedBinaryDocValues;
@@ -45,7 +47,7 @@ import java.util.Set;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.hasItem;
 
-public class ColumnarStoredSourceIgnoredSourceIT extends ESIntegTestCase {
+public class ColumnarSourceIT extends ESIntegTestCase {
 
     @Override
     public void setUp() throws Exception {
@@ -66,40 +68,7 @@ public class ColumnarStoredSourceIgnoredSourceIT extends ESIntegTestCase {
      * types and nesting shapes.
      */
     public void testAllFieldsStoredInIgnoredSource() throws Exception {
-        var allowedFieldTypes = DefaultObjectGenerationHandler.ALLOWED_FIELD_TYPES.stream()
-            // these types require plugins not loaded in server internalClusterTests
-            .filter(
-                ft -> ft != FieldType.WILDCARD
-                    && ft != FieldType.COUNTED_KEYWORD
-                    && ft != FieldType.CONSTANT_KEYWORD
-                    && ft != FieldType.SCALED_FLOAT
-                    && ft != FieldType.MATCH_ONLY_TEXT
-            )
-            .toList();
-
-        var spec = DataGeneratorSpecification.builder()
-            .withMaxFieldCountPerLevel(5)
-            .withMaxObjectDepth(2)
-            .withNestedFieldsLimit(0)
-            .withDataSourceHandlers(List.of(new ASCIIStringsHandler()))
-            .withDataSourceHandlers(List.of(new DataSourceHandler() {
-                @Override
-                public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
-                    return new DataSourceResponse.FieldTypeGenerator(
-                        () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(randomFrom(allowedFieldTypes).toString())
-                    );
-                }
-
-                @Override
-                public DataSourceResponse.ObjectMappingParametersGenerator handle(
-                    DataSourceRequest.ObjectMappingParametersGenerator request
-                ) {
-                    // columnar mode does not support the subobjects mapping parameter
-                    return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new);
-                }
-            }))
-            .build();
-
+        var spec = buildSpec();
         var template = new TemplateGenerator(spec).generate();
         var mapping = new MappingGenerator(spec).generate(template);
 
@@ -124,6 +93,59 @@ public class ColumnarStoredSourceIgnoredSourceIT extends ESIntegTestCase {
         var expectedFieldNames = collectNonNullLeafPaths(document, "", mapping.lookup());
         for (String fieldName : expectedFieldNames) {
             assertThat("field '" + fieldName + "' should be stored in _ignored_source", ignoredSourceFieldNames, hasItem(fieldName));
+        }
+    }
+
+    /**
+     * Verifies that {@code columnar_stored} and {@code synthetic} source modes produce an identical source document
+     * when retrieving an indexed document. Also checks that the returned source is flat, i.e., all values are scalar
+     * (no nested object values) and fields are addressed by their full dotted path.
+     */
+    public void testColumnarStoredSourceMatchesSyntheticSource() throws Exception {
+        var spec = buildSpec();
+        var template = new TemplateGenerator(spec).generate();
+        var mapping = new MappingGenerator(spec).generate(template);
+        var mappingXContent = XContentFactory.jsonBuilder().map(mapping.raw());
+
+        var syntheticSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+        var columnarStoredSettings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
+
+        assertAcked(prepareCreate("test_synthetic").setMapping(mappingXContent).setSettings(syntheticSettings));
+        assertAcked(prepareCreate("test_columnar_stored").setMapping(mappingXContent).setSettings(columnarStoredSettings));
+
+        var document = new DocumentGenerator(spec).generate(template, mapping);
+        logger.info("mappings: {}", Strings.toString(mappingXContent));
+        logger.info("document: {}", document);
+        prepareIndex("test_synthetic").setId("1").setSource(document).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+        prepareIndex("test_columnar_stored").setId("1").setSource(document).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).get();
+
+        var syntheticSource = client().prepareGet("test_synthetic", "1").get().getSourceAsMap();
+        var columnarStoredSource = client().prepareGet("test_columnar_stored", "1").get().getSourceAsMap();
+
+        MatchResult matchResult = Matcher.matchSource()
+            .mappings(mapping.lookup(), mappingXContent, mappingXContent)
+            .settings(columnarStoredSettings, syntheticSettings)
+            .expected(List.of(syntheticSource))
+            .ignoringSort(true)
+            .isEqualTo(List.of(columnarStoredSource));
+        assertTrue(matchResult.getMessage(), matchResult.isMatch());
+
+        for (var entry : columnarStoredSource.entrySet()) {
+            // A Map value is only acceptable for leaf field types that use an object representation
+            // (e.g. geo_point stored as {lat, lon}). Object mappers must not appear — those should
+            // have been flattened to dotted-path keys.
+            if (entry.getValue() instanceof Map<?, ?>) {
+                assertTrue(
+                    "source should be flat, but key '" + entry.getKey() + "' has a nested object value",
+                    isMappedLeafField(entry.getKey(), mapping.lookup())
+                );
+            }
         }
     }
 
@@ -216,5 +238,40 @@ public class ColumnarStoredSourceIgnoredSourceIT extends ESIntegTestCase {
         }
         String type = (String) fieldMapping.get("type");
         return "object".equals(type) == false && "nested".equals(type) == false;
+    }
+
+    private DataGeneratorSpecification buildSpec() {
+        var allowedFieldTypes = DefaultObjectGenerationHandler.ALLOWED_FIELD_TYPES.stream()
+            // these types require plugins not loaded in server internalClusterTests
+            .filter(
+                ft -> ft != FieldType.WILDCARD
+                    && ft != FieldType.COUNTED_KEYWORD
+                    && ft != FieldType.CONSTANT_KEYWORD
+                    && ft != FieldType.SCALED_FLOAT
+                    && ft != FieldType.MATCH_ONLY_TEXT
+            )
+            .toList();
+        return DataGeneratorSpecification.builder()
+            .withMaxFieldCountPerLevel(5)
+            .withMaxObjectDepth(2)
+            .withNestedFieldsLimit(0)
+            .withDataSourceHandlers(List.of(new ASCIIStringsHandler()))
+            .withDataSourceHandlers(List.of(new DataSourceHandler() {
+                @Override
+                public DataSourceResponse.FieldTypeGenerator handle(DataSourceRequest.FieldTypeGenerator request) {
+                    return new DataSourceResponse.FieldTypeGenerator(
+                        () -> new DataSourceResponse.FieldTypeGenerator.FieldTypeInfo(randomFrom(allowedFieldTypes).toString())
+                    );
+                }
+
+                @Override
+                public DataSourceResponse.ObjectMappingParametersGenerator handle(
+                    DataSourceRequest.ObjectMappingParametersGenerator request
+                ) {
+                    // columnar mode does not support the subobjects mapping parameter
+                    return new DataSourceResponse.ObjectMappingParametersGenerator(HashMap::new);
+                }
+            }))
+            .build();
     }
 }

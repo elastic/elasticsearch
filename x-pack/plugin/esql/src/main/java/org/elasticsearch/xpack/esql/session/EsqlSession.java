@@ -198,6 +198,9 @@ public class EsqlSession {
     private String optimizedLogicalPlanString;
     private final ProjectMetadata projectMetadata;
 
+    /** Coordinator-side physical plan most recently materialized for this session, used for failure-path anonymized logging. */
+    private volatile PhysicalPlan lastPhysicalPlan;
+
     public EsqlSession(
         String sessionId,
         TransportVersion localClusterMinimumVersion,
@@ -456,6 +459,14 @@ public class EsqlSession {
 
         EsqlCCSUtils.updateExecutionInfoAtEndOfPlanning(executionInfo);
 
+        // Anonymized failure logging: wraps the outer listener so it fires on any failure that
+        // bubbles out of executeSubPlans (main-plan path AND subplan-recursion path). Explain mode
+        // is intentionally not covered here — its listener path has different semantics and is
+        // filed as a follow-up.
+        if (explainMode == false) {
+            listener = wrapForAnonymizedFailureLog(listener, optimizedPlan);
+        }
+
         // In explain mode, wrap the listener to transform results into EXPLAIN table format.
         // We use the same execution path as normal queries to ensure accuracy.
         listener = explainMode
@@ -475,6 +486,13 @@ public class EsqlSession {
             planTimeProfile,
             listener
         );
+    }
+
+    private ActionListener<Result> wrapForAnonymizedFailureLog(ActionListener<Result> delegate, LogicalPlan logical) {
+        return delegate.delegateResponse((next, err) -> {
+            logAnonymizedPlans(logical, lastPhysicalPlan);
+            next.onFailure(err);
+        });
     }
 
     private Map<NameId, Map<String, Object>> createColumnMetadata(LogicalPlan optimizedPlan, FoldContext foldContext) {
@@ -644,26 +662,20 @@ public class EsqlSession {
             );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
-            String originalQuery = request.query();
-            ActionListener<Result> wrapped = ActionListener.runAfter(
-                listener,
-                () -> logAnonymizedPlans(originalQuery, optimizedPlan, physicalPlan)
-            );
-            runner.run(physicalPlan, configuration, foldContext, planTimeProfile, wrapped);
+            runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener);
         }
     }
 
-    private void logAnonymizedPlans(String originalQuery, LogicalPlan logical, PhysicalPlan physical) {
+    private void logAnonymizedPlans(LogicalPlan logical, PhysicalPlan physical) {
         if (LOGGER.isInfoEnabled() == false) {
             return;
         }
         try {
-            var anonymized = PlanAnonymizer.forSubmission(clusterUuid).anonymize(originalQuery, logical, physical);
+            var anonymized = PlanAnonymizer.forSubmission(clusterUuid).anonymize(logical, physical);
             LOGGER.info(
-                "ESQL anonymized plans for session [{}]\nschema:\n{}\nquery:\n{}\nlogical:\n{}\nphysical:\n{}",
+                "ESQL anonymized plans for failed session [{}]\nschema:\n{}\nlogical:\n{}\nphysical:\n{}",
                 sessionId,
                 anonymized.schema(),
-                anonymized.query(),
                 anonymized.logicalPlan(),
                 anonymized.physicalPlan()
             );
@@ -1732,7 +1744,11 @@ public class EsqlSession {
     ) {
         PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan, physicalPlanOptimizer, planTimeProfile);
         physicalPlan = PlannerUtils.integrateEsFilterIntoFragment(physicalPlan, request.filter());
-        return EstimatesRowSize.estimateRowSize(0, physicalPlan);
+        physicalPlan = EstimatesRowSize.estimateRowSize(0, physicalPlan);
+        // Capture for failure-path anonymized logging. Overwriting on each call so a failure during
+        // subplan execution surfaces the most recent physical plan we built.
+        lastPhysicalPlan = physicalPlan;
+        return physicalPlan;
     }
 
     private LogicalPlan analyzedPlan(

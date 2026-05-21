@@ -103,10 +103,9 @@ public class PlanAnonymizerExamplesTests extends MapperServiceTestCase {
         var anon = PlanAnonymizer.forSubmission(CLUSTER_UUID);
         LogicalPlan logical = logicalOptimizer.optimize(analyzer.analyze(TEST_PARSER.parseQuery(query)));
         PhysicalPlan physical = mapper.map(new Versioned<>(logical, analyzer.context().minimumVersion()));
-        var anonymized = anon.anonymize(query, logical, physical);
+        var anonymized = anon.anonymize(logical, physical);
 
-        out.append("\n--- ORIGINAL QUERY ---\n").append(query).append("\n");
-        out.append("--- ANONYMIZED QUERY ---\n").append(anonymized.query()).append("\n");
+        out.append("\n--- QUERY (for reviewer reference; never logged) ---\n").append(query).append("\n");
         out.append("--- SCHEMA ---\n").append(anonymized.schema());
         out.append("--- LOGICAL ---\n").append(anonymized.logicalPlan()).append("\n");
         out.append("--- PHYSICAL ---\n").append(anonymized.physicalPlan()).append("\n");

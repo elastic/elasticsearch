@@ -26,7 +26,6 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
-import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
@@ -34,7 +33,6 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.regex.Pattern;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -53,7 +51,7 @@ import javax.crypto.spec.SecretKeySpec;
  */
 public final class PlanAnonymizer {
 
-    public record AnonymizedPlans(String schema, String query, String logicalPlan, String physicalPlan) {}
+    public record AnonymizedPlans(String schema, String logicalPlan, String physicalPlan) {}
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     private static final int TOKEN_HEX_LEN = 8;
@@ -72,10 +70,10 @@ public final class PlanAnonymizer {
         return new PlanAnonymizer(clusterUuid);
     }
 
-    public AnonymizedPlans anonymize(String originalQuery, LogicalPlan logical, PhysicalPlan physical) {
+    public AnonymizedPlans anonymize(LogicalPlan logical, PhysicalPlan physical) {
         LogicalPlan al = anonymizeLogical(logical);
-        PhysicalPlan ap = anonymizePhysical(physical);
-        return new AnonymizedPlans(renderSchema(logical), anonymizeQuery(originalQuery), al.toString(), ap.toString());
+        String physicalText = physical == null ? "" : anonymizePhysical(physical).toString();
+        return new AnonymizedPlans(renderSchema(logical), al.toString(), physicalText);
     }
 
     private LogicalPlan anonymizeLogical(LogicalPlan plan) {
@@ -279,62 +277,6 @@ public final class PlanAnonymizer {
             m.put(s, Boolean.TRUE);
         }
         return m;
-    }
-
-    /**
-     * Rewrites the original ES|QL query text by substituting known index names, column names, and
-     * literal values with their anonymized tokens. Driven by the maps populated during plan
-     * anonymization, so the substitutions are consistent with what appears in the logical and
-     * physical artifacts. Best-effort textual replacement — identifiers and bare numbers use
-     * word-boundary regex, quoted strings match double-quoted literals.
-     */
-    /**
-     * Best-effort textual rewrite of the original ES|QL query. After substituting known
-     * identifiers and literals via the maps built during plan anonymization, any quoted strings
-     * the maps didn't catch (LIKE patterns where the optimizer kept only the prefix, date strings
-     * folded to epoch millis, escape-sequence forms that didn't text-match) get redacted so
-     * nothing can leak. Triple-quoted strings (ES|QL multi-line literals) are scrubbed before
-     * single-double-quoted to avoid a partial-match across the boundary. Identifiers in backticks
-     * (`` `weird name` ``) are not currently anonymized via this path — known limitation.
-     */
-    private String anonymizeQuery(String query) {
-        String result = query;
-        result = replaceByLengthDesc(result, indexTokens);
-        result = replaceByLengthDesc(result, columnTokens);
-        for (Map.Entry<LiteralKey, Integer> e : literalIds.entrySet()) {
-            LiteralKey k = e.getKey();
-            String placeholder = literalPlaceholderText(k.type(), e.getValue());
-            String val = String.valueOf(k.value());
-            if (k.type() == DataType.KEYWORD || k.type() == DataType.TEXT || k.type() == DataType.VERSION || k.type() == DataType.IP) {
-                result = result.replace("\"\"\"" + val + "\"\"\"", placeholder);
-                result = result.replace("\"" + val + "\"", placeholder);
-                result = result.replace("'" + val + "'", placeholder);
-            } else {
-                result = result.replaceAll("\\b" + Pattern.quote(val) + "\\b", placeholder);
-            }
-        }
-        result = result.replaceAll("\"\"\"[\\s\\S]*?\"\"\"", "\"<STRING>\"");
-        result = result.replaceAll("\"[^\"]*\"", "\"<STRING>\"");
-        return result;
-    }
-
-    private static String replaceByLengthDesc(String input, Map<String, String> map) {
-        String result = input;
-        List<Map.Entry<String, String>> sorted = map.entrySet()
-            .stream()
-            .sorted(Comparator.comparingInt((Map.Entry<String, String> e) -> e.getKey().length()).reversed())
-            .toList();
-        for (Map.Entry<String, String> e : sorted) {
-            result = result.replaceAll("\\b" + Pattern.quote(e.getKey()) + "\\b", e.getValue());
-        }
-        return result;
-    }
-
-    private static String literalPlaceholderText(DataType type, int id) {
-        if (type == DataType.KEYWORD || type == DataType.TEXT || type == DataType.VERSION || type == DataType.IP) {
-            return "L" + id + "[" + type + "]";
-        }
-        return id + "[" + type + "]";
     }
 
     private record LiteralKey(DataType type, Object value) {

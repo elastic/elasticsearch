@@ -145,7 +145,6 @@ public class SynonymsManagementAPIService {
     private final int pitBatchSize;
     private final int bulkChunkSize;
     private final ClusterService clusterService;
-    private final FeatureService featureService;
 
     // Package private for testing
     static Logger logger = LogManager.getLogger(SynonymsManagementAPIService.class);
@@ -190,7 +189,6 @@ public class SynonymsManagementAPIService {
         this.maxSynonymRules = maxSynonymRules;
         this.pitBatchSize = pitBatchSize;
         this.bulkChunkSize = bulkChunkSize;
-        this.featureService = featureService;
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
@@ -380,13 +378,12 @@ public class SynonymsManagementAPIService {
                     );
                     return;
                 }
-                for (String missingId : missingSetIds) {
-                    logger.warn(
-                        "Synonyms set [{}] not found; synonyms from this set will not be applied,"
-                            + " but other synonym sets in this filter will still be used",
-                        missingId
-                    );
-                }
+                logger.warn(
+                    "Synonym set{} {} not found; synonyms from these sets will not be applied,"
+                        + " but other synonym sets in this filter will still be used",
+                    missingSetIds.size() == 1 ? "" : "s",
+                    missingSetIds
+                );
             }
 
             fetchPagesWithPit(existingSetIds, currentPitId, null, new ArrayList<>(), listener);
@@ -458,7 +455,7 @@ public class SynonymsManagementAPIService {
         closePitAndThen(pitId, () -> listener.onFailure(failure));
     }
 
-    static Exception translateIndexNotFound(Exception e, String notFoundMessage) {
+    private static Exception translateIndexNotFound(Exception e, String notFoundMessage) {
         Throwable cause = ExceptionsHelper.unwrapCause(e);
         if (cause instanceof IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus) {
             cause = cause.getCause();

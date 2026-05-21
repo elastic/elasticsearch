@@ -626,8 +626,8 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
     /**
      * When the cluster is not fully upgraded, creating an index with multiple synonym sets in a
-     * single filter must be rejected at index creation time. This prevents silent inconsistency
-     * during rolling upgrades, where old nodes would only see the first synonym set.
+     * single filter must be rejected at index creation time. This prevents inconsistency
+     * during rolling upgrades, where old nodes would either error out or use no synonyms.
      */
     public void testMultipleSynonymSetsRejectedOnPartiallyUpgradedCluster() throws IOException {
         FeatureService absentFeatureService = mock(FeatureService.class);

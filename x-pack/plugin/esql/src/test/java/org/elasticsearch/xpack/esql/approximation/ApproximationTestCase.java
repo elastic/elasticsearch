@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -14,6 +15,7 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestOptimizer;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -50,11 +52,20 @@ public abstract class ApproximationTestCase extends ESTestCase {
     }
 
     static ApproximationVerifier.QueryProperties verify(String query) {
-        return ApproximationVerifier.verifyPlanOrThrow(getLogicalPlan(query));
+        return ApproximationVerifier.verifyPlanOrThrow(getLogicalPlan(query), TransportVersionUtils.randomVersion());
+    }
+
+    static ApproximationVerifier.QueryProperties verify(String query, TransportVersion minimumVersion) {
+        return ApproximationVerifier.verifyPlanOrThrow(getLogicalPlan(query), minimumVersion);
     }
 
     static void assertError(String esql, Matcher<String> matcher) {
         Exception e = assertThrows(VerificationException.class, () -> verify(esql));
+        assertThat(e.getMessage(), matcher);
+    }
+
+    static void assertError(String esql, TransportVersion minimumVersion, Matcher<String> matcher) {
+        Exception e = assertThrows(VerificationException.class, () -> verify(esql, minimumVersion));
         assertThat(e.getMessage(), matcher);
     }
 

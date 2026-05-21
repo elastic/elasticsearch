@@ -95,7 +95,6 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
 
     @After
     public void cleanUp() throws Exception {
-        IpLocationTestHelper.deleteDatabasesInConfigDirectory(internalCluster());
 
         // Nullify every cluster setting touched by tests; SUITE-scoped tests assert no persistent/transient state leaks.
         updateClusterSettings(
@@ -114,6 +113,8 @@ public class IngestGeoIpDownloaderIT extends AbstractGeoIpIT {
         // Wait for the geoip downloader persistent task to be removed by its onRemove hook so the next test
         // starts without an in-flight task referencing the just-wiped .geoip_databases index.
         assertBusy(() -> assertNull(getTask()));
+        IpLocationTestHelper.awaitNoDatabases(internalCluster());
+        IpLocationTestHelper.deleteDatabasesInConfigDirectory(internalCluster());
     }
 
     public void testGeoIpDatabasesDownloadNoGeoipProcessors() throws Exception {

@@ -10,9 +10,11 @@ package org.elasticsearch.xpack.stateless.cache;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.shard.IndexShard;
@@ -36,12 +38,24 @@ import static org.elasticsearch.search.sort.SortOrder.ASC;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase {
 
     private static final String TIMESTAMP_MAPPING = """
-        {"properties":{"@timestamp":{"type":"date"}}}""";
+        {
+            "properties": {
+                "@timestamp": {
+                    "type":"date"
+                },
+                "hostname": {
+                    "type":"keyword",
+                    "time_series_dimension": true
+                }
+            }
+        }
+        """;
 
     // non-boosted doc-value reads (sort forces reading all values per segment) overflow it.
     private static final ByteSizeValue REGION_SIZE = ByteSizeValue.ofKb(4); // TODO randomisation
@@ -70,64 +84,60 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
 
         final long boostWindowEndInMillis = System.currentTimeMillis();
         final long boostWindowStartInMillis = boostWindowEndInMillis - BOOST_WINDOW_MILLIS + ONE_DAY_MILLIS;
-        indexDocuments(10, BOOSTED_IDX, 1_000, boostWindowStartInMillis, boostWindowEndInMillis);
-
         final long preBoostWindowEndInMillis = boostWindowEndInMillis - BOOST_WINDOW_MILLIS - 2 * ONE_DAY_MILLIS;
         final long preBoostWindowStartInMillis = preBoostWindowEndInMillis - 30L * ONE_DAY_MILLIS;
-        indexDocuments(5, NON_BOOSTED_IDX, 10_000, preBoostWindowStartInMillis, preBoostWindowEndInMillis);
+        // Non-boosted index is sized to exceed the cache: many segments ensure non-boosted searches
+        // span more cache regions than the cache holds, so LFU eviction must displace every boosted region.
+        indexDocuments(10, NON_BOOSTED_IDX, 10_000, preBoostWindowStartInMillis, preBoostWindowEndInMillis);
+        indexDocuments(10, BOOSTED_IDX, 1_000, boostWindowStartInMillis, boostWindowEndInMillis);
 
         final StatelessSharedBlobCacheService cacheService = getCacheService();
-        cacheService.forceEvict(key -> true);
-        logger.info("cache after forceEvict: {}", cacheService.getStats());
+        logger.info("cache regions after ingesting docs: boosted={}, non-boosted={}",
+            cacheRegionsForIndex(cacheService, BOOSTED_IDX), cacheRegionsForIndex(cacheService, NON_BOOSTED_IDX));
 
         // Step 1 — populate the cache with boosted data via a single on-demand search.
         // All boosted regions start at LFU frequency 1 (written once, not yet promoted).
         searchBoostedData(BOOSTED_IDX);
 
         final SharedBlobCacheService.Stats statsAfterBoostSearch = cacheService.getStats();
-        logger.info("cache after boosted search: {}", statsAfterBoostSearch);
+        logger.info("boosted cache regions after searching boosted docs: boosted={}, non-boosted={}",
+            cacheRegionsForIndex(cacheService, BOOSTED_IDX), cacheRegionsForIndex(cacheService, NON_BOOSTED_IDX));
 
         assertThat("boosted data should have been loaded into the cache", statsAfterBoostSearch.writeBytes(), greaterThan(0L));
-        assertThat("boosted cache regions should be resident", statsAfterBoostSearch.numberOfRegions(), greaterThan(0));
+        assertThat("boosted cache regions should be resident", cacheRegionsForIndex(cacheService, BOOSTED_IDX), greaterThan(0L));
 
         // Step 2 — drive non-boosted searches. Sorting by @timestamp forces reading all doc-value
         // data per segment, generating enough blob-cache reads to overflow the small cache.
         // Both boosted and non-boosted regions compete at the same LFU frequency (1); the older
         // boosted regions are evicted first under the LFU clock.
-        final long evictCountBaseline = statsAfterBoostSearch.evictCount();
         searchNonBoostedData(NON_BOOSTED_IDX);
 
-        logger.info("cache after non-boosted searches: {}", cacheService.getStats());
+        logger.info("boosted cache regions after searching non-boosted docs: boosted={}, non-boosted={}",
+            cacheRegionsForIndex(cacheService, BOOSTED_IDX), cacheRegionsForIndex(cacheService, NON_BOOSTED_IDX));
         assertThat(
-            "non-boosted searches must have caused cache evictions",
-            cacheService.getStats().evictCount(),
-            greaterThan(evictCountBaseline)
+            "boosted regions must have been fully evicted by non-boosted searches",
+            cacheRegionsForIndex(cacheService, BOOSTED_IDX),
+            equalTo(0L)
         );
+    }
 
-        // Step 3 — re-search the boosted index. Evicted boosted regions must be re-fetched from
-        // the object store, proving that non-boosted traffic displaced the boosted cache data.
-        final SharedBlobCacheService.Stats statsBeforeReSearch = cacheService.getStats();
-        searchBoostedData(BOOSTED_IDX);
-
-        logger.info("cache after boosted re-search: {}", cacheService.getStats());
-        assertThat(
-            "re-search of boosted index must trigger cache misses because boosted regions were evicted",
-            cacheService.getStats().missCount(),
-            greaterThan(statsBeforeReSearch.missCount())
-        );
+    private long cacheRegionsForIndex(StatelessSharedBlobCacheService cacheService, String indexName) {
+        return cacheService.countCachedRegions(key -> key.shardId().getIndexName().equals(indexName));
     }
 
     private static void searchNonBoostedData(String nonBoostedIdx) {
         for (int i = 0; i < randomIntBetween(2, 4); i++) {
             assertResponse(
-                prepareSearch(nonBoostedIdx).setSize(1_000).addSort(DataStream.TIMESTAMP_FIELD_NAME, ASC),
+                prepareSearch(nonBoostedIdx).setSize(5_000).addSort(DataStream.TIMESTAMP_FIELD_NAME, ASC),
                 ElasticsearchAssertions::assertNoFailures
             );
         }
     }
 
     private static void searchBoostedData(String boostedIdx) {
-        assertResponse(prepareSearch(boostedIdx).setSize(1_000), ElasticsearchAssertions::assertNoFailures);
+        for (int i = 0; i < randomIntBetween(2, 4); i++) {
+            assertResponse(prepareSearch(boostedIdx).setSize(1_000), ElasticsearchAssertions::assertNoFailures);
+        }
     }
 
     private void startNodes() {
@@ -143,6 +153,8 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
     private void createIndexes(String boostedIdx, String nonBoostedIdx) {
         final Settings idxSettings = ESTestCase.indexSettings(1, 1)
             .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), MINUS_ONE)
+            .put(IndexSettings.MODE.getKey() , IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
             .put(MergePolicyConfig.INDEX_MERGE_ENABLED, "false")
             .build();
 
@@ -159,7 +171,11 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
     private void indexDocumentsWithTimestamp(String indexName, int numDocs, long minTimestamp, long maxTimestamp) {
         var bulk = client().prepareBulk().setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         range(0, numDocs).mapToObj(
-            i -> client().prepareIndex(indexName).setSource(DataStream.TIMESTAMP_FIELD_NAME, randomLongBetween(minTimestamp, maxTimestamp))
+            i -> client().prepareIndex(indexName)
+                .setSource(
+                    DataStream.TIMESTAMP_FIELD_NAME, randomLongBetween(minTimestamp, maxTimestamp),
+                    "hostname", "host-" + randomIntBetween(1, 5)
+                )
         ).forEach(bulk::add);
         assertNoFailures(bulk.get());
     }

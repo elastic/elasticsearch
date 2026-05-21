@@ -17,6 +17,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.util.Map;
 
+import static org.elasticsearch.inference.telemetry.InferenceStats.ES_PLUGIN_NAME_VALUE;
 import static org.hamcrest.Matchers.is;
 
 public class NodeTelemetryAttributesTests extends ESTestCase {
@@ -54,7 +55,9 @@ public class NodeTelemetryAttributesTests extends ESTestCase {
                     MetricAttributes.ES_PRODUCTION_RELEASE,
                     true,
                     MetricAttributes.ES_DEPLOYMENT_TYPE,
-                    MetricAttributes.HOSTED_DEPLOYMENT_TYPE
+                    MetricAttributes.HOSTED_DEPLOYMENT_TYPE,
+                    MetricAttributes.ES_PLUGIN_NAME,
+                    ES_PLUGIN_NAME_VALUE
                 )
             )
         );

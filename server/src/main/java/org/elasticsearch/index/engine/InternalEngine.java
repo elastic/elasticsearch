@@ -1174,14 +1174,6 @@ public class InternalEngine extends Engine {
         return true;
     }
 
-    private boolean assertUniformOrigin(Index[] ops) {
-        final var origin = ops[0].origin();
-        for (Index op : ops) {
-            assert origin == op.origin() : "mixed origins in sub-batch: " + origin + " vs " + op.origin();
-        }
-        return true;
-    }
-
     private boolean assertIncomingSequenceNumber(final Operation.Origin origin, final long seqNo) {
         if (origin == Operation.Origin.PRIMARY) {
             assert assertPrimaryIncomingSequenceNumber(origin, seqNo);
@@ -1447,8 +1439,15 @@ public class InternalEngine extends Engine {
         // Indexing Plan
         int reservedDocs = 0;
         long maxStartNanos = lastWriteNanos;
+
+        final var origin = operations.get(subBatchIdx).origin(); // all origins must be uniform, so grab the first one as "the" origin
         for (int i = 0; i < subBatchSize; i++) {
             Index op = operations.get(subBatchIdx + i);
+            if (origin != op.origin()) { // verify that origins are uniform
+                final var message = "mixed origins in sub-batch: " + origin + " vs " + op.origin();
+                assert false : message;
+                throw new IllegalStateException(message);
+            }
             if (op.startTime() - maxStartNanos > 0) {
                 maxStartNanos = op.startTime();
             }
@@ -1457,8 +1456,7 @@ public class InternalEngine extends Engine {
         }
         lastWriteNanos = maxStartNanos;
 
-        assert assertUniformOrigin(subBatchOps);
-        if (subBatchOps[0].origin() == Operation.Origin.PRIMARY) {
+        if (origin == Operation.Origin.PRIMARY) {
             // Primary: resolve all version IDs in a single Lucene reader acquisition, then plan.
             final IndexingStrategy[] batchPlans = planPrimarySubBatch(subBatchOps, subBatchSize);
             for (int i = 0; i < subBatchSize; i++) {

@@ -374,20 +374,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     public void testChangedTimestmapFieldWithRate() {
-        analyzer().addK8sDownsampled()
-            .statementError(
-                setUnmappedNullify("""
-                    TS k8s
-                    | RENAME @timestamp AS newTs
-                    | STATS max(rate(network.total_cost)) BY tbucket = BUCKET(newTs, 1hour)
-                    """),
-                // TODO this should probably be changed to a VerificationError
-                IllegalArgumentException.class,
-                containsString(
-                    "Time-series aggregations require direct use of @timestamp which was not found. "
-                        + "If @timestamp was renamed in EVAL, use the original @timestamp field instead."
-                )
-            );
+        analyzer().addK8sDownsampled().statementError(setUnmappedNullify("""
+            TS k8s
+            | RENAME @timestamp AS newTs
+            | STATS max(rate(network.total_cost)) BY tbucket = BUCKET(newTs, 1hour)
+            """), containsString("3:13: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX));
 
         analyzer().addK8sDownsampled().statementError(setUnmappedNullify("""
             TS k8s

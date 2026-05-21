@@ -241,12 +241,14 @@ public class PromqlVerifierTests extends ESTestCase {
         );
     }
 
-    // TODO: fix
     public void testAggregationOnNonNumericField() {
         // metricset is a keyword dimension field, not a numeric metric
         tsdb.error(
             "PROMQL index=test step=5m sum(metricset)",
-            containsString("field [metricset] of type [keyword] cannot be used as a metric; it is a dimension field")
+            containsString(
+                "1:27: argument of [sum(metricset)] must be [aggregate_metric_double, exponential_histogram, tdigest "
+                    + "or numeric except unsigned_long or counter types], found value [metricset] type [keyword]"
+            )
         );
     }
 

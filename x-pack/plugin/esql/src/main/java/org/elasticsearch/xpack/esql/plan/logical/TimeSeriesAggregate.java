@@ -163,46 +163,19 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     @Override
     public TimeSeriesAggregate replaceChild(LogicalPlan newChild) {
-        return new TimeSeriesAggregate(
-            source(),
-            newChild,
-            groupings,
-            aggregates,
-            timeBucket,
-            outputTimeBucket,
-            timestamp,
-            origin
-        );
+        return new TimeSeriesAggregate(source(), newChild, groupings, aggregates, timeBucket, outputTimeBucket, timestamp, origin);
     }
 
     @Override
     public TimeSeriesAggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
-        return new TimeSeriesAggregate(
-            source(),
-            child,
-            newGroupings,
-            newAggregates,
-            timeBucket,
-            outputTimeBucket,
-            timestamp,
-            origin
-        );
+        return new TimeSeriesAggregate(source(), child, newGroupings, newAggregates, timeBucket, outputTimeBucket, timestamp, origin);
     }
 
     public LogicalPlan withTimestamp(Expression newTimestamp) {
         if (newTimestamp.equals(timestamp)) {
             return this;
         }
-        return new TimeSeriesAggregate(
-            source(),
-            child(),
-            groupings,
-            aggregates,
-            timeBucket,
-            outputTimeBucket,
-            newTimestamp,
-            origin
-        );
+        return new TimeSeriesAggregate(source(), child(), groupings, aggregates, timeBucket, outputTimeBucket, newTimestamp, origin);
     }
 
     public Origin origin() {

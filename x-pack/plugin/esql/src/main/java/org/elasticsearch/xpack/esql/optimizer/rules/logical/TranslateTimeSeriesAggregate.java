@@ -168,6 +168,9 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
 
     @Override
     protected LogicalPlan rule(TimeSeriesAggregate inputAggregate, AnalyzerContext context) {
+        if (inputAggregate.resolved() == false) {
+            return inputAggregate;
+        }
         TimeSeriesAggregate aggregate = replaceSurrogateTimeseriesAggs(inputAggregate);
         Holder<Attribute> tsid = new Holder<>();
         aggregate.forEachDown(EsRelation.class, r -> {

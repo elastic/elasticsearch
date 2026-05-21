@@ -1550,8 +1550,7 @@ public class VerifierTests extends ESTestCase {
     public void testRenameOrDropTimestmapWithRate() {
         k8s().error(
             "TS k8s | RENAME @timestamp AS newTs | STATS max(rate(network.total_cost))  BY tbucket = bucket(newTs, 1hour)",
-            IllegalArgumentException.class,
-            containsString("Time-series aggregations require direct use of @timestamp which was not found.")
+            equalTo("1:49: [rate(network.total_cost)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         k8s().error(
@@ -1563,8 +1562,7 @@ public class VerifierTests extends ESTestCase {
     public void testRenameOrDropTimestmapWithLastOverTime() {
         k8s().error(
             "TS k8s | RENAME @timestamp AS newTs | STATS max(last_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
-            IllegalArgumentException.class,
-            containsString("Time-series aggregations require direct use of @timestamp which was not found.")
+            equalTo("1:49: [last_over_time(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         k8s().error(
@@ -1576,8 +1574,7 @@ public class VerifierTests extends ESTestCase {
     public void testRenameOrDropTimestmapWithFirstOverTime() {
         k8s().error(
             "TS k8s | RENAME @timestamp AS newTs | STATS max(first_over_time(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
-            IllegalArgumentException.class,
-            containsString("Time-series aggregations require direct use of @timestamp which was not found.")
+            equalTo("1:49: [first_over_time(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         k8s().error(
@@ -1589,8 +1586,7 @@ public class VerifierTests extends ESTestCase {
     public void testRenameOrDropTimestmapWithIncrease() {
         k8s().error(
             "TS k8s | RENAME @timestamp AS newTs | STATS max(increase(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
-            IllegalArgumentException.class,
-            containsString("Time-series aggregations require direct use of @timestamp which was not found.")
+            equalTo("1:49: [increase(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         k8s().error(
@@ -1602,8 +1598,7 @@ public class VerifierTests extends ESTestCase {
     public void testRenameOrDropTimestmapWithIRate() {
         k8s().error(
             "TS k8s | RENAME @timestamp AS newTs | STATS max(irate(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
-            IllegalArgumentException.class,
-            containsString("Time-series aggregations require direct use of @timestamp which was not found.")
+            equalTo("1:49: [irate(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         k8s().error(
@@ -1615,8 +1610,7 @@ public class VerifierTests extends ESTestCase {
     public void testRenameOrDropTimestmapWithDelta() {
         k8s().error(
             "TS k8s | RENAME @timestamp AS newTs | STATS max(delta(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
-            IllegalArgumentException.class,
-            containsString("Time-series aggregations require direct use of @timestamp which was not found.")
+            equalTo("1:49: [delta(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         k8s().error(
@@ -1628,8 +1622,7 @@ public class VerifierTests extends ESTestCase {
     public void testRenameOrDropTimestmapWithIDelta() {
         k8s().error(
             "TS k8s | RENAME @timestamp AS newTs | STATS max(idelta(network.eth0.tx))  BY tbucket = bucket(newTs, 1hour)",
-            IllegalArgumentException.class,
-            containsString("Time-series aggregations require direct use of @timestamp which was not found.")
+            equalTo("1:49: [idelta(network.eth0.tx)] " + UnresolvedTimestamp.UNRESOLVED_SUFFIX)
         );
 
         k8s().error(

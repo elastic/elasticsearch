@@ -373,7 +373,10 @@ public class PromqlCommand extends UnaryPlan
 
     @Override
     public void postAnalysisVerification(Failures failures) {
-        // TODO: probably should move this out to a separate function
+
+    }
+
+    public void verify(Failures failures) {
         LogicalPlan p = promqlPlan();
         boolean hasStep = step.value() != null;
         boolean hasRangeAndBuckets = start.value() != null && end.value() != null && buckets.value() != null;

@@ -151,6 +151,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
@@ -254,7 +255,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveInference(),
             new DateMillisToNanosInEsRelation(),
             // Must happen before Translating PromQL plan to ESQL plan
-            new ResolvePromqlRefs(),
+            new ResolveAndVerifyPromqlRefs(),
             // Populates the TS_COLLAPSE wrapping a PromqlCommand with dimensions and bounds drawn from the
             // PromqlCommand. The wrapped PromqlCommand is left in place and translated to ESQL nodes by the next rule.
             new TranslateTimeSeriesCollapse(),
@@ -729,7 +730,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
     }
 
-    public static class ResolvePromqlRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
+    private static class ResolveAndVerifyPromqlRefs extends ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext> {
         @Override
         protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
             if (plan.childrenResolved() == false) {
@@ -740,10 +741,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 var output = child.output();
                 childrenOutput.addAll(output);
             }
+            if (plan instanceof TimeSeriesCollapse tsc) {
+                Failures failures = new Failures();
+                tsc.verify(failures);
+                if (failures.hasFailures()) {
+                    throw new VerificationException(failures);
+                }
+                return tsc;
+            }
             if (plan instanceof PromqlCommand promql) {
                 return resolvePromql(promql, childrenOutput).transformDown(PromqlCommand.class, p -> {
                     Failures failures = new Failures();
-                    p.postAnalysisVerification(failures);
+                    p.verify(failures);
                     if (failures.hasFailures()) {
                         throw new VerificationException(failures);
                     }

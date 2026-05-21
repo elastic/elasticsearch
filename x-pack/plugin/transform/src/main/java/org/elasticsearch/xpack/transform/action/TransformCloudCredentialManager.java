@@ -67,14 +67,18 @@ public class TransformCloudCredentialManager {
     }
 
     /**
-     * Returns a client wrapped with the caller's cloud credential from the thread context,
-     * or the original client if the feature flag is off or no credential is present.
-     * Prefers the user's secondary authentication when present (e.g. Kibana primary + user secondary)
-     * via {@link #currentCallerCredential()}.
+     * Returns {@code client} wrapped with {@code credential} so downstream actions authenticate
+     * with the caller's UIAM cloud credential, or the original {@code client} when {@code credential}
+     * is {@code null} (feature flag off or no credential present).
+     *
+     * <p>The caller owns {@code credential}'s {@link org.elasticsearch.common.settings.SecureString}
+     * and must keep it open for the lifetime of the returned wrapped client — typically by registering
+     * {@link ActionListener#releaseAfter} on the outer listener that terminates the wrapped client's
+     * use. See {@link #currentCallerCredential()} for extracting the caller credential from the
+     * current thread context.
      */
-    public Client wrapWithUiamIfPresent(Client client) {
-        var credential = currentCallerCredential();
-        return credential == null ? client : credentialManager.wrapClient(client, credential);
+    public Client wrapWithUiamIfPresent(Client client, @Nullable CloudCredential credential) {
+        return credentialManager.wrapClient(client, credential);
     }
 
     /**

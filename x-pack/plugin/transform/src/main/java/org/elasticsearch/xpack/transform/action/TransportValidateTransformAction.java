@@ -85,10 +85,6 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
 
     @Override
     protected void doExecute(Task task, Request request, ActionListener<Response> rawListener) {
-        // Re-inject the caller's UIAM cloud credential into the local thread context. The PUT/Start/Update
-        // dispatcher carried it on the request payload because the system-origin context stash inside
-        // ClientHelper.executeAsyncWithOrigin would otherwise drop the cloud credential transient.
-        cloudCredentialManager.injectCallerCredential(request.cloudCredential());
         // Ensure the credential's SecureString is closed once validation completes (success or failure).
         final ActionListener<Response> listener = ActionListener.releaseAfter(rawListener, request);
 
@@ -113,10 +109,6 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
         TransformNodes.warnIfNoTransformNodes(clusterState);
 
         var config = request.getConfig();
-        var function = FunctionFactory.create(config);
-        var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        var rawClient = new ParentTaskAssigningClient(client, parentTaskId);
-        var parentClient = cloudCredentialManager.wrapWithUiamIfPresent(rawClient);
 
         if (config.getVersion() == null || config.getVersion().before(TransformDeprecations.MIN_TRANSFORM_VERSION)) {
             listener.onFailure(
@@ -131,6 +123,11 @@ public class TransportValidateTransformAction extends HandledTransportAction<Req
             );
             return;
         }
+
+        var function = FunctionFactory.create(config);
+        var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
+        var rawClient = new ParentTaskAssigningClient(client, parentTaskId);
+        var parentClient = cloudCredentialManager.wrapWithUiamIfPresent(rawClient, request.cloudCredential());
 
         // <6> Final listener
         ActionListener<Map<String, String>> deduceMappingsListener = ActionListener.wrap(deducedMappings -> {

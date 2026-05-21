@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -245,6 +246,44 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var prior = new PersistedCloudCredential("old-id", new SecureString("v".toCharArray()));
         runMintAndPersistAuditTest(prior, "rotated cloud credential, new [new-id], previous [old-id]");
+    }
+
+    public void testWrapWithUiamIfPresentReturnsRawClientWhenCredentialIsNull() {
+        var rawClient = mock(Client.class);
+        // Use the real Noop manager so its default wrapClient(Client, @Nullable CloudCredential) overload
+        // returns the delegate as-is when credential is null. A mock would short-circuit the default method
+        // and return null, hiding the actual contract we want to assert.
+        var manager = new TransformCloudCredentialManager(
+            mock(ThreadPool.class),
+            null,
+            new CloudCredentialManager.Noop(),
+            mock(InternalCloudApiKeyService.class),
+            mock(TransformConfigManager.class),
+            mock(TransformAuditor.class)
+        );
+
+        assertThat(manager.wrapWithUiamIfPresent(rawClient, null), sameInstance(rawClient));
+    }
+
+    public void testWrapWithUiamIfPresentDelegatesToCredentialManagerWhenCredentialPresent() {
+        var rawClient = mock(Client.class);
+        var wrappedClient = mock(Client.class);
+        var credential = new CloudCredential(new SecureString("user-cred".toCharArray()));
+        var credentialManager = mock(CloudCredentialManager.class);
+        when(credentialManager.wrapClient(rawClient, credential)).thenReturn(wrappedClient);
+        var manager = new TransformCloudCredentialManager(
+            mock(ThreadPool.class),
+            null,
+            credentialManager,
+            mock(InternalCloudApiKeyService.class),
+            mock(TransformConfigManager.class),
+            mock(TransformAuditor.class)
+        );
+
+        var actual = manager.wrapWithUiamIfPresent(rawClient, credential);
+
+        assertThat(actual, sameInstance(wrappedClient));
+        verify(credentialManager).wrapClient(rawClient, credential);
     }
 
     public void testCurrentCallerCredentialPrefersSecondaryAuth() {

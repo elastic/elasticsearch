@@ -13,6 +13,11 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
+import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
+import org.elasticsearch.xpack.esql.core.type.TextEsField;
+import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -27,6 +32,7 @@ import java.util.HexFormat;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 import java.util.TreeMap;
 import java.util.regex.Pattern;
 
@@ -188,34 +194,22 @@ public final class PlanAnonymizer {
     }
 
     private void renderAttribute(Attribute a, String indent, StringBuilder sb) {
-        sb.append(indent).append(anonymizeColumn(a.name())).append(": ").append(a.dataType().typeName());
-        if (a.dataType().hasDocValues()) {
-            sb.append(" doc_values");
-        }
         if (a instanceof FieldAttribute fa) {
-            EsField f = fa.field();
-            if (f.isAggregatable()) {
-                sb.append(" aggregatable");
-            }
-            if (f.isAlias()) {
-                sb.append(" alias");
-            }
-            if (f.getTimeSeriesFieldType() != null && f.getTimeSeriesFieldType() != EsField.TimeSeriesFieldType.NONE) {
-                sb.append(" ts=").append(f.getTimeSeriesFieldType().name().toLowerCase(Locale.ROOT));
-            }
-            sb.append('\n');
-            Map<String, EsField> props = f.getProperties();
-            if (props != null && props.isEmpty() == false) {
-                for (Map.Entry<String, EsField> e : new TreeMap<>(props).entrySet()) {
-                    renderSubField(a.name() + "." + e.getKey(), e.getValue(), indent + "  ", sb);
-                }
-            }
+            renderField(a.name(), fa.field(), indent, sb);
         } else {
+            sb.append(indent).append(anonymizeColumn(a.name())).append(": ").append(a.dataType().typeName());
+            if (a.dataType().hasDocValues()) {
+                sb.append(" doc_values");
+            }
             sb.append('\n');
         }
     }
 
     private void renderSubField(String fullName, EsField f, String indent, StringBuilder sb) {
+        renderField(fullName, f, indent, sb);
+    }
+
+    private void renderField(String fullName, EsField f, String indent, StringBuilder sb) {
         sb.append(indent).append(anonymizeColumn(fullName)).append(": ").append(f.getDataType().typeName());
         if (f.getDataType().hasDocValues()) {
             sb.append(" doc_values");
@@ -229,6 +223,7 @@ public final class PlanAnonymizer {
         if (f.getTimeSeriesFieldType() != null && f.getTimeSeriesFieldType() != EsField.TimeSeriesFieldType.NONE) {
             sb.append(" ts=").append(f.getTimeSeriesFieldType().name().toLowerCase(Locale.ROOT));
         }
+        renderFieldExtras(f, sb);
         sb.append('\n');
         Map<String, EsField> props = f.getProperties();
         if (props != null && props.isEmpty() == false) {
@@ -236,6 +231,54 @@ public final class PlanAnonymizer {
                 renderSubField(fullName + "." + e.getKey(), e.getValue(), indent + "  ", sb);
             }
         }
+    }
+
+    /**
+     * Subclass-specific {@link EsField} information that the standard flag pass doesn't surface.
+     * Keeps the format additive (space-separated {@code key=value}) so older readers can ignore tokens
+     * they don't recognize. Index names inside conflict maps are anonymized via the same token map
+     * as everywhere else.
+     */
+    private void renderFieldExtras(EsField f, StringBuilder sb) {
+        if (f instanceof KeywordEsField k) {
+            sb.append(" ignore_above=").append(k.getPrecision());
+            if (k.getNormalized()) {
+                sb.append(" normalized");
+            }
+        } else if (f instanceof TextEsField t) {
+            if (t.getExactInfo().hasExact()) {
+                sb.append(" exact_subfield");
+            }
+        } else if (f instanceof UnsupportedEsField u) {
+            if (u.getOriginalTypes() != null && u.getOriginalTypes().isEmpty() == false) {
+                sb.append(" original_types=[")
+                    .append(String.join(",", new TreeMap<>(toSortedSet(u.getOriginalTypes())).keySet()))
+                    .append(']');
+            }
+            if (u.hasInherited()) {
+                sb.append(" inherited_from=").append(anonymizeColumn(u.getInherited()));
+            }
+        } else if (f instanceof InvalidMappedField imf) {
+            Set<DataType> conflictingTypes = imf.types();
+            if (conflictingTypes != null && conflictingTypes.isEmpty() == false) {
+                Map<String, Boolean> sorted = new TreeMap<>();
+                for (DataType t : conflictingTypes) {
+                    sorted.put(t.typeName(), Boolean.TRUE);
+                }
+                sb.append(" type_conflict=[").append(String.join(",", sorted.keySet())).append(']');
+            }
+        } else if (f instanceof MultiTypeEsField mt) {
+            int n = mt.getIndexToConversionExpressions() == null ? 0 : mt.getIndexToConversionExpressions().size();
+            sb.append(" multi_type_conversions=").append(n);
+        }
+    }
+
+    private static <T> Map<T, Boolean> toSortedSet(java.util.Collection<T> in) {
+        Map<T, Boolean> m = new TreeMap<>();
+        for (T s : in) {
+            m.put(s, Boolean.TRUE);
+        }
+        return m;
     }
 
     /**

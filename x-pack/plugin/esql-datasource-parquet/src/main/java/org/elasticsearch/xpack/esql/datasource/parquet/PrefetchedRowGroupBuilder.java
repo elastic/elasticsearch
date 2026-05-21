@@ -448,7 +448,9 @@ final class PrefetchedRowGroupBuilder {
 
     /**
      * Source of column page bytes. Two implementations: prefetched (random-access slices into
-     * heap buffers) and storage-object (sequential streaming with no random access).
+     * direct buffers — {@link ColumnChunkPrefetcher} promotes any heap buffer returned by
+     * {@code readBytesAsync} to direct) and storage-object (sequential streaming with no random
+     * access).
      */
     private interface ColumnPageBytesSource {
         ByteBuffer slice(long fileOffset, int length, String columnPath, int pageIndex);

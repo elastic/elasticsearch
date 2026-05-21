@@ -57,10 +57,17 @@ import java.util.zip.GZIPOutputStream;
  *       future backends. Page slices derived from that direct buffer are already direct when they
  *       reach {@code PrefetchedPageReader}, so the direct-to-direct fast path is always taken with
  *       no per-page copy.</li>
- *   <li>Parquet-MR's {@code ColumnChunkPageReadStore} calls the {@code ByteBuffer} overload only
- *       when the allocator is direct and {@code useOffHeapDecryptBuffer} is enabled; because we
- *       use {@code DirectByteBufferAllocator}, this path also takes the direct-to-direct fast
- *       path.</li>
+ *   <li>Parquet-MR's {@code ColumnChunkPageReadStore.ColumnChunkPageReader.readPage()} (the
+ *       non-prefetched path) invokes only the {@code decompress(BytesInput, int)} overload — it
+ *       never reaches the {@code ByteBuffer} overload, regardless of the allocator or the
+ *       {@code useOffHeapDecryptBuffer} flag (which is a decryption-only flag). The decompressed
+ *       page bytes on that path are therefore still allocated as a heap {@code byte[]} by the
+ *       codec. Wiring {@code DirectByteBufferAllocator} into the read options still benefits
+ *       this path: parquet-mr's other allocations that go through the read-options allocator
+ *       (e.g. the page reader's {@code ByteBufferReleaser}) become direct, and our
+ *       {@link CircuitBreakerByteBufferAllocator} wrapper accounts those allocations.
+ *       Routing the non-prefetched decompression output through the {@code ByteBuffer} overload
+ *       would require a parquet-mr change and is left as future work.</li>
  * </ul>
  *
  * <p>This factory is shared across all driver threads of a query, so {@link #getDecompressor} and

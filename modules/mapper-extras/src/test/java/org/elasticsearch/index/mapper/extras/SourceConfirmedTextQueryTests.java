@@ -486,6 +486,7 @@ public class SourceConfirmedTextQueryTests extends ESTestCase {
                     false,
                     IndexVersion.current(),
                     true,
+                    true,
                     true
                 );
 

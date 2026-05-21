@@ -136,10 +136,7 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             assert false : "ExponentialHistogramMerger closed multiple times";
         } else {
             closed = true;
-            if (result != null) {
-                factory.releaseBuffer(result);
-                result = null;
-            }
+            clear();
             factory.circuitBreaker.adjustBreaker(-BASE_SIZE);
             factory.notifyMergerClosed();
         }
@@ -201,8 +198,14 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             return;
         }
         ExponentialHistogram a = result == null ? ExponentialHistogram.empty() : result;
-        ExponentialHistogram b = toAdd;
+        setToMerged(a, toAdd);
+    }
 
+    public void setToMerged(ExponentialHistogram a, ExponentialHistogram b) {
+        if (a.isEmpty() && b.isEmpty()) {
+            clear();
+            return;
+        }
         CopyableBucketIterator posBucketsA = a.positiveBuckets().iterator();
         CopyableBucketIterator negBucketsA = a.negativeBuckets().iterator();
         CopyableBucketIterator posBucketsB = b.positiveBuckets().iterator();
@@ -360,10 +363,7 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
      * if the histograms were not cumulative and the result only provides the weaker guarantees explained above
      */
     public boolean setToDifference(ExponentialHistogram a, ExponentialHistogram b) {
-        if (result != null) {
-            factory.releaseBuffer(result);
-            result = null;
-        }
+        clear();
         if (b.isEmpty()) {
             // fast path, subtracting an empty histogram does nothing.
             this.add(a);
@@ -487,6 +487,13 @@ public class ExponentialHistogramMerger implements Accountable, Releasable {
             factory.releaseBuffer(buffer);
         }
         return isTrulyCumulative;
+    }
+
+    private void clear() {
+        if (result != null) {
+            factory.releaseBuffer(result);
+            result = null;
+        }
     }
 
 }

@@ -41,14 +41,18 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 import java.util.List;
 // end generated imports
 
-public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupingFunction implements GroupingAggregatorFunction {
-
+public final class RateExponentialHistogramGroupingAggregatorFunction extends AbstractRateGroupingFunction
+    implements
+        GroupingAggregatorFunction {
     public static final class FunctionSupplier implements AggregatorFunctionSupplier {
         private final boolean isRateOverTime;
         private final boolean isDateNanos;
         private final WarningSourceLocation source;
 
         public FunctionSupplier(boolean isRateOverTime, boolean isDateNanos, WarningSourceLocation source) {
+            if (isRateOverTime) {
+                throw new IllegalArgumentException("Only increase is supported for exponential histograms");
+            }
             this.isRateOverTime = isRateOverTime;
             this.isDateNanos = isDateNanos;
             this.source = source;
@@ -70,25 +74,25 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         }
 
         @Override
-        public RateLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
+        public RateExponentialHistogramGroupingAggregatorFunction groupingAggregator(DriverContext driverContext, List<Integer> channels) {
             var warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
-            return new RateLongGroupingAggregatorFunction(channels, driverContext, isRateOverTime, isDateNanos, warnings);
+            return new RateExponentialHistogramGroupingAggregatorFunction(channels, driverContext, isRateOverTime, isDateNanos, warnings);
         }
 
         @Override
         public String describe() {
-            return "rate of long";
+            return "rate of ExponentialHistogram";
         }
     }
 
     static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
         new IntermediateStateDesc("timestamps", ElementType.LONG),
-        new IntermediateStateDesc("values", ElementType.LONG),
+        new IntermediateStateDesc("values", ElementType.EXPONENTIAL_HISTOGRAM),
         new IntermediateStateDesc("sampleCounts", ElementType.LONG),
-        new IntermediateStateDesc("resets", ElementType.DOUBLE)
+        new IntermediateStateDesc("resets", ElementType.EXPONENTIAL_HISTOGRAM)
     );
 
-    private final LongRawBuffer rawBuffer;
+    private final ExponentialHistogramRawBuffer rawBuffer;
     private final List<Integer> channels;
     private final DriverContext driverContext;
     private final BigArrays bigArrays;
@@ -97,10 +101,11 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     private final boolean isRateOverTime;
     private final double dateFactor;
     private final Warnings warnings;
+    private final ExponentialHistogramMerger.Factory mergerFactory;
     // track lastSliceIndex to allow flushing the raw buffer when the slice index changed
     private int lastSliceIndex = -1;
 
-    public RateLongGroupingAggregatorFunction(
+    public RateExponentialHistogramGroupingAggregatorFunction(
         List<Integer> channels,
         DriverContext driverContext,
         boolean isRateOverTime,
@@ -113,18 +118,22 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         this.bigArrays = driverContext.bigArrays();
         this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
         this.warnings = warnings;
-        LongRawBuffer rawBuffer = null;
+        ExponentialHistogramRawBuffer rawBuffer = null;
         IntervalBuffer intervalBuffer = null;
+        ExponentialHistogramMerger.Factory mergerFactory = null;
         try {
-            rawBuffer = new LongRawBuffer(driverContext.breaker());
-            intervalBuffer = new IntervalBuffer(driverContext.breaker());
+            rawBuffer = new ExponentialHistogramRawBuffer(driverContext.blockFactory());
+            intervalBuffer = new IntervalBuffer(driverContext.blockFactory());
+            mergerFactory = ExponentialHistogramMerger.createFactory(new ExponentialHistogramStates.HistoBreaker(driverContext.breaker()));
             this.reducedStates = bigArrays.newObjectArray(256);
             this.rawBuffer = rawBuffer;
             rawBuffer = null;
             this.intervalBuffer = intervalBuffer;
             intervalBuffer = null;
+            this.mergerFactory = mergerFactory;
+            mergerFactory = null;
         } finally {
-            Releasables.close(rawBuffer, intervalBuffer);
+            Releasables.close(rawBuffer, intervalBuffer, mergerFactory);
         }
     }
 
@@ -135,7 +144,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
 
     @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
-        LongBlock valuesBlock = page.getBlock(channels.get(0));
+        ExponentialHistogramBlock valuesBlock = page.getBlock(channels.get(0));
         if (valuesBlock.areAllValuesNull()) {
             return new AddInput() {
                 @Override
@@ -166,7 +175,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             throw new IllegalStateException("expected timestamp vector in time-series aggregation");
         }
         BytesRefBlock temporalityBlock = page.getBlock(channels.get(2));
-        TemporalityAccessor temporalityAccessor = TemporalityAccessor.create(temporalityBlock, Temporality.CUMULATIVE);
+        TemporalityAccessor temporalityAccessor = TemporalityAccessor.create(temporalityBlock, Temporality.DELTA);
         IntVector sliceIndices = ((IntBlock) page.getBlock(channels.get(3))).asVector();
         assert sliceIndices != null : "expected slice indices vector in time-series aggregation";
         LongVector futureMaxTimestamps = ((LongBlock) page.getBlock(channels.get(4))).asVector();
@@ -189,12 +198,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
 
             @Override
             public void add(int positionOffset, IntVector groupIds) {
-                var valuesVector = valuesBlock.asVector();
-                if (valuesVector != null) {
-                    addRawInput(positionOffset, groupIds, valuesVector, timestampsVector, temporalityAccessor);
-                } else {
-                    addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector, temporalityAccessor);
-                }
+                addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector, temporalityAccessor);
             }
 
             @Override
@@ -208,13 +212,14 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     private void addRawInput(
         int positionOffset,
         IntBlock groups,
-        LongBlock valueBlock,
+        ExponentialHistogramBlock valueBlock,
         LongVector timestampVector,
         TemporalityAccessor temporalityAccessor
     ) {
         int lastGroup = -1;
         Temporality temporality = null;
         ReducedState currentDeltaState = null;
+        ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
         int positionCount = groups.getPositionCount();
         for (int p = 0; p < positionCount; p++) {
             if (groups.isNull(p)) {
@@ -230,7 +235,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             long timestamp = timestampVector.getLong(valuePosition);
             for (int g = groupStart; g < groupEnd; g++) {
                 final int groupId = groups.getInt(g);
-                final var value = valueBlock.getLong(valueBlock.getFirstValueIndex(valuePosition));
+                final var value = valueBlock.getExponentialHistogram(valueBlock.getFirstValueIndex(valuePosition), scratch);
                 if (lastGroup != groupId) {
                     try {
                         temporality = temporalityAccessor.get(valuePosition);
@@ -261,7 +266,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     private void addRawInput(
         int positionOffset,
         IntVector groups,
-        LongBlock valueBlock,
+        ExponentialHistogramBlock valueBlock,
         LongVector timestampVector,
         TemporalityAccessor temporalityAccessor
     ) {
@@ -298,75 +303,11 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         }
     }
 
-    private void addRawInput(
-        int positionOffset,
-        IntVector groups,
-        LongVector valueVector,
-        LongVector timestampVector,
-        TemporalityAccessor temporalityAccessor
-    ) {
-        int positionCount = groups.getPositionCount();
-        if (groups.isConstant()) {
-            int groupId = groups.getInt(0);
-            addSubRange(groupId, positionOffset, positionOffset + positionCount, valueVector, timestampVector, temporalityAccessor);
-        } else {
-            int lastGroup = groups.getInt(0);
-            int lastPosition = 0;
-            for (int p = 1; p < positionCount; p++) {
-                int group = groups.getInt(p);
-                if (group != lastGroup) {
-                    addSubRange(
-                        lastGroup,
-                        positionOffset + lastPosition,
-                        positionOffset + p,
-                        valueVector,
-                        timestampVector,
-                        temporalityAccessor
-                    );
-                    lastGroup = group;
-                    lastPosition = p;
-                }
-            }
-            addSubRange(
-                lastGroup,
-                positionOffset + lastPosition,
-                positionOffset + positionCount,
-                valueVector,
-                timestampVector,
-                temporalityAccessor
-            );
-        }
-    }
-
     private void addSubRange(
         int group,
         int from,
         int to,
-        LongVector valueVector,
-        LongVector timestampVector,
-        TemporalityAccessor temporalityAccessor
-    ) {
-        final Temporality temporality;
-        try {
-            temporality = temporalityAccessor.get(from);
-        } catch (InvalidTemporalityException e) {
-            warnings.registerException(e);
-            return;
-        }
-        if (temporality == Temporality.CUMULATIVE) {
-            rawBuffer.prepareForAppend(group, to - from, timestampVector.getLong(from));
-            rawBuffer.appendRange(from, to, valueVector, timestampVector);
-        } else {
-            ReducedState state = getOrInitializeReducedState(group);
-            state.appendDeltaSubRange(from, to, timestampVector, valueVector);
-        }
-    }
-
-    private void addSubRange(
-        int group,
-        int from,
-        int to,
-        LongBlock valueBlock,
+        ExponentialHistogramBlock valueBlock,
         LongVector timestampVector,
         TemporalityAccessor temporalityAccessor
     ) {
@@ -405,13 +346,14 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
         assert channels.size() == intermediateBlockCount();
         LongBlock timestamps = page.getBlock(channels.get(0));
-        LongBlock values = page.getBlock(channels.get(1));
+        ExponentialHistogramBlock values = page.getBlock(channels.get(1));
         assert timestamps.getTotalValueCount() == values.getTotalValueCount() : "timestamps=" + timestamps + "; values=" + values;
         if (values.areAllValuesNull()) {
             return;
         }
         LongVector sampleCounts = ((LongBlock) page.getBlock(channels.get(2))).asVector();
-        DoubleVector resets = ((DoubleBlock) page.getBlock(channels.get(3))).asVector();
+        ExponentialHistogramBlock resets = page.getBlock(channels.get(3));
+        ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
             int valuePosition = positionOffset + groupPosition;
             long sampleCount = sampleCounts.getLong(valuePosition);
@@ -422,7 +364,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             ReducedState state = getOrInitializeReducedState(groupId);
             state.appendIntervalsFromBlocks(timestamps, values, valuePosition);
             state.samples += sampleCount;
-            var reset = resets.getDouble(valuePosition);
+            var reset = resets.getExponentialHistogram(valuePosition, scratch);
             state.addToResets(reset);
         }
     }
@@ -440,13 +382,14 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     private void addIntermediateInputBlock(int positionOffset, IntBlock groups, Page page) {
         assert channels.size() == intermediateBlockCount();
         LongBlock timestamps = page.getBlock(channels.get(0));
-        LongBlock values = page.getBlock(channels.get(1));
+        ExponentialHistogramBlock values = page.getBlock(channels.get(1));
         assert timestamps.getTotalValueCount() == values.getTotalValueCount() : "timestamps=" + timestamps + "; values=" + values;
         if (values.areAllValuesNull()) {
             return;
         }
         LongVector sampleCounts = ((LongBlock) page.getBlock(channels.get(2))).asVector();
-        DoubleVector resets = ((DoubleBlock) page.getBlock(channels.get(3))).asVector();
+        ExponentialHistogramBlock resets = page.getBlock(channels.get(3));
+        ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
         for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
             int valuePosition = positionOffset + groupPosition;
             long sampleCount = sampleCounts.getLong(valuePosition);
@@ -463,7 +406,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
                 ReducedState state = getOrInitializeReducedState(groupId);
                 state.appendIntervalsFromBlocks(timestamps, values, valuePosition);
                 state.samples += sampleCount;
-                var reset = resets.getDouble(valuePosition);
+                var reset = resets.getExponentialHistogram(valuePosition, scratch);
                 state.addToResets(reset);
             }
         }
@@ -483,29 +426,30 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         int positionCount = selectedInPage.getPositionCount();
         try (
             var timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
-            var values = blockFactory.newLongBlockBuilder(positionCount * 2);
+            var values = blockFactory.newExponentialHistogramBlockBuilder(positionCount * 2);
             var sampleCounts = blockFactory.newLongVectorFixedBuilder(positionCount);
-            var resets = blockFactory.newDoubleVectorFixedBuilder(positionCount)
+            var resets = blockFactory.newExponentialHistogramBlockBuilder(positionCount)
         ) {
+            ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
                 var state = group < reducedStates.size() ? reducedStates.get(group) : null;
                 // Do not combine intervals across shards because intervals from different indices may overlap.
                 if (state != null && state.samples > 0) {
-                    state.writeIntervalsToBlocks(timestamps, values);
+                    state.writeIntervalsToBlocks(timestamps, values, scratch);
                     sampleCounts.appendLong(state.samples);
-                    resets.appendDouble(state.resets);
+                    resets.append(state.resets == null ? ExponentialHistogram.empty() : state.resets.get());
                 } else {
                     timestamps.appendLong(0);
-                    values.appendLong(0);
+                    values.append(ExponentialHistogram.empty());
                     sampleCounts.appendLong(0);
-                    resets.appendDouble(0);
+                    resets.append(ExponentialHistogram.empty());
                 }
             }
             blocks[offset] = timestamps.build();
             blocks[offset + 1] = values.build();
             blocks[offset + 2] = sampleCounts.build().asBlock();
-            blocks[offset + 3] = resets.build().asBlock();
+            blocks[offset + 3] = resets.build();
         }
     }
 
@@ -514,7 +458,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         for (int i = 0; i < reducedStates.size(); i++) {
             Releasables.close(reducedStates.get(i));
         }
-        Releasables.close(reducedStates, rawBuffer, intervalBuffer);
+        Releasables.close(reducedStates, rawBuffer, intervalBuffer, mergerFactory);
     }
 
     void flushRawBuffers() {
@@ -537,14 +481,14 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         rawBuffer.clearBuffers();
     }
 
-    static final class LongRawBuffer extends RawBuffer {
-        private final LongBuffer values;
+    static final class ExponentialHistogramRawBuffer extends RawBuffer {
+        private final ExponentialHistogramBuffer values;
 
-        LongRawBuffer(CircuitBreaker breaker) {
-            super(breaker);
+        ExponentialHistogramRawBuffer(BlockFactory factory) {
+            super(factory.breaker());
             boolean success = false;
             try {
-                this.values = new LongBuffer(breaker, PAGE_SIZE);
+                this.values = new ExponentialHistogramBuffer(factory, PAGE_SIZE);
                 success = true;
             } finally {
                 if (success == false) {
@@ -560,24 +504,18 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             values.ensureCapacity(newSize);
         }
 
-        void appendWithoutResize(long timestamp, long value) {
+        void appendWithoutResize(long timestamp, ExponentialHistogram value) {
             timestamps.append(timestamp);
             values.append(value);
         }
 
-        void maybeResizeAndAppend(long timestamp, long value) {
+        void maybeResizeAndAppend(long timestamp, ExponentialHistogram value) {
             timestamps.ensureCapacity(timestamps.size() + 1);
             values.ensureCapacity(values.size() + 1);
             appendWithoutResize(timestamp, value);
         }
 
-        void appendRange(int fromPosition, int toPosition, LongVector valueVector, LongVector timestampVector) {
-            int count = toPosition - fromPosition;
-            timestamps.appendRange(timestampVector, fromPosition, count);
-            values.appendRange(valueVector, fromPosition, count);
-        }
-
-        void appendRange(int fromPosition, int toPosition, LongBlock valueBlock, LongVector timestampVector) {
+        void appendRange(int fromPosition, int toPosition, ExponentialHistogramBlock valueBlock, LongVector timestampVector) {
             int p = fromPosition;
             while (p < toPosition) {
                 while (p < toPosition && valueBlock.isNull(p)) {
@@ -593,10 +531,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
                 }
                 // start to p-1 is now a non-null range
                 timestamps.appendRange(timestampVector, start, p - start);
-                for (int i = start; i < p; i++) {
-                    assert valueBlock.getValueCount(i) == 1 : "expected single-valued block " + valueBlock;
-                    values.append(valueBlock.getLong(valueBlock.getFirstValueIndex(i)));
-                }
+                values.appendRange(valueBlock, start, p - start);
             }
         }
 
@@ -612,21 +547,25 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         }
     }
 
-    static boolean isCumulativeReset(long value, long valueAfter) {
-        return valueAfter < value;
+    static boolean isCumulativeReset(ExponentialHistogram value, ExponentialHistogram valueAfter) {
+        return valueAfter.valueCount() < value.valueCount();
     }
 
     private static class ValueWithTimestamp {
-        long v;
+        ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
+        ExponentialHistogram v;
         long ts;
 
-        void loadValue(LongRawBuffer buffer, int valueIndex) {
+        void loadValue(ExponentialHistogramRawBuffer buffer, int valueIndex) {
             ts = buffer.timestamps.get(valueIndex);
-            v = buffer.values.get(valueIndex);
+            v = buffer.values.get(valueIndex, scratch);
         }
 
         void swapWith(ValueWithTimestamp other) {
-            long tmpV = v;
+            ExponentialHistogramScratch tmpScratch = scratch;
+            scratch = other.scratch;
+            other.scratch = tmpScratch;
+            ExponentialHistogram tmpV = v;
             v = other.v;
             other.v = tmpV;
 
@@ -636,7 +575,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         }
     }
 
-    void flushGroup(ReducedState state, LongRawBuffer buffer, FlushQueue flushQueue) {
+    void flushGroup(ReducedState state, ExponentialHistogramRawBuffer buffer, FlushQueue flushQueue) {
         if (flushQueue.valueCount == 1) {
             state.samples++;
             final var first = new ValueWithTimestamp();
@@ -721,7 +660,11 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext ctx) {
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selectedInPage.getPositionCount();
-        try (var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
+        try (
+            var rates = blockFactory.newExponentialHistogramBlockBuilder(positionCount);
+            var tmp1 = mergerFactory.createMerger();
+            var tmp2 = mergerFactory.createMerger()
+        ) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
                 var state = group < reducedStates.size() ? reducedStates.get(group) : null;
@@ -736,19 +679,23 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
                 int group = selectedInPage.getInt(p);
                 var state = group < reducedStates.size() ? reducedStates.get(group) : null;
 
-                final double rate;
+                final ExponentialHistogram rate;
                 if (state == null || state.samples == 0) {
-                    rate = Double.NaN;
+                    rate = null;
                 } else if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
-                    rate = computeRate(group, state, tsContext, isRateOverTime, dateFactor);
+                    int previousGroupId = tsContext.previousGroupId(group);
+                    var previousState = (0 <= previousGroupId && previousGroupId < reducedStates.size())
+                        ? reducedStates.get(previousGroupId)
+                        : null;
+                    rate = computeIncrease(previousState, state, tmp1, tmp2);
                 } else {
-                    rate = computeRateWithoutExtrapolate(state, isRateOverTime, dateFactor);
+                    rate = computeIncrease(null, state, tmp1, tmp2);
                 }
 
-                if (Double.isNaN(rate)) {
+                if (rate == null) {
                     rates.appendNull();
                 } else {
-                    rates.appendDouble(rate);
+                    rates.append(rate);
                 }
             }
             blocks[offset] = rates.build();
@@ -769,15 +716,15 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         // Each interval occupies two consecutive slots: slot 2*intervalId stores the last (most recent)
         // timestamp/value pair, slot 2*intervalId+1 stores the first (oldest) timestamp/value pair.
         private final LongBuffer timestamps;
-        private final LongBuffer values;
+        private final ExponentialHistogramBuffer values;
 
-        IntervalBuffer(CircuitBreaker cb) {
+        IntervalBuffer(BlockFactory bf) {
             LongBuffer timestamps = null;
-            LongBuffer values = null;
+            ExponentialHistogramBuffer values = null;
             boolean success = false;
             try {
-                timestamps = new LongBuffer(cb, PAGE_SIZE);
-                values = new LongBuffer(cb, PAGE_SIZE);
+                timestamps = new LongBuffer(bf.breaker(), PAGE_SIZE);
+                values = new ExponentialHistogramBuffer(bf, PAGE_SIZE);
                 success = true;
             } finally {
                 if (success == false) {
@@ -796,19 +743,19 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             return timestamps.get(2 * intervalId);
         }
 
-        long lastValue(int intervalId) {
-            return values.get(2 * intervalId);
+        ExponentialHistogram lastValue(int intervalId, ExponentialHistogramScratch scratch) {
+            return values.get(2 * intervalId, scratch);
         }
 
         long firstTs(int intervalId) {
             return timestamps.get(2 * intervalId + 1);
         }
 
-        long firstValue(int intervalId) {
-            return values.get(2 * intervalId + 1);
+        ExponentialHistogram firstValue(int intervalId, ExponentialHistogramScratch scratch) {
+            return values.get(2 * intervalId + 1, scratch);
         }
 
-        int appendInterval(long lastTs, long lastValue, long firstTs, long firstValue) {
+        int appendInterval(long lastTs, ExponentialHistogram lastValue, long firstTs, ExponentialHistogram firstValue) {
             int id = count();
             timestamps.ensureCapacity(timestamps.size() + 2);
             values.ensureCapacity(values.size() + 2);
@@ -819,7 +766,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             return id;
         }
 
-        int appendIntervalsFromBlocks(LongBlock ts, LongBlock vs, int position) {
+        int appendIntervalsFromBlocks(LongBlock ts, ExponentialHistogramBlock vs, int position) {
             int tsFirst = ts.getFirstValueIndex(position);
             int vsFirst = vs.getFirstValueIndex(position);
             int valueCount = ts.getValueCount(position);
@@ -829,12 +776,13 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             timestamps.ensureCapacity(timestamps.size() + valueCount);
             values.ensureCapacity(values.size() + valueCount);
 
+            ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
             int firstId = count();
             for (int i = 0; i < valueCount; i += 2) {
                 timestamps.append(ts.getLong(tsFirst + i));
-                values.append(vs.getLong(vsFirst + i));
+                values.append(vs.getExponentialHistogram(vsFirst + i, scratch));
                 timestamps.append(ts.getLong(tsFirst + i + 1));
-                values.append(vs.getLong(vsFirst + i + 1));
+                values.append(vs.getExponentialHistogram(vsFirst + i + 1, scratch));
             }
             return firstId;
         }
@@ -848,10 +796,16 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
     final class ReducedState implements Releasable {
         private static final int[] EMPTY_INTERVALS = new int[0];
         long samples;
-        double resets;
+        ExponentialHistogramMerger resets;
 
-        void addToResets(double value) {
-            resets += value;
+        void addToResets(ExponentialHistogram value) {
+            if (value.isEmpty()) {
+                return;
+            }
+            if (resets == null) {
+                resets = mergerFactory.createMerger();
+            }
+            resets.add(value);
         }
 
         // Points to offsets into IntervalBuffer for the intervals belonging to this group
@@ -862,21 +816,21 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         // Delta tracking fields: in contrast to cumulative intervals, they need to be mutable
         // We use deltaLastTs >= deltaFirstTs as indicator delta data exists.
         long deltaFirstTs = Long.MAX_VALUE;
-        long deltaFirstValue;
+        BreakingExponentialHistogramHolder deltaFirstValue;
         long deltaLastTs = Long.MIN_VALUE;
 
         boolean hasDelta() {
             return deltaLastTs >= deltaFirstTs;
         }
 
-        void appendInterval(long lastTs, long lastValue, long firstTs, long firstValue) {
+        void appendInterval(long lastTs, ExponentialHistogram lastValue, long firstTs, ExponentialHistogram firstValue) {
             assert hasDelta() == false : "cannot append intervals while delta data is pending";
             int currentSize = intervals.length;
             this.intervals = ArrayUtil.growExact(intervals, currentSize + 1);
             this.intervals[currentSize] = intervalBuffer.appendInterval(lastTs, lastValue, firstTs, firstValue);
         }
 
-        void appendIntervalsFromBlocks(LongBlock ts, LongBlock vs, int position) {
+        void appendIntervalsFromBlocks(LongBlock ts, ExponentialHistogramBlock vs, int position) {
             assert hasDelta() == false : "cannot append intervals while delta data is pending";
             int intervalCount = ts.getValueCount(position) / 2;
             int firstIntervalId = intervalBuffer.appendIntervalsFromBlocks(ts, vs, position);
@@ -887,42 +841,50 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             }
         }
 
-        void writeIntervalsToBlocks(LongBlock.Builder timestamps, LongBlock.Builder values) {
+        void writeIntervalsToBlocks(
+            LongBlock.Builder timestamps,
+            ExponentialHistogramBlock.Builder values,
+            ExponentialHistogramScratch scratch
+        ) {
             timestamps.beginPositionEntry();
             values.beginPositionEntry();
             if (hasDelta()) {
                 // delta data gets converted to a single, cumulative interval
                 timestamps.appendLong(lastTs());
                 timestamps.appendLong(firstTs());
-                values.appendLong(lastValue());
-                values.appendLong(firstValue());
+                values.append(lastValue(scratch));
+                values.append(firstValue(scratch));
             } else {
                 for (int intervalId : intervals) {
                     timestamps.appendLong(intervalBuffer.lastTs(intervalId));
                     timestamps.appendLong(intervalBuffer.firstTs(intervalId));
-                    values.appendLong(intervalBuffer.lastValue(intervalId));
-                    values.appendLong(intervalBuffer.firstValue(intervalId));
+                    values.append(intervalBuffer.lastValue(intervalId, scratch));
+                    values.append(intervalBuffer.firstValue(intervalId, scratch));
                 }
             }
             timestamps.endPositionEntry();
             values.endPositionEntry();
         }
 
-        public void appendDeltaValue(long timestamp, long value) {
+        public void appendDeltaValue(long timestamp, ExponentialHistogram value) {
             assert intervals.length == 0 : "cannot append delta data when intervals already exist";
             samples++;
             addToResets(value);
             deltaLastTs = Math.max(deltaLastTs, timestamp);
             if (timestamp < deltaFirstTs) {
                 deltaFirstTs = timestamp;
-                deltaFirstValue = value;
+                if (deltaFirstValue == null) {
+                    deltaFirstValue = BreakingExponentialHistogramHolder.create(driverContext.breaker());
+                }
+                deltaFirstValue.set(value);
             }
         }
 
-        public void appendDeltaSubRange(int from, int to, LongVector timestampVector, LongBlock valueBlock) {
+        public void appendDeltaSubRange(int from, int to, LongVector timestampVector, ExponentialHistogramBlock valueBlock) {
             assert intervals.length == 0 : "cannot append delta data when intervals already exist";
             int minTsPos = -1;
             long minTs = Long.MAX_VALUE;
+            ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
             for (int i = from; i < to; i++) {
                 if (valueBlock.isNull(i)) {
                     continue;
@@ -933,32 +895,15 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
                     minTsPos = i;
                 }
                 samples++;
-                addToResets(valueBlock.getLong(valueBlock.getFirstValueIndex(i)));
+                addToResets(valueBlock.getExponentialHistogram(valueBlock.getFirstValueIndex(i), scratch));
                 deltaLastTs = Math.max(deltaLastTs, ts);
             }
             if (minTs < deltaFirstTs) {
                 deltaFirstTs = minTs;
-                deltaFirstValue = valueBlock.getLong(valueBlock.getFirstValueIndex(minTsPos));
-            }
-        }
-
-        public void appendDeltaSubRange(int from, int to, LongVector timestampVector, LongVector valueVector) {
-            assert intervals.length == 0 : "cannot append delta data when intervals already exist";
-            int minTsPos = -1;
-            long minTs = Long.MAX_VALUE;
-            for (int i = from; i < to; i++) {
-                long ts = timestampVector.getLong(i);
-                if (ts < minTs) {
-                    minTs = ts;
-                    minTsPos = i;
+                if (deltaFirstValue == null) {
+                    deltaFirstValue = BreakingExponentialHistogramHolder.create(driverContext.breaker());
                 }
-                samples++;
-                addToResets(valueVector.getLong(i));
-                deltaLastTs = Math.max(deltaLastTs, ts);
-            }
-            if (minTs < deltaFirstTs) {
-                deltaFirstTs = minTs;
-                deltaFirstValue = valueVector.getLong(minTsPos);
+                deltaFirstValue.set(valueBlock.getExponentialHistogram(valueBlock.getFirstValueIndex(minTsPos), scratch));
             }
         }
 
@@ -967,11 +912,13 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             if (hasDelta() == false) {
                 // Sort the intervals by the lastTs (most recent first) for the final evaluation
                 sortIntervals();
+                ExponentialHistogramScratch prevScratch = new ExponentialHistogramScratch();
+                ExponentialHistogramScratch nextScratch = new ExponentialHistogramScratch();
                 for (int i = 1; i < intervals.length; i++) {
                     int nextInterval = intervals[i - 1]; // reversed
                     int prevInterval = intervals[i];
-                    long prevLast = intervalBuffer.lastValue(prevInterval);
-                    long nextFirst = intervalBuffer.firstValue(nextInterval);
+                    ExponentialHistogram prevLast = intervalBuffer.lastValue(prevInterval, prevScratch);
+                    ExponentialHistogram nextFirst = intervalBuffer.firstValue(nextInterval, nextScratch);
                     if (isCumulativeReset(prevLast, nextFirst)) {
                         addToResets(prevLast);
                     }
@@ -1019,12 +966,12 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             return intervalBuffer.lastTs(intervals[0]);
         }
 
-        long lastValue() {
+        ExponentialHistogram lastValue(ExponentialHistogramScratch scratch) {
             if (hasDelta()) {
                 // We use 0 as lastvalue for delta to force resets, the reset counter already has the real value in it
-                return 0;
+                return ExponentialHistogram.empty();
             }
-            return intervalBuffer.lastValue(intervals[0]);
+            return intervalBuffer.lastValue(intervals[0], scratch);
         }
 
         long firstTs() {
@@ -1034,193 +981,83 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             return intervalBuffer.firstTs(intervals[intervals.length - 1]);
         }
 
-        long firstValue() {
+        ExponentialHistogram firstValue(ExponentialHistogramScratch scratch) {
             if (hasDelta()) {
-                return deltaFirstValue;
+                return deltaFirstValue.accessor();
             }
-            return intervalBuffer.firstValue(intervals[intervals.length - 1]);
+            return intervalBuffer.firstValue(intervals[intervals.length - 1], scratch);
         }
 
         @Override
         public void close() {
-            // no-op
+            Releasables.close(resets, deltaFirstValue);
         }
     }
 
-    private double computeRateWithoutExtrapolate(ReducedState state, boolean isRateOverTime, double dateFactor) {
-        if (state.samples < 2) {
-            return Double.NaN;
+    private final ExponentialHistogramScratch rateScratchFirst = new ExponentialHistogramScratch();
+    private final ExponentialHistogramScratch rateScratchLast = new ExponentialHistogramScratch();
+    private final ExponentialHistogramScratch rateScratchPrevLast = new ExponentialHistogramScratch();
+
+    private ExponentialHistogram computeIncrease(
+        @Nullable ReducedState previousState,
+        ReducedState state,
+        ExponentialHistogramMerger tmp1,
+        ExponentialHistogramMerger tmp2
+    ) {
+        if (state.samples == 0) {
+            return null;
         }
-        final long firstTS = state.firstTs();
+        long firstTS = state.firstTs();
         final long lastTS = state.lastTs();
-        double firstValue = state.firstValue();
-        double lastValue = state.lastValue() + state.resets;
-        if (isRateOverTime) {
-            return (lastValue - firstValue) * dateFactor / (lastTS - firstTS);
-        } else {
-            return lastValue - firstValue;
-        }
-    }
+        ExponentialHistogram firstValue = state.firstValue(rateScratchFirst);
+        ExponentialHistogram lastValue = state.lastValue(rateScratchLast);
 
-    /**
-     * Computes the rate for a given group by interpolating boundary values with adjacent groups,
-     * or extrapolating values at the time bucket boundaries.
-     */
-    private double computeRate(
-        int group,
-        ReducedState state,
-        TimeSeriesGroupingAggregatorEvaluationContext tsContext,
-        boolean isRateOverTime,
-        double dateFactor
-    ) {
-        final double tbucketStart = tsContext.rangeStartInMillis(group) / 1000.0;
-        final double tbucketEnd = tsContext.rangeEndInMillis(group) / 1000.0;
-        final double firstValue;
-        final double lastValue;
-        double firstTsSec = tbucketStart;
-        double lastTsSec = tbucketEnd;
+        // heuristic, this could be a false-positive if someone decides to ingest empty histograms into their cumulative series
+        // but currently there is no metric producing system that does that
+        boolean isDelta = lastValue.isEmpty();
 
-        int previousGroupId = tsContext.previousGroupId(group);
-        var previousState = (0 <= previousGroupId && previousGroupId < reducedStates.size()) ? reducedStates.get(previousGroupId) : null;
-        if (previousState == null || previousState.samples == 0) {
-            if (state.samples == 1) {
-                firstTsSec = state.firstTs() / dateFactor;
-                firstValue = state.firstValue();
+        if (previousState != null && previousState.samples > 0) {
+            firstTS = previousState.lastTs();
+            ExponentialHistogram lastFromPrev = previousState.lastValue(rateScratchPrevLast);
+            if (lastFromPrev.valueCount() <= firstValue.valueCount()) {
+                firstValue = lastFromPrev;
             } else {
-                firstValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, true);
+                // use 0 (= EmptyHistogram) in case a reset occurred between the states
+                firstValue = ExponentialHistogram.empty();
             }
+        } else if (isDelta) {
+            // This branch only exists for backwards compatibility with merge_over_time on delta histograms
+            // Normally for delta, we would subtract the first sample from the sum of all samples (resets) in the result to be consistent
+            // with cumulative
+            // however, for backwards compatibility with the old merge_over_time implementation, we don't do this for now
+            // we should probably do this in the same way as we do for counters when we add extrapolation / interpolation for histos
+            firstTS = -1;
+            firstValue = ExponentialHistogram.empty();
+
+        }
+        if (firstTS == lastTS) {
+            // can't compute increase for cumulative histograms with less than two samples
+            return null;
+        }
+        ExponentialHistogram lastValuePlusRests;
+        if (state.resets == null) {
+            lastValuePlusRests = lastValue;
+        } else if (lastValue.isEmpty()) {
+            lastValuePlusRests = state.resets.get();
         } else {
-            firstValue = interpolateBetweenStates(previousState, state, tbucketStart, tbucketEnd, dateFactor, true);
+            tmp1.setToMerged(lastValue, state.resets.get());
+            lastValuePlusRests = tmp1.get();
         }
-
-        int nextGroupId = tsContext.nextGroupId(group);
-        var nextState = (nextGroupId >= 0 && nextGroupId < reducedStates.size()) ? reducedStates.get(nextGroupId) : null;
-        if (nextState == null || nextState.samples == 0) {
-            if (state.samples == 1) {
-                lastTsSec = state.lastTs() / dateFactor;
-                lastValue = state.lastValue() + state.resets;
-            } else {
-                lastValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, false);
-            }
-        } else {
-            lastValue = interpolateBetweenStates(state, nextState, tbucketStart, tbucketEnd, dateFactor, false) + state.resets;
+        if (firstValue.isEmpty()) {
+            return lastValuePlusRests;
         }
-
-        if (lastTsSec == firstTsSec) {
-            // Check for the case where there is only one sample in state, right at the lower boundary
-            // of the time bucket towards a non-empty adjacent state.
-            // In this case we want to have a result value as the time bucket is not empty,
-            // but we already included the increase in the previous time bucket.
-            // Therefore, we return the last seen rate of the previous time bucket for rate and zero for increase
-            if (state.samples == 1) {
-                if (previousState != null) {
-                    assert nextState == null;
-                    assert state.lastTs() == firstTsSec * dateFactor : firstTsSec + ":" + state.lastTs();
-                    if (isRateOverTime) {
-                        final double startTs = previousState.lastTs() / dateFactor;
-                        final double delta = deltaBetweenStates(previousState, state, dateFactor);
-                        return delta / (firstTsSec - startTs);
-                    } else {
-                        return 0.0;
-                    }
-                }
-            }
-            return Double.NaN;
+        boolean areHistosCumulative = tmp2.setToDifference(lastValuePlusRests, firstValue);
+        if (areHistosCumulative == false) {
+            warnings.registerException(
+                IllegalArgumentException.class,
+                "Expected cumulative histograms but they were not, results might be inaccurate"
+            );
         }
-        final double increase = lastValue - firstValue;
-        // Interpolation might introduce precision errors, so we try to account for that.
-        assert increase >= -0.00000000000001 : "increase must be non-negative, got " + lastValue + " - " + firstValue;
-        return (isRateOverTime) ? increase / (lastTsSec - firstTsSec) : increase;
-    }
-
-    /**
-     * Credit to PromQL for this extrapolation algorithm:
-     * If samples are close enough to the rangeStart and rangeEnd, we extrapolate the rate all the way to the boundary in question.
-     * "Close enough" is defined as "up to 10% more than the average duration between samples within the range".
-     * Essentially, we assume a more or less regular spacing between samples. If we don't see a sample where we would expect one,
-     * we assume the series does not cover the whole range but starts and/or ends within the range.
-     * We still extrapolate the rate in this case, but not all the way to the boundary, only by half of the average duration between
-     * samples (which is our guess for where the series actually starts or ends).
-     */
-    private double extrapolateToBoundary(
-        ReducedState state,
-        double tbucketStart,
-        double tbucketEnd,
-        double dateFactor,
-        boolean isLowerBoundary
-    ) {
-        final double startTs = state.firstTs() / dateFactor;
-        final double startValue = state.firstValue();
-        final double endTs = state.lastTs() / dateFactor;
-        final double endValue = state.lastValue() + state.resets;
-        final double sampleTsSec = endTs - startTs;
-        final double averageSampleInterval = sampleTsSec / state.samples;
-        final double slope = (endValue - startValue) / sampleTsSec;
-
-        if (isLowerBoundary) {
-            double startGapSec = startTs - tbucketStart;
-            if (startGapSec > 0) {
-                if (startGapSec > averageSampleInterval * 1.1) {
-                    startGapSec = averageSampleInterval / 2.0;
-                }
-                return Math.max(0.0, startValue - startGapSec * slope);
-            }
-            return startValue;
-        } else {
-            double endGapSec = tbucketEnd - endTs;
-            if (endGapSec > 0) {
-                if (endGapSec > averageSampleInterval * 1.1) {
-                    endGapSec = averageSampleInterval / 2.0;
-                }
-                return endValue + endGapSec * slope;
-            }
-            return endValue;
-        }
-    }
-
-    /**
-     * Interpolates the value at the time bucket boundary between two states.
-     *
-     * For the lower boundary (tbucketStart), interpolation is applied between the last sample of the lower state
-     * and the first sample of the upper state. Conversely, for the upper boundary (tbucketEnd), interpolation
-     * is applied between the first sample of the lower state and the last sample of the upper state.
-     *
-     * The logic detects counter resets across the boundary, with interpolation using the last value instead of the
-     * value delta to produce correct results.
-     */
-    private double interpolateBetweenStates(
-        ReducedState lowerState,
-        ReducedState upperState,
-        double tbucketStart,
-        double tbucketEnd,
-        double dateFactor,
-        boolean isLowerBoundary
-    ) {
-        final double startValue = lowerState.lastValue();
-        final double startTs = lowerState.lastTs() / dateFactor;
-        final double endValue = upperState.firstValue();
-        final double endTs = upperState.firstTs() / dateFactor;
-        assert startTs < endTs : "expected startTs < endTs, got " + startTs + " < " + endTs;
-        final double delta = deltaBetweenStates(lowerState, upperState, dateFactor);
-        final double slope = delta / (endTs - startTs);
-        if (isLowerBoundary) {
-            assert startTs <= tbucketStart : startTs + " <= " + tbucketStart;
-            final double baseValue = (endValue >= startValue) ? startValue : 0;
-            double timeDelta = tbucketStart - startTs;
-            return baseValue + slope * timeDelta;
-        } else {
-            assert startTs <= tbucketEnd : startTs + " <= " + tbucketEnd;
-            double timeDelta = tbucketEnd - startTs;
-            return startValue + slope * timeDelta;
-        }
-    }
-
-    private double deltaBetweenStates(ReducedState lowerState, ReducedState upperState, double dateFactor) {
-        final double startValue = lowerState.lastValue();
-        final double endValue = upperState.firstValue();
-
-        // If the end value is smaller than the start value, a counter reset occurred.
-        // In this case, the delta is considered equal to the end value.
-        return (endValue >= startValue) ? endValue - startValue : endValue;
+        return tmp2.get();
     }
 }

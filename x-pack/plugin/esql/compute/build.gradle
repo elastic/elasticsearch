@@ -90,8 +90,9 @@ def prop(Name, Type, type, Wrapper, TYPE, BYTES, Array, Hash) {
     "long"    : Name == "Long" ? "true" : "",
     "double"  : Name == "Double" ? "true" : "",
     "boolean" : Name == "Boolean" ? "true" : "",
-    "BytesRef": Name == "BytesRef" ? "true" : "",
-    "Ip"      : Name == "Ip" ? "true" : "",
+    "BytesRef"            : Name == "BytesRef" ? "true" : "",
+    "Ip"                  : Name == "Ip" ? "true" : "",
+    "ExponentialHistogram": Name == "ExponentialHistogram" ? "true" : "",
   ]
 }
 
@@ -141,6 +142,7 @@ tasks.named('stringTemplates').configure {
     "BytesRefHash"
   )
   var ipProperties = prop("Ip", "BytesRef", "BytesRef", "", "BYTES_REF", "16", "", "")
+  var exponentialHistogramProperties = prop("ExponentialHistogram", "ExponentialHistogram", "ExponentialHistogram", "", "EXPONENTIAL_HISTOGRAM", "", "", "")
 
   // Arrow buffer type properties: extra sealed permits, byte sizes, and value read expressions
   intProperties["extraArrowBufBlockPermits"] = """, org.elasticsearch.compute.data.arrow.UInt8ArrowBufBlock,
@@ -1293,5 +1295,10 @@ tasks.named('stringTemplates').configure {
     it.properties = longProperties
     it.inputFile = rateAggregatorInputFile
     it.outputFile = "org/elasticsearch/compute/aggregation/RateLongGroupingAggregatorFunction.java"
+  }
+  template {
+    it.properties = exponentialHistogramProperties
+    it.inputFile = rateAggregatorInputFile
+    it.outputFile = "org/elasticsearch/compute/aggregation/RateExponentialHistogramGroupingAggregatorFunction.java"
   }
 }

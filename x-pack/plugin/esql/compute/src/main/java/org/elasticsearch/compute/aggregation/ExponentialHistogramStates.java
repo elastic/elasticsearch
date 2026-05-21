@@ -23,7 +23,7 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogramMerger;
 
 public final class ExponentialHistogramStates {
 
-    private record HistoBreaker(CircuitBreaker delegate) implements ExponentialHistogramCircuitBreaker {
+    public record HistoBreaker(CircuitBreaker delegate) implements ExponentialHistogramCircuitBreaker {
         @Override
         public void adjustBreaker(long bytesAllocated) {
             if (bytesAllocated < 0) {

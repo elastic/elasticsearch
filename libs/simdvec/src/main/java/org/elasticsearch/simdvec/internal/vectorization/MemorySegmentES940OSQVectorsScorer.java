@@ -80,18 +80,14 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         );
         SymmetricInt4Encoding resolvedInt4 = int4Encoding == null ? SymmetricInt4Encoding.STRIPED : int4Encoding;
         QuantEncoding enc = QuantEncoding.of(queryBits, indexBits, resolvedInt4);
-        if (enc == QuantEncoding.D1Q1) {
-            this.scorer = createPanamaScorer(enc, in, dimensions, dataLength, bulkSize);
-        } else {
-            this.scorer = USE_NATIVE && nativeEnabled
-                ? createNativeScorer(enc, in, dimensions, dataLength, bulkSize)
-                : createPanamaScorer(enc, in, dimensions, dataLength, bulkSize);
-        }
+        this.scorer = USE_NATIVE && nativeEnabled
+            ? createNativeScorer(enc, in, dimensions, dataLength, bulkSize)
+            : createPanamaScorer(enc, in, dimensions, dataLength, bulkSize);
     }
 
     private static MemorySegmentScorer createNativeScorer(QuantEncoding enc, IndexInput in, int dimensions, int dataLength, int bulkSize) {
         return switch (enc) {
-            case D1Q1 -> throw new IllegalArgumentException("D1Q1 has no native scorer yet");
+            case D1Q1 -> new NativeD1Q1Scorer(in, dimensions, dataLength, bulkSize);
             case D1Q4 -> new NativeD1Q4Scorer(in, dimensions, dataLength, bulkSize);
             case D2Q4 -> new NativeD2Q4Scorer(in, dimensions, dataLength, bulkSize);
             case D4Q4_STRIPED -> new NativeD4Q4Scorer(in, dimensions, dataLength, bulkSize);

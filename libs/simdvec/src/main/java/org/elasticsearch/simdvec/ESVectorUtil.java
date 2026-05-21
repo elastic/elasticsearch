@@ -164,6 +164,54 @@ public class ESVectorUtil {
         return IMPL.squareDistance(a, b);
     }
 
+    /** Returns the sum of squared differences of the two byte vectors over a sub-range. */
+    public static float squareDistance(byte[] a, byte[] b, int offset, int length) {
+        if (a.length != b.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible: " + a.length + "!= " + b.length);
+        }
+        Objects.checkFromIndexSize(offset, length, a.length);
+        return IMPL.squareDistance(a, b, offset, length);
+    }
+
+    /**
+     * Bulk computation of square distances from a byte query vector to four byte candidate vectors.
+     */
+    public static void squareDistanceBulk(byte[] q, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
+        }
+        if (distancesOffset < 0 || distancesOffset > distances.length - 4) {
+            throw new IllegalArgumentException("distancesOffset must be between 0 and distances.length - 4");
+        }
+        if (distances.length < 4) {
+            throw new IllegalArgumentException("distances array must have length >= 4, but was: " + distances.length);
+        }
+        IMPL.squareDistanceBulk(q, v0, v1, v2, v3, distancesOffset, distances);
+    }
+
+    /**
+     * Bulk computation of square distances from a sub-range of a byte query vector to four byte candidate vectors.
+     */
+    public static void squareDistanceBulk(
+        byte[] q,
+        int qOffset,
+        int length,
+        byte[] v0,
+        byte[] v1,
+        byte[] v2,
+        byte[] v3,
+        float[] distances
+    ) {
+        if (q.length != v0.length || q.length != v1.length || q.length != v2.length || q.length != v3.length) {
+            throw new IllegalArgumentException("vector dimensions incompatible");
+        }
+        if (distances.length != 4) {
+            throw new IllegalArgumentException("distances array must have length 4, but was: " + distances.length);
+        }
+        Objects.checkFromIndexSize(qOffset, length, q.length);
+        IMPL.squareDistanceBulk(q, qOffset, length, v0, v1, v2, v3, 0, distances);
+    }
+
     public static long ipByteBinByte(byte[] q, byte[] d) {
         if (q.length != d.length * B_QUERY) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!= " + B_QUERY + " x " + d.length);
@@ -371,7 +419,44 @@ public class ESVectorUtil {
     }
 
     /**
-     * Calculates the difference between two vectors and stores the result in a third vector.
+     * Center the byte target vector against a byte centroid and calculate the optimized-scalar quantization statistics
+     * for euclidean similarity.
+     * @param target The byte vector being quantized
+     * @param centroid The byte centroid of the target vector
+     * @param centered The destination of the centered vector, will be overwritten
+     * @param stats The array to store the statistics, must be of length 5
+     */
+    public static void centerAndCalculateOSQStatsEuclidean(byte[] target, byte[] centroid, float[] centered, float[] stats) {
+        assert stats.length == 5;
+        if (target.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
+        }
+        if (centered.length != target.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
+        }
+        IMPL.centerAndCalculateOSQStatsEuclidean(target, centroid, centered, stats);
+    }
+
+    /**
+     * Center the byte target vector against a byte centroid and calculate the optimized-scalar quantization statistics
+     * for dot-product similarity.
+     * @param target The byte vector being quantized
+     * @param centroid The byte centroid of the target vector
+     * @param centered The destination of the centered vector, will be overwritten
+     * @param stats The array to store the statistics, must be of length 6
+     */
+    public static void centerAndCalculateOSQStatsDp(byte[] target, byte[] centroid, float[] centered, float[] stats) {
+        if (target.length != centroid.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + target.length + "!=" + centroid.length);
+        }
+        if (centered.length != target.length) {
+            throw new IllegalArgumentException("vector dimensions differ: " + centered.length + "!=" + target.length);
+        }
+        assert stats.length == 6;
+        IMPL.centerAndCalculateOSQStatsDp(target, centroid, centered, stats);
+    }
+
+    /** Calculates the difference between two vectors and stores the result in a third vector.
      * @param v1 the first vector
      * @param v2 the second vector
      * @param result the result vector, must be the same length as the input vectors

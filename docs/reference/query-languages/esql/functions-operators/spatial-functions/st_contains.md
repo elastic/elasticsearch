@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `ST_CONTAINS` function [esql-st_contains]
 
-:::{include} ../../_snippets/functions/layout/st_contains.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/st_contains.md
 :::

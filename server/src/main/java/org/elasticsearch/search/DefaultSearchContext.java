@@ -231,12 +231,9 @@ final class DefaultSearchContext extends SearchContext {
                     engineSearcher.getQueryCache(),
                     engineSearcher.getQueryCachingPolicy(),
                     lowLevelCancellation,
-                    wrapExecutorForBytesTracking(
-                        executor,
-                        requiresTrackingExecutorBytes,
-                        currentThreadStoreMetrics,
-                        pendingWorkerBytesRead
-                    ),
+                    requiresTrackingExecutorBytes
+                        ? wrapExecutorForBytesTracking(executor, currentThreadStoreMetrics, pendingWorkerBytesRead)
+                        : executor,
                     maximumNumberOfSlices,
                     minimumDocsPerSlice
                 );
@@ -280,13 +277,9 @@ final class DefaultSearchContext extends SearchContext {
      */
     static Executor wrapExecutorForBytesTracking(
         Executor executor,
-        boolean requiresTrackingExecutorBytes,
-        @Nullable Supplier<StoreMetrics> currentThreadStoreMetrics,
-        @Nullable LongAdder pendingWorkerBytesRead
+        Supplier<StoreMetrics> currentThreadStoreMetrics,
+        LongAdder pendingWorkerBytesRead
     ) {
-        if (requiresTrackingExecutorBytes == false) {
-            return executor;
-        }
         return r -> executor.execute(() -> {
             final StoreMetrics workerStoreMetrics = currentThreadStoreMetrics.get();
             final long before = workerStoreMetrics.getBytesRead();

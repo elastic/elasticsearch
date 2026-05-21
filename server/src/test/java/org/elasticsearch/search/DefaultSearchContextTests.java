@@ -1166,13 +1166,6 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         return new ShardSearchContextId(UUIDs.randomBase64UUID(), randomNonNegativeLong());
     }
 
-    public void testWrapExecutorWhenTrackingNotRequired() {
-        Executor executor = Runnable::run;
-        assertSame(executor, DefaultSearchContext.wrapExecutorForBytesTracking(executor, false, null, new LongAdder()));
-        assertSame(executor, DefaultSearchContext.wrapExecutorForBytesTracking(executor, false, StoreMetrics::new, null));
-        assertSame(executor, DefaultSearchContext.wrapExecutorForBytesTracking(executor, false, StoreMetrics::new, new LongAdder()));
-    }
-
     public void testWrapExecutorForBytesTrackingAccumulatesForkedTaskBytes() throws Exception {
         assumeTrue("directory metrics must be enabled", Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled());
         ThreadLocal<StoreMetrics> threadStoreMetrics = ThreadLocal.withInitial(StoreMetrics::new);
@@ -1181,7 +1174,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         LongAdder accumulator = new LongAdder();
         try {
             StoreMetrics callerMetrics = threadStoreMetrics.get();
-            Executor wrapped = DefaultSearchContext.wrapExecutorForBytesTracking(executor, true, currentThreadStoreMetrics, accumulator);
+            Executor wrapped = DefaultSearchContext.wrapExecutorForBytesTracking(executor, currentThreadStoreMetrics, accumulator);
             assertNotSame(executor, wrapped);
 
             final long bytesPerTask = randomLongBetween(1L, 10_000L);
@@ -1199,9 +1192,9 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
 
             assertTrue("forked tasks did not complete in time", done.await(30, TimeUnit.SECONDS));
             // wrapped in assert busy because the latch countdown happens before the accumulation
-            assertBusy(() -> {
-                assertEquals("accumulator must aggregate every forked task's delta", bytesPerTask * numTasks, accumulator.sum());
-            });
+            assertBusy(
+                () -> { assertEquals("accumulator must aggregate every forked task's delta", bytesPerTask * numTasks, accumulator.sum()); }
+            );
             assertEquals("caller StoreMetrics must remain untouched until drain runs", 0L, callerMetrics.getBytesRead());
         } finally {
             terminate(executor);
@@ -1214,7 +1207,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
         ThreadLocal<StoreMetrics> threadStoreMetrics = ThreadLocal.withInitial(StoreMetrics::new);
         Executor executor = Runnable::run;
         LongAdder accumulator = new LongAdder();
-        Executor wrapped = DefaultSearchContext.wrapExecutorForBytesTracking(executor, true, threadStoreMetrics::get, accumulator);
+        Executor wrapped = DefaultSearchContext.wrapExecutorForBytesTracking(executor, threadStoreMetrics::get, accumulator);
         final long bytes = randomLongBetween(1L, 1000L);
 
         try {

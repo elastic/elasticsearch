@@ -492,6 +492,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                     .sort(SortBuilders.pitTiebreaker())
                     .size(batchSize)
             );
+            // optimization disabled here as well
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             try {
                 // The actual search hits may be less than batch size if the slice has few docs, since docs are randomly sliced
@@ -543,6 +544,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         request.getSearchRequest().scroll(null);
         request.getSearchRequest().indices(Strings.EMPTY_ARRAY);
 
+        // optimization reenabled here. But why does it matter with one shard?
         ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
             .actionGet();
         GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())

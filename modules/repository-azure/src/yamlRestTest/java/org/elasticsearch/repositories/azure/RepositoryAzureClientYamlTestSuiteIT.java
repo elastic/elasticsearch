@@ -17,9 +17,7 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.tls.TestTrustStore;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
@@ -100,22 +98,8 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
                 : Map.of()
         )
         .setting("thread_pool.repository_azure.max", () -> String.valueOf(randomIntBetween(1, 10)), s -> USE_FIXTURE)
-        .apply(RepositoryAzureClientYamlTestSuiteIT::configureTrustStore)
+        .apply(builder -> trustStore.apply(builder, USE_FIXTURE))
         .build();
-
-    private static void configureTrustStore(LocalClusterSpecBuilder<?> builder) {
-        if (!USE_FIXTURE) {
-            return;
-        }
-        if (ESTestCase.inFipsJvm()) {
-            // In FIPS mode, FipsEnabledClusterConfigProvider sets javax.net.ssl.trustStore to ${ES_PATH_CONF}/cacerts.bcfks
-            // Replace the cacerts.bcfks config file content with a combined store that includes both the FIPS CAs and the fixture's cert.
-            builder.configFile("cacerts.bcfks", Resource.fromFile(() -> trustStore.getTrustStorePath()));
-        } else {
-            builder.systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString())
-                .systemProperty("javax.net.ssl.trustStoreType", () -> trustStore.getTrustStoreType());
-        }
-    }
 
     @ClassRule(order = 1)
     public static TestRule ruleChain = RuleChain.outerRule(fixture).around(trustStore).around(cluster);

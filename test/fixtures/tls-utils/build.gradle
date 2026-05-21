@@ -13,6 +13,7 @@ description = 'TLS utilities for test fixtures'
 dependencies {
   api project(':libs:ssl-config')
   api project(':test:framework')
+  api project(':test:test-clusters')
 
   // Non-FIPS and FIPS Bouncy Castle artifacts share package names; never put both on the test classpath.
   if (buildParams.inFipsJvm) {

@@ -20,7 +20,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.elasticsearch.test.fixtures.tls.TestTrustStore;
 
@@ -100,16 +99,7 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
             .setting(clientPrefix + "add_purpose_custom_query_parameter", () -> randomFrom("true", "false"), n -> randomBoolean())
             .setting(clientPrefix + "endpoint", s3HttpFixture::getAddress, n -> USE_FIXTURE)
             .setting(clientPrefix + "path_style_access", () -> "true", n -> USE_FIXTURE)
-            .apply(builder -> {
-                if (USE_FIXTURE) {
-                    if (inFipsJvm()) {
-                        builder.configFile("cacerts.bcfks", Resource.fromFile(TEST_TRUST_STORE::getTrustStorePath));
-                    } else {
-                        builder.systemProperty("javax.net.ssl.trustStore", () -> TEST_TRUST_STORE.getTrustStorePath().toString())
-                            .systemProperty("javax.net.ssl.trustStoreType", TEST_TRUST_STORE::getTrustStoreType);
-                    }
-                }
-            })
+            .apply(builder -> TEST_TRUST_STORE.apply(builder, USE_FIXTURE))
             .setting(
                 "repository_s3.compare_and_exchange.anti_contention_delay",
                 () -> randomFrom("1s" /* == default */, "1ms"),

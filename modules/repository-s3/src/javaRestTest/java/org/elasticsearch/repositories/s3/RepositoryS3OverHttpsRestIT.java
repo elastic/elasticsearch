@@ -16,7 +16,6 @@ import fixture.s3.S3HttpFixture;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
 import org.elasticsearch.test.fixtures.tls.TestTrustStore;
@@ -60,14 +59,7 @@ public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCas
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
         .setting("s3.client." + CLIENT + ".disable_chunked_encoding", () -> randomFrom("true", "false"), ignored -> randomBoolean())
         .setting("s3.client." + CLIENT + ".path_style_access", "true")
-        .apply(builder -> {
-            if (inFipsJvm()) {
-                builder.configFile("cacerts.bcfks", Resource.fromFile(trustStore::getTrustStorePath));
-            } else {
-                builder.systemProperty("javax.net.ssl.trustStore", () -> trustStore.getTrustStorePath().toString())
-                    .systemProperty("javax.net.ssl.trustStoreType", trustStore::getTrustStoreType);
-            }
-        })
+        .apply(builder -> trustStore.apply(builder, true))
         .build();
 
     @ClassRule

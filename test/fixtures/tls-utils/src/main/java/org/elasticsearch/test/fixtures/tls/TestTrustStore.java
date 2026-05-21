@@ -11,6 +11,8 @@ package org.elasticsearch.test.fixtures.tls;
 
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.junit.rules.ExternalResource;
 
 import java.io.IOException;
@@ -25,6 +27,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.createTempDir;
+import static org.elasticsearch.test.ESTestCase.inFipsJvm;
 import static org.junit.Assert.assertTrue;
 
 /**
@@ -35,7 +38,7 @@ import static org.junit.Assert.assertTrue;
  */
 public class TestTrustStore extends ExternalResource {
 
-    private static final boolean FIPS = ESTestCase.inFipsJvm();
+    private static final boolean FIPS = inFipsJvm();
     private static final String TRUST_STORE_TYPE = FIPS ? "bcfks" : "jks";
     private static final char[] TRUST_STORE_PASSWORD = FIPS ? "password".toCharArray() : new char[0];
 
@@ -87,5 +90,19 @@ public class TestTrustStore extends ExternalResource {
     @Override
     protected void after() {
         assertTrue(trustStorePath + " should still exist at teardown", Files.exists(trustStorePath));
+    }
+
+    public void apply(LocalClusterSpecBuilder<?> builder, boolean enabled) {
+        if (enabled == false) {
+            return;
+        }
+        if (inFipsJvm()) {
+            // In FIPS mode, FipsEnabledClusterConfigProvider sets javax.net.ssl.trustStore to ${ES_PATH_CONF}/cacerts.bcfks
+            // Replace the cacerts.bcfks config file content with a combined store that includes both the FIPS CAs and the fixture's cert.
+            builder.configFile("cacerts.bcfks", Resource.fromFile(this::getTrustStorePath));
+        } else {
+            builder.systemProperty("javax.net.ssl.trustStore", () -> this.getTrustStorePath().toString())
+                .systemProperty("javax.net.ssl.trustStoreType", this::getTrustStoreType);
+        }
     }
 }

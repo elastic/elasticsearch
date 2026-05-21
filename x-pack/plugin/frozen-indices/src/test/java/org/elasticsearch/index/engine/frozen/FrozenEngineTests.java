@@ -189,7 +189,7 @@ public class FrozenEngineTests extends EngineTestCase {
         int numDocsAdded = 0;
         for (int i = 0; i < numDocs; i++) {
             numDocsAdded++;
-            ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"), null);
+            ParsedDocument doc = testParsedDocument(Integer.toString(i), null, testDocument(), new BytesArray("{}"));
             engine.index(
                 new Engine.Index(
                     newUid(doc),

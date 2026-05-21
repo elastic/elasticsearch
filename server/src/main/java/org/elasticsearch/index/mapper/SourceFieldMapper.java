@@ -560,6 +560,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return mode == Mode.SYNTHETIC;
     }
 
+    public boolean isColumnarStored() {
+        return mode == Mode.COLUMNAR_STORED;
+    }
+
     /**
      * Caution: this function is not aware of the legacy "mappings._source.mode" parameter that some legacy indices might use. You should
      * prefer to get information about synthetic source from {@link MapperBuilderContext}.

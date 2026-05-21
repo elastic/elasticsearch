@@ -543,7 +543,9 @@ public abstract class DocumentParserContext {
     }
 
     public final boolean canAddIgnoredField() {
-        return mappingLookup.isSourceSynthetic() && recordedSource == false && indexSettings().getSkipIgnoredSourceWrite() == false;
+        return (mappingLookup.isSourceSynthetic() || mappingLookup.isColumnarStored())
+            && recordedSource == false
+            && indexSettings().getSkipIgnoredSourceWrite() == false;
     }
 
     Mapper.SourceKeepMode sourceKeepModeFromIndexSettings() {

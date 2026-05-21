@@ -159,17 +159,6 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             });
         });
 
-        // When a DRA snapshot is available, write the short commit hash from the build ID to build/refspec
-        // so downstream tasks that declare it as an input track changes correctly.
-        tasks.register("writeDraRefspec", writeDraRefspec -> {
-            writeDraRefspec.onlyIf("DRA snapshot available", t -> draBuildId.get().isEmpty() == false);
-            writeDraRefspec.doLast(t -> {
-                String buildId = draBuildId.get();
-                String shortHash = buildId.substring(buildId.lastIndexOf('-') + 1);
-                writeFile(projectLayout.getBuildDirectory().file("refspec").get().getAsFile(), shortHash);
-            });
-        });
-
         String checkoutConfiguration = "checkout";
         project.getConfigurations().create(checkoutConfiguration);
 

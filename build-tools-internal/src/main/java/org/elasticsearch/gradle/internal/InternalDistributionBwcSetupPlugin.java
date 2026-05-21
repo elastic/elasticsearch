@@ -29,9 +29,11 @@ import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.model.ObjectFactory;
 import org.gradle.api.plugins.JvmToolchainsPlugin;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.Copy;
+import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputFile;
 import org.gradle.api.tasks.PathSensitive;
@@ -636,9 +638,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                             buildId
                         )
                 );
-                task.dependsOn("writeDraRefspec");
                 task.getDraJar().from(draConfig);
-                task.getInputs().file(new File(project.getBuildDir(), "refspec")).withPathSensitivity(PathSensitivity.RELATIVE);
+                task.getDraBuildId().set(buildId);
                 task.getOutputJar().set(projectArtifact.distFile);
                 task.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", t -> buildParams.getCi() == false);
             });
@@ -655,9 +656,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                             buildId
                         )
                 );
-                t.dependsOn("writeDraRefspec");
-                t.getInputs().file(new File(project.getBuildDir(), "refspec")).withPathSensitivity(PathSensitivity.RELATIVE);
                 t.from(draConfig);
+                t.getInputs().property("draBuildId", buildId);
                 if (useNativeExpanded) {
                     t.into(projectArtifact.expandedDistDir);
                     t.getOutputs().dir(expectedOutputFile);
@@ -755,11 +755,14 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
      * implicit {@code @OutputDirectory} that a {@code Copy} task registers, which would break
      * {@link JarApiComparisonTask}'s single-jar assertion.
      *
-     * <p>Declaring {@code draJar} as an abstract {@link ConfigurableFileCollection} property
-     * (rather than capturing the {@link org.gradle.api.artifacts.Configuration} in a lambda)
-     * also keeps this task compatible with Gradle's Configuration Cache.
+     * <p>Declaring inputs as abstract properties (rather than capturing a
+     * {@link org.gradle.api.artifacts.Configuration} in a lambda) keeps this task compatible
+     * with Gradle's Configuration Cache and enables up-to-date checking via {@code draBuildId}.
      */
     public abstract static class DownloadMavenJarTask extends DefaultTask {
+
+        @Input
+        public abstract Property<String> getDraBuildId();
 
         @InputFiles
         @PathSensitive(PathSensitivity.NONE)

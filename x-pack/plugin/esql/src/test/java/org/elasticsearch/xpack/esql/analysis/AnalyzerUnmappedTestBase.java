@@ -93,6 +93,17 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
     }
 
     /**
+     * Returns a TestAnalyzer pre-loaded with partial_mapping_sample_data (dynamic:false — only
+     * {@code @timestamp}, {@code client_ip}, {@code event_duration}, {@code message} are in the
+     * mapping) and partial_message_types_lookup ({@code message}, {@code message_type}).
+     * Used for expression-based LOOKUP JOIN tests.
+     */
+    protected static TestAnalyzer partialMappingTest() {
+        return analyzer().addIndex("partial_mapping_sample_data", "mapping-partial_mapping_sample_data.json")
+            .addLookupIndex("partial_message_types_lookup", "mapping-partial_message_types_lookup.json");
+    }
+
+    /**
      * Builds the {@code message_lookup} index used for KEEP-before-join tests.
      * The primary employees index has no {@code message} field; this lookup does.
      */

@@ -42,7 +42,7 @@ public class PlanAnonymizerTests extends ESTestCase {
         LogicalPlan logical = sampleLogicalPlan();
         PhysicalPlan physical = new FragmentExec(logical);
 
-        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(logical, physical);
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize("FROM " + INDEX, logical, physical);
 
         for (String secret : List.of(INDEX, F_EMAIL, F_ORDER_TOTAL, F_RETRY_COUNT, "alice@example.com")) {
             assertFalse("'" + secret + "' leaked into logical plan:\n" + out.logicalPlan(), out.logicalPlan().contains(secret));
@@ -55,7 +55,7 @@ public class PlanAnonymizerTests extends ESTestCase {
         LogicalPlan logical = sampleLogicalPlan();
         PhysicalPlan physical = new FragmentExec(logical);
 
-        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(logical, physical);
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize("FROM " + INDEX, logical, physical);
 
         assertTrue("schema missing 'keyword':\n" + out.schema(), out.schema().contains("keyword"));
         assertTrue("schema missing 'long':\n" + out.schema(), out.schema().contains("long"));
@@ -65,7 +65,7 @@ public class PlanAnonymizerTests extends ESTestCase {
         LogicalPlan logical = sampleLogicalPlan();
         PhysicalPlan physical = new FragmentExec(logical);
 
-        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(logical, physical);
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize("FROM " + INDEX, logical, physical);
 
         Matcher m = Pattern.compile("(\\d+)\\[LONG\\]").matcher(out.logicalPlan());
         Map<String, Integer> counts = new HashMap<>();
@@ -83,8 +83,8 @@ public class PlanAnonymizerTests extends ESTestCase {
         PhysicalPlan physical = new FragmentExec(logical);
         String clusterUuid = randomUUID();
 
-        var first = PlanAnonymizer.forSubmission(clusterUuid).anonymize(logical, physical);
-        var second = PlanAnonymizer.forSubmission(clusterUuid).anonymize(logical, physical);
+        var first = PlanAnonymizer.forSubmission(clusterUuid).anonymize("FROM " + INDEX, logical, physical);
+        var second = PlanAnonymizer.forSubmission(clusterUuid).anonymize("FROM " + INDEX, logical, physical);
 
         assertEquals(first.logicalPlan(), second.logicalPlan());
         assertEquals(first.physicalPlan(), second.physicalPlan());
@@ -95,8 +95,8 @@ public class PlanAnonymizerTests extends ESTestCase {
         LogicalPlan logical = sampleLogicalPlan();
         PhysicalPlan physical = new FragmentExec(logical);
 
-        var clusterA = PlanAnonymizer.forSubmission(randomUUID()).anonymize(logical, physical);
-        var clusterB = PlanAnonymizer.forSubmission(randomUUID()).anonymize(logical, physical);
+        var clusterA = PlanAnonymizer.forSubmission(randomUUID()).anonymize("FROM " + INDEX, logical, physical);
+        var clusterB = PlanAnonymizer.forSubmission(randomUUID()).anonymize("FROM " + INDEX, logical, physical);
 
         assertNotEquals(clusterA.logicalPlan(), clusterB.logicalPlan());
         assertNotEquals(clusterA.physicalPlan(), clusterB.physicalPlan());
@@ -106,7 +106,7 @@ public class PlanAnonymizerTests extends ESTestCase {
         LogicalPlan logical = sampleLogicalPlan();
         FragmentExec physical = new FragmentExec(logical);
 
-        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(logical, physical);
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize("FROM " + INDEX, logical, physical);
 
         assertFalse("index name leaked through FragmentExec wrapper:\n" + out.physicalPlan(), out.physicalPlan().contains(INDEX));
         assertFalse("field name leaked through FragmentExec wrapper:\n" + out.physicalPlan(), out.physicalPlan().contains(F_EMAIL));

@@ -9,8 +9,10 @@ package org.elasticsearch.xpack.esql.anonymizer;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -19,11 +21,14 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import java.nio.charset.StandardCharsets;
 import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HexFormat;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.TreeMap;
+import java.util.regex.Pattern;
 
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
@@ -42,7 +47,7 @@ import javax.crypto.spec.SecretKeySpec;
  */
 public final class PlanAnonymizer {
 
-    public record AnonymizedPlans(String schema, String logicalPlan, String physicalPlan) {}
+    public record AnonymizedPlans(String schema, String query, String logicalPlan, String physicalPlan) {}
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     private static final int TOKEN_HEX_LEN = 8;
@@ -61,10 +66,10 @@ public final class PlanAnonymizer {
         return new PlanAnonymizer(clusterUuid);
     }
 
-    public AnonymizedPlans anonymize(LogicalPlan logical, PhysicalPlan physical) {
+    public AnonymizedPlans anonymize(String originalQuery, LogicalPlan logical, PhysicalPlan physical) {
         LogicalPlan al = anonymizeLogical(logical);
         PhysicalPlan ap = anonymizePhysical(physical);
-        return new AnonymizedPlans(renderSchema(al), al.toString(), ap.toString());
+        return new AnonymizedPlans(renderSchema(logical), anonymizeQuery(originalQuery), al.toString(), ap.toString());
     }
 
     private LogicalPlan anonymizeLogical(LogicalPlan plan) {
@@ -139,22 +144,154 @@ public final class PlanAnonymizer {
         return (long) id;
     }
 
-    private static String renderSchema(LogicalPlan plan) {
-        Map<String, Map<String, String>> byIndex = new TreeMap<>();
-        plan.forEachDown(EsRelation.class, r -> {
-            Map<String, String> fields = byIndex.computeIfAbsent(r.indexPattern(), k -> new TreeMap<>());
-            for (Attribute attr : r.output()) {
-                fields.put(attr.name(), attr.dataType().typeName());
-            }
-        });
+    /**
+     * Walks each EsRelation in the original (pre-anonymized) plan and emits a schema artifact that
+     * carries everything we know about the input mapping — index mode, concrete index names, every
+     * field's type plus doc-values / aggregatable / alias / time-series flags, and multifield
+     * sub-fields. Identifiers (index names, concrete names, field names, sub-field paths) are
+     * anonymized via the same token maps used by the plan rewrite; metadata bits and types are not.
+     */
+    private String renderSchema(LogicalPlan plan) {
         StringBuilder sb = new StringBuilder();
-        for (Map.Entry<String, Map<String, String>> idx : byIndex.entrySet()) {
-            sb.append(idx.getKey()).append(":\n");
-            for (Map.Entry<String, String> f : idx.getValue().entrySet()) {
-                sb.append("  ").append(f.getKey()).append(": ").append(f.getValue()).append('\n');
+        plan.forEachDown(EsRelation.class, r -> renderRelation(r, sb));
+        return sb.toString();
+    }
+
+    private void renderRelation(EsRelation r, StringBuilder sb) {
+        sb.append(anonymizeIndex(r.indexPattern())).append(" (mode=").append(r.indexMode().getName());
+        if (r.concreteQualifiedIndices().isEmpty() == false) {
+            sb.append(", concrete=[");
+            boolean first = true;
+            for (String concrete : new TreeMap<>(r.indexNameWithModes()).keySet()) {
+                if (first == false) {
+                    sb.append(", ");
+                }
+                first = false;
+                sb.append(anonymizeIndex(concrete));
+            }
+            sb.append(']');
+        }
+        sb.append("):\n");
+
+        Map<String, Attribute> sorted = new TreeMap<>();
+        for (Attribute a : r.output()) {
+            sorted.put(a.name(), a);
+        }
+        for (Attribute a : sorted.values()) {
+            // Multifield sub-fields (e.g. "job.raw") also appear in output() alongside their parent
+            // ("job"). Render them only via the parent's properties descent so each field shows up once.
+            if (a.name().indexOf('.') >= 0 && sorted.containsKey(a.name().substring(0, a.name().indexOf('.')))) {
+                continue;
+            }
+            renderAttribute(a, "  ", sb);
+        }
+    }
+
+    private void renderAttribute(Attribute a, String indent, StringBuilder sb) {
+        sb.append(indent).append(anonymizeColumn(a.name())).append(": ").append(a.dataType().typeName());
+        if (a.dataType().hasDocValues()) {
+            sb.append(" doc_values");
+        }
+        if (a instanceof FieldAttribute fa) {
+            EsField f = fa.field();
+            if (f.isAggregatable()) {
+                sb.append(" aggregatable");
+            }
+            if (f.isAlias()) {
+                sb.append(" alias");
+            }
+            if (f.getTimeSeriesFieldType() != null && f.getTimeSeriesFieldType() != EsField.TimeSeriesFieldType.NONE) {
+                sb.append(" ts=").append(f.getTimeSeriesFieldType().name().toLowerCase(Locale.ROOT));
+            }
+            sb.append('\n');
+            Map<String, EsField> props = f.getProperties();
+            if (props != null && props.isEmpty() == false) {
+                for (Map.Entry<String, EsField> e : new TreeMap<>(props).entrySet()) {
+                    renderSubField(a.name() + "." + e.getKey(), e.getValue(), indent + "  ", sb);
+                }
+            }
+        } else {
+            sb.append('\n');
+        }
+    }
+
+    private void renderSubField(String fullName, EsField f, String indent, StringBuilder sb) {
+        sb.append(indent).append(anonymizeColumn(fullName)).append(": ").append(f.getDataType().typeName());
+        if (f.getDataType().hasDocValues()) {
+            sb.append(" doc_values");
+        }
+        if (f.isAggregatable()) {
+            sb.append(" aggregatable");
+        }
+        if (f.isAlias()) {
+            sb.append(" alias");
+        }
+        if (f.getTimeSeriesFieldType() != null && f.getTimeSeriesFieldType() != EsField.TimeSeriesFieldType.NONE) {
+            sb.append(" ts=").append(f.getTimeSeriesFieldType().name().toLowerCase(Locale.ROOT));
+        }
+        sb.append('\n');
+        Map<String, EsField> props = f.getProperties();
+        if (props != null && props.isEmpty() == false) {
+            for (Map.Entry<String, EsField> e : new TreeMap<>(props).entrySet()) {
+                renderSubField(fullName + "." + e.getKey(), e.getValue(), indent + "  ", sb);
             }
         }
-        return sb.toString();
+    }
+
+    /**
+     * Rewrites the original ES|QL query text by substituting known index names, column names, and
+     * literal values with their anonymized tokens. Driven by the maps populated during plan
+     * anonymization, so the substitutions are consistent with what appears in the logical and
+     * physical artifacts. Best-effort textual replacement — identifiers and bare numbers use
+     * word-boundary regex, quoted strings match double-quoted literals.
+     */
+    /**
+     * Best-effort textual rewrite of the original ES|QL query. After substituting known
+     * identifiers and literals via the maps built during plan anonymization, any quoted strings
+     * the maps didn't catch (LIKE patterns where the optimizer kept only the prefix, date strings
+     * folded to epoch millis, escape-sequence forms that didn't text-match) get redacted so
+     * nothing can leak. Triple-quoted strings (ES|QL multi-line literals) are scrubbed before
+     * single-double-quoted to avoid a partial-match across the boundary. Identifiers in backticks
+     * (`` `weird name` ``) are not currently anonymized via this path — known limitation.
+     */
+    private String anonymizeQuery(String query) {
+        String result = query;
+        result = replaceByLengthDesc(result, indexTokens);
+        result = replaceByLengthDesc(result, columnTokens);
+        for (Map.Entry<LiteralKey, Integer> e : literalIds.entrySet()) {
+            LiteralKey k = e.getKey();
+            String placeholder = literalPlaceholderText(k.type(), e.getValue());
+            String val = String.valueOf(k.value());
+            if (k.type() == DataType.KEYWORD || k.type() == DataType.TEXT || k.type() == DataType.VERSION || k.type() == DataType.IP) {
+                result = result.replace("\"\"\"" + val + "\"\"\"", placeholder);
+                result = result.replace("\"" + val + "\"", placeholder);
+                result = result.replace("'" + val + "'", placeholder);
+            } else {
+                result = result.replaceAll("\\b" + Pattern.quote(val) + "\\b", placeholder);
+            }
+        }
+        result = result.replaceAll("\"\"\"[\\s\\S]*?\"\"\"", "\"<STRING>\"");
+        result = result.replaceAll("\"[^\"]*\"", "\"<STRING>\"");
+        return result;
+    }
+
+    private static String replaceByLengthDesc(String input, Map<String, String> map) {
+        String result = input;
+        List<Map.Entry<String, String>> sorted = map.entrySet()
+            .stream()
+            .sorted(Comparator.comparingInt((Map.Entry<String, String> e) -> e.getKey().length()).reversed())
+            .toList();
+        for (Map.Entry<String, String> e : sorted) {
+            result = result.replaceAll("\\b" + Pattern.quote(e.getKey()) + "\\b", e.getValue());
+        }
+        return result;
+    }
+
+    private static String literalPlaceholderText(DataType type, int id) {
+        if (type == DataType.KEYWORD || type == DataType.TEXT || type == DataType.VERSION || type == DataType.IP) {
+            return "L" + id + "[" + type + "]";
+        }
+        return id + "[" + type + "]";
     }
 
     private record LiteralKey(DataType type, Object value) {

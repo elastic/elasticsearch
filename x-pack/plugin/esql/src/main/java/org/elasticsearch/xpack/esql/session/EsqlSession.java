@@ -644,21 +644,26 @@ public class EsqlSession {
             );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
-            ActionListener<Result> wrapped = ActionListener.runAfter(listener, () -> logAnonymizedPlans(optimizedPlan, physicalPlan));
+            String originalQuery = request.query();
+            ActionListener<Result> wrapped = ActionListener.runAfter(
+                listener,
+                () -> logAnonymizedPlans(originalQuery, optimizedPlan, physicalPlan)
+            );
             runner.run(physicalPlan, configuration, foldContext, planTimeProfile, wrapped);
         }
     }
 
-    private void logAnonymizedPlans(LogicalPlan logical, PhysicalPlan physical) {
+    private void logAnonymizedPlans(String originalQuery, LogicalPlan logical, PhysicalPlan physical) {
         if (LOGGER.isInfoEnabled() == false) {
             return;
         }
         try {
-            var anonymized = PlanAnonymizer.forSubmission(clusterUuid).anonymize(logical, physical);
+            var anonymized = PlanAnonymizer.forSubmission(clusterUuid).anonymize(originalQuery, logical, physical);
             LOGGER.info(
-                "ESQL anonymized plans for session [{}]\nmapping:\n{}\nlogical:\n{}\nphysical:\n{}",
+                "ESQL anonymized plans for session [{}]\nschema:\n{}\nquery:\n{}\nlogical:\n{}\nphysical:\n{}",
                 sessionId,
                 anonymized.schema(),
+                anonymized.query(),
                 anonymized.logicalPlan(),
                 anonymized.physicalPlan()
             );

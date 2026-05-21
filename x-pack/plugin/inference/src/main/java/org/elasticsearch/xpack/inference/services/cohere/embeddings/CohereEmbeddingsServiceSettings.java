@@ -75,7 +75,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
             return new CohereEmbeddingsServiceSettings(commonSettings, similarity, dimensions, maxInputTokens, resolvedEmbeddingType);
         }
 
-        public CohereEmbeddingsServiceSettings mergeInto(CohereEmbeddingsServiceSettings existing) {
+        private CohereEmbeddingsServiceSettings mergeInto(CohereEmbeddingsServiceSettings existing) {
             var updatedRateLimitSettings = rateLimitSettings != null ? rateLimitSettings : existing.rateLimitSettings();
             var updatedMaxInputTokens = maxInputTokens != null ? maxInputTokens : existing.maxInputTokens();
             return new CohereEmbeddingsServiceSettings(

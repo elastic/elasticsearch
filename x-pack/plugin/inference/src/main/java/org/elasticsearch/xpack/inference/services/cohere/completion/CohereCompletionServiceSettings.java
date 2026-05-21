@@ -39,7 +39,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
 
     public static class Builder extends CohereCommonServiceSettings.Builder<CohereCompletionServiceSettings> {
 
-        public CohereCompletionServiceSettings mergeInto(CohereCompletionServiceSettings existing) {
+        private CohereCompletionServiceSettings mergeInto(CohereCompletionServiceSettings existing) {
             var updatedRateLimitSettings = rateLimitSettings != null ? rateLimitSettings : existing.rateLimitSettings();
             return new CohereCompletionServiceSettings(existing.commonSettings().update(updatedRateLimitSettings));
         }

@@ -39,7 +39,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
 
     public static class Builder extends CohereCommonServiceSettings.Builder<CohereRerankServiceSettings> {
 
-        public CohereRerankServiceSettings mergeInto(CohereRerankServiceSettings existing) {
+        private CohereRerankServiceSettings mergeInto(CohereRerankServiceSettings existing) {
             var updatedRateLimitSettings = rateLimitSettings != null ? rateLimitSettings : existing.rateLimitSettings();
             return new CohereRerankServiceSettings(existing.commonSettings().update(updatedRateLimitSettings));
         }

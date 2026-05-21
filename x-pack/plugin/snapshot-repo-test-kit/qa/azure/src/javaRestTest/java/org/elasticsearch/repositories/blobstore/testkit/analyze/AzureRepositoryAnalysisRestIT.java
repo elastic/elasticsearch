@@ -13,7 +13,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
@@ -36,8 +35,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class AzureRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTestCase {
     private static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("test.azure.fixture", "true"));
-    private static final boolean USE_HTTPS_FIXTURE = USE_FIXTURE && ESTestCase.inFipsJvm() == false;
-    // TODO when https://github.com/elastic/elasticsearch/issues/111532 addressed, use a HTTPS fixture in FIPS mode too
 
     private static final String AZURE_TEST_ACCOUNT = System.getProperty("test.azure.account");
     private static final String AZURE_TEST_CONTAINER = System.getProperty("test.azure.container");
@@ -50,7 +47,7 @@ public class AzureRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRes
     private static final TestTrustStore TEST_TRUST_STORE = new TestTrustStore(TEST_TLS_CERTIFICATE::getPemCertificateStream);
 
     private static final AzureHttpFixture fixture = new AzureHttpFixture(
-        USE_HTTPS_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : USE_FIXTURE ? AzureHttpFixture.Protocol.HTTP : AzureHttpFixture.Protocol.NONE,
+        USE_FIXTURE ? AzureHttpFixture.Protocol.HTTPS : AzureHttpFixture.Protocol.NONE,
         TEST_TLS_CERTIFICATE,
         AZURE_TEST_ACCOUNT,
         AZURE_TEST_CONTAINER,
@@ -88,15 +85,15 @@ public class AzureRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRes
         .systemProperty(
             "tests.azure.credentials.disable_instance_discovery",
             () -> "true",
-            s -> USE_HTTPS_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
+            s -> USE_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
         )
         .systemProperty("AZURE_POD_IDENTITY_AUTHORITY_HOST", fixture::getMetadataAddress, s -> USE_FIXTURE)
-        .systemProperty("AZURE_AUTHORITY_HOST", fixture::getOAuthTokenServiceAddress, s -> USE_HTTPS_FIXTURE)
+        .systemProperty("AZURE_AUTHORITY_HOST", fixture::getOAuthTokenServiceAddress, s -> USE_FIXTURE)
         .systemProperty("AZURE_CLIENT_ID", () -> AZURE_TEST_CLIENT_ID, s -> Strings.hasText(AZURE_TEST_CLIENT_ID))
         .systemProperty("AZURE_TENANT_ID", () -> AZURE_TEST_TENANT_ID, s -> Strings.hasText(AZURE_TEST_TENANT_ID))
         .configFile("storage-azure/azure-federated-token", Resource.fromString(fixture.getFederatedToken()))
         .environment(
-            nodeSpec -> USE_HTTPS_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
+            nodeSpec -> USE_FIXTURE && Strings.hasText(AZURE_TEST_CLIENT_ID) && Strings.hasText(AZURE_TEST_TENANT_ID)
                 ? Map.of("AZURE_FEDERATED_TOKEN_FILE", "${ES_PATH_CONF}/storage-azure/azure-federated-token")
                 : Map.of()
         )

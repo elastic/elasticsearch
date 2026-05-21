@@ -75,7 +75,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 shard,
                 shard.acquireSearcherSupplier(),
                 shardSearchRequest,
-                Long.MAX_VALUE
+                Long.MAX_VALUE,
+                0L
             )
         ) {
             ThreadContext threadContext = new ThreadContext(Settings.EMPTY);
@@ -114,7 +115,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 shard,
                 shard.acquireSearcherSupplier(),
                 shardSearchRequest,
-                Long.MAX_VALUE
+                Long.MAX_VALUE,
+                0L
             )
         ) {
             readerContext.putInContext(
@@ -255,7 +257,8 @@ public class SecuritySearchOperationListenerTests extends ESSingleNodeTestCase {
                 shard,
                 shard.acquireSearcherSupplier(),
                 shardSearchRequest,
-                Long.MAX_VALUE
+                Long.MAX_VALUE,
+                0L
             )
         ) {
             readerContext.putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.getKey(), mock(IndicesAccessControl.class));

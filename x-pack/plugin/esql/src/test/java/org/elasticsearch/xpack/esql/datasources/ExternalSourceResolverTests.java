@@ -69,6 +69,8 @@ import static org.hamcrest.Matchers.instanceOf;
  */
 public class ExternalSourceResolverTests extends ESTestCase {
 
+    private static final int FILE_META_COUNT = FileMetadataColumns.COLUMNS.size();
+
     private BlockFactory blockFactory;
 
     @Override
@@ -107,7 +109,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             entry("s3://bucket/data/file3.parquet", 300)
         );
 
-        Map<FormatReader.SchemaResolution, List<String>> expectedColumnNames = Map.of(
+        Map<FormatReader.SchemaResolution, List<String>> expectedDataColumnNames = Map.of(
             FormatReader.SchemaResolution.FIRST_FILE_WINS,
             List.of("emp_no", "name"),
             FormatReader.SchemaResolution.UNION_BY_NAME,
@@ -124,8 +126,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
-            List<String> resolvedNames = resolved.metadata().schema().stream().map(Attribute::name).toList();
-            assertEquals("[" + strategy + "] resolved schema columns", expectedColumnNames.get(strategy), resolvedNames);
+            List<String> expectedDataNames = expectedDataColumnNames.get(strategy);
+            List<Attribute> resolvedSchema = resolved.metadata().schema();
+            assertEquals("[" + strategy + "] resolved schema width", expectedDataNames.size() + FILE_META_COUNT, resolvedSchema.size());
+            List<String> dataNames = resolvedSchema.stream().limit(expectedDataNames.size()).map(Attribute::name).toList();
+            assertEquals("[" + strategy + "] resolved data column names", expectedDataNames, dataNames);
         }
     }
 
@@ -151,7 +156,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             entry("s3://bucket/data/f3.parquet", 30)
         );
 
-        Map<FormatReader.SchemaResolution, List<String>> expectedColumnNames = Map.of(
+        Map<FormatReader.SchemaResolution, List<String>> expectedDataColumnNames = Map.of(
             FormatReader.SchemaResolution.FIRST_FILE_WINS,
             List.of("a", "b"),
             FormatReader.SchemaResolution.UNION_BY_NAME,
@@ -168,8 +173,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
             ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
-            List<String> resolvedNames = resolved.metadata().schema().stream().map(Attribute::name).toList();
-            assertEquals("[" + strategy + "] resolved schema columns", expectedColumnNames.get(strategy), resolvedNames);
+            List<String> expectedDataNames = expectedDataColumnNames.get(strategy);
+            List<Attribute> resolvedSchema = resolved.metadata().schema();
+            assertEquals("[" + strategy + "] resolved schema width", expectedDataNames.size() + FILE_META_COUNT, resolvedSchema.size());
+            List<String> dataNames = resolvedSchema.stream().limit(expectedDataNames.size()).map(Attribute::name).toList();
+            assertEquals("[" + strategy + "] resolved data column names", expectedDataNames, dataNames);
         }
     }
 
@@ -196,7 +204,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
             ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
             assertNotNull("[" + strategy + "] resolved source must not be null", resolved);
             List<Attribute> resolvedSchema = resolved.metadata().schema();
-            assertEquals("[" + strategy + "] resolved schema width", 2, resolvedSchema.size());
+            assertEquals("[" + strategy + "] resolved schema width", 2 + FILE_META_COUNT, resolvedSchema.size());
             assertEquals("[" + strategy + "] resolved column 0 name", "id", resolvedSchema.get(0).name());
             assertEquals("[" + strategy + "] resolved column 1 name", "value", resolvedSchema.get(1).name());
             assertEquals("[" + strategy + "] resolved column 0 type", DataType.LONG, resolvedSchema.get(0).dataType());
@@ -382,13 +390,14 @@ public class ExternalSourceResolverTests extends ESTestCase {
             } else {
                 // UNION_BY_NAME: each entry's fileSchema is the file's own schema, and the
                 // mapping rewrites the unified schema [col0, col1, col2] into the file's local
-                // column order, with -1 for columns the file is missing.
+                // column order, with -1 for columns the file is missing. The metadata schema
+                // is enriched with virtual file-metadata columns (_file.*) appended after the
+                // data columns; assertions here cover the data prefix only.
+                List<String> expectedDataColumns = List.of("col0", "col1", "col2");
                 List<Attribute> unifiedSchema = resolved.metadata().schema();
-                assertEquals(
-                    "[" + strategy + "] unified schema columns",
-                    List.of("col0", "col1", "col2"),
-                    unifiedSchema.stream().map(Attribute::name).toList()
-                );
+                assertEquals("[" + strategy + "] unified schema width", expectedDataColumns.size() + FILE_META_COUNT, unifiedSchema.size());
+                List<String> dataColumnNames = unifiedSchema.stream().limit(expectedDataColumns.size()).map(Attribute::name).toList();
+                assertEquals("[" + strategy + "] unified data columns", expectedDataColumns, dataColumnNames);
 
                 Map<String, int[]> expectedLocalIndices = Map.of(
                     "s3://bucket/data/a.parquet",
@@ -417,9 +426,11 @@ public class ExternalSourceResolverTests extends ESTestCase {
                     ColumnMapping mapping = e.getValue().mapping();
                     assertNotNull("[" + strategy + "] " + pathStr + ": ColumnMapping must be set", mapping);
                     int[] expected = expectedLocalIndices.get(pathStr);
+                    // Mapping covers data columns only; virtual file-metadata columns are added
+                    // post-read via VirtualColumnIterator and are not part of the per-file mapping.
                     assertEquals(
-                        "[" + strategy + "] " + pathStr + ": mapping width = unified schema width",
-                        unifiedSchema.size(),
+                        "[" + strategy + "] " + pathStr + ": mapping width = unified data column count",
+                        expectedDataColumns.size(),
                         mapping.width()
                     );
                     for (int i = 0; i < mapping.width(); i++) {
@@ -625,7 +636,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
 
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         List<Attribute> resolvedSchema = resolved.metadata().schema();
-        assertEquals(5, resolvedSchema.size());
+        assertEquals(5 + FILE_META_COUNT, resolvedSchema.size());
         assertEquals(DataType.LONG, resolvedSchema.get(0).dataType());
         assertEquals(DataType.KEYWORD, resolvedSchema.get(1).dataType());
         assertEquals(DataType.DOUBLE, resolvedSchema.get(2).dataType());
@@ -731,7 +742,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/year=*/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
-        assertEquals(3, resolvedSchema.size());
+        assertEquals(3 + FILE_META_COUNT, resolvedSchema.size());
         assertEquals("emp_no", resolvedSchema.get(0).name());
         assertEquals("name", resolvedSchema.get(1).name());
         assertEquals("year", resolvedSchema.get(2).name());
@@ -754,7 +765,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/year=*/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
-        assertEquals(2, resolvedSchema.size());
+        assertEquals(2 + FILE_META_COUNT, resolvedSchema.size());
         assertEquals("name", resolvedSchema.get(0).name());
         assertEquals("year", resolvedSchema.get(1).name());
         // Partition column type should be INTEGER (from path), not KEYWORD (from data)
@@ -777,7 +788,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
-        assertEquals(2, resolvedSchema.size());
+        assertEquals(2 + FILE_META_COUNT, resolvedSchema.size());
         assertEquals("a", resolvedSchema.get(0).name());
         assertEquals("b", resolvedSchema.get(1).name());
     }
@@ -801,7 +812,7 @@ public class ExternalSourceResolverTests extends ESTestCase {
         ExternalSourceResolution.ResolvedSource resolved = resolution.resolvedSource("s3://bucket/data/year=*/month=*/*.parquet");
         assertNotNull(resolved);
         List<Attribute> resolvedSchema = resolved.metadata().schema();
-        assertEquals(3, resolvedSchema.size());
+        assertEquals(3 + FILE_META_COUNT, resolvedSchema.size());
         // Data column is first
         assertEquals("value", resolvedSchema.get(0).name());
         // Partition columns appended at tail in path declaration order
@@ -831,8 +842,10 @@ public class ExternalSourceResolverTests extends ESTestCase {
         // Partition columns are ReferenceAttributes, not FieldAttributes
         assertThat(schema.get(2), instanceOf(ReferenceAttribute.class));
         assertThat(schema.get(3), instanceOf(ReferenceAttribute.class));
-        assertTrue(schema.get(2).synthetic());
-        assertTrue(schema.get(3).synthetic());
+        // Partition columns are user-addressable, so they must NOT be synthetic; otherwise
+        // AnalyzerRules.maybeResolveAgainstList skips them during name resolution.
+        assertFalse(schema.get(2).synthetic());
+        assertFalse(schema.get(3).synthetic());
     }
 
     public void testSchemaWithFieldAttributeFailsValidation() throws Exception {

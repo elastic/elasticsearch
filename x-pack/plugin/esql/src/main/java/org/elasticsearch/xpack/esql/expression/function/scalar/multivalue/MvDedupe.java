@@ -31,7 +31,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRep
  */
 public class MvDedupe extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvDedupe", MvDedupe::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvDedupe.class).unary(MvDedupe::new).name("mv_dedupe");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvDedupe.class)
+        .unary(MvDedupe::new)
+        .capabilities("flattened")
+        .name("mv_dedupe");
 
     // @TODO: add unsigned_long
     @FunctionInfo(
@@ -42,6 +45,7 @@ public class MvDedupe extends AbstractMultivalueFunction {
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -68,6 +72,7 @@ public class MvDedupe extends AbstractMultivalueFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

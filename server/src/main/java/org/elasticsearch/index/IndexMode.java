@@ -25,21 +25,17 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.FieldMapper;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFields;
 import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
-import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -48,6 +44,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -103,8 +100,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -210,8 +207,9 @@ public enum IndexMode {
             return TimeSeriesRoutingHashFieldMapper.INSTANCE;
         }
 
-        public IdFieldMapper idFieldMapperForReindex() {
-            return TsidExtractingIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            // null the _id so we recalculate it on write
+            return id -> null;
         }
 
         @Override
@@ -280,8 +278,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -378,8 +376,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -427,8 +425,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -517,8 +515,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -603,8 +601,8 @@ public enum IndexMode {
         }
 
         @Override
-        public IdFieldMapper idFieldMapperForReindex() {
-            return ProvidedIdFieldMapper.INSTANCE;
+        public Function<String, String> idTransformerForReindex() {
+            return id -> id;
         }
 
         @Override
@@ -761,10 +759,9 @@ public enum IndexMode {
     public abstract CompressedXContent getDefaultMapping(IndexSettings indexSettings);
 
     /**
-     * Get the singleton {@link FieldMapper} for reindex to correctly reindex the id into the destination index.
-     * It can never support field data.
+     * Get the id transformer for reindex to correctly reindex the id into the destination index.
      */
-    public abstract IdFieldMapper idFieldMapperForReindex();
+    public abstract Function<String, String> idTransformerForReindex();
 
     /**
      * @return the time range based on the provided index metadata and index mode implementation.

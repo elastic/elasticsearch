@@ -79,8 +79,8 @@ public class VoyageAIRerankModelTests {
         String apiKey,
         String modelId,
         @Nullable Integer topK,
-        Boolean returnDocuments,
-        Boolean truncation
+        @Nullable Boolean returnDocuments,
+        @Nullable Boolean truncation
     ) {
         return new VoyageAIRerankModel(
             "id",

@@ -679,7 +679,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     rowCount,
                     vector.noNulls,
                     vector.isRepeating,
-                    vector.isNull
+                    ColumnBlockConversions.toBitSet(vector.isNull, rowCount)
                 );
                 case INTEGER -> ColumnBlockConversions.intColumnFromLongs(
                     blockFactory,
@@ -687,7 +687,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     rowCount,
                     vector.noNulls,
                     vector.isRepeating,
-                    vector.isNull
+                    ColumnBlockConversions.toBitSet(vector.isNull, rowCount)
                 );
                 case LONG -> ColumnBlockConversions.longColumn(
                     blockFactory,
@@ -695,7 +695,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     rowCount,
                     vector.noNulls,
                     vector.isRepeating,
-                    vector.isNull
+                    ColumnBlockConversions.toBitSet(vector.isNull, rowCount),
+                    true
                 );
                 case DOUBLE -> createDoubleBlock(vector, rowCount);
                 case KEYWORD, TEXT -> createBytesRefBlock(vector, rowCount);
@@ -902,7 +903,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     rowCount,
                     doubleVector.noNulls,
                     doubleVector.isRepeating,
-                    doubleVector.isNull
+                    ColumnBlockConversions.toBitSet(doubleVector.isNull, rowCount),
+                    true
                 );
             } else if (vector instanceof DecimalColumnVector decVector) {
                 return createDecimalDoubleBlock(decVector, rowCount);
@@ -916,7 +918,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     rowCount,
                     longVector.noNulls,
                     longVector.isRepeating,
-                    longVector.isNull
+                    ColumnBlockConversions.toBitSet(longVector.isNull, rowCount)
                 );
             }
             throw new QlIllegalArgumentException("Unsupported column type: " + vector.getClass().getSimpleName());

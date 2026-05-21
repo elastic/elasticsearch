@@ -43,6 +43,11 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
     private static final VectorScorerFactory FALLBACK = new Panama22VectorScorerFactory();
 
     @Override
+    public boolean usesNative() {
+        return true;
+    }
+
+    @Override
     public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
         return FALLBACK.newES91OSQVectorsScorer(input, dimension, bulkSize);
     }

@@ -146,20 +146,20 @@ If you can't modify your timeout limits, try the following:
 
 ### Rerank with a single field
 
-:::{include} ../examples/rerank.csv-spec/simple-query.md
+:::{include} ../../generated/x-pack-esql/commands/examples/rerank.csv-spec/simple-query.md
 :::
 
 ### Rerank with multiple fields and a custom score column
 
-:::{include} ../examples/rerank.csv-spec/two-queries.md
+:::{include} ../../generated/x-pack-esql/commands/examples/rerank.csv-spec/two-queries.md
 :::
 
 ### Combine original score with reranked score
 
-:::{include} ../examples/rerank.csv-spec/combine.md
+:::{include} ../../generated/x-pack-esql/commands/examples/rerank.csv-spec/combine.md
 :::
 
 ### Rerank using document snippets
 
-:::{include} ../examples/rerank.csv-spec/rerank-top-snippets.md
+:::{include} ../../generated/x-pack-esql/commands/examples/rerank.csv-spec/rerank-top-snippets.md
 :::

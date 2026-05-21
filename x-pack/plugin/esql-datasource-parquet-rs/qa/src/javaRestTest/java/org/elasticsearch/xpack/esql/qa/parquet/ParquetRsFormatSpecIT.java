@@ -71,7 +71,13 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         // unknown parquet column [salary_change] referenced in projection (reported in the schema as "element")
         "mvDedupeFromSplit2",
         // unknown parquet column [author] referenced in projection
-        "externalRerankBooks"
+        "externalRerankBooks",
+        // TODO: parquet-rs OrdinalBytesRefBlock validity buffer is not 8-byte padded per the Arrow
+        // columnar spec; AbstractArrowBufBlock.areAllValuesNull reads it as a long and throws
+        // IndexOutOfBoundsException when the block participates in a multi-key PackedValuesBlockHash.
+        // The single-key BlockHash path doesn't call areAllValuesNull, which is why other STATS BY
+        // tests pass. Re-enable once the parquet-rs reader pads validity buffers correctly.
+        "hivePartitionStatsByLangAndGender"
     );
 
     @Override

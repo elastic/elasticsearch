@@ -23,6 +23,11 @@ import java.util.Optional;
 final class DefaultVectorScorerFactory implements VectorScorerFactory {
 
     @Override
+    public boolean usesNative() {
+        return false;
+    }
+
+    @Override
     public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) {
         return new ES91OSQVectorsScorer(input, dimension, bulkSize);
     }

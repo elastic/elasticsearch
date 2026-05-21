@@ -29,6 +29,7 @@ import org.apache.parquet.hadoop.metadata.ColumnChunkMetaData;
 import org.apache.parquet.internal.column.columnindex.OffsetIndex;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.ByteArrayInputStream;
@@ -633,7 +634,7 @@ final class PrefetchedRowGroupBuilder {
 
         @Override
         ByteBuffer readPayload(int length) throws IOException {
-            byte[] buf = new byte[length];
+            byte[] buf = UninitializedArrays.newByteArray(length);
             int total = 0;
             while (total < length) {
                 int n = delegate.read(buf, total, length - total);
@@ -661,7 +662,7 @@ final class PrefetchedRowGroupBuilder {
         if (buffer.hasArray()) {
             return new ByteArrayInputStream(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
         }
-        byte[] copy = new byte[buffer.remaining()];
+        byte[] copy = UninitializedArrays.newByteArray(buffer.remaining());
         buffer.duplicate().get(copy);
         return new ByteArrayInputStream(copy);
     }
@@ -677,7 +678,7 @@ final class PrefetchedRowGroupBuilder {
         if (buffer.hasArray()) {
             return BytesInput.from(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
         }
-        byte[] copy = new byte[buffer.remaining()];
+        byte[] copy = UninitializedArrays.newByteArray(buffer.remaining());
         buffer.duplicate().get(copy);
         return BytesInput.from(copy);
     }
@@ -689,7 +690,7 @@ final class PrefetchedRowGroupBuilder {
         if (source.hasArray()) {
             return BytesInput.from(source.array(), source.arrayOffset() + source.position() + offsetFromPosition, length);
         }
-        byte[] copy = new byte[length];
+        byte[] copy = UninitializedArrays.newByteArray(length);
         ByteBuffer dup = source.duplicate();
         dup.position(source.position() + offsetFromPosition);
         dup.get(copy);

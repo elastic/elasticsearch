@@ -78,6 +78,7 @@ public class PromqlCommand extends UnaryPlan
     public static final Set<String> PROMQL_ALLOWED_PARAMS = Set.of(TIME, START, END, STEP, BUCKETS, SCRAPE_INTERVAL, INDEX);
 
     // TODO make configurable via lookback_delta parameter and (cluster?) setting
+    // Prometheus selector lookback delta for plain instant selectors without an explicit [range].
     public static final Duration DEFAULT_LOOKBACK = Duration.ofMinutes(5);
     public static final int DEFAULT_PROMQL_BUCKETS = 100;
 
@@ -572,24 +573,22 @@ public class PromqlCommand extends UnaryPlan
      * Returns {@link Duration#ZERO} when there are no range selectors.
      */
     public Duration maxRangeSelectorWindow() {
-        Duration max = Duration.ZERO;
-        for (var call : promqlPlan().collect(PromqlFunctionCall.class)) {
-            if (call.child() instanceof RangeSelector selector) {
-                var r = selector.range();
-                Duration local;
-                if (isImplicitRangePlaceholder(r)) {
-                    local = foldDuration(resolveImplicitRangeWindow(), RANGE);
-                } else if (r.foldable()) {
-                    local = foldDuration(r, RANGE);
-                } else {
-                    continue;
-                }
-                if (local.compareTo(max) > 0) {
-                    max = local;
-                }
+        Duration window = Duration.ZERO;
+        for (var selector : promqlPlan().collect(RangeSelector.class)) {
+            var r = selector.range();
+            Duration local;
+            if (isImplicitRangePlaceholder(r)) {
+                local = foldDuration(resolveImplicitRangeWindow(), RANGE);
+            } else if (r.foldable()) {
+                local = foldDuration(r, RANGE);
+            } else {
+                continue;
+            }
+            if (local.compareTo(window) > 0) {
+                window = local;
             }
         }
-        return max;
+        return window;
     }
 
     private static boolean isImplicitRangePlaceholder(Expression range) {
@@ -620,19 +619,23 @@ public class PromqlCommand extends UnaryPlan
             if (step().value() != null) {
                 return step();
             }
-            return resolveAutoStepFromBuckets();
+            Bucket autoBucket = new Bucket(
+                buckets().source(),
+                timestamp(),
+                buckets(),
+                start(),
+                end(),
+                ConfigurationAware.CONFIGURATION_MARKER
+            );
+            long rangeStart = ((Number) start().value()).longValue();
+            long rangeEnd = ((Number) end().value()).longValue();
+            var rounding = autoBucket.getDateRounding(FoldContext.small(), rangeStart, rangeEnd);
+            long roundedStart = rounding.round(rangeStart);
+            long nextRoundedValue = rounding.nextRoundingValue(roundedStart);
+            return Literal.timeDuration(source(), Duration.ofMillis(Math.max(1L, nextRoundedValue - roundedStart)));
         }
         // use default lookback for instant queries
         return Literal.timeDuration(source(), DEFAULT_LOOKBACK);
     }
 
-    private Literal resolveAutoStepFromBuckets() {
-        Bucket autoBucket = new Bucket(buckets().source(), timestamp(), buckets(), start(), end(), ConfigurationAware.CONFIGURATION_MARKER);
-        long rangeStart = ((Number) start().value()).longValue();
-        long rangeEnd = ((Number) end().value()).longValue();
-        var rounding = autoBucket.getDateRounding(FoldContext.small(), rangeStart, rangeEnd);
-        long roundedStart = rounding.round(rangeStart);
-        long nextRoundedValue = rounding.nextRoundingValue(roundedStart);
-        return Literal.timeDuration(source(), Duration.ofMillis(Math.max(1L, nextRoundedValue - roundedStart)));
-    }
 }

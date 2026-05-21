@@ -39,6 +39,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -515,7 +516,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         }
         for (String columnName : projectedColumns) {
             Attribute attr = attributeMap.get(columnName);
-            projected.add(attr != null ? attr : new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL));
+            projected.add(
+                attr != null ? attr : new ReferenceAttribute(Source.EMPTY, null, columnName, DataType.NULL, Nullability.TRUE, null, false)
+            );
         }
         return projected;
     }
@@ -629,6 +632,13 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         // No resources to close at the reader level
     }
 
+    /**
+     * ORC's {@link TypeDescription} carries no schema-level non-null guarantee — every column is
+     * nullable at the schema level (per-file non-null observations live in footer column statistics,
+     * not in the type itself). Build attributes as {@link Nullability#TRUE} so downstream planner
+     * rules (e.g. {@code Coalesce} simplification, {@code IS NULL}/{@code IS NOT NULL} rewriting)
+     * don't drop legitimate null rows based on a wrong type-level assumption.
+     */
     private static List<Attribute> convertOrcSchemaToAttributes(TypeDescription schema) {
         List<Attribute> attributes = new ArrayList<>();
         List<String> fieldNames = schema.getFieldNames();
@@ -636,7 +646,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         for (int i = 0; i < fieldNames.size(); i++) {
             String name = fieldNames.get(i);
             DataType esqlType = convertOrcTypeToEsql(children.get(i));
-            attributes.add(new ReferenceAttribute(Source.EMPTY, name, esqlType));
+            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, esqlType, Nullability.TRUE, null, false));
         }
         return attributes;
     }

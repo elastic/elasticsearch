@@ -1652,6 +1652,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         });
     }
 
+    public static boolean doesntHaveCapabilities(RestClient client, List<String> capabilities) {
+        return capabilities.stream().noneMatch(cap -> hasCapabilities(client, List.of(cap)));
+    }
+
     private static Object removeOriginalTypesAndSuggestedCast(Object response) {
         if (response instanceof ArrayList<?> columns) {
             var newColumns = new ArrayList<>();

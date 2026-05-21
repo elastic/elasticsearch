@@ -575,3 +575,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:flattened.statsByFlattenedAllRows}
   issue: https://github.com/elastic/elasticsearch/issues/149549
+- class: org.elasticsearch.multiproject.test.CoreWithMultipleProjectsClientYamlTestSuiteIT
+  method: test {yaml=search/30_limits/Request with negative from value in body}
+  issue: https://github.com/elastic/elasticsearch/issues/149556
+- class: org.elasticsearch.gateway.PersistedClusterStateServiceTests
+  method: testLimitsFileCount
+  issue: https://github.com/elastic/elasticsearch/issues/149557

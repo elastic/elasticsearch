@@ -11,8 +11,8 @@ package org.elasticsearch.analysis.common;
 
 import org.apache.lucene.analysis.synonym.SynonymMap;
 import org.apache.lucene.store.ByteArrayDataOutput;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.BytesRefHash;
 import org.apache.lucene.util.CharsRef;

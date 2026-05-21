@@ -13,7 +13,17 @@ package org.elasticsearch.xpack.esql.generator;
  * that the failure is expected and safe to ignore, rather than a test-breaking condition.
  */
 public final class AllowedGeneratorFailureException extends RuntimeException {
-    public AllowedGeneratorFailureException(Exception cause) {
+    private final String query;
+
+    public AllowedGeneratorFailureException(String query, Exception cause) {
         super(cause.getMessage(), cause);
+        this.query = query;
+    }
+
+    /**
+     * The generated query that failed with an allowed error.
+     */
+    public String query() {
+        return query;
     }
 }

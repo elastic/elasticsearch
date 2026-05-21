@@ -44,6 +44,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -1203,7 +1204,14 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         for (Type field : schema.getFields()) {
             String name = field.getName();
             DataType esqlType = convertParquetTypeToEsql(field);
-            attributes.add(new ReferenceAttribute(Source.EMPTY, name, esqlType));
+            // Map the Parquet footer's repetition level onto planner-level nullability so the
+            // optimizer sees an accurate view of which columns can contain nulls. REQUIRED is the
+            // only repetition that guarantees no nulls; OPTIONAL fields, and the outer group of a
+            // LIST (which is itself OPTIONAL or REQUIRED), follow the same rule. Without this,
+            // every column was marked Nullability.FALSE and downstream rules trusting that
+            // (e.g. Coalesce.nullable()) could produce wrong results for OPTIONAL columns.
+            Nullability nullability = field.getRepetition() == Type.Repetition.REQUIRED ? Nullability.FALSE : Nullability.TRUE;
+            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, esqlType, nullability, null, false));
         }
         return attributes;
     }

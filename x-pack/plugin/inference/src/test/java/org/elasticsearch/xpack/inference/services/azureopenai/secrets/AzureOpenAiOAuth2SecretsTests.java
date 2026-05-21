@@ -61,24 +61,28 @@ public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationT
         );
     }
 
-    public void testNewSecretSettings_ApiKey_ThrowsError() {
+    public void testNewSecretSettings_RejectsOtherFields() {
         var initialSettings = createRandom();
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> initialSettings.newSecretSettings(new HashMap<>(Map.of(API_KEY, randomAlphaOfLength(10))))
+        assertRejected(initialSettings, Map.of(API_KEY, randomAlphaOfLength(10)), "[api_key]");
+        assertRejected(initialSettings, Map.of(ENTRA_ID, randomAlphaOfLength(10)), "[entra_id]");
+        assertRejected(
+            initialSettings,
+            Map.of(CLIENT_SECRET_FIELD, randomAlphaOfLength(10), API_KEY, randomAlphaOfLength(10)),
+            "[api_key]"
         );
-
-        assertThat(thrownException.getMessage(), containsString(AzureOpenAiSecretSettings.EXACTLY_ONE_SECRETS_FIELD_ERROR));
     }
 
-    public void testNewSecretSettings_EntraId_ThrowsError() {
-        var initialSettings = createRandom();
+    private static void assertRejected(AzureOpenAiOAuth2Secrets initialSettings, Map<String, Object> request, String expectedDisallowed) {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> initialSettings.newSecretSettings(new HashMap<>(Map.of(ENTRA_ID, randomAlphaOfLength(10))))
+            () -> initialSettings.newSecretSettings(new HashMap<>(request))
         );
-
-        assertThat(thrownException.getMessage(), containsString(AzureOpenAiSecretSettings.EXACTLY_ONE_SECRETS_FIELD_ERROR));
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format("only [%s] can be updated for this secret, received: %s", CLIENT_SECRET_FIELD, expectedDisallowed)
+            )
+        );
     }
 
     public void testToXContent_WritesClientSecretWhenSet() throws IOException {

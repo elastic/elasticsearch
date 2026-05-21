@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
@@ -105,22 +103,8 @@ public class AzureOpenAiOAuth2Secrets extends AzureOpenAiSecretSettings {
         );
     }
 
-    AzureOpenAiOAuth2Secrets updated(
-        @Nullable SecureString updatedApiKey,
-        @Nullable SecureString updatedEntraId,
-        @Nullable SecureString updatedClientSecret,
-        ValidationException validationException
-    ) {
-        if (updatedApiKey != null || updatedEntraId != null) {
-            validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR);
-        }
-        validationException.throwIfValidationErrorsExist();
-
-        // updatedClientSecret is non-null here: the parent's all-null short-circuit handles the empty update,
-        // and any non-null updatedApiKey / updatedEntraId would have failed validation above.
-        if (Objects.equals(updatedClientSecret, getClientSecret())) {
-            return this;
-        }
-        return new AzureOpenAiOAuth2Secrets(updatedClientSecret);
+    @Override
+    protected AzureOpenAiSecretSettings updated(Map<String, SecureString> provided) {
+        return updateOnlyField(CLIENT_SECRET_FIELD, getClientSecret(), provided, AzureOpenAiOAuth2Secrets::new);
     }
 }

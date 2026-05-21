@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
@@ -16,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -92,32 +92,11 @@ public class AzureOpenAiEntraIdApiKeySecrets extends AzureOpenAiSecretSettings {
         return Objects.hash(entraId, apiKey);
     }
 
-    AzureOpenAiEntraIdApiKeySecrets updated(
-        @Nullable SecureString updatedApiKey,
-        @Nullable SecureString updatedEntraId,
-        @Nullable SecureString updatedClientSecret,
-        ValidationException validationException
-    ) {
-        if (updatedClientSecret != null) {
-            validationException.addValidationError(AzureOpenAiOAuth2Secrets.USE_CLIENT_SECRET_ERROR);
+    @Override
+    protected AzureOpenAiSecretSettings updated(Map<String, SecureString> provided) {
+        if (apiKey != null) {
+            return updateOnlyField(API_KEY, apiKey, provided, value -> new AzureOpenAiEntraIdApiKeySecrets(value, null));
         }
-        if (updatedApiKey != null && updatedEntraId != null) {
-            validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR + ", received: [" + API_KEY + ", " + ENTRA_ID + "]");
-        }
-        validationException.throwIfValidationErrorsExist();
-
-        // Exactly one of updatedApiKey / updatedEntraId is non-null here; the parent's all-null short-circuit and the
-        // mutual-exclusion validation above guarantee it. Objects.equals against a null existing field naturally returns
-        // false, so a mode switch always falls through to a fresh instance.
-        if (updatedApiKey != null) {
-            if (Objects.equals(updatedApiKey, apiKey)) {
-                return this;
-            }
-            return new AzureOpenAiEntraIdApiKeySecrets(updatedApiKey, null);
-        }
-        if (Objects.equals(updatedEntraId, entraId)) {
-            return this;
-        }
-        return new AzureOpenAiEntraIdApiKeySecrets(null, updatedEntraId);
+        return updateOnlyField(ENTRA_ID, entraId, provided, value -> new AzureOpenAiEntraIdApiKeySecrets(null, value));
     }
 }

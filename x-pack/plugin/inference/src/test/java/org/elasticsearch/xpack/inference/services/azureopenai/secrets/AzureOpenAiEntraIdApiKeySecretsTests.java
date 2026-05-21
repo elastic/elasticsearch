@@ -70,18 +70,17 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
         assertThat(initialSettings.newSecretSettings(new HashMap<>()), sameInstance(initialSettings));
     }
 
-    public void testNewSecretSettingsApiKey() {
-        var initialSettings = createRandomEntraIdApiKeySecrets();
-        var apiKey = randomSecureStringOfLength(15);
-        var expectedSettings = new AzureOpenAiEntraIdApiKeySecrets(apiKey, null);
+    public void testNewSecretSettings_ApiKeyMode_UpdatesApiKey() {
+        var initialSettings = new AzureOpenAiEntraIdApiKeySecrets(randomSecureStringOfLength(15), null);
+        var apiKey = randomValueOtherThan(initialSettings.apiKey(), () -> randomSecureStringOfLength(15));
         var newSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(
             new HashMap<>(Map.of(API_KEY, apiKey.toString()))
         );
 
-        assertThat(newSettings, is(expectedSettings));
+        assertThat(newSettings, is(new AzureOpenAiEntraIdApiKeySecrets(apiKey, null)));
     }
 
-    public void testNewSecretSettings_SameApiKey_DoesNotChangeSettings() {
+    public void testNewSecretSettings_ApiKeyMode_SameApiKey_DoesNotChangeSettings() {
         var initialSettings = new AzureOpenAiEntraIdApiKeySecrets(randomSecureStringOfLength(15), null);
         assertThat(
             initialSettings.newSecretSettings(new HashMap<>(Map.of(API_KEY, initialSettings.apiKey().toString()))),
@@ -89,18 +88,17 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
         );
     }
 
-    public void testNewSecretSettingsEntraId() {
-        var initialSettings = createRandomEntraIdApiKeySecrets();
-        var entraId = randomSecureStringOfLength(15);
-        var expectedSettings = new AzureOpenAiEntraIdApiKeySecrets(null, entraId);
+    public void testNewSecretSettings_EntraIdMode_UpdatesEntraId() {
+        var initialSettings = new AzureOpenAiEntraIdApiKeySecrets(null, randomSecureStringOfLength(15));
+        var entraId = randomValueOtherThan(initialSettings.entraId(), () -> randomSecureStringOfLength(15));
         var newSettings = (AzureOpenAiEntraIdApiKeySecrets) initialSettings.newSecretSettings(
             new HashMap<>(Map.of(ENTRA_ID, entraId.toString()))
         );
 
-        assertThat(newSettings, is(expectedSettings));
+        assertThat(newSettings, is(new AzureOpenAiEntraIdApiKeySecrets(null, entraId)));
     }
 
-    public void testNewSecretSettings_SameEntraId_DoesNotChangeSettings() {
+    public void testNewSecretSettings_EntraIdMode_SameEntraId_DoesNotChangeSettings() {
         var initialSettings = new AzureOpenAiEntraIdApiKeySecrets(null, randomSecureStringOfLength(15));
         assertThat(
             initialSettings.newSecretSettings(new HashMap<>(Map.of(ENTRA_ID, initialSettings.entraId().toString()))),
@@ -108,26 +106,44 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
         );
     }
 
-    public void testNewSecretSettings_BothApiKeyAndEntraId_ThrowsError() {
-        var initialSettings = createRandomEntraIdApiKeySecrets();
-        var thrownException = expectThrows(
-            ValidationException.class,
-            () -> initialSettings.newSecretSettings(
-                new HashMap<>(Map.of(API_KEY, randomAlphaOfLength(10), ENTRA_ID, randomAlphaOfLength(10)))
-            )
+    public void testNewSecretSettings_ApiKeyMode_RejectsOtherFields() {
+        var initialSettings = new AzureOpenAiEntraIdApiKeySecrets(randomSecureStringOfLength(15), null);
+        assertRejected(initialSettings, API_KEY, Map.of(ENTRA_ID, randomAlphaOfLength(10)), "[entra_id]");
+        assertRejected(initialSettings, API_KEY, Map.of(CLIENT_SECRET_FIELD, randomAlphaOfLength(10)), "[client_secret]");
+        assertRejected(
+            initialSettings,
+            API_KEY,
+            Map.of(API_KEY, randomAlphaOfLength(10), ENTRA_ID, randomAlphaOfLength(10)),
+            "[entra_id]"
         );
-
-        assertThat(thrownException.getMessage(), containsString(AzureOpenAiSecretSettings.EXACTLY_ONE_SECRETS_FIELD_ERROR));
     }
 
-    public void testNewSecretSettings_ClientSecret_ThrowsError() {
-        var initialSettings = createRandomEntraIdApiKeySecrets();
+    public void testNewSecretSettings_EntraIdMode_RejectsOtherFields() {
+        var initialSettings = new AzureOpenAiEntraIdApiKeySecrets(null, randomSecureStringOfLength(15));
+        assertRejected(initialSettings, ENTRA_ID, Map.of(API_KEY, randomAlphaOfLength(10)), "[api_key]");
+        assertRejected(initialSettings, ENTRA_ID, Map.of(CLIENT_SECRET_FIELD, randomAlphaOfLength(10)), "[client_secret]");
+        assertRejected(
+            initialSettings,
+            ENTRA_ID,
+            Map.of(API_KEY, randomAlphaOfLength(10), ENTRA_ID, randomAlphaOfLength(10)),
+            "[api_key]"
+        );
+    }
+
+    private static void assertRejected(
+        AzureOpenAiEntraIdApiKeySecrets initialSettings,
+        String allowedField,
+        Map<String, Object> request,
+        String expectedDisallowed
+    ) {
         var thrownException = expectThrows(
             ValidationException.class,
-            () -> initialSettings.newSecretSettings(new HashMap<>(Map.of(CLIENT_SECRET_FIELD, randomAlphaOfLength(10))))
+            () -> initialSettings.newSecretSettings(new HashMap<>(request))
         );
-
-        assertThat(thrownException.getMessage(), containsString(AzureOpenAiOAuth2Secrets.USE_CLIENT_SECRET_ERROR));
+        assertThat(
+            thrownException.getMessage(),
+            containsString(Strings.format("only [%s] can be updated for this secret, received: %s", allowedField, expectedDisallowed))
+        );
     }
 
     public void testToXContext_WritesApiKeyOnlyWhenApiKeySet() throws IOException {

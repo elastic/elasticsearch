@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_UNION` function [esql-mv_union]
 
-:::{include} ../../_snippets/functions/layout/mv_union.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_union.md
 :::

@@ -99,12 +99,16 @@ final class FlattenedSourceValueFetcher extends SourceValueFetcher {
                     for (Object item : list) {
                         if (item != null) {
                             addValue(key, item.toString());
+                        } else if (nullValue != null) {
+                            addValue(key, nullValue.toString());
                         } else if (preserveArrays) {
                             addNull(key);
                         }
                     }
                 } else if (value != null) {
                     addValue(key, value.toString());
+                } else if (nullValue != null) {
+                    addValue(key, nullValue.toString());
                 } else if (preserveArrays) {
                     addNull(key);
                 }

@@ -302,6 +302,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         CsvTestCase testCase
     ) {
         checkCapabilities(client, testFeatureService, testName, testCase.requiredCapabilities);
+        checkCapabilities(client, testFeatureService, testName, testCase.requiredCapabilitiesLocalCluster);
     }
 
     protected static void checkCapabilities(

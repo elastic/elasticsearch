@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -2672,7 +2673,11 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
     private void assertApproximationRejects(String query) {
         LogicalPlan plan = analyzeInSubquery(query);
         // verifyPlan returns null when the plan is incompatible with approximation (and adds a warning)
-        assertThat("Approximation should reject this query", ApproximationVerifier.verifyPlan(plan), nullValue());
+        assertThat(
+            "Approximation should reject this query",
+            ApproximationVerifier.verifyPlan(plan, TransportVersion.current()),
+            nullValue()
+        );
     }
 
 }

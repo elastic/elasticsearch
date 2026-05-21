@@ -301,14 +301,11 @@ public class ApproximationSupportTests extends ESTestCase {
     @Before
     public void assume() {
         assumeTrue("needs inline stats approximation", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
-        assumeTrue("needs lookup join approximation", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled());
+        assumeTrue("needs lookup join approximation", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
     }
 
     public void testAllCommandsWhitelistedOrBlacklisted() throws Exception {
-        testAllClassesListed(
-            LogicalPlan.class,
-            List.of(ApproximationVerifier.SUPPORTED_COMMANDS, ApproximationVerifier.SUPPORTED_LIMITING_COMMANDS, UNSUPPORTED_COMMANDS)
-        );
+        testAllClassesListed(LogicalPlan.class, List.of(ApproximationVerifier.SUPPORTED_COMMANDS.keySet(), UNSUPPORTED_COMMANDS));
     }
 
     public void testAllAggregationsWhitelistedOrBlacklisted() throws Exception {

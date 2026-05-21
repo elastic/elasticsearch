@@ -14,6 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.upgrades.ParameterizedFullClusterRestartTestCase;
@@ -44,6 +45,7 @@ public class TimeSeriesES95FullClusterRestartIT extends ParameterizedFullCluster
         .module("mapper-extras")
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .feature(FeatureFlag.TIME_SERIES_MODE)
         .build();
 
     public TimeSeriesES95FullClusterRestartIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
@@ -60,13 +62,14 @@ public class TimeSeriesES95FullClusterRestartIT extends ParameterizedFullCluster
     private static final int MIN_ADDITIONAL_DOC_COUNT = 10;
     private static final int MAX_ADDITIONAL_DOC_COUNT = 40;
 
-    private static final String TS_START = "2024-01-01T00:00:00Z";
-    private static final String TS_END = "2024-12-31T23:59:59Z";
+    private static final String TS_START = "2024-01-01T00:00:00.000Z";
+    private static final String TS_END = "2024-12-31T23:59:59.000Z";
     private static final long STEP_MS = 60_000L;
     private static final String HOST_A = "host-alpha";
     private static final String HOST_B = "host-beta";
 
     public void testPreUpgradeIndexReadableAndQueriesMatch() throws IOException {
+        requireES95Codec();
         final String index = "tsdb-readable";
         if (isRunningAgainstOldCluster()) {
             createTSDBIndex(index, false);
@@ -85,6 +88,7 @@ public class TimeSeriesES95FullClusterRestartIT extends ParameterizedFullCluster
     }
 
     public void testPreUpgradeIndexKeepsOriginalCodec() throws IOException {
+        requireES95Codec();
         final String index = "tsdb-codec-check";
         if (isRunningAgainstOldCluster()) {
             createTSDBIndex(index, false);
@@ -114,6 +118,7 @@ public class TimeSeriesES95FullClusterRestartIT extends ParameterizedFullCluster
     }
 
     public void testNewTSDBIndexUsesES95PostUpgrade() throws IOException {
+        requireES95Codec();
         if (isRunningAgainstOldCluster()) {
             return;
         }
@@ -137,6 +142,7 @@ public class TimeSeriesES95FullClusterRestartIT extends ParameterizedFullCluster
     }
 
     public void testForceMergeRollbackToBaseline() throws IOException {
+        requireES95Codec();
         if (isRunningAgainstOldCluster()) {
             return;
         }
@@ -164,6 +170,7 @@ public class TimeSeriesES95FullClusterRestartIT extends ParameterizedFullCluster
     }
 
     public void testQueryAcrossOldAndNewCodecIndices() throws IOException {
+        requireES95Codec();
         final String preIndex = "tsdb-mixed-pre";
         final String postIndex = "tsdb-mixed-post";
         final String target = preIndex + "," + postIndex;
@@ -198,6 +205,7 @@ public class TimeSeriesES95FullClusterRestartIT extends ParameterizedFullCluster
     }
 
     public void testForceMergeAcrossMixedCodecSegments() throws IOException {
+        requireES95Codec();
         final String index = "tsdb-mixed-segments";
         if (isRunningAgainstOldCluster()) {
             createTSDBIndex(index, false);
@@ -230,6 +238,7 @@ public class TimeSeriesES95FullClusterRestartIT extends ParameterizedFullCluster
     }
 
     public void testRandomAccessDocValuesAcrossCodecsAndPhases() throws IOException {
+        requireES95Codec();
         final String preIndex = "tsdb-random-pre";
         final String postIndex = "tsdb-random-post";
         final String target = preIndex + "," + postIndex;
@@ -286,6 +295,7 @@ public class TimeSeriesES95FullClusterRestartIT extends ParameterizedFullCluster
     }
 
     public void testForceMergeBothMixedCodecIndicesToOneSegment() throws IOException {
+        requireES95Codec();
         final String preIndex = "tsdb-mixed-fm-pre";
         final String postIndex = "tsdb-mixed-fm-post";
         final String target = preIndex + "," + postIndex;
@@ -506,6 +516,10 @@ public class TimeSeriesES95FullClusterRestartIT extends ParameterizedFullCluster
 
     private static long expectedGaugeSum(int docCount) {
         return (long) docCount * (docCount - 1) / 2;
+    }
+
+    private static void requireES95Codec() {
+        assumeTrue("ES95 codec settings are available in 9.5+", oldClusterHasFeature("gte_v9.5.0"));
     }
 
     @SuppressWarnings("unchecked")

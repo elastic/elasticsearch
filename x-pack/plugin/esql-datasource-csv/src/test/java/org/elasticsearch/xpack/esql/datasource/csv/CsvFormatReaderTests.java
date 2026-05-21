@@ -3524,6 +3524,105 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    // --- Datetime fast-path equivalence tests (#769) ---
+    // tryParseSpaceSeparatedDatetimeMillis avoids the JDK DateTimeFormatter Parsed-HashMap
+    // allocation that dominated ~16% of CPU on Q24 of the CSV ClickBench profile. These tests lock
+    // in the equivalence contract: any input the fast path accepts must produce the same epoch
+    // millis as the existing slow path (DateUtils.asDateTime), and any input it rejects must hit
+    // the slow path unchanged (returning FAST_PATH_MISS).
+
+    public void testFastPathSpaceSeparatedNoFraction() {
+        long actual = CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024-05-12 14:30:45");
+        assertEquals(Instant.parse("2024-05-12T14:30:45Z").toEpochMilli(), actual);
+    }
+
+    public void testFastPathSpaceSeparatedWithMillis() {
+        long actual = CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024-05-12 14:30:45.123");
+        assertEquals(Instant.parse("2024-05-12T14:30:45.123Z").toEpochMilli(), actual);
+    }
+
+    public void testFastPathSpaceSeparatedLeapDay() {
+        long actual = CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2020-02-29 00:00:00");
+        assertEquals(Instant.parse("2020-02-29T00:00:00Z").toEpochMilli(), actual);
+    }
+
+    public void testFastPathSpaceSeparatedEpoch() {
+        long actual = CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("1970-01-01 00:00:00");
+        assertEquals(0L, actual);
+    }
+
+    public void testFastPathRejectsCalendarInvalidDates() {
+        // 30 February — valid digits, invalid calendar date. Must fall through (FAST_PATH_MISS)
+        // so the slow path can produce the usual "Failed to parse" error.
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2021-02-30 10:00:00"));
+        // 13th month
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2021-13-01 10:00:00"));
+        // Hour 24 — Iso8601Parser also rejects this and LocalDateTime.of throws.
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2021-01-01 24:00:00"));
+    }
+
+    public void testFastPathRejectsWrongShape() {
+        // T-separated → not the space-separated fast path's job; ISO fast path handles it instead.
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024-05-12T14:30:45"));
+        // Date-only
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024-05-12"));
+        // Trailing Z — falls back to the general-purpose parser (preserves the existing semantics
+        // that DateUtils.asDateTime's whitespace formatter would apply).
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024-05-12 14:30:45Z"));
+        // Microsecond precision (6-digit fraction) — only 3-digit ms is fast-pathed.
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024-05-12 14:30:45.123456"));
+        // Garbage
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("not-a-date"));
+        // Wrong separators
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024/05/12 14:30:45"));
+        // Non-ASCII digit (full-width '1') in the year — must be rejected without throwing
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("\uFF12024-05-12 14:30:45"));
+    }
+
+    public void testDatetimeFastPathInvalidIsoFallsThroughCleanly() throws IOException {
+        // Regression for the Stage 1 catch path: an ISO-shaped but calendar-invalid input like
+        // 2021-02-30T10:00:00 succeeds in Iso8601Parser's lexical parse but fails inside
+        // DateFormatters.from(...) with a generic DateTimeException (not DateTimeParseException).
+        // Without the catch, the batch would abort with an uncaught exception. The catch routes
+        // the row through Stage 3, whose JDK SMART resolver leniently maps Feb 30 to Feb 28 (same
+        // behaviour as before this change). The second row is a sanity-check that the batch
+        // continues normally.
+        String csv = "ts:datetime\n2021-02-30T10:00:00\n2021-01-01T00:00:00Z\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertEquals(Instant.parse("2021-02-28T10:00:00Z").toEpochMilli(), block.getLong(0));
+            assertEquals(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli(), block.getLong(1));
+        }
+    }
+
+    public void testDatetimeFastPathRouting() throws IOException {
+        // End-to-end smoke test exercising all three stages of tryParseDatetime in one batch:
+        // * 2024-05-12 14:30:45 → Stage 2 (space-separated fast path)
+        // * 2024-05-12T14:30:45Z → Stage 1 (ISO fast path)
+        // * 2024-05-12T14:30:45+02:00 → Stage 1 (ISO fast path, with zone offset)
+        // * 1715520645000 → looksNumeric → Long.parseLong
+        String csv = "ts:datetime\n2024-05-12 14:30:45\n2024-05-12T14:30:45Z\n2024-05-12T14:30:45+02:00\n1715520645000\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(4, page.getPositionCount());
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertEquals(Instant.parse("2024-05-12T14:30:45Z").toEpochMilli(), block.getLong(0));
+            assertEquals(Instant.parse("2024-05-12T14:30:45Z").toEpochMilli(), block.getLong(1));
+            assertEquals(Instant.parse("2024-05-12T12:30:45Z").toEpochMilli(), block.getLong(2));
+            assertEquals(1715520645000L, block.getLong(3));
+        }
+    }
+
     // --- Numeric alias tests (#324) ---
 
     public void testFloatAlias() throws IOException {
@@ -4861,6 +4960,166 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertTrue("expected col0, got: " + summary, summary.contains("col0=[1]"));
         assertTrue("expected col1, got: " + summary, summary.contains("col1=[Alice]"));
         assertTrue("expected col2, got: " + summary, summary.contains("col2=[null]"));
+    }
+
+    public void testCsvErrorMessagesSummarizeAroundShortValuePassesThrough() {
+        assertEquals("hello", CsvErrorMessages.summarizeAround("hello", 0));
+        assertEquals("hello", CsvErrorMessages.summarizeAround("hello", 4));
+        // Short values must pass through regardless of offset value (including negative and out-of-range).
+        assertEquals("hello", CsvErrorMessages.summarizeAround("hello", -1));
+        assertEquals("hello", CsvErrorMessages.summarizeAround("hello", 100));
+        assertEquals("null", CsvErrorMessages.summarizeAround(null, 0));
+        assertEquals("null", CsvErrorMessages.summarizeAround(null, -1));
+    }
+
+    public void testCsvErrorMessagesSummarizeAroundLongValueAnchorsOnOffset() {
+        // Build a >MAX_EXCERPT_CHARS value with a unique marker at a known offset; the window
+        // must include the marker (the actual fault) plus the offset annotation, and must start
+        // with the elided-prefix indicator because the window does not begin at index 0.
+        StringBuilder huge = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            huge.append('x');
+        }
+        int faultOffset = 500;
+        String marker = "FAULTHERE";
+        huge.replace(faultOffset, faultOffset + marker.length(), marker);
+        String summarized = CsvErrorMessages.summarizeAround(huge.toString(), faultOffset);
+        assertTrue(
+            "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length() + ": " + summarized,
+            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+        );
+        assertTrue(
+            "expected offset annotation, got: " + summarized,
+            summarized.contains("(offset " + faultOffset + " of " + huge.length() + " chars)")
+        );
+        assertTrue("expected fault bytes in window, got: " + summarized, summarized.contains(marker));
+        // With start > 0 the excerpt must announce the elided prefix.
+        assertTrue("expected leading ellipsis marker, got: " + summarized, summarized.startsWith("… "));
+        // The window does not reach EOL (faultOffset + budget < length) so a trailing ellipsis is required.
+        assertTrue("expected trailing ellipsis marker, got: " + summarized, summarized.endsWith("…"));
+    }
+
+    public void testCsvErrorMessagesSummarizeAroundOffsetNearStartHasNoLeadingEllipsis() {
+        // When the fault is within OFFSET_LOOKBACK_CHARS of the start, the window begins at index 0
+        // so the "… " leading marker is omitted (no characters elided before the window).
+        StringBuilder huge = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            huge.append('a');
+        }
+        String summarized = CsvErrorMessages.summarizeAround(huge.toString(), 5);
+        assertFalse("did not expect leading ellipsis, got: " + summarized, summarized.startsWith("… "));
+        assertTrue("expected offset annotation, got: " + summarized, summarized.contains("(offset 5 of 1000 chars)"));
+    }
+
+    public void testCsvErrorMessagesSummarizeAroundLookbackBoundary() {
+        // OFFSET_LOOKBACK_CHARS is 32: at offset 32 the window starts at index 0 (no leading marker);
+        // at offset 33 the window starts at index 1 (leading marker emitted). Pin both sides of the
+        // transition so an off-by-one in the lookback boundary is caught.
+        StringBuilder huge = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            huge.append('b');
+        }
+        String atBoundary = CsvErrorMessages.summarizeAround(huge.toString(), CsvErrorMessages.OFFSET_LOOKBACK_CHARS);
+        assertFalse("expected no leading ellipsis at offset == OFFSET_LOOKBACK_CHARS, got: " + atBoundary, atBoundary.startsWith("… "));
+        String pastBoundary = CsvErrorMessages.summarizeAround(huge.toString(), CsvErrorMessages.OFFSET_LOOKBACK_CHARS + 1);
+        assertTrue("expected leading ellipsis at offset == OFFSET_LOOKBACK_CHARS + 1, got: " + pastBoundary, pastBoundary.startsWith("… "));
+    }
+
+    public void testCsvErrorMessagesSummarizeAroundOffsetNearEndOmitsTrailingEllipsis() {
+        // When the window reaches end-of-string, the trailing "…" marker is dropped because
+        // nothing follows.
+        StringBuilder huge = new StringBuilder();
+        for (int i = 0; i < 1000; i++) {
+            huge.append('z');
+        }
+        String summarized = CsvErrorMessages.summarizeAround(huge.toString(), 990);
+        assertFalse("did not expect trailing ellipsis, got: " + summarized, summarized.endsWith("…"));
+        // The final char of the underlying value must therefore be the final char of the excerpt.
+        assertTrue("expected excerpt to end with the last char of value, got: " + summarized, summarized.endsWith("z"));
+    }
+
+    public void testCsvErrorMessagesSummarizeAroundUnknownOffsetFallsBackToHead() {
+        StringBuilder huge = new StringBuilder();
+        for (int i = 0; i < 5000; i++) {
+            huge.append('x');
+        }
+        String summarized = CsvErrorMessages.summarizeAround(huge.toString(), -1);
+        assertTrue(
+            "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
+            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+        );
+        assertTrue("expected truncated marker, got: " + summarized, summarized.contains("truncated"));
+        assertTrue("expected total-length marker, got: " + summarized, summarized.contains("5000"));
+        // The unknown-offset branch must not synthesize a fake offset annotation; assert the
+        // anchored path was not taken.
+        assertFalse("did not expect '(offset' in fallback, got: " + summarized, summarized.contains("(offset"));
+        // Excerpt must come from the head of the value.
+        assertTrue("expected excerpt to start at index 0, got: " + summarized, summarized.startsWith("x"));
+    }
+
+    public void testCsvErrorMessagesSummarizeAroundPathologicalInputStaysBounded() {
+        // 100 KB input must not bloat the error message AND the offset annotation must survive,
+        // since that is the operator's only handle into the source file.
+        StringBuilder huge = new StringBuilder();
+        for (int i = 0; i < 100_000; i++) {
+            huge.append('q');
+        }
+        String marker = "FAULTHERE";
+        int faultOffset = 50_000;
+        huge.replace(faultOffset, faultOffset + marker.length(), marker);
+        String summarized = CsvErrorMessages.summarizeAround(huge.toString(), faultOffset);
+        assertTrue(
+            "expected length <= MAX_EXCERPT_CHARS, got " + summarized.length(),
+            summarized.length() <= CsvErrorMessages.MAX_EXCERPT_CHARS
+        );
+        assertTrue("expected offset annotation, got: " + summarized, summarized.contains("(offset " + faultOffset + " of 100000 chars)"));
+        assertTrue("expected fault bytes in window, got: " + summarized, summarized.contains(marker));
+    }
+
+    /**
+     * End-to-end: an unclosed quoted field at end-of-file produces an error excerpt anchored on the
+     * opening quote, not a head/tail-truncated view of the entire row. The row is sized so the
+     * opening quote sits well inside the elided middle of the legacy head/tail summary, so a
+     * regression that re-routes to {@link CsvErrorMessages#summarize} would hide the fault bytes.
+     */
+    public void testMalformedRowErrorAnchorsOnQuoteOffset() {
+        // Pad both sides of the unmatched quote so the line is much longer than MAX_EXCERPT_CHARS
+        // AND the fault sits in the middle of the line — where head/tail truncation hides it.
+        StringBuilder padHead = new StringBuilder();
+        for (int i = 0; i < 400; i++) {
+            padHead.append('h');
+        }
+        // Trailing padding (still inside the unclosed quoted field) so the line is ~1000 chars and the
+        // legacy head/tail summary would NOT include the opening quote in either window.
+        StringBuilder padTail = new StringBuilder();
+        for (int i = 0; i < 400; i++) {
+            padTail.append('t');
+        }
+        String row = "1," + padHead + ",\"unterminated_field_here_" + padTail;
+        int expectedOffset = "1,".length() + padHead.length() + ",".length();
+
+        String csv = "id:long,name:keyword\n" + row;
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        ParsingException e = expectThrows(ParsingException.class, () -> {
+            try (
+                CloseableIterator<Page> iterator = reader.read(
+                    object,
+                    FormatReadContext.builder().batchSize(10).errorPolicy(ErrorPolicy.STRICT).build()
+                )
+            ) {
+                while (iterator.hasNext()) {
+                    iterator.next().releaseBlocks();
+                }
+            }
+        });
+        String msg = e.getMessage();
+        assertTrue("expected Unclosed quoted field, got: " + msg, msg.contains("Unclosed quoted field"));
+        assertTrue("expected offset annotation, got: " + msg, msg.contains("(offset " + expectedOffset + " of "));
+        // The unique fault marker sits at the elided middle for legacy head/tail; with offset
+        // anchoring it must survive in the excerpt.
+        assertTrue("expected fault bytes in excerpt, got: " + msg, msg.contains("\"unterminated_field_here_"));
     }
 
     // --- FormatReadContext.readSchema() honor tests ---

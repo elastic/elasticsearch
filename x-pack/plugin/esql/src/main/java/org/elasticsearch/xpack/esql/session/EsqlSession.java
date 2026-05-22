@@ -667,12 +667,12 @@ public class EsqlSession {
     }
 
     private void logAnonymizedPlans(LogicalPlan logical, PhysicalPlan physical) {
-        if (LOGGER.isInfoEnabled() == false) {
+        if (LOGGER.isErrorEnabled() == false) {
             return;
         }
         try {
             var anonymized = PlanAnonymizer.forSubmission(clusterUuid).anonymize(logical, physical);
-            LOGGER.info(
+            LOGGER.error(
                 "ESQL anonymized plans for failed session [{}]\nschema:\n{}\nlogical:\n{}\nphysical:\n{}",
                 sessionId,
                 anonymized.schema(),

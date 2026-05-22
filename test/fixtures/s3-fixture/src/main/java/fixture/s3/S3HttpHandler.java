@@ -576,7 +576,7 @@ public class S3HttpHandler implements HttpHandler {
         return blobs;
     }
 
-    private static final Pattern chunkSignaturePattern = Pattern.compile("^([0-9a-z]+);chunk-signature=([^\\r\\n]*)$");
+    private static final Pattern chunkSignaturePattern = Pattern.compile("^([0-9a-z]+)(;chunk-signature=[^\\r\\n]*)?$");
 
     private static Tuple<String, BytesReference> parseRequestBody(final HttpExchange exchange) throws IOException {
         try {

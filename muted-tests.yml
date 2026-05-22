@@ -46,9 +46,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
   method: test50CredentialAutogenerationOnlyOnce
   issue: https://github.com/elastic/elasticsearch/issues/132878
-- class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
-  method: testCBTrippingOnReduction
-  issue: https://github.com/elastic/elasticsearch/issues/134667
 - class: org.elasticsearch.gradle.TestClustersPluginFuncTest
   method: override jdk usage via ES_JAVA_HOME for known jdk os incompatibilities
   issue: https://github.com/elastic/elasticsearch/issues/135413
@@ -282,6 +279,18 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
   method: testMonitorClusterHealth
   issue: https://github.com/elastic/elasticsearch/issues/148615
+- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
+  method: testCreateCursorWithFormatTxtOnNewNode
+  issue: https://github.com/elastic/elasticsearch/issues/149747
+- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
+  method: testNullsOrderWithMissingOrderSupportQueryingOldNode
+  issue: https://github.com/elastic/elasticsearch/issues/149748
+- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
+  method: testNullsOrderWithMissingOrderSupportQueryingNewNode
+  issue: https://github.com/elastic/elasticsearch/issues/149749
+- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlSearchIT
+  method: testAllTypesWithRequestToUpgradedNodes
+  issue: https://github.com/elastic/elasticsearch/issues/149750
 
 # Examples:
 #

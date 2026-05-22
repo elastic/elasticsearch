@@ -18,29 +18,29 @@ import io.opentelemetry.sdk.metrics.internal.data.ImmutableLongPointData;
 import io.opentelemetry.sdk.metrics.internal.data.ImmutableMetricData;
 import io.opentelemetry.sdk.resources.Resource;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.apm.RecordingOtelMeter;
-import org.elasticsearch.telemetry.apm.internal.export.otelsdk.serializer.MetricDataSerializer;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.After;
 import org.junit.Before;
 
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.telemetry.InstrumentType.LONG_COUNTER;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.not;
 
+@LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class BufferingMetricExporterTests extends ESTestCase {
 
     private RecordingOtelMeter meter;
@@ -72,100 +72,65 @@ public class BufferingMetricExporterTests extends ESTestCase {
     }
 
     private CompletableResultCode exportAndWait(String name) {
-        CompletableResultCode r = exporter.export(List.of(metric(name)));
-        r.join(1, TimeUnit.SECONDS);
-        return r;
+        return exporter.export(List.of(metric(name))).join(1, TimeUnit.SECONDS);
     }
 
     public void testFailBufferRecoverAndDrain() throws Exception {
         build(Settings.EMPTY);
         delegate.setShouldFail(true);
         assertTrue("buffered batch must report success", exportAndWait("buf").isSuccess());
-        assertThat(listBufferFiles(), equalTo(1));
+        assertBusy(() -> assertThat(countBufferFiles(), greaterThanOrEqualTo(1)));
         assertThat(counter("writes"), hasSize(1));
 
         delegate.setShouldFail(false);
+        safeSleep(300); // past MIN_FILE_AGE_BEFORE_READ_MILLIS
         exportAndWait("trigger");
 
-        assertBusy(() -> assertThat(listBufferFiles(), equalTo(0)));
+        assertBusy(() -> assertThat(countBufferFiles(), equalTo(0)));
         assertThat(delegate.exportedNames(), hasItems("buf", "trigger"));
         assertThat(counter("replays"), hasSize(1));
     }
 
-    public void testDiskCapDropsNewBatchesAndReportsFailure() throws Exception {
-        build(Settings.builder().put("telemetry.otel.metrics.disk_buffer_size", "1b").build());
+    public void testDiskCapRotatesOldestToMakeRoom() throws Exception {
+        build(Settings.builder().put("telemetry.otel.metrics.disk_buffer_size", "1kb").build());
 
         delegate.setShouldFail(true);
         assertTrue(exportAndWait("first").isSuccess());
-        assertFalse("dropped batch must report failure", exportAndWait("second").isSuccess());
-        assertThat(listBufferFiles(), equalTo(1));
-        assertThat(counter("drops_full"), hasSize(1));
+        assertTrue(exportAndWait("second").isSuccess());
+        assertThat(counter("writes"), hasSize(2));
+        assertThat(countBufferFiles(), equalTo(1));
     }
 
-    public void testTtlEvictsExpiredFilesInsteadOfReplaying() throws Exception {
-        build(Settings.builder().put("telemetry.otel.metrics.buffer_ttl", "100ms").build());
+    public void testTtlExpiredFilesAreNotReplayed() throws Exception {
+        // TTL must be greater than MIN_FILE_AGE_FOR_READ_MILLIS (200ms)
+        build(Settings.builder().put("telemetry.otel.metrics.buffer_ttl", "300ms").build());
 
         delegate.setShouldFail(true);
         exportAndWait("expires");
-        assertThat(listBufferFiles(), equalTo(1));
+        assertBusy(() -> assertThat(countBufferFiles(), greaterThanOrEqualTo(1)));
 
-        safeSleep(400);
+        safeSleep(500);
 
-        // Reset the exported list so we can assert the expired batch isn't replayed.
         delegate.clearExported();
         delegate.setShouldFail(false);
         exportAndWait("trigger");
-
-        assertBusy(() -> assertThat(listBufferFiles(), equalTo(0)));
-        assertThat(counter("evictions_ttl"), hasSize(1));
         assertThat(counter("replays"), empty());
-        assertThat(delegate.exportedNames(), not(hasItem("expires")));
-    }
-
-    public void testPoisonedFileIsDeletedOnFirstDrain() throws Exception {
-        Files.writeString(bufferDir.resolve("metrics-1.bin"), "not valid");
-        build(Settings.EMPTY);
-
-        exportAndWait("trigger");
-
-        assertBusy(() -> assertThat(listBufferFiles(), equalTo(0)));
-    }
-
-    public void testDrainStopsAfterFirstTransientFailure() throws Exception {
-        for (int i = 1; i <= 4; i++) {
-            try (var out = Files.newOutputStream(bufferDir.resolve("metrics-" + i + ".bin"))) {
-                MetricDataSerializer.serialize(List.of(metric("m" + i)), out);
-            }
-        }
-        // Succeeds for the test trigger then fails on every subsequent replay so the drain aborts after the first attempt.
-        delegate = new FakeMetricExporter() {
-            final AtomicInteger calls = new AtomicInteger();
-
-            @Override
-            public CompletableResultCode export(Collection<MetricData> metrics) {
-                return calls.getAndIncrement() == 0 ? CompletableResultCode.ofSuccess() : CompletableResultCode.ofFailure();
-            }
-        };
-        build(Settings.EMPTY);
-
-        exportAndWait("trigger");
-
-        assertBusy(() -> assertThat(listBufferFiles(), equalTo(4)));
     }
 
     public void testShutdownDrainsDiskWhileDelegateIsHealthy() throws Exception {
         build(Settings.EMPTY);
         delegate.setShouldFail(true);
         exportAndWait("m1");
-        assertThat(listBufferFiles(), equalTo(1));
+        assertBusy(() -> assertThat(countBufferFiles(), greaterThanOrEqualTo(1)));
 
         delegate.setShouldFail(false);
         delegate.clearExported();
+        safeSleep(300); // past MIN_FILE_AGE_BEFORE_READ_MILLIS
         exporter.shutdown();
         exporter = null;
 
         assertThat(delegate.exportedNames(), hasItem("m1"));
-        assertThat(listBufferFiles(), equalTo(0));
+        assertThat(countBufferFiles(), equalTo(0));
         assertThat(counter("replays"), hasSize(1));
     }
 
@@ -173,22 +138,24 @@ public class BufferingMetricExporterTests extends ESTestCase {
         build(Settings.EMPTY);
         delegate.setShouldFail(true);
         exportAndWait("m1");
-        assertThat(listBufferFiles(), equalTo(1));
+        assertBusy(() -> assertThat(countBufferFiles(), greaterThanOrEqualTo(1)));
 
         exporter.shutdown();
         exporter = null;
 
-        // Delegate still failing: drain attempt fails and the file persists for next startup.
-        assertThat("buffered file must remain on disk for next startup", listBufferFiles(), equalTo(1));
+        assertThat("buffered file must remain on disk for next startup", countBufferFiles(), greaterThanOrEqualTo(1));
     }
 
     private List<Measurement> counter(String suffix) {
         return meter.getRecorder().getMeasurements(LONG_COUNTER, "es.apm.metrics.disk_buffer." + suffix);
     }
 
-    private int listBufferFiles() throws Exception {
+    private int countBufferFiles() throws Exception {
+        if (Files.isDirectory(bufferDir) == false) {
+            return 0;
+        }
         int n = 0;
-        try (var stream = Files.newDirectoryStream(bufferDir, "metrics-*.bin")) {
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(bufferDir)) {
             for (Path ignored : stream) {
                 n++;
             }

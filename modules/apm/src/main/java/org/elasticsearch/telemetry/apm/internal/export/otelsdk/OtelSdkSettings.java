@@ -67,6 +67,8 @@ public final class OtelSdkSettings {
     public static final Setting<ByteSizeValue> TELEMETRY_OTEL_METRICS_DISK_BUFFER_SIZE = Setting.byteSizeSetting(
         "telemetry.otel.metrics.disk_buffer_size",
         ByteSizeValue.ofMb(512),
+        ByteSizeValue.ZERO,
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE),
         NodeScope
     );
 

@@ -266,10 +266,13 @@ FROM flattened_otel_logs
 
 statsByFlattenedAllRows
 required_capability: group_by_flattened
+required_capability: fn_field_extract
 
 FROM flattened_otel_logs
 | STATS count = COUNT(*) BY resource.attributes
-| SORT count DESC
+| EVAL hn = field_extract(resource.attributes, "host.name")
+| SORT count DESC, hn
+| DROP hn
 ;
 
 count:long | resource.attributes:flattened
@@ -277,9 +280,9 @@ count:long | resource.attributes:flattened
 1          | "{""agent.id"":""3ac5081d-9275-4cde-a2a8-a00b794a20f4"",""agent.type"":""filebeat"",""host.ip"":[""10.224.0.170"",""fe80::4001:aff:fee0:aa""],""host.name"":""devops-ci-master-blue.c.elastic-ci-prod.internal""}"
 1          | "{""agent.id"":""f767fc00-eaae-4717-a33e-19b2bd95df6d"",""agent.type"":""filebeat"",""host.ip"":[""10.224.2.157"",""172.17.0.1"",""fe80::4001:aff:fee0:29d"",""fe80::42:48ff:fe1a:ed7d"",""fe80::9c8e:44ff:fe9e:da94""],""host.name"":""elasticsearch-ci-immutable-debian-9-pkg-1599049660880335683""}"
 1          | "{""agent.id"":""8a161b55-80d0-4ba3-afc8-31d5e15fc51c"",""agent.type"":""filebeat"",""host.ip"":[""10.224.0.109"",""172.17.0.1"",""fe80::4001:aff:fee0:6d""],""host.name"":""elasticsearch-ci-immutable-sles-15-1599243844262984968""}"
+1          | "{""host.name"":""equal-host""}"
 1          | "{""agent.id"":""631455bf-99f1-4bca-845c-7004bf7de17d"",""agent.type"":""filebeat"",""host.ip"":""10.72.1.5"",""host.name"":""filebeat-6t7v6""}"
 1          | "{""agent.id"":""8866a40d-59ec-4eef-a5c3-eee2cd9fce28"",""agent.type"":""filebeat"",""host.ip"":""10.72.3.6"",""host.name"":""filebeat-8pmfj""}"
-1          | "{""host.name"":""equal-host""}"
 1          | "{""agent.id"":""5e7a960a-4653-4973-a000-450130a32a37"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-cpcmv""}"
 1          | "{""agent.id"":""43baa60c-42b7-4f76-b9b3-397623f18f9c"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-mdvqm""}"
 1          | "{""agent.id"":""14903e5a-9c82-43f3-8b23-5932dd1407ac"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-z5mjq""}"
@@ -605,4 +608,206 @@ FROM flattened_otel_logs
 
 v:flattened
 "{""agent.id"":""c92cc400-fe39-4252-bc0f-4b024e742f25"",""agent.type"":""filebeat"",""host.name"":""infra-filebeat-6vjxr""}"
+;
+
+mvContains
+required_capability: flattened_datatype
+required_capability: fn_mv_contains_flattened
+
+FROM flattened_many
+| EVAL c = MV_CONTAINS(flat_a, flat_c)
+| KEEP id, c
+| SORT id
+;
+
+id:integer | c:boolean
+1          | true
+2          | false
+3          | false
+4          | false
+5          | true
+;
+
+mvContainsMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_contains_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_many
+| EVAL c = MV_CONTAINS(MV_APPEND(flat_a, flat_b), flat_c)
+| KEEP id, c
+| SORT id
+;
+
+id:integer | c:boolean
+1          | true
+2          | true
+3          | false
+4          | false
+5          | true
+;
+
+mvContainsNull
+required_capability: flattened_datatype
+required_capability: fn_mv_contains_flattened
+
+FROM flattened_many
+| WHERE id == 4
+| EVAL superset_null = MV_CONTAINS(flat_a, flat_c), subset_null = MV_CONTAINS(flat_c, flat_a)
+| KEEP id, superset_null, subset_null
+;
+
+id:integer | superset_null:boolean | subset_null:boolean
+4          | false                 | true
+;
+
+mvIntersects
+required_capability: flattened_datatype
+required_capability: fn_mv_intersects_flattened
+
+FROM flattened_many
+| EVAL c = MV_INTERSECTS(flat_a, flat_c)
+| KEEP id, c
+| SORT id
+;
+
+id:integer | c:boolean
+1          | true
+2          | false
+3          | false
+4          | false
+5          | true
+;
+
+mvIntersectsMvAppend
+required_capability: flattened_datatype
+required_capability: fn_mv_intersects_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_many
+| EVAL c = MV_INTERSECTS(MV_APPEND(flat_a, flat_b), flat_c)
+| KEEP id, c
+| SORT id
+;
+
+id:integer | c:boolean
+1          | true
+2          | true
+3          | false
+4          | false
+5          | true
+;
+
+mvIntersectsNull
+required_capability: flattened_datatype
+required_capability: fn_mv_intersects_flattened
+
+FROM flattened_many
+| WHERE id == 4
+| EVAL left_null = MV_INTERSECTS(flat_a, flat_c), right_null = MV_INTERSECTS(flat_c, flat_a)
+| KEEP id, left_null, right_null
+;
+
+id:integer | left_null:boolean | right_null:boolean
+4          | false             | false
+;
+
+mvIntersection
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_intersection_flattened
+
+FROM flattened_many
+| EVAL intersection = MV_INTERSECTION(flat_a, flat_c)
+| KEEP id, intersection
+| SORT id
+;
+
+id:integer | intersection:flattened
+1          | "{""k"":""v1""}"
+2          | null
+3          | null
+4          | null
+5          | "{""k"":""same""}"
+;
+
+// MV_INTERSECTION returns the shared values; on row 3 (v1, v2, v3 all distinct),
+// [v1,v2] ∩ [v2,v3] = {v2}, showing it returns the actual overlap rather than a boolean.
+mvIntersectionMvAppend
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_intersection_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_many
+| WHERE id == 3
+| EVAL intersection = MV_INTERSECTION(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c))
+| KEEP id, intersection
+;
+
+id:integer | intersection:flattened
+3          | "{""k"":""v2""}"
+;
+
+// MV_CONTAINS requires *all* subset values to be present; MV_INTERSECTS only requires *any*.
+// Row 3 (v1, v2, v3 all distinct) is the distinguishing case: superset=[v1,v2],
+// second-arg=[v2,v3] shares v2 with the superset (intersects=true) but v3 is absent (contains=false).
+mvContainsVsIntersects
+required_capability: flattened_datatype
+required_capability: fn_mv_contains_flattened
+required_capability: fn_mv_intersects_flattened
+required_capability: fn_mv_append_flattened
+
+FROM flattened_many
+| EVAL
+    contains = MV_CONTAINS(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c)),
+    intersects = MV_INTERSECTS(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c))
+| KEEP id, contains, intersects
+| SORT id
+;
+
+id:integer | contains:boolean | intersects:boolean
+1          | true               | true
+2          | true               | true
+3          | false              | true
+4          | false              | false
+5          | true               | true
+;
+
+// MV_UNION returns all unique values from both inputs; null is treated as an empty set.
+mvUnion
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_union_flattened
+
+FROM flattened_many
+| EVAL union = MV_UNION(flat_a, flat_c)
+| KEEP id, union
+| SORT id
+;
+
+id:integer | union:flattened
+1          | "{""k"":""v1""}"
+2          | "[{""k"":""v1""}, {""k"":""v2""}]"
+3          | "[{""k"":""v1""}, {""k"":""v3""}]"
+4          | "{""k"":""v2""}"
+5          | "{""k"":""same""}"
+;
+
+// Row 3 (v1, v2, v3 all distinct): MV_UNION([v1,v2], [v2,v3]) = [v1,v2,v3], not [v1,v2] or [v2,v3].
+mvUnionMvAppend
+required_capability: flattened_datatype
+required_capability: flattened_datatype_sorted_keys
+required_capability: fn_mv_union_flattened
+required_capability: fn_mv_append_flattened
+request_stored: skip
+
+FROM flattened_many
+| WHERE id == 3
+| EVAL union = MV_UNION(MV_APPEND(flat_a, flat_b), MV_APPEND(flat_b, flat_c))
+| KEEP id, union
+;
+
+id:integer | union:flattened
+3          | "[{""k"":""v1""}, {""k"":""v2""}, {""k"":""v3""}]"
 ;

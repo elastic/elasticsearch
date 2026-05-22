@@ -1,0 +1,16 @@
+{
+  "file": "data/single_nan.parquet",
+  "num_rows": 1,
+  "columns": [
+    {
+      "name": "mycol",
+      "pyarrow_type": "double",
+      "esql_supported": true
+    }
+  ],
+  "rows": [
+    {
+      "mycol": null
+    }
+  ]
+}

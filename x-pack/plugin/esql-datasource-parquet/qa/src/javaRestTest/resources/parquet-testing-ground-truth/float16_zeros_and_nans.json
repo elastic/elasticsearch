@@ -1,0 +1,22 @@
+{
+  "file": "data/float16_zeros_and_nans.parquet",
+  "num_rows": 3,
+  "columns": [
+    {
+      "name": "x",
+      "pyarrow_type": "halffloat",
+      "esql_supported": true
+    }
+  ],
+  "rows": [
+    {
+      "x": null
+    },
+    {
+      "x": 0.0
+    },
+    {
+      "x": "NaN"
+    }
+  ]
+}

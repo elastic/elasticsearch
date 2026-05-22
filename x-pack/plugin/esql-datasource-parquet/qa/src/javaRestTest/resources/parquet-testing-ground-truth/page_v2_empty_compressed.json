@@ -1,0 +1,43 @@
+{
+  "file": "data/page_v2_empty_compressed.parquet",
+  "num_rows": 10,
+  "columns": [
+    {
+      "name": "integer_column",
+      "pyarrow_type": "int32",
+      "esql_supported": true
+    }
+  ],
+  "rows": [
+    {
+      "integer_column": null
+    },
+    {
+      "integer_column": null
+    },
+    {
+      "integer_column": null
+    },
+    {
+      "integer_column": null
+    },
+    {
+      "integer_column": null
+    },
+    {
+      "integer_column": null
+    },
+    {
+      "integer_column": null
+    },
+    {
+      "integer_column": null
+    },
+    {
+      "integer_column": null
+    },
+    {
+      "integer_column": null
+    }
+  ]
+}

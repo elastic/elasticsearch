@@ -1,0 +1,19 @@
+{
+  "file": "data/nan_in_stats.parquet",
+  "num_rows": 2,
+  "columns": [
+    {
+      "name": "x",
+      "pyarrow_type": "double",
+      "esql_supported": true
+    }
+  ],
+  "rows": [
+    {
+      "x": 1.0
+    },
+    {
+      "x": "NaN"
+    }
+  ]
+}

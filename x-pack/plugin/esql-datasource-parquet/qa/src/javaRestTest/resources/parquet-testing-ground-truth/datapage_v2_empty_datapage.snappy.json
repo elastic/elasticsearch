@@ -1,0 +1,16 @@
+{
+  "file": "data/datapage_v2_empty_datapage.snappy.parquet",
+  "num_rows": 1,
+  "columns": [
+    {
+      "name": "value",
+      "pyarrow_type": "float",
+      "esql_supported": true
+    }
+  ],
+  "rows": [
+    {
+      "value": null
+    }
+  ]
+}

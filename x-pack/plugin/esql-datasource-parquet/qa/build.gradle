@@ -141,6 +141,7 @@ tasks.named('javaRestTestTestingConventions').configure {
 
 tasks.named("forbiddenPatterns").configure {
   exclude '**/*.parquet'
+  exclude '**/*.py'
 }
 
 tasks.named('javaRestTest') {

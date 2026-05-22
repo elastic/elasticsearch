@@ -1,0 +1,183 @@
+{
+  "file": "data/alltypes_plain.parquet",
+  "num_rows": 8,
+  "columns": [
+    {
+      "name": "id",
+      "pyarrow_type": "int32",
+      "esql_supported": true
+    },
+    {
+      "name": "bool_col",
+      "pyarrow_type": "bool",
+      "esql_supported": true
+    },
+    {
+      "name": "tinyint_col",
+      "pyarrow_type": "int32",
+      "esql_supported": true
+    },
+    {
+      "name": "smallint_col",
+      "pyarrow_type": "int32",
+      "esql_supported": true
+    },
+    {
+      "name": "int_col",
+      "pyarrow_type": "int32",
+      "esql_supported": true
+    },
+    {
+      "name": "bigint_col",
+      "pyarrow_type": "int64",
+      "esql_supported": true
+    },
+    {
+      "name": "float_col",
+      "pyarrow_type": "float",
+      "esql_supported": true
+    },
+    {
+      "name": "double_col",
+      "pyarrow_type": "double",
+      "esql_supported": true
+    },
+    {
+      "name": "date_string_col",
+      "pyarrow_type": "binary",
+      "esql_supported": true
+    },
+    {
+      "name": "string_col",
+      "pyarrow_type": "binary",
+      "esql_supported": true
+    },
+    {
+      "name": "timestamp_col",
+      "pyarrow_type": "timestamp[ns]",
+      "esql_supported": true
+    }
+  ],
+  "rows": [
+    {
+      "id": 4,
+      "bool_col": true,
+      "tinyint_col": 0,
+      "smallint_col": 0,
+      "int_col": 0,
+      "bigint_col": 0,
+      "float_col": 0.0,
+      "double_col": 0.0,
+      "date_string_col": "03/01/09",
+      "string_col": "0",
+      "timestamp_col": {
+        "epoch_millis": 1235865600000
+      }
+    },
+    {
+      "id": 5,
+      "bool_col": false,
+      "tinyint_col": 1,
+      "smallint_col": 1,
+      "int_col": 1,
+      "bigint_col": 10,
+      "float_col": 1.100000023841858,
+      "double_col": 10.1,
+      "date_string_col": "03/01/09",
+      "string_col": "1",
+      "timestamp_col": {
+        "epoch_millis": 1235865660000
+      }
+    },
+    {
+      "id": 6,
+      "bool_col": true,
+      "tinyint_col": 0,
+      "smallint_col": 0,
+      "int_col": 0,
+      "bigint_col": 0,
+      "float_col": 0.0,
+      "double_col": 0.0,
+      "date_string_col": "04/01/09",
+      "string_col": "0",
+      "timestamp_col": {
+        "epoch_millis": 1238544000000
+      }
+    },
+    {
+      "id": 7,
+      "bool_col": false,
+      "tinyint_col": 1,
+      "smallint_col": 1,
+      "int_col": 1,
+      "bigint_col": 10,
+      "float_col": 1.100000023841858,
+      "double_col": 10.1,
+      "date_string_col": "04/01/09",
+      "string_col": "1",
+      "timestamp_col": {
+        "epoch_millis": 1238544060000
+      }
+    },
+    {
+      "id": 2,
+      "bool_col": true,
+      "tinyint_col": 0,
+      "smallint_col": 0,
+      "int_col": 0,
+      "bigint_col": 0,
+      "float_col": 0.0,
+      "double_col": 0.0,
+      "date_string_col": "02/01/09",
+      "string_col": "0",
+      "timestamp_col": {
+        "epoch_millis": 1233446400000
+      }
+    },
+    {
+      "id": 3,
+      "bool_col": false,
+      "tinyint_col": 1,
+      "smallint_col": 1,
+      "int_col": 1,
+      "bigint_col": 10,
+      "float_col": 1.100000023841858,
+      "double_col": 10.1,
+      "date_string_col": "02/01/09",
+      "string_col": "1",
+      "timestamp_col": {
+        "epoch_millis": 1233446460000
+      }
+    },
+    {
+      "id": 0,
+      "bool_col": true,
+      "tinyint_col": 0,
+      "smallint_col": 0,
+      "int_col": 0,
+      "bigint_col": 0,
+      "float_col": 0.0,
+      "double_col": 0.0,
+      "date_string_col": "01/01/09",
+      "string_col": "0",
+      "timestamp_col": {
+        "epoch_millis": 1230768000000
+      }
+    },
+    {
+      "id": 1,
+      "bool_col": false,
+      "tinyint_col": 1,
+      "smallint_col": 1,
+      "int_col": 1,
+      "bigint_col": 10,
+      "float_col": 1.100000023841858,
+      "double_col": 10.1,
+      "date_string_col": "01/01/09",
+      "string_col": "1",
+      "timestamp_col": {
+        "epoch_millis": 1230768060000
+      }
+    }
+  ]
+}

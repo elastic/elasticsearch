@@ -1,0 +1,217 @@
+{
+  "file": "data/rle_boolean_encoding.parquet",
+  "num_rows": 68,
+  "columns": [
+    {
+      "name": "datatype_boolean",
+      "pyarrow_type": "bool",
+      "esql_supported": true
+    }
+  ],
+  "rows": [
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": null
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": null
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": null
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": null
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": null
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": null
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": false
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    },
+    {
+      "datatype_boolean": true
+    }
+  ]
+}

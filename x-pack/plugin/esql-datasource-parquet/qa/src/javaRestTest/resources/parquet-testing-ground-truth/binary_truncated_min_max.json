@@ -1,0 +1,134 @@
+{
+  "file": "data/binary_truncated_min_max.parquet",
+  "num_rows": 12,
+  "columns": [
+    {
+      "name": "utf8_full_truncation",
+      "pyarrow_type": "string",
+      "esql_supported": true
+    },
+    {
+      "name": "binary_full_truncation",
+      "pyarrow_type": "binary",
+      "esql_supported": true
+    },
+    {
+      "name": "utf8_partial_truncation",
+      "pyarrow_type": "string",
+      "esql_supported": true
+    },
+    {
+      "name": "binary_partial_truncation",
+      "pyarrow_type": "binary",
+      "esql_supported": true
+    },
+    {
+      "name": "utf8_no_truncation",
+      "pyarrow_type": "string",
+      "esql_supported": true
+    },
+    {
+      "name": "binary_no_truncation",
+      "pyarrow_type": "binary",
+      "esql_supported": true
+    }
+  ],
+  "rows": [
+    {
+      "utf8_full_truncation": "Blart Versenwald III",
+      "binary_full_truncation": "Blart Versenwald III",
+      "utf8_partial_truncation": "Blart Versenwald III",
+      "binary_partial_truncation": "Blart Versenwald III",
+      "utf8_no_truncation": "Blart Versenwald III",
+      "binary_no_truncation": "Blart Versenwald III"
+    },
+    {
+      "utf8_full_truncation": "Alice Johnson",
+      "binary_full_truncation": "Alice Johnson",
+      "utf8_partial_truncation": "Alice Johnson",
+      "binary_partial_truncation": "Alice Johnson",
+      "utf8_no_truncation": "Al",
+      "binary_no_truncation": "Al"
+    },
+    {
+      "utf8_full_truncation": "Bob Smith",
+      "binary_full_truncation": "Bob Smith",
+      "utf8_partial_truncation": "Bob Smith",
+      "binary_partial_truncation": "Bob Smith",
+      "utf8_no_truncation": "Bob Smith",
+      "binary_no_truncation": "Bob Smith"
+    },
+    {
+      "utf8_full_truncation": "Charlie Brown",
+      "binary_full_truncation": "Charlie Brown",
+      "utf8_partial_truncation": "Charlie Brown",
+      "binary_partial_truncation": "Charlie Brown",
+      "utf8_no_truncation": "Charlie Brown",
+      "binary_no_truncation": "Charlie Brown"
+    },
+    {
+      "utf8_full_truncation": "Diana Prince",
+      "binary_full_truncation": "Diana Prince",
+      "utf8_partial_truncation": "Diana Prince",
+      "binary_partial_truncation": "Diana Prince",
+      "utf8_no_truncation": "Diana Prince",
+      "binary_no_truncation": "Diana Prince"
+    },
+    {
+      "utf8_full_truncation": "Edward Norton",
+      "binary_full_truncation": "Edward Norton",
+      "utf8_partial_truncation": "Edward Norton",
+      "binary_partial_truncation": "Edward Norton",
+      "utf8_no_truncation": "Edward Norton",
+      "binary_no_truncation": "Edward Norton"
+    },
+    {
+      "utf8_full_truncation": "Fiona Apple",
+      "binary_full_truncation": "Fiona Apple",
+      "utf8_partial_truncation": "Fiona Apple",
+      "binary_partial_truncation": "Fiona Apple",
+      "utf8_no_truncation": "Fiona Apple",
+      "binary_no_truncation": "Fiona Apple"
+    },
+    {
+      "utf8_full_truncation": "George Lucas",
+      "binary_full_truncation": "George Lucas",
+      "utf8_partial_truncation": "George Lucas",
+      "binary_partial_truncation": "George Lucas",
+      "utf8_no_truncation": "George Lucas",
+      "binary_no_truncation": "George Lucas"
+    },
+    {
+      "utf8_full_truncation": "Helen Keller",
+      "binary_full_truncation": "Helen Keller",
+      "utf8_partial_truncation": "Helen Keller",
+      "binary_partial_truncation": "Helen Keller",
+      "utf8_no_truncation": "Helen Keller",
+      "binary_no_truncation": "Helen Keller"
+    },
+    {
+      "utf8_full_truncation": "Ivan Drago",
+      "binary_full_truncation": "Ivan Drago",
+      "utf8_partial_truncation": "Ivan Drago",
+      "binary_partial_truncation": "Ivan Drago",
+      "utf8_no_truncation": "Ivan Drago",
+      "binary_no_truncation": "Ivan Drago"
+    },
+    {
+      "utf8_full_truncation": "Julia Roberts",
+      "binary_full_truncation": "Julia Roberts",
+      "utf8_partial_truncation": "Julia Roberts",
+      "binary_partial_truncation": "Julia Roberts",
+      "utf8_no_truncation": "Julia Roberts",
+      "binary_no_truncation": "Julia Roberts"
+    },
+    {
+      "utf8_full_truncation": "Kevin Bacon",
+      "binary_full_truncation": "Kevin Bacon",
+      "utf8_partial_truncation": "🚀Kevin Bacon",
+      "binary_partial_truncation": "0xffff0102",
+      "utf8_no_truncation": "Ke",
+      "binary_no_truncation": "Ke"
+    }
+  ]
+}

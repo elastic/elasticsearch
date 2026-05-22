@@ -18,6 +18,7 @@ import org.apache.parquet.column.statistics.Statistics;
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputCompressor;
 import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompressor;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
+import org.apache.parquet.io.ParquetDecodingException;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -141,6 +142,11 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         );
         DataPageV1 out = (DataPageV1) reader.readPage();
         assertThat(out, notNullValue());
+        assertThat(out.getValueCount(), equalTo(10));
+        assertThat(out.getUncompressedSize(), equalTo(payload.length));
+        assertThat(out.getValueEncoding(), equalTo(Encoding.PLAIN));
+        assertThat(out.getRlEncoding(), equalTo(Encoding.RLE));
+        assertThat(out.getDlEncoding(), equalTo(Encoding.RLE));
         ByteBuffer decompressedBuf = out.getBytes().toByteBuffer();
         assertTrue("Uncompressed V1 page must be backed by a direct buffer", decompressedBuf.isDirect());
         assertThat(out.getBytes().toByteArray(), equalTo(payload));
@@ -151,6 +157,30 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         byte sentinel = (byte) (payload[0] ^ 0xFF);
         direct.put(0, sentinel);
         assertEquals("Returned BytesInput must alias the direct input slice, not a copy", sentinel, out.getBytes().toByteArray()[0]);
+    }
+
+    public void testUncompressedV1PageWithDirectInputRejectsSizeMismatch() {
+        byte[] payload = randomBytesOfLength(64);
+        ByteBuffer direct = ByteBuffer.allocateDirect(payload.length);
+        direct.put(payload).flip();
+        int declaredSize = payload.length - 1;
+        DataPageV1 v1 = new DataPageV1(
+            BytesInput.from(direct.duplicate()),
+            10,
+            declaredSize,
+            intStats(),
+            Encoding.RLE,
+            Encoding.RLE,
+            Encoding.PLAIN
+        );
+        PrefetchedPageReader reader = new PrefetchedPageReader(
+            codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
+            List.of(new PrefetchedPageReader.CompressedPage(v1, -1L)),
+            null,
+            10
+        );
+        ParquetDecodingException e = expectThrows(ParquetDecodingException.class, reader::readPage);
+        assertThat(e.getMessage(), equalTo("Uncompressed page size mismatch: input has 64 bytes but page header declares 63"));
     }
 
     public void testUncompressedDictionaryPageWithDirectInputSkipsAllocAndCopy() throws IOException {

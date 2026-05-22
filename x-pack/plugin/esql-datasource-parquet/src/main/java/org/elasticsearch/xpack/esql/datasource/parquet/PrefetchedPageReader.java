@@ -207,6 +207,14 @@ final class PrefetchedPageReader implements PageReader {
     private BytesInput decompressToDirectBuffer(BytesInput compressed, int decompressedSize) throws IOException {
         ByteBuffer input = compressed.toByteBuffer();
         if (decompressor instanceof PlainCompressionCodecFactory.NoopDecompressor && input.isDirect()) {
+            if (input.remaining() != decompressedSize) {
+                throw new ParquetDecodingException(
+                    "Uncompressed page size mismatch: input has "
+                        + input.remaining()
+                        + " bytes but page header declares "
+                        + decompressedSize
+                );
+            }
             return BytesInput.from(input);
         }
         if (input.isDirect() == false) {

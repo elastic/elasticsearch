@@ -20,6 +20,8 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.test.index.IndexVersionUtils.randomVersionBetween;
+import static org.elasticsearch.test.index.IndexVersionUtils.randomVersionOnOrAfter;
 import static org.hamcrest.Matchers.equalTo;
 
 /**
@@ -56,10 +58,11 @@ public class SliceIT extends ESIntegTestCase {
     }
 
     private void sliceDocMap(boolean old, boolean docValues) {
-        var indexVersion = IndexVersions.SHARD_OBLIVIOUS_SLICING;
+        var indexVersion = randomVersionOnOrAfter(IndexVersions.SHARD_OBLIVIOUS_SLICING);
         if (old) {
-            indexVersion = IndexVersionUtils.getPreviousVersion(indexVersion);
+            indexVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.SHARD_OBLIVIOUS_SLICING);
         }
+        logger.info("--> using index version: {}", indexVersion);
 
         final var indexName = "sliced_scroll";
         final var shards = 5;

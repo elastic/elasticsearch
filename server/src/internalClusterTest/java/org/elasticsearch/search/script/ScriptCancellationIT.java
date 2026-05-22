@@ -91,6 +91,7 @@ public class ScriptCancellationIT extends ESIntegTestCase {
         ActionFuture<SearchResponse> future = prepareSearch("test").addAggregation(
             AggregationBuilders.scriptedMetric("my_metric")
                 .mapScript(new Script(ScriptType.INLINE, BlockingScriptPlugin.LANG, "map", Map.of()))
+                .combineScript(new Script(ScriptType.INLINE, BlockingScriptPlugin.LANG, "combine", Map.of()))
                 .reduceScript(new Script(ScriptType.INLINE, BlockingScriptPlugin.LANG, "reduce-block", Map.of()))
         ).execute();
 
@@ -189,6 +190,19 @@ public class ScriptCancellationIT extends ESIntegTestCase {
                             };
                         return context.factoryClazz.cast(factory);
                     }
+                    if (context == ScriptedMetricAggContexts.CombineScript.CONTEXT && "combine".equals(source)) {
+                        ScriptedMetricAggContexts.CombineScript.Factory factory = (p, state) -> new ScriptedMetricAggContexts.CombineScript(
+                            p,
+                            state
+                        ) {
+                            @Override
+                            public Object execute() {
+                                // trivial no-op combine script
+                                return state;
+                            }
+                        };
+                        return context.factoryClazz.cast(factory);
+                    }
                     if (context == ScriptedMetricAggContexts.ReduceScript.CONTEXT && "reduce-block".equals(source)) {
                         ScriptedMetricAggContexts.ReduceScript.Factory factory = (p, states) -> new ScriptedMetricAggContexts.ReduceScript(
                             p,
@@ -212,6 +226,7 @@ public class ScriptCancellationIT extends ESIntegTestCase {
                         FieldScript.CONTEXT,
                         BucketAggregationScript.CONTEXT,
                         ScriptedMetricAggContexts.MapScript.CONTEXT,
+                        ScriptedMetricAggContexts.CombineScript.CONTEXT,
                         ScriptedMetricAggContexts.ReduceScript.CONTEXT
                     );
                 }

@@ -31,7 +31,7 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.stateless.allocation.DisableRebalanceDecider.Enablement;
+import static org.elasticsearch.xpack.stateless.allocation.DisableRebalanceDecider.RebalancingEnabled;
 import static org.elasticsearch.xpack.stateless.allocation.DisableRebalanceDecider.REBALANCING_ENABLED;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
@@ -62,7 +62,7 @@ public class DisableRebalanceDeciderIT extends AbstractStatelessPluginIntegTestC
     /**
      * Verifies that a shard is moved during reconciliation even when rebalancing is disabled in the simulation phase.
      * <p>
-     * With {@link Enablement#NEVER}, {@link DisableRebalanceDecider#canRebalance} returns NO during simulation but
+     * With {@link RebalancingEnabled#NEVER}, {@link DisableRebalanceDecider#canRebalance} returns NO during simulation but
      * YES during reconciliation. This test plants a decider that returns canRemain NO/NOT_PREFERRED during simulation
      * only — so the desired balance plans a move off the source node — and YES during reconciliation, so the
      * reconciler's necessary-moves phase will skip the shard. The shard should still be moved by the reconciler's
@@ -169,7 +169,7 @@ public class DisableRebalanceDeciderIT extends AbstractStatelessPluginIntegTestC
     private void applyTestClusterSettings() {
         updateClusterSettings(
             Settings.builder()
-                .put(REBALANCING_ENABLED.getKey(), Enablement.NEVER)
+                .put(REBALANCING_ENABLED.getKey(), RebalancingEnabled.NEVER)
                 .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.ALL)
         );
     }

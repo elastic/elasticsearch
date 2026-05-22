@@ -55,20 +55,20 @@ public class DisableRebalanceDecider extends AllocationDecider {
 
     private static final Decision NO_REBALANCE = new Decision.Single(Decision.Type.NO, NAME, "Rebalancing is disabled");
 
-    public enum Enablement {
+    public enum RebalancingEnabled {
         ALWAYS {
             @Override
             Decision canRebalance(ShardRouting shardRouting) {
                 return ALWAYS_REBALANCE;
             }
         },
-        INDEXING_TIER {
+        INDEXING_TIER_ONLY {
             @Override
             Decision canRebalance(ShardRouting shardRouting) {
                 return shardRouting.role() == ShardRouting.Role.INDEX_ONLY ? INDEX_REBALANCING_ENABLED : SEARCH_REBALANCING_DISABLED;
             }
         },
-        SEARCH_TIER {
+        SEARCH_TIER_ONLY {
             @Override
             Decision canRebalance(ShardRouting shardRouting) {
                 return shardRouting.role() == ShardRouting.Role.SEARCH_ONLY ? SEARCH_REBALANCING_ENABLED : INDEX_REBALANCING_DISABLED;
@@ -84,22 +84,22 @@ public class DisableRebalanceDecider extends AllocationDecider {
         abstract Decision canRebalance(ShardRouting shardRouting);
     }
 
-    public static final Setting<Enablement> REBALANCING_ENABLED = Setting.enumSetting(
-        Enablement.class,
+    public static final Setting<RebalancingEnabled> REBALANCING_ENABLED = Setting.enumSetting(
+        RebalancingEnabled.class,
         "stateless.cluster.routing.allocation.balance.balancing_enabled",
-        Enablement.ALWAYS,
+        RebalancingEnabled.ALWAYS,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );
 
-    private volatile Enablement enablement;
+    private volatile RebalancingEnabled rebalancingEnabled;
 
     public DisableRebalanceDecider(ClusterSettings clusterSettings) {
-        clusterSettings.initializeAndWatch(REBALANCING_ENABLED, enablement -> this.enablement = enablement);
+        clusterSettings.initializeAndWatch(REBALANCING_ENABLED, rebalancingEnabled -> this.rebalancingEnabled = rebalancingEnabled);
     }
 
     @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-        return allocation.isSimulating() ? enablement.canRebalance(shardRouting) : RECONCILIATION_BALANCING_ALLOWED;
+        return allocation.isSimulating() ? rebalancingEnabled.canRebalance(shardRouting) : RECONCILIATION_BALANCING_ALLOWED;
     }
 }

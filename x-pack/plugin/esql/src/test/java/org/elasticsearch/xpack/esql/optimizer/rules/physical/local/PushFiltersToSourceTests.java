@@ -141,8 +141,10 @@ public class PushFiltersToSourceTests extends ESTestCase {
 
     /**
      * A lone {@code >=} or {@code <=} on {@code field_extract} must <em>not</em> be turned into
-     * a {@code Range}. The mapper rejects single-sided ranges, and an unpaired half would
-     * widen the predicate at translation time.
+     * a {@code Range} by the combiner. Single-sided ranges now have their own direct pushdown
+     * path on {@code EsqlBinaryComparison}, so the unpaired half stays as a binary comparison
+     * and is translated against the keyed flattened mapper's single-sided range support. The
+     * combiner only ever folds matching {@code (lower, upper)} pairs.
      */
     public void testDoesNotCombineSingleSidedRangeOnFieldExtract() {
         assumeQueryPushdownEnabled();
@@ -158,9 +160,10 @@ public class PushFiltersToSourceTests extends ESTestCase {
         );
 
         // Same reference: with no matching upper, the combiner short-circuits and returns the
-        // original list rather than constructing a new one. The Range pre-classification path
-        // therefore stays inert and the single-sided BC keeps flowing through the standard
-        // (non-pushable) classification.
+        // original list rather than constructing a new one. The binary comparison itself is
+        // independently pushable through the {@code FieldExtract} branch on
+        // {@link EsqlBinaryComparison#translatable}, so the surrounding classification picks it
+        // up directly.
         assertThat(result, equalTo(conjuncts));
     }
 

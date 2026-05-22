@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -25,7 +26,10 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
@@ -41,13 +45,16 @@ import static org.hamcrest.Matchers.equalTo;
 /**
  * Unit tests for query pushdown of {@code field_extract}. When
  * {@code field_extract(<flattened root>, "<key>")} appears on the left of {@code ==}, {@code !=},
- * or {@code IN} with a constant right-hand side, the predicate is translated into a Lucene
- * {@code TermQuery}/{@code TermsQuery} against the synthetic keyed sub-field name
- * ({@code <root>.<key>}) and wrapped in {@code SingleValueQuery}.
+ * {@code IN}, the range comparators ({@code >}, {@code >=}, {@code <}, {@code <=}), or the
+ * {@link Range} expression (combined {@code >=}/{@code <=} closed range), the predicate is
+ * translated into a Lucene {@code TermQuery}, {@code TermsQuery}, or {@code RangeQuery} against
+ * the synthetic keyed sub-field name ({@code <root>.<key>}) and wrapped in
+ * {@code SingleValueQuery}.
  * <p>
  *     The {@link FieldExtract#tryAsKeyedSubfieldName(LucenePushdownPredicates)} helper drives the
  *     recognition. The translation lives inside {@code EsqlBinaryComparison.asQuery} (for
- *     {@code ==}, {@code !=}) and {@code In.asQuery} (for {@code IN}).
+ *     {@code ==}, {@code !=}, and the range comparators), {@code In.asQuery} (for {@code IN}),
+ *     and {@code Range.asQuery} (for the closed range form).
  * </p>
  */
 public class FieldExtractQueryPushdownTests extends ESTestCase {
@@ -167,19 +174,88 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
         assertThat(neq.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
     }
 
-    public void testGreaterThanTranslatableNoForFieldExtractOnFlattened() {
+    /**
+     * Each of the four range comparators with a {@code field_extract(<flattened>, "<key>")} LHS
+     * and a foldable RHS is now eligible for pushdown. The keyed flattened mapper substitutes
+     * a key-prefix sentinel for the open bound, so the single-sided shape that was previously
+     * rejected by the mapper is now safe to push.
+     */
+    public void testGreaterThanTranslatableYesForFieldExtractOnFlattened() {
         assumeQueryPushdownEnabled();
-        // KeyedFlattenedFieldType.rangeQuery requires both bounds. A single-sided range like
-        // field_extract(...) > "x" cannot be safely translated, so translatable must say NO and
-        // the per-row evaluator handles it. The closed range form (BETWEEN) is handled by the
-        // Range expression node; see testRange* below.
         GreaterThan gt = new GreaterThan(
             Source.EMPTY,
             new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.name")),
             Literal.keyword(Source.EMPTY, "node-a")
         );
 
+        assertThat(gt.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
+    }
+
+    public void testGreaterThanOrEqualTranslatableYesForFieldExtractOnFlattened() {
+        assumeQueryPushdownEnabled();
+        GreaterThanOrEqual gte = new GreaterThanOrEqual(
+            Source.EMPTY,
+            new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.name")),
+            Literal.keyword(Source.EMPTY, "node-a")
+        );
+
+        assertThat(gte.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
+    }
+
+    public void testLessThanTranslatableYesForFieldExtractOnFlattened() {
+        assumeQueryPushdownEnabled();
+        LessThan lt = new LessThan(
+            Source.EMPTY,
+            new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.name")),
+            Literal.keyword(Source.EMPTY, "node-a")
+        );
+
+        assertThat(lt.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
+    }
+
+    public void testLessThanOrEqualTranslatableYesForFieldExtractOnFlattened() {
+        assumeQueryPushdownEnabled();
+        LessThanOrEqual lte = new LessThanOrEqual(
+            Source.EMPTY,
+            new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.name")),
+            Literal.keyword(Source.EMPTY, "node-a")
+        );
+
+        assertThat(lte.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
+    }
+
+    /**
+     * A non-foldable bound on a range comparator must keep the predicate out of the Lucene
+     * pushdown path, exactly like for the closed {@link Range} form. The bound is unknown at
+     * plan time so no Lucene query can encode it.
+     */
+    public void testGreaterThanTranslatableNoForFieldExtractWithNonFoldableBound() {
+        assumeQueryPushdownEnabled();
+        Expression nonFoldableBound = new ReferenceAttribute(Source.EMPTY, "ref_bound", DataType.KEYWORD);
+        GreaterThan gt = new GreaterThan(
+            Source.EMPTY,
+            new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.name")),
+            nonFoldableBound
+        );
+
         assertThat(gt.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.NO));
+    }
+
+    /**
+     * Pre-existing pushdown of the range comparators over a regular indexed-and-doc-valued
+     * {@link FieldAttribute} LHS must not regress. The base {@code EsqlBinaryComparison}
+     * still accepts that shape first, so adding the {@code FieldExtract} branch after it must
+     * not change the answer for {@code FieldAttribute}.
+     */
+    public void testGreaterThanTranslatableYesPreservedForFieldAttributeLhs() {
+        FieldAttribute keyword = new FieldAttribute(
+            Source.EMPTY,
+            "host.name",
+            new EsField("host.name", DataType.KEYWORD, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        GreaterThan gt = new GreaterThan(Source.EMPTY, keyword, Literal.keyword(Source.EMPTY, "node-a"));
+
+        assertThat(gt.translatable(LucenePushdownPredicates.DEFAULT), equalTo(TranslationAware.Translatable.YES));
     }
 
     /**
@@ -319,6 +395,129 @@ public class FieldExtractQueryPushdownTests extends ESTestCase {
                 );
             }
         }
+    }
+
+    /**
+     * The translated query for {@code field_extract(...) > "lo"} is a {@code RangeQuery} with the
+     * literal on the lower side, exclusive, and a {@code null} upper side. The keyed flattened
+     * mapper expands the open upper into the {@code key\1} sentinel on the data node so the
+     * resulting Lucene range stays inside this key's slice of the term namespace. The query is
+     * wrapped in {@code SingleValueQuery} for the same multi-value safety reason as the other
+     * comparators.
+     */
+    public void testGreaterThanAsQueryProducesLowerOnlyExclusiveRangeQuery() {
+        assumeQueryPushdownEnabled();
+        String keyedName = "resource.attributes.host.name";
+        GreaterThan gt = new GreaterThan(
+            Source.EMPTY,
+            new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.name")),
+            Literal.keyword(Source.EMPTY, "node-a")
+        );
+
+        Query query = gt.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+
+        assertThat(
+            query,
+            equalTo(
+                new SingleValueQuery(new RangeQuery(Source.EMPTY, keyedName, "node-a", false, null, false, null, null), keyedName, false)
+            )
+        );
+    }
+
+    /**
+     * Same shape as {@link #testGreaterThanAsQueryProducesLowerOnlyExclusiveRangeQuery} but with
+     * an inclusive lower bound. The {@code includeLower=true} flag must reach the produced
+     * {@code RangeQuery} unchanged.
+     */
+    public void testGreaterThanOrEqualAsQueryProducesLowerOnlyInclusiveRangeQuery() {
+        assumeQueryPushdownEnabled();
+        String keyedName = "resource.attributes.host.name";
+        GreaterThanOrEqual gte = new GreaterThanOrEqual(
+            Source.EMPTY,
+            new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.name")),
+            Literal.keyword(Source.EMPTY, "node-a")
+        );
+
+        Query query = gte.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+
+        assertThat(
+            query,
+            equalTo(
+                new SingleValueQuery(new RangeQuery(Source.EMPTY, keyedName, "node-a", true, null, false, null, null), keyedName, false)
+            )
+        );
+    }
+
+    /**
+     * The translated query for {@code field_extract(...) < "hi"} is a {@code RangeQuery} with the
+     * literal on the upper side, exclusive, and a {@code null} lower side. The mapper expands
+     * the open lower into the {@code key\0} sentinel so the lower bound matches the smallest
+     * term for this key on the data node.
+     */
+    public void testLessThanAsQueryProducesUpperOnlyExclusiveRangeQuery() {
+        assumeQueryPushdownEnabled();
+        String keyedName = "resource.attributes.host.name";
+        LessThan lt = new LessThan(
+            Source.EMPTY,
+            new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.name")),
+            Literal.keyword(Source.EMPTY, "node-z")
+        );
+
+        Query query = lt.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+
+        assertThat(
+            query,
+            equalTo(
+                new SingleValueQuery(new RangeQuery(Source.EMPTY, keyedName, null, false, "node-z", false, null, null), keyedName, false)
+            )
+        );
+    }
+
+    /**
+     * Same shape as {@link #testLessThanAsQueryProducesUpperOnlyExclusiveRangeQuery} but with
+     * an inclusive upper bound. The {@code includeUpper=true} flag must reach the produced
+     * {@code RangeQuery} unchanged.
+     */
+    public void testLessThanOrEqualAsQueryProducesUpperOnlyInclusiveRangeQuery() {
+        assumeQueryPushdownEnabled();
+        String keyedName = "resource.attributes.host.name";
+        LessThanOrEqual lte = new LessThanOrEqual(
+            Source.EMPTY,
+            new FieldExtract(Source.EMPTY, flattenedField(FLATTENED_ROOT_NAME), Literal.keyword(Source.EMPTY, "host.name")),
+            Literal.keyword(Source.EMPTY, "node-z")
+        );
+
+        Query query = lte.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+
+        assertThat(
+            query,
+            equalTo(
+                new SingleValueQuery(new RangeQuery(Source.EMPTY, keyedName, null, false, "node-z", true, null, null), keyedName, false)
+            )
+        );
+    }
+
+    /**
+     * Pushdown of range comparators against a regular {@link FieldAttribute} LHS must still
+     * produce the original single-sided {@code RangeQuery} shape, with no {@code SingleValueQuery}
+     * wrapper coming from the {@code field_extract} path. This guards the {@code FieldExtract}
+     * branch from accidentally swallowing the {@code FieldAttribute} case.
+     */
+    public void testGreaterThanAsQueryAgainstFieldAttributeUsesAttributeRangeQuery() {
+        FieldAttribute keyword = new FieldAttribute(
+            Source.EMPTY,
+            "host.name",
+            new EsField("host.name", DataType.KEYWORD, Collections.emptyMap(), true, EsField.TimeSeriesFieldType.NONE)
+        );
+        GreaterThan gt = new GreaterThan(Source.EMPTY, keyword, Literal.keyword(Source.EMPTY, "node-a"));
+
+        Query query = gt.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
+
+        // The {@code FieldAttribute} branch keeps the keyword literal as a {@link BytesRef}, while
+        // the {@code FieldExtract} branch unwraps it to a {@code String} to match the keyed
+        // sub-field's {@code String}-typed bound representation. Use the same {@code BytesRef}
+        // here so {@code RangeQuery.equals} (which compares with {@code Objects.equals}) passes.
+        assertThat(query, equalTo(new RangeQuery(Source.EMPTY, "host.name", new BytesRef("node-a"), false, null, false, null, null)));
     }
 
     public void testInTranslatableYesForFieldExtractOnFlattened() {

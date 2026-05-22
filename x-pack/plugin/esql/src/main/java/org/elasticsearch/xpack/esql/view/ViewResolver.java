@@ -795,25 +795,21 @@ public class ViewResolver {
         return false;
     }
 
-    /**
-     * Returns true if any pattern is a project-wildcard exclusion (shape {@code -<alias>:*}) that resolves to the origin
-     * project. The origin is matched by either the special {@code _origin} alias or by simple-pattern match against the
-     * origin project's actual alias (e.g. {@code -origin_proj:*}, {@code -orig*:*}, {@code -*:*}).
-     */
     private static boolean containsOriginProjectWildcardExclusion(String[] patterns, @Nullable String originProjectAlias) {
+        if (originProjectAlias == null) {
+            return false;
+        }
         for (String pattern : patterns) {
-            // shape: -<alias>:* — at minimum 4 chars (e.g. "-x:*")
-            if (pattern.length() < 4 || pattern.charAt(0) != '-' || pattern.endsWith(":*") == false) {
+            if (pattern.isEmpty() || pattern.charAt(0) != '-') {
                 continue;
             }
-            String aliasPart = pattern.substring(1, pattern.length() - 2);
-            if (aliasPart.isEmpty()) {
+            String[] split = RemoteClusterAware.splitIndexName(pattern.substring(1));
+            String alias = split[0];
+            String index = split[1];
+            if (alias == null || "*".equals(index) == false) {
                 continue;
             }
-            if (ProjectRoutingResolver.ORIGIN.equals(aliasPart)) {
-                return true;
-            }
-            if (originProjectAlias != null && Regex.simpleMatch(aliasPart, originProjectAlias)) {
+            if (ProjectRoutingResolver.ORIGIN.equals(alias) || Regex.simpleMatch(alias, originProjectAlias)) {
                 return true;
             }
         }

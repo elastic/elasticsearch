@@ -315,9 +315,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessMergeIT
   method: testOnlyForceMergesAreAllowedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/147880
-- class: org.elasticsearch.reindex.management.ReindexCancelIT
-  method: testCancellingChildTaskRejected
-  issue: https://github.com/elastic/elasticsearch/issues/147925
 - class: org.elasticsearch.xpack.sql.qa.single_node.RestSqlIT
   method: testNextPageText
   issue: https://github.com/elastic/elasticsearch/issues/147950
@@ -576,3 +573,6 @@ tests:
 - class: org.elasticsearch.index.reindex.ResumeBulkByScrollRequestWireSerializingTests
   method: testEqualsAndHashcode
   issue: https://github.com/elastic/elasticsearch/issues/149721
+- class: org.elasticsearch.indices.memory.breaker.AccountableQueryCircuitBreakerIT
+  method: testRegexpQueryMemoryReleased
+  issue: https://github.com/elastic/elasticsearch/issues/149727

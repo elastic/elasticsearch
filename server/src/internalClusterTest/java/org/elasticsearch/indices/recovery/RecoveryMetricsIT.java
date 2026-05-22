@@ -126,7 +126,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             List<Measurement> queuedPeerRecoveries = sourceTelemetry.getLongUpDownCounterMeasurement(
                 RecoveryMetricsCollector.QUEUED_OUTGOING_PEER_RECOVERIES_METRIC
             );
-            assertThat("Queued peer recoveries measurements on source during recovery", activePeerRecoveries, hasSize(1));
+            assertThat("Queued peer recoveries measurements on source during recovery", queuedPeerRecoveries, hasSize(1));
             assertThat("Queued peer recoveries count on source during recovery", queuedPeerRecoveries.getFirst().getLong(), equalTo(1L));
 
             continueRecovery.countDown();

@@ -1,0 +1,134 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.allocation;
+
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.cluster.routing.allocation.TestRoutingAllocationFactory;
+import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.shard.ShardId;
+
+import java.util.HashSet;
+
+import static org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED;
+import static org.hamcrest.Matchers.equalTo;
+
+public class DisableSimulationRebalancingDeciderTests extends ESAllocationTestCase {
+
+    // During reconciliation (not simulating), rebalancing is always allowed regardless of setting
+    public void testReconciliationAlwaysAllows_settingAlways() {
+        var decider = createDecider(randomFrom(DisableSimulationRebalancingDecider.RebalancingEnabled.values()));
+        assertCanRebalance(decider, reconciliationAllocation(), indexOnlyShard(), Decision.Type.YES);
+        assertCanRebalance(decider, reconciliationAllocation(), searchOnlyShard(), Decision.Type.YES);
+    }
+
+    // During simulation, ALWAYS setting permits all rebalancing
+    public void testSimulation_always_allowsBothTiers() {
+        var decider = createDecider(DisableSimulationRebalancingDecider.RebalancingEnabled.ALWAYS);
+        assertCanRebalance(decider, simulatingAllocation(), indexOnlyShard(), Decision.Type.YES);
+        assertCanRebalance(decider, simulatingAllocation(), searchOnlyShard(), Decision.Type.YES);
+    }
+
+    // During simulation, INDEXING_TIER_ONLY permits index shards, blocks search shards
+    public void testSimulation_indexingTierOnly_allowsIndexBlocksSearch() {
+        var decider = createDecider(DisableSimulationRebalancingDecider.RebalancingEnabled.INDEXING_TIER_ONLY);
+        assertCanRebalance(decider, simulatingAllocation(), indexOnlyShard(), Decision.Type.YES);
+        assertCanRebalance(decider, simulatingAllocation(), searchOnlyShard(), Decision.Type.NO);
+    }
+
+    // During simulation, SEARCH_TIER_ONLY permits search shards, blocks index shards
+    public void testSimulation_searchTierOnly_allowsSearchBlocksIndex() {
+        var decider = createDecider(DisableSimulationRebalancingDecider.RebalancingEnabled.SEARCH_TIER_ONLY);
+        assertCanRebalance(decider, simulatingAllocation(), indexOnlyShard(), Decision.Type.NO);
+        assertCanRebalance(decider, simulatingAllocation(), searchOnlyShard(), Decision.Type.YES);
+    }
+
+    // During simulation, NEVER blocks all rebalancing
+    public void testSimulation_never_blocksAllTiers() {
+        var decider = createDecider(DisableSimulationRebalancingDecider.RebalancingEnabled.NEVER);
+        assertCanRebalance(decider, simulatingAllocation(), indexOnlyShard(), Decision.Type.NO);
+        assertCanRebalance(decider, simulatingAllocation(), searchOnlyShard(), Decision.Type.NO);
+    }
+
+    // Dynamic setting update takes effect immediately
+    public void testDynamicSettingUpdate() {
+        var settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingsSet.add(SIMULATION_REBALANCING_ENABLED);
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
+        var decider = new DisableSimulationRebalancingDecider(clusterSettings);
+
+        // Initially ALWAYS (default)
+        assertCanRebalance(decider, simulatingAllocation(), searchOnlyShard(), Decision.Type.YES);
+
+        // Update to NEVER
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(SIMULATION_REBALANCING_ENABLED.getKey(), DisableSimulationRebalancingDecider.RebalancingEnabled.NEVER)
+                .build()
+        );
+        assertCanRebalance(decider, simulatingAllocation(), searchOnlyShard(), Decision.Type.NO);
+
+        // Update back to ALWAYS
+        clusterSettings.applySettings(
+            Settings.builder()
+                .put(SIMULATION_REBALANCING_ENABLED.getKey(), DisableSimulationRebalancingDecider.RebalancingEnabled.ALWAYS)
+                .build()
+        );
+        assertCanRebalance(decider, simulatingAllocation(), searchOnlyShard(), Decision.Type.YES);
+    }
+
+    private static DisableSimulationRebalancingDecider createDecider(DisableSimulationRebalancingDecider.RebalancingEnabled setting) {
+        var settings = Settings.builder().put(SIMULATION_REBALANCING_ENABLED.getKey(), setting.name()).build();
+        var settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        settingsSet.add(SIMULATION_REBALANCING_ENABLED);
+        return new DisableSimulationRebalancingDecider(new ClusterSettings(settings, settingsSet));
+    }
+
+    private static RoutingAllocation reconciliationAllocation() {
+        return TestRoutingAllocationFactory.forClusterState(ClusterState.EMPTY_STATE).mutable();
+    }
+
+    private static RoutingAllocation simulatingAllocation() {
+        return TestRoutingAllocationFactory.forClusterState(ClusterState.EMPTY_STATE).mutable().mutableCloneForSimulation();
+    }
+
+    private static ShardRouting indexOnlyShard() {
+        return TestShardRouting.newShardRouting(
+            new ShardId("test", "_na_", 0),
+            "node-1",
+            true,
+            ShardRoutingState.STARTED,
+            ShardRouting.Role.INDEX_ONLY
+        );
+    }
+
+    private static ShardRouting searchOnlyShard() {
+        return TestShardRouting.newShardRouting(
+            new ShardId("test", "_na_", 0),
+            "node-1",
+            false,
+            ShardRoutingState.STARTED,
+            ShardRouting.Role.SEARCH_ONLY
+        );
+    }
+
+    private static void assertCanRebalance(
+        DisableSimulationRebalancingDecider decider,
+        RoutingAllocation allocation,
+        ShardRouting shard,
+        Decision.Type expected
+    ) {
+        assertThat(decider.canRebalance(shard, allocation).type(), equalTo(expected));
+    }
+}

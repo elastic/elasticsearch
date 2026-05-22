@@ -23,6 +23,7 @@ import org.apache.orc.TypeDescription;
 import org.apache.orc.Writer;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
+import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -67,25 +68,20 @@ public final class OrcFixtureGenerator {
             if (Files.exists(sourcePath) == false) {
                 throw new IOException("Source CSV not found: " + sourcePath);
             }
-            if (numParts < 1) {
-                throw new IllegalArgumentException("num-parts must be >= 1, got " + numParts);
-            }
             Files.createDirectories(outputDir);
             CsvFixtureParser.CsvFixtureResult result = CsvFixtureParser.parseCsvFile(sourcePath);
             int total = result.rows().size();
-            int partSize = (total + numParts - 1) / numParts;
             String baseName = sourcePath.getFileName().toString().replaceFirst("\\.csv$", "");
             for (int part = 0; part < numParts; part++) {
-                int from = part * partSize;
-                int to = Math.min(from + partSize, total);
-                if (from >= total) {
+                SplitPartitioner.Range range = SplitPartitioner.partitionRange(total, numParts, part);
+                if (range == null) {
                     break;
                 }
                 String fileName = String.format(Locale.ROOT, "%s_%02d.orc", baseName, part);
                 java.nio.file.Path outputPath = outputDir.resolve(fileName);
                 Files.deleteIfExists(outputPath);
-                generateFromRows(result, from, to, outputPath);
-                System.out.println("Generated ORC split fixture: " + outputPath + " (rows " + from + "-" + to + ")");
+                generateFromRows(result, range.from(), range.to(), outputPath);
+                System.out.println("Generated ORC split fixture: " + outputPath + " (rows " + range.from() + "-" + range.to() + ")");
             }
         } else {
             System.err.println("Usage: OrcFixtureGenerator <source-csv-path> <output-orc-path>");

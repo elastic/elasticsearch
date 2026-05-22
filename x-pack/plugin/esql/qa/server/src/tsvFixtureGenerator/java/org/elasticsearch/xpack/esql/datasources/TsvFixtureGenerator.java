@@ -11,6 +11,7 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.ColumnSpec;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser.CsvFixtureResult;
+import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -58,25 +59,20 @@ public final class TsvFixtureGenerator {
             if (Files.exists(sourcePath) == false) {
                 throw new IOException("Source CSV not found: " + sourcePath);
             }
-            if (numParts < 1) {
-                throw new IllegalArgumentException("num-parts must be >= 1, got " + numParts);
-            }
             Files.createDirectories(outputDir);
             CsvFixtureResult parsed = CsvFixtureParser.parseCsvFile(sourcePath);
             int total = parsed.rows().size();
-            int partSize = (total + numParts - 1) / numParts;
             String baseName = sourcePath.getFileName().toString().replaceFirst("\\.csv$", "");
             for (int part = 0; part < numParts; part++) {
-                int from = part * partSize;
-                int to = Math.min(from + partSize, total);
-                if (from >= total) {
+                SplitPartitioner.Range range = SplitPartitioner.partitionRange(total, numParts, part);
+                if (range == null) {
                     break;
                 }
                 String fileName = String.format(Locale.ROOT, "%s_%02d.tsv", baseName, part);
                 Path outputPath = outputDir.resolve(fileName);
-                byte[] tsv = generateFromRows(parsed, from, to);
+                byte[] tsv = generateFromRows(parsed, range.from(), range.to());
                 Files.write(outputPath, tsv);
-                System.out.println("Generated TSV split fixture: " + outputPath + " (rows " + from + "-" + to + ")");
+                System.out.println("Generated TSV split fixture: " + outputPath + " (rows " + range.from() + "-" + range.to() + ")");
             }
         } else {
             System.err.println("Usage: TsvFixtureGenerator <source-csv-path> <output-tsv-path>");

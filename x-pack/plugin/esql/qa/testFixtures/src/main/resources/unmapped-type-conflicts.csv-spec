@@ -2333,6 +2333,279 @@ sample_data                           | 5033755.0
 sample_data                           | 8268153.0
 ;
 
+################################################################
+# Timeseries with mapped, unmapped, and partially mapped fields #
+################################################################
+
+typeConflictLongUnmappedTimeseriesCastToLong
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| WHERE cluster == "qa"
+| EVAL bytes = network.bytes_in::long
+| STATS min_b = MIN(bytes), max_b = MAX(bytes), c = COUNT(bytes) BY _index
+| SORT _index
+;
+
+min_b:long | max_b:long | c:long | _index:keyword
+1          | 1021       | 82     | k8s
+1          | 1021       | 82     | k8s_unmapped
+;
+
+typeConflictLongUnmappedTimeseriesCastToKeyword
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| WHERE network.bytes_in::long > 1000
+| EVAL bytes = network.bytes_in::keyword
+| KEEP _index, bytes
+| SORT bytes, _index
+;
+
+_index:keyword | bytes:keyword
+k8s            | 1005
+k8s_unmapped   | 1005
+k8s            | 1006
+k8s_unmapped   | 1006
+k8s            | 1007
+k8s_unmapped   | 1007
+k8s            | 1009
+k8s_unmapped   | 1009
+k8s            | 1018
+k8s_unmapped   | 1018
+k8s            | 1021
+k8s_unmapped   | 1021
+;
+
+typeConflictDoubleUnmappedTimeseriesWhereWithCastToDouble
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| WHERE network.cost::double > 12.0
+| EVAL cost = network.cost::keyword
+| KEEP _index, cost
+| SORT _index, cost
+;
+
+_index:keyword | cost:keyword
+k8s            | 12.125
+k8s            | 12.125
+k8s            | 12.125
+k8s            | 12.125
+k8s            | 12.25
+k8s            | 12.375
+k8s            | 12.375
+k8s            | 12.375
+k8s            | 12.5
+k8s_unmapped   | 12.125
+k8s_unmapped   | 12.125
+k8s_unmapped   | 12.125
+k8s_unmapped   | 12.125
+k8s_unmapped   | 12.25
+k8s_unmapped   | 12.375
+k8s_unmapped   | 12.375
+k8s_unmapped   | 12.375
+k8s_unmapped   | 12.5
+;
+
+typeConflictLongUnmappedTimeseriesStats
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| STATS s = SUM(network.bytes_in::long), c = COUNT(network.bytes_in::long) BY _index
+| SORT _index
+;
+
+s:long | c:long | _index:keyword
+98808  | 200    | k8s
+98808  | 200    | k8s_unmapped
+;
+
+typeConflictDoubleUnmappedTimeseriesStats
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| STATS avg_cost = AVG(network.cost::double), c = COUNT(network.cost::double) BY _index
+| SORT _index
+;
+
+avg_cost:double | c:long | _index:keyword
+6.423125        | 200    | k8s
+6.423125        | 200    | k8s_unmapped
+;
+
+typeConflictLongUnmappedTimeseriesSortWithCast
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| SORT network.bytes_in::long DESC, _index
+| KEEP _index, network.bytes_in
+| LIMIT 10
+;
+
+_index:keyword | network.bytes_in:long
+k8s            | 1021
+k8s_unmapped   | null
+k8s            | 1018
+k8s_unmapped   | null
+k8s            | 1009
+k8s_unmapped   | null
+k8s            | 1007
+k8s_unmapped   | null
+k8s            | 1006
+k8s_unmapped   | null
+;
+
+typeConflictLongUnmappedTimeseriesChainedCast
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_unmapped METADATA _index
+| WHERE cluster == "qa"
+| EVAL bytes = network.bytes_in::long::keyword
+| STATS min_b = MIN(bytes), max_b = MAX(bytes), c = COUNT(bytes) BY _index
+| SORT _index
+;
+
+min_b:keyword | max_b:keyword | c:long | _index:keyword
+1             | 995           | 82     | k8s
+1             | 995           | 82     | k8s_unmapped
+;
+
+typeConflictLongUnmappedTimeseriesTsCommandStats
+required_capability: optional_fields_v5
+required_capability: ts_command_v0
+
+SET unmapped_fields="load"\;
+TS k8s, k8s_unmapped METADATA _index
+| STATS s = SUM(network.bytes_in::long), c = COUNT(network.bytes_in::long) BY _index
+| SORT _index
+;
+
+s:long | c:long | _index:keyword
+4852   | 9      | k8s
+4852   | 9      | k8s_unmapped
+;
+
+// region is keyword, mapped in k8s but unmapped in k8s_unmapped.
+// As a PotentiallyUnmappedKeywordEsField, it is loaded from _source for k8s_unmapped.
+tsPartiallyMappedKeywordField
+required_capability: optional_fields_v5
+required_capability: ts_command_v0
+
+SET unmapped_fields="load"\;
+TS k8s, k8s_unmapped METADATA _index
+| STATS r = min(max_over_time(region)) BY time_bucket = bucket(@timestamp, 1minute), _index
+| SORT time_bucket, _index
+| LIMIT 10
+;
+
+r:keyword | time_bucket:datetime     | _index:keyword
+us        | 2024-05-10T00:00:00.000Z | k8s
+us        | 2024-05-10T00:00:00.000Z | k8s_unmapped
+us        | 2024-05-10T00:01:00.000Z | k8s
+us        | 2024-05-10T00:01:00.000Z | k8s_unmapped
+us        | 2024-05-10T00:02:00.000Z | k8s
+us        | 2024-05-10T00:02:00.000Z | k8s_unmapped
+us        | 2024-05-10T00:03:00.000Z | k8s
+us        | 2024-05-10T00:03:00.000Z | k8s_unmapped
+us        | 2024-05-10T00:04:00.000Z | k8s
+us        | 2024-05-10T00:04:00.000Z | k8s_unmapped
+;
+
+// network.bytes_in is long, mapped in k8s but unmapped in k8s_unmapped.
+// Cast to long to resolve it via MultiTypeEsField.
+tsPartiallyMappedNonKeywordFieldWithCast
+required_capability: optional_fields_v5
+required_capability: ts_command_v0
+
+SET unmapped_fields="load"\;
+TS k8s, k8s_unmapped METADATA _index
+| WHERE pod == "one"
+| STATS tx = sum(max_over_time(network.bytes_in :: long)) BY cluster, time_bucket = bucket(@timestamp, 10minute), _index
+| SORT time_bucket, cluster, _index
+| LIMIT 20
+;
+
+tx:long | cluster:keyword | time_bucket:datetime     | _index:keyword
+970     | prod            | 2024-05-10T00:00:00.000Z | k8s
+970     | prod            | 2024-05-10T00:00:00.000Z | k8s_unmapped
+842     | qa              | 2024-05-10T00:00:00.000Z | k8s
+842     | qa              | 2024-05-10T00:00:00.000Z | k8s_unmapped
+753     | staging         | 2024-05-10T00:00:00.000Z | k8s
+753     | staging         | 2024-05-10T00:00:00.000Z | k8s_unmapped
+990     | prod            | 2024-05-10T00:10:00.000Z | k8s
+990     | prod            | 2024-05-10T00:10:00.000Z | k8s_unmapped
+1006    | qa              | 2024-05-10T00:10:00.000Z | k8s
+1006    | qa              | 2024-05-10T00:10:00.000Z | k8s_unmapped
+947     | staging         | 2024-05-10T00:10:00.000Z | k8s
+947     | staging         | 2024-05-10T00:10:00.000Z | k8s_unmapped
+953     | prod            | 2024-05-10T00:20:00.000Z | k8s
+953     | prod            | 2024-05-10T00:20:00.000Z | k8s_unmapped
+917     | qa              | 2024-05-10T00:20:00.000Z | k8s
+917     | qa              | 2024-05-10T00:20:00.000Z | k8s_unmapped
+749     | staging         | 2024-05-10T00:20:00.000Z | k8s
+749     | staging         | 2024-05-10T00:20:00.000Z | k8s_unmapped
+;
+
+###############################################
+# Timeseries with 2x mapped + unmapped fields #
+###############################################
+
+typeConflictLongDoubleUnmappedTimeseriesStats
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_double_bytes_in, k8s_unmapped METADATA _index
+| STATS s = SUM(network.bytes_in::double), c = COUNT(network.bytes_in::double) BY _index
+| SORT _index
+;
+
+s:double | c:long | _index:keyword
+98808.0  | 200    | k8s
+98808.0  | 200    | k8s_double_bytes_in
+98808.0  | 200    | k8s_unmapped
+;
+
+typeConflictLongDoubleUnmappedTimeseriesCastToKeyword
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s, k8s_double_bytes_in, k8s_unmapped METADATA _index
+| WHERE cluster == "qa"
+| EVAL bytes = network.bytes_in::keyword
+| STATS c = COUNT(bytes) BY _index
+| SORT _index
+;
+
+c:long | _index:keyword
+82     | k8s
+82     | k8s_double_bytes_in
+82     | k8s_unmapped
+;
+
+typeConflictDateDateNanosUnmappedTimeseriesStats
+required_capability: optional_fields_v5
+
+SET unmapped_fields="load"\;
+FROM k8s, datenanos-k8s, no_mapping_sample_data METADATA _index
+| EVAL ts = @timestamp::date
+| STATS c = COUNT(ts) BY _index
+| SORT _index
+;
+
+c:long | _index:keyword
+200    | datenanos-k8s
+200    | k8s
+7      | no_mapping_sample_data
+;
+
 ############################################
 # Deeply nested partially unmapped fields  #
 ############################################
@@ -2460,69 +2733,4 @@ addresses_no_continent   | North America
 addresses_text           | Asia
 addresses_text           | Europe
 addresses_text           | North America
-;
-
-############################
-# TS with partially mapped #
-############################
-
-// region is keyword, mapped in k8s but unmapped in k8s_unmapped.
-// As a PotentiallyUnmappedKeywordEsField, it is loaded from _source for k8s_unmapped.
-tsPartiallyMappedKeywordField
-required_capability: optional_fields_v5
-required_capability: ts_command_v0
-
-SET unmapped_fields="load"\;
-TS k8s, k8s_unmapped METADATA _index
-| STATS r = min(max_over_time(region)) BY time_bucket = bucket(@timestamp, 1minute), _index
-| SORT time_bucket, _index
-| LIMIT 10
-;
-
-r:keyword | time_bucket:datetime     | _index:keyword
-us        | 2024-05-10T00:00:00.000Z | k8s
-us        | 2024-05-10T00:00:00.000Z | k8s_unmapped
-us        | 2024-05-10T00:01:00.000Z | k8s
-us        | 2024-05-10T00:01:00.000Z | k8s_unmapped
-us        | 2024-05-10T00:02:00.000Z | k8s
-us        | 2024-05-10T00:02:00.000Z | k8s_unmapped
-us        | 2024-05-10T00:03:00.000Z | k8s
-us        | 2024-05-10T00:03:00.000Z | k8s_unmapped
-us        | 2024-05-10T00:04:00.000Z | k8s
-us        | 2024-05-10T00:04:00.000Z | k8s_unmapped
-;
-
-// network.bytes_in is long, mapped in k8s but unmapped in k8s_unmapped.
-// Cast to long to resolve it via MultiTypeEsField.
-tsPartiallyMappedNonKeywordFieldWithCast
-required_capability: optional_fields_v5
-required_capability: ts_command_v0
-
-SET unmapped_fields="load"\;
-TS k8s, k8s_unmapped METADATA _index
-| WHERE pod == "one"
-| STATS tx = sum(max_over_time(network.bytes_in :: long)) BY cluster, time_bucket = bucket(@timestamp, 10minute), _index
-| SORT time_bucket, cluster, _index
-| LIMIT 20
-;
-
-tx:long | cluster:keyword | time_bucket:datetime     | _index:keyword
-970     | prod            | 2024-05-10T00:00:00.000Z | k8s
-970     | prod            | 2024-05-10T00:00:00.000Z | k8s_unmapped
-842     | qa              | 2024-05-10T00:00:00.000Z | k8s
-842     | qa              | 2024-05-10T00:00:00.000Z | k8s_unmapped
-753     | staging         | 2024-05-10T00:00:00.000Z | k8s
-753     | staging         | 2024-05-10T00:00:00.000Z | k8s_unmapped
-990     | prod            | 2024-05-10T00:10:00.000Z | k8s
-990     | prod            | 2024-05-10T00:10:00.000Z | k8s_unmapped
-1006    | qa              | 2024-05-10T00:10:00.000Z | k8s
-1006    | qa              | 2024-05-10T00:10:00.000Z | k8s_unmapped
-947     | staging         | 2024-05-10T00:10:00.000Z | k8s
-947     | staging         | 2024-05-10T00:10:00.000Z | k8s_unmapped
-953     | prod            | 2024-05-10T00:20:00.000Z | k8s
-953     | prod            | 2024-05-10T00:20:00.000Z | k8s_unmapped
-917     | qa              | 2024-05-10T00:20:00.000Z | k8s
-917     | qa              | 2024-05-10T00:20:00.000Z | k8s_unmapped
-749     | staging         | 2024-05-10T00:20:00.000Z | k8s
-749     | staging         | 2024-05-10T00:20:00.000Z | k8s_unmapped
 ;

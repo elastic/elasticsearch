@@ -11,9 +11,11 @@ package org.elasticsearch.reindex;
 
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.UpdateByQueryRequest;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.transport.TransportService;
 
@@ -25,7 +27,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActionScriptTestCase<
+public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByPaginatedSearchActionScriptTestCase<
     UpdateByQueryRequest,
     BulkByScrollResponse> {
 
@@ -58,6 +60,10 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
 
+        CircuitBreakerService circuitBreakerService = mock(CircuitBreakerService.class);
+        when(circuitBreakerService.getBreaker(org.elasticsearch.common.breaker.CircuitBreaker.REQUEST)).thenReturn(
+            new NoopCircuitBreaker("test")
+        );
         TransportUpdateByQueryAction transportAction = new TransportUpdateByQueryAction(
             threadPool,
             new ActionFilters(Collections.emptySet()),
@@ -65,7 +71,10 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
             transportService,
             scriptService,
             clusterService,
-            null
+            null,
+            null,
+            new ReindexSettings(),
+            circuitBreakerService
         );
         return new TransportUpdateByQueryAction.AsyncIndexBySearchAction(
             task,
@@ -75,7 +84,10 @@ public class UpdateByQueryWithScriptTests extends AbstractAsyncBulkByScrollActio
             scriptService,
             request,
             listener(),
-            randomPositiveTimeValue()
+            randomPositiveTimeValue(),
+            null,
+            new ReindexSettings(),
+            new NoopCircuitBreaker("test")
         );
     }
 }

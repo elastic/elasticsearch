@@ -95,11 +95,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         this.refCounted = refCounted;
     }
 
-    public static SearchHits unpooled(SearchHit[] hits, @Nullable TotalHits totalHits, float maxScore) {
-        return unpooled(hits, totalHits, maxScore, null, null, null);
-    }
-
-    public static SearchHits unpooled(
+    private static SearchHits unpooled(
         SearchHit[] hits,
         @Nullable TotalHits totalHits,
         float maxScore,
@@ -118,7 +114,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         return true;
     }
 
-    public static SearchHits readFrom(StreamInput in, boolean pooled) throws IOException {
+    public static SearchHits readFrom(StreamInput in) throws IOException {
         final TotalHits totalHits;
         if (in.readBoolean()) {
             totalHits = Lucene.readTotalHits(in);
@@ -135,7 +131,7 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
         } else {
             hits = new SearchHit[size];
             for (int i = 0; i < hits.length; i++) {
-                var hit = SearchHit.readFrom(in, pooled);
+                var hit = SearchHit.readFrom(in);
                 hits[i] = hit;
                 isPooled = isPooled || hit.isPooled();
             }
@@ -277,18 +273,6 @@ public final class SearchHits implements Writeable, ChunkedToXContent, RefCounte
     @Override
     public boolean hasReferences() {
         return refCounted.hasReferences();
-    }
-
-    public SearchHits asUnpooled() {
-        assert hasReferences();
-        if (refCounted == ALWAYS_REFERENCED) {
-            return this;
-        }
-        final SearchHit[] unpooledHits = new SearchHit[hits.length];
-        for (int i = 0; i < hits.length; i++) {
-            unpooledHits[i] = hits[i].asUnpooled();
-        }
-        return unpooled(unpooledHits, totalHits, maxScore, sortFields, collapseField, collapseValues);
     }
 
     public static final class Fields {

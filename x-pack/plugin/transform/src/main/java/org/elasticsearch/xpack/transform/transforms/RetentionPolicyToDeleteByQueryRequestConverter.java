@@ -11,7 +11,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.RetentionPolicyConfig;
@@ -74,8 +74,8 @@ public final class RetentionPolicyToDeleteByQueryRequestConverter {
          * - batch size: don't use max page size search, dbq should be simple
          * - refresh: we call refresh separately, after DBQ is executed because refresh should be executed with system permissions
          */
-        request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
-            .setBatchSize(AbstractBulkByScrollRequest.DEFAULT_SCROLL_SIZE)
+        request.setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES)
+            .setBatchSize(AbstractBulkByPaginatedSearchRequest.DEFAULT_SCROLL_SIZE)
             // this should not happen, but still go over version conflicts and report later
             .setAbortOnVersionConflict(false)
             // use transforms retry mechanics instead

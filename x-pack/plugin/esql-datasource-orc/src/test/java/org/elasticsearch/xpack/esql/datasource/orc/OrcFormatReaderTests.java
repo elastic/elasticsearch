@@ -41,9 +41,11 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader.SplitRange;
+import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -66,6 +68,7 @@ public class OrcFormatReaderTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
+        OrcStorageObjectAdapter.clearCacheForTests();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
     }
 
@@ -79,6 +82,11 @@ public class OrcFormatReaderTests extends ESTestCase {
         List<String> extensions = reader.fileExtensions();
         assertEquals(1, extensions.size());
         assertTrue(extensions.contains(".orc"));
+    }
+
+    public void testDoesNotSupportWholeFileCompression() {
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        assertFalse("ORC requires random access and cannot be wrapped in a whole-file compressor", reader.supportsWholeFileCompression());
     }
 
     public void testReadSchemaFromSimpleOrc() throws Exception {
@@ -120,6 +128,39 @@ public class OrcFormatReaderTests extends ESTestCase {
 
         assertEquals("active", attributes.get(3).name());
         assertEquals(DataType.BOOLEAN, attributes.get(3).dataType());
+    }
+
+    /**
+     * Regression: every attribute produced from an ORC schema must be {@link Nullability#TRUE} regardless of the column shape.
+     * ORC's {@code TypeDescription} encodes no non-null guarantee at the schema level — per-file non-null observations live
+     * only in footer statistics — so defaulting attributes to non-nullable would cause planner rules (e.g. {@code COALESCE}
+     * simplification, {@code IS NULL}/{@code IS NOT NULL} rewriting) to drop legitimate null rows. The schema below covers
+     * every branch of {@code convertOrcTypeToEsql}, including the {@code UNSUPPORTED} fallback (binary).
+     */
+    public void testSchemaAttributesAreAlwaysNullable() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("age", TypeDescription.createInt())
+            .addField("name", TypeDescription.createString())
+            .addField("score", TypeDescription.createDouble())
+            .addField("ratio", TypeDescription.createFloat())
+            .addField("active", TypeDescription.createBoolean())
+            .addField("created", TypeDescription.createTimestamp())
+            .addField("created_utc", TypeDescription.createTimestampInstant())
+            .addField("birth", TypeDescription.createDate())
+            .addField("price", TypeDescription.createDecimal().withPrecision(10).withScale(2))
+            .addField("payload", TypeDescription.createBinary())
+            .addField("tags", TypeDescription.createList(TypeDescription.createString()));
+
+        byte[] orcData = createOrcFile(schema, batch -> { batch.size = 0; });
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        List<Attribute> attributes = reader.metadata(storageObject).schema();
+        assertEquals(schema.getFieldNames().size(), attributes.size());
+        for (Attribute attr : attributes) {
+            assertEquals("attribute [" + attr.name() + "] should be nullable", Nullability.TRUE, attr.nullable());
+        }
     }
 
     public void testReadDataFromSimpleOrc() throws Exception {
@@ -974,7 +1015,25 @@ public class OrcFormatReaderTests extends ESTestCase {
         StorageObject storageObject = createStorageObject(orcData);
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
         List<SplitRange> ranges = reader.discoverSplitRanges(storageObject);
-        assertEquals("Single-stripe file should return empty list", 0, ranges.size());
+        assertEquals("Single-stripe file should return one range with stats", 1, ranges.size());
+        SplitRange range = ranges.getFirst();
+        assertTrue("Range offset must be non-negative", range.offset() >= 0);
+        assertTrue("Range length must be positive", range.length() > 0);
+        assertNotNull("Statistics should be present", range.statistics());
+        assertEquals(3L, range.statistics().get("_stats.row_count"));
+        assertEquals(0L, range.statistics().get("_stats.columns.id.null_count"));
+        assertNotNull("Column min should be present", range.statistics().get("_stats.columns.id.min"));
+        assertNotNull("Column max should be present", range.statistics().get("_stats.columns.id.max"));
+    }
+
+    public void testDiscoverSplitRanges_emptyFile() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct().addField("id", TypeDescription.createLong());
+        byte[] orcData = createOrcFile(schema, batch -> batch.size = 0);
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        List<SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("Empty file (no stripes) should return empty ranges", ranges.isEmpty());
     }
 
     public void testDiscoverSplitRanges_multiStripeFile() throws Exception {
@@ -1165,12 +1224,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> iter = reader.readRange(
                 object,
-                projection,
-                1024,
-                range.offset(),
-                range.offset() + range.length(),
-                List.of(),
-                null
+                new RangeReadContext(projection, 1024, range.offset(), range.offset() + range.length(), List.of(), null)
             )
         ) {
             assertTrue(iter.hasNext());
@@ -1185,12 +1239,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> iter = reader.readRange(
                 object,
-                null,
-                1024,
-                range.offset(),
-                range.offset() + range.length(),
-                List.of(),
-                null
+                new RangeReadContext(null, 1024, range.offset(), range.offset() + range.length(), List.of(), null)
             )
         ) {
             while (iter.hasNext()) {
@@ -1211,12 +1260,7 @@ public class OrcFormatReaderTests extends ESTestCase {
         try (
             CloseableIterator<Page> iter = reader.readRange(
                 object,
-                null,
-                1024,
-                range.offset(),
-                range.offset() + range.length(),
-                List.of(),
-                null
+                new RangeReadContext(null, 1024, range.offset(), range.offset() + range.length(), List.of(), null)
             )
         ) {
             while (iter.hasNext()) {

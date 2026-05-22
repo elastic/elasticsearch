@@ -1,0 +1,49 @@
+/*
+ * Shared Gradle snippet for generating compressed Parquet fixtures.
+ * Applied by QA build.gradle files that need codec-specific fixture generation.
+ *
+ * Required ext properties (must be set before applying):
+ *   - parquetFixtureOutputDir: base output directory for fixtures
+ *   - csvToParquetFixtures: list of CSV base names to convert
+ *   - testFixturesDataDir: directory containing source CSV files
+ *   - serverProject: reference to the esql:qa:server project
+ *   - generateParquetTasks: list to which generated task providers are appended
+ *   - testFixturesProject: reference to the esql:qa:testFixtures project
+ */
+
+def compressedCodecs = [
+  [name: 'snappy',  codec: 'SNAPPY'],
+  [name: 'gzip',    codec: 'GZIP'],
+  [name: 'zstd',    codec: 'ZSTD'],
+  [name: 'lz4raw',  codec: 'LZ4_RAW'],
+]
+
+def serverProj = ext.serverProject
+def testFixturesProj = ext.testFixturesProject
+def fixtureOutputDir = ext.parquetFixtureOutputDir
+def fixturesDataDir = ext.testFixturesDataDir
+def csvFixtures = ext.csvToParquetFixtures
+def parquetTasks = ext.generateParquetTasks
+
+compressedCodecs.each { entry ->
+  def codecName = entry.name
+  def codecArg = entry.codec
+  def codecFixtureDir = file("${fixtureOutputDir}/standalone-${codecName}")
+
+  csvFixtures.each { baseName ->
+    def taskName = "generateParquet_${baseName}_${codecName}"
+    def csvInput = new File(fixturesDataDir, "${baseName}.csv")
+    def parquetFile = file("${codecFixtureDir}/${baseName}.parquet")
+    tasks.register(taskName, JavaExec) {
+      dependsOn serverProj.tasks.named('compileParquetFixtureGeneratorJava'), 'syncIcebergFixtures'
+      dependsOn testFixturesProj.tasks.named('processResources')
+      classpath = serverProj.configurations.parquetFixtureGenerator + serverProj.sourceSets.parquetFixtureGenerator.output
+      mainClass = 'org.elasticsearch.xpack.esql.datasources.ParquetFixtureGenerator'
+      args = [csvInput.path, parquetFile.path, codecArg]
+      inputs.file(csvInput)
+      outputs.file(parquetFile)
+      systemProperty 'slf4j.provider', 'org.slf4j.nop.NOPServiceProvider'
+    }
+    parquetTasks.add(tasks.named(taskName))
+  }
+}

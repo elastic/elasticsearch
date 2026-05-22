@@ -106,6 +106,13 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        // Every test in this class writes to the same in-memory path ("memory://correctness_test.parquet")
+        // with a different file body. The JVM-wide FooterByteCache is keyed by (path, length) and would
+        // otherwise serve the previous test's footer when the new file happens to land on the same byte
+        // length (which testRandomSchema's seeded combinations occasionally do). Clear it before each
+        // test so every iteration reads its own footer. Other tests in this package that reuse a single
+        // path follow the same pattern (see OptimizedReaderFileVariantTests).
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
     }
 
     // --- Explicit V1/V2 x compression matrix ---
@@ -122,6 +129,18 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_1_0, CompressionCodecName.ZSTD);
     }
 
+    public void testV1Gzip() throws IOException {
+        assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_1_0, CompressionCodecName.GZIP);
+    }
+
+    public void testV1Lz4Raw() throws IOException {
+        assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_1_0, CompressionCodecName.LZ4_RAW);
+    }
+
+    public void testV1Lz4HadoopFramed() throws IOException {
+        assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_1_0, CompressionCodecName.LZ4);
+    }
+
     public void testV2Uncompressed() throws IOException {
         assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.UNCOMPRESSED);
     }
@@ -132,6 +151,151 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
 
     public void testV2Zstd() throws IOException {
         assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.ZSTD);
+    }
+
+    public void testV2Gzip() throws IOException {
+        assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.GZIP);
+    }
+
+    public void testV2Lz4Raw() throws IOException {
+        assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.LZ4_RAW);
+    }
+
+    public void testV2Lz4HadoopFramed() throws IOException {
+        assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.LZ4);
+    }
+
+    // --- filterBlock tests ---
+
+    public void testFilterBlockLong() {
+        long[] values = { 10, 20, 30, 40, 50 };
+        Block source = blockFactory.newLongArrayVector(values, values.length).asBlock();
+        int[] positions = { 1, 3 };
+        Block result = PageColumnReader.filterBlock(source, positions, positions.length, blockFactory);
+        try {
+            assertEquals(2, result.getPositionCount());
+            LongBlock lb = (LongBlock) result;
+            assertEquals(20L, lb.getLong(0));
+            assertEquals(40L, lb.getLong(1));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testFilterBlockInt() {
+        int[] values = { 1, 2, 3, 4 };
+        Block source = blockFactory.newIntArrayVector(values, values.length).asBlock();
+        int[] positions = { 0, 2, 3 };
+        Block result = PageColumnReader.filterBlock(source, positions, positions.length, blockFactory);
+        try {
+            assertEquals(3, result.getPositionCount());
+            IntBlock ib = (IntBlock) result;
+            assertEquals(1, ib.getInt(0));
+            assertEquals(3, ib.getInt(1));
+            assertEquals(4, ib.getInt(2));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testFilterBlockDouble() {
+        double[] values = { 1.1, 2.2, 3.3, 4.4 };
+        Block source = blockFactory.newDoubleArrayVector(values, values.length).asBlock();
+        int[] positions = { 0, 3 };
+        Block result = PageColumnReader.filterBlock(source, positions, positions.length, blockFactory);
+        try {
+            assertEquals(2, result.getPositionCount());
+            DoubleBlock db = (DoubleBlock) result;
+            assertEquals(1.1, db.getDouble(0), 0.0);
+            assertEquals(4.4, db.getDouble(1), 0.0);
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testFilterBlockBoolean() {
+        boolean[] values = { true, false, true, false, true };
+        Block source = blockFactory.newBooleanArrayVector(values, values.length).asBlock();
+        int[] positions = { 1, 2, 4 };
+        Block result = PageColumnReader.filterBlock(source, positions, positions.length, blockFactory);
+        try {
+            assertEquals(3, result.getPositionCount());
+            BooleanBlock bb = (BooleanBlock) result;
+            assertFalse(bb.getBoolean(0));
+            assertTrue(bb.getBoolean(1));
+            assertTrue(bb.getBoolean(2));
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testFilterBlockBytesRef() {
+        try (var builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendBytesRef(new BytesRef("alpha"));
+            builder.appendBytesRef(new BytesRef("beta"));
+            builder.appendBytesRef(new BytesRef("gamma"));
+            builder.appendBytesRef(new BytesRef("delta"));
+            Block source = builder.build();
+            int[] positions = { 1, 3 };
+            Block result = PageColumnReader.filterBlock(source, positions, positions.length, blockFactory);
+            try {
+                assertEquals(2, result.getPositionCount());
+                BytesRefBlock brb = (BytesRefBlock) result;
+                assertEquals(new BytesRef("beta"), brb.getBytesRef(0, new BytesRef()));
+                assertEquals(new BytesRef("delta"), brb.getBytesRef(1, new BytesRef()));
+            } finally {
+                result.close();
+            }
+        }
+    }
+
+    public void testFilterBlockWithNulls() {
+        try (var builder = blockFactory.newLongBlockBuilder(5)) {
+            builder.appendLong(10);
+            builder.appendNull();
+            builder.appendLong(30);
+            builder.appendNull();
+            builder.appendLong(50);
+            Block source = builder.build();
+            int[] positions = { 0, 1, 3 };
+            Block result = PageColumnReader.filterBlock(source, positions, positions.length, blockFactory);
+            try {
+                assertEquals(3, result.getPositionCount());
+                assertFalse(result.isNull(0));
+                assertTrue(result.isNull(1));
+                assertTrue(result.isNull(2));
+                LongBlock lb = (LongBlock) result;
+                assertEquals(10L, lb.getLong(0));
+            } finally {
+                result.close();
+            }
+        }
+    }
+
+    public void testFilterBlockAllPositions() {
+        long[] values = { 10, 20, 30 };
+        Block source = blockFactory.newLongArrayVector(values, values.length).asBlock();
+        int[] positions = { 0, 1, 2 };
+        Block result = PageColumnReader.filterBlock(source, positions, positions.length, blockFactory);
+        try {
+            // when all positions are selected, filterBlock returns the source directly
+            assertSame(source, result);
+            assertEquals(3, result.getPositionCount());
+        } finally {
+            result.close();
+        }
+    }
+
+    public void testFilterBlockNoPositions() {
+        long[] values = { 10, 20, 30 };
+        Block source = blockFactory.newLongArrayVector(values, values.length).asBlock();
+        int[] positions = {};
+        Block result = PageColumnReader.filterBlock(source, positions, 0, blockFactory);
+        try {
+            assertEquals(0, result.getPositionCount());
+        } finally {
+            result.close();
+        }
     }
 
     private void assertReadersMatch(ParquetProperties.WriterVersion version, CompressionCodecName codec) throws IOException {
@@ -165,7 +329,14 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
             ParquetProperties.WriterVersion.PARQUET_1_0,
             ParquetProperties.WriterVersion.PARQUET_2_0
         );
-        CompressionCodecName codec = randomFrom(CompressionCodecName.UNCOMPRESSED, CompressionCodecName.SNAPPY, CompressionCodecName.ZSTD);
+        CompressionCodecName codec = randomFrom(
+            CompressionCodecName.UNCOMPRESSED,
+            CompressionCodecName.SNAPPY,
+            CompressionCodecName.ZSTD,
+            CompressionCodecName.GZIP,
+            CompressionCodecName.LZ4_RAW,
+            CompressionCodecName.LZ4
+        );
 
         byte[] data = writeTestFile(version, codec, schema, numRows, (group, row) -> {
             for (ColSpec spec : specs) {
@@ -324,7 +495,7 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
                 .withConf(new PlainParquetConfiguration())
-                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withCodecFactory(LegacyLz4HadoopFramedCodecFactory.forCodec(codec))
                 .withType(schema)
                 .withWriterVersion(version)
                 .withCompressionCodec(codec)

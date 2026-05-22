@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
 import org.elasticsearch.xpack.core.security.authz.AuthorizedProjectsResolver;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.privilege.ImplicitPrivilegesProvider;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 
 import java.util.Collections;
@@ -156,5 +157,22 @@ public interface SecurityExtension {
 
     default AuthorizedProjectsResolver getAuthorizedProjectsResolver(SecurityComponents components) {
         return null;
+    }
+
+    /**
+     * Returns providers of implicit index privileges derived from application privileges.
+     * These providers are invoked during role building to inject additional index-level
+     * privileges that are not explicitly declared in the role definition.
+     * <p>
+     * Exceptions thrown by a provider are not caught — they propagate out of role building
+     * and fail authorization for the affected user. See {@link ImplicitPrivilegesProvider}
+     * for the implementation contract.
+     * <p>
+     * By default, an empty list is returned.
+     *
+     * @param components Access to components that may be used to build providers
+     */
+    default List<ImplicitPrivilegesProvider> getImplicitPrivilegesProviders(SecurityComponents components) {
+        return Collections.emptyList();
     }
 }

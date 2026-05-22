@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 148414
+pr: 148716
+summary: Normalize `_timeseries` to JSON for stored source
+type: bug

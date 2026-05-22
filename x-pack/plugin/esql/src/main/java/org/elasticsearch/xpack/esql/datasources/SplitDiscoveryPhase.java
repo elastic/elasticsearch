@@ -22,10 +22,8 @@ import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.splitAnd;
 
@@ -99,20 +97,23 @@ public final class SplitDiscoveryPhase {
         FileList fileList = exec.fileList();
         PartitionMetadata partitionInfo = fileList != null ? fileList.partitionMetadata() : null;
 
-        Set<String> projectedDataColumns = new LinkedHashSet<>();
+        List<Attribute> queryDataAttributes = new ArrayList<>(exec.output().size());
         for (Attribute attr : exec.output()) {
             if (attr instanceof MetadataAttribute == false) {
-                projectedDataColumns.add(attr.name());
+                queryDataAttributes.add(attr);
             }
         }
+        ExternalSchema querySchema = new ExternalSchema(queryDataAttributes);
 
         SplitDiscoveryContext context = new SplitDiscoveryContext(
             null,
             fileList != null ? fileList : FileList.UNRESOLVED,
+            exec.schemaMap(),
             exec.config(),
             partitionInfo,
             ancestorFilters,
-            projectedDataColumns
+            querySchema,
+            exec.unifiedSchema()
         );
 
         List<ExternalSplit> splits;

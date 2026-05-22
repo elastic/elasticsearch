@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.analysis.Analyzer;
+import org.apache.lucene.analysis.standard.StandardAnalyzer;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.memory.MemoryIndex;
 import org.apache.lucene.search.IndexSearcher;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -104,6 +106,11 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     private static final String PRE_TAG = "pre_tag";
     private static final String POST_TAG = "post_tag";
     private static final String ENCODER = "encoder";
+    private static final String HTML_ENCODER = "html";
+    private static final String ORDER = "order";
+    private static final String DOC_ORDER = "none";
+    private static final String SCORE_ORDER = "score";
+    private static final String ANALYZER = "analyzer";
 
     static final String DEFAULT_PRE_TAG = "<em>";
     static final String DEFAULT_POST_TAG = "</em>";
@@ -115,7 +122,9 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         entry(HIGHLIGHT, DataType.BOOLEAN),
         entry(PRE_TAG, DataType.KEYWORD),
         entry(POST_TAG, DataType.KEYWORD),
-        entry(ENCODER, DataType.KEYWORD)
+        entry(ENCODER, DataType.KEYWORD),
+        entry(ORDER, DataType.KEYWORD),
+        entry(ANALYZER, DataType.KEYWORD)
     );
 
     @FunctionInfo(
@@ -134,7 +143,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                 This examples demonstrates how to use `TOP_SNIPPETS` with `RERANK`. By returning a fixed number of snippets with a limited
                 size, we have more control over the number of tokens that are used for semantic reranking.
                 """),
-            @Example(file = "top-snippets", tag = "top-snippets-with-highlighting", applies_to = "stack: preview 9.4.1", explanation = """
+            @Example(file = "top-snippets", tag = "top-snippets-with-highlighting", applies_to = "stack: preview 9.5.0", explanation = """
                 Enable highlighting by setting `highlight` to `true` in the options. This wraps matched query terms in the
                 returned snippets with `<em>` tags by default. To use different tags, set the `pre_tag` and `post_tag` options
                 to the desired opening and closing tags respectively.
@@ -142,7 +151,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             @Example(
                 file = "top-snippets",
                 tag = "top-snippets-num-words-zero-highlight",
-                applies_to = "stack: preview 9.4.1",
+                applies_to = "stack: preview 9.5.0",
                 explanation = """
                     Set `num_words` to 0 to disable chunking entirely. This keeps the input field values as-is,
                     which is useful when the text has already been chunked. Combine this with `highlight` set to
@@ -152,7 +161,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             @Example(
                 file = "top-snippets",
                 tag = "top-snippets-num-words-zero-highlight-preceding-chunk",
-                applies_to = "stack: preview 9.4.1",
+                applies_to = "stack: preview 9.5.0",
                 explanation = """
                         This is another example of setting `num_words` to 0, this time applied to an input that has
                         already been chunked with the `CHUNK` command. The markdown text is chunked by sections first, and
@@ -197,19 +206,27 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                 @MapParam.MapParamEntry(name = "highlight", type = "boolean", description = """
                     When true, wraps matched query terms in the returned snippets with markup tags.
                     Defaults to false.
-                    """, valueHint = { "true" }, applies_to = "stack: preview 9.4.1"),
+                    """, valueHint = { "true" }, applies_to = "stack: preview 9.5.0"),
                 @MapParam.MapParamEntry(name = "pre_tag", type = "keyword", description = """
                     Opening tag for highlighted terms. Only applies when highlight is true.
                     Defaults to `<em>`.
-                    """, valueHint = { "<em>" }, applies_to = "stack: preview 9.4.1"),
+                    """, valueHint = { "<em>" }, applies_to = "stack: preview 9.5.0"),
                 @MapParam.MapParamEntry(name = "post_tag", type = "keyword", description = """
                     Closing tag for highlighted terms. Only applies when highlight is true.
                     Defaults to `</em>`.
-                    """, valueHint = { "</em>" }, applies_to = "stack: preview 9.4.1"),
+                    """, valueHint = { "</em>" }, applies_to = "stack: preview 9.5.0"),
                 @MapParam.MapParamEntry(name = "encoder", type = "keyword", description = """
                     Controls HTML encoding of snippet text before tagging: `default` (no encoding) or `html`.
                     Only applies when highlight is true. Defaults to `default`.
-                    """, valueHint = { "default" }, applies_to = "stack: preview 9.4.1") }
+                    """, valueHint = { "default" }, applies_to = "stack: preview 9.5.0"),
+                @MapParam.MapParamEntry(name = "order", type = "keyword", description = """
+                    Order of returned snippets: `score` (default, by relevance) or `none` (original text order).
+                    """, valueHint = { "score", "none" }, applies_to = "stack: preview 9.5.0"),
+                @MapParam.MapParamEntry(name = "analyzer", type = "keyword", description = """
+                    Name of the analyzer to use for scoring and highlighting. When omitted, defaults to the standard
+                    analyzer. The name must match a registered analyzer (prebuilt or plugin-contributed), such as
+                    `standard`, `whitespace`, `simple`, `keyword`, `english`, `french`, `german`, `spanish`, etc.
+                    """, valueHint = { "english" }, applies_to = "stack: preview 9.5.0") }
         ) Expression options
     ) {
         super(source, options == null ? List.of(field, query) : List.of(field, query, options));
@@ -287,7 +304,16 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         validateOptionValueIsPositiveInteger(options, NUM_SNIPPETS);
         validateOptionValueIsNonNegativeInteger(options, NUM_WORDS);
         validateEncoder(options);
+        validateOrder(options);
+        validateAnalyzer(options);
         validateHighlightOnlyOptions(options);
+    }
+
+    private static void validateOrder(Map<String, Object> options) {
+        Object value = options.get(ORDER);
+        if (value != null && SCORE_ORDER.equals(value) == false && DOC_ORDER.equals(value) == false) {
+            throw new InvalidArgumentException("'{}' option must be '{}' or '{}', found [{}]", ORDER, SCORE_ORDER, DOC_ORDER, value);
+        }
     }
 
     private static void validateOptionValueIsPositiveInteger(Map<String, Object> options, String paramName) {
@@ -306,8 +332,25 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     private static void validateEncoder(Map<String, Object> options) {
         Object value = options.get(ENCODER);
-        if (value != null && "default".equals(value) == false && "html".equals(value) == false) {
-            throw new InvalidArgumentException("'{}' option must be 'default' or 'html', found [{}]", ENCODER, value);
+        if (value != null && DEFAULT_ENCODER.equals(value) == false && HTML_ENCODER.equals(value) == false) {
+            throw new InvalidArgumentException(
+                "'{}' option must be '{}' or '{}', found [{}]",
+                ENCODER,
+                DEFAULT_ENCODER,
+                HTML_ENCODER,
+                value
+            );
+        }
+    }
+
+    private static void validateAnalyzer(Map<String, Object> options) {
+        Object value = options.get(ANALYZER);
+        if (value == null) {
+            return;
+        }
+        String name = (String) value;
+        if (name.isBlank()) {
+            throw new InvalidArgumentException("'{}' option must be a non-empty string", ANALYZER);
         }
     }
 
@@ -328,7 +371,18 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
     @Override
     public boolean foldable() {
-        return field().foldable() && query().foldable() && (options() == null || options().foldable());
+        if (field().foldable() == false || query().foldable() == false) {
+            return false;
+        }
+        if (options() == null) {
+            return true;
+        }
+        // Folding builds a synthetic ToEvaluator with no AnalysisRegistry, so we can only fold
+        // when 'analyzer' isn't requested. All option entries must be foldable so toEvaluator
+        // can read them at fold time.
+        return options() instanceof MapExpression map
+            && map.containsKey(ANALYZER) == false
+            && map.children().stream().allMatch(Expression::foldable);
     }
 
     @Override
@@ -380,6 +434,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
         @Fixed ChunkingSettings chunkingSettings,
         @Fixed MemoryIndexChunkScorer scorer,
         @Fixed int numSnippets,
+        @Fixed boolean docOrder,
         @Fixed(includeInToString = false) PassageFormatter highlightFormatter
     ) {
         if (queryString == null) {
@@ -408,6 +463,9 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
 
         Query luceneQuery = scorer.buildQuery(queryString);
         List<ScoredChunk> topChunks = scorer.scoreChunks(allChunks, luceneQuery, numSnippets, false);
+        if (docOrder) {
+            topChunks = topChunks.stream().sorted(Comparator.comparingInt(ScoredChunk::originalIndex)).toList();
+        }
         if (topChunks.isEmpty()) {
             builder.appendNull();
             return;
@@ -481,27 +539,33 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         int numSnippets;
         int numWords;
+        boolean docOrder;
         PassageFormatter highlightFormatter = null;
+        String analyzerName = null;
         if (options != null) {
             Map<String, Object> opts = new HashMap<>();
             Options.populateMap((MapExpression) options, opts, source(), THIRD, ALLOWED_OPTIONS);
             numSnippets = numSnippets(opts);
             numWords = numWords(opts);
+            docOrder = DOC_ORDER.equals(opts.get(ORDER));
+            analyzerName = (String) opts.get(ANALYZER);
             if (Boolean.TRUE.equals(opts.get(HIGHLIGHT))) {
                 String preTag = (String) opts.getOrDefault(PRE_TAG, DEFAULT_PRE_TAG);
                 String postTag = (String) opts.getOrDefault(POST_TAG, DEFAULT_POST_TAG);
                 String encoderType = (String) opts.getOrDefault(ENCODER, DEFAULT_ENCODER);
-                Encoder encoder = "html".equals(encoderType) ? new SimpleHTMLEncoder() : new DefaultEncoder();
+                Encoder encoder = HTML_ENCODER.equals(encoderType) ? new SimpleHTMLEncoder() : new DefaultEncoder();
                 highlightFormatter = new CustomPassageFormatter(preTag, postTag, encoder, 0);
             }
         } else {
             numSnippets = DEFAULT_NUM_SNIPPETS;
             numWords = DEFAULT_WORD_SIZE;
+            docOrder = false;
         }
 
         ChunkingSettings chunkingSettings = numWords > 0 ? new SentenceBoundaryChunkingSettings(numWords, 0) : null;
 
-        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer();
+        Analyzer resolvedAnalyzer = analyzerName == null ? new StandardAnalyzer() : toEvaluator.getAnalyzer(analyzerName);
+        MemoryIndexChunkScorer scorer = new MemoryIndexChunkScorer(resolvedAnalyzer);
 
         Object foldedQuery = query.fold(toEvaluator.foldCtx());
         // at this point this should only return null if we have List<BytesRef> which we handle in process
@@ -514,6 +578,7 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
             chunkingSettings,
             scorer,
             numSnippets,
+            docOrder,
             highlightFormatter
         );
     }

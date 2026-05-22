@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.cohere.embeddings;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -15,32 +16,30 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettingsTests;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
-import java.net.URI;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_API_VERSION;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializingTestCase<CohereEmbeddingsServiceSettings> {
-    private static final String TEST_URL = "https://www.test.com";
-    private static final String INITIAL_TEST_URL = "https://www.initial-test.com";
-
+public class CohereEmbeddingsServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereEmbeddingsServiceSettings> {
     private static final String TEST_MODEL_ID = "test-model-id";
     private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
 
@@ -63,23 +62,28 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     private static final RateLimitSettings DEFAULT_COHERE_EMBEDDINGS_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
     public static CohereEmbeddingsServiceSettings createRandom() {
-        var commonSettings = CohereServiceSettingsTests.createRandom();
+        SimilarityMeasure similarityMeasure = randomBoolean() ? null : randomFrom(SimilarityMeasure.values());
+        Integer dimensions = randomBoolean() ? null : randomIntBetween(1, 2048);
+        Integer maxInputTokens = randomBoolean() ? null : randomIntBetween(128, 256);
+        var modelId = randomAlphaOfLengthOrNull(15);
+        var rateLimitSettings = RateLimitSettingsTests.createRandom();
+        var apiVersion = randomFrom(CohereCommonServiceSettings.CohereApiVersion.values());
+        var commonSettings = new CohereCommonServiceSettings(modelId, rateLimitSettings, apiVersion);
         var embeddingType = randomFrom(CohereEmbeddingType.values());
 
-        return new CohereEmbeddingsServiceSettings(commonSettings, embeddingType);
+        return new CohereEmbeddingsServiceSettings(commonSettings, similarityMeasure, dimensions, maxInputTokens, embeddingType);
     }
 
     public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
         var originalServiceSettings = new CohereEmbeddingsServiceSettings(
-            new CohereServiceSettings(
-                INITIAL_TEST_URL,
-                INITIAL_TEST_SIMILARITY_MEASURE,
-                INITIAL_TEST_DIMENSIONS,
-                INITIAL_TEST_MAX_INPUT_TOKENS,
+            new CohereCommonServiceSettings(
                 INITIAL_TEST_MODEL_ID,
                 new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
-                CohereServiceSettings.CohereApiVersion.V1
+                CohereCommonServiceSettings.CohereApiVersion.V1
             ),
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
             INITIAL_TEST_EMBEDDING_TYPE
         );
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
@@ -87,7 +91,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                 TEST_MODEL_ID,
                 TEST_LEGACY_MODEL_ID,
                 TEST_EMBEDDING_TYPE.toString(),
-                CohereServiceSettings.CohereApiVersion.V2
+                CohereCommonServiceSettings.CohereApiVersion.V2
             )
         );
 
@@ -95,15 +99,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             updatedServiceSettings,
             is(
                 new CohereEmbeddingsServiceSettings(
-                    new CohereServiceSettings(
-                        INITIAL_TEST_URL,
-                        INITIAL_TEST_SIMILARITY_MEASURE,
-                        INITIAL_TEST_DIMENSIONS,
-                        TEST_MAX_INPUT_TOKENS,
+                    new CohereCommonServiceSettings(
                         INITIAL_TEST_MODEL_ID,
                         new RateLimitSettings(TEST_RATE_LIMIT),
-                        CohereServiceSettings.CohereApiVersion.V1
+                        CohereCommonServiceSettings.CohereApiVersion.V1
                     ),
+                    INITIAL_TEST_SIMILARITY_MEASURE,
+                    INITIAL_TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
                     INITIAL_TEST_EMBEDDING_TYPE
                 )
             )
@@ -112,15 +115,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
         var originalServiceSettings = new CohereEmbeddingsServiceSettings(
-            new CohereServiceSettings(
-                INITIAL_TEST_URL,
-                INITIAL_TEST_SIMILARITY_MEASURE,
-                INITIAL_TEST_DIMENSIONS,
-                INITIAL_TEST_MAX_INPUT_TOKENS,
+            new CohereCommonServiceSettings(
                 INITIAL_TEST_MODEL_ID,
                 new RateLimitSettings(INITIAL_TEST_RATE_LIMIT),
-                CohereServiceSettings.CohereApiVersion.V1
+                CohereCommonServiceSettings.CohereApiVersion.V1
             ),
+            INITIAL_TEST_SIMILARITY_MEASURE,
+            INITIAL_TEST_DIMENSIONS,
+            INITIAL_TEST_MAX_INPUT_TOKENS,
             INITIAL_TEST_EMBEDDING_TYPE
         );
         var serviceSettings = originalServiceSettings.updateServiceSettings(new HashMap<>());
@@ -135,15 +137,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new CohereEmbeddingsServiceSettings(
-                    new CohereServiceSettings(
-                        (URI) null,
-                        null,
-                        null,
-                        null,
+                    new CohereCommonServiceSettings(
                         null,
                         DEFAULT_COHERE_EMBEDDINGS_RATE_LIMIT_SETTINGS,
-                        CohereServiceSettings.CohereApiVersion.V1
+                        CohereCommonServiceSettings.CohereApiVersion.V1
                     ),
+                    null,
+                    null,
+                    null,
                     CohereEmbeddingType.FLOAT
                 )
             )
@@ -157,7 +158,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             null,
             ConfigurationParseContext.REQUEST,
             TEST_MODEL_ID,
-            CohereServiceSettings.CohereApiVersion.V2
+            CohereCommonServiceSettings.CohereApiVersion.V2
         );
     }
 
@@ -168,7 +169,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             null,
             ConfigurationParseContext.PERSISTENT,
             TEST_MODEL_ID,
-            CohereServiceSettings.CohereApiVersion.V1
+            CohereCommonServiceSettings.CohereApiVersion.V1
         );
     }
 
@@ -176,10 +177,10 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         assertFromMap_CreatesSettingsCorrectly(
             TEST_MODEL_ID,
             null,
-            CohereServiceSettings.CohereApiVersion.V2,
+            CohereCommonServiceSettings.CohereApiVersion.V2,
             randomFrom(ConfigurationParseContext.values()),
             TEST_MODEL_ID,
-            CohereServiceSettings.CohereApiVersion.V2
+            CohereCommonServiceSettings.CohereApiVersion.V2
         );
     }
 
@@ -190,7 +191,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             null,
             ConfigurationParseContext.REQUEST,
             TEST_LEGACY_MODEL_ID,
-            CohereServiceSettings.CohereApiVersion.V2
+            CohereCommonServiceSettings.CohereApiVersion.V2
         );
     }
 
@@ -201,7 +202,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             null,
             ConfigurationParseContext.PERSISTENT,
             TEST_LEGACY_MODEL_ID,
-            CohereServiceSettings.CohereApiVersion.V1
+            CohereCommonServiceSettings.CohereApiVersion.V1
         );
     }
 
@@ -209,10 +210,10 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         assertFromMap_CreatesSettingsCorrectly(
             null,
             TEST_LEGACY_MODEL_ID,
-            CohereServiceSettings.CohereApiVersion.V2,
+            CohereCommonServiceSettings.CohereApiVersion.V2,
             randomFrom(ConfigurationParseContext.values()),
             TEST_LEGACY_MODEL_ID,
-            CohereServiceSettings.CohereApiVersion.V2
+            CohereCommonServiceSettings.CohereApiVersion.V2
         );
     }
 
@@ -223,7 +224,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             null,
             ConfigurationParseContext.REQUEST,
             TEST_MODEL_ID,
-            CohereServiceSettings.CohereApiVersion.V2
+            CohereCommonServiceSettings.CohereApiVersion.V2
         );
     }
 
@@ -234,7 +235,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             null,
             ConfigurationParseContext.PERSISTENT,
             TEST_MODEL_ID,
-            CohereServiceSettings.CohereApiVersion.V1
+            CohereCommonServiceSettings.CohereApiVersion.V1
         );
     }
 
@@ -242,10 +243,10 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         assertFromMap_CreatesSettingsCorrectly(
             TEST_MODEL_ID,
             TEST_LEGACY_MODEL_ID,
-            CohereServiceSettings.CohereApiVersion.V2,
+            CohereCommonServiceSettings.CohereApiVersion.V2,
             ConfigurationParseContext.PERSISTENT,
             TEST_MODEL_ID,
-            CohereServiceSettings.CohereApiVersion.V2
+            CohereCommonServiceSettings.CohereApiVersion.V2
         );
     }
 
@@ -253,20 +254,20 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         assertFromMap_CreatesSettingsCorrectly(
             null,
             null,
-            CohereServiceSettings.CohereApiVersion.V1,
+            CohereCommonServiceSettings.CohereApiVersion.V1,
             ConfigurationParseContext.PERSISTENT,
             null,
-            CohereServiceSettings.CohereApiVersion.V1
+            CohereCommonServiceSettings.CohereApiVersion.V1
         );
     }
 
     private static void assertFromMap_CreatesSettingsCorrectly(
         String modelId,
         String legacyModelId,
-        CohereServiceSettings.CohereApiVersion apiVersion,
+        CohereCommonServiceSettings.CohereApiVersion apiVersion,
         ConfigurationParseContext context,
         String expectedModelId,
-        CohereServiceSettings.CohereApiVersion expectedApiVersion
+        CohereCommonServiceSettings.CohereApiVersion expectedApiVersion
     ) {
         var serviceSettings = CohereEmbeddingsServiceSettings.fromMap(
             buildServiceSettingsMap(modelId, legacyModelId, TEST_EMBEDDING_TYPE.toString(), apiVersion),
@@ -277,15 +278,10 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             serviceSettings,
             is(
                 new CohereEmbeddingsServiceSettings(
-                    new CohereServiceSettings(
-                        TEST_URL,
-                        TEST_SIMILARITY_MEASURE,
-                        TEST_DIMENSIONS,
-                        TEST_MAX_INPUT_TOKENS,
-                        expectedModelId,
-                        new RateLimitSettings(TEST_RATE_LIMIT),
-                        expectedApiVersion
-                    ),
+                    new CohereCommonServiceSettings(expectedModelId, new RateLimitSettings(TEST_RATE_LIMIT), expectedApiVersion),
+                    TEST_SIMILARITY_MEASURE,
+                    TEST_DIMENSIONS,
+                    TEST_MAX_INPUT_TOKENS,
                     TEST_EMBEDDING_TYPE
                 )
             )
@@ -293,15 +289,15 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
     }
 
     public void testFromMap_Request_V2_NoModelIdFields_ThrowsMissingModelIdError() {
-        assertFromMap_ThrowsMissingModelIdError(CohereServiceSettings.CohereApiVersion.V2, ConfigurationParseContext.REQUEST);
+        assertFromMap_ThrowsMissingModelIdError(CohereCommonServiceSettings.CohereApiVersion.V2, ConfigurationParseContext.REQUEST);
     }
 
     public void testFromMap_Persistent_V2_NoModelIdFields_ThrowsMissingModelIdError() {
-        assertFromMap_ThrowsMissingModelIdError(CohereServiceSettings.CohereApiVersion.V2, ConfigurationParseContext.PERSISTENT);
+        assertFromMap_ThrowsMissingModelIdError(CohereCommonServiceSettings.CohereApiVersion.V2, ConfigurationParseContext.PERSISTENT);
     }
 
     public void assertFromMap_ThrowsMissingModelIdError(
-        CohereServiceSettings.CohereApiVersion apiVersion,
+        CohereCommonServiceSettings.CohereApiVersion apiVersion,
         ConfigurationParseContext context
     ) {
         var thrownException = expectThrows(
@@ -389,7 +385,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             ),
             is(
                 new CohereEmbeddingsServiceSettings(
-                    new CohereServiceSettings(CohereServiceSettings.CohereApiVersion.V1),
+                    new CohereCommonServiceSettings(
+                        null,
+                        DEFAULT_COHERE_EMBEDDINGS_RATE_LIMIT_SETTINGS,
+                        CohereCommonServiceSettings.CohereApiVersion.V1
+                    ),
+                    null,
+                    null,
+                    null,
                     CohereEmbeddingType.BYTE
                 )
             )
@@ -404,7 +407,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             ),
             is(
                 new CohereEmbeddingsServiceSettings(
-                    new CohereServiceSettings(CohereServiceSettings.CohereApiVersion.V1),
+                    new CohereCommonServiceSettings(
+                        null,
+                        DEFAULT_COHERE_EMBEDDINGS_RATE_LIMIT_SETTINGS,
+                        CohereCommonServiceSettings.CohereApiVersion.V1
+                    ),
+                    null,
+                    null,
+                    null,
                     CohereEmbeddingType.FLOAT
                 )
             )
@@ -433,7 +443,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             ),
             is(
                 new CohereEmbeddingsServiceSettings(
-                    new CohereServiceSettings(CohereServiceSettings.CohereApiVersion.V1),
+                    new CohereCommonServiceSettings(
+                        null,
+                        DEFAULT_COHERE_EMBEDDINGS_RATE_LIMIT_SETTINGS,
+                        CohereCommonServiceSettings.CohereApiVersion.V1
+                    ),
+                    null,
+                    null,
+                    null,
                     CohereEmbeddingType.INT8
                 )
             )
@@ -450,15 +467,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             ),
             is(
                 new CohereEmbeddingsServiceSettings(
-                    new CohereServiceSettings(
-                        (String) null,
-                        null,
-                        null,
-                        null,
+                    new CohereCommonServiceSettings(
                         TEST_MODEL_ID,
-                        null,
-                        CohereServiceSettings.CohereApiVersion.V2
+                        DEFAULT_COHERE_EMBEDDINGS_RATE_LIMIT_SETTINGS,
+                        CohereCommonServiceSettings.CohereApiVersion.V2
                     ),
+                    null,
+                    null,
+                    null,
                     CohereEmbeddingType.BIT
                 )
             )
@@ -473,15 +489,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             ),
             is(
                 new CohereEmbeddingsServiceSettings(
-                    new CohereServiceSettings(
-                        (String) null,
-                        null,
-                        null,
-                        null,
+                    new CohereCommonServiceSettings(
                         TEST_MODEL_ID,
-                        null,
-                        CohereServiceSettings.CohereApiVersion.V2
+                        DEFAULT_COHERE_EMBEDDINGS_RATE_LIMIT_SETTINGS,
+                        CohereCommonServiceSettings.CohereApiVersion.V2
                     ),
+                    null,
+                    null,
+                    null,
                     CohereEmbeddingType.BINARY
                 )
             )
@@ -498,15 +513,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             ),
             is(
                 new CohereEmbeddingsServiceSettings(
-                    new CohereServiceSettings(
-                        (String) null,
-                        null,
-                        null,
-                        null,
+                    new CohereCommonServiceSettings(
                         TEST_MODEL_ID,
-                        null,
-                        CohereServiceSettings.CohereApiVersion.V2
+                        DEFAULT_COHERE_EMBEDDINGS_RATE_LIMIT_SETTINGS,
+                        CohereCommonServiceSettings.CohereApiVersion.V2
                     ),
+                    null,
+                    null,
+                    null,
                     CohereEmbeddingType.FLOAT
                 )
             )
@@ -525,15 +539,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = new CohereEmbeddingsServiceSettings(
-            new CohereServiceSettings(
-                TEST_URL,
-                TEST_SIMILARITY_MEASURE,
-                TEST_DIMENSIONS,
-                TEST_MAX_INPUT_TOKENS,
+            new CohereCommonServiceSettings(
                 TEST_MODEL_ID,
                 new RateLimitSettings(TEST_RATE_LIMIT),
-                CohereServiceSettings.CohereApiVersion.V2
+                CohereCommonServiceSettings.CohereApiVersion.V2
             ),
+            TEST_SIMILARITY_MEASURE,
+            TEST_DIMENSIONS,
+            TEST_MAX_INPUT_TOKENS,
             CohereEmbeddingType.INT8
         );
 
@@ -548,25 +561,23 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     Strings.format(
                         """
                             {
-                              "url": "%s",
-                              "similarity": "%s",
-                              "dimensions": %d,
-                              "max_input_tokens": %d,
                               "model_id": "%s",
                               "rate_limit": {
                                 "requests_per_minute": %d
                               },
                               "api_version": "%s",
+                              "similarity": "%s",
+                              "dimensions": %d,
+                              "max_input_tokens": %d,
                               "embedding_type": "%s"
                             }
                             """,
-                        TEST_URL,
+                        TEST_MODEL_ID,
+                        TEST_RATE_LIMIT,
+                        CohereCommonServiceSettings.CohereApiVersion.V2,
                         TEST_SIMILARITY_MEASURE,
                         TEST_DIMENSIONS,
                         TEST_MAX_INPUT_TOKENS,
-                        TEST_MODEL_ID,
-                        TEST_RATE_LIMIT,
-                        CohereServiceSettings.CohereApiVersion.V2,
                         DenseVectorFieldMapper.ElementType.BYTE
                     )
                 )
@@ -576,15 +587,14 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     public void testToXContentFragmentOfExposedFields_DoesNotWriteApiVersion() throws IOException {
         var serviceSettings = new CohereEmbeddingsServiceSettings(
-            new CohereServiceSettings(
-                TEST_URL,
-                TEST_SIMILARITY_MEASURE,
-                TEST_DIMENSIONS,
-                TEST_MAX_INPUT_TOKENS,
+            new CohereCommonServiceSettings(
                 TEST_MODEL_ID,
                 new RateLimitSettings(TEST_RATE_LIMIT),
-                CohereServiceSettings.CohereApiVersion.V2
+                CohereCommonServiceSettings.CohereApiVersion.V2
             ),
+            TEST_SIMILARITY_MEASURE,
+            TEST_DIMENSIONS,
+            TEST_MAX_INPUT_TOKENS,
             CohereEmbeddingType.INT8
         );
 
@@ -601,23 +611,21 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
                     Strings.format(
                         """
                             {
-                              "url": "%s",
-                              "similarity": "%s",
-                              "dimensions": %d,
-                              "max_input_tokens": %d,
                               "model_id": "%s",
                               "rate_limit": {
                                 "requests_per_minute": %d
                               },
+                              "similarity": "%s",
+                              "dimensions": %d,
+                              "max_input_tokens": %d,
                               "embedding_type": "%s"
                             }
                             """,
-                        TEST_URL,
+                        TEST_MODEL_ID,
+                        TEST_RATE_LIMIT,
                         TEST_SIMILARITY_MEASURE,
                         TEST_DIMENSIONS,
                         TEST_MAX_INPUT_TOKENS,
-                        TEST_MODEL_ID,
-                        TEST_RATE_LIMIT,
                         DenseVectorFieldMapper.ElementType.BYTE
                     )
                 )
@@ -637,19 +645,43 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
 
     @Override
     protected CohereEmbeddingsServiceSettings mutateInstance(CohereEmbeddingsServiceSettings instance) throws IOException {
-        if (randomBoolean()) {
-            CohereServiceSettings commonSettings = randomValueOtherThan(
-                instance.getCommonSettings(),
-                CohereServiceSettingsTests::createRandom
-            );
-            return new CohereEmbeddingsServiceSettings(commonSettings, instance.getEmbeddingType());
-        } else {
-            CohereEmbeddingType embeddingType = randomValueOtherThan(
-                instance.getEmbeddingType(),
-                () -> randomFrom(CohereEmbeddingType.values())
-            );
-            return new CohereEmbeddingsServiceSettings(instance.getCommonSettings(), embeddingType);
+        CohereCommonServiceSettings commonSettings = instance.getCommonSettings();
+        var similarity = instance.similarity();
+        var dimensions = instance.dimensions();
+        var maxInputTokens = instance.maxInputTokens();
+        var embeddingType = instance.embeddingType();
+
+        switch (randomInt(4)) {
+            case 0 -> commonSettings = randomValueOtherThan(instance.getCommonSettings(), CohereCommonServiceSettingsTests::createRandom);
+            case 1 -> similarity = randomValueOtherThan(similarity, () -> randomFrom(SimilarityMeasure.values()));
+            case 2 -> dimensions = randomValueOtherThan(instance.dimensions(), () -> randomIntBetween(1, 4096));
+            case 3 -> maxInputTokens = randomValueOtherThan(instance.maxInputTokens(), () -> randomIntBetween(128, 256));
+            case 4 -> embeddingType = randomValueOtherThan(instance.embeddingType(), () -> randomFrom(CohereEmbeddingType.values()));
+            default -> throw new AssertionError("Illegal randomisation branch");
         }
+
+        return new CohereEmbeddingsServiceSettings(commonSettings, similarity, dimensions, maxInputTokens, embeddingType);
+    }
+
+    @Override
+    protected CohereEmbeddingsServiceSettings mutateInstanceForVersion(CohereEmbeddingsServiceSettings instance, TransportVersion version) {
+        var embeddingType = CohereEmbeddingType.translateToVersion(instance.embeddingType(), version);
+
+        var commonSettings = instance.getCommonSettings();
+        if (version.supports(ML_INFERENCE_COHERE_API_VERSION) == false) {
+            commonSettings = new CohereCommonServiceSettings(
+                instance.getCommonSettings().modelId(),
+                instance.getCommonSettings().rateLimitSettings(),
+                CohereCommonServiceSettings.CohereApiVersion.V1
+            );
+        }
+        return new CohereEmbeddingsServiceSettings(
+            commonSettings,
+            instance.similarity(),
+            instance.dimensions(),
+            instance.maxInputTokens(),
+            embeddingType
+        );
     }
 
     @Override
@@ -664,10 +696,9 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         @Nullable String modelId,
         @Nullable String legacyModelId,
         @Nullable String embeddingType,
-        @Nullable CohereServiceSettings.CohereApiVersion apiVersion
+        @Nullable CohereCommonServiceSettings.CohereApiVersion apiVersion
     ) {
         var result = new HashMap<String, Object>();
-        result.put(ServiceFields.URL, TEST_URL);
         result.put(ServiceFields.SIMILARITY, CohereEmbeddingsServiceSettingsTests.TEST_SIMILARITY_MEASURE.toString());
         result.put(ServiceFields.DIMENSIONS, TEST_DIMENSIONS);
         result.put(ServiceFields.MAX_INPUT_TOKENS, TEST_MAX_INPUT_TOKENS);
@@ -675,13 +706,13 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
             result.put(ServiceFields.MODEL_ID, modelId);
         }
         if (legacyModelId != null) {
-            result.put(CohereServiceSettings.OLD_MODEL_ID_FIELD, legacyModelId);
+            result.put(CohereCommonServiceSettings.OLD_MODEL_ID_FIELD, legacyModelId);
         }
         if (embeddingType != null) {
             result.put(ServiceFields.EMBEDDING_TYPE, embeddingType);
         }
         if (apiVersion != null) {
-            result.put(CohereServiceSettings.API_VERSION, apiVersion.toString());
+            result.put(CohereCommonServiceSettings.API_VERSION, apiVersion.toString());
         }
         result.put(
             RateLimitSettings.FIELD_NAME,
@@ -690,8 +721,12 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractWireSerializin
         return result;
     }
 
-    public static Map<String, Object> getServiceSettingsMap(@Nullable String url, @Nullable String model, @Nullable Enum<?> embeddingType) {
-        var map = new HashMap<>(CohereServiceSettingsTests.getServiceSettingsMap(url, model));
+    public static Map<String, Object> getServiceSettingsMap(@Nullable String model, @Nullable Enum<?> embeddingType) {
+        var map = new HashMap<String, Object>();
+
+        if (model != null) {
+            map.put(CohereCommonServiceSettings.OLD_MODEL_ID_FIELD, model);
+        }
 
         if (embeddingType != null) {
             map.put(ServiceFields.EMBEDDING_TYPE, embeddingType.toString());

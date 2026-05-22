@@ -178,6 +178,11 @@ public interface NativeAccess {
     Optional<VectorSimilarityFunctions> getVectorSimilarityFunctions();
 
     /**
+     * Returns Parquet-rs native functions, or an empty optional if unavailable on this platform.
+     */
+    Optional<ParquetRsFunctions> getParquetRsFunctions();
+
+    /**
      * Creates a new {@link CloseableByteBuffer} using a shared arena. The buffer can be used
      * across multiple threads.
      * @param len the number of bytes the buffer should allocate

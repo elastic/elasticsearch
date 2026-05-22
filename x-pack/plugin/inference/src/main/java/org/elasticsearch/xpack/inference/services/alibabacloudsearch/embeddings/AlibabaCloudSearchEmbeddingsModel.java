@@ -46,7 +46,7 @@ public class AlibabaCloudSearchEmbeddingsModel extends AlibabaCloudSearchModel {
             AlibabaCloudSearchEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             AlibabaCloudSearchEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
@@ -70,7 +70,8 @@ public class AlibabaCloudSearchEmbeddingsModel extends AlibabaCloudSearchModel {
         super(
             modelConfigurations,
             modelSecrets,
-            ((AlibabaCloudSearchEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
+            ((AlibabaCloudSearchEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings(),
+            null
         );
     }
 

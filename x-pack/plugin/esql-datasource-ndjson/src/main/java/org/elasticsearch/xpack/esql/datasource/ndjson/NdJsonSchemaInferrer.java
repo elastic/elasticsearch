@@ -80,6 +80,11 @@ public class NdJsonSchemaInferrer {
                         break; // End of stream
                     }
                 } catch (JsonParseException e) {
+                    // Schema inference is a best-effort sampling pass: malformed lines here are
+                    // safe to skip because every such line will be re-encountered during the
+                    // actual slice read (see NdJsonPageIterator), where the configured
+                    // ErrorPolicy decides whether to log/fail. Logging at debug avoids noisy
+                    // duplicate reports of the same issue.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
@@ -90,6 +95,7 @@ public class NdJsonSchemaInferrer {
                     inferObjectSchema(parser, root);
                     lineCount++;
                 } catch (JsonParseException e) {
+                    // See comment above: deferred to the slice read for policy-driven handling.
                     logger.debug("Malformed NDJSON at line {}: {}", lineCount, e);
                     inputStream = NdJsonUtils.moveToNextLine(parser, inputStream);
                     parser = NdJsonUtils.JSON_FACTORY.createParser(inputStream);
@@ -177,6 +183,12 @@ public class NdJsonSchemaInferrer {
 
     /** Build the list of Attribute by recursively traversing the FieldInfo tree */
     private static void buildSchema(FieldInfo field, String parentName, List<Attribute> attributes) {
+        if (field.children == null) {
+            // No children were ever observed. Happens for the root when every sampled line was
+            // malformed (so {@link FieldInfo#getChild} was never called), or legitimately for
+            // leaf fields during recursion. Nothing to contribute to the schema either way.
+            return;
+        }
         for (Map.Entry<String, FieldInfo> entry : field.children.entrySet()) {
             // TODO: disallow dots in names (or replace them) as it may cause issues when decoding
             var name = entry.getKey();

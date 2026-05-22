@@ -1,0 +1,6 @@
+area: Aggregations
+issues:
+ - 92570
+pr: 147427
+summary: "Aggs: Fix auto_date_histogram/date_histogram inside a global agg"
+type: bug

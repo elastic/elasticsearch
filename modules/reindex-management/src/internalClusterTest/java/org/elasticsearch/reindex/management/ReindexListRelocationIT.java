@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.reindex.ReindexPlugin;
@@ -33,7 +32,6 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -64,11 +62,6 @@ public class ReindexListRelocationIT extends ESIntegTestCase {
     // keep RPS reasonable so each slice doesn't sleep and delay relocation for too long (max 1s)
     private final int requestsPerSecond = randomIntBetween(bulkSize * numOfSlices, 20);
     private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond;
-
-    @BeforeClass
-    public static void skipSetupIfReindexResilienceDisabled() {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -138,10 +131,7 @@ public class ReindexListRelocationIT extends ESIntegTestCase {
     }
 
     private List<Map<String, Object>> getRunningReindexes() throws IOException {
-        final ListReindexResponse response = client().execute(
-            TransportListReindexAction.TYPE,
-            new ListReindexRequest().setActions(ReindexAction.NAME)
-        ).actionGet();
+        final ListReindexResponse response = client().execute(TransportListReindexAction.TYPE, new ListReindexRequest(true)).actionGet();
         final Map<String, Object> responseMap = XContentTestUtils.convertToMap(response);
         return ObjectPath.evaluate(responseMap, "reindex");
     }

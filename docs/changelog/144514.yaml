@@ -1,5 +1,0 @@
-pr: 143242
-summary: Removed the `max_tokens` request parameter for Chat Completion with Reasoning in the Inference Plugin
-area: Inference
-type: enhancement
-issues: []

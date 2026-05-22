@@ -11,6 +11,7 @@ package org.elasticsearch.index.codec.tsdb;
 
 import org.apache.lucene.store.DataInput;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineDescriptor;
 
 import java.io.IOException;
 
@@ -19,7 +20,7 @@ import java.io.IOException;
  *
  * <p>{@link #readFieldEntry} runs once per field at segment-open time and parses the field metadata
  * (value counts, offsets, codec-specific header, DISI metadata) into a
- * {@link AbstractTSDBDocValuesProducer.NumericEntry}. {@link #decoder()} returns the per-block
+ * {@link AbstractTSDBDocValuesProducer.NumericEntry}. {@link #decoder(PipelineDescriptor)} returns the per-block
  * {@link Decoder} that the iteration code drives during value access; the same decoder may be
  * used for many blocks of the same field.
  */
@@ -39,7 +40,7 @@ public interface NumericFieldReader {
      *
      * @return the block decoder
      */
-    Decoder decoder();
+    Decoder decoder(PipelineDescriptor pipelineDescriptor);
 
     /**
      * Decodes one block of numeric values.

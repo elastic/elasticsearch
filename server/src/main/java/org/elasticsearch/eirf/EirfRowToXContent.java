@@ -29,8 +29,13 @@ public final class EirfRowToXContent {
         // Walk the schema tree depth-first so children of the same non-leaf are emitted contiguously, even when
         // heterogeneous documents caused their leaves to be interleaved in schema leaf order.
         EirfRowXContentParser.SchemaNode root = EirfRowXContentParser.buildSchemaTree(schema);
+        writeRowFromSchema(row, root, builder);
+    }
+
+    public static void writeRowFromSchema(EirfRowReader row, EirfRowXContentParser.SchemaNode schemaTree, XContentBuilder builder)
+        throws IOException {
         builder.startObject();
-        writeChildren(root, row, builder);
+        writeChildren(schemaTree, row, builder);
         builder.endObject();
     }
 
@@ -39,7 +44,7 @@ public final class EirfRowToXContent {
         for (EirfRowXContentParser.SchemaNode child : node.children()) {
             if (child.isLeaf()) {
                 int leafIdx = child.leafColumnIndex();
-                if (leafIdx >= row.columnCount() || row.isNull(leafIdx)) {
+                if (leafIdx >= row.columnCount() || row.isAbsent(leafIdx)) {
                     continue;
                 }
                 writeLeafValue(row, leafIdx, row.getTypeByte(leafIdx), child.name(), builder);
@@ -56,7 +61,7 @@ public final class EirfRowToXContent {
         for (EirfRowXContentParser.SchemaNode child : node.children()) {
             if (child.isLeaf()) {
                 int leafIdx = child.leafColumnIndex();
-                if (leafIdx < row.columnCount() && row.isNull(leafIdx) == false) {
+                if (leafIdx < row.columnCount() && row.isAbsent(leafIdx) == false) {
                     return true;
                 }
             } else if (isNotEmpty(child, row)) {
@@ -70,13 +75,17 @@ public final class EirfRowToXContent {
         throws IOException {
         switch (type) {
             case EirfType.INT -> builder.field(leafName, row.getIntValue(leafIdx));
-            case EirfType.FLOAT -> builder.field(leafName, row.getFloatValue(leafIdx));
+            // Emit as double so the textual form preserves enough precision for downstream double re-parsers
+            // (e.g. scaled_float); the value still round-trips bit-for-bit because (double)(float)val == val
+            // holds for any value stored as FLOAT.
+            case EirfType.FLOAT -> builder.field(leafName, (double) row.getFloatValue(leafIdx));
             case EirfType.LONG -> builder.field(leafName, row.getLongValue(leafIdx));
             case EirfType.DOUBLE -> builder.field(leafName, row.getDoubleValue(leafIdx));
             case EirfType.STRING -> {
                 builder.field(leafName);
                 row.getStringValue(leafIdx).toXContent(builder, null);
             }
+            case EirfType.NULL -> builder.nullField(leafName);
             case EirfType.TRUE -> builder.field(leafName, true);
             case EirfType.FALSE -> builder.field(leafName, false);
             case EirfType.UNION_ARRAY, EirfType.FIXED_ARRAY -> {
@@ -106,7 +115,7 @@ public final class EirfRowToXContent {
     private static void writeElementValue(EirfArrayReader array, XContentBuilder builder) throws IOException {
         switch (array.type()) {
             case EirfType.INT -> builder.value(array.intValue());
-            case EirfType.FLOAT -> builder.value(array.floatValue());
+            case EirfType.FLOAT -> builder.value((double) array.floatValue());
             case EirfType.LONG -> builder.value(array.longValue());
             case EirfType.DOUBLE -> builder.value(array.doubleValue());
             case EirfType.STRING -> builder.value(array.stringValue());
@@ -131,7 +140,7 @@ public final class EirfRowToXContent {
     private static void writeKvValue(EirfKeyValueReader kv, XContentBuilder builder) throws IOException {
         switch (kv.type()) {
             case EirfType.INT -> builder.value(kv.intValue());
-            case EirfType.FLOAT -> builder.value(kv.floatValue());
+            case EirfType.FLOAT -> builder.value((double) kv.floatValue());
             case EirfType.LONG -> builder.value(kv.longValue());
             case EirfType.DOUBLE -> builder.value(kv.doubleValue());
             case EirfType.STRING -> builder.value(kv.stringValue());

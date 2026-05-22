@@ -278,19 +278,19 @@ public class EirfEncoderTests extends ESTestCase {
         assertEquals(3, batch.columnCount());
 
         EirfRowReader row0 = batch.getRowReader(0);
-        assertFalse(row0.isNull(0));
-        assertFalse(row0.isNull(1));
-        assertTrue(row0.isNull(2));
+        assertFalse(row0.isAbsent(0));
+        assertFalse(row0.isAbsent(1));
+        assertTrue(row0.isAbsent(2));
 
         EirfRowReader row1 = batch.getRowReader(1);
-        assertFalse(row1.isNull(0));
-        assertTrue(row1.isNull(1));
-        assertTrue(row1.isNull(2));
+        assertFalse(row1.isAbsent(0));
+        assertTrue(row1.isAbsent(1));
+        assertTrue(row1.isAbsent(2));
 
         EirfRowReader row2 = batch.getRowReader(2);
-        assertTrue(row2.isNull(0));
-        assertFalse(row2.isNull(1));
-        assertFalse(row2.isNull(2));
+        assertTrue(row2.isAbsent(0));
+        assertFalse(row2.isAbsent(1));
+        assertFalse(row2.isAbsent(2));
         assertEquals("c@d.com", row2.getStringValue(2).string());
 
         batch.close();
@@ -333,7 +333,7 @@ public class EirfEncoderTests extends ESTestCase {
 
         EirfRowReader row0 = batch.getRowReader(0);
         assertEquals(2, row0.columnCount());
-        assertTrue(row0.isNull(2));
+        assertTrue(row0.isAbsent(2));
 
         batch.close();
     }
@@ -353,10 +353,10 @@ public class EirfEncoderTests extends ESTestCase {
 
     public void testIncrementalEncoding() throws IOException {
         try (EirfEncoder encoder = new EirfEncoder()) {
-            encoder.addDocument(new BytesArray("{\"name\":\"alice\",\"age\":30}"), XContentType.JSON);
-            encoder.addDocument(new BytesArray("{\"name\":\"bob\",\"age\":25}"), XContentType.JSON);
+            encoder.addDocument(new BytesArray("{\"name\":\"alice\",\"age\":30}"), XContentType.JSON, 0);
+            encoder.addDocument(new BytesArray("{\"name\":\"bob\",\"age\":25}"), XContentType.JSON, 0);
 
-            EirfBatch batch = encoder.build();
+            EirfBatch batch = encoder.buildPartition(0);
             assertEquals(2, batch.docCount());
             assertEquals("alice", batch.getRowReader(0).getStringValue(0).string());
             assertEquals("bob", batch.getRowReader(1).getStringValue(0).string());

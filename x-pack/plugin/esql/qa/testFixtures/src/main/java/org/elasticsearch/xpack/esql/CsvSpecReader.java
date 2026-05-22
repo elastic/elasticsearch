@@ -25,6 +25,7 @@ public final class CsvSpecReader {
         ctx.addOptionParser(new Warning(ctx));
         ctx.addOptionParser(new WarningRegex(ctx));
         ctx.addOptionParser(new IgnoreOrder(ctx));
+        ctx.addOptionParser(new DocumentsFound(ctx));
         return ctx;
     }
 
@@ -42,10 +43,12 @@ public final class CsvSpecReader {
         private final StringBuilder query = new StringBuilder();
         private final StringBuilder data = new StringBuilder();
         private final List<String> requiredCapabilities = new ArrayList<>();
+        private final List<String> requiredCapabilitiesLocalCluster = new ArrayList<>();
+        private final List<String> missingCapabilitiesRemoteCluster = new ArrayList<>();
         private final List<SpecReader.Parser> optionParsers = new ArrayList<>();
         WhenLoadsRequestedToStored requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
-        String timestampBoundsGte;
-        String timestampBoundsLte;
+        String requestTimeRangeGte;
+        String requestTimeRangeLte;
         CsvTestCase testCase;
 
         private ParserContext() {}
@@ -73,13 +76,17 @@ public final class CsvSpecReader {
                 testCase = new CsvTestCase();
                 testCase.query = query.toString();
                 testCase.requiredCapabilities = List.copyOf(requiredCapabilities);
+                testCase.requiredCapabilitiesLocalCluster = List.copyOf(requiredCapabilitiesLocalCluster);
+                testCase.missingCapabilitiesRemoteCluster = List.copyOf(missingCapabilitiesRemoteCluster);
                 testCase.requestStored = requestStored;
-                testCase.timestampBoundsGte = timestampBoundsGte;
-                testCase.timestampBoundsLte = timestampBoundsLte;
+                testCase.requestTimeRangeGte = requestTimeRangeGte;
+                testCase.requestTimeRangeLte = requestTimeRangeLte;
                 requiredCapabilities.clear();
+                requiredCapabilitiesLocalCluster.clear();
+                missingCapabilitiesRemoteCluster.clear();
                 requestStored = WhenLoadsRequestedToStored.IGNORE_VALUE_ORDER;
-                timestampBoundsGte = null;
-                timestampBoundsLte = null;
+                requestTimeRangeGte = null;
+                requestTimeRangeLte = null;
                 query.setLength(0);
             } else {
                 query.append(line).append("\r\n");
@@ -109,6 +116,14 @@ public final class CsvSpecReader {
             String lower = line.toLowerCase(Locale.ROOT);
             if (lower.startsWith("required_capability:")) {
                 state.requiredCapabilities.add(line.substring("required_capability:".length()).trim());
+                return Boolean.TRUE;
+            }
+            if (lower.startsWith("required_capability_coordinator:")) {
+                state.requiredCapabilitiesLocalCluster.add(line.substring("required_capability_coordinator:".length()).trim());
+                return Boolean.TRUE;
+            }
+            if (lower.startsWith("missing_capability_data_node:")) {
+                state.missingCapabilitiesRemoteCluster.add(line.substring("missing_capability_data_node:".length()).trim());
                 return Boolean.TRUE;
             }
             return null;
@@ -147,9 +162,9 @@ public final class CsvSpecReader {
                         "request_time_filter must be two ISO-8601 instants separated by a comma: [" + value + "]"
                     );
                 }
-                state.timestampBoundsGte = value.substring(0, comma).trim();
-                state.timestampBoundsLte = value.substring(comma + 1).trim();
-                if (state.timestampBoundsGte.isEmpty() || state.timestampBoundsLte.isEmpty()) {
+                state.requestTimeRangeGte = value.substring(0, comma).trim();
+                state.requestTimeRangeLte = value.substring(comma + 1).trim();
+                if (state.requestTimeRangeGte.isEmpty() || state.requestTimeRangeLte.isEmpty()) {
                     throw new IllegalArgumentException("request_time_filter values must not be empty: [" + value + "]");
                 }
                 return Boolean.TRUE;
@@ -210,24 +225,50 @@ public final class CsvSpecReader {
         }
     }
 
+    record DocumentsFound(ParserContext state) implements SpecReader.Parser {
+        @Override
+        public Object parse(String line) {
+            String lower = line.toLowerCase(Locale.ROOT);
+            if (lower.startsWith("documents_found:")) {
+                state.testCase.expectedDocumentsFound = line.substring("documents_found:".length()).trim();
+                return Boolean.TRUE;
+            }
+            return null;
+        }
+    }
+
     public static class CsvTestCase {
         final List<String> expectedWarnings = new ArrayList<>();
         final List<String> expectedWarningsRegexString = new ArrayList<>();
         final List<Pattern> expectedWarningsRegex = new ArrayList<>();
         public String query;
         public String expectedResults;
+        public String expectedDocumentsFound;
         public boolean ignoreOrder;
         /**
          * How to change the test when requesting all values be loaded from stored fields.
          */
         public WhenLoadsRequestedToStored requestStored;
+        /**
+         * Capabilities that must be present on all clusters.
+         */
         public List<String> requiredCapabilities = List.of();
+        /**
+         * Capabilities that must be present on the local cluster.
+         * (equivalent to {@link CsvTestCase#requiredCapabilities} for single-cluster tests)
+         */
+        public List<String> requiredCapabilitiesLocalCluster = List.of();
+        /**
+         * Capabilities that must be missing on the remote cluster.
+         * (not supported for single-cluster tests)
+         */
+        public List<String> missingCapabilitiesRemoteCluster = List.of();
         /**
          * When set from a {@code timestamp_bounds:} line in the expected-results section, the REST request includes
          * a Query DSL range on {@code @timestamp} with these bounds (inclusive).
          */
-        public String timestampBoundsGte;
-        public String timestampBoundsLte;
+        public String requestTimeRangeGte;
+        public String requestTimeRangeLte;
 
         /**
          * Returns the warning headers expected to be added by the test. To declare such a header, use the `warning:definition` format
@@ -291,5 +332,4 @@ public final class CsvSpecReader {
             return new AssertWarnings.NoWarnings();
         }
     }
-
 }

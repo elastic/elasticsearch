@@ -81,7 +81,7 @@ public class GetLifecycleAction extends ActionType<GetLifecycleAction.Response> 
 
         @Override
         public String toString() {
-            return Strings.toString(this, true, true);
+            return Strings.toTruncatedString(this, true, true);
         }
 
         @Override

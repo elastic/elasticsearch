@@ -87,7 +87,8 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
                 );
             }
             throw new ElasticsearchStatusException(
-                "Unable to find model deployment task [{}] please stop and start the deployment or try again momentarily",
+                "Unable to find model deployment task [{}] please stop and start the trained model deployment "
+                    + "or try again momentarily",
                 RestStatus.NOT_FOUND,
                 request.getId()
             );
@@ -168,7 +169,17 @@ public class TransportInferTrainedModelDeploymentAction extends TransportTasksAc
             }
 
             private void sendResponse() {
-                finalListener.onResponse(new InferTrainedModelDeploymentAction.Response(results.asList()));
+                var orderedResults = new ArrayList<InferenceResults>(totalNumberOfResponses);
+                for (int i = 0; i < totalNumberOfResponses; i++) {
+                    InferenceResults result = results.get(i);
+                    if (result == null) {
+                        result = new ErrorInferenceResults(
+                            new IllegalStateException("Missing inference result for input index [" + i + "]")
+                        );
+                    }
+                    orderedResults.add(result);
+                }
+                finalListener.onResponse(new InferTrainedModelDeploymentAction.Response(orderedResults));
             }
         };
     }

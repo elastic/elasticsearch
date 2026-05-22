@@ -365,6 +365,8 @@ class KibanaOwnedReservedRoleDescriptors {
                 // Read access for all log data streams with a dot-separated namespace
                 // (e.g. logs-<integration>.<dataset>)
                 RoleDescriptor.IndicesPrivileges.builder().indices("logs-*.*").privileges("read").build(),
+                // Read access for all OTEL metrics/traces data
+                RoleDescriptor.IndicesPrivileges.builder().indices("traces-*.otel-*", "metrics-*.otel-*").privileges("read").build(),
                 // Kibana Security Solution EDR workflows team
                 // - `.endpoint-fleetfiles-*`:
                 // indexes are used internally within Kibana in support of Elastic Defend scripts library.
@@ -701,7 +703,27 @@ class KibanaOwnedReservedRoleDescriptors {
                     )
                     .build(),
                 // For connectors telemetry. Will be removed once we switched to connectors API
-                RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build() },
+                RoleDescriptor.IndicesPrivileges.builder().indices(".elastic-connectors*").privileges("read").build(),
+                // Significant events. Kibana system user only manages the index plumbing
+                // (template, rollover, mappings, settings, data stream lifecycle); end-user
+                // credentials own reading and writing the documents.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".significant_events-*")
+                    .privileges(
+                        RolloverAction.NAME,
+                        TransportPutMappingAction.TYPE.name(),
+                        TransportAutoPutMappingAction.TYPE.name(),
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        "indices:admin/data_stream/lifecycle/put"
+                    )
+                    .build(),
+                // For Agent Builder OTLP telemetry. Kibana ships OpenTelemetry spans
+                // via the /_otlp/v1/traces endpoint; span events are extracted by
+                // ES as log records into the logs data stream.
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("traces-agent_builder.otel-*", "logs-agent_builder.otel-*")
+                    .privileges("auto_configure", "create_doc")
+                    .build() },
             null,
             new ConfigurableClusterPrivilege[] {
                 new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Set.of("kibana-*")),

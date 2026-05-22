@@ -126,7 +126,8 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
                         super.doExecute(action, request, listener);
                     }
                 },
-                new SearchRequest().scroll(TimeValue.timeValueMinutes(1))
+                new SearchRequest().scroll(TimeValue.timeValueMinutes(1)),
+                new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
             );
         }
         paginatedHitSource.start();
@@ -200,7 +201,8 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
             // Set the base for the scroll to wait - this is added to the figure we calculate below
-            new SearchRequest().scroll(timeValueSeconds(10))
+            new SearchRequest().scroll(timeValueSeconds(10)),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
 
         paginatedHitSource.setScrollId("scroll_id");
@@ -220,7 +222,8 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             r -> fail(),
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
-            new SearchRequest().scroll(timeValueSeconds(10))
+            new SearchRequest().scroll(timeValueSeconds(10)),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
         AtomicBoolean closeCallbackCalled = new AtomicBoolean();
 
@@ -242,7 +245,8 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             r -> fail(),
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
-            new SearchRequest().scroll(timeValueSeconds(10))
+            new SearchRequest().scroll(timeValueSeconds(10)),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
         paginatedHitSource.setScrollId("scroll_123");
         AtomicBoolean closeCallbackCalled = new AtomicBoolean();
@@ -271,7 +275,8 @@ public class ClientScrollablePaginatedHitSourceTests extends ESTestCase {
             r -> fail(),
             e -> fail(),
             new ParentTaskAssigningClient(client, parentTask),
-            new SearchRequest().scroll(timeValueSeconds(10))
+            new SearchRequest().scroll(timeValueSeconds(10)),
+            new SearchContextKeepaliveDeadline(threadPool::absoluteTimeInMillis)
         );
 
         // Initially: no scroll id -> false

@@ -17,7 +17,6 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.anthropic.AnthropicRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.anthropic.AnthropicService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -47,7 +46,7 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
 
         var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, AnthropicService.NAME, context);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
 
@@ -86,7 +85,6 @@ public class AnthropicChatCompletionServiceSettings extends FilteredXContentObje
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            AnthropicService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

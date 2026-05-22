@@ -24,6 +24,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.script.IpFieldScript;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -119,21 +120,6 @@ public class IpFieldMapperTests extends MapperTestCase {
             final IndexableField dvField = fields.get(1);
             assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString(ipAddress))), dvField.binaryValue());
         }
-    }
-
-    public void testNotIndexed() throws Exception {
-
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
-            b.field("type", "ip");
-            b.field("index", false);
-        }));
-
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
-
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        IndexableField dvField = fields.get(0);
-        assertEquals(DocValuesType.SORTED_SET, dvField.fieldType().docValuesType());
     }
 
     public void testNoDocValues() throws Exception {
@@ -454,65 +440,54 @@ public class IpFieldMapperTests extends MapperTestCase {
         };
     }
 
-    public void testMultiValueSortedSet() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        MapperService mapperService = createSytheticSourceMapperService(
-            fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("multi_value", "sorted_set").endObject())
-        );
-        IpFieldMapper mapper = (IpFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(
-            mapper.docValuesParameters(),
-            equalTo(
-                new FieldMapper.DocValuesParameter.Values(
-                    true,
-                    FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-                    FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET
-                )
-            )
-        );
+    @Override
+    protected boolean supportsMultiValueParameter() {
+        return true;
     }
 
-    public void testMultiValueDefaultIsSortedSet() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        MapperService mapperService = createMapperService(fieldMapping(b -> b.field("type", "ip")));
-        IpFieldMapper mapper = (IpFieldMapper) mapperService.documentMapper().mappers().getMapper("field");
-        assertThat(mapper.docValuesParameters().multiValue(), equalTo(FieldMapper.DocValuesParameter.Values.MultiValue.SORTED_SET));
+    @Override
+    protected DocValuesType expectedSingleValuedDocValuesType() {
+        return DocValuesType.SORTED;
     }
 
-    public void testMultiValueSortedNotAllowed() throws IOException {
-        assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        var e = expectThrows(
-            MapperParsingException.class,
-            () -> createMapperService(
-                fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("multi_value", "sorted").endObject())
-            )
-        );
-        assertThat(
-            e.getMessage(),
-            containsString("Unknown value [sorted] for field [multi_value] - accepted values are [no, sorted_set, arrays]")
-        );
-    }
-
-    public void testMultiValueNoAcceptsSingleValue() throws IOException {
+    /**
+     * IP high-cardinality doc values have used the SeparateCount format since their introduction. This test pins that contract for
+     * the current index version.
+     */
+    public void testHighCardinalityDocValuesUsesSeparateCountFormat() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("multi_value", "no").endObject())
+            fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("cardinality", "high").endObject())
         );
-        mapper.parse(source(b -> b.field("field", "::1")));
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
+
+        assertFalse(
+            "primary IP high-cardinality doc_values must be written in SeparateCount format (with .counts companion) for the "
+                + "current index version",
+            doc.rootDoc().getFields("field.counts").isEmpty()
+        );
     }
 
-    public void testMultiValueNoRejectsArray() throws IOException {
+    /**
+     * IP high-cardinality doc values are written via a MultiValuedBinaryDocValuesField. The feature was introduced after the
+     * SeparateCount format became the norm, so there is no legacy IntegratedCount data. The primary write path must produce
+     * SeparateCount output regardless of indexCreatedVersion so the read path can decode it.
+     */
+    public void testHighCardinalityDocValuesUsesSeparateCountFormatForPreviousIndexVersion() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
-        DocumentMapper mapper = createDocumentMapper(
-            fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("multi_value", "no").endObject())
-        );
-        DocumentParsingException e = expectThrows(
-            DocumentParsingException.class,
-            () -> mapper.parse(source(b -> b.array("field", "::1", "::2")))
-        );
-        assertThat(
-            e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+        IndexVersion legacyVersion = IndexVersionUtils.getPreviousVersion(IndexVersions.DEPRECATE_INTEGRATED_COUNTS_BINARY_DOC_VALUES);
+        DocumentMapper mapper = createMapperService(
+            legacyVersion,
+            fieldMapping(b -> b.field("type", "ip").startObject("doc_values").field("cardinality", "high").endObject())
+        ).documentMapper();
+
+        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "::1")));
+
+        assertFalse(
+            "primary IP high-cardinality doc_values must be written in SeparateCount format (with .counts companion) even for "
+                + "legacy index versions",
+            doc.rootDoc().getFields("field.counts").isEmpty()
         );
     }
 
@@ -520,11 +495,11 @@ public class IpFieldMapperTests extends MapperTestCase {
      * Single malformed value routes to the {@code _ignored} fallback. Only one {@link FieldMapper#parse(DocumentParserContext)} call
      * fires, so enforcement does not trip.
      */
-    public void testMultiValueNoAcceptsSingleIgnoreMalformedValue() throws IOException {
+    public void testMultiValueFalseAcceptsSingleIgnoreMalformedValue() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", "no").endObject();
+            b.startObject("doc_values").field("multi_value", false).endObject();
         }));
         mapper.parse(source(b -> b.field("field", "not-an-ip")));
     }
@@ -533,11 +508,11 @@ public class IpFieldMapperTests extends MapperTestCase {
      * Both values are malformed and would route to the {@code _ignored} fallback. Enforcement still throws on the second
      * {@link FieldMapper#parse(DocumentParserContext)} call before either is handled.
      */
-    public void testMultiValueNoRejectsTwoIgnoreMalformedFallbacks() throws IOException {
+    public void testMultiValueFalseRejectsTwoIgnoreMalformedFallbacks() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", "no").endObject();
+            b.startObject("doc_values").field("multi_value", false).endObject();
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -545,15 +520,15 @@ public class IpFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
 
-    public void testMultiValueNoRejectsNormalPlusIgnoreMalformedFallback() throws IOException {
+    public void testMultiValueFalseRejectsNormalPlusIgnoreMalformedFallback() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", "no").endObject();
+            b.startObject("doc_values").field("multi_value", false).endObject();
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -561,19 +536,20 @@ public class IpFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
 
     /**
-     * Mirror of {@link #testMultiValueNoRejectsNormalPlusIgnoreMalformedFallback} with the order reversed: first value is malformed
-     * and would route to the {@code _ignored} fallback, second is a valid IP. Enforcement still fires on the second parse call.
+     * Mirror of {@link #testMultiValueFalseRejectsNormalPlusIgnoreMalformedFallback} with the order reversed: first value is
+     * malformed and would route to the {@code _ignored} fallback, second is a valid IP. Enforcement still fires on the second parse
+     * call.
      */
-    public void testMultiValueNoRejectsIgnoreMalformedFallbackPlusNormal() throws IOException {
+    public void testMultiValueFalseRejectsIgnoreMalformedFallbackPlusNormal() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             b.field("type", "ip").field("ignore_malformed", true);
-            b.startObject("doc_values").field("multi_value", "no").endObject();
+            b.startObject("doc_values").field("multi_value", false).endObject();
         }));
         DocumentParsingException e = expectThrows(
             DocumentParsingException.class,
@@ -581,7 +557,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         );
         assertThat(
             e.getCause().getMessage(),
-            containsString("configured with [multi_value=no] but encountered multiple values in the same document")
+            containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
 

@@ -36,12 +36,16 @@ import java.util.NoSuchElementException;
 /**
  * StorageProvider implementation for Azure Blob Storage.
  * <p>
- * Supports the {@code wasbs://} and {@code wasb://} URI schemes.
- * URI format: {@code wasbs://account.blob.core.windows.net/container/path/to/blob}
+ * Supports the {@code wasbs://} and {@code wasb://} URI schemes in two equivalent forms:
  * <ul>
- *   <li>host: account.blob.core.windows.net (account name is first segment)</li>
- *   <li>path: /container/path/to/blob (first segment = container, remainder = blob name)</li>
+ *   <li><b>Path-style</b>: {@code wasbs://<account>.blob.core.windows.net/<container>/<blob>}
+ *       — host carries the account; the first path segment is the container.</li>
+ *   <li><b>Hadoop/Spark form</b>: {@code wasbs://<container>@<account>.blob.core.windows.net/<blob>}
+ *       — userInfo carries the container; the path is the blob name. This is the canonical
+ *       form documented at https://hadoop.apache.org/docs/stable/hadoop-azure/index.html
+ *       and emitted by Azure Open Datasets.</li>
  * </ul>
+ * In both forms the account name is extracted as the first dot-segment of the host.
  * <p>
  * Maintains both a sync {@link BlobServiceClient} and an async {@link BlobServiceAsyncClient},
  * built from the same {@link BlobServiceClientBuilder} (same pattern as {@code repository-azure}'s
@@ -302,15 +306,24 @@ public final class AzureStorageProvider implements StorageProvider {
     }
 
     /**
-     * Parse path for object access: wasbs://account.blob.core.windows.net/container/path/to/blob
-     * host = account.blob.core.windows.net -> account is first segment
-     * path = /container/path/to/blob -> container = first segment, blob name = path/to/blob
+     * Parse path for object access. Accepts two equivalent forms:
+     * <ul>
+     *   <li>Path-style {@code wasbs://account.blob.core.windows.net/container/blob} — host is
+     *       {@code account.blob.core.windows.net}, container is the first path segment.</li>
+     *   <li>Hadoop form {@code wasbs://container@account.blob.core.windows.net/blob} — userInfo
+     *       carries the container; the entire path is the blob name.</li>
+     * </ul>
      */
-    private static ParsedPath parsePath(StoragePath path) {
+    static ParsedPath parsePath(StoragePath path) {
         String host = path.host();
         String pathStr = path.path();
         if (pathStr.startsWith(StoragePath.PATH_SEPARATOR)) {
             pathStr = pathStr.substring(1);
+        }
+        String userInfo = path.userInfo();
+        if (userInfo != null) {
+            // Hadoop form: container is in userInfo, blob name is the entire path (may be empty for root listing).
+            return new ParsedPath(host, userInfo, pathStr);
         }
         if (pathStr.isEmpty()) {
             throw new IllegalArgumentException("Invalid Azure path: container and blob name required: " + path);
@@ -343,13 +356,17 @@ public final class AzureStorageProvider implements StorageProvider {
         return new ParsedPath(parsed.host, parsed.container, prefix);
     }
 
-    private record ParsedPath(String host, String container, String blobName) {}
+    record ParsedPath(String host, String container, String blobName) {}
 
-    private static final class AzureStorageIterator implements StorageIterator {
+    // Package-private (rather than private) so AzureStorageProviderTests can construct one
+    // directly from a synthetic Iterable<BlobItem> and verify URI-form preservation without
+    // standing up a real BlobServiceClient.
+    static final class AzureStorageIterator implements StorageIterator {
         private final Iterable<BlobItem> blobItems;
         private final StoragePath basePath;
         private final String container;
         private final String scheme;
+        private final String userInfo;
 
         private Iterator<BlobItem> iterator;
         private BlobItem current;
@@ -359,6 +376,7 @@ public final class AzureStorageProvider implements StorageProvider {
             this.basePath = basePath;
             this.container = container;
             this.scheme = basePath.scheme();
+            this.userInfo = basePath.userInfo();
         }
 
         @Override
@@ -401,9 +419,17 @@ public final class AzureStorageProvider implements StorageProvider {
             }
             BlobItem item = current;
             current = null;
-            String fullPath = scheme + StoragePath.SCHEME_SEPARATOR + basePath.host() + StoragePath.PATH_SEPARATOR + container
-                + StoragePath.PATH_SEPARATOR + item.getName();
-            StoragePath objectPath = StoragePath.of(fullPath);
+            // Preserve the input URI form: Hadoop form (container@host) emits
+            // scheme://container@host/blob; path-style emits scheme://host/container/blob.
+            String name = item.getName();
+            StringBuilder fullPath = new StringBuilder().append(scheme).append(StoragePath.SCHEME_SEPARATOR);
+            if (userInfo != null) {
+                fullPath.append(userInfo).append('@').append(basePath.host()).append(StoragePath.PATH_SEPARATOR);
+            } else {
+                fullPath.append(basePath.host()).append(StoragePath.PATH_SEPARATOR).append(container).append(StoragePath.PATH_SEPARATOR);
+            }
+            fullPath.append(name);
+            StoragePath objectPath = StoragePath.of(fullPath.toString());
             Instant lastModified = item.getProperties() != null && item.getProperties().getLastModified() != null
                 ? item.getProperties().getLastModified().toInstant()
                 : null;

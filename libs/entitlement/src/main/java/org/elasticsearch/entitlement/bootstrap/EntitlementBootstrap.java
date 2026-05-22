@@ -129,15 +129,25 @@ public class EntitlementBootstrap {
 
     @SuppressForbidden(reason = "The VirtualMachine API is the only way to attach a java agent dynamically")
     static void loadAgent(String agentPath, String entitlementInitializationClassName) {
+        long startMillis = System.currentTimeMillis();
         try {
             VirtualMachine vm = VirtualMachine.attach(Long.toString(ProcessHandle.current().pid()));
+            long attachedMillis = System.currentTimeMillis();
             try {
                 vm.loadAgent(agentPath, entitlementInitializationClassName);
             } finally {
                 vm.detach();
             }
+            long doneMillis = System.currentTimeMillis();
+            logger.info(
+                "Entitlement agent attached in [{}ms] (attach=[{}ms], loadAgent+detach=[{}ms])",
+                doneMillis - startMillis,
+                attachedMillis - startMillis,
+                doneMillis - attachedMillis
+            );
         } catch (AttachNotSupportedException | IOException | AgentLoadException | AgentInitializationException e) {
-            throw new IllegalStateException("Unable to attach entitlement agent [" + agentPath + "]", e);
+            long elapsedMillis = System.currentTimeMillis() - startMillis;
+            throw new IllegalStateException("Unable to attach entitlement agent [" + agentPath + "] after [" + elapsedMillis + "ms]", e);
         }
     }
 

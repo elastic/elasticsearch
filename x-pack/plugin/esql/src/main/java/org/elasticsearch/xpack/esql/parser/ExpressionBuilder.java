@@ -16,6 +16,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
@@ -797,6 +798,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         Expression expr = expression(parseTree);
         var convertFunction = converterToFactory.apply(source, expr, ConfigurationAware.CONFIGURATION_MARKER);
+        if (Build.current().isSnapshot() == false && EsqlFunctionRegistry.isSnapshotOnly(convertFunction.getClass())) {
+            throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
+        }
         return convertFunction;
     }
 
@@ -804,7 +808,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public DataType visitToDataType(EsqlBaseParser.ToDataTypeContext ctx) {
         String typeName = visitIdentifier(ctx.identifier());
         DataType dataType = DataType.fromNameOrAlias(typeName);
-        if (dataType == DataType.UNSUPPORTED) {
+        if (dataType == DataType.UNSUPPORTED || dataType.supportedVersion().supportedLocally() == false) {
             throw new ParsingException(source(ctx), "Unknown data type named [{}]", typeName);
         }
         return dataType;

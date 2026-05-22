@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
+import io.netty.channel.ChannelOption;
 import software.amazon.awssdk.auth.credentials.AnonymousCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.DefaultCredentialsProvider;
 import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.core.checksums.ResponseChecksumValidation;
 import software.amazon.awssdk.http.nio.netty.NettyNioAsyncHttpClient;
 import software.amazon.awssdk.profiles.ProfileFile;
 import software.amazon.awssdk.regions.Region;
@@ -26,6 +28,7 @@ import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 import software.amazon.awssdk.services.s3.model.S3Object;
 
+import org.elasticsearch.xpack.esql.datasource.nettycommons.PooledRecvByteBufAllocator;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -84,7 +87,16 @@ public final class S3StorageProvider implements StorageProvider {
     }
 
     private static S3AsyncClient buildS3AsyncClient(S3Configuration config) {
-        return configureCommon(S3AsyncClient.builder(), config).httpClient(NettyNioAsyncHttpClient.builder().build()).build();
+        // Install a pooled receive-buffer allocator so that socket reads on Netty channels reuse
+        // pooled memory instead of allocating a fresh zero-filled byte[] per read. The AWS SDK's
+        // Netty client unconditionally overrides ChannelOption.ALLOCATOR to UnpooledByteBufAllocator
+        // for HTTPS channels using the JDK SSL provider, so configuring ALLOCATOR directly has no
+        // effect; RCVBUF_ALLOCATOR is the closest knob the SDK leaves untouched as of
+        // netty-nio-client 2.31.x. Re-verify this assumption when bumping the AWS SDK version. See
+        // PooledRecvByteBufAllocator for the full rationale.
+        NettyNioAsyncHttpClient.Builder httpClient = NettyNioAsyncHttpClient.builder()
+            .putChannelOption(ChannelOption.RCVBUF_ALLOCATOR, PooledRecvByteBufAllocator.DEFAULT);
+        return configureCommon(S3AsyncClient.builder(), config).httpClient(httpClient.build()).build();
     }
 
     /**
@@ -98,6 +110,11 @@ public final class S3StorageProvider implements StorageProvider {
             c.defaultProfileFile(emptyProfileFile);
             c.defaultProfileFileSupplier(() -> emptyProfileFile);
         });
+
+        // Disable optional response checksum validation. The SDK default (WHEN_SUPPORTED) wraps
+        // every GetObject response in a checksum-validating stream, adding ~6-7% CPU overhead.
+        // TLS already provides in-transit integrity; this matches what other engines do.
+        builder.responseChecksumValidation(ResponseChecksumValidation.WHEN_REQUIRED);
 
         AwsCredentialsProvider credentialsProvider;
         if (config != null && config.isAnonymous()) {

@@ -163,6 +163,11 @@ public final class OrdinalBytesRefVector extends AbstractNonThreadSafeRefCounted
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return bytes.valueMaxByteSize();
+    }
+
+    @Override
     public boolean isConstant() {
         return bytes.isConstant() || ordinals.isConstant();
     }

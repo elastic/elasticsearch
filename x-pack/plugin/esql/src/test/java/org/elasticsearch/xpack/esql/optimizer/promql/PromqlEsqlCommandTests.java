@@ -7,16 +7,19 @@
 
 package org.elasticsearch.xpack.esql.optimizer.promql;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -29,6 +32,7 @@ import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -36,7 +40,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
 
@@ -250,5 +256,54 @@ public class PromqlEsqlCommandTests extends AbstractPromqlPlanOptimizerTests {
             """);
         TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
         assertThat(tsAggregate.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(10)));
+    }
+
+    public void testUsesTStepBucketWhenHasTimeRange() {
+        var plan = planPromql("""
+            PROMQL index=k8s start="2024-05-10T00:20:00.000Z" end="2024-05-10T00:25:00.000Z" step=5m (
+                avg_over_time(network.bytes_in[5m])
+            )
+            """);
+        TimeSeriesAggregate tsAgg = plan.collect(TimeSeriesAggregate.class).getFirst();
+        // timeBucket() comes from TStep.timeBucketSpecRef() — duration must equal the step
+        assertThat(tsAgg.timeBucket().buckets().fold(FoldContext.small()), equalTo(Duration.ofMinutes(5)));
+        // start=00:20 is a multiple of 5m so offset must be zero
+        assertThat(tsAgg.timeBucket().offset(), equalTo(0L));
+    }
+
+    public void testTimestampFilterExtendsStartByWindow() {
+        Instant start = Instant.parse("2024-05-10T00:20:00.000Z");
+        Instant end = Instant.parse("2024-05-10T00:25:00.000Z");
+        Duration window = Duration.ofMinutes(5);
+        var plan = planPromql(
+            "PROMQL index=k8s start=\"" + start + "\" end=\"" + end + "\" step=5m sum(avg_over_time(network.bytes_in[5m]))"
+        );
+        long extendedStartMs = start.toEpochMilli() - window.toMillis();
+        boolean found = plan.collect(Filter.class)
+            .stream()
+            .anyMatch(
+                f -> f.condition()
+                    .collect(GreaterThanOrEqual.class)
+                    .stream()
+                    .anyMatch(gte -> gte.right() instanceof Literal lit && lit.value() instanceof Long ms && ms == extendedStartMs)
+            );
+        assertTrue("expected a filter lower bound of start - window = " + Instant.ofEpochMilli(extendedStartMs), found);
+    }
+
+    public void testRangeQueryStepBucketUsesUpperRoundingConfiguration() {
+        var plan = planPromql("""
+            PROMQL index=k8s step=2m start="2024-05-10T00:15:00.000Z" end="2024-05-10T00:25:00.000Z"
+                rate_bytes_in=(avg by (cluster) (rate(network.total_bytes_in[2m])))
+            """);
+        TimeSeriesAggregate tsAggregate = plan.collect(TimeSeriesAggregate.class).getFirst();
+        assertThat(tsAggregate.timeBucket().roundingConfiguration(), equalTo(Rounding.RoundingConvention.UP));
+        assertThat(tsAggregate.outputTimeBucket().roundingConfiguration(), equalTo(Rounding.RoundingConvention.UP));
+
+        Rounding timeBucketUnprepared = tsAggregate.timeBucket().getDateRoundingOrNull(FoldContext.small()).getUnprepared();
+        Rounding outputTimeBucketUnprepared = tsAggregate.outputTimeBucket().getDateRoundingOrNull(FoldContext.small()).getUnprepared();
+        assertThat(timeBucketUnprepared, instanceOf(Rounding.ToUpperRounding.class));
+        assertThat(outputTimeBucketUnprepared, instanceOf(Rounding.ToUpperRounding.class));
+        assertThat(Rounding.ToUpperRounding.createRounding(timeBucketUnprepared), sameInstance(timeBucketUnprepared));
+        assertThat(Rounding.ToUpperRounding.createRounding(outputTimeBucketUnprepared), sameInstance(outputTimeBucketUnprepared));
     }
 }

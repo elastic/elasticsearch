@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
@@ -111,6 +112,9 @@ public final class PushDownAndCombineFilters extends OptimizerRules.Parameterize
             plan = orderBy.replaceChild(filter.with(orderBy.child(), condition));
         } else if (child instanceof Join join) {
             return pushDownPastJoin(filter, join, ctx.foldCtx());
+        } else if (child instanceof MvExpand mvExpand) {
+            Attribute attribute = mvExpand.expanded();
+            return maybePushDownPastUnary(filter, mvExpand, attribute::semanticEquals, NO_OP);
         }
         // cannot push past a Limit, this could change the tailing result set returned
         return plan;

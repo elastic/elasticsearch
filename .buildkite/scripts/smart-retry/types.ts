@@ -4,6 +4,8 @@ export interface TaskStatusReport {
   tests: TestEntry[];
   cancelled: boolean;
   preemptedAt?: string | null;
+  buildScanId?: string | null;
+  buildScanUrl?: string | null;
 }
 
 export interface TaskEntry {

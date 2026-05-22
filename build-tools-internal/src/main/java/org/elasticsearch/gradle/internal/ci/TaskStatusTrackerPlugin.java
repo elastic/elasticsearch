@@ -158,6 +158,8 @@ public abstract class TaskStatusTrackerPlugin implements Plugin<Project> {
         private final Set<String> planned = ConcurrentHashMap.newKeySet();
         private final Queue<TaskStatusReport.TestEntry> testEntries = new ConcurrentLinkedQueue<>();
         private volatile boolean cancelled = false;
+        private volatile String buildScanId = null;
+        private volatile String buildScanUrl = null;
 
         interface Params extends BuildServiceParameters {
             RegularFileProperty getOutputFile();
@@ -184,6 +186,17 @@ public abstract class TaskStatusTrackerPlugin implements Plugin<Project> {
 
         public void recordTestResult(String taskPath, String className, String methodName, String result) {
             testEntries.add(new TaskStatusReport.TestEntry(taskPath, className, methodName, result));
+        }
+
+        /**
+         * Records the Develocity build scan details and rewrites the report so the
+         * task-status.json includes them. Called from the {@code buildScanPublished}
+         * callback in the build scan script.
+         */
+        public void setBuildScanAndRewrite(String scanId, String scanUrl) {
+            this.buildScanId = scanId;
+            this.buildScanUrl = scanUrl;
+            writeReport();
         }
 
         @Override
@@ -255,7 +268,9 @@ public abstract class TaskStatusTrackerPlugin implements Plugin<Project> {
                             taskEntries,
                             tests,
                             cancelled,
-                            GcpPreemptionWatchdog.preemptedAt() != null ? GcpPreemptionWatchdog.preemptedAt().toString() : null
+                            GcpPreemptionWatchdog.preemptedAt() != null ? GcpPreemptionWatchdog.preemptedAt().toString() : null,
+                            buildScanId,
+                            buildScanUrl
                         )
                     );
             } catch (IOException e) {

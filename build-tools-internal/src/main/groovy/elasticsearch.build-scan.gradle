@@ -186,6 +186,14 @@ develocity {
           buildScanPublished { scan ->
 
             try {
+              // Update task-status.json with build scan details
+              try {
+                def taskStatusService = gradle.sharedServices.registrations.findByName('taskStatusTracker')?.service?.orNull
+                taskStatusService?.setBuildScanAndRewrite("${scan.buildScanId}".toString(), "${scan.buildScanUri}".toString())
+              } catch (Exception e) {
+                logger.warn("Could not update task-status with build scan details", e)
+              }
+
               // Attach build scan link as build metadata
               // See: https://buildkite.com/docs/pipelines/build-meta-data
               runBuildkiteAgent(

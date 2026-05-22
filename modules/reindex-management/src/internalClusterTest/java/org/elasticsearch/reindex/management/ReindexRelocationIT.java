@@ -82,10 +82,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalInt;
+import java.util.Queue;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
@@ -132,14 +135,14 @@ public class ReindexRelocationIT extends ESIntegTestCase {
     }
 
     /// Collects the slicing configurations from all the searches performed while `capturingSearchSlices` is true.
-    private static final List<SliceBuilder> capturedSearchSlices = new ArrayList<>();
+    private static final Queue<SliceBuilder> capturedSearchSlices = new ConcurrentLinkedQueue<>();
 
-    private static boolean capturingSearchSlices;
+    private static final AtomicBoolean capturingSearchSlices = new AtomicBoolean();
 
     @Before
     public void resetSearchSliceCapture() {
         capturedSearchSlices.clear();
-        capturingSearchSlices = true;
+        capturingSearchSlices.set(true);
     }
 
     /// A plugin which listens for search operations on the cluster and captures their slice specifications so that we can assert on them
@@ -152,7 +155,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             indexModule.addSearchOperationListener(new SearchOperationListener() {
                 @Override
                 public void onPreQueryPhase(SearchContext searchContext) {
-                    if (capturingSearchSlices) {
+                    if (capturingSearchSlices.get()) {
                         assertThat(searchContext.request(), notNullValue());
                         assertThat(searchContext.request().source(), notNullValue());
                         capturedSearchSlices.add(searchContext.request().source().slice());
@@ -364,7 +367,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         assertReindexSuccessMetricsOnNode(nodeAName, isRemote, slices, originalTaskIds.size() > 1);
 
         // Stop capturing search slices now, so that we don't get the ones from the assertions that follow
-        capturingSearchSlices = false;
+        capturingSearchSlices.set(false);
 
         // assert all documents have been reindexed
         assertExpectedNumberOfDocumentsInDestinationIndex();

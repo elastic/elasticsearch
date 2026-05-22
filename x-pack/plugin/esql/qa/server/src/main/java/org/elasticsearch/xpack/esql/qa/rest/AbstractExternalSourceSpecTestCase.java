@@ -282,13 +282,6 @@ public abstract class AbstractExternalSourceSpecTestCase extends EsqlSpecTestCas
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
-        // Format readers that do not implement nested STRUCT subfield projection
-        // (CSV, NDJSON, parquet-rs, ...) opt out of external-nested-struct.csv-spec
-        // here. Parquet/ORC ITs override supportsExternalNestedStructProjection().
-        assumeTrue(
-            "external-nested-struct.csv-spec is Parquet/ORC-only — see EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION",
-            "external-nested-struct".equals(groupName) == false || supportsExternalNestedStructProjection()
-        );
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
     }

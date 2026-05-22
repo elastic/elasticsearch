@@ -90,7 +90,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     private static final Logger LOGGER = LogManager.getLogger(EsqlSpecTestCase.class);
     private final String fileName;
-    protected final String groupName;
+    private final String groupName;
     private final String testName;
     private final Integer lineNumber;
     protected final CsvTestCase testCase;
@@ -284,15 +284,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (requiresInferenceEndpointOnLocalCluster()) {
             assumeTrueLogging("Inference test service needs to be supported", supportsInferenceTestServiceOnLocalCluster());
         }
-        // external-nested-struct.csv-spec exercises Parquet/ORC nested STRUCT projection. The spec
-        // is picked up by every {@code /*.csv-spec} glob, including the index-backed {@code EsqlSpecIT}
-        // suites, which have neither the Parquet/ORC fixtures nor a reader that supports nested
-        // projection. Format-aware ITs ({@code ParquetFormatSpecIT}, {@code OrcFormatSpecIT}) run
-        // the spec; everyone else skips here.
-        assumeFalseLogging(
-            "external-nested-struct.csv-spec is Parquet/ORC-only — see EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION",
-            "external-nested-struct".equals(groupName) && supportsExternalNestedStructProjection() == false
-        );
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrueLogging("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
         if (supportsSourceFieldMapping() == false) {
@@ -301,16 +292,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
                 testCase.requiredCapabilities.contains(SOURCE_FIELD_MAPPING.capabilityName())
             );
         }
-    }
-
-    /**
-     * Whether this IT exercises a format reader that supports nested STRUCT subfield projection
-     * (Parquet Java, ORC). The Parquet/ORC external-source IT classes override to return
-     * {@code true}; everyone else (CSV, NDJSON, parquet-rs, index-backed EsqlSpecIT) inherits the
-     * default {@code false} and skips {@code external-nested-struct.csv-spec}.
-     */
-    protected boolean supportsExternalNestedStructProjection() {
-        return false;
     }
 
     protected static void checkCapabilities(

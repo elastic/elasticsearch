@@ -46,9 +46,6 @@ public class CsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
-    // Note: external-nested-struct.csv-spec is skipped here via the default
-    // EsqlSpecTestCase#supportsExternalNestedStructProjection() == false hook.
-
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
         return readExternalSpecTests("/external-*.csv-spec", "/csv-*.csv-spec");

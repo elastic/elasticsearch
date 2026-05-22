@@ -155,7 +155,16 @@ public class RequestExecutorService implements RequestExecutor {
         RequestSender requestSender,
         @Nullable Semaphore inFlightRequestsSemaphore
     ) {
-        this(threadPool, DEFAULT_QUEUE_CREATOR, startupLatch, settings, requestSender, Clock.systemUTC(), DEFAULT_RATE_LIMIT_CREATOR, inFlightRequestsSemaphore);
+        this(
+            threadPool,
+            DEFAULT_QUEUE_CREATOR,
+            startupLatch,
+            settings,
+            requestSender,
+            Clock.systemUTC(),
+            DEFAULT_RATE_LIMIT_CREATOR,
+            inFlightRequestsSemaphore
+        );
     }
 
     RequestExecutorService(
@@ -176,7 +185,10 @@ public class RequestExecutorService implements RequestExecutor {
         this.clock = Objects.requireNonNull(clock);
         this.rateLimiterCreator = Objects.requireNonNull(rateLimiterCreator);
         this.requestQueue = new AdjustableCapacityBlockingQueue<>(queueCreator, settings.getQueueCapacity());
-        this.inFlightRequestsSemaphore = Objects.requireNonNullElse(inFlightRequestsSemaphore, new Semaphore(settings.allowedConcurrentInFlightRequests()));
+        this.inFlightRequestsSemaphore = Objects.requireNonNullElse(
+            inFlightRequestsSemaphore,
+            new Semaphore(settings.allowedConcurrentInFlightRequests())
+        );
     }
 
     @Override
@@ -227,7 +239,7 @@ public class RequestExecutorService implements RequestExecutor {
         return requestQueue.size() + rateLimitGroupings.values().stream().mapToInt(RateLimitingEndpointHandler::queueSize).sum();
     }
 
-    public int inflightRequests(){
+    public int inflightRequests() {
         return settings.allowedConcurrentInFlightRequests() - inFlightRequestsSemaphore.availablePermits();
     }
 
@@ -519,7 +531,7 @@ public class RequestExecutorService implements RequestExecutor {
         }
 
         var requestAcquired = inFlightRequestsSemaphore.tryAcquire();
-        if(requestAcquired == false){
+        if (requestAcquired == false) {
             listener.onFailure(
                 new EsRejectedExecutionException(
                     format("Failed to process task for inference id [%s]. Too many in flight inference requests", inferenceEntityId),
@@ -543,10 +555,10 @@ public class RequestExecutorService implements RequestExecutor {
         // Rate limited execution path
         if (isEmbeddingsIngestInput(inferenceInputs) || rateLimitingEnabled(requestManager.rateLimitSettings())) {
             submitTaskToRateLimitedExecutionPath(task);
-        // "Immediate" execution path
-        // An "immediate" execution is just from the RequestExecutorService immediate.
-        // The request can still hang on the Apache HTTP Client,
-        // that's why we need to call acquire on the "in flight" request semaphore here, too.
+            // "Immediate" execution path
+            // An "immediate" execution is just from the RequestExecutorService immediate.
+            // The request can still hang on the Apache HTTP Client,
+            // that's why we need to call acquire on the "in flight" request semaphore here, too.
         } else {
             boolean taskAccepted = requestQueue.offer(task);
 

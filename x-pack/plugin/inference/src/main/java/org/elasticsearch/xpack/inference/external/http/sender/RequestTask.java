@@ -33,7 +33,12 @@ class RequestTask implements RejectableTask {
         Semaphore inFlightRequestSemaphore
     ) {
         this.requestCreator = Objects.requireNonNull(requestCreator);
-        this.timedListener = new TimedListener<>(timeout, releaseSemaphoreOnceListener(listener, inFlightRequestSemaphore), threadPool, requestCreator.inferenceEntityId());
+        this.timedListener = new TimedListener<>(
+            timeout,
+            releaseSemaphoreOnceListener(listener, inFlightRequestSemaphore),
+            threadPool,
+            requestCreator.inferenceEntityId()
+        );
         this.inferenceInputs = Objects.requireNonNull(inferenceInputs);
     }
 
@@ -67,16 +72,16 @@ class RequestTask implements RejectableTask {
         return requestCreator;
     }
 
-    private static ActionListener<InferenceServiceResults> releaseSemaphoreOnceListener(ActionListener<InferenceServiceResults> listener, Semaphore inFlightRequestSemaphore) {
+    private static ActionListener<InferenceServiceResults> releaseSemaphoreOnceListener(
+        ActionListener<InferenceServiceResults> listener,
+        Semaphore inFlightRequestSemaphore
+    ) {
         // This makes sure that the semaphore is always only released once per RequestTask to prevent false permit counts
         var semaphoreReleased = new AtomicBoolean();
-        return ActionListener.runAfter(
-            listener,
-            () -> {
-                if(semaphoreReleased.compareAndSet(false, true)){
-                    inFlightRequestSemaphore.release();
-                }
+        return ActionListener.runAfter(listener, () -> {
+            if (semaphoreReleased.compareAndSet(false, true)) {
+                inFlightRequestSemaphore.release();
             }
-        );
+        });
     }
 }

@@ -48,6 +48,14 @@ public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         ensureYellow("test");
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("empty_mapping")
+                .setSettings(Settings.builder().put("index.number_of_shards", randomIntBetween(1, 3)))
+        );
+        ensureYellow("empty_mapping");
     }
 
     // ---- IN subquery in unsupported positions ----
@@ -99,11 +107,34 @@ public class InSubqueryFailureIT extends AbstractEsqlIntegTestCase {
         );
     }
 
-    // ---- subquery returning multiple columns ----
+    // ---- subquery returning multiple or zero columns ----
 
     public void testRejectsSubqueryWithMultipleColumns() {
         var e = expectThrows(VerificationException.class, () -> run("FROM test | WHERE id IN (FROM test | KEEP id, name) | KEEP id"));
         assertThat(e.getMessage(), containsString("IN subquery must return exactly one column, found [id, name]"));
+    }
+
+    public void testRejectsSubqueryWithMultipleColumnsWithRow() {
+        var e = expectThrows(VerificationException.class, () -> run("FROM test | WHERE id IN (ROW x = 1, id = 2) | KEEP id"));
+        assertThat(e.getMessage(), containsString("IN subquery must return exactly one column, found [x, id]"));
+    }
+
+    public void testRejectsSubqueryWithZeroColumnInOutput() {
+        var e = expectThrows(
+            VerificationException.class,
+            () -> run("FROM test | WHERE id IN (FROM test | DROP id, name, score) | KEEP id")
+        );
+        assertThat(e.getMessage(), containsString("IN subquery must return exactly one column, found []"));
+    }
+
+    public void testRejectsSubqueryWithZeroColumnInOutputWithRow() {
+        var e = expectThrows(VerificationException.class, () -> run("FROM test | WHERE id IN (ROW x = 1 | DROP x) | KEEP id"));
+        assertThat(e.getMessage(), containsString("IN subquery must return exactly one column, found []"));
+    }
+
+    public void testRejectsSubqueryWithEmptyMapping() {
+        var e = expectThrows(VerificationException.class, () -> run("FROM test | WHERE id IN (FROM empty_mapping) | KEEP id"));
+        assertThat(e.getMessage(), containsString("IN subquery cannot reference an index with empty mapping"));
     }
 
     // ---- type mismatches ----

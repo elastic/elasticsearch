@@ -11,6 +11,7 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
@@ -23,6 +24,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 /**
  * Integration tests for WHERE ... IN (subquery) and WHERE ... NOT IN (subquery).
  */
+@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
 public class InSubqueryIT extends AbstractEsqlIntegTestCase {
 
     @Before
@@ -202,24 +204,46 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
     // ---- IN subquery from different index ----
 
     public void testInSubqueryFromDifferentIndex() {
-        assertAcked(
-            client().admin()
-                .indices()
-                .prepareCreate("ids")
-                .setSettings(Settings.builder().put("index.number_of_shards", 1))
-                .setMapping("val", "type=integer")
-        );
-        client().prepareBulk()
-            .add(new IndexRequest("ids").id("1").source("val", 1))
-            .add(new IndexRequest("ids").id("2").source("val", 3))
-            .add(new IndexRequest("ids").id("3").source("val", 5))
-            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-            .get();
-        ensureYellow("ids");
-
-        try (var resp = run("FROM test | WHERE id IN (FROM ids | KEEP val) | SORT id | KEEP id, color")) {
+        try (var resp = run("FROM test | WHERE id IN (FROM ids | KEEP id) | SORT id | KEEP id, color")) {
             assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
             assertValues(resp.values(), List.of(List.of(1, "red"), List.of(3, "red"), List.of(5, "red")));
+        }
+    }
+
+    public void testInSubqueryFromDifferentIndexWithoutKeep() {
+        try (var resp = run("FROM test | WHERE id IN (FROM ids) | SORT id | KEEP id, color")) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(1, "red"), List.of(3, "red"), List.of(5, "red")));
+        }
+    }
+
+    public void testInSubqueryFromDifferentIndexWithoutStats() {
+        try (var resp = run("FROM test | WHERE id IN (FROM ids | STATS id = min(id)) | SORT id | KEEP id, color")) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(1, "red")));
+        }
+    }
+
+    // ---- IN subquery with ROW as the source command ----
+
+    public void testWhereInSubqueryWithRowAsSource() {
+        assumeTrue("Requires ROW subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        try (var resp = run("FROM test | WHERE id IN (ROW x = 1) | SORT id | KEEP id, color")) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(1, "red")));
+        }
+    }
+
+    public void testWhereInSubqueryWithRowAsSourceWithProcessingCommand() {
+        assumeTrue("Requires ROW subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        try (var resp = run("FROM test | WHERE id IN (ROW x = 1, y = 2 | WHERE x > 0 | DROP y) | SORT id | KEEP id, color")) {
+            assertColumnNames(resp.columns(), List.of("id", "color"));
+            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
+            assertValues(resp.values(), List.of(List.of(1, "red")));
         }
     }
 
@@ -935,5 +959,20 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
             .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
             .get();
         ensureYellow("test");
+
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate("ids")
+                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                .setMapping("id", "type=integer")
+        );
+        client().prepareBulk()
+            .add(new IndexRequest("ids").id("1").source("id", 1))
+            .add(new IndexRequest("ids").id("2").source("id", 3))
+            .add(new IndexRequest("ids").id("3").source("id", 5))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow("ids");
     }
 }

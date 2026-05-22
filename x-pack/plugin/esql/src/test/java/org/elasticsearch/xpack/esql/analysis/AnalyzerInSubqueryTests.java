@@ -378,6 +378,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         EsRelation leftRelation = as(semiJoin.left(), EsRelation.class);
         assertEquals("test", leftRelation.indexPattern());
 
+        // No wrapping Project is needed: the Aggregate already pins the {@code max_emp} attribute
+        // for InsertFieldExtraction on the data node.
         Aggregate aggregate = as(semiJoin.right(), Aggregate.class);
         EsRelation rightRelation = as(aggregate.child(), EsRelation.class);
         assertEquals("employees", rightRelation.indexPattern());
@@ -398,6 +400,8 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
         EsRelation leftRelation = as(antiJoin.left(), EsRelation.class);
         assertEquals("test", leftRelation.indexPattern());
 
+        // No wrapping Project is needed: the Aggregate already pins the {@code min_emp} attribute
+        // for InsertFieldExtraction on the data node.
         Aggregate aggregate = as(antiJoin.right(), Aggregate.class);
         EsRelation rightRelation = as(aggregate.child(), EsRelation.class);
         assertEquals("employees", rightRelation.indexPattern());
@@ -1860,6 +1864,29 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             FROM test
             | WHERE emp_no IN (FROM employees | STATS m = max(emp_no) BY languages | DROP m ,languages)
             """, containsString("IN subquery must return exactly one column, found []"));
+    }
+
+    /**
+     * An IN subquery against an index with empty mapping (only the {@code <no-fields>} placeholder)
+     * has no real column to compare against. The analyzer should surface a clear error rather than
+     * letting the placeholder leak into type-compatibility checking.
+     */
+    public void testRejectsInSubqueryAgainstIndexWithEmptyMapping() {
+        analyzer().addIndex("test", "mapping-basic.json").addEmptyIndex().error("""
+            FROM test
+            | WHERE emp_no IN (FROM empty_index)
+            """, containsString("IN subquery cannot reference an index with empty mapping"));
+    }
+
+    /**
+     * Same as {@link #testRejectsInSubqueryAgainstIndexWithEmptyMapping}, but for an index whose
+     * concrete indices entry exists yet the mapping is still empty (no_fields_index).
+     */
+    public void testRejectsInSubqueryAgainstNoFieldsIndex() {
+        analyzer().addIndex("test", "mapping-basic.json").addNoFieldsIndex().error("""
+            FROM test
+            | WHERE emp_no IN (FROM no_fields_index)
+            """, containsString("IN subquery cannot reference an index with empty mapping"));
     }
 
     /**

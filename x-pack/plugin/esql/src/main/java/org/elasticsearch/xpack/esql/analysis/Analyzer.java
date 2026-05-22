@@ -1115,43 +1115,75 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * <ul>
          *   <li>Left fields: resolved against the left child's output using standard attribute resolution.</li>
          *   <li>Right fields: set to the subquery's single output column, or an error attribute if the
-         *       subquery returns zero or more than one column. Stale right fields (e.g. after
+         *       subquery returns zero or more than one column, or references an index with empty
+         *       mapping (right output is {@link #NO_FIELDS}). Stale right fields (e.g. after
          *       {@link ImplicitCasting} recreated the right subtree) are re-resolved.</li>
+         *   <li>Right child: when the subquery returns exactly one resolved field and the top of the
+         *       right plan is not already a {@link Project}, an explicit {@code Project[rightField]}
+         *       is inserted. The data-node fragment optimizer prunes source attributes down to
+         *       {@code _doc}, and only re-extracts fields that are referenced by an upstream
+         *       operator inside the fragment; without an explicit Project the {@code id}-style
+         *       single-field outputs would collapse to {@code _doc} and trip the post-optimization
+         *       output verifier.</li>
          * </ul>
          */
         private SemiJoin resolveSemiAntiJoin(SemiJoin semiJoin) {
-            // resolve left fields
+            // Resolve left fields. Skip when every leftField is either already resolved or is an
+            // UnresolvedAttribute that already carries a custom message: resolveUsingColumns
+            // appends a " in left side of join" suffix on every call, and UnresolvedAttribute
+            // equality includes the message, so re-processing an already-customized message would
+            // loop forever in the rule executor. Mirrors the customMessage() bail-out in
+            // resolveLookupJoin.
             List<Attribute> leftFields = semiJoin.config().leftFields();
-            boolean leftResolved = leftFields.stream().noneMatch(UnresolvedAttribute.class::isInstance);
-            List<Attribute> leftKeys = leftResolved ? leftFields : resolveUsingColumns(leftFields, semiJoin.left().output(), "left");
+            boolean leftNeedsResolution = leftFields.stream()
+                .anyMatch(a -> a instanceof UnresolvedAttribute ua && ua.customMessage() == false);
+            List<Attribute> leftKeys = leftNeedsResolution ? resolveUsingColumns(leftFields, semiJoin.left().output(), "left") : leftFields;
 
             // resolve right fields
             List<Attribute> rightFields = resolveRightFields(semiJoin);
 
+            // Wrap the right side in an explicit Project on the single right field when the
+            // subquery plan does not already contain a Project or Aggregate anywhere. Both nodes
+            // pin the field for InsertFieldExtraction on the data node: Project explicitly lists
+            // the kept attributes; Aggregate produces the grouping/aggregate aliases that drive
+            // field extraction. When neither is present (e.g. plain {@code FROM ids}, or
+            // {@code FROM ids | LIMIT 5} / {@code FROM ids | WHERE id > 0}), the local fragment
+            // would otherwise collapse the right output to {@code _doc} after
+            // {@code ReplaceSourceAttributes} and trip the post-optimization output verifier.
+            // Skip when the right field failed to resolve (multi-column subquery, empty mapping)
+            // since we have no concrete attribute to project.
+            LogicalPlan right = semiJoin.right();
+            if (rightFields.size() == 1
+                && rightFields.get(0).resolved()
+                && right.anyMatch(p -> p instanceof Project || p instanceof Aggregate) == false) {
+                right = new Project(semiJoin.source(), right, rightFields);
+            }
+
             JoinConfig joinConfig = new JoinConfig(semiJoin.config().type(), leftKeys, rightFields, semiJoin.config().joinOnConditions());
 
             if (semiJoin instanceof LeftSemiJoin leftSemiJoin) {
-                return new LeftSemiJoin(
-                    leftSemiJoin.source(),
-                    leftSemiJoin.left(),
-                    leftSemiJoin.right(),
-                    joinConfig,
-                    leftSemiJoin.markAttribute()
-                );
+                return new LeftSemiJoin(leftSemiJoin.source(), leftSemiJoin.left(), right, joinConfig, leftSemiJoin.markAttribute());
             }
             return semiJoin instanceof AntiJoin
-                ? new AntiJoin(semiJoin.source(), semiJoin.left(), semiJoin.right(), joinConfig)
-                : new SemiJoin(semiJoin.source(), semiJoin.left(), semiJoin.right(), joinConfig);
+                ? new AntiJoin(semiJoin.source(), semiJoin.left(), right, joinConfig)
+                : new SemiJoin(semiJoin.source(), semiJoin.left(), right, joinConfig);
         }
 
         private static List<Attribute> resolveRightFields(SemiJoin semiJoin) {
             List<Attribute> rightFields = semiJoin.config().rightFields();
             if (rightFields.isEmpty() == false) {
+                // Bail out if rightFields already carries an analyzer-supplied custom error message
+                // (e.g. NO_FIELDS placeholder, multi-column subquery): re-creating a fresh
+                // UnresolvedAttribute every iteration mints a new NameId and would never converge.
+                // Mirrors the customMessage() bail-out used for left fields.
+                if (rightFields.stream().anyMatch(a -> a instanceof UnresolvedAttribute ua && ua.customMessage())) {
+                    return rightFields;
+                }
                 // Re-resolve rightFields if they became stale (e.g. after ImplicitCasting recreated the right subtree)
                 if (rightFields.stream().anyMatch(a -> a.resolved() == false)) {
                     List<Attribute> rightOutput = semiJoin.right().output();
                     if (rightOutput.size() == 1) {
-                        return singletonList(rightOutput.get(0));
+                        return singletonList(resolveSingleRightField(semiJoin, rightOutput.get(0)));
                     }
                 }
                 return rightFields;
@@ -1168,7 +1200,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     )
                 );
             }
-            return singletonList(rightOutput.get(0));
+            return singletonList(resolveSingleRightField(semiJoin, rightOutput.get(0)));
+        }
+
+        /**
+         * If the lone right-side output is the {@link #NO_FIELDS} placeholder (meaning the
+         * subquery references an index with empty mapping and no projected/computed columns),
+         * surface a clear analyzer error instead of letting the type-compatibility check fail
+         * later with an obscure {@code [NULL]}-typed message. Otherwise return the attribute
+         * unchanged.
+         */
+        private static Attribute resolveSingleRightField(SemiJoin semiJoin, Attribute rightAttr) {
+            if (NO_FIELDS_NAME.equals(rightAttr.name())) {
+                return new UnresolvedAttribute(semiJoin.source(), "*", "IN subquery cannot reference an index with empty mapping");
+            }
+            return rightAttr;
         }
 
         private boolean isCompletelyRightSideAndTranslatable(Expression expression, AttributeSet rightOutputSet) {

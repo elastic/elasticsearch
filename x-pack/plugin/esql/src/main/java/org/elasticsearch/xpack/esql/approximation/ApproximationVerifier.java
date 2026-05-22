@@ -368,12 +368,14 @@ public class ApproximationVerifier {
         logicalPlan.forEachUp(plan -> {
             if (encounteredStats.get() == false) {
                 if (LIMITING_COMMANDS.contains(plan.getClass())) {
-                    verificationException.setIfAbsent(new VerificationException(
-                        "line {}:{}: approximation not supported: query with [{}] before [STATS] cannot be approximated",
-                        plan.source().source().getLineNumber(),
-                        plan.source().source().getColumnNumber(),
-                        plan.sourceText()
-                    ));
+                    verificationException.setIfAbsent(
+                        new VerificationException(
+                            "line {}:{}: approximation not supported: query with [{}] before [STATS] cannot be approximated",
+                            plan.source().source().getLineNumber(),
+                            plan.source().source().getColumnNumber(),
+                            plan.sourceText()
+                        )
+                    );
                 }
                 if (plan instanceof Aggregate aggregate) {
                     // Verify that the aggregate functions are supported.
@@ -383,21 +385,25 @@ public class ApproximationVerifier {
                         if (SUPPORTED_SINGLE_VALUED_AGGS.contains(aggFn.getClass()) == false
                             && SUPPORTED_MULTIVALUED_AGGS.contains(aggFn.getClass()) == false) {
                             // TODO: ideally just return aggregate function from the source
-                            verificationException.setIfAbsent(new VerificationException(
-                                "line {}:{}: approximation not supported: aggregation function [{}] cannot be approximated",
-                                aggFn.source().source().getLineNumber(),
-                                aggFn.source().source().getColumnNumber(),
-                                aggFn.sourceText()
-                            ));
+                            verificationException.setIfAbsent(
+                                new VerificationException(
+                                    "line {}:{}: approximation not supported: aggregation function [{}] cannot be approximated",
+                                    aggFn.source().source().getLineNumber(),
+                                    aggFn.source().source().getColumnNumber(),
+                                    aggFn.sourceText()
+                                )
+                            );
                         }
                         if (aggFn.dataType().isNumeric() == false) {
-                            verificationException.setIfAbsent(new VerificationException(
-                                "line {}:{}: approximation not supported: aggregation function [{}] must return a numeric value; got [{}]",
-                                aggFn.source().source().getLineNumber(),
-                                aggFn.source().source().getColumnNumber(),
-                                aggFn.sourceText(),
-                                aggFn.dataType()
-                            ));
+                            verificationException.setIfAbsent(
+                                new VerificationException(
+                                    "line {}:{}: approximation not supported: aggregation function [{}] must return a numeric value; got [{}]",
+                                    aggFn.source().source().getLineNumber(),
+                                    aggFn.source().source().getColumnNumber(),
+                                    aggFn.sourceText(),
+                                    aggFn.dataType()
+                                )
+                            );
 
                         }
                     });

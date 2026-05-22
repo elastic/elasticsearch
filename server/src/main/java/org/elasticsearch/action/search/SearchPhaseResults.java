@@ -11,8 +11,10 @@ package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.index.store.DirectoryMetrics;
 import org.elasticsearch.search.SearchPhaseResult;
 
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Stream;
 
 /**
@@ -20,9 +22,21 @@ import java.util.stream.Stream;
  */
 abstract class SearchPhaseResults<Result extends SearchPhaseResult> implements Releasable {
     private final int numShards;
+    private final AtomicReference<DirectoryMetrics> mergedDirectoryMetrics = new AtomicReference<>(DirectoryMetrics.EMPTY);
 
     SearchPhaseResults(int numShards) {
         this.numShards = numShards;
+    }
+
+    void accumulateDirectoryMetrics(DirectoryMetrics m) {
+        if (m.isEmpty()) {
+            return;
+        }
+        mergedDirectoryMetrics.accumulateAndGet(m, (current, incoming) -> current.isEmpty() ? incoming : current.merge(incoming));
+    }
+
+    DirectoryMetrics drainDirectoryMetrics() {
+        return mergedDirectoryMetrics.getAndSet(DirectoryMetrics.EMPTY);
     }
 
     /**

@@ -173,6 +173,25 @@ public class BytesReadHeaderIT extends ESIntegTestCase {
         }
     }
 
+    public void testCountOnlySearchSetsBytesReadHeader() throws InterruptedException {
+        final String indexName = randomIndexName();
+        createIndex(indexName, 1, 0);
+        int numDocs = atLeast(50);
+        List<IndexRequestBuilder> builders = new ArrayList<>(numDocs);
+        for (int i = 0; i < numDocs; i++) {
+            builders.add(prepareIndex(indexName).setSource("field", "value value" + i));
+        }
+        indexRandom(true, false, false, builders);
+        flushAndRefresh(indexName);
+        // size=0 + track_total_hits routes through CountOnlyQueryPhaseResultConsumer; a term query forces reading
+        // postings on the data node so metrics should be non-zero.
+        SearchRequest request = new SearchRequest(indexName).source(
+            new SearchSourceBuilder().query(QueryBuilders.termQuery("field", "value")).size(0).trackTotalHits(true)
+        );
+        long bytesRead = assertBytesReadHeader(request);
+        assertThat(bytesRead, greaterThan(0L));
+    }
+
     public void testDfsQueryThenFetchSetsBytesReadHeader() throws InterruptedException {
         final String indexName = randomIndexName();
         createIndex(indexName, between(2, 5), 0);

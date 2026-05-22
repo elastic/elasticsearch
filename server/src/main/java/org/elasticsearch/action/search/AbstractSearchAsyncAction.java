@@ -58,8 +58,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -116,7 +114,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected final Map<String, Object> searchRequestAttributes;
     private final boolean isPitRelocationEnabled;
     protected long phaseStartTimeInNanos;
-    private final Lock directoryMetricsLock = new ReentrantLock();
     private volatile DirectoryMetrics mergedDirectoryMetrics = DirectoryMetrics.EMPTY;
 
     // protected for tests
@@ -285,9 +282,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     private void doPerformPhaseOnShard(int shardIndex, SearchShardIterator shardIt, SearchShardTarget shard, Releasable releasable) {
-        // No accumulation in the listener: {@link #onShardResult} accumulates the metrics itself, which also
-        // covers the batched data-node response path that bypasses this listener (see SearchQueryThenFetchAsyncAction).
-        var shardListener = new SearchActionListener<Result>(shard, shardIndex, SearchActionListener.NOOP_ACCUMULATOR) {
+        var shardListener = new SearchActionListener<Result>(shard, shardIndex) {
             @Override
             public void innerOnResponse(Result result) {
                 try {
@@ -519,7 +514,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected void onShardResult(Result result) {
         assert result.getShardIndex() != -1 : "shard index is not set";
         assert result.getSearchShardTarget() != null : "search shard target must not be null";
-        accumulateDirectoryMetrics(result.getDirectoryMetrics());
         hasShardResponse.set(true);
         if (logger.isTraceEnabled()) {
             logger.trace("got first-phase result from {}", result != null ? result.getSearchShardTarget() : null);
@@ -538,14 +532,11 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     }
 
     void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
-        if (metrics.isEmpty() == false) {
-            directoryMetricsLock.lock();
-            try {
-                mergedDirectoryMetrics = mergedDirectoryMetrics.merge(metrics);
-            } finally {
-                directoryMetricsLock.unlock();
-            }
+        if (metrics.isEmpty()) {
+            return;
         }
+        DirectoryMetrics current = mergedDirectoryMetrics;
+        mergedDirectoryMetrics = current.isEmpty() ? metrics : current.merge(metrics);
     }
 
     /**
@@ -629,6 +620,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
       */
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         var threadContext = searchTransportService.transportService().getThreadPool().getThreadContext();
+        accumulateDirectoryMetrics(results.drainDirectoryMetrics());
         createResponseHeaderFromDirectoryMetrics(threadContext, mergedDirectoryMetrics);
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();

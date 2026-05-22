@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -28,6 +29,8 @@ import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
@@ -58,11 +61,15 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Callable;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Supplier;
+import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyList;
 import static org.hamcrest.Matchers.equalTo;
@@ -379,6 +386,153 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         for (SearchHits shardHits : shardHitsToTrack) {
             assertFalse(shardHits.hasReferences());
         }
+    }
+
+    public void testDirectoryMetricsAccumulatedAcrossShards() throws Exception {
+        int numShards = 5;
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.setBatchedReduceSize(2);
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                newLimitedBreaker(ByteSizeValue.of(1, ByteSizeUnit.MB)),
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                numShards,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            CountDownLatch latch = new CountDownLatch(numShards);
+            long expectedBytesRead = 0;
+            for (int i = 0; i < numShards; i++) {
+                long shardBytes = (i + 1) * 100L;
+                expectedBytesRead += shardBytes;
+                consumer.consumeResult(querySearchResultWithMetrics(i, storeMetrics(shardBytes)), latch::countDown);
+            }
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+
+            DirectoryMetrics drained = consumer.drainDirectoryMetrics();
+            assertFalse(drained.isEmpty());
+            assertEquals(expectedBytesRead, drained.metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead());
+        }
+    }
+
+    public void testDirectoryMetricsEmptyShardsContributeNothing() throws Exception {
+        int numShards = 4;
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.setBatchedReduceSize(2);
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                newLimitedBreaker(ByteSizeValue.of(1, ByteSizeUnit.MB)),
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                numShards,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            CountDownLatch latch = new CountDownLatch(numShards);
+            for (int i = 0; i < numShards; i++) {
+                // No DirectoryMetrics set on the shard result -> defaults to EMPTY
+                consumer.consumeResult(querySearchResultWithMetrics(i, null), latch::countDown);
+            }
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+            assertTrue(consumer.drainDirectoryMetrics().isEmpty());
+        }
+    }
+
+    public void testDirectoryMetricsDataNodeFlagSuppressesAccumulation() throws Exception {
+        int numShards = 3;
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.setBatchedReduceSize(2);
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                newLimitedBreaker(ByteSizeValue.of(1, ByteSizeUnit.MB)),
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                numShards,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                },
+                false // accumulateDirectoryMetrics = false (data-node-side)
+            )
+        ) {
+            CountDownLatch latch = new CountDownLatch(numShards);
+            for (int i = 0; i < numShards; i++) {
+                consumer.consumeResult(querySearchResultWithMetrics(i, storeMetrics((i + 1) * 100L)), latch::countDown);
+            }
+            assertTrue(latch.await(10, TimeUnit.SECONDS));
+
+            // Even though every shard carried metrics, data-node consumer drains EMPTY so the coordinator does not double-count.
+            assertTrue(consumer.drainDirectoryMetrics().isEmpty());
+        }
+    }
+
+    public void testDirectoryMetricsConcurrentAccumulation() throws Exception {
+        int numShards = randomIntBetween(40, 100);
+        long perShardBytes = 17L;
+        SearchRequest searchRequest = new SearchRequest("index");
+        searchRequest.setBatchedReduceSize(8);
+
+        int concurrency = 4;
+        ExecutorService consumerExecutor = Executors.newFixedThreadPool(concurrency);
+        try (
+            QueryPhaseResultConsumer consumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                newLimitedBreaker(ByteSizeValue.of(1, ByteSizeUnit.MB)),
+                searchPhaseController,
+                () -> false,
+                SearchProgressListener.NOOP,
+                numShards,
+                e -> {
+                    throw new AssertionError("unexpected partial merge failure", e);
+                }
+            )
+        ) {
+            CountDownLatch consumed = new CountDownLatch(numShards);
+            List<Callable<Void>> tasks = IntStream.range(0, numShards).mapToObj(idx -> (Callable<Void>) () -> {
+                consumer.consumeResult(querySearchResultWithMetrics(idx, storeMetrics(perShardBytes)), consumed::countDown);
+                return null;
+            }).toList();
+            consumerExecutor.invokeAll(tasks);
+            assertTrue(consumed.await(10, TimeUnit.SECONDS));
+
+            DirectoryMetrics drained = consumer.drainDirectoryMetrics();
+            assertEquals(numShards * perShardBytes, drained.metrics(StoreMetrics.NAME).cast(StoreMetrics.class).getBytesRead());
+        } finally {
+            terminate(consumerExecutor);
+        }
+    }
+
+    private static DirectoryMetrics storeMetrics(long bytesRead) {
+        DirectoryMetrics.Builder b = new DirectoryMetrics.Builder();
+        b.add(StoreMetrics.NAME, new StoreMetrics(bytesRead));
+        return b.build();
+    }
+
+    private static QuerySearchResult querySearchResultWithMetrics(int shardIndex, @Nullable DirectoryMetrics metrics) {
+        SearchShardTarget target = new SearchShardTarget("node", new ShardId("index", "uuid", shardIndex), null);
+        QuerySearchResult result = new QuerySearchResult();
+        TopDocs topDocs = new TopDocs(new TotalHits(0, TotalHits.Relation.EQUAL_TO), new ScoreDoc[0]);
+        result.topDocs(new TopDocsAndMaxScore(topDocs, Float.NaN), new DocValueFormat[0]);
+        result.setSearchShardTarget(target);
+        result.setShardIndex(shardIndex);
+        if (metrics != null) {
+            result.setDirectoryMetrics(metrics);
+        }
+        return result;
     }
 
     /**

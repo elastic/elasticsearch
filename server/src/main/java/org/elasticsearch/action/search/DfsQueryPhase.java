@@ -102,46 +102,42 @@ class DfsQueryPhase extends SearchPhase {
                 continue;
             }
             context.getSearchTransport()
-                .sendExecuteQuery(
-                    connection,
-                    querySearchRequest,
-                    context.getTask(),
-                    new SearchActionListener<>(shardTarget, shardIndex, context::accumulateDirectoryMetrics) {
+                .sendExecuteQuery(connection, querySearchRequest, context.getTask(), new SearchActionListener<>(shardTarget, shardIndex) {
 
-                        @Override
-                        protected void innerOnResponse(SearchPhaseResult response) {
-                            try {
-                                response.queryResult().setSearchProfileDfsPhaseResult(dfsResult.searchProfileDfsPhaseResult());
-                                if (dfsResult.searchTimedOut()) {
-                                    response.queryResult().searchTimedOut(true);
-                                }
-                                counter.onResult(response);
-                            } catch (Exception e) {
-                                context.onPhaseFailure(NAME, "", e);
+                    @Override
+                    protected void innerOnResponse(SearchPhaseResult response) {
+                        try {
+                            response.queryResult().setSearchProfileDfsPhaseResult(dfsResult.searchProfileDfsPhaseResult());
+                            if (dfsResult.searchTimedOut()) {
+                                response.queryResult().searchTimedOut(true);
                             }
+                            counter.onResult(response);
+                        } catch (Exception e) {
+                            context.onPhaseFailure(NAME, "", e);
                         }
+                    }
 
-                        @Override
-                        public void onFailure(Exception exception) {
-                            try {
-                                shardFailure(exception, querySearchRequest, shardIndex, shardTarget, counter);
-                            } finally {
-                                if (context.isPartOfPointInTime(querySearchRequest.contextId()) == false) {
-                                    // the query might not have been executed at all (for example because thread pool rejected
-                                    // execution) and the search context that was created in dfs phase might not be released.
-                                    // release it again to be in the safe side
-                                    context.sendReleaseSearchContext(querySearchRequest.contextId(), connection);
-                                }
+                    @Override
+                    public void onFailure(Exception exception) {
+                        try {
+                            shardFailure(exception, querySearchRequest, shardIndex, shardTarget, counter);
+                        } finally {
+                            if (context.isPartOfPointInTime(querySearchRequest.contextId()) == false) {
+                                // the query might not have been executed at all (for example because thread pool rejected
+                                // execution) and the search context that was created in dfs phase might not be released.
+                                // release it again to be in the safe side
+                                context.sendReleaseSearchContext(querySearchRequest.contextId(), connection);
                             }
                         }
                     }
-                );
+                });
         }
     }
 
     private void onFinish(AggregatedDfs dfs) {
         context.getSearchResponseMetrics()
             .recordSearchPhaseDuration(getName(), System.nanoTime() - phaseStartTimeInNanos, context.getSearchRequestAttributes());
+        context.accumulateDirectoryMetrics(queryResult.drainDirectoryMetrics());
         context.executeNextPhase(NAME, () -> nextPhase(dfs));
     }
 

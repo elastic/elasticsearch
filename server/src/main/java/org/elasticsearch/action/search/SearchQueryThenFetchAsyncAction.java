@@ -675,7 +675,8 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                         cancellableTask::isCancelled,
                         SearchProgressListener.NOOP,
                         shardCount,
-                        e -> logger.error("failed to merge on data node", e)
+                        e -> logger.error("failed to merge on data node", e),
+                        false
                     ),
                     request,
                     cancellableTask,
@@ -789,13 +790,9 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                         )
                     ),
                     state.task,
-                    // Data-node-side batched listener: each shard's DirectoryMetrics are in the QuerySearchResult
-                    // inside the batched response and are accumulated on the coordinator via onShardResult. Accumulating
-                    // here would double-count or write to the wrong accumulator.
                     new SearchActionListener<>(
                         new SearchShardTarget(null, shardToQuery.shardId, nodeQueryRequest.localClusterAlias),
-                        dataNodeLocalIdx,
-                        SearchActionListener.NOOP_ACCUMULATOR
+                        dataNodeLocalIdx
                     ) {
                         @Override
                         protected void innerOnResponse(SearchPhaseResult searchPhaseResult) {

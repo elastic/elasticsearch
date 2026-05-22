@@ -136,7 +136,7 @@ public class RankFeaturePhase extends SearchPhase {
         final SearchShardTarget shardTarget = queryResult.queryResult().getSearchShardTarget();
         final ShardSearchContextId contextId = queryResult.queryResult().getContextId();
         final int shardIndex = queryResult.getShardIndex();
-        var listener = new SearchActionListener<RankFeatureResult>(shardTarget, shardIndex, context::accumulateDirectoryMetrics) {
+        var listener = new SearchActionListener<RankFeatureResult>(shardTarget, shardIndex) {
             @Override
             protected void innerOnResponse(RankFeatureResult response) {
                 try {
@@ -183,6 +183,7 @@ public class RankFeaturePhase extends SearchPhase {
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
+        context.accumulateDirectoryMetrics(rankPhaseResults.drainDirectoryMetrics());
         ThreadedActionListener<RankFeatureDoc[]> rankResultListener = new ThreadedActionListener<>(
             context::execute,
             new ActionListener<>() {

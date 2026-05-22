@@ -139,6 +139,7 @@ class FetchSearchPhase extends SearchPhase {
             docIdsToLoad.length, // we count down every shard in the result no matter if we got any results or not
             () -> {
                 try (fetchResults) {
+                    context.accumulateDirectoryMetrics(fetchResults.drainDirectoryMetrics());
                     moveToNextPhase(fetchResults.getAtomicArray(), reducedQueryPhase, phaseStartTimeInNanos);
                 }
             },
@@ -212,7 +213,7 @@ class FetchSearchPhase extends SearchPhase {
         final ShardSearchContextId contextId = shardPhaseResult.queryResult() != null
             ? shardPhaseResult.queryResult().getContextId()
             : shardPhaseResult.rankFeatureResult().getContextId();
-        var listener = new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex, context::accumulateDirectoryMetrics) {
+        var listener = new SearchActionListener<FetchSearchResult>(shardTarget, shardIndex) {
             @Override
             public void innerOnResponse(FetchSearchResult result) {
                 try {

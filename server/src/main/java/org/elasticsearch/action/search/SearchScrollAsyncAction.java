@@ -35,8 +35,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
@@ -59,8 +58,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     private final long startTime;
     private final List<ShardSearchFailure> shardFailures = new ArrayList<>();
     private final AtomicInteger successfulOps;
-    private final Lock directoryMetricsLock = new ReentrantLock();
-    private volatile DirectoryMetrics mergedDirectoryMetrics = DirectoryMetrics.EMPTY;
+    private final AtomicReference<DirectoryMetrics> mergedDirectoryMetrics = new AtomicReference<>(DirectoryMetrics.EMPTY);
 
     protected SearchScrollAsyncAction(
         ParsedScrollId scrollId,
@@ -162,7 +160,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
             // we can't create a SearchShardTarget here since we don't know the index and shard ID we are talking to
             // we only know the node and the search context ID. Yet, the response will contain the SearchShardTarget
             // from the target node instead...that's why we pass null here
-            SearchActionListener<T> searchActionListener = new SearchActionListener<>(null, shardIndex, this::accumulateDirectoryMetrics) {
+            SearchActionListener<T> searchActionListener = new SearchActionListener<>(null, shardIndex) {
 
                 @Override
                 protected void setSearchShardTarget(T response) {
@@ -182,6 +180,8 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
                 protected void innerOnResponse(T result) {
                     assert shardIndex == result.getShardIndex()
                         : "shard index mismatch: " + shardIndex + " but got: " + result.getShardIndex();
+                    // scroll has no SearchPhaseResults pipeline; accumulate per-shard DirectoryMetrics here directly
+                    accumulateDirectoryMetrics(result.getDirectoryMetrics());
                     onFirstPhaseResult(shardIndex, result);
                     if (counter.countDown()) {
                         SearchPhase phase = moveToNextPhase(clusterNodeLookup);
@@ -250,14 +250,10 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     }
 
     protected void accumulateDirectoryMetrics(DirectoryMetrics metrics) {
-        if (metrics.isEmpty() == false) {
-            directoryMetricsLock.lock();
-            try {
-                mergedDirectoryMetrics = mergedDirectoryMetrics.merge(metrics);
-            } finally {
-                directoryMetricsLock.unlock();
-            }
+        if (metrics.isEmpty()) {
+            return;
         }
+        mergedDirectoryMetrics.accumulateAndGet(metrics, (current, incoming) -> current.isEmpty() ? incoming : current.merge(incoming));
     }
 
     protected final void sendResponse(
@@ -266,7 +262,7 @@ abstract class SearchScrollAsyncAction<T extends SearchPhaseResult> {
     ) {
         try {
             var threadContext = searchTransportService.transportService().getThreadPool().getThreadContext();
-            createResponseHeaderFromDirectoryMetrics(threadContext, mergedDirectoryMetrics);
+            createResponseHeaderFromDirectoryMetrics(threadContext, mergedDirectoryMetrics.get());
             // the scroll ID never changes we always return the same ID. This ID contains all the shards and their context ids
             // such that we can talk to them again in the next roundtrip.
             String scrollId = null;

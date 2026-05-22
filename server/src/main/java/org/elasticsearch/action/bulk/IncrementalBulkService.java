@@ -43,6 +43,8 @@ import static org.elasticsearch.common.settings.Setting.boolSetting;
 
 public class IncrementalBulkService {
     public static final String CHUNK_WAIT_TIME_HISTOGRAM_NAME = "es.rest.incremental_bulk.wait_for_next_chunk.duration.histogram";
+    public static final String BULK_SESSION_TASK_TYPE = "bulk_session";
+    public static final String BULK_SESSION_ACTION = "bulk_session_action";
 
     public static final Setting<Boolean> INCREMENTAL_BULK = boolSetting(
         "rest.incremental_bulk",
@@ -142,6 +144,7 @@ public class IncrementalBulkService {
         private boolean bulkInProgress = false;
         private Exception bulkActionLevelFailure = null;
         private BulkRequest bulkRequest = null;
+        private final TaskManager taskManager;
         private final CancellableTask bulkSessionTask;
 
         protected Handler(
@@ -162,7 +165,8 @@ public class IncrementalBulkService {
             this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
             this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
             createNewBulkRequest(EMPTY_STATE);
-            bulkSessionTask = (CancellableTask) taskManager.register("", "", new TaskAwareRequest() {
+            this.taskManager = taskManager;
+            bulkSessionTask = (CancellableTask) taskManager.register(BULK_SESSION_TASK_TYPE, BULK_SESSION_ACTION, new TaskAwareRequest() {
                 @Override
                 public void setParentTask(TaskId taskId) {}
 
@@ -285,6 +289,7 @@ public class IncrementalBulkService {
                 incrementalOperation.close();
                 releasables.forEach(Releasable::close);
                 releasables.clear();
+                taskManager.unregister(bulkSessionTask);
             }
         }
 
@@ -351,7 +356,10 @@ public class IncrementalBulkService {
 
         private void createNewBulkRequest(BulkRequest.IncrementalState incrementalState) {
             assert bulkRequest == null;
+            assert bulkSessionTask != null;
+            assert taskManager != null;
             bulkRequest = new BulkRequest();
+            bulkRequest.setParentTask(new TaskId(taskManager.getNodeId(), bulkSessionTask.getId()));
             bulkRequest.incrementalState(incrementalState);
 
             if (waitForActiveShards != null) {

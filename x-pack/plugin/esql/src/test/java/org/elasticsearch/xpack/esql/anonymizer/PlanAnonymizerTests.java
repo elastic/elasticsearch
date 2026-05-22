@@ -344,6 +344,97 @@ public class PlanAnonymizerTests extends ESTestCase {
     }
 
     /**
+     * Alias.name from EVAL/STATS (e.g. {@code EVAL bonus = ...}) is rendered by Alias.nodeString as
+     * {@code ... AS bonus#NN}. Alias is NamedExpression, not Attribute, so the Attribute rule
+     * never touched it before. Verifies the dedicated Alias rule scrubs it.
+     */
+    public void testEvalAliasNameAnonymized() {
+        String sensitiveAlias = "user_secret_bonus";
+        EsField salaryField = new EsField("salary", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        FieldAttribute salary = new FieldAttribute(Source.EMPTY, null, null, "salary", salaryField);
+        EsRelation rel = new EsRelation(
+            Source.EMPTY,
+            INDEX,
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of(INDEX, IndexMode.STANDARD),
+            List.<Attribute>of(salary)
+        );
+        org.elasticsearch.xpack.esql.core.expression.Alias alias = new org.elasticsearch.xpack.esql.core.expression.Alias(
+            Source.EMPTY,
+            sensitiveAlias,
+            salary
+        );
+        org.elasticsearch.xpack.esql.plan.logical.Eval eval = new org.elasticsearch.xpack.esql.plan.logical.Eval(
+            Source.EMPTY,
+            rel,
+            List.of(alias)
+        );
+        LogicalPlan plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), eval);
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(null, null, plan, null);
+
+        assertFalse("EVAL alias name leaked into optimized plan:\n" + out.optimized(), out.optimized().contains(sensitiveAlias));
+    }
+
+    /**
+     * Enrich.concreteIndices holds a {@code Map<clusterAlias, enrichIndexName>} that renders via
+     * NodeInfo args. Both keys and values are anonymized via the index-token map.
+     */
+    public void testEnrichConcreteIndicesAnonymized() {
+        String sensitiveCluster = "internal_eu_west_billing";
+        String sensitiveEnrichIdx = ".enrich-customer-pii-by-id-2026";
+        EsField field = new EsField("customer_id", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        FieldAttribute attr = new FieldAttribute(Source.EMPTY, null, null, "customer_id", field);
+        EsRelation rel = new EsRelation(
+            Source.EMPTY,
+            INDEX,
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of(INDEX, IndexMode.STANDARD),
+            List.<Attribute>of(attr)
+        );
+        org.elasticsearch.xpack.esql.plan.logical.Enrich enrich = new org.elasticsearch.xpack.esql.plan.logical.Enrich(
+            Source.EMPTY,
+            rel,
+            org.elasticsearch.xpack.esql.plan.logical.Enrich.Mode.ANY,
+            new Literal(Source.EMPTY, new BytesRef("departments"), DataType.KEYWORD),
+            attr,
+            null,
+            Map.of(sensitiveCluster, sensitiveEnrichIdx),
+            List.of()
+        );
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(null, null, enrich, null);
+
+        assertFalse("Enrich.concreteIndices cluster key leaked:\n" + out.optimized(), out.optimized().contains(sensitiveCluster));
+        assertFalse("Enrich.concreteIndices enrich-index value leaked:\n" + out.optimized(), out.optimized().contains(sensitiveEnrichIdx));
+    }
+
+    /**
+     * FragmentExec.esFilter is the DSL passthrough from {@code request.filter()} — opaque content
+     * we can't safely parse. Anonymization nulls it out so no raw DSL text reaches the log.
+     */
+    public void testFragmentExecEsFilterDropped() {
+        String sensitiveTerm = "customer_account_12345";
+        org.elasticsearch.index.query.QueryBuilder filter = new org.elasticsearch.index.query.TermQueryBuilder("account_id", sensitiveTerm);
+        LogicalPlan inner = sampleLogicalPlan();
+        org.elasticsearch.xpack.esql.plan.physical.FragmentExec frag = new org.elasticsearch.xpack.esql.plan.physical.FragmentExec(
+            Source.EMPTY,
+            inner,
+            filter,
+            0
+        );
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(null, null, inner, frag);
+
+        assertFalse("DSL filter content leaked into physical plan:\n" + out.physical(), out.physical().contains(sensitiveTerm));
+        assertFalse("DSL field name leaked:\n" + out.physical(), out.physical().contains("account_id"));
+    }
+
+    /**
      * Adversarial: build a plan stuffed with identifiers and literal values that look like real PII
      * (emails, SSNs, credit card numbers, IPs, password-like strings, dates). After anonymization no
      * input identifier — neither a field name, nor an index name, nor a string-literal value, nor a

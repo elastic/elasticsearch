@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.anonymizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -20,12 +21,16 @@ import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
@@ -98,6 +103,13 @@ public final class PlanAnonymizer {
 
     private LogicalPlan anonymizeLogical(LogicalPlan plan) {
         LogicalPlan out = plan.transformExpressionsDown(Attribute.class, this::anonymizeAttribute);
+        // Alias.name carries user-defined identifiers from EVAL / STATS aliases (`EVAL foo = ...`)
+        // and is rendered by Alias.nodeString as `... AS foo#NN`. Alias is NamedExpression, not
+        // Attribute, so the rule above doesn't touch it. Anonymize via the same column-token map.
+        out = out.transformExpressionsDown(Alias.class, this::anonymizeAlias);
+        // Wildcard / pattern projections (KEEP *foo*) carry user prefixes/suffixes via the pattern
+        // string; replace with a fixed placeholder so the shape is visible but content is not.
+        out = out.transformExpressionsDown(UnresolvedNamePattern.class, this::anonymizeUnresolvedNamePattern);
         out = out.transformExpressionsDown(Literal.class, this::anonymizeLiteral);
         out = out.transformDown(EsRelation.class, this::anonymizeEsRelation);
         // Parsed plans carry UnresolvedRelation (not EsRelation) since analysis hasn't run; the
@@ -108,7 +120,35 @@ public final class PlanAnonymizer {
         // anonymize via the index map (views and indices share the table-like-name namespace).
         out = out.transformDown(NamedSubquery.class, this::anonymizeNamedSubquery);
         out = out.transformDown(ViewUnionAll.class, this::anonymizeViewUnionAll);
+        // Enrich.concreteIndices holds a Map<clusterAlias, enrichIndexName> with raw names that
+        // render via NodeInfo args. Anonymize keys and values via the index-token map.
+        out = out.transformDown(Enrich.class, this::anonymizeEnrich);
         return out;
+    }
+
+    private Alias anonymizeAlias(Alias a) {
+        return new Alias(a.source(), anonymizeColumn(a.name()), a.child(), a.id(), a.synthetic());
+    }
+
+    private UnresolvedNamePattern anonymizeUnresolvedNamePattern(UnresolvedNamePattern p) {
+        // The runtime automaton is recompiled from a literal placeholder pattern that matches
+        // nothing — the failure log only renders the pattern string, never executes it.
+        return new UnresolvedNamePattern(
+            p.source(),
+            new org.apache.lucene.util.automaton.CharacterRunAutomaton(org.apache.lucene.util.automaton.Automata.makeEmpty()),
+            "<PATTERN>",
+            "<PATTERN>"
+        );
+    }
+
+    private Enrich anonymizeEnrich(Enrich e) {
+        Map<String, String> anonIndices = new TreeMap<>();
+        if (e.concreteIndices() != null) {
+            for (Map.Entry<String, String> entry : e.concreteIndices().entrySet()) {
+                anonIndices.put(anonymizeIndex(entry.getKey()), anonymizeIndex(entry.getValue()));
+            }
+        }
+        return new Enrich(e.source(), e.child(), e.mode(), e.policyName(), e.matchField(), e.policy(), anonIndices, e.enrichFields());
     }
 
     private NamedSubquery anonymizeNamedSubquery(NamedSubquery ns) {
@@ -138,10 +178,41 @@ public final class PlanAnonymizer {
 
     private PhysicalPlan anonymizePhysical(PhysicalPlan plan) {
         PhysicalPlan out = plan.transformExpressionsDown(Attribute.class, this::anonymizeAttribute);
+        out = out.transformExpressionsDown(Alias.class, this::anonymizeAlias);
         out = out.transformExpressionsDown(Literal.class, this::anonymizeLiteral);
-        // FragmentExec's inner LogicalPlan is not part of the physical tree walk; recurse explicitly.
-        out = out.transformDown(FragmentExec.class, fe -> fe.withFragment(anonymizeLogical(fe.fragment())));
+        // Pre-optimization and post-optimization physical source nodes carry the raw index pattern
+        // and render it via nodeString — same shape as EsRelation on the logical side.
+        out = out.transformDown(EsSourceExec.class, this::anonymizeEsSourceExec);
+        out = out.transformDown(EsQueryExec.class, this::anonymizeEsQueryExec);
+        // FragmentExec wraps a LogicalPlan (anonymized recursively) and carries an opaque
+        // QueryBuilder DSL filter from request.filter() that we can't safely parse — clear it.
+        out = out.transformDown(FragmentExec.class, this::anonymizeFragmentExec);
         return out;
+    }
+
+    private EsSourceExec anonymizeEsSourceExec(EsSourceExec e) {
+        // null out the QueryBuilder — it's the DSL passthrough from the request, opaque content.
+        return new EsSourceExec(e.source(), anonymizeIndex(e.indexPattern()), e.indexMode(), e.output(), null);
+    }
+
+    private EsQueryExec anonymizeEsQueryExec(EsQueryExec e) {
+        // Drop the QueryBuilderAndTags list — it carries Lucene-pushed-down DSL.
+        return new EsQueryExec(
+            e.source(),
+            anonymizeIndex(e.indexPattern()),
+            e.indexMode(),
+            e.attrs(),
+            e.limit(),
+            e.sorts(),
+            e.estimatedRowSize(),
+            java.util.List.of()
+        );
+    }
+
+    private FragmentExec anonymizeFragmentExec(FragmentExec fe) {
+        // Recurse into the wrapped logical plan; null the DSL filter rather than ship raw query
+        // text from request.filter() that we cannot parse for sensitive content.
+        return new FragmentExec(fe.source(), anonymizeLogical(fe.fragment()), null, fe.estimatedRowSize());
     }
 
     private Attribute anonymizeAttribute(Attribute a) {

@@ -2276,7 +2276,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         flush(indexName);
         ensureGreen(indexName);
 
-        final var fileChunkLatch = new CountDownLatch(1);
+        final var fileChunkReceivedLatch = new CountDownLatch(1);
+        final var proceedRecoveryLatch = new CountDownLatch(1);
         final Set<Integer> shardsThatStartedRecovery = ConcurrentHashMap.newKeySet();
         final var transportService = MockTransportService.getInstance(sourceNode);
 
@@ -2284,9 +2285,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         transportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
                 if (request instanceof RecoveryFileChunkRequest fileChunkRequest) {
+                    fileChunkReceivedLatch.countDown();
                     shardsThatStartedRecovery.add(fileChunkRequest.shardId().id());
                 }
-                safeAwait(fileChunkLatch);
+                safeAwait(proceedRecoveryLatch);
             }
             connection.sendRequest(requestId, action, request, options);
         });
@@ -2296,6 +2298,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             indicesAdmin().prepareUpdateSettings(indexName).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
 
+        safeAwait(fileChunkReceivedLatch);
         assertBusy(() -> {
             final var recoveryStats = clusterAdmin().prepareNodesStats(sourceNode)
                 .clear()
@@ -2320,7 +2323,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             .getRecoveryStats();
         assertThat("expected no more queued recovery request", updatedStats.currentAsSourceQueued(), equalTo(0));
 
-        fileChunkLatch.countDown();
+        proceedRecoveryLatch.countDown();
         assertThat(shardsThatStartedRecovery, hasSize(1));
     }
 

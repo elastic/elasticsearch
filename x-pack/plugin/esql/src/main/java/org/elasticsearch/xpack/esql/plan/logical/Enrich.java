@@ -184,6 +184,30 @@ public class Enrich extends UnaryPlan
         return mode;
     }
 
+    /**
+     * The {@code concreteIndices} map exposes per-cluster enrich-index names; both keys (cluster
+     * aliases) and values (raw index names) route through the index-token map. The {@code mode}
+     * enum and the {@code matchField}, {@code enrichFields}, and {@code policyName} expressions
+     * render via the children recursion.
+     */
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append("Enrich[mode=").append(mode);
+        if (concreteIndices != null && concreteIndices.isEmpty() == false) {
+            sb.append(", concreteIndices={");
+            boolean first = true;
+            for (Map.Entry<String, String> e : concreteIndices.entrySet()) {
+                if (first == false) {
+                    sb.append(", ");
+                }
+                first = false;
+                sb.append(ctx.index(e.getKey())).append('=').append(ctx.index(e.getValue()));
+            }
+            sb.append('}');
+        }
+        sb.append(']');
+    }
+
     @Override
     protected AttributeSet computeReferences() {
         return matchField.references();

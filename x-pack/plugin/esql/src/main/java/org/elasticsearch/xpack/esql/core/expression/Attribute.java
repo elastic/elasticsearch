@@ -219,6 +219,19 @@ public abstract class Attribute extends NamedExpression {
         sb.append(qualifiedName()).append("{").append(label()).append(synthetic() ? "$" : "").append("}").append("#").append(id());
     }
 
+    /**
+     * Anonymizes the attribute name (and qualifier when present) through the column-token map. The
+     * label / synthetic marker / NameId are structural and pass through unchanged so attribute
+     * identity within a query is still visible to triage.
+     */
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        if (qualifier != null) {
+            sb.append('[').append(ctx.column(qualifier)).append("].");
+        }
+        sb.append(ctx.column(name())).append('{').append(label()).append(synthetic() ? "$" : "").append("}#").append(id());
+    }
+
     @Override
     public final String toString() {
         StringBuilder sb = new StringBuilder();

@@ -162,4 +162,10 @@ public class Grok extends RegexExtract implements TelemetryAware, SortPreserving
     public Parser parser() {
         return parser;
     }
+
+    /** Pattern body is user-supplied — replace with a placeholder; child + extracted via recursion. */
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append("Grok[pattern=\"").append(ctx.grokPattern(parser.pattern())).append("\"]");
+    }
 }

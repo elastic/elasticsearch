@@ -504,27 +504,54 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     /**
-     * Returns an anonymized text rendering of this node and its subtree, safe to ship to telemetry.
+     * Appends an anonymized text rendering of this node and its subtree to {@code sb}, safe to
+     * ship to telemetry. Parallels {@link #nodeString(StringBuilder, NodeStringFormat)} — same
+     * shape, same recursion, same builder-passing convention so no per-child intermediate strings
+     * are allocated.
      * <p>
-     * Default implementation emits {@code "<SimpleClassName>[...]"} followed by recursively-anonymized
-     * children — guaranteed to leak no field content of this node. Subclasses that carry
-     * customer-sensitive data (column / index / view / alias / pattern strings, literal values, etc.)
-     * must override and route every such piece through {@link AnonymizationContext#column},
-     * {@link AnonymizationContext#index}, or {@link AnonymizationContext#literal} so the value is
-     * intern-and-tokenized consistently with the rest of the tree.
+     * Calls {@link #anonymizedSelf} for this node, then recursively writes children separated by
+     * the {@code \\_} tree marker the existing pretty-printer uses, indented two spaces per level.
+     * Subclasses carrying customer-sensitive data (column / index / view / alias / pattern strings,
+     * literal values, etc.) override {@link #anonymizedSelf} and route every such piece through
+     * {@link AnonymizationContext#column}, {@link AnonymizationContext#index}, or
+     * {@link AnonymizationContext#literal}.
      * <p>
-     * <strong>Default-safe.</strong> A new {@code Node} subclass that does not override this method
-     * inherits a baseline that exposes the class name and structure but no field content. Authors
-     * adding sensitive fields are nudged to think about anonymization at the same time they think
-     * about {@code nodeString()}.
+     * <strong>Default-safe.</strong> A new {@code Node} subclass that does not override
+     * {@link #anonymizedSelf} inherits a baseline that exposes the class name and structure but no
+     * field content. Authors adding sensitive fields are nudged to think about anonymization at
+     * the same time they think about {@code nodeString}.
      */
-    public String anonymize(AnonymizationContext ctx) {
-        StringBuilder sb = new StringBuilder();
-        sb.append(getClass().getSimpleName()).append("[...]");
-        for (T child : children) {
-            sb.append("\n\\_").append(child.anonymize(ctx).indent(2).stripTrailing());
+    public final void anonymizedString(StringBuilder sb, AnonymizationContext ctx) {
+        anonymizedSelf(sb, ctx);
+        if (children.isEmpty() == false) {
+            StringBuilder childBuf = new StringBuilder();
+            for (T child : children) {
+                childBuf.setLength(0);
+                child.anonymizedString(childBuf, ctx);
+                sb.append('\n').append("\\_").append(childBuf.toString().indent(2).stripTrailing().substring(2));
+            }
         }
+    }
+
+    /** Convenience wrapper that allocates a builder and returns the resulting string. */
+    public final String toAnonymizedString(AnonymizationContext ctx) {
+        StringBuilder sb = new StringBuilder();
+        anonymizedString(sb, ctx);
         return sb.toString();
+    }
+
+    /**
+     * Subclass extension point for {@link #anonymizedString(StringBuilder, AnonymizationContext)}.
+     * Default appends {@code "<SimpleClassName>[...]"} — guaranteed to leak no field content of this
+     * node. Subclasses override to expose anonymized identifiers / literals / structural details;
+     * children recursion is handled by the public entry.
+     * <p>
+     * Public (rather than protected) so a parent node can inline a child's self-text on the same
+     * line when the parent renders its children compactly (e.g. {@code EsRelation}'s attribute
+     * list). Mirrors {@link #nodeString(StringBuilder, NodeStringFormat)}, which is also public.
+     */
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append(getClass().getSimpleName()).append("[...]");
     }
 
     protected void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format) {

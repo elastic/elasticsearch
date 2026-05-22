@@ -362,6 +362,28 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
             .append("]");
     }
 
+    /**
+     * Drops the {@code queryBuilderAndTags} list — that holds Lucene-pushdown DSL we cannot safely
+     * parse; sorts are dropped too for the same reason their text body can carry literal values.
+     * Limit is rendered as an anonymized {@link org.elasticsearch.xpack.esql.core.expression.Literal}
+     * via {@link #anonymizedSelf}; attributes are inlined on the same line.
+     */
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append("EsQueryExec[").append(ctx.index(indexPattern)).append("], indexMode[").append(indexMode).append("], [");
+        for (int i = 0; i < attrs.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            attrs.get(i).anonymizedSelf(sb, ctx);
+        }
+        sb.append("], limit[");
+        if (limit != null) {
+            limit.anonymizedSelf(sb, ctx);
+        }
+        sb.append("], estimatedRowSize[").append(estimatedRowSize).append(']');
+    }
+
     public enum Direction {
         ASC,
         DESC;

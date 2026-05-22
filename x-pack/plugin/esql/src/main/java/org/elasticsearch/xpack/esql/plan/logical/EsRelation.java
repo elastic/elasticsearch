@@ -174,6 +174,39 @@ public class EsRelation extends LeafPlan {
         NodeUtils.toString(sb, attrs, format);
     }
 
+    /**
+     * Anonymizes the index pattern + the per-concrete-index {@code indexNameWithModes} keys so the
+     * lookup / time-series classification stays visible to triage. EsRelation is a logical leaf
+     * (no children), so attributes are inlined here as a single-line list.
+     */
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append("EsRelation[").append(ctx.index(indexPattern)).append("]");
+        if (indexMode != IndexMode.STANDARD) {
+            sb.append('[').append(indexMode.name()).append(']');
+        }
+        if (indexNameWithModes != null && indexNameWithModes.isEmpty() == false) {
+            sb.append('[');
+            boolean first = true;
+            for (var e : indexNameWithModes.entrySet()) {
+                if (first == false) {
+                    sb.append(", ");
+                }
+                first = false;
+                sb.append(ctx.index(e.getKey())).append('=').append(e.getValue().name());
+            }
+            sb.append(']');
+        }
+        sb.append('[');
+        for (int i = 0; i < attrs.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            attrs.get(i).anonymizedSelf(sb, ctx);
+        }
+        sb.append(']');
+    }
+
     public EsRelation withAttributes(List<Attribute> newAttributes) {
         return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, newAttributes);
     }

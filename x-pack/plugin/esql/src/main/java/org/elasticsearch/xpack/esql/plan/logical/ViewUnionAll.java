@@ -94,6 +94,20 @@ public class ViewUnionAll extends UnionAll {
     }
 
     @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append("ViewUnionAll[[");
+        boolean first = true;
+        for (String name : namedSubqueries.keySet()) {
+            if (first == false) {
+                sb.append(", ");
+            }
+            first = false;
+            sb.append(ctx.index(name));
+        }
+        sb.append("]]");
+    }
+
+    @Override
     public int hashCode() {
         // Standard Map.hashCode() uses sum of (key ^ value) per entry, which is separable:
         // swapping values between keys can produce the same sum. Instead, we use multiplication

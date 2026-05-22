@@ -139,4 +139,17 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         sb.append(fragment.toString(format));
         sb.append("<>]]");
     }
+
+    /**
+     * Drops {@code esFilter} (DSL passthrough from {@code request.filter()} — opaque content we
+     * can't safely parse). Recursively walks the wrapped logical {@code fragment} via its own
+     * anonymized renderer; the fragment is not a {@code children()} entry on the physical tree
+     * so the base recursion doesn't reach it.
+     */
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append("FragmentExec[filter=null, estimatedRowSize=").append(estimatedRowSize).append(", fragment=[<>\n");
+        fragment.anonymizedString(sb, ctx);
+        sb.append("<>]]");
+    }
 }

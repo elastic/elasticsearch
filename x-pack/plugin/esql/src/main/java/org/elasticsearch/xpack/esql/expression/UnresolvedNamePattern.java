@@ -120,4 +120,14 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
     public String toString() {
         return UNRESOLVED_PREFIX + pattern;
     }
+
+    /**
+     * Preserves the shape of the wildcard pattern — {@code *}, {@code ?}, {@code %}, {@code _}
+     * survive; each literal run between wildcards routes through the column-token map so a triage
+     * reader still sees the pattern's structure (e.g. {@code col_abc*}).
+     */
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append(UNRESOLVED_PREFIX).append(ctx.wildcardPattern(pattern));
+    }
 }

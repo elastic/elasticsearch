@@ -143,6 +143,16 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
         sb.append(UNRESOLVED_PREFIX).append(qualifiedName());
     }
 
+    /**
+     * Renders the unresolved-prefix marker plus the anonymized name. Cannot delegate to the
+     * inherited {@link Attribute} hook because that path goes through {@code dataType()} on some
+     * code paths which throws on an unresolved attribute.
+     */
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append(UNRESOLVED_PREFIX).append(ctx.column(name()));
+    }
+
     @Override
     public String unresolvedMessage() {
         return unresolvedMsg;

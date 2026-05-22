@@ -65,4 +65,9 @@ public class NamedSubquery extends Subquery {
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
         sb.append(nodeName()).append("[").append(name).append("]");
     }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append("NamedSubquery[").append(ctx.index(name)).append(']');
+    }
 }

@@ -361,4 +361,26 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
             case LIMITED -> super.nodeString(sb, format);
         }
     }
+
+    /**
+     * Anonymizes the display name and the {@code parentName} prefix that flows through
+     * {@link #fieldName()} for synthetic union-type attributes. Surfaces the {@link EsField}
+     * subclass simple name so triage can distinguish plain fields from {@code InvalidMappedField}
+     * / {@code MultiTypeEsField} / {@code PotentiallyUnmappedKeywordEsField}.
+     */
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        if (parentName != null) {
+            sb.append('[').append(ctx.column(parentName)).append("].");
+        }
+        sb.append(ctx.column(name())).append('{').append(label());
+        String subclass = field.getClass().getSimpleName();
+        if (subclass.equals("EsField") == false) {
+            sb.append('(').append(subclass).append(')');
+        }
+        if (synthetic()) {
+            sb.append('$');
+        }
+        sb.append("}#").append(id());
+    }
 }

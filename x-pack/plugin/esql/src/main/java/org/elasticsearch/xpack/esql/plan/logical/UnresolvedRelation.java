@@ -112,6 +112,11 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         return indexPattern;
     }
 
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append("UnresolvedRelation[").append(ctx.index(indexPattern.indexPattern())).append(']');
+    }
+
     public boolean frozen() {
         return frozen;
     }

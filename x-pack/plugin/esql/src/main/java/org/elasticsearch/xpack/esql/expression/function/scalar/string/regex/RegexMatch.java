@@ -77,6 +77,21 @@ abstract class RegexMatch<P extends AbstractStringPattern> extends org.elasticse
         sb.append(", \"").append(pattern().pattern()).append("\", ").append(caseInsensitive()).append(")");
     }
 
+    /**
+     * Preserves the wildcard structure of the pattern (e.g. {@code S*} stays {@code col_xxx*}) so
+     * triage sees the shape, not just an opaque placeholder. The field expression is rendered via
+     * the children recursion.
+     */
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append(name())
+            .append("(<field>, \"")
+            .append(ctx.wildcardPattern(pattern().pattern()))
+            .append("\", ")
+            .append(caseInsensitive())
+            .append(")");
+    }
+
     void serializeCaseInsensitivity(StreamOutput out) throws IOException {
         var transportVersion = out.getTransportVersion();
         if (transportVersion.supports(ESQL_REGEX_MATCH_WITH_CASE_INSENSITIVITY)) {

@@ -184,6 +184,11 @@ public class Literal extends LeafExpression implements Accountable, EvaluatorMap
     }
 
     @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append(ctx.literal(value, dataType));
+    }
+
+    @Override
     public long ramBytesUsed() {
         long ramBytesUsed = BASE_RAM_BYTES_USED;
         if (value instanceof BytesRef b) {

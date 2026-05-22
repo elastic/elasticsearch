@@ -70,6 +70,13 @@ public class Filter extends UnaryPlan implements PostAnalysisVerificationAware, 
     }
 
     @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append("Filter[");
+        condition.anonymizedSelf(sb, ctx);
+        sb.append(']');
+    }
+
+    @Override
     public String telemetryLabel() {
         return "WHERE";
     }

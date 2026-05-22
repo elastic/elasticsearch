@@ -94,6 +94,13 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
         return limit;
     }
 
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append("Limit[");
+        limit.anonymizedSelf(sb, ctx);
+        sb.append(',').append(duplicated).append(',').append(local).append(']');
+    }
+
     public Limit withLimit(Expression limit) {
         return new Limit(source(), limit, child(), duplicated, local);
     }

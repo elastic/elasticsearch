@@ -228,6 +228,27 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
         return toString();
     }
 
+    /**
+     * Expression-level default for {@link #anonymizedSelf}: render inline as
+     * {@code "<SimpleClassName>(<child1>, <child2>, ...)"} with each child rendered through its own
+     * {@code anonymizedSelf} so literal / attribute / alias overrides take effect and the resulting
+     * artifact stays one line for nested expressions. Plan nodes have a different default (tree
+     * shape with {@code \\_} indented children) — this override only applies to {@code Expression}
+     * subtree members.
+     */
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append(getClass().getSimpleName()).append('(');
+        List<Expression> kids = children();
+        for (int i = 0; i < kids.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            kids.get(i).anonymizedSelf(sb, ctx);
+        }
+        sb.append(')');
+    }
+
     @Override
     public void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format) {
         super.propertiesToString(sb, false, format);

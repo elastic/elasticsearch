@@ -148,6 +148,17 @@ public final class Alias extends NamedExpression {
     }
 
     /**
+     * Anonymizes the alias name (user-defined identifier from {@code EVAL foo = ...} or
+     * {@code STATS foo = ...}) through the column-token map and emits the same {@code AS} suffix
+     * shape that {@link #nodeString} uses. The child expression is rendered as part of the
+     * children recursion.
+     */
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append("Alias[AS ").append(ctx.column(name())).append('#').append(id()).append(']');
+    }
+
+    /**
      * If the given expression is an alias, return its child - otherwise return as is.
      */
     public static Expression unwrap(Expression e) {

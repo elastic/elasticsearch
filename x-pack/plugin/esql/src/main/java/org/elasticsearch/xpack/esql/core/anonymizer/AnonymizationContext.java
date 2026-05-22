@@ -85,6 +85,126 @@ public final class AnonymizationContext {
         return id + "[" + type + "]";
     }
 
+    /**
+     * Anonymizes a wildcard-style pattern (SQL-like {@code LIKE} / shell {@code KEEP *foo*}). The
+     * structural metacharacters {@code *}, {@code ?}, {@code %}, {@code _} survive verbatim so the
+     * pattern's shape stays visible; each literal run between metacharacters routes through the
+     * column-token map. A backslash escapes the next character, which is treated as literal.
+     */
+    public String wildcardPattern(String pattern) {
+        if (pattern == null || pattern.isEmpty()) {
+            return pattern == null ? "" : "";
+        }
+        StringBuilder out = new StringBuilder(pattern.length() + 16);
+        StringBuilder run = new StringBuilder();
+        for (int i = 0; i < pattern.length(); i++) {
+            char c = pattern.charAt(i);
+            if (c == '\\' && i + 1 < pattern.length()) {
+                run.append(pattern.charAt(++i));
+                continue;
+            }
+            if (c == '*' || c == '?' || c == '%' || c == '_') {
+                flushRun(out, run);
+                out.append(c);
+            } else {
+                run.append(c);
+            }
+        }
+        flushRun(out, run);
+        return out.toString();
+    }
+
+    /**
+     * Anonymizes a Dissect pattern of the form {@code "%{cap1} sep %{cap2}"}. Capture identifiers
+     * inside {@code %{...}} (with or without modifiers {@code ?}, {@code +}) route through the
+     * column-token map. Separator characters between captures pass through unchanged — they are
+     * usually punctuation, not data.
+     */
+    public String dissectPattern(String pattern) {
+        if (pattern == null) {
+            return "";
+        }
+        return replaceCaptures(pattern, "%{", "}");
+    }
+
+    /**
+     * Anonymizes a Grok pattern of the form {@code "%{IP:client_ip} %{NUMBER:bytes:int}"}. The
+     * Grok-library identifier (the part before the first {@code :}) survives — those are
+     * predefined library identifiers (IP, NUMBER, etc.), not customer data. The capture name (after
+     * the first {@code :}) routes through the column-token map. Type coercion suffix passes through.
+     */
+    public String grokPattern(String pattern) {
+        if (pattern == null) {
+            return "";
+        }
+        StringBuilder out = new StringBuilder(pattern.length() + 16);
+        int i = 0;
+        while (i < pattern.length()) {
+            int start = pattern.indexOf("%{", i);
+            if (start < 0) {
+                out.append(pattern, i, pattern.length());
+                break;
+            }
+            out.append(pattern, i, start);
+            int end = pattern.indexOf('}', start + 2);
+            if (end < 0) {
+                out.append(pattern, start, pattern.length());
+                break;
+            }
+            String body = pattern.substring(start + 2, end);
+            int firstColon = body.indexOf(':');
+            out.append("%{");
+            if (firstColon < 0) {
+                out.append(body);
+            } else {
+                String libraryId = body.substring(0, firstColon);
+                String rest = body.substring(firstColon + 1);
+                int secondColon = rest.indexOf(':');
+                String captureName = secondColon < 0 ? rest : rest.substring(0, secondColon);
+                String suffix = secondColon < 0 ? "" : rest.substring(secondColon);
+                out.append(libraryId).append(':').append(column(captureName)).append(suffix);
+            }
+            out.append('}');
+            i = end + 1;
+        }
+        return out.toString();
+    }
+
+    private String replaceCaptures(String pattern, String open, String close) {
+        StringBuilder out = new StringBuilder(pattern.length() + 16);
+        int i = 0;
+        while (i < pattern.length()) {
+            int start = pattern.indexOf(open, i);
+            if (start < 0) {
+                out.append(pattern, i, pattern.length());
+                break;
+            }
+            out.append(pattern, i, start);
+            int end = pattern.indexOf(close, start + open.length());
+            if (end < 0) {
+                out.append(pattern, start, pattern.length());
+                break;
+            }
+            String body = pattern.substring(start + open.length(), end);
+            String modifier = "";
+            String captureName = body;
+            if (body.startsWith("?") || body.startsWith("+")) {
+                modifier = body.substring(0, 1);
+                captureName = body.substring(1);
+            }
+            out.append(open).append(modifier).append(captureName.isEmpty() ? "" : column(captureName)).append(close);
+            i = end + close.length();
+        }
+        return out.toString();
+    }
+
+    private void flushRun(StringBuilder out, StringBuilder run) {
+        if (run.length() > 0) {
+            out.append(column(run.toString()));
+            run.setLength(0);
+        }
+    }
+
     private String token(String value) {
         try {
             Mac mac = Mac.getInstance(HMAC_ALGORITHM);

@@ -145,4 +145,10 @@ public class Dissect extends RegexExtract implements TelemetryAware, SortPreserv
     public Parser parser() {
         return parser;
     }
+
+    /** Pattern body is user-supplied — replace with a placeholder; child + extracted via recursion. */
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append("Dissect[pattern=\"").append(ctx.dissectPattern(parser.pattern())).append("\"]");
+    }
 }

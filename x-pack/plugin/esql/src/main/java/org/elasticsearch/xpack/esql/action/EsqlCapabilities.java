@@ -1315,6 +1315,11 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY_WITHOUT_VIEW(Build.current().isSnapshot()),
 
         /**
+         * Support ROW as a source command inside subquery in the from command.
+         */
+        SUBQUERY_WITH_ROW(Build.current().isSnapshot()),
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE,

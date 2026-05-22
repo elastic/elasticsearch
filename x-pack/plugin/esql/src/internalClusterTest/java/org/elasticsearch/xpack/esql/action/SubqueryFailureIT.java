@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
  * resources are cleaned up, and the correct error is reported.
  */
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
-public class FromSubqueryFailureIT extends AbstractEsqlIntegTestCase {
+public class SubqueryFailureIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {

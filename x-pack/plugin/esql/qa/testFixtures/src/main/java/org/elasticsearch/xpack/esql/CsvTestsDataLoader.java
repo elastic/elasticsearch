@@ -304,7 +304,9 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_all"),
         new ViewConfig("employees_extra"),
         new ViewConfig("view_with_subquery"),
-        // create views with IN subquery inside their definition only if the cluster has the capability to support IN subquery
+        new ViewConfig("view_row_constants", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("view_row_eval", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("view_employees_row_subquery", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
         new ViewConfig("employees_in_subquery", List.of(WHERE_IN_SUBQUERY_WITHOUT_VIEW))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
@@ -429,7 +431,7 @@ public class CsvTestsDataLoader {
                     loadEnrichPolicies(client);
                 }
                 if (views) {
-                    loadViewsIntoEs(client, cap -> true);
+                    loadViewsIntoEs(client);
                 }
             }
         }
@@ -641,23 +643,19 @@ public class CsvTestsDataLoader {
         }
     }
 
-    /**
-     * Loads all views whose {@linkplain ViewConfig#requiredCapabilities()} are satisfied by {@code capabilityCheck}.
-     * Use {@code cap -> true} when loading against a cluster known to support every view definition (for example a local dev server).
-     */
+    public static void loadViewsIntoEs(RestClient client) throws IOException {
+        loadViewsIntoEs(client, cap -> true);
+    }
+
     public static void loadViewsIntoEs(RestClient client, Predicate<EsqlCapabilities.Cap> capabilityCheck) throws IOException {
         if (clusterHasViewSupport(client)) {
             logger.info("Loading views");
             for (var view : VIEW_CONFIGS.values()) {
-                if (view.requiredCapabilities().stream().allMatch(capabilityCheck)) {
-                    loadView(client, view);
-                } else {
-                    logger.debug(
-                        "Skipping view [{}] because the cluster is missing required capabilities [{}]",
-                        view.name(),
-                        view.requiredCapabilities()
-                    );
+                if (view.requiredCapabilities.stream().allMatch(capabilityCheck) == false) {
+                    logger.info("Skipping view [{}], missing required capabilities {}", view.name, view.requiredCapabilities);
+                    continue;
                 }
+                loadView(client, view);
             }
         } else {
             logger.info("Skipping loading views as the cluster does not support views");
@@ -668,7 +666,7 @@ public class CsvTestsDataLoader {
         if (clusterHasViewSupport(client)) {
             logger.debug("Deleting views");
             for (var view : VIEW_CONFIGS.values()) {
-                deleteView(client, view.name());
+                deleteView(client, view.name);
             }
         } else {
             logger.info("Skipping deleting views as the cluster does not support views");
@@ -765,8 +763,8 @@ public class CsvTestsDataLoader {
     }
 
     private static void loadView(RestClient client, ViewConfig view) throws IOException {
-        logger.debug("Loading view [{}] from file [/views/{}.esql]", view.name(), view.name());
-        Request request = new Request("PUT", "/_query/view/" + view.name());
+        logger.debug("Loading view [{}] from file [/views/{}.esql]", view.name, view.name);
+        Request request = new Request("PUT", "/_query/view/" + view.name);
         request.setJsonEntity("{\"query\":\"" + view.loadQuery().replace("\"", "\\\"").replace("\r", "").replace("\n", "") + "\"}");
         client.performRequest(request);
     }
@@ -1436,10 +1434,6 @@ public class CsvTestsDataLoader {
     public record ViewConfig(String name, List<EsqlCapabilities.Cap> requiredCapabilities) {
         public ViewConfig(String name) {
             this(name, List.of());
-        }
-
-        public ViewConfig {
-            requiredCapabilities = List.copyOf(requiredCapabilities);
         }
 
         public String loadQuery() {

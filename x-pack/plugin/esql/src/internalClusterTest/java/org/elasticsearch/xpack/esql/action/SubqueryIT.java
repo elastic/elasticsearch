@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
  * Verifies that limiting concurrent subqueries via the {@code subquery_batch_size} pragma
  * produces correct results across different batch sizes and query shapes.
  */
-public class FromSubqueryIT extends AbstractEsqlIntegTestCase {
+public class SubqueryIT extends AbstractEsqlIntegTestCase {
 
     @Before
     public void checkSubqueryInFromCommandSupport() {

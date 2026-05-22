@@ -1,0 +1,3 @@
+age:long,name:keyword,city:keyword
+50,charlie,paris
+60,dave,london

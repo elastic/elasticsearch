@@ -197,7 +197,10 @@ public final class HttpStorageObject implements StorageObject {
 
         client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length)).whenComplete((response, throwable) -> {
             if (throwable != null) {
-                listener.onFailure(throwable instanceof Exception ex ? ex : new RuntimeException(throwable));
+                // Wrap with path context so stack-trace-only triage names the offending URL.
+                // The original cause (CompletionException, body subscriber's IOException, transport
+                // error, etc.) is preserved in the cause chain.
+                listener.onFailure(new IOException("HTTP read failed for " + path, throwable));
                 return;
             }
 

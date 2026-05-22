@@ -69,6 +69,17 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
         this.expectedLength = expectedLength;
     }
 
+    /**
+     * Returns the unmarshalled SDK response, or {@code null} if {@link #onResponse(SdkResponse)}
+     * has not yet been invoked by the SDK.
+     * <p>
+     * Safe to call only after the future returned by {@link #prepare()} has completed: the
+     * {@link AsyncResponseTransformer} contract requires the SDK to invoke {@code onResponse}
+     * before {@code onStream}, and the subscriber's terminal callback (which completes the
+     * future) happens-after {@code onResponse}. Reading this field before the future completes
+     * may return {@code null} or stale state, and on a failure path the SDK may skip
+     * {@code onResponse} entirely — callers must null-check.
+     */
     R response() {
         return response;
     }

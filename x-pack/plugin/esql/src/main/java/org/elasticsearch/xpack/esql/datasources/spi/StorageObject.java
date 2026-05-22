@@ -67,11 +67,19 @@ public interface StorageObject {
     /**
      * Async byte read with ActionListener callback.
      * <p>
-     * Default implementation wraps the sync {@link #newStream(long, long)} method in an executor.
+     * Default implementation wraps the sync {@link #readBytes(long, ByteBuffer)} method in an executor.
      * Override this method for native async I/O (e.g., HTTP sendAsync, S3AsyncClient).
      * <p>
      * Columnar formats (Parquet) can use this for parallel chunk reads when
      * {@link #supportsNativeAsync()} returns true.
+     * <p>
+     * <b>Returned buffer contract:</b> the buffer delivered to the listener has
+     * {@code capacity() == length} (the requested length) and {@code remaining()} equal to the
+     * number of bytes actually read. On a short read these differ — consumers must use
+     * {@code remaining()} (or {@code limit() - position()}) to size their work, never
+     * {@code capacity()}. The buffer is direct.
+     * <p>
+     * On end-of-content at {@code position} the buffer is delivered with {@code remaining() == 0}.
      *
      * @param position the starting byte position
      * @param length the number of bytes to read

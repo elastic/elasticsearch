@@ -53,6 +53,26 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         assertArrayEquals(payload, toByteArray(result));
     }
 
+    public void testFixedLengthShortBodyFails() {
+        // 206 path: server claimed Partial Content but delivered fewer bytes than expectedLength.
+        // Must fail rather than silently return a short buffer, matching SkipThenFillDirectSubscriber
+        // (200 fallback) and KnownLengthAsyncResponseTransformer (S3).
+        byte[] payload = randomByteArrayOfLength(between(8, 64));
+        int expectedLength = payload.length + between(1, 32);
+        DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = new DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber(
+            expectedLength
+        );
+        subscriber.onSubscribe(new TestSubscription());
+        subscriber.onNext(List.of(ByteBuffer.wrap(payload)));
+        subscriber.onComplete();
+
+        ExecutionException ex = expectThrows(ExecutionException.class, () -> subscriber.getBody().get());
+        assertThat(ex.getCause(), instanceOf(IOException.class));
+        assertThat(ex.getCause().getMessage(), containsString("shorter than expected"));
+        assertThat(ex.getCause().getMessage(), containsString("received=" + payload.length));
+        assertThat(ex.getCause().getMessage(), containsString("expected=" + expectedLength));
+    }
+
     public void testFixedLengthOverflowFails() {
         byte[] payload = randomByteArrayOfLength(32);
         DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber subscriber = new DirectByteBufferBodyHandlers.FixedLengthDirectSubscriber(
@@ -142,6 +162,23 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         ByteBuffer result = subscriber.getBody().toCompletableFuture().get();
         assertTrue(result.isDirect());
         assertArrayEquals(payload, toByteArray(result));
+    }
+
+    public void testRangeReadHandler404ReturnsDiscardingSubscriber() throws Exception {
+        // Non-200 / non-206 status (e.g. 404, 500) must drain the body without allocating and
+        // complete the body future with an empty buffer; the surrounding code in
+        // HttpStorageObject.readBytesAsync then translates the status into listener.onFailure.
+        int status = randomFrom(HttpStatus.SC_NOT_FOUND, HttpStatus.SC_INTERNAL_SERVER_ERROR, HttpStatus.SC_FORBIDDEN);
+        HttpResponse.ResponseInfo responseInfo = mock(HttpResponse.ResponseInfo.class);
+        when(responseInfo.statusCode()).thenReturn(status);
+        HttpResponse.BodyHandler<ByteBuffer> handler = DirectByteBufferBodyHandlers.ofRangeRead(0, 1024);
+        HttpResponse.BodySubscriber<ByteBuffer> subscriber = handler.apply(responseInfo);
+        subscriber.onSubscribe(new TestSubscription());
+        subscriber.onNext(List.of(ByteBuffer.wrap("error page body".getBytes())));
+        subscriber.onComplete();
+
+        ByteBuffer result = subscriber.getBody().toCompletableFuture().get();
+        assertEquals(0, result.remaining());
     }
 
     public void testRangeReadHandler200SkipsThenFills() throws Exception {

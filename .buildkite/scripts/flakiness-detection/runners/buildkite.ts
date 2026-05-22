@@ -87,7 +87,7 @@ export function toBuildkitePipeline(
       // the analyzer finds files at the same `*/build/test-results/...`
       // locations a local run would see.
       command: [
-        "npm install -g bun@1.0.4",
+        "npm install -g bun@1.3.13",
         `buildkite-agent artifact download "${TEST_RESULTS_ARTIFACTS}" .`,
         "bun .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts",
       ].join("\n"),

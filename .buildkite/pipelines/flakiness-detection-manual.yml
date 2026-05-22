@@ -15,7 +15,7 @@
 steps:
   - label: "detect tests from FLAKINESS_CLASSES"
     command: |
-      npm install -g bun@1.0.4
+      npm install -g bun@1.3.13
       bun .buildkite/scripts/flakiness-detection/entrypoints/manual.ts
     timeout_in_minutes: 10
     soft_fail: false

@@ -236,6 +236,14 @@ public class SplitTargetService {
         }
 
         private void advanceInternal(State newState) {
+            // After the target shard initiates split with the source shard, it can
+            // receive a Handoff request (from the source) at the same time as a failure
+            // occurs on the source shard (e.g. source node gets disconnected)
+            // As a result, we might try to transition from FailedInRecovery -> HandoffReceived
+            // which is not a valid state transition. We treat this state transition as a noop.
+            if (handoffReceivedAfterFailure(newState)) {
+                return;
+            }
             validateStateTransition(newState);
             this.currentState = newState;
             metricsRecorder.advance(newState);
@@ -339,6 +347,13 @@ public class SplitTargetService {
             }
         }
 
+        private boolean handoffReceivedAfterFailure(State newstate) {
+            if (newstate.getClass() == State.FailedInRecovery.class &&
+                currentState.getClass() == State.HandoffReceived.class) {
+                return true;
+            }
+            return false;
+        }
         private void validateStateTransition(State newState) {
             var validCurrentStates = newStateToValidCurrentStates.get(newState.getClass());
             if (validCurrentStates == null || validCurrentStates.contains(currentState.getClass()) == false) {

@@ -59,6 +59,6 @@ public class ParquetFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests("/external-*.csv-spec");
+        return readExternalSpecTests("/external-*.csv-spec", "/parquet-*.csv-spec");
     }
 }

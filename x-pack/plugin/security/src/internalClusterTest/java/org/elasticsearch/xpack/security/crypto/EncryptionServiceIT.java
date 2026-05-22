@@ -9,9 +9,8 @@ package org.elasticsearch.xpack.security.crypto;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.core.crypto.EncryptedData;
-import org.elasticsearch.xpack.core.crypto.EncryptionService;
-import org.elasticsearch.xpack.core.crypto.PrimaryEncryptionKeyMetadata;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptedData;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptionService;
 import org.junit.Before;
 
 import static org.hamcrest.Matchers.notNullValue;

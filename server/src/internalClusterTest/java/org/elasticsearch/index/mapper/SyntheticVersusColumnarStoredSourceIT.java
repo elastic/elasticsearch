@@ -24,8 +24,6 @@ import org.elasticsearch.datageneration.datasource.DataSourceRequest;
 import org.elasticsearch.datageneration.datasource.DataSourceResponse;
 import org.elasticsearch.datageneration.datasource.DefaultMappingParametersHandler;
 import org.elasticsearch.datageneration.datasource.DefaultObjectGenerationHandler;
-import org.elasticsearch.datageneration.matchers.MatchResult;
-import org.elasticsearch.datageneration.matchers.Matcher;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -83,13 +81,7 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         var syntheticSource = client().prepareGet("test_synthetic", "1").get().getSourceAsMap();
         var columnarStoredSource = client().prepareGet("test_columnar_stored", "1").get().getSourceAsMap();
 
-        MatchResult matchResult = Matcher.matchSource()
-            .mappings(mapping.lookup(), mappingXContent, mappingXContent)
-            .settings(columnarStoredSettings, syntheticSettings)
-            .expected(List.of(syntheticSource))
-            .ignoringSort(true)
-            .isEqualTo(List.of(columnarStoredSource));
-        assertTrue(matchResult.getMessage(), matchResult.isMatch());
+        assertEquals(syntheticSource, columnarStoredSource);
     }
 
     private DataGeneratorSpecification buildSpec() {

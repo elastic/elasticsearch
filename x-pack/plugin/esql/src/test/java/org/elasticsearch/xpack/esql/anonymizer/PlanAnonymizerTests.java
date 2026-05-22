@@ -202,6 +202,38 @@ public class PlanAnonymizerTests extends ESTestCase {
     }
 
     /**
+     * Synthetic union-type attributes carry a separate parentName that flows through
+     * {@link FieldAttribute#fieldName()} — if the anonymizer only rewrites the display name via
+     * {@code withName}, the parentName (which is the actual underlying field reference) leaks.
+     * Verifies the FieldAttribute anonymization path anonymizes parentName too.
+     */
+    public void testFieldAttributeParentNameAnonymized() {
+        String parent = "user_profile";
+        String leaf = "email_address";
+        EsField field = new EsField(leaf, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        // FieldAttribute with parentName set (the synthetic-attribute shape).
+        FieldAttribute attr = new FieldAttribute(Source.EMPTY, parent, null, leaf, field, false);
+        EsRelation relation = new EsRelation(
+            Source.EMPTY,
+            INDEX,
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of(INDEX, IndexMode.STANDARD),
+            List.<Attribute>of(attr)
+        );
+        LogicalPlan plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), relation);
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(null, null, plan, null);
+
+        // The display name 'email_address' is rewritten by withName already; verify the parentName
+        // 'user_profile' doesn't survive — that's the synthetic-attribute leak we're guarding against.
+        assertFalse("parentName leaked into optimized:\n" + out.optimized(), out.optimized().contains(parent));
+        assertFalse("parentName leaked into schema:\n" + out.schema(), out.schema().contains(parent));
+        assertFalse("leaf field name leaked into optimized:\n" + out.optimized(), out.optimized().contains(leaf));
+    }
+
+    /**
      * Parsed-plan path: build an UnresolvedRelation + UnresolvedAttribute fragment (the shape the
      * parser produces before analysis runs) with sensitive identifiers. Same property as the
      * optimized-plan adversarial test — nothing leaks into the artifacts.

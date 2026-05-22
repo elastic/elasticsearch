@@ -130,6 +130,13 @@ public final class PlanAnonymizer {
         if (a instanceof UnresolvedAttribute) {
             return new UnresolvedAttribute(a.source(), anonymized, null);
         }
+        // FieldAttribute keeps a separate parentName that flows through fieldName() and may surface
+        // in rendered output for synthetic union-type attributes; anonymize it via the same map so
+        // the underlying field reference doesn't leak alongside an anonymized display name.
+        if (a instanceof FieldAttribute fa && fa.parentName() != null) {
+            String anonParent = anonymizeColumn(fa.parentName());
+            return new FieldAttribute(a.source(), anonParent, fa.qualifier(), anonymized, fa.field(), a.nullable(), a.id(), a.synthetic());
+        }
         return a.withName(anonymized);
     }
 
@@ -276,6 +283,13 @@ public final class PlanAnonymizer {
      * as everywhere else.
      */
     private void renderFieldExtras(EsField f, StringBuilder sb) {
+        // Expose the EsField subclass when it carries semantics beyond a plain field. Lets a
+        // reviewer distinguish InvalidMappedField / MultiTypeEsField / PotentiallyUnmappedKeywordEsField
+        // from a regular field at a glance — per Alex Spies' review.
+        String klass = f.getClass().getSimpleName();
+        if (klass.equals("EsField") == false) {
+            sb.append(" kind=").append(klass);
+        }
         if (f instanceof KeywordEsField k) {
             sb.append(" ignore_above=").append(k.getPrecision());
             if (k.getNormalized()) {

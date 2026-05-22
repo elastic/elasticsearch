@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -21,6 +22,7 @@ import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -35,6 +37,8 @@ import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDIC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ThrottlingRecoveryServiceTests extends ESTestCase {
     private static TestThreadPool threadPool;
@@ -53,7 +57,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     /** Work starts on {@link org.elasticsearch.threadpool.ThreadPool#generic()}, not on the enqueueing thread. */
     public void testSynchronousTaskRunsOutsideEnqueueingThread() throws Exception {
-        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterSettings(between(2, 4)));
+        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(between(2, 4)));
         Thread caller = Thread.currentThread();
         AtomicReference<Thread> executionThread = new AtomicReference<>();
         CountDownLatch done = new CountDownLatch(1);
@@ -85,7 +89,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
      * so the user listener observes completion before the consumer runnable returns.
      */
     public void testSynchronousTaskNotifiesUserListenerBeforeConsumerReturns() throws Exception {
-        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterSettings(1));
+        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(1));
         AtomicBoolean consumerReturned = new AtomicBoolean(false);
         CountDownLatch done = new CountDownLatch(1);
         RecoveryListener userListener = new RecoveryListener() {
@@ -116,7 +120,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
      * runnable must only invoke {@link RecoveryListener#onRecoveryDone} after the consumer body has finished.
      */
     public void testAsynchronousTaskCompletesOnlyAfterConsumerReturns() throws Exception {
-        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterSettings(1));
+        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(1));
         AtomicBoolean consumerReturned = new AtomicBoolean(false);
         CountDownLatch proceedNested = new CountDownLatch(1);
         CountDownLatch done = new CountDownLatch(1);
@@ -154,7 +158,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
      */
     public void testMaxConcurrencyBoundWithAsynchronousTerminalCallback() throws Exception {
         final int maxConcurrentRecoveries = between(2, 5);
-        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterSettings(maxConcurrentRecoveries));
+        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(maxConcurrentRecoveries));
         AtomicInteger running = new AtomicInteger();
         AtomicInteger peakConcurrent = new AtomicInteger();
         CountDownLatch maxConcurrentReached = new CountDownLatch(maxConcurrentRecoveries);
@@ -214,8 +218,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     /** Raising the limit should start queued work without waiting for running recoveries to finish. */
     public void testIncreasingMaxConcurrentRecoveriesStartsPendingTasks() {
-        final ClusterSettings clusterSettings = newClusterSettings(2);
-        final ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, clusterSettings);
+        final ClusterService clusterService = newClusterService(2);
+        final ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, clusterService);
         final CountDownLatch firstBatchStarted = new CountDownLatch(2);
         final CountDownLatch secondBatchStarted = new CountDownLatch(4);
         final CountDownLatch unblockAll = new CountDownLatch(1);
@@ -231,7 +235,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         }
 
         safeAwait(firstBatchStarted);
-        clusterSettings.applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 4).build());
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 4).build());
         safeAwait(secondBatchStarted);
         unblockAll.countDown();
     }
@@ -241,8 +246,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
      * until enough running work finishes that a slot is free under the new limit.
      */
     public void testDecreasingMaxConcurrentRecoveriesDefersQueueWithoutCancellingRunningTasks() {
-        final ClusterSettings clusterSettings = newClusterSettings(3);
-        final ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, clusterSettings);
+        final ClusterService clusterService = newClusterService(3);
+        final ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, clusterService);
         final CountDownLatch runningEntered = new CountDownLatch(3);
         final List<CountDownLatch> unblockEachFirstBatch = List.of(new CountDownLatch(1), new CountDownLatch(1), new CountDownLatch(1));
         final AtomicBoolean[] pendingStarted = new AtomicBoolean[] { new AtomicBoolean(), new AtomicBoolean(), new AtomicBoolean() };
@@ -273,7 +278,8 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             assertFalse(started.get());
         }
 
-        clusterSettings.applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build());
+        clusterService.getClusterSettings()
+            .applySettings(Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build());
 
         unblockEachFirstBatch.get(0).countDown();
         Thread.yield();
@@ -299,7 +305,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
     /** With one slot, synchronous completions preserve enqueue order. */
     public void testFifoWhenThrottledToOneConcurrentWithSynchronousCompletion() throws Exception {
-        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterSettings(1));
+        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(1));
         int total = between(10, 20);
         List<Integer> completionOrder = new CopyOnWriteArrayList<>();
         CountDownLatch allDone = new CountDownLatch(total);
@@ -340,17 +346,17 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
      * submits (high contention on the throttle) and idle periods (little to no contention). Verify that all tasks finish
      * and that consumer-body overlap never exceeds the highest {@code indices.recovery.max_concurrent_recoveries} applied
      * during the run (running work is not cancelled when the limit drops).
-     *
+     * <p>
      * By randomizing burst sizes we exercise different backlog shapes where in some executions there are always pending
      * recoveries, and in others the pending queue sometimes drains during idle periods.
      */
     public void testStressConcurrentEnqueueMaintainsBoundsAndCompleteness() throws Exception {
         final int initialMaxConcurrentRecoveries = between(1, 20);
-        final ClusterSettings clusterSettings = newClusterSettings(initialMaxConcurrentRecoveries);
+        final ClusterService clusterService = newClusterService(initialMaxConcurrentRecoveries);
         final AtomicInteger peakLimitCeiling = new AtomicInteger(initialMaxConcurrentRecoveries);
         final int highContentionBurstSizeMin = between(1, initialMaxConcurrentRecoveries);
         final int highContentionBurstSizeMax = between(highContentionBurstSizeMin, initialMaxConcurrentRecoveries * 2);
-        final ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, clusterSettings);
+        final ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, clusterService);
         final AtomicInteger running = new AtomicInteger();
         final AtomicInteger peakRunning = new AtomicInteger();
         final AtomicInteger totalTasksEnqueued = new AtomicInteger();
@@ -382,9 +388,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                     boolean highContention = (totalTasksEnqueued.get() / 100) % 2 == 0;
                     if (index == 0 && rarely()) {
                         int nextLimit = between(1, 20);
-                        clusterSettings.applySettings(
-                            Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), nextLimit).build()
-                        );
+                        clusterService.getClusterSettings()
+                            .applySettings(
+                                Settings.builder().put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), nextLimit).build()
+                            );
                         peakLimitCeiling.accumulateAndGet(nextLimit, Integer::max);
                     }
                     if (highContention) {
@@ -474,11 +481,14 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         }
     }
 
-    private static ClusterSettings newClusterSettings(int maxConcurrentRecoveries) {
+    private static ClusterService newClusterService(int maxConcurrentRecoveries) {
+        ClusterService clusterService = mock(ClusterService.class);
         Settings settings = Settings.builder()
             .put(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), maxConcurrentRecoveries)
             .build();
-        return new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+        ClusterSettings clusterSettings = new ClusterSettings(settings, Set.of(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING));
+        when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        return clusterService;
     }
 
     private static RecoveryListener noopRecoveryListener() {

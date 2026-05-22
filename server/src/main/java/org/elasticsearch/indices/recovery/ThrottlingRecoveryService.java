@@ -9,7 +9,7 @@
 
 package org.elasticsearch.indices.recovery;
 
-import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 
 import java.util.Queue;
@@ -53,9 +53,16 @@ public final class ThrottlingRecoveryService {
     // Queue of recoveries waiting to be dispatched
     private final Queue<RecoveryTask> pendingRecoveries = new ConcurrentLinkedQueue<>();
 
-    public ThrottlingRecoveryService(Executor executor, ClusterSettings clusterSettings) {
+    public ThrottlingRecoveryService(Executor executor, ClusterService clusterService) {
         this.executor = executor;
-        clusterSettings.initializeAndWatch(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
+
+        if (clusterService.getClusterSettings().isDynamicSetting(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey())) {
+            // setting only registered in some tests today
+            clusterService.getClusterSettings()
+                .initializeAndWatch(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
+        } else {
+            maxConcurrentRecoveries = INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.get(clusterService.getSettings());
+        }
     }
 
     public void enqueue(RecoveryListener recoveryListener, Consumer<RecoveryListener> task) {

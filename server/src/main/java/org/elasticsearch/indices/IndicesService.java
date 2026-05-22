@@ -421,7 +421,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.searchStatsSettings = new SearchStatsSettings(clusterService.getClusterSettings());
         this.storeMetricHolder = builder.storeMetricsHolder;
         this.directoryMetricHolderMap = builder.directoryMetricHolderMap;
-        this.throttlingRecoveryService = new ThrottlingRecoveryService(threadPool.generic(), clusterService.getClusterSettings());
+        this.throttlingRecoveryService = new ThrottlingRecoveryService(threadPool.generic(), clusterService);
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";

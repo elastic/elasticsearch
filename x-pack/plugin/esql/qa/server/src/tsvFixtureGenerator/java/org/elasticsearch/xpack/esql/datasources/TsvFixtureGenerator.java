@@ -18,9 +18,16 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Build-time generator: converts a {@link CsvFixtureParser}-compatible CSV fixture to TSV.
+ * <p>
+ * Single-file mode: {@code <source-csv> <output-tsv>}
+ * <br>
+ * Split mode:       {@code <source-csv> <output-dir> <num-parts>} — writes {@code <basename>_00.tsv},
+ * {@code <basename>_01.tsv}, … into the directory. Used by the shared {@code external-multifile*.csv-spec}
+ * tests which glob {@code multifile_split/*.tsv}.
  * <p>
  * Uses {@link CsvFixtureParser} for bracket-aware parsing (same multi-value semantics as
  * {@link org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader} with {@code multi_value_syntax: brackets}).
@@ -34,25 +41,58 @@ public final class TsvFixtureGenerator {
 
     @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.err and Path.of")
     public static void main(String[] args) throws IOException {
-        if (args.length != 2) {
+        if (args.length == 2) {
+            Path sourcePath = Path.of(args[0]);
+            Path outputPath = Path.of(args[1]);
+            if (Files.exists(sourcePath) == false) {
+                throw new IOException("Source CSV not found: " + sourcePath);
+            }
+            byte[] tsv = generateFromCsv(sourcePath);
+            Files.createDirectories(outputPath.getParent());
+            Files.write(outputPath, tsv);
+            System.out.println("Generated TSV fixture: " + outputPath);
+        } else if (args.length == 3) {
+            Path sourcePath = Path.of(args[0]);
+            Path outputDir = Path.of(args[1]);
+            int numParts = Integer.parseInt(args[2]);
+            if (Files.exists(sourcePath) == false) {
+                throw new IOException("Source CSV not found: " + sourcePath);
+            }
+            if (numParts < 1) {
+                throw new IllegalArgumentException("num-parts must be >= 1, got " + numParts);
+            }
+            Files.createDirectories(outputDir);
+            CsvFixtureResult parsed = CsvFixtureParser.parseCsvFile(sourcePath);
+            int total = parsed.rows().size();
+            int partSize = (total + numParts - 1) / numParts;
+            String baseName = sourcePath.getFileName().toString().replaceFirst("\\.csv$", "");
+            for (int part = 0; part < numParts; part++) {
+                int from = part * partSize;
+                int to = Math.min(from + partSize, total);
+                if (from >= total) {
+                    break;
+                }
+                String fileName = String.format(Locale.ROOT, "%s_%02d.tsv", baseName, part);
+                Path outputPath = outputDir.resolve(fileName);
+                byte[] tsv = generateFromRows(parsed, from, to);
+                Files.write(outputPath, tsv);
+                System.out.println("Generated TSV split fixture: " + outputPath + " (rows " + from + "-" + to + ")");
+            }
+        } else {
             System.err.println("Usage: TsvFixtureGenerator <source-csv-path> <output-tsv-path>");
+            System.err.println("       TsvFixtureGenerator <source-csv-path> <output-dir> <num-parts>");
             System.exit(1);
         }
-        Path sourcePath = Path.of(args[0]);
-        Path outputPath = Path.of(args[1]);
-        if (Files.exists(sourcePath) == false) {
-            throw new IOException("Source CSV not found: " + sourcePath);
-        }
-        byte[] tsv = generateFromCsv(sourcePath);
-        Files.createDirectories(outputPath.getParent());
-        Files.write(outputPath, tsv);
-        System.out.println("Generated TSV fixture: " + outputPath);
     }
 
     static byte[] generateFromCsv(Path sourcePath) throws IOException {
         CsvFixtureResult parsed = CsvFixtureParser.parseCsvFile(sourcePath);
+        return generateFromRows(parsed, 0, parsed.rows().size());
+    }
+
+    private static byte[] generateFromRows(CsvFixtureResult parsed, int from, int to) {
         List<ColumnSpec> schema = parsed.schema();
-        List<Object[]> rows = parsed.rows();
+        List<Object[]> rows = parsed.rows().subList(from, Math.min(to, parsed.rows().size()));
 
         boolean[] isListColumn = new boolean[schema.size()];
         for (int c = 0; c < schema.size(); c++) {

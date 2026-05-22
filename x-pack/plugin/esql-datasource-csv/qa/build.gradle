@@ -158,6 +158,22 @@ csvBasenamesForTsv.each { baseName ->
   generateStandaloneTsvTasks.add(tasks.named(taskName))
 }
 
+// Multifile-split TSV fixtures: 3-way split of employees.csv into multifile_split/employees_{00,01,02}.tsv.
+// Used by the shared external-multifile.csv-spec and external-multifile-resolution.csv-spec when
+// TsvFormatSpecIT's readScriptSpec is broadened to include them.
+def tsvMultifileSplitDir = file("${tsvFixtureOutputRoot}/iceberg-fixtures/multifile_split")
+def tsvMultifileSplitCsv = testFixturesProject.file('src/main/resources/data/employees.csv')
+tasks.register('generateMultifileSplitTsv_employees', JavaExec) {
+  dependsOn serverProject.tasks.named('compileTsvFixtureGeneratorJava')
+  dependsOn testFixturesProject.tasks.named('processResources')
+  classpath = serverProject.configurations.tsvFixtureGenerator + serverProject.sourceSets.tsvFixtureGenerator.output
+  mainClass = 'org.elasticsearch.xpack.esql.datasources.TsvFixtureGenerator'
+  args = [tsvMultifileSplitCsv.path, tsvMultifileSplitDir.path, '3']
+  inputs.file(tsvMultifileSplitCsv)
+  outputs.dir(tsvMultifileSplitDir)
+}
+generateStandaloneTsvTasks.add(tasks.named('generateMultifileSplitTsv_employees'))
+
 tasks.register('generateStandaloneTsvFixtures') {
   dependsOn generateStandaloneTsvTasks
 }

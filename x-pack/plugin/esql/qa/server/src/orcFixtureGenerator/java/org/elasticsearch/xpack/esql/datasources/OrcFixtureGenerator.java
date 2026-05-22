@@ -28,12 +28,19 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Locale;
 
 /**
  * Build-time generator for ORC fixture files. Converts CSV to ORC.
- * Accepts source CSV path and output ORC path as arguments.
- * Uses {@link CsvFixtureParser} for bracket-aware CSV parsing.
- * Uses correct multi-value handling for list columns.
+ * <p>
+ * Single-file mode: {@code <source-csv> <output.orc>}
+ * <br>
+ * Split mode:       {@code <source-csv> <output-dir> <num-parts>} — writes
+ * {@code <basename>_00.orc}, {@code <basename>_01.orc}, … into the directory. Used by the
+ * shared {@code external-multifile*.csv-spec} tests which glob {@code multifile_split/*.orc}.
+ * <p>
+ * Uses {@link CsvFixtureParser} for bracket-aware CSV parsing and correct multi-value handling
+ * for list columns.
  */
 public final class OrcFixtureGenerator {
 
@@ -43,19 +50,48 @@ public final class OrcFixtureGenerator {
 
     @SuppressForbidden(reason = "main method for Gradle JavaExec task needs System.out and Path.of")
     public static void main(String[] args) throws IOException {
-        if (args.length != 2) {
+        if (args.length == 2) {
+            java.nio.file.Path sourcePath = java.nio.file.Path.of(args[0]);
+            java.nio.file.Path outputPath = java.nio.file.Path.of(args[1]);
+            if (Files.exists(sourcePath) == false) {
+                throw new IOException("Source CSV not found: " + sourcePath);
+            }
+            Files.createDirectories(outputPath.getParent());
+            Files.deleteIfExists(outputPath);
+            generate(sourcePath, outputPath);
+            System.out.println("Generated ORC fixture: " + outputPath);
+        } else if (args.length == 3) {
+            java.nio.file.Path sourcePath = java.nio.file.Path.of(args[0]);
+            java.nio.file.Path outputDir = java.nio.file.Path.of(args[1]);
+            int numParts = Integer.parseInt(args[2]);
+            if (Files.exists(sourcePath) == false) {
+                throw new IOException("Source CSV not found: " + sourcePath);
+            }
+            if (numParts < 1) {
+                throw new IllegalArgumentException("num-parts must be >= 1, got " + numParts);
+            }
+            Files.createDirectories(outputDir);
+            CsvFixtureParser.CsvFixtureResult result = CsvFixtureParser.parseCsvFile(sourcePath);
+            int total = result.rows().size();
+            int partSize = (total + numParts - 1) / numParts;
+            String baseName = sourcePath.getFileName().toString().replaceFirst("\\.csv$", "");
+            for (int part = 0; part < numParts; part++) {
+                int from = part * partSize;
+                int to = Math.min(from + partSize, total);
+                if (from >= total) {
+                    break;
+                }
+                String fileName = String.format(Locale.ROOT, "%s_%02d.orc", baseName, part);
+                java.nio.file.Path outputPath = outputDir.resolve(fileName);
+                Files.deleteIfExists(outputPath);
+                generateFromRows(result, from, to, outputPath);
+                System.out.println("Generated ORC split fixture: " + outputPath + " (rows " + from + "-" + to + ")");
+            }
+        } else {
             System.err.println("Usage: OrcFixtureGenerator <source-csv-path> <output-orc-path>");
+            System.err.println("       OrcFixtureGenerator <source-csv-path> <output-dir> <num-parts>");
             System.exit(1);
         }
-        java.nio.file.Path sourcePath = java.nio.file.Path.of(args[0]);
-        java.nio.file.Path outputPath = java.nio.file.Path.of(args[1]);
-        if (Files.exists(sourcePath) == false) {
-            throw new IOException("Source CSV not found: " + sourcePath);
-        }
-        Files.createDirectories(outputPath.getParent());
-        Files.deleteIfExists(outputPath);
-        generate(sourcePath, outputPath);
-        System.out.println("Generated ORC fixture: " + outputPath);
     }
 
     /**
@@ -63,8 +99,17 @@ public final class OrcFixtureGenerator {
      */
     public static void generate(java.nio.file.Path sourcePath, java.nio.file.Path outputPath) throws IOException {
         CsvFixtureParser.CsvFixtureResult result = CsvFixtureParser.parseCsvFile(sourcePath);
+        generateFromRows(result, 0, result.rows().size(), outputPath);
+    }
+
+    private static void generateFromRows(
+        CsvFixtureParser.CsvFixtureResult result,
+        int from,
+        int to,
+        java.nio.file.Path outputPath
+    ) throws IOException {
         List<CsvFixtureParser.ColumnSpec> columns = result.schema();
-        List<Object[]> rows = result.rows();
+        List<Object[]> rows = result.rows().subList(from, Math.min(to, result.rows().size()));
 
         boolean[] isListColumn = new boolean[columns.size()];
         for (int c = 0; c < columns.size(); c++) {

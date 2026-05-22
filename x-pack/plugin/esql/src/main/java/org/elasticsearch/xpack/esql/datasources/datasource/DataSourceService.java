@@ -100,24 +100,26 @@ public class DataSourceService {
         DataSourceEncryption encryption,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        logger.debug("submitting put data source [{}] of type [{}]", request.name(), request.type());
+        // Validate and encrypt off the cluster-state update thread. Encryption is expensive and must not
+        // run inside the CAS task body — the master would block on every concurrent PUT otherwise.
+        final DataSource validated = validatePutDataSource(request);
+        final DataSourceSettings stored = encryption.apply(validated.name(), validated.settings());
+        final DataSource encrypted = new DataSource(validated.name(), validated.type(), validated.description(), stored);
+        logger.debug("submitting put data source [{}] of type [{}]", encrypted.name(), encrypted.type());
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
             @Override
             public ClusterState execute(ClusterState currentState) {
-                final DataSource validated = validatePutDataSource(request);
                 final ProjectMetadata project = currentState.metadata().getProject(projectId);
                 final DataSourceMetadata metadata = getMetadata(project);
-                final DataSource current = metadata.get(validated.name());
+                final DataSource current = metadata.get(encrypted.name());
                 if (current == null && metadata.dataSources().size() >= maxDataSourcesCount) {
-                    logger.warn("rejected put for data source [{}]: maximum count [{}] reached", validated.name(), maxDataSourcesCount);
+                    logger.warn("rejected put for data source [{}]: maximum count [{}] reached", encrypted.name(), maxDataSourcesCount);
                     throw new IllegalArgumentException(
                         "cannot add data source, the maximum number of data sources is reached: " + maxDataSourcesCount
                     );
                 }
-                DataSourceSettings stored = encryption.apply(validated.name(), validated.settings());
-                final DataSource dataSource = new DataSource(validated.name(), validated.type(), validated.description(), stored);
                 final Map<String, DataSource> updated = new HashMap<>(metadata.dataSources());
-                updated.put(dataSource.name(), dataSource);
+                updated.put(encrypted.name(), encrypted);
                 return ClusterState.builder(currentState)
                     .putProjectMetadata(
                         ProjectMetadata.builder(project).putCustom(DataSourceMetadata.TYPE, new DataSourceMetadata(updated))

@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.s3;
 
-import software.amazon.awssdk.core.ResponseBytes;
 import software.amazon.awssdk.core.SdkResponse;
 import software.amazon.awssdk.core.async.AsyncResponseTransformer;
 import software.amazon.awssdk.core.async.SdkPublisher;
 
+import org.elasticsearch.xpack.esql.datasources.DirectByteBufferCopies;
 import org.reactivestreams.Subscriber;
 import org.reactivestreams.Subscription;
 
@@ -21,8 +21,9 @@ import java.util.concurrent.CompletableFuture;
 
 /**
  * An {@link AsyncResponseTransformer} that accumulates the response body into a single, pre-sized
- * {@code byte[]}, eliminating the redundant per-chunk allocations and copies performed by the SDK's
- * default {@link AsyncResponseTransformer#toBytes()}.
+ * direct {@link ByteBuffer}, eliminating the redundant per-chunk allocations and copies performed
+ * by the SDK's default {@link AsyncResponseTransformer#toBytes()} and avoiding a subsequent
+ * heap-to-direct promotion in {@code S3StorageObject.readBytesAsync}.
  *
  * <p>The default {@code toBytes()} uses {@code ByteArrayAsyncResponseTransformer$BaosSubscriber},
  * which on every {@code onNext(ByteBuffer)} call:
@@ -41,30 +42,25 @@ import java.util.concurrent.CompletableFuture;
  *
  * <p>This transformer takes the expected payload length up front (which we always know for
  * range-read requests, and which the S3 service confirms in {@code Content-Length}), allocates
- * one destination array of exactly that size in {@link #prepare()}, and copies each
+ * one direct destination buffer of exactly that size in {@link #prepare()}, and copies each
  * {@code onNext(ByteBuffer)} chunk directly into the destination at the running offset. That
- * collapses three SDK-internal copies into a single byte-for-byte chunk-to-final-array copy.
- *
- * <p>The result is exposed via {@link ResponseBytes#fromByteArrayUnsafe} so the destination array
- * is handed to the caller without a final defensive copy. This is the same trade-off that was
- * accepted in the existing {@code S3StorageObject.readBytesAsync} path (which already calls
- * {@code asByteArrayUnsafe()}).
+ * collapses three SDK-internal copies into a single chunk-to-direct-buffer copy.
  *
  * <p><b>Synchronization:</b> the {@link AsyncResponseTransformer} contract guarantees that no two
  * methods on this class or on its {@link Subscriber} are invoked concurrently, so no locking is
  * required.
  *
  * <p><b>Retries:</b> the SDK calls {@link #prepare()} again on each retry, so a fresh destination
- * array is allocated for every attempt. Stale state from a previous attempt is not reused.
+ * buffer is allocated for every attempt. Stale state from a previous attempt is not reused.
  *
  * @param <R> the unmarshalled SDK response type (e.g. {@code GetObjectResponse}).
  */
-final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implements AsyncResponseTransformer<R, ResponseBytes<R>> {
+final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implements AsyncResponseTransformer<R, ByteBuffer> {
 
     private final int expectedLength;
 
     private volatile R response;
-    private volatile CompletableFuture<byte[]> resultFuture;
+    private volatile CompletableFuture<ByteBuffer> resultFuture;
 
     KnownLengthAsyncResponseTransformer(int expectedLength) {
         if (expectedLength < 0) {
@@ -73,13 +69,17 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
         this.expectedLength = expectedLength;
     }
 
+    R response() {
+        return response;
+    }
+
     @Override
-    public CompletableFuture<ResponseBytes<R>> prepare() {
+    public CompletableFuture<ByteBuffer> prepare() {
         // Allocated lazily here (not in the constructor) because prepare() is invoked again on each
-        // retry; the previous attempt's array, if any, must be discarded.
-        CompletableFuture<byte[]> bytesFuture = new CompletableFuture<>();
-        this.resultFuture = bytesFuture;
-        return bytesFuture.thenApply(arr -> ResponseBytes.fromByteArrayUnsafe(response, arr));
+        // retry; the previous attempt's buffer, if any, must be discarded.
+        CompletableFuture<ByteBuffer> bufferFuture = new CompletableFuture<>();
+        this.resultFuture = bufferFuture;
+        return bufferFuture;
     }
 
     @Override
@@ -94,28 +94,28 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
 
     @Override
     public void exceptionOccurred(Throwable error) {
-        CompletableFuture<byte[]> f = resultFuture;
+        CompletableFuture<ByteBuffer> f = resultFuture;
         if (f != null) {
             f.completeExceptionally(error);
         }
     }
 
     /**
-     * Copies each incoming {@link ByteBuffer} chunk directly into a pre-sized destination array,
+     * Copies each incoming {@link ByteBuffer} chunk directly into a pre-sized direct destination,
      * tracking the running offset. Fails fast if the cumulative size of received chunks would
      * exceed the expected length (a mismatch between the requested range and the server's
      * response body) or falls short of it on completion.
      */
     private static final class ChunkCopyingSubscriber implements Subscriber<ByteBuffer> {
-        private final CompletableFuture<byte[]> resultFuture;
-        private final byte[] destination;
+        private final CompletableFuture<ByteBuffer> resultFuture;
+        private final ByteBuffer destination;
         private int offset;
         private Subscription subscription;
         private boolean failed;
 
-        ChunkCopyingSubscriber(CompletableFuture<byte[]> resultFuture, int expectedLength) {
+        ChunkCopyingSubscriber(CompletableFuture<ByteBuffer> resultFuture, int expectedLength) {
             this.resultFuture = resultFuture;
-            this.destination = new byte[expectedLength];
+            this.destination = ByteBuffer.allocateDirect(expectedLength);
         }
 
         @Override
@@ -135,30 +135,22 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 return;
             }
             int remaining = chunk.remaining();
-            // Overflow-safe form of `offset + remaining > destination.length`. `offset` is always
-            // in [0, destination.length] thanks to this same guard on prior iterations, so the
+            // Overflow-safe form of `offset + remaining > destination.capacity()`. `offset` is always
+            // in [0, destination.capacity()] thanks to this same guard on prior iterations, so the
             // subtraction never underflows.
-            if (remaining > destination.length - offset) {
+            if (remaining > destination.capacity() - offset) {
                 failed = true;
                 IOException error = new IOException(
                     "S3 response body exceeded expected length: cumulative="
                         + ((long) offset + remaining)
                         + ", expected="
-                        + destination.length
+                        + destination.capacity()
                 );
                 subscription.cancel();
                 resultFuture.completeExceptionally(error);
                 return;
             }
-            // Cheaper path when the SDK hands us a heap-backed ByteBuffer (the common case after
-            // the pooled receive allocator landed): one System.arraycopy with no bounds-check loop
-            // inside ByteBuffer.get.
-            if (chunk.hasArray()) {
-                System.arraycopy(chunk.array(), chunk.arrayOffset() + chunk.position(), destination, offset, remaining);
-                chunk.position(chunk.position() + remaining);
-            } else {
-                chunk.get(destination, offset, remaining);
-            }
+            DirectByteBufferCopies.copyChunkIntoDestination(destination, offset, chunk);
             offset += remaining;
         }
 
@@ -176,13 +168,15 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
             if (failed) {
                 return;
             }
-            if (offset != destination.length) {
+            if (offset != destination.capacity()) {
                 resultFuture.completeExceptionally(
-                    new IOException("S3 response body shorter than expected: received=" + offset + ", expected=" + destination.length)
+                    new IOException("S3 response body shorter than expected: received=" + offset + ", expected=" + destination.capacity())
                 );
                 return;
             }
+            destination.position(0).limit(offset);
             resultFuture.complete(destination);
         }
     }
+
 }

@@ -188,35 +188,22 @@ public final class HttpStorageObject implements StorageObject {
             listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
             return;
         }
+        if (length > Integer.MAX_VALUE) {
+            listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
+            return;
+        }
 
         HttpRequest request = buildRangeRequest(position, length);
 
-        // Use native async HTTP - no blocking, no extra threads needed
-        client.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray()).whenComplete((response, throwable) -> {
+        client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length)).whenComplete((response, throwable) -> {
             if (throwable != null) {
                 listener.onFailure(throwable instanceof Exception ex ? ex : new RuntimeException(throwable));
                 return;
             }
 
             int statusCode = response.statusCode();
-            // 206 = Partial Content (successful range request)
-            // 200 = OK (server doesn't support ranges but returned full content - need to slice)
-            if (statusCode == HttpStatus.SC_PARTIAL_CONTENT) {
-                listener.onResponse(toDirectBuffer(response.body()));
-            } else if (statusCode == HttpStatus.SC_OK) {
-                // Server doesn't support Range requests, slice the response
-                byte[] fullBody = response.body();
-                int bodyLength = fullBody.length;
-                if (position >= bodyLength) {
-                    listener.onFailure(
-                        new IOException("Position " + position + " is beyond content length " + bodyLength + " for " + path)
-                    );
-                    return;
-                }
-                int actualLength = (int) Math.min(length, bodyLength - position);
-                byte[] slice = new byte[actualLength];
-                System.arraycopy(fullBody, (int) position, slice, 0, actualLength);
-                listener.onResponse(toDirectBuffer(slice));
+            if (statusCode == HttpStatus.SC_PARTIAL_CONTENT || statusCode == HttpStatus.SC_OK) {
+                listener.onResponse(response.body());
             } else {
                 listener.onFailure(new IOException("Range request failed for " + path + ", HTTP status: " + statusCode));
             }
@@ -232,12 +219,6 @@ public final class HttpStorageObject implements StorageObject {
     }
 
     // === Private helper methods ===
-
-    private static ByteBuffer toDirectBuffer(byte[] data) {
-        ByteBuffer direct = ByteBuffer.allocateDirect(data.length);
-        direct.put(data).flip();
-        return direct;
-    }
 
     /**
      * Builds a simple GET request without Range header.

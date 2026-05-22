@@ -79,11 +79,23 @@ public interface StorageObject {
      * @param listener callback for the result or failure
      */
     default void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+        if (length < 0) {
+            listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
+            return;
+        }
+        if (length > Integer.MAX_VALUE) {
+            listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
+            return;
+        }
         executor.execute(() -> {
-            try (InputStream stream = newStream(position, length)) {
-                byte[] bytes = stream.readAllBytes();
-                ByteBuffer direct = ByteBuffer.allocateDirect(bytes.length);
-                direct.put(bytes).flip();
+            try {
+                ByteBuffer direct = ByteBuffer.allocateDirect(Math.toIntExact(length));
+                int start = direct.position();
+                int read = readBytes(position, direct);
+                if (read == -1) {
+                    read = 0;
+                }
+                direct.position(start).limit(start + read);
                 listener.onResponse(direct);
             } catch (Exception e) {
                 listener.onFailure(e);

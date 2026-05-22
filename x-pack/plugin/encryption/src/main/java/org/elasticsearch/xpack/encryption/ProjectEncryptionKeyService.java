@@ -40,7 +40,7 @@ public class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyP
     // would omit the PEK custom from cluster state sent to old nodes (they lack the transport version
     // for it). If an old node becomes master, it sees no existing key and generates a new one,
     // orphaning any data encrypted with the original key.
-    public static final NodeFeature PROJECT_ENCRYPTION_KEY_FEATURE = new NodeFeature("encryption.project_encryption_key");
+    public static final NodeFeature PROJECT_ENCRYPTION_KEY_FEATURE = new NodeFeature("security.primary_encryption_key");
 
     private final ProjectResolver projectResolver;
     private volatile KeyCache cache = KeyCache.EMPTY;

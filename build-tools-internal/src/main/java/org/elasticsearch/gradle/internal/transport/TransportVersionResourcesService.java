@@ -59,7 +59,6 @@ import javax.inject.Inject;
 public abstract class TransportVersionResourcesService implements BuildService<TransportVersionResourcesService.Parameters> {
 
     private static final Logger logger = Logging.getLogger(TransportVersionResourcesService.class);
-    private static final String UPSTREAM_REMOTE_NAME = "transport-version-resources-upstream";
 
     public interface Parameters extends BuildServiceParameters {
         DirectoryProperty getTransportResourcesDirectory();
@@ -225,6 +224,25 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return getUpstreamFile(resourcePath, TransportVersionUpperBound::fromString);
     }
 
+    /** Return the name of the first remote pointing to an elastic GitHub repository, or null if none is found. */
+    public String findElasticRemoteName() {
+        String remotesOutput = gitCommandOrNull("remote");
+        if (remotesOutput == null || remotesOutput.isBlank()) {
+            return null;
+        }
+        for (String remoteName : remotesOutput.strip().split("\n")) {
+            remoteName = remoteName.strip();
+            String url = gitCommandOrNull("remote", "get-url", remoteName);
+            if (url != null) {
+                url = url.strip();
+                if (url.startsWith("git@github.com:elastic/") || url.startsWith("https://github.com/elastic/")) {
+                    return remoteName;
+                }
+            }
+        }
+        return null;
+    }
+
     /** Retrieve an upper bound from the given git ref by name, or null if it doesn't exist at that ref */
     public TransportVersionUpperBound getUpperBoundFromRef(String ref, String name) {
         Path resourcePath = getUpperBoundRelativePath(name);
@@ -318,11 +336,6 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     }
 
     private String findUpstreamRef() {
-        String remotesOutput = gitCommand("remote").strip();
-        if (remotesOutput.isEmpty()) {
-            logger.warn("No remotes found. Using 'main' branch as upstream ref for transport version resources");
-            return "main";
-        }
         // default the branch name to look at to that which a PR in CI is targeting
         String branchName = System.getenv("BUILDKITE_PULL_REQUEST_BASE_BRANCH");
         if (branchName == null || branchName.strip().isEmpty()) {
@@ -333,29 +346,15 @@ public abstract class TransportVersionResourcesService implements BuildService<T
                 branchName = "main";
             }
         }
-        List<String> remoteNames = List.of(remotesOutput.split("\n"));
-        if (remoteNames.contains(UPSTREAM_REMOTE_NAME) == false) {
-            // our special remote doesn't exist yet, so create it
-            String upstreamUrl = null;
-            for (String remoteName : remoteNames) {
-                String getUrlOutput = gitCommand("remote", "get-url", remoteName).strip();
-                if (getUrlOutput.startsWith("git@github.com:elastic/") || getUrlOutput.startsWith("https://github.com/elastic/")) {
-                    upstreamUrl = getUrlOutput;
-                }
-            }
-
-            if (upstreamUrl != null) {
-                gitCommand("remote", "add", UPSTREAM_REMOTE_NAME, upstreamUrl);
-            } else {
-                logger.warn("No elastic github remotes found to copy. Using 'main' branch as upstream ref for transport version resources");
-                return branchName;
-            }
+        String elasticRemote = findElasticRemoteName();
+        if (elasticRemote == null) {
+            logger.warn("No elastic github remotes found. Using 'main' branch as upstream ref for transport version resources");
+            return branchName;
         }
 
-        // make sure the remote main ref is up to date
-        gitCommand("fetch", UPSTREAM_REMOTE_NAME, branchName);
+        gitCommand("fetch", elasticRemote, branchName);
 
-        return UPSTREAM_REMOTE_NAME + "/" + branchName;
+        return elasticRemote + "/" + branchName;
     }
 
     // Return the transport version resources paths that exist in upstream
@@ -473,25 +472,55 @@ public abstract class TransportVersionResourcesService implements BuildService<T
         return stdout.toString(StandardCharsets.UTF_8);
     }
 
+    /** Read the alternate (non-serverless) upper bound from the working tree. */
+    public TransportVersionUpperBound getAlternateUpperBound(Path file) throws IOException {
+        String contents = Files.readString(file, StandardCharsets.UTF_8).strip();
+        return TransportVersionUpperBound.fromString(file, contents);
+    }
+
+    /**
+     * Read the alternate upper bound from a git ref by resolving the given submodule path at that ref
+     * and reading the named upper bound file from the submodule's history.
+     * Returns null if the submodule or file cannot be found at the given ref.
+     */
+    public TransportVersionUpperBound getAlternateUpperBoundFromRef(String tagRef, String submodulePath, String name) {
+        String lsTree = rootDirGitCommandOrNull("ls-tree", tagRef, "--", submodulePath);
+        if (lsTree == null) return null;
+        String[] fields = lsTree.split("\\s+");
+        if (fields.length < 3) return null;
+        String submoduleRef = fields[2];
+        String output = rootDirGitCommandOrNull(
+            "-C", submodulePath,
+            "show", submoduleRef + ":server/src/main/resources/transport/upper_bounds/" + name + ".csv"
+        );
+        if (output == null) return null;
+        return TransportVersionUpperBound.fromString(Path.of(name + ".csv"), output.strip());
+    }
+
     // run a git command relative to the transport version resources directory, returning null on non-zero exit
     private String gitCommandOrNull(String... args) {
+        return execGitOrNull(getTransportResourcesDir().toString(), args);
+    }
+
+    // run a git command from the repository root, returning null on non-zero exit
+    private String rootDirGitCommandOrNull(String... args) {
+        return execGitOrNull(rootDir.toString(), args);
+    }
+
+    private String execGitOrNull(String workingDir, String... args) {
         ByteArrayOutputStream stdout = new ByteArrayOutputStream();
-
         List<String> command = new ArrayList<>();
-        Collections.addAll(command, "git", "-C", getTransportResourcesDir().toString());
+        Collections.addAll(command, "git", "-C", workingDir);
         Collections.addAll(command, args);
-
         ExecResult result = getExecOperations().exec(spec -> {
             spec.setCommandLine(command);
             spec.setStandardOutput(stdout);
             spec.setErrorOutput(stdout);
             spec.setIgnoreExitValue(true);
         });
-
         if (result.getExitValue() != 0) {
             return null;
         }
-
         return stdout.toString(StandardCharsets.UTF_8);
     }
 }

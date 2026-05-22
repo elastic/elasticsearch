@@ -346,6 +346,28 @@ public class FunctionRef {
         return Type.getMethodDescriptor(Type.getType(factoryMethodType.returnType()), arguments);
     }
 
+    /**
+     * Returns a new {@link FunctionRef} with a synthetic {@code Runnable} cancel capture
+     * prepended to the factory method type.  Used by the compiler to augment typed static
+     * lambdas in cancellation-aware scripts so that {@code LambdaBootstrap} captures and
+     * stores the runnable in the generated lambda class.
+     */
+    public FunctionRef withSyntheticCancelCapture() {
+        return new FunctionRef(
+            interfaceMethodName,
+            interfaceMethodType,
+            delegateClassName,
+            isDelegateInterface,
+            isDelegateAugmented,
+            delegateInvokeType,
+            delegateMethodName,
+            delegateMethodType,
+            delegateInjections,
+            factoryMethodType.insertParameterTypes(0, Runnable.class),
+            factoryMethodReceiver
+        );
+    }
+
     /** Get the factory method type, updating the receiver if {@code factoryMethodReceiverClass} is non-null */
     public Class<?>[] factoryMethodParameters(Class<?> factoryMethodReceiverClass) {
         Class<?>[] parameters = factoryMethodType.parameterList().toArray(Class<?>[]::new);

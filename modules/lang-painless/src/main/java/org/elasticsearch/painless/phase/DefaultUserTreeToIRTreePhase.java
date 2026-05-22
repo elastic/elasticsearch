@@ -203,6 +203,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCapture;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCRead;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCVarArgs;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDArrayName;
@@ -257,6 +258,7 @@ import java.lang.invoke.CallSite;
 import java.lang.invoke.MethodHandles.Lookup;
 import java.lang.invoke.MethodType;
 import java.lang.reflect.Modifier;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
@@ -1424,12 +1426,49 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         attachLoopProtection(irFunctionNode, scriptScope);
         irClassNode.addFunctionNode(irFunctionNode);
 
+        // For typed static lambdas in cancellation-aware scripts: inject the cancel Runnable as a
+        // synthetic first capture. The enclosing IRCCancellationCheck function stores the runnable
+        // in a "$cancelRunnable" local that the lambda call site loads and passes as a capture. The
+        // generated static method receives it as parameter "$cancelRunnable" and uses a local counter
+        // to call it periodically instead of touching this.$cancelPoll (no receiver in static context).
+        boolean injectCancelCapture = irFunctionNode.hasCondition(IRCStatic.class)
+            && scriptScope.getScriptClassInfo().supportsCancellation()
+            && scriptScope.hasDecoration(userLambdaNode, TargetType.class);
+        if (injectCancelCapture) {
+            irFunctionNode.attachCondition(IRCStaticCancellationCheck.class);
+
+            List<Class<?>> augTypes = new ArrayList<>();
+            augTypes.add(Runnable.class);
+            augTypes.addAll(irFunctionNode.getDecorationValue(IRDTypeParameters.class));
+            irFunctionNode.attachDecoration(new IRDTypeParameters(augTypes));
+
+            List<String> augNames = new ArrayList<>();
+            augNames.add("$cancelRunnable");
+            augNames.addAll(irFunctionNode.getDecorationValue(IRDParameterNames.class));
+            irFunctionNode.attachDecoration(new IRDParameterNames(augNames));
+        }
+
         irExpressionNode.attachDecoration(new IRDExpressionType(scriptScope.getDecoration(userLambdaNode, ValueType.class).valueType()));
 
         List<Variable> captures = scriptScope.getDecoration(userLambdaNode, CapturesDecoration.class).captures();
 
+        List<String> captureNames;
         if (captures.isEmpty() == false) {
-            List<String> captureNames = captures.stream().map(Variable::name).toList();
+            captureNames = captures.stream().map(Variable::name).toList();
+        } else {
+            captureNames = null;
+        }
+
+        if (injectCancelCapture) {
+            List<String> augCaptures = new ArrayList<>();
+            augCaptures.add("$cancelRunnable");
+            if (captureNames != null) {
+                augCaptures.addAll(captureNames);
+            }
+            irExpressionNode.attachDecoration(new IRDCaptureNames(augCaptures));
+            FunctionRef original = irExpressionNode.getDecorationValue(IRDReference.class);
+            irExpressionNode.attachDecoration(new IRDReference(original.withSyntheticCancelCapture()));
+        } else if (captureNames != null) {
             irExpressionNode.attachDecoration(new IRDCaptureNames(captureNames));
         }
 

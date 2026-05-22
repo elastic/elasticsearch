@@ -105,6 +105,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCapture;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCVarArgs;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDArrayName;
@@ -350,12 +351,30 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.ifNull(skipEntry);
             writePersistentCancellationDecrement(methodWriter, cancelRunnable.getSlot());
             methodWriter.mark(skipEntry);
+
+            // Expose the runnable under "$cancelRunnable" so that static lambda call sites can
+            // load it as a capture via IRDCaptureNames without using the internal "#" prefix.
+            Variable cancelRunnableCapture = writeScope.defineVariable(Runnable.class, "$cancelRunnable");
+            methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
+            methodWriter.visitVarInsn(Opcodes.ASTORE, cancelRunnableCapture.getSlot());
         }
 
-        if (maxLoopCounter > 0) {
+        boolean staticCancellation = irFunctionNode.hasCondition(IRCStaticCancellationCheck.class);
+
+        // The legacy #loop counter is superseded by #localCancelPoll for static lambdas that carry
+        // IRCStaticCancellationCheck, so skip allocating it to keep the frame compact.
+        if (maxLoopCounter > 0 && staticCancellation == false) {
             Variable loop = writeScope.defineInternalVariable(int.class, "loop");
             methodWriter.push(maxLoopCounter);
             methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
+        }
+
+        if (staticCancellation) {
+            // $cancelRunnable is already the first parameter (slot 0 for a static method).
+            // Initialise a per-invocation counter that drives the cancellation poll.
+            Variable localCancelPoll = writeScope.defineInternalVariable(int.class, "localCancelPoll");
+            methodWriter.push(WriterConstants.CANCELLATION_POLL_INTERVAL);
+            methodWriter.visitVarInsn(Opcodes.ISTORE, localCancelPoll.getSlot());
         }
 
         visit(irFunctionNode.getBlockNode(), writeScope.newBlockScope());
@@ -384,6 +403,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
      * {@link Integer#MAX_VALUE} still trips after ~2 s of tight looping). Non-opted-in
      * functions emit only the legacy counter (or nothing, when {@code legacyForNonOptedIn} is
      * false — used by for-each).
+     * <p>
+     * Static lambdas decorated with {@link IRCStaticCancellationCheck} use a local poll counter
+     * ({@code #localCancelPoll}) instead of the shared {@code this.$cancelPoll} field, because
+     * static methods have no script receiver.  When {@code #localCancelPoll} is present this
+     * path is taken unconditionally (regardless of the other variables).
      */
     private static void writeBranchedLoopGuard(
         WriteScope writeScope,
@@ -391,6 +415,13 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         Location location,
         boolean legacyForNonOptedIn
     ) {
+        Variable localCancelPoll = writeScope.getInternalVariable("localCancelPoll");
+        if (localCancelPoll != null) {
+            Variable staticRunnable = writeScope.getVariable("$cancelRunnable");
+            writeLocalCancellationDecrement(methodWriter, staticRunnable.getSlot(), localCancelPoll.getSlot());
+            return;
+        }
+
         Variable cancelRunnable = writeScope.getInternalVariable("cancelRunnable");
         Variable loop = writeScope.getInternalVariable("loop");
 
@@ -420,6 +451,29 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.mark(legacyPath);
         methodWriter.writeLoopCounter(loop.getSlot(), location);
         methodWriter.mark(end);
+    }
+
+    /**
+     * Decrements the local poll counter ({@code #localCancelPoll}) used by static lambdas.
+     * When the counter reaches zero the counter is reset and the cancel {@code Runnable} at
+     * {@code runnableSlot} is invoked (if non-null).
+     */
+    private static void writeLocalCancellationDecrement(MethodWriter methodWriter, int runnableSlot, int counterSlot) {
+        Label skip = new Label();
+
+        methodWriter.visitIincInsn(counterSlot, -1);
+        methodWriter.visitVarInsn(Opcodes.ILOAD, counterSlot);
+        methodWriter.ifZCmp(MethodWriter.GT, skip);
+
+        // Counter reached zero: reset it, then call the runnable if non-null.
+        methodWriter.push(WriterConstants.CANCELLATION_POLL_INTERVAL);
+        methodWriter.visitVarInsn(Opcodes.ISTORE, counterSlot);
+        methodWriter.visitVarInsn(Opcodes.ALOAD, runnableSlot);
+        methodWriter.ifNull(skip);
+        methodWriter.visitVarInsn(Opcodes.ALOAD, runnableSlot);
+        methodWriter.invokeInterface(WriterConstants.RUNNABLE_TYPE, WriterConstants.RUNNABLE_RUN);
+
+        methodWriter.mark(skip);
     }
 
     /**

@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.qa.csv;
+package org.elasticsearch.xpack.esql.qa.parquet;
 
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
@@ -14,31 +14,49 @@ import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.datasources.FormatNameResolver;
 import org.elasticsearch.xpack.esql.qa.rest.AbstractExternalSourceSpecTestCase;
 import org.junit.ClassRule;
 
 import java.util.List;
 
 /**
- * Parameterized integration tests for standalone TSV files.
- * Each csv-spec test is run against every configured storage backend.
+ * Parameterized integration tests for multifile Parquet with internal compression.
+ * Runs multifile csv-spec tests against GZIP and ZSTD internal codecs only (these are the
+ * codecs for which compressed multifile_split fixtures are generated at build time).
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
-public class TsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
+public class ParquetCompressedMultifileSpecIT extends AbstractExternalSourceSpecTestCase {
+
+    private static final List<String> CODECS = List.of("gzip", "zstd");
 
     @ClassRule
     public static ElasticsearchCluster cluster = Clusters.testCluster(() -> s3Fixture.getAddress());
 
-    public TsvFormatSpecIT(
+    private final String codecName;
+
+    public ParquetCompressedMultifileSpecIT(
         String fileName,
         String groupName,
         String testName,
         Integer lineNumber,
         CsvTestCase testCase,
         String instructions,
+        String codecName,
         StorageBackend storageBackend
     ) {
-        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "tsv");
+        super(fileName, groupName, testName, lineNumber, testCase, instructions, storageBackend, "parquet");
+        this.codecName = codecName;
+    }
+
+    @Override
+    protected String multifileSplitDir() {
+        return "multifile_split-" + codecName;
+    }
+
+    @Override
+    protected String readerName() {
+        return FormatNameResolver.READER_JAVA;
     }
 
     @Override
@@ -46,8 +64,13 @@ public class TsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         return cluster.getHttpAddresses();
     }
 
-    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
+    @Override
+    protected boolean enableRoundingDoubleValuesOnAsserting() {
+        return true;
+    }
+
+    @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests("/external-basic.csv-spec", "/external-multifile.csv-spec", "/external-multifile-resolution.csv-spec");
+        return readExternalSpecTestsWithCodecs(CODECS, "/external-multifile.csv-spec", "/external-multifile-resolution.csv-spec");
     }
 }

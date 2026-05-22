@@ -438,9 +438,6 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/148748
-- class: org.elasticsearch.xpack.stateless.StatelessIndexCommitListenerIT
-  method: testRefIsNotReleasedUponNotificationFailure
-  issue: https://github.com/elastic/elasticsearch/issues/148471
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexWhileNodeStopping
   issue: https://github.com/elastic/elasticsearch/issues/148807
@@ -534,9 +531,6 @@ tests:
 - class: org.elasticsearch.gateway.PersistedClusterStateServiceTests
   method: testLimitsFileCount
   issue: https://github.com/elastic/elasticsearch/issues/149557
-- class: org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReaderTests
-  method: testMalformedRowErrorAnchorsOnQuoteOffset
-  issue: https://github.com/elastic/elasticsearch/issues/149567
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats.sumWithOverflowRow}
   issue: https://github.com/elastic/elasticsearch/issues/149574
@@ -570,9 +564,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
-- class: org.elasticsearch.reindex.management.CancelTasksRelocationIT
-  method: testCancelByOriginalTaskIdAfterRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/149688
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
+- class: org.elasticsearch.index.reindex.LocalReindexResumeIT
+  method: testResumeReindexFromPit_slicedN
+  issue: https://github.com/elastic/elasticsearch/issues/149698

@@ -308,7 +308,7 @@ public abstract class ViewResolutionBenchmarkBase {
     @Benchmark
     public void resolveViews(Blackhole blackhole) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(preParsedPlan, viewParser, future);
+        viewResolver.replaceViews(preParsedPlan, null, viewParser, future);
         blackhole.consume(future.actionGet());
     }
 
@@ -318,7 +318,7 @@ public abstract class ViewResolutionBenchmarkBase {
         LogicalPlan parsed = parsePlan(queryString);
 
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        viewResolver.replaceViews(parsed, viewParser, future);
+        viewResolver.replaceViews(parsed, null, viewParser, future);
         LogicalPlan resolved = future.actionGet().plan();
 
         LogicalPlan analyzed = analyzer.analyze(resolved);
@@ -343,7 +343,7 @@ public abstract class ViewResolutionBenchmarkBase {
             boolean enabled,
             ViewResolutionService viewResolutionService
         ) {
-            super(clusterService, projectResolver, null, CrossProjectModeDecider.NOOP);
+            super(null, clusterService, projectResolver, null, CrossProjectModeDecider.NOOP);
             this.enabled = enabled;
             this.viewResolutionService = viewResolutionService;
             this.benchmarkClusterService = clusterService;

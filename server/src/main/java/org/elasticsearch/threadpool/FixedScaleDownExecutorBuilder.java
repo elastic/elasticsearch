@@ -61,7 +61,7 @@ public final class FixedScaleDownExecutorBuilder extends FixedExecutorBuilder {
         final ThreadPool.Info info = new ThreadPool.Info(
             name(),
             ThreadPool.ThreadPoolType.FIXED,
-            0,
+            size,
             size,
             scaleDownDelay,
             queueSize < 0 ? null : (long) queueSize

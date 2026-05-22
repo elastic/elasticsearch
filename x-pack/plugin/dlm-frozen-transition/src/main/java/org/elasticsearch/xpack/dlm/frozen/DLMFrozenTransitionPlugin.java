@@ -49,6 +49,9 @@ public class DLMFrozenTransitionPlugin extends Plugin {
 
     @Override
     public List<ExecutorBuilder<?>> getExecutorBuilders(Settings settings) {
+        if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled() == false) {
+            return List.of();
+        }
         int coreCount = EsExecutors.allocatedProcessors(settings);
         final FixedScaleDownExecutorBuilder builder = new FixedScaleDownExecutorBuilder(
             settings,

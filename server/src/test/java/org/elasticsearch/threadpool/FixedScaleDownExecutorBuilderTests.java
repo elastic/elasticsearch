@@ -154,7 +154,7 @@ public class FixedScaleDownExecutorBuilderTests extends ESTestCase {
             final ThreadPool.Info info = holder.info;
             assertThat(info.getName(), equalTo(poolName));
             assertThat(info.getThreadPoolType(), equalTo(ThreadPool.ThreadPoolType.FIXED));
-            assertThat(info.getMin(), equalTo(0));
+            assertThat(info.getMin(), equalTo(poolSize));
             assertThat(info.getMax(), equalTo(poolSize));
             assertThat(info.getQueueSize(), equalTo((long) queueSize));
         } finally {

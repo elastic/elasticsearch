@@ -128,7 +128,7 @@ import org.elasticsearch.xpack.stateless.action.TransportEnsureDocsSearchableAct
 import org.elasticsearch.xpack.stateless.action.TransportFetchShardCommitsInUseAction;
 import org.elasticsearch.xpack.stateless.action.TransportGetVirtualBatchedCompoundCommitChunkAction;
 import org.elasticsearch.xpack.stateless.action.TransportNewCommitNotificationAction;
-import org.elasticsearch.xpack.stateless.allocation.DisableRebalanceDecider;
+import org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDecider;
 import org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageMonitor;
 import org.elasticsearch.xpack.stateless.allocation.StatelessAllocationDecider;
@@ -675,7 +675,7 @@ public class StatelessPlugin extends Plugin
             .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), true)
             // Disable rebalancing in the index tier. We can skip the balancing step altogether because we use
             // the write-load, index-balance and heap deciders to replace it.
-            .put(DisableRebalanceDecider.REBALANCING_ENABLED.getKey(), DisableRebalanceDecider.RebalancingEnabled.SEARCH_TIER_ONLY)
+            .put(DisableSimulationRebalancingDecider.REBALANCING_ENABLED.getKey(), DisableSimulationRebalancingDecider.RebalancingEnabled.SEARCH_TIER_ONLY)
             .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),
@@ -1301,7 +1301,7 @@ public class StatelessPlugin extends Plugin
             ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING,
             ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING,
             ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING,
-            DisableRebalanceDecider.REBALANCING_ENABLED
+            DisableSimulationRebalancingDecider.REBALANCING_ENABLED
         );
     }
 
@@ -1846,7 +1846,7 @@ public class StatelessPlugin extends Plugin
     @Override
     public Collection<AllocationDecider> createAllocationDeciders(Settings settings, ClusterSettings clusterSettings) {
         return List.of(
-            new DisableRebalanceDecider(clusterSettings),
+            new DisableSimulationRebalancingDecider(clusterSettings),
             new StatelessAllocationDecider(),
             new EstimatedHeapUsageAllocationDecider(clusterSettings),
             new StatelessThrottlingConcurrentRecoveriesAllocationDecider(clusterSettings)

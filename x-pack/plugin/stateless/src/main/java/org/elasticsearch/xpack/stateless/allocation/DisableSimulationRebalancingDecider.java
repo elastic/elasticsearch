@@ -28,7 +28,7 @@ import org.elasticsearch.common.settings.Setting;
  * accumulate and eventually result in the simulation operating on a very inaccurate view of the cluster. This Decider disables rebalancing
  * for the simulation phase only, it is always enabled for the reconciliation phase.
  */
-public class DisableRebalanceDecider extends AllocationDecider {
+public class DisableSimulationRebalancingDecider extends AllocationDecider {
 
     public static final String NAME = "stateless-rebalance-disabler";
     private static final Decision ALWAYS_REBALANCE = new Decision.Single(Decision.Type.YES, NAME, "All rebalancing is enabled");
@@ -104,7 +104,7 @@ public class DisableRebalanceDecider extends AllocationDecider {
 
     private volatile RebalancingEnabled rebalancingEnabled;
 
-    public DisableRebalanceDecider(ClusterSettings clusterSettings) {
+    public DisableSimulationRebalancingDecider(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(REBALANCING_ENABLED, rebalancingEnabled -> this.rebalancingEnabled = rebalancingEnabled);
     }
 

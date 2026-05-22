@@ -38,7 +38,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 /**
  * Filters histograms by their temporality. Returns the histogram unchanged if temporality is delta or null.
- * Returns null and emits a warning if temporality is cumulative.
+ * Throws an exception if temporality is cumulative.
  * <p>
  * This function is injected during local planning to handle backwards compatibility in CCS scenarios
  * where the coordinating node is older and produces plans that apply {@link ExtractHistogramComponent}

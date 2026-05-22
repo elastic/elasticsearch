@@ -285,7 +285,33 @@ public final class PlanAnonymizer {
     }
 
     private EsRelation anonymizeEsRelation(EsRelation r) {
-        return new EsRelation(r.source(), anonymizeIndex(r.indexPattern()), r.indexMode(), Map.of(), Map.of(), Map.of(), r.output());
+        // Preserve the per-concrete-index IndexMode (lookup / time_series / standard) but
+        // anonymize the concrete index names. Same for originalIndices / concreteIndices —
+        // anonymize the keys (cluster aliases) and the index-name list values.
+        Map<String, org.elasticsearch.index.IndexMode> anonymizedModes = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, org.elasticsearch.index.IndexMode> e : r.indexNameWithModes().entrySet()) {
+            anonymizedModes.put(anonymizeIndex(e.getKey()), e.getValue());
+        }
+        return new EsRelation(
+            r.source(),
+            anonymizeIndex(r.indexPattern()),
+            r.indexMode(),
+            anonymizeClusterIndexMap(r.originalIndices()),
+            anonymizeClusterIndexMap(r.concreteIndices()),
+            anonymizedModes,
+            r.output()
+        );
+    }
+
+    private Map<String, java.util.List<String>> anonymizeClusterIndexMap(Map<String, java.util.List<String>> in) {
+        if (in == null || in.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, java.util.List<String>> out = new java.util.LinkedHashMap<>();
+        for (Map.Entry<String, java.util.List<String>> e : in.entrySet()) {
+            out.put(anonymizeIndex(e.getKey()), e.getValue().stream().map(this::anonymizeIndex).toList());
+        }
+        return out;
     }
 
     private String anonymizeColumn(String name) {
@@ -384,10 +410,6 @@ public final class PlanAnonymizer {
         }
     }
 
-    private void renderSubField(String fullName, EsField f, String indent, StringBuilder sb) {
-        renderField(fullName, f, indent, sb);
-    }
-
     private void renderField(String fullName, EsField f, String indent, StringBuilder sb) {
         sb.append(indent).append(anonymizeColumn(fullName)).append(": ").append(f.getDataType().typeName());
         if (f.getDataType().hasDocValues()) {
@@ -407,7 +429,7 @@ public final class PlanAnonymizer {
         Map<String, EsField> props = f.getProperties();
         if (props != null && props.isEmpty() == false) {
             for (Map.Entry<String, EsField> e : new TreeMap<>(props).entrySet()) {
-                renderSubField(fullName + "." + e.getKey(), e.getValue(), indent + "  ", sb);
+                renderField(fullName + "." + e.getKey(), e.getValue(), indent + "  ", sb);
             }
         }
     }

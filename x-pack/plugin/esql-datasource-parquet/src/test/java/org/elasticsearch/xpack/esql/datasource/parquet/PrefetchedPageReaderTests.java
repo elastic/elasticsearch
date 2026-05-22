@@ -21,6 +21,7 @@ import org.apache.parquet.hadoop.metadata.CompressionCodecName;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -222,6 +223,8 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         assertThat(outV1.getRlEncoding(), equalTo(Encoding.RLE));
         assertThat(outV1.getDlEncoding(), equalTo(Encoding.RLE));
         assertThat(outV1.getBytes().toByteArray(), equalTo(payload));
+        ByteBuffer decompressedBuf = outV1.getBytes().toByteBuffer();
+        assertTrue("decompressed V1 page must be backed by a direct buffer to avoid G1GC pinning", decompressedBuf.isDirect());
         assertNull(reader.readPage());
     }
 
@@ -262,6 +265,8 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         assertThat(outV2.getRepetitionLevels().toByteArray(), equalTo(rl));
         assertThat(outV2.getDefinitionLevels().toByteArray(), equalTo(dl));
         assertThat(outV2.getData().toByteArray(), equalTo(data));
+        ByteBuffer decompressedBuf = outV2.getData().toByteBuffer();
+        assertTrue("decompressed V2 data must be backed by a direct buffer to avoid G1GC pinning", decompressedBuf.isDirect());
         assertNull(reader.readPage());
     }
 

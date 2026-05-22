@@ -27,12 +27,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * Build-time generator for Parquet fixture files. Converts CSV to Parquet.
@@ -208,7 +206,7 @@ public final class ParquetFixtureGenerator {
         OutputFile outputFile = createOutputFile(baos);
         SimpleGroupFactory factory = new SimpleGroupFactory(schema);
 
-        boolean[] flatten = computeFlatten(columns);
+        boolean[] flatten = CsvFixtureParser.computeFlatten(columns);
         // Pre-compute per-column dotted-path segments; flat (literal-dot) columns get a 1-element
         // path containing the original full name, so resolveParent treats them as top-level.
         String[][] columnPaths = new String[columns.size()][];
@@ -268,7 +266,7 @@ public final class ParquetFixtureGenerator {
      * top-level column names.
      */
     private static MessageType buildSchema(List<CsvFixtureParser.ColumnSpec> columns, boolean[] isListColumn) {
-        boolean[] flatten = computeFlatten(columns);
+        boolean[] flatten = CsvFixtureParser.computeFlatten(columns);
         Node root = new Node();
         for (int i = 0; i < columns.size(); i++) {
             if (flatten[i]) {
@@ -291,32 +289,6 @@ public final class ParquetFixtureGenerator {
             fields.add(buildType(e.getKey(), e.getValue(), columns, isListColumn));
         }
         return new MessageType("schema", fields);
-    }
-
-    /**
-     * Marks columns whose dotted names must be kept literal (flat). A column is kept flat when
-     * any prefix of its dotted name is itself a literal top-level column name in the same CSV.
-     * This preserves files like {@code employees.csv} whose schema mixes a flat {@code languages}
-     * column with sibling flat columns named {@code languages.long}, {@code languages.short}, etc.
-     */
-    static boolean[] computeFlatten(List<CsvFixtureParser.ColumnSpec> columns) {
-        Set<String> names = new HashSet<>();
-        for (CsvFixtureParser.ColumnSpec c : columns) {
-            names.add(c.name());
-        }
-        boolean[] flatten = new boolean[columns.size()];
-        for (int i = 0; i < columns.size(); i++) {
-            String name = columns.get(i).name();
-            int dot = name.indexOf('.');
-            while (dot > 0) {
-                if (names.contains(name.substring(0, dot))) {
-                    flatten[i] = true;
-                    break;
-                }
-                dot = name.indexOf('.', dot + 1);
-            }
-        }
-        return flatten;
     }
 
     private static Type buildType(String name, Node node, List<CsvFixtureParser.ColumnSpec> columns, boolean[] isListColumn) {

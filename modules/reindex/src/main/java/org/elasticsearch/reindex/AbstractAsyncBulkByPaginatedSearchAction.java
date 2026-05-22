@@ -59,6 +59,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -1275,6 +1276,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         }
 
         protected abstract CtxMap<T> execute(PaginatedHitSource.Hit doc, Map<String, Object> source);
+
+        protected Runnable buildCancellationCheck() {
+            BulkByPaginatedSearchTask task = taskWorker.getTask();
+            return () -> { if (task.isCancelled()) throw new TaskCancelledException(task.getReasonCancelled()); };
+        }
 
         protected abstract void updateRequest(RequestWrapper<?> request, T metadata);
 

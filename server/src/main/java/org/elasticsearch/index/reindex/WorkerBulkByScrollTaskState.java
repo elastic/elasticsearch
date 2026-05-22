@@ -92,6 +92,10 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
         this.nodeToRelocateToSupplier = new SetOnce<>();
     }
 
+    public BulkByPaginatedSearchTask getTask() {
+        return task;
+    }
+
     public BulkByPaginatedSearchTask.Status getStatus() {
         return new BulkByPaginatedSearchTask.Status(
             sliceId,

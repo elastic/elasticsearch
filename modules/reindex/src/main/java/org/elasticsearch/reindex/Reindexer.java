@@ -1240,7 +1240,9 @@ public class Reindexer {
                         nowInMillisSupplier.getAsLong()
                     )
                 );
-                reindex.newInstance(params, ctxMap).execute();
+                ReindexScript instance = reindex.newInstance(params, ctxMap);
+                instance._setCancellationCheck(buildCancellationCheck());
+                instance.execute();
                 return ctxMap;
             }
 

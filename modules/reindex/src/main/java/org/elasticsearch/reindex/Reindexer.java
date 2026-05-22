@@ -56,6 +56,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
@@ -79,6 +80,8 @@ import org.elasticsearch.script.ReindexMetadata;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -279,6 +282,7 @@ public class Reindexer {
                 Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
                 executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, null);
             } else {
+                normalizeRequestOnOpeningPit(request);
                 openPitAndExecute(task, request, bulkClient, responseListener);
             }
         }
@@ -338,6 +342,22 @@ public class Reindexer {
             remoteVersion,
             workerAction
         );
+    }
+
+    /// Performs normalization required on the `ReindexRequest` when using PIT.
+    private void normalizeRequestOnOpeningPit(ReindexRequest request) {
+        SearchSourceBuilder source = request.getSearchRequest().source();
+        // If we are performing a sliced operation and not sharing a PIT between slices, we have to disable some optimizations to guarantee
+        // consistency. This applies for manually sliced operations, when source.slice() is non-null on the request when we open the PIT.
+        // It does not apply for automatically sliced operations, which share a PIT: for the parent request, source.slice() will be null;
+        // for the children, we will not call this method because the PIT was already opened for the parent.
+        if (source != null && source.slice() != null) {
+            // If the user has not specified a slicing field, use _id (instead of Lucene ID, the default for PIT slicing) for ensure
+            // consistency if document updates occur between slices:
+            if (source.slice().getField() == null) {
+                source.slice(new SliceBuilder(IdFieldMapper.NAME, source.slice().getId(), source.slice().getMax()));
+            }
+        }
     }
 
     /**
@@ -534,6 +554,7 @@ public class Reindexer {
                         Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
                         executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, version);
                     } else {
+                        normalizeRequestOnOpeningPit(request);
                         openRemotePitAndExecute(task, request, bulkClient, listener, restClient, version);
                     }
                 }
@@ -802,9 +823,6 @@ public class Reindexer {
     private void initTaskForRelocationIfEnabled(final BulkByPaginatedSearchTask task) {
         // todo: move initialization to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
-        if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false) {
-            return;
-        }
         // set up reindex relocation, specifically the supplier which says which node to relocate to.
         // we have 3 states to handle:
         // 1. leader which has >= 2 subslices: initialized with a centralized node picker. workers will fetch this and use it.

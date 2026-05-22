@@ -2137,7 +2137,8 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 settings,
                 taskQueue.getThreadPool(),
                 taskQueue.getThreadPool().executor(ThreadPool.Names.GENERIC),
-                BlobCacheMetrics.NOOP
+                BlobCacheMetrics.NOOP,
+                new DefaultEvictionPolicy<>()
             ) {
                 @Override
                 protected int computeCacheFileRegionSize(long fileLength, int region) {

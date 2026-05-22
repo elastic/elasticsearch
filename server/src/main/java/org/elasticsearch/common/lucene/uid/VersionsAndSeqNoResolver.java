@@ -160,8 +160,7 @@ public final class VersionsAndSeqNoResolver {
      * without a separate merge pass.
      * <p>
      * This method uses {@code loadTimestampRange = false} and is intended for standard (non-time-series)
-     * indices. For time series indices use {@link #timeSeriesLoadDocIdAndVersion(IndexReader, BytesRef, String, boolean, boolean)}
-     * per UID instead.
+     * indices. For time series indices use {@link #timeSeriesBatchLoadDocIdAndVersion} instead.
      */
     public static void batchLoadDocIdAndVersion(IndexReader reader, BytesRef[] uids, boolean[] loadSeqNo, DocIdAndVersion[] results)
         throws IOException {
@@ -187,6 +186,88 @@ public final class VersionsAndSeqNoResolver {
         for (int s = leaves.size() - 1; s >= 0 && remaining > 0; s--) {
             final LeafReaderContext leaf = leaves.get(s);
             remaining -= lookups[leaf.ord].batchLookupVersion(leaf, sortedUids, sortedLoadSeqNo, sortedResults);
+        }
+
+        // Map sorted results back to the caller's original index order.
+        for (int i = 0; i < n; i++) {
+            results[order[i]] = sortedResults[i];
+        }
+    }
+
+    /**
+     * Resolves doc ID and version for a batch of time-series UIDs in a single forward pass through
+     * each segment's terms dictionary, amortizing seek overhead while exploiting per-segment
+     * timestamp ranges to skip segments that cannot contain a given UID.
+     * <p>
+     * Results are written into {@code results[i]} for each {@code uids[i]}; a null entry means the
+     * UID was not found. UIDs need not be pre-sorted; sorting is done internally.
+     * <p>
+     * Segments are iterated in {@link org.elasticsearch.cluster.metadata.DataStream#TIMESERIES_LEAF_READERS_SORTER}
+     * forward order (descending maxTimestamp). UIDs whose timestamps exceed a segment's maxTimestamp
+     * are marked permanently not found without a terms lookup, because subsequent segments have even
+     * lower maxTimestamps and also cannot contain them.
+     *
+     * @param uids          the UID terms to look up
+     * @param ids           the document IDs corresponding to each UID; used to extract timestamps
+     * @param loadSeqNo     whether to populate seqNo/primaryTerm in each result
+     * @param results       out parameter; null entry means not found
+     * @param useSyntheticId true if IDs are synthetic TSDB IDs (timestamp embedded in UID),
+     *                       false if they are standard base64-URL-encoded 20-byte IDs
+     */
+    public static void timeSeriesBatchLoadDocIdAndVersion(
+        IndexReader reader,
+        BytesRef[] uids,
+        String[] ids,
+        boolean[] loadSeqNo,
+        DocIdAndVersion[] results,
+        boolean useSyntheticId
+    ) throws IOException {
+        final int n = uids.length;
+        assert results.length == n && loadSeqNo.length == n && ids.length == n;
+
+        final long[] timestamps = new long[n];
+        for (int i = 0; i < n; i++) {
+            if (useSyntheticId) {
+                timestamps[i] = TsidExtractingIdFieldMapper.extractTimestampFromSyntheticId(uids[i]);
+            } else {
+                byte[] idAsBytes = Base64.getUrlDecoder().decode(ids[i]);
+                timestamps[i] = TsidExtractingIdFieldMapper.extractTimestampFromId(idAsBytes);
+            }
+        }
+
+        // Sort by UID so each segment can be scanned with a single forward pass.
+        final int[] order = sortByUid(uids);
+
+        final BytesRef[] sortedUids = new BytesRef[n];
+        final long[] sortedTimestamps = new long[n];
+        final boolean[] sortedLoadSeqNo = new boolean[n];
+        for (int i = 0; i < n; i++) {
+            sortedUids[i] = uids[order[i]];
+            sortedTimestamps[i] = timestamps[order[i]];
+            sortedLoadSeqNo[i] = loadSeqNo[order[i]];
+        }
+
+        final DocIdAndVersion[] sortedResults = new DocIdAndVersion[n];
+        final boolean[] done = new boolean[n];
+        final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, true);
+        final List<LeafReaderContext> leaves = reader.leaves();
+        int remaining = n;
+
+        // Iterate in forward order: segments sorted by DataStream#TIMESERIES_LEAF_READERS_SORTER
+        // (descending maxTimestamp). For each segment, only process UIDs with timestamps in range.
+        long prevMaxTimestamp = Long.MAX_VALUE;
+        for (int s = 0; s < leaves.size() && remaining > 0; s++) {
+            final LeafReaderContext leaf = leaves.get(s);
+            assert prevMaxTimestamp >= lookups[leaf.ord].maxTimestamp;
+            prevMaxTimestamp = lookups[leaf.ord].maxTimestamp;
+            remaining -= lookups[leaf.ord].timeSeriesBatchLookupVersion(
+                leaf,
+                sortedUids,
+                sortedTimestamps,
+                sortedLoadSeqNo,
+                sortedResults,
+                done
+            );
         }
 
         // Map sorted results back to the caller's original index order.

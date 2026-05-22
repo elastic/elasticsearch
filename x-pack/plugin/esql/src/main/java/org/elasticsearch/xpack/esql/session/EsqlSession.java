@@ -37,6 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -490,7 +491,11 @@ public class EsqlSession {
 
     private ActionListener<Result> wrapForAnonymizedFailureLog(ActionListener<Result> delegate, LogicalPlan logical) {
         return delegate.delegateResponse((next, err) -> {
-            logAnonymizedPlans(logical, lastPhysicalPlan);
+            // Only log on internal server errors. User-facing failures (verification errors, parse
+            // errors, type mismatches) return a 4xx with a useful message and don't need the plan.
+            if (ExceptionsHelper.status(err) == RestStatus.INTERNAL_SERVER_ERROR) {
+                logAnonymizedPlans(logical, lastPhysicalPlan);
+            }
             next.onFailure(err);
         });
     }

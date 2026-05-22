@@ -286,7 +286,17 @@ final class ParquetColumnExtractor implements ColumnExtractor {
         @SuppressWarnings("unchecked")
         Set<String>[] perColumnProjections = new Set[colCount];
         for (int c = 0; c < colCount; c++) {
-            perColumnSchemas[c] = new MessageType(schema.getName(), schema.getType(columnNames[c]));
+            // Use the full column name as the top-level key for flat columns whose names contain
+            // a literal dot (e.g. "languages.long"). For struct leaves (e.g. "address.city") the
+            // top-level field is the first path segment ("address").
+            String topLevel;
+            if (schema.containsField(columnNames[c])) {
+                topLevel = columnNames[c];
+            } else {
+                int dot = columnNames[c].indexOf('.');
+                topLevel = dot < 0 ? columnNames[c] : columnNames[c].substring(0, dot);
+            }
+            perColumnSchemas[c] = new MessageType(schema.getName(), schema.getType(topLevel));
             perColumnProjections[c] = Set.of(String.join(".", infos[c].descriptor().getPath()));
         }
         String createdBy = ownedFooter.getFileMetaData().getCreatedBy();

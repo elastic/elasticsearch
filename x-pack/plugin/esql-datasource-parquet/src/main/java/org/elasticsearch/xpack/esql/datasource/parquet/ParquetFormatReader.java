@@ -144,32 +144,32 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Resolves the {@link ColumnInfo} for a top-level column by name within a parquet
-     * {@link MessageType}, applying the same primitive-type mapping that the iterator uses
-     * (see {@link #convertParquetTypeToEsql}). Returns {@code null} when the column is absent
-     * or maps to {@link DataType#UNSUPPORTED} / {@link DataType#NULL}. The returned descriptor
-     * carries {@code maxRepetitionLevel} so callers can route flat vs list paths off of it.
+     * Resolves the {@link ColumnInfo} for a column by name within a Parquet {@link MessageType},
+     * applying the same primitive-type mapping that the iterator uses
+     * (see {@link #convertParquetTypeToEsql}). The {@code columnName} may use dot-notation to
+     * address struct leaf fields (e.g. {@code "address.city"}). Returns {@code null} when the
+     * column is absent or maps to {@link DataType#UNSUPPORTED} / {@link DataType#NULL}.
+     * The returned descriptor carries {@code maxRepetitionLevel} so callers can route flat vs
+     * list paths off of it.
      * <p>
      * Package-private because {@link ParquetColumnExtractor} is the only collaborator and we
      * deliberately keep this primitive-type mapping single-sourced — duplicating it in the
      * extractor risks subtle type drift the next time a logical type is added.
      */
     static ColumnInfo resolveColumnInfo(MessageType schema, String columnName) {
-        Type field = schema.containsField(columnName) ? schema.getType(columnName) : null;
-        if (field == null) {
-            return null;
-        }
-        DataType esqlType = convertParquetTypeToEsql(field);
+        DataType esqlType = resolveLeafType(schema, columnName);
         if (esqlType == DataType.UNSUPPORTED || esqlType == DataType.NULL) {
             return null;
         }
-        // For flat columns the descriptor lives directly under the schema; for LIST<primitive>
-        // the descriptor is the inner repeated element. Iterate columns once and pick the
-        // descriptor whose top-level path segment matches the requested column name.
+        // Top-level fields (flat scalars and LIST columns, including those whose names contain a
+        // literal dot such as "salary_change.int") are matched by the first path segment. Struct
+        // leaf fields addressed via dot-notation (e.g. "address.city") are NOT top-level schema
+        // fields, so we fall through to full joined-path matching for them.
+        boolean isTopLevel = schema.containsField(columnName);
         ColumnDescriptor descriptor = null;
         for (ColumnDescriptor desc : schema.getColumns()) {
             String[] path = desc.getPath();
-            if (path.length > 0 && path[0].equals(columnName)) {
+            if (isTopLevel ? (path.length > 0 && path[0].equals(columnName)) : String.join(".", path).equals(columnName)) {
                 descriptor = desc;
                 break;
             }
@@ -1116,12 +1116,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     static ColumnInfo[] buildColumnInfos(MessageType projectedSchema, List<Attribute> attributes) {
         ColumnInfo[] columnInfos = new ColumnInfo[attributes.size()];
-        // Uses getPath()[0] (top-level name only), matching the baseline ParquetColumnIterator.
-        // Nested Parquet fields have multi-segment paths, but ESQL currently only supports flat
-        // columns and LIST(primitive) — nested struct types map to UNSUPPORTED and are skipped.
-        Map<String, ColumnDescriptor> descByName = new HashMap<>();
+        // descByFullPath keys each leaf by its complete dot-path (e.g. "address.city" for a struct
+        // leaf), used to match struct leaf attributes whose names use dot-notation. descByTopLevel
+        // keys by the first path segment, preserving the original behaviour for flat columns
+        // (single-segment path) and LIST columns (attribute name equals path[0] while the physical
+        // leaf path has more segments such as "numbers.list.element").
+        Map<String, ColumnDescriptor> descByFullPath = new HashMap<>();
+        Map<String, ColumnDescriptor> descByTopLevel = new HashMap<>();
         for (ColumnDescriptor desc : projectedSchema.getColumns()) {
-            descByName.put(desc.getPath()[0], desc);
+            descByFullPath.put(String.join(".", desc.getPath()), desc);
+            descByTopLevel.put(desc.getPath()[0], desc);
         }
         for (int i = 0; i < attributes.size(); i++) {
             Attribute attr = attributes.get(i);
@@ -1135,7 +1139,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (attr.dataType() == DataType.NULL || attr.dataType() == DataType.UNSUPPORTED) {
                 continue;
             }
-            ColumnDescriptor desc = descByName.get(attr.name());
+            ColumnDescriptor desc = descByFullPath.get(attr.name());
+            if (desc == null) {
+                desc = descByTopLevel.get(attr.name());
+            }
             if (desc != null) {
                 LogicalTypeAnnotation logicalType = desc.getPrimitiveType().getLogicalTypeAnnotation();
                 columnInfos[i] = new ColumnInfo(
@@ -1186,9 +1193,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     private static MessageType buildProjectedSchema(MessageType fullSchema, List<Attribute> projectedAttributes) {
         List<Type> projectedFields = new ArrayList<>();
+        Set<String> included = new HashSet<>();
         for (Attribute attr : projectedAttributes) {
-            if (fullSchema.containsField(attr.name())) {
-                projectedFields.add(fullSchema.getType(attr.name()));
+            String topLevel = topLevelFieldName(fullSchema, attr.name());
+            if (included.add(topLevel) && fullSchema.containsField(topLevel)) {
+                projectedFields.add(fullSchema.getType(topLevel));
             }
         }
         // Parquet requires at least one field; fall back to full schema when none match
@@ -1198,14 +1207,96 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return new MessageType(fullSchema.getName(), projectedFields);
     }
 
+    /**
+     * Returns the top-level Parquet field name for an attribute. For flat columns whose names
+     * contain a literal dot (e.g. {@code "languages.long"}), the full name is the top-level
+     * key. For struct leaf attributes (e.g. {@code "address.city"}), the top-level key is the
+     * first path segment ({@code "address"}).
+     */
+    private static String topLevelFieldName(MessageType schema, String attrName) {
+        // A flat column with a dot in its name is a top-level schema field — preserve the full name.
+        if (schema.containsField(attrName)) {
+            return attrName;
+        }
+        int dot = attrName.indexOf('.');
+        return dot < 0 ? attrName : attrName.substring(0, dot);
+    }
+
     private List<Attribute> convertParquetSchemaToAttributes(MessageType schema) {
         List<Attribute> attributes = new ArrayList<>();
         for (Type field : schema.getFields()) {
-            String name = field.getName();
-            DataType esqlType = convertParquetTypeToEsql(field);
-            attributes.add(new ReferenceAttribute(Source.EMPTY, name, esqlType));
+            collectLeafAttributes(field, "", attributes);
         }
         return attributes;
+    }
+
+    /**
+     * Recursively collects ESQL attributes for a Parquet field. Plain GROUP types (structs) are
+     * flattened to dot-notation leaf attributes (e.g. {@code address.city}, {@code address.zip}).
+     * LIST and MAP group types are emitted as a single atomic attribute using the existing type
+     * mapping. Primitive types are emitted directly.
+     */
+    private static void collectLeafAttributes(Type field, String prefix, List<Attribute> result) {
+        String name = prefix.isEmpty() ? field.getName() : prefix + "." + field.getName();
+        if (field.isPrimitive()) {
+            result.add(new ReferenceAttribute(Source.EMPTY, name, convertParquetTypeToEsql(field)));
+        } else {
+            GroupType group = field.asGroupType();
+            LogicalTypeAnnotation logical = group.getLogicalTypeAnnotation();
+            if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation
+                || logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation) {
+                result.add(new ReferenceAttribute(Source.EMPTY, name, convertGroupTypeToEsql(group)));
+            } else {
+                for (Type child : group.getFields()) {
+                    collectLeafAttributes(child, name, result);
+                }
+            }
+        }
+    }
+
+    /**
+     * Resolves the ESQL {@link DataType} for a column name that may use dot-notation for struct
+     * leaf fields (e.g. {@code "address.city"}). Returns {@link DataType#UNSUPPORTED} when the
+     * column is absent from the schema or passes through a LIST/MAP boundary.
+     * <p>
+     * A dot in {@code columnName} is treated as a struct path separator only when the full name
+     * is <em>not</em> a top-level field. Parquet allows literal dots in column names (e.g.
+     * {@code "languages.long"}); those are top-level fields and take precedence over struct
+     * navigation.
+     */
+    static DataType resolveLeafType(MessageType schema, String columnName) {
+        // Fast path: the full name is a top-level field — flat column, possibly with a dot.
+        if (schema.containsField(columnName)) {
+            return convertParquetTypeToEsql(schema.getType(columnName));
+        }
+        // No dot means the name isn't a struct path either.
+        if (columnName.indexOf('.') < 0) {
+            return DataType.UNSUPPORTED;
+        }
+        // Try struct navigation for dot-notation struct leaf paths.
+        String[] parts = columnName.split("\\.", -1);
+        GroupType current = schema;
+        for (int i = 0; i < parts.length - 1; i++) {
+            if (current.containsField(parts[i]) == false) {
+                return DataType.UNSUPPORTED;
+            }
+            Type t = current.getType(parts[i]);
+            if (t.isPrimitive()) {
+                return DataType.UNSUPPORTED;
+            }
+            GroupType g = t.asGroupType();
+            LogicalTypeAnnotation la = g.getLogicalTypeAnnotation();
+            if (la instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation
+                || la instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation) {
+                return DataType.UNSUPPORTED;
+            }
+            current = g;
+        }
+        String leaf = parts[parts.length - 1];
+        if (current.containsField(leaf) == false) {
+            return DataType.UNSUPPORTED;
+        }
+        return convertParquetTypeToEsql(current.getType(leaf));
     }
 
     private static DataType convertParquetTypeToEsql(Type parquetType) {

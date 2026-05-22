@@ -1384,6 +1384,128 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    // --- STRUCT column tests ---
+
+    public void testReadStructSchemaFlattened() throws Exception {
+        Type addressType = Types.optionalGroup()
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("city")
+            .optional(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("zip")
+            .named("address");
+        MessageType schema = new MessageType("test_schema", Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("id"), addressType);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("id", 1L);
+            Group a = g.addGroup("address");
+            a.add("city", "Paris");
+            a.add("zip", 75001);
+            return List.of(g);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<Attribute> attributes = reader.metadata(storageObject).schema();
+
+        assertEquals(3, attributes.size());
+        assertEquals("id", attributes.get(0).name());
+        assertEquals(DataType.LONG, attributes.get(0).dataType());
+        assertEquals("address.city", attributes.get(1).name());
+        assertEquals(DataType.KEYWORD, attributes.get(1).dataType());
+        assertEquals("address.zip", attributes.get(2).name());
+        assertEquals(DataType.INTEGER, attributes.get(2).dataType());
+    }
+
+    public void testReadStructColumnValues() throws Exception {
+        Type addressType = Types.optionalGroup()
+            .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("city")
+            .optional(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("zip")
+            .named("address");
+        MessageType schema = new MessageType("test_schema", Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("id"), addressType);
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            // Row 0: id=1, address={city="Paris", zip=75001}
+            Group g1 = factory.newGroup();
+            g1.add("id", 1L);
+            Group a1 = g1.addGroup("address");
+            a1.add("city", "Paris");
+            a1.add("zip", 75001);
+
+            // Row 1: id=2, address={city="London", zip=null}
+            Group g2 = factory.newGroup();
+            g2.add("id", 2L);
+            g2.addGroup("address").add("city", "London");
+
+            // Row 2: id=3, address=null (struct is absent)
+            Group g3 = factory.newGroup();
+            g3.add("id", 3L);
+
+            return List.of(g1, g2, g3);
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+
+            LongBlock idBlock = (LongBlock) page.getBlock(0);
+            assertEquals(1L, idBlock.getLong(idBlock.getFirstValueIndex(0)));
+            assertEquals(2L, idBlock.getLong(idBlock.getFirstValueIndex(1)));
+            assertEquals(3L, idBlock.getLong(idBlock.getFirstValueIndex(2)));
+
+            // address.city: ["Paris", "London", null]
+            BytesRefBlock cityBlock = (BytesRefBlock) page.getBlock(1);
+            assertFalse(cityBlock.isNull(0));
+            assertEquals(new BytesRef("Paris"), cityBlock.getBytesRef(cityBlock.getFirstValueIndex(0), new BytesRef()));
+            assertFalse(cityBlock.isNull(1));
+            assertEquals(new BytesRef("London"), cityBlock.getBytesRef(cityBlock.getFirstValueIndex(1), new BytesRef()));
+            assertTrue(cityBlock.isNull(2));
+
+            // address.zip: [75001, null, null]
+            IntBlock zipBlock = (IntBlock) page.getBlock(2);
+            assertFalse(zipBlock.isNull(0));
+            assertEquals(75001, zipBlock.getInt(zipBlock.getFirstValueIndex(0)));
+            assertTrue(zipBlock.isNull(1));
+            assertTrue(zipBlock.isNull(2));
+        }
+    }
+
+    public void testBuildColumnInfosForStructFields() {
+        MessageType schema = new MessageType(
+            "test",
+            Types.optionalGroup()
+                .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("city")
+                .optional(PrimitiveType.PrimitiveTypeName.INT32)
+                .named("zip")
+                .named("address")
+        );
+
+        List<Attribute> attrs = List.of(
+            new ReferenceAttribute(Source.EMPTY, "address.city", DataType.KEYWORD),
+            new ReferenceAttribute(Source.EMPTY, "address.zip", DataType.INTEGER)
+        );
+
+        ColumnInfo[] infos = ParquetFormatReader.buildColumnInfos(schema, attrs);
+
+        assertNotNull(infos[0]);
+        assertArrayEquals(new String[] { "address", "city" }, infos[0].descriptor().getPath());
+        assertEquals(DataType.KEYWORD, infos[0].esqlType());
+
+        assertNotNull(infos[1]);
+        assertArrayEquals(new String[] { "address", "zip" }, infos[1].descriptor().getPath());
+        assertEquals(DataType.INTEGER, infos[1].esqlType());
+    }
+
     // --- UUID formatting unit test ---
 
     public void testFormatUuid() {

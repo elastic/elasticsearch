@@ -246,6 +246,14 @@ public class CrossProjectIndexExpressionsRewriter {
         Set<String> includedProjects,
         Set<String> excludedProjects
     ) {
+        public IndexRewriteResult {
+            assert includedProjects.isEmpty() || excludedProjects.isEmpty()
+                : "a single expression cannot both include and exclude projects: included="
+                    + includedProjects
+                    + " excluded="
+                    + excludedProjects;
+        }
+
         public IndexRewriteResult(String localExpression) {
             this(localExpression, Set.of(), Set.of(), Set.of());
         }

@@ -93,6 +93,8 @@ public class IndexAbstractionResolver {
             final CrossProjectIndexExpressionsRewriter.IndexRewriteResult indexRewriteResult = CrossProjectIndexExpressionsRewriter
                 .rewriteIndexExpression(originalIndexExpression, originProjectAlias, linkedProjectAliases, projectRouting);
 
+            assert indexRewriteResult.includedProjects().isEmpty() || indexRewriteResult.excludedProjects().isEmpty()
+                : "a single expression cannot both include and exclude projects";
             if (originProjectAlias != null && indexRewriteResult.excludedProjects().contains(originProjectAlias)) {
                 resolvedExpressionsBuilder.setAllLocalExpressionsToNone();
                 originProjectExcluded = true;

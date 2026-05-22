@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.cluster.routing.allocation.decider.EnableAllocationDecider;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -25,6 +24,7 @@ import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.jspecify.annotations.NonNull;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -33,6 +33,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider.RebalancingEnabled;
 import static org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED;
+import static org.hamcrest.Matchers.equalTo;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DisableSimulationRebalancingDeciderIT extends AbstractStatelessPluginIntegTestCase {
@@ -64,111 +65,74 @@ public class DisableSimulationRebalancingDeciderIT extends AbstractStatelessPlug
      * <p>
      * With {@link RebalancingEnabled#NEVER}, {@link DisableSimulationRebalancingDecider#canRebalance} returns NO during simulation but
      * YES during reconciliation. This test plants a decider that returns canRemain NO/NOT_PREFERRED during simulation
-     * only — so the desired balance plans a move off the source node — and YES during reconciliation, so the
+     * only, so the desired balance plans a move off the source node, and YES during reconciliation, so the
      * reconciler's necessary-moves phase will skip the shard. The shard should still be moved by the reconciler's
-     * balance phase, which is gated on canRebalance and canAllocate but not canRemain.
+     * rebalance phase, which is gated on canRebalance and canAllocate but not canRemain.
      */
     public void testShardIsMovedDuringReconciliationWhenRebalancingIsDisabledInSimulation() {
-        final var indexNode1 = startMasterAndIndexNode();
-        final var indexNode2 = startIndexNode();
-        ensureStableCluster(2);
-        applyTestClusterSettings();
+        final var testHarness = setupClusterWithSingleShard();
 
-        final var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.require._name", indexNode1).build());
-        ensureGreen(indexName);
-        // Lift the require-name pin so the decider can drive the desired balance.
-        updateIndexSettings(Settings.builder().putNull("index.routing.allocation.require._name"), indexName);
-
-        randomFrom(CAN_REMAIN_NO_IN_SIMULATION, CAN_REMAIN_NOT_PREFERRED_IN_SIMULATION).add(getNodeId(indexNode1));
+        randomFrom(CAN_REMAIN_NO_IN_SIMULATION, CAN_REMAIN_NOT_PREFERRED_IN_SIMULATION).add(
+            getNodeId(testHarness.initiallyAllocatedNode())
+        );
         ClusterRerouteUtils.reroute(client());
 
         awaitClusterState(state -> {
-            final var shard = state.routingTable(ProjectId.DEFAULT).index(indexName).shard(0).primaryShard();
-            return shard.state() == ShardRoutingState.STARTED && shard.currentNodeId().equals(getNodeId(indexNode2));
+            final var shard = state.routingTable(ProjectId.DEFAULT).index(testHarness.indexName()).shard(0).primaryShard();
+            return shard.state() == ShardRoutingState.STARTED && shard.currentNodeId().equals(getNodeId(testHarness.otherNode()));
         });
     }
 
     /**
      * Verifies that THROTTLE returned from {@link AllocationDecider#canAllocate} is still respected during
      * reconciliation. The desired balance plans a move (canRemain=NO during simulation), but the reconciler's
-     * balance phase finds no YES/NOT_PREFERRED target because the only candidate returns THROTTLE, so the move
+     * rebalance phase finds no YES/NOT_PREFERRED target because the only candidate returns THROTTLE, so the move
      * is deferred until the throttle clears.
      */
     public void testThrottleFromCanAllocateBlocksMovement() {
-        final var indexNode1 = startMasterAndIndexNode();
-        final var indexNode2 = startIndexNode();
-        ensureStableCluster(2);
-        applyTestClusterSettings();
+        final var testHarness = setupClusterWithSingleShard();
 
-        final var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.require._name", indexNode1).build());
-        ensureGreen(indexName);
-        updateIndexSettings(Settings.builder().putNull("index.routing.allocation.require._name"), indexName);
-
-        CAN_REMAIN_NO_IN_SIMULATION.add(getNodeId(indexNode1));
-        CAN_ALLOCATE_THROTTLE_IN_RECONCILIATION.add(getNodeId(indexNode2));
+        CAN_REMAIN_NO_IN_SIMULATION.add(getNodeId(testHarness.initiallyAllocatedNode()));
+        CAN_ALLOCATE_THROTTLE_IN_RECONCILIATION.add(getNodeId(testHarness.otherNode()));
         ClusterRerouteUtils.reroute(client());
 
-        // Throttle is respected: the shard remains on indexNode1.
+        // Throttle is respected: the shard remains on initiallyAllocatedNode.
         assertEquals(
-            getNodeId(indexNode1),
-            clusterService().state().routingTable(ProjectId.DEFAULT).index(indexName).shard(0).primaryShard().currentNodeId()
+            getNodeId(testHarness.initiallyAllocatedNode()),
+            clusterService().state().routingTable(ProjectId.DEFAULT).index(testHarness.indexName()).shard(0).primaryShard().currentNodeId()
         );
 
         // Once the throttle clears, the move planned by simulation is executed.
         CAN_ALLOCATE_THROTTLE_IN_RECONCILIATION.clear();
         ClusterRerouteUtils.reroute(client());
         awaitClusterState(state -> {
-            final var shard = state.routingTable(ProjectId.DEFAULT).index(indexName).shard(0).primaryShard();
-            return shard.state() == ShardRoutingState.STARTED && shard.currentNodeId().equals(getNodeId(indexNode2));
+            final var shard = state.routingTable(ProjectId.DEFAULT).index(testHarness.indexName()).shard(0).primaryShard();
+            return shard.state() == ShardRoutingState.STARTED && shard.currentNodeId().equals(getNodeId(testHarness.otherNode()));
         });
     }
 
-    /**
-     * Verifies that THROTTLE returned from {@link AllocationDecider#canRemain} is still respected. The simulator
-     * treats canRemain=THROTTLE as "remain" so the desired balance is not changed, and no move is planned. Once the
-     * throttle is replaced by NO, simulation plans the move and reconciliation executes it.
-     */
-    public void testThrottleFromCanRemainBlocksMovement() {
-        final var indexNode1 = startMasterAndIndexNode();
-        final var indexNode2 = startIndexNode();
-        ensureStableCluster(2);
-        applyTestClusterSettings();
-
+    private @NonNull TestHarness setupClusterWithSingleShard() {
+        final var rebalancingDisabled = Settings.builder().put(SIMULATION_REBALANCING_ENABLED.getKey(), RebalancingEnabled.NEVER).build();
+        final var indexNode1 = startMasterAndIndexNode(rebalancingDisabled);
+        // Create the index, it'll be allocated to indexNode1
         final var indexName = randomIdentifier();
-        createIndex(indexName, indexSettings(1, 0).put("index.routing.allocation.require._name", indexNode1).build());
+        createIndex(indexName, 1, 0);
         ensureGreen(indexName);
-        updateIndexSettings(Settings.builder().putNull("index.routing.allocation.require._name"), indexName);
-
-        CAN_REMAIN_THROTTLE_NODE_IDS.add(getNodeId(indexNode1));
-        ClusterRerouteUtils.reroute(client());
-
-        // Throttle is respected: the shard remains on indexNode1.
-        assertEquals(
-            getNodeId(indexNode1),
-            clusterService().state().routingTable(ProjectId.DEFAULT).index(indexName).shard(0).primaryShard().currentNodeId()
+        final var indexNode2 = startIndexNode(rebalancingDisabled);
+        ensureStableCluster(2);
+        // Ensure the shard is still on our initial node
+        assertThat(
+            internalCluster().clusterService()
+                .state()
+                .getRoutingNodes()
+                .node(getNodeId(indexNode1))
+                .numberOfShardsWithState(ShardRoutingState.STARTED),
+            equalTo(1)
         );
-
-        // Replace THROTTLE with NO so simulation plans a move; reconciliation should then execute it.
-        CAN_REMAIN_THROTTLE_NODE_IDS.clear();
-        CAN_REMAIN_NO_IN_SIMULATION.add(getNodeId(indexNode1));
-        ClusterRerouteUtils.reroute(client());
-        awaitClusterState(state -> {
-            final var shard = state.routingTable(ProjectId.DEFAULT).index(indexName).shard(0).primaryShard();
-            return shard.state() == ShardRoutingState.STARTED && shard.currentNodeId().equals(getNodeId(indexNode2));
-        });
+        return new TestHarness(indexNode1, indexNode2, indexName);
     }
 
-    /**
-     * Disables rebalancing in the simulation phase via {@link DisableSimulationRebalancingDecider}, and overrides the stateless
-     * default of {@code cluster.routing.allocation.enable_rebalance=REPLICAS} so the reconciler's balance phase can
-     * actually move primary (index) shards — otherwise {@link EnableAllocationDecider} would return NO and mask the
-     * behavior under test.
-     */
-    private void applyTestClusterSettings() {
-        updateClusterSettings(Settings.builder().put(SIMULATION_REBALANCING_ENABLED.getKey(), RebalancingEnabled.NEVER));
-    }
+    private record TestHarness(String initiallyAllocatedNode, String otherNode, String indexName) {}
 
     public static class TestAllocationPlugin extends Plugin implements ClusterPlugin {
 

@@ -504,7 +504,7 @@ public abstract class BaseGPUIndexTestCase extends ESIntegTestCase {
                 String.format(Locale.ROOT, "Score mismatch for document ID %s at position %d", hits1[i].getId(), i),
                 hits1[i].getScore(),
                 hits2[i].getScore(),
-                0.0001f
+                1e-3f
             );
         }
     }

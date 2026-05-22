@@ -862,9 +862,10 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
     }
 
     public void testNoVersionConflictDuringUpdate() throws Exception {
-        // LiveVersionMap can unexpectedly transition from safe to unsafe mode during an update. This can lead to update succeeding without
-        // putting the version into the version map. The next update could then hit a version conflict requiring a retry. This test tries to
-        // trigger this scenario by doing updates in a loop and refreshing the shard in the middle to trigger the safe -> unsafe transition.
+        // As of time when this test was created, LiveVersionMap could unexpectedly transition from safe to unsafe mode during an update.
+        // This caused a bug where an update could succeed without putting the version into the version map. So that the next update would
+        // hit a version conflict and require a retry. The bug was fixed and this test confirms that updates interleaved with refreshes
+        // do not result in version conflicts.
         String indexNodeA = startIndexNode(
             Settings.builder()
                 .put(disableIndexingDiskAndMemoryControllersNodeSettings())
@@ -908,7 +909,7 @@ public class StatelessRealTimeGetIT extends AbstractStatelessPluginIntegTestCase
         refreshThread.start();
 
         try {
-            // 10 is usually enough to hit the bug. But the bug is fixed, so we don't try more.
+            // 10 is usually enough to hit the bug. But the bug is fixed, so we don't unnecessarily try more.
             for (int i = 0; i < 10; ++i) {
                 var bulkUpdateResponseN = client().prepareBulk()
                     .add(client().prepareUpdate(indexName, docId).setDoc("field1", randomUnicodeOfLength(10)))

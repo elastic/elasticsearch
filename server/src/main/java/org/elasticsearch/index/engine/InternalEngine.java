@@ -1137,11 +1137,11 @@ public class InternalEngine extends Engine {
             //
             // Note: the internal refresh above only makes docs visible in the local Lucene searcher. In stateless,
             // the version map also uses a LiveVersionMapArchive that retains entries from previous refreshes, and
-            // this archive is NOT cleared by an internal refresh. If the map became unsafe because a put was skipped
+            // this archive is NOT cleared by an internal refresh. If the map became unsafe and a put was skipped
             // (due to the race between beforeRefresh() and enforceSafeAccess()), the archive may still hold a stale
             // version. The subsequent getUnderLock() will find that stale entry in the archive before falling through
             // to Lucene. This recovery path is therefore insufficient for stateless — the engine bypass in index()
-            // (using IndexingStrategy.safeAccessEnforced) prevents the put from being skipped in the first place.
+            // (using IndexingStrategy.enforceSafeAccessCalled) prevents the put from being skipped in the first place.
         }
         return versionMap.getUnderLock(id);
     }
@@ -1337,9 +1337,10 @@ public class InternalEngine extends Engine {
                         index.primaryTerm()
                     );
                     // Even though we have already called enforceSafeAccess() on the version map, we might still be in the unsafe mode
-                    // if we had a refresh happen since then. We work around this unexpected behaviour by unconditionally putting the
-                    // version into the version map when we know we called enforceSafeAccess.
-                    if (plan.safeAccessEnforced) {
+                    // if we had a refresh happen since then. See https://github.com/elastic/elasticsearch/issues/149677
+                    // We work around this unexpected behaviour by unconditionally putting the version into the version map when we know we
+                    // called enforceSafeAccess.
+                    if (plan.enforceSafeAccessCalled && liveVersionMapArchive != LiveVersionMapArchive.NOOP_ARCHIVE) {
                         versionMap.putIndexUnderLock(index.uid(), version);
                     } else {
                         versionMap.maybePutIndexUnderLock(index.uid(), version);
@@ -1580,7 +1581,7 @@ public class InternalEngine extends Engine {
                         index.seqNo(),
                         index.primaryTerm()
                     );
-                    if (plan.safeAccessEnforced) {
+                    if (plan.enforceSafeAccessCalled && liveVersionMapArchive != LiveVersionMapArchive.NOOP_ARCHIVE) {
                         versionMap.putIndexUnderLock(index.uid(), version);
                     } else {
                         versionMap.maybePutIndexUnderLock(index.uid(), version);
@@ -1630,7 +1631,7 @@ public class InternalEngine extends Engine {
             if (opVsLucene == OpVsLuceneDocStatus.OP_STALE_OR_EQUAL) {
                 plan = IndexingStrategy.processAsStaleOp(index.version(), 0);
             } else {
-                plan = IndexingStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.version(), 0, true);
+                plan = IndexingStrategy.processNormally(opVsLucene == OpVsLuceneDocStatus.LUCENE_DOC_NOT_FOUND, index.version(), 0, false);
             }
         }
         return plan;
@@ -1831,7 +1832,7 @@ public class InternalEngine extends Engine {
         final long versionForIndexing;
         final boolean indexIntoLucene;
         final boolean addStaleOpToLucene;
-        final boolean safeAccessEnforced;
+        final boolean enforceSafeAccessCalled;
         final int reservedDocs;
         final Optional<IndexResult> earlyResultOnPreflightError;
 
@@ -1840,7 +1841,7 @@ public class InternalEngine extends Engine {
             boolean useLuceneUpdateDocument,
             boolean indexIntoLucene,
             boolean addStaleOpToLucene,
-            boolean safeAccessEnforced,
+            boolean enforceSafeAccessCalled,
             long versionForIndexing,
             int reservedDocs,
             IndexResult earlyResultOnPreflightError
@@ -1860,7 +1861,7 @@ public class InternalEngine extends Engine {
             this.versionForIndexing = versionForIndexing;
             this.indexIntoLucene = indexIntoLucene;
             this.addStaleOpToLucene = addStaleOpToLucene;
-            this.safeAccessEnforced = safeAccessEnforced;
+            this.enforceSafeAccessCalled = enforceSafeAccessCalled;
             this.reservedDocs = reservedDocs;
             this.earlyResultOnPreflightError = earlyResultOnPreflightError == null
                 ? Optional.empty()
@@ -1885,14 +1886,14 @@ public class InternalEngine extends Engine {
             boolean currentNotFoundOrDeleted,
             long versionForIndexing,
             int reservedDocs,
-            boolean safeAccessEnforced
+            boolean enforceSafeAccessCalled
         ) {
             return new IndexingStrategy(
                 currentNotFoundOrDeleted,
                 currentNotFoundOrDeleted == false,
                 true,
                 false,
-                safeAccessEnforced,
+                enforceSafeAccessCalled,
                 versionForIndexing,
                 reservedDocs,
                 null

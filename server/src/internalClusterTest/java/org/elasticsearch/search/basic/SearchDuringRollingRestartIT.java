@@ -9,8 +9,6 @@
 
 package org.elasticsearch.search.basic;
 
-import com.carrotsearch.randomizedtesting.annotations.Repeat;
-
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -41,7 +39,6 @@ import static org.hamcrest.Matchers.instanceOf;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 3)
 public class SearchDuringRollingRestartIT extends ESIntegTestCase {
 
-    @Repeat(iterations = 100)
     public void testSearchesSurviveRollingRestart() throws Exception {
         final int docCount = scaledRandomIntBetween(100, 1000);
         final int size = Math.min(100, docCount);

@@ -337,10 +337,15 @@ public final class S3StorageObject implements StorageObject {
                     }
                 }
 
-                // Safe to use asByteArrayUnsafe(): the byte[] inside responseBytes was allocated by our
-                // KnownLengthAsyncResponseTransformer above and is not retained anywhere else after the
-                // CompletableFuture completes. Wrapping it directly avoids one final defensive copy.
-                listener.onResponse(ByteBuffer.wrap(responseBytes.asByteArrayUnsafe()));
+                // Copy into a direct ByteBuffer so both the input and output sides of decompression
+                // are direct — enabling the JNI-free direct-to-direct fast path in PlainCompressionCodecFactory
+                // and avoiding GetPrimitiveArrayCritical heap-region pinning during G1GC.
+                // Use asByteArrayUnsafe() to skip the SDK's defensive Arrays.copyOf; safe because the byte[]
+                // was allocated by our KnownLengthAsyncResponseTransformer above and is not retained elsewhere.
+                byte[] data = responseBytes.asByteArrayUnsafe();
+                ByteBuffer direct = ByteBuffer.allocateDirect(data.length);
+                direct.put(data).flip();
+                listener.onResponse(direct);
             });
     }
 

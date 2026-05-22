@@ -43,6 +43,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsOptions;
 import org.elasticsearch.xpack.core.inference.chunking.NoneChunkingSettings;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingFloatResults;
@@ -54,12 +55,14 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.Goog
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -512,7 +515,13 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         var taskSettings = mock(TaskSettings.class);
 
         var model = createMockedModel(serviceSettings, taskSettings, mock(SecretSettings.class));
-        var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(model, null, null, SERVICE_NAME_VALUE);
+        var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
+            model,
+            null,
+            null,
+            null,
+            SERVICE_NAME_VALUE
+        );
         verifyNoInteractions(serviceSettings);
         verifyNoInteractions(taskSettings);
 
@@ -540,6 +549,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             model,
             newServiceSettingsMap,
             newTaskSettingsMap,
+            null,
             SERVICE_NAME_VALUE
         );
 
@@ -552,6 +562,33 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
         assertThat(resultModelConfigurations.getServiceSettings(), sameInstance(updatedServiceSettings));
         assertThat(resultModelConfigurations.getTaskSettings(), sameInstance(updatedTaskSettings));
         assertThat(resultModelConfigurations.getChunkingSettings(), sameInstance(model.getConfigurations().getChunkingSettings()));
+    }
+
+    public void testCombineExistingModelConfigurationsWithNewSettings_NewChunkingSettings_ReplacesExistingChunkingSettings() {
+        // Chunking settings are *replaced* (not merged) on update: the result must be a fresh
+        // ChunkingSettings built from the supplied map, regardless of the existing value.
+        var serviceSettings = mock(ServiceSettings.class);
+        var taskSettings = mock(TaskSettings.class);
+        var model = createMockedModel(serviceSettings, taskSettings, mock(SecretSettings.class));
+        var existingChunkingSettings = model.getConfigurations().getChunkingSettings();
+
+        Map<String, Object> newChunkingSettingsMap = new HashMap<>();
+        newChunkingSettingsMap.put(ChunkingSettingsOptions.STRATEGY.toString(), "none");
+
+        var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
+            model,
+            null,
+            null,
+            newChunkingSettingsMap,
+            SERVICE_NAME_VALUE
+        );
+
+        verifyNoInteractions(serviceSettings);
+        verifyNoInteractions(taskSettings);
+        assertThat(resultModelConfigurations.getServiceSettings(), sameInstance(serviceSettings));
+        assertThat(resultModelConfigurations.getTaskSettings(), sameInstance(taskSettings));
+        assertThat(resultModelConfigurations.getChunkingSettings(), sameInstance(NoneChunkingSettings.INSTANCE));
+        assertThat(resultModelConfigurations.getChunkingSettings(), not(sameInstance(existingChunkingSettings)));
     }
 
     public void testCombineExistingModelConfigurationsWithNewSettings_PassesNewSettingsMapsThroughDirectlyToParsers() {
@@ -572,6 +609,7 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             model,
             newServiceSettingsMap,
             newTaskSettingsMap,
+            null,
             SERVICE_NAME_VALUE
         );
 

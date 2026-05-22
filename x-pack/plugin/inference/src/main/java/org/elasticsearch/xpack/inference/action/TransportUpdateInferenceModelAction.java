@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.Model;
@@ -42,6 +43,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.core.ml.action.CreateTrainedModelAssignmentAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentUtils;
@@ -150,6 +152,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
                     existingParsedModel,
                     request.getServiceSettings(),
                     request.getTaskSettings(),
+                    request.getChunkingSettings(),
                     service.get().name()
                 );
 
@@ -211,9 +214,17 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
     /**
      * Combines the existing model configurations with the new settings to create a new model configuration.
      *
+     * <p>Service settings and task settings are <em>merged</em> with the existing values via the
+     * provider-specific update parsers. Chunking settings, in contrast, are <em>replaced</em>:
+     * when {@code newChunkingSettings} is non-null the resulting configuration uses a fresh
+     * {@link ChunkingSettings} instance built from that map, because chunking settings have no
+     * merge semantics on the {@link ChunkingSettings} interface and the strategy plus its
+     * dependent fields must be re-validated together.
+     *
      * @param existingParsedModel  the Model representing a third-party service endpoint
-     * @param newServiceSettings   new service settings to update, or {@code null} to leave unchanged
-     * @param newTaskSettings      new task settings to update, or {@code null} to leave unchanged
+     * @param newServiceSettings   new service settings to merge, or {@code null} to leave unchanged
+     * @param newTaskSettings      new task settings to merge, or {@code null} to leave unchanged
+     * @param newChunkingSettings  new chunking settings to install (full replacement), or {@code null} to leave unchanged
      * @param serviceName          the name of the service
      * @return a new object representing the updated model configurations
      */
@@ -221,20 +232,26 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
         Model existingParsedModel,
         @Nullable Map<String, Object> newServiceSettings,
         @Nullable Map<String, Object> newTaskSettings,
+        @Nullable Map<String, Object> newChunkingSettings,
         String serviceName
     ) {
         ModelConfigurations existingConfigs = existingParsedModel.getConfigurations();
         TaskSettings existingTaskSettings = existingConfigs.getTaskSettings();
         ServiceSettings existingServiceSettings = existingConfigs.getServiceSettings();
+        ChunkingSettings existingChunkingSettings = existingConfigs.getChunkingSettings();
 
         TaskSettings mergedTaskSettings = existingTaskSettings;
         ServiceSettings mergedServiceSettings = existingServiceSettings;
+        ChunkingSettings mergedChunkingSettings = existingChunkingSettings;
 
         if (newServiceSettings != null) {
             mergedServiceSettings = mergedServiceSettings.updateServiceSettings(newServiceSettings);
         }
         if (newTaskSettings != null) {
             mergedTaskSettings = mergedTaskSettings.updatedTaskSettings(newTaskSettings);
+        }
+        if (newChunkingSettings != null) {
+            mergedChunkingSettings = ChunkingSettingsBuilder.fromMap(newChunkingSettings);
         }
 
         return new ModelConfigurations(
@@ -243,7 +260,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             serviceName,
             mergedServiceSettings,
             mergedTaskSettings,
-            existingConfigs.getChunkingSettings()
+            mergedChunkingSettings
         );
     }
 

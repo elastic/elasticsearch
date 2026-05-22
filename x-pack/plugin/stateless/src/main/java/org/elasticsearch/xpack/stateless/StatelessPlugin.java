@@ -675,7 +675,10 @@ public class StatelessPlugin extends Plugin
             .put(IndexBalanceConstraintSettings.INDEX_BALANCE_DECIDER_ENABLED_SETTING.getKey(), true)
             // Disable rebalancing in the index tier. We can skip the balancing step altogether because we use
             // the write-load, index-balance and heap deciders to replace it.
-            .put(DisableSimulationRebalancingDecider.REBALANCING_ENABLED.getKey(), DisableSimulationRebalancingDecider.RebalancingEnabled.SEARCH_TIER_ONLY)
+            .put(
+                DisableSimulationRebalancingDecider.REBALANCING_ENABLED.getKey(),
+                DisableSimulationRebalancingDecider.RebalancingEnabled.SEARCH_TIER_ONLY
+            )
             .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
             .put(
                 WriteLoadConstraintSettings.WRITE_LOAD_DECIDER_ENABLED_SETTING.getKey(),

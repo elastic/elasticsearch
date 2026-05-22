@@ -123,6 +123,135 @@ public class PlanAnonymizerTests extends ESTestCase {
     }
 
     /**
+     * NamedSubquery carries the view name a sub-plan was resolved from; its nodeString surfaces
+     * the name as {@code NamedSubquery[<view>]}. Verifies the rule anonymizes it.
+     */
+    public void testNamedSubqueryNameAnonymized() {
+        String sensitiveView = "internal_users_v2_2026q1";
+        EsField field = new EsField(F_EMAIL, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        FieldAttribute attr = new FieldAttribute(Source.EMPTY, null, null, F_EMAIL, field);
+        EsRelation inner = new EsRelation(
+            Source.EMPTY,
+            INDEX,
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of(INDEX, IndexMode.STANDARD),
+            List.<Attribute>of(attr)
+        );
+        org.elasticsearch.xpack.esql.plan.logical.NamedSubquery ns = new org.elasticsearch.xpack.esql.plan.logical.NamedSubquery(
+            Source.EMPTY,
+            inner,
+            sensitiveView
+        );
+        LogicalPlan plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), ns);
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(plan, null, null, null);
+
+        assertFalse("view name leaked into parsed plan:\n" + out.parsed(), out.parsed().contains(sensitiveView));
+    }
+
+    /**
+     * ViewUnionAll holds a {@code LinkedHashMap<viewName, subPlan>} that surfaces in its nodeString
+     * as {@code ViewUnionAll[[view1, view2]]}. Verifies every key in the map is anonymized.
+     */
+    public void testViewUnionAllNamesAnonymized() {
+        List<String> sensitiveViews = List.of("payments_v1", "tenant_pii_eu", "billing_secrets_v3");
+        EsField field = new EsField(F_EMAIL, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        FieldAttribute attr = new FieldAttribute(Source.EMPTY, null, null, F_EMAIL, field);
+        EsRelation inner = new EsRelation(
+            Source.EMPTY,
+            INDEX,
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of(INDEX, IndexMode.STANDARD),
+            List.<Attribute>of(attr)
+        );
+        java.util.LinkedHashMap<String, LogicalPlan> namedSubqueries = new java.util.LinkedHashMap<>();
+        for (String v : sensitiveViews) {
+            namedSubqueries.put(v, inner);
+        }
+        org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll vua = new org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll(
+            Source.EMPTY,
+            namedSubqueries,
+            List.<Attribute>of(attr)
+        );
+        LogicalPlan plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), vua);
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(plan, null, null, null);
+
+        for (String v : sensitiveViews) {
+            assertFalse("view name '" + v + "' leaked into parsed plan:\n" + out.parsed(), out.parsed().contains(v));
+        }
+    }
+
+    /**
+     * Multifield case: {@code job} is a text field with a {@code job.raw} keyword sub-field. The
+     * sub-field name is held in {@code EsField.properties}. Verifies the recursive sub-field
+     * property anonymization picks it up so neither the parent name nor the sub-field name leaks.
+     */
+    public void testMultifieldSubfieldPropertyAnonymized() {
+        String sensitiveParent = "tenant_secret_blob";
+        String sensitiveSubfield = "tenant_secret_blob_indexed";
+        EsField rawField = new EsField(sensitiveSubfield, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        EsField textField = new EsField(sensitiveParent, DataType.TEXT, Map.of("raw", rawField), false, EsField.TimeSeriesFieldType.NONE);
+        FieldAttribute attr = new FieldAttribute(Source.EMPTY, null, null, sensitiveParent, textField);
+        EsRelation rel = new EsRelation(
+            Source.EMPTY,
+            INDEX,
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of(INDEX, IndexMode.STANDARD),
+            List.<Attribute>of(attr)
+        );
+        LogicalPlan plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), rel);
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(null, null, plan, null);
+
+        assertFalse("parent field name leaked into optimized:\n" + out.optimized(), out.optimized().contains(sensitiveParent));
+        assertFalse("sub-field name leaked into schema:\n" + out.schema(), out.schema().contains(sensitiveSubfield));
+        assertFalse("parent field name leaked into schema:\n" + out.schema(), out.schema().contains(sensitiveParent));
+    }
+
+    /**
+     * EsField subclass reconstruction: after FieldAttribute anonymization the underlying field is a
+     * rebuilt subclass instance that preserves the type-specific state. For KeywordEsField that's
+     * {@code precision} and {@code normalized}; the schema artifact should still surface those
+     * flags via its renderer reading the original (pre-anonymization) plan.
+     */
+    public void testKeywordEsFieldSubclassFlagsPreservedInSchema() {
+        String fieldName = "secret_tag";
+        EsField keyword = new org.elasticsearch.xpack.esql.core.type.KeywordEsField(
+            fieldName,
+            Map.of(),
+            true,
+            128,
+            true,
+            false,
+            EsField.TimeSeriesFieldType.NONE
+        );
+        FieldAttribute attr = new FieldAttribute(Source.EMPTY, null, null, fieldName, keyword);
+        EsRelation rel = new EsRelation(
+            Source.EMPTY,
+            INDEX,
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of(INDEX, IndexMode.STANDARD),
+            List.<Attribute>of(attr)
+        );
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(null, null, rel, null);
+
+        assertFalse("field name leaked:\n" + out.schema(), out.schema().contains(fieldName));
+        assertTrue("KeywordEsField subclass not surfaced:\n" + out.schema(), out.schema().contains("kind=KeywordEsField"));
+        assertTrue("ignore_above not surfaced:\n" + out.schema(), out.schema().contains("ignore_above=128"));
+        assertTrue("normalized flag not surfaced:\n" + out.schema(), out.schema().contains("normalized"));
+    }
+
+    /**
      * Adversarial: build a plan stuffed with identifiers and literal values that look like real PII
      * (emails, SSNs, credit card numbers, IPs, password-like strings, dates). After anonymization no
      * input identifier — neither a field name, nor an index name, nor a string-literal value, nor a

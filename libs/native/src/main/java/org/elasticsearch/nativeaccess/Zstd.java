@@ -199,6 +199,15 @@ public final class Zstd {
          * <p>After return, the caller reads {@link #lastSrcPos()} / {@link #lastDstPos()} to learn
          * how far the input/output cursors advanced — these are absolute offsets within the supplied
          * arrays, not deltas.
+         *
+         * <p><b>Chunking contract.</b> Callers must pass at most {@link Zstd#dStreamInSize()} bytes
+         * of input per call ({@code srcLen - srcPos <= dStreamInSize()}). Larger slices raise
+         * {@link IllegalArgumentException} from the binding — the binding hard-fails rather than
+         * silently consuming a prefix because partial consumption is easy to overlook at call sites.
+         * {@code PanamaZstdInputStream} caches the recommended size in a {@code static final} and
+         * refills upstream in chunks of that size. Output may be any size; the binding internally
+         * caps each call at {@link Zstd#dStreamOutSize()} and the caller's outer loop drives
+         * subsequent calls as needed.
          */
         public long decompress(byte[] dst, int dstPos, int dstLen, byte[] src, int srcPos, int srcLen) {
             if (closed) {

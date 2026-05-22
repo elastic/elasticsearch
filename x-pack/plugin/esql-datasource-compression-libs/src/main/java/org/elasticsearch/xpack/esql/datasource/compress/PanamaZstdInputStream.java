@@ -30,11 +30,19 @@ import java.io.InputStream;
  * {@link InputStream} is not required to be thread-safe.
  *
  * <p><b>Buffer footprint.</b> One heap {@code byte[srcBuffSize]} (≈ 128 KB, sized to
- * {@code ZSTD_DStreamInSize}) for the input chunk, plus the {@link Zstd.DStream} which owns the
- * libzstd {@code ZSTD_DStream*} (~256 KB internal allocation) and two 24-byte struct holders.
- * <b>No native staging buffer for output</b>: libzstd writes straight into the caller's destination
- * array via {@code MemorySegment.ofArray} plus {@code Linker.Option.critical(true)} — the Panama
- * analog of zstd-jni's {@code GetPrimitiveArrayCritical}, but without G1's region pinning.
+ * {@code ZSTD_DStreamInSize}) for the wrapper-side compressed-input scratch, plus the
+ * {@link Zstd.DStream} which holds the libzstd {@code ZSTD_DStream*} (~256 KB internal allocation),
+ * two 24-byte struct holders, and — inside {@code JdkDStream} — off-heap input and output staging
+ * buffers sized to {@code ZSTD_DStreamInSize} / {@code ZSTD_DStreamOutSize}. The original plan was
+ * to skip the off-heap output buffer and let libzstd write straight into the caller's heap array
+ * via {@code MemorySegment.ofArray} + {@code Linker.Option.critical(true)}, but Panama explicitly
+ * forbids embedding a heap segment as the {@code ptr} field of an off-heap struct passed to a
+ * downcall (<a href="https://bugs.openjdk.org/browse/JDK-8318645">JDK-8318645</a>), and
+ * {@code ZSTD_decompressStream}'s signature forces an off-heap struct. The two extra memcpys this
+ * design carries (caller heap → {@code inBuf}, {@code outBuf} → caller heap) are dominated 100×
+ * by libzstd's own decompression work. G1 region pinning — the original motivation behind this
+ * port — is structurally impossible because no heap memory is ever pinned across the native call.
+ * See {@code JdkZstdLibrary.JdkDStream} for the staging-buffer ownership detail.
  *
  * <p><b>Threading.</b> Not thread-safe. The format readers ({@code CsvBatchIterator},
  * {@code NdJsonPageIterator}) own a single instance per stream and consume it from a single thread.
@@ -45,8 +53,16 @@ public final class PanamaZstdInputStream extends FilterInputStream {
      * Cached at class load — {@code ZSTD_DStreamInSize} is constant across libzstd's lifetime
      * (libzstd 1.5.7 returns 128 KB). Caching avoids an FFI call per stream construction. Mirrors
      * the {@code static final} cache zstd-jni's {@code ZstdInputStreamNoFinalizer} maintains.
-     * Resolved through {@link NativeAccess#getZstd()} (rather than the {@code Zstd} instance passed
-     * to the constructor) so it is loaded exactly once for the lifetime of the JVM.
+     *
+     * <p>Resolved through the {@link NativeAccess#instance() global NativeAccess} singleton rather
+     * than the {@code Zstd} instance passed to the constructor: the {@code Zstd} ctor-parameter
+     * exists purely so {@code ZstdDecompressionCodec} (and tests) can inject the production instance
+     * without making this class call a static itself, but the per-class buffer size is a JVM-wide
+     * constant that must not vary between stream instances. If a future test ever needs a
+     * non-singleton {@code Zstd} (currently impossible — there is exactly one libzstd bound per
+     * process), this field locks {@code srcBuffSize} to the singleton's value, which is the only
+     * correct value: feeding the SPI from a {@code byte[]} sized for a different {@code Zstd} would
+     * either over- or under-feed {@code JdkDStream}'s internal staging buffer.
      */
     private static final int srcBuffSize = NativeAccess.instance().getZstd().dStreamInSize();
 

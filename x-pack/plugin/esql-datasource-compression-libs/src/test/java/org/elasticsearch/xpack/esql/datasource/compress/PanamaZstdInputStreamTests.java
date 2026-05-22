@@ -234,6 +234,36 @@ public class PanamaZstdInputStreamTests extends ESTestCase {
         }
     }
 
+    /**
+     * Mid-stream {@code available()} must return {@code 1} as long as the decoder holds buffered
+     * input/output the caller hasn't drained yet. Zstd-jni keeps the same contract — without it,
+     * {@code BufferedReader} (and other consumers that probe {@code available()} between reads)
+     * mistakes "we're still working" for EOF and hangs or short-reads.
+     *
+     * <p>Trigger: feed a multi-KB compressed payload, then ask for a single byte. The decoder
+     * produces 1 byte into the caller's buffer, the rest stays in the off-heap output staging
+     * buffer / libzstd's internal state, and the wrapper's {@code needRead} flag flips to
+     * {@code false}. The {@code !needRead} branch of {@code available()} fires.
+     */
+    public void testAvailableSignalsOneWhileBuffered() throws IOException {
+        byte[] data = randomBytesForCompression(16 * 1024);
+        byte[] compressed = compress(data);
+        try (InputStream s = new PanamaZstdInputStream(new ByteArrayInputStream(compressed), zstd)) {
+            // Read a single byte to force the decoder to produce output without exhausting the
+            // staged input chunk — this is exactly the condition the available() != needRead
+            // branch was added to handle.
+            int first = s.read();
+            assertEquals(data[0] & 0xff, first);
+            // The decoder still has bytes pending — available() must signal that as 1.
+            assertEquals(1, s.available());
+            // Reading the rest must complete the payload byte-for-byte.
+            byte[] rest = s.readAllBytes();
+            byte[] expected = new byte[data.length - 1];
+            System.arraycopy(data, 1, expected, 0, expected.length);
+            assertArrayEquals(expected, rest);
+        }
+    }
+
     public void testMarkSupportedFalse() throws IOException {
         byte[] compressed = compress(new byte[] { 1, 2, 3 });
         try (InputStream s = new PanamaZstdInputStream(new ByteArrayInputStream(compressed), zstd)) {
@@ -253,17 +283,15 @@ public class PanamaZstdInputStreamTests extends ESTestCase {
         }
     }
 
-    public void testConstructionFreesDStreamOnPostInitFailure() throws IOException {
-        // We can't easily induce an OOM on the byte[] allocation, but the cleanup invariant is
-        // exposed via a Zstd wrapper that throws after newDStream() returns. If the wrapper leaks
-        // the dstream, this test would still pass — but pairing it with the assertion below at
-        // least documents the intent and pins close-on-failure behavior under future refactors.
-        // (A fuller leak check belongs in the libs/native layer where we own the resource.)
-        Zstd.DStream stream = zstd.newDStream();
-        stream.close();
-        // Reaching here means close was reachable; a leak in PanamaZstdInputStream's constructor
-        // would only be visible via native heap inspection.
-    }
+    // The constructor's "free DStream if byte[] allocation throws" invariant was previously covered
+    // by a placebo test that called newDStream() + close() without ever exercising the failure path.
+    // Deleted: a real check needs a poisoned `Zstd` whose `newDStream()` returns a counting
+    // DStream double *and* a way to force `new byte[srcBuffSize]` to throw (the field is static
+    // final, so this requires either reflection or a test-only constructor seam). The cleanup
+    // invariant is two lines in PanamaZstdInputStream's constructor and is read on every change
+    // to that constructor; investing test plumbing for that one OOM corner is not pulling its
+    // weight. If the invariant ever becomes load-bearing (e.g. an allocation appears between
+    // newDStream and the byte[] alloc), revisit.
 
     private static byte[] compress(byte[] data) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream(data.length + 32);

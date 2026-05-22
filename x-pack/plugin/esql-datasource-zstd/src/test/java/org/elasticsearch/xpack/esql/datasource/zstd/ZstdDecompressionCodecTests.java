@@ -67,6 +67,38 @@ public class ZstdDecompressionCodecTests extends ESTestCase {
      * Panama streaming wrapper through the public codec path. Sized to span ≥ 30 of libzstd's
      * 128 KB recommended input chunks, ensuring the wrapper's refill/needRead loop runs many times.
      */
+    /**
+     * Pin issue #811's scope: the streaming codec path must not pull in any
+     * {@code com.github.luben.zstd.*} class. The parent compression-libs plugin still ships
+     * zstd-jni on the runtime classpath (for the Parquet cold {@code byte[]} path), so an
+     * accidental {@code import com.github.luben.zstd.ZstdInputStream} in
+     * {@link ZstdDecompressionCodec} would compile and run silently — undoing the whole point of
+     * this PR. This test fails fast if that ever regresses.
+     *
+     * <p>We assert on class names as strings rather than {@code instanceof PanamaZstdInputStream}
+     * because the parent compression-libs project isn't on this module's test runtime classpath.
+     * String matching is also exactly the right granularity for a "boundary" guard — it doesn't
+     * care which Panama wrapper class is used, only that the chain holds no zstd-jni.
+     */
+    public void testStreamingPathDoesNotLoadZstdJni() throws IOException {
+        byte[] compressed = zstd("hi".getBytes(StandardCharsets.UTF_8));
+        ZstdDecompressionCodec codec = new ZstdDecompressionCodec();
+        try (InputStream decompressed = codec.decompress(new ByteArrayInputStream(compressed))) {
+            String topClass = decompressed.getClass().getName();
+            assertFalse(
+                "Streaming codec returned a zstd-jni-backed stream [" + topClass + "]; #811 scope regressed",
+                topClass.startsWith("com.github.luben.zstd.")
+            );
+            // The expected stream is the Panama wrapper; pin its FQN so the test also catches a
+            // future "I'll just swap in another zstd-jni-backed wrapper" change.
+            assertEquals(
+                "Streaming codec must return the Panama FFI wrapper",
+                "org.elasticsearch.xpack.esql.datasource.compress.PanamaZstdInputStream",
+                topClass
+            );
+        }
+    }
+
     public void testLargeRoundTrip() throws IOException {
         byte[] data = new byte[5 * 1024 * 1024];
         for (int i = 0; i < data.length; i++) {

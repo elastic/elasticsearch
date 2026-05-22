@@ -13,7 +13,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.junit.AssumptionViolatedException;
-import org.junit.Before;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
@@ -100,8 +99,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
 
     private static final Logger logger = LogManager.getLogger(CsvFlattenedKeywordIT.class);
 
-    public static final String OPT_IN_PROPERTY = "tests.run_keyword_flattened_variant";
-
     /**
      * When {@code true}, {@link KeywordToFlattenedStrategy#transformQuery} additionally emits the
      * full rewritten query as an {@code INFO} log line prefixed with
@@ -133,14 +130,6 @@ public class CsvFlattenedKeywordIT extends CsvIT {
     @BeforeClass
     public static void installKeywordToFlattenedStrategy() {
         indexLoadStrategy = new KeywordToFlattenedStrategy();
-    }
-
-    @Before
-    public void onlyRunWhenOptedIn() {
-        assumeTrue(
-            "Set -D" + OPT_IN_PROPERTY + "=true to run the keyword→flattened variant of csv-spec tests",
-            Boolean.getBoolean(OPT_IN_PROPERTY)
-        );
     }
 
     /**

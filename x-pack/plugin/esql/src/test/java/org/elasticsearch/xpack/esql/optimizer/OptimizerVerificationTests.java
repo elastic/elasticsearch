@@ -537,4 +537,22 @@ public class OptimizerVerificationTests extends AbstractLogicalPlanOptimizerTest
 
         assertThat(err, is("1:32: Unbounded SORT not supported yet [SORT x] please add a LIMIT"));
     }
+
+    public void testPruneEvalColumnsInForkWithStatsAndExpressionSorts() {
+        var testAnalyzer = analyzer().addDefaultIndex();
+
+        var err = error(testAnalyzer.query("FROM test | FORK (SORT emp_no + 1) (SORT emp_no - 1) | STATS y = COUNT(*)"));
+
+        assertThat(err, is("""
+            1:19: Unbounded SORT not supported yet [SORT emp_no + 1] please add a LIMIT
+            line 1:37: Unbounded SORT not supported yet [SORT emp_no - 1] please add a LIMIT"""));
+    }
+
+    public void testPruneEvalColumnsInForkWithStatsAndSingleExpressionSort() {
+        var testAnalyzer = analyzer().addDefaultIndex();
+
+        var err = error(testAnalyzer.query("FROM test | FORK (SORT emp_no + 1) | STATS y = COUNT(*)"));
+
+        assertThat(err, is("1:19: Unbounded SORT not supported yet [SORT emp_no + 1] please add a LIMIT"));
+    }
 }

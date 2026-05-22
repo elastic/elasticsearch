@@ -94,7 +94,7 @@ public class ProjectAwayColumns extends Rule<PhysicalPlan, PhysicalPlan> {
                     // of branches where some branches have no aggregation, and some branches have. In that case, we need to project.
                     if ((logicalFragment instanceof Aggregate == false
                         && logicalFragment instanceof MetricsInfo == false
-                        && logicalFragment instanceof TsInfo == false) || (isForkBranch && plan.output().isEmpty())) {
+                        && logicalFragment instanceof TsInfo == false)) {
                         // we should respect the order of the attributes
                         List<Attribute> output = new ArrayList<>();
                         for (Attribute attribute : logicalFragment.output()) {

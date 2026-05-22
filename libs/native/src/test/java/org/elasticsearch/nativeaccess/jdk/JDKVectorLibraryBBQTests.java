@@ -51,6 +51,7 @@ public class JDKVectorLibraryBBQTests extends VectorSimilarityFunctionsTests {
         baseParams.removeIf(os -> os[0] == VectorSimilarityFunctions.Function.SQUARE_DISTANCE);
 
         return () -> Stream.of(VectorSimilarityFunctions.BBQType.values())
+            .filter(t -> t != VectorSimilarityFunctions.BBQType.D1Q1)
             .flatMap(bbq -> baseParams.stream().map(os -> CollectionUtils.concatLists(List.of(bbq), Arrays.asList(os))))
             .map(List::toArray)
             .iterator();

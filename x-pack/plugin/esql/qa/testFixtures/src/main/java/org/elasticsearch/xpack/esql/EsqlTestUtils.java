@@ -1666,17 +1666,13 @@ public final class EsqlTestUtils {
         // find the main source command, ignoring pipes inside subqueries
         List<String> mainFromCommandAndTheRest = splitIgnoringParentheses(query, "|");
         String mainFrom = mainFromCommandAndTheRest.get(0).strip();
-        List<String> theRest = mainFromCommandAndTheRest.size() > 1
-            ? mainFromCommandAndTheRest.subList(1, mainFromCommandAndTheRest.size())
-            : List.of();
         // Detect whether the outer source command is FROM or TS so that we preserve the
         // command keyword when rebuilding. TS cannot host nested subqueries, but it may
         // appear as the body of a subquery passed recursively to this method.
         String sourceCommand = startsWithCommandKeyword(mainFrom, FROM_COMMAND_PATTERN) ? "FROM"
             : startsWithCommandKeyword(mainFrom, TS_COMMAND_PATTERN) ? "TS"
             : "FROM";
-        // check for metadata in the main from command (TS does not currently support METADATA;
-        // for FROM, capture and re-append after we rewrite the sources)
+        // check for metadata in the main from command, and re-append after we rewrite the sources
         List<String> mainFromCommandWithMetadata = splitIgnoringParentheses(mainFrom, "metadata");
         mainFrom = mainFromCommandWithMetadata.get(0).strip();
         // if there is metadata, we need to add it back later

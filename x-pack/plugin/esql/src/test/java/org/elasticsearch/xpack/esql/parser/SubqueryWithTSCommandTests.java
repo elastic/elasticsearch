@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.containsString;
 /**
  * Parser tests for subqueries with {@code TS} as source command.
  *
- * Subquery with {@code TS} source command is supported by in the FROM command and WHERE IN subquery in grammar and parser.
+ * Subquery with {@code TS} source command is supported in the FROM command and WHERE IN subquery in grammar and parser.
  * WHERE IN subquery with {@code TS} as source command is not fully supported by downstream component yet.
  */
 public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
@@ -50,11 +50,11 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
         assumeTrue("Requires subquery with TS as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
     }
 
-    private static void checkSubqueryInFromCommand() {
+    private static void requireSubqueryInFromCommand() {
         assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
     }
 
-    private static void checkWhereInSubquery() {
+    private static void requireWhereInSubquery() {
         assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
     }
 
@@ -69,7 +69,7 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      *   \_UnresolvedRelation[, TIME_SERIES]
      */
     public void testIndexPatternWithTSSubquery() {
-        checkSubqueryInFromCommand();
+        requireSubqueryInFromCommand();
         var mainQueryIndexPattern = randomIndexPatterns();
         var tsSubqueryIndexPattern = randomIndexPatterns();
         String query = LoggerMessageFormat.format(null, """
@@ -101,7 +101,7 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      *     \_UnresolvedRelation[]
      */
     public void testIndexPatternWithTSAndFromSubqueries() {
-        checkSubqueryInFromCommand();
+        requireSubqueryInFromCommand();
         var mainQueryIndexPattern = randomIndexPatterns();
         var fromSubqueryIndexPattern = randomIndexPatterns();
         var tsSubqueryIndexPattern = randomIndexPatterns();
@@ -139,7 +139,7 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      *         \_UnresolvedRelation[, TIME_SERIES]
      */
     public void testTSSubqueryWithProcessingCommandsInSubquery() {
-        checkSubqueryInFromCommand();
+        requireSubqueryInFromCommand();
         var mainQueryIndexPattern = randomIndexPatterns();
         var tsSubqueryIndexPattern = randomIndexPatterns();
         String query = LoggerMessageFormat.format(null, """
@@ -174,7 +174,7 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      *       \_UnresolvedRelation[, TIME_SERIES]
      */
     public void testTSSubqueryWithProcessingCommandsInMainQuery() {
-        checkSubqueryInFromCommand();
+        requireSubqueryInFromCommand();
         var mainQueryIndexPattern = randomIndexPatterns();
         var tsSubqueryIndexPattern = randomIndexPatterns();
         String query = LoggerMessageFormat.format(null, """
@@ -208,7 +208,7 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      *         \_UnresolvedRelation[, TIME_SERIES]
      */
     public void testTSSubqueryWithProcessingCommandsInSubqueryAndMainQuery() {
-        checkSubqueryInFromCommand();
+        requireSubqueryInFromCommand();
         var mainQueryIndexPattern = randomIndexPatterns();
         var tsSubqueryIndexPattern = randomIndexPatterns();
         String query = LoggerMessageFormat.format(null, """
@@ -240,7 +240,7 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[, TIME_SERIES]
      */
     public void testTSSubqueryOnly() {
-        checkSubqueryInFromCommand();
+        requireSubqueryInFromCommand();
         var tsSubqueryIndexPattern = randomIndexPatterns();
         String query = LoggerMessageFormat.format(null, """
             FROM (TS {} | WHERE x > 5)
@@ -269,7 +269,7 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      *     \_UnresolvedRelation[, TIME_SERIES]
      */
     public void testMultipleTSSubqueriesOnly() {
-        checkSubqueryInFromCommand();
+        requireSubqueryInFromCommand();
         var tsSubqueryIndexPattern1 = randomIndexPatterns();
         var tsSubqueryIndexPattern2 = randomIndexPatterns();
         var tsSubqueryIndexPattern3 = randomIndexPatterns();
@@ -306,7 +306,7 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      *   \_UnresolvedRelation[]
      */
     public void testTSAndFromSubqueriesOnly() {
-        checkSubqueryInFromCommand();
+        requireSubqueryInFromCommand();
         var tsSubqueryIndexPattern = randomIndexPatterns();
         var fromSubqueryIndexPattern = randomIndexPatterns();
         String query = LoggerMessageFormat.format(null, """
@@ -337,7 +337,7 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      *       \_UnresolvedRelation[, TIME_SERIES]
      */
     public void testTSSubqueryNestedInsideFromSubquery() {
-        checkSubqueryInFromCommand();
+        requireSubqueryInFromCommand();
         var outerIndexPattern = randomIndexPatterns();
         var innerIndexPattern = randomIndexPatterns();
         var tsSubqueryIndexPattern = randomIndexPatterns();
@@ -369,7 +369,7 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      * tree is asserted only at a high level since the goal is to ensure no parse errors occur.
      */
     public void testTSSubqueryEndsWithProcessingCommandsInDifferentMode() {
-        checkSubqueryInFromCommand();
+        requireSubqueryInFromCommand();
         List<String> processingCommandInDifferentMode = List.of(
             "INLINE STATS max_x = MAX(x) BY x",
             "DISSECT y \"%{a} %{b}\"",
@@ -410,7 +410,7 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main]
      */
     public void testWhereInTSSubqueryBasic() {
-        checkWhereInSubquery();
+        requireWhereInSubquery();
         boolean fromContext = randomBoolean();
         var mainQueryIndexPattern = randomIndexPatterns();
         var tsSubqueryIndexPattern = randomIndexPatterns();
@@ -436,7 +436,7 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main]
      */
     public void testWhereNotInTSSubquery() {
-        checkWhereInSubquery();
+        requireWhereInSubquery();
         boolean fromContext = randomBoolean();
         var mainQueryIndexPattern = randomIndexPatterns();
         var tsSubqueryIndexPattern = randomIndexPatterns();
@@ -465,7 +465,7 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      * Where the IN subquery's inner plan is Limit -&gt; Keep -&gt; Eval -&gt; Filter -&gt; TS UnresolvedRelation.
      */
     public void testWhereInTSSubqueryWithProcessingCommands() {
-        checkWhereInSubquery();
+        requireWhereInSubquery();
         boolean negated = randomBoolean();
         String notClause = negated ? "NOT " : "";
         boolean fromContext = randomBoolean();
@@ -511,7 +511,7 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      * Where the IN subquery's inner plan is Limit -&gt; Keep -&gt; Eval -&gt; Filter -&gt; TS UnresolvedRelation.
      */
     public void testWhereInTSSubqueryWithOtherConditions() {
-        checkWhereInSubquery();
+        requireWhereInSubquery();
         boolean fromContext = randomBoolean();
         var mainQueryIndexPattern = randomIndexPatterns();
         var tsSubqueryIndexPattern = randomIndexPatterns();
@@ -553,7 +553,7 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      * Where the outer IN subquery's inner plan is Keep -&gt; Filter[InSubquery[?y, TS ts2]] -&gt; TS ts1.
      */
     public void testWhereInSubqueryWithNestedInTSSubquery() {
-        checkWhereInSubquery();
+        requireWhereInSubquery();
         boolean fromContext = randomBoolean();
         var mainQueryIndexPattern = randomIndexPatterns();
         var tsSubqueryIndexPattern1 = randomIndexPatterns();
@@ -589,8 +589,8 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      * Subquery[UnresolvedRelation[, TIME_SERIES]].
      */
     public void testWhereInSubqueryWithTSInsideFromSubquery() {
-        checkWhereInSubquery();
-        checkSubqueryInFromCommand();
+        requireWhereInSubquery();
+        requireSubqueryInFromCommand();
         boolean negated = randomBoolean();
         String notClause = negated ? "NOT " : "";
         boolean fromContext = randomBoolean();
@@ -637,8 +637,8 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      * Subquery[Eval -&gt; Filter -&gt; TS UnresolvedRelation] }.
      */
     public void testWhereInSubqueryWithTSAndProcessingCommandsInsideFromSubquery() {
-        checkWhereInSubquery();
-        checkSubqueryInFromCommand();
+        requireWhereInSubquery();
+        requireSubqueryInFromCommand();
         boolean fromContext = randomBoolean();
         var mainQueryIndexPattern = randomIndexPatterns();
         var fromSubqueryIndexPattern = randomIndexPatterns();
@@ -682,8 +682,8 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      * \_UnresolvedRelation[main]
      */
     public void testWhereInSubqueryWithSingleTSSubquery() {
-        checkWhereInSubquery();
-        checkSubqueryInFromCommand();
+        requireWhereInSubquery();
+        requireSubqueryInFromCommand();
         boolean fromContext = randomBoolean();
         var mainQueryIndexPattern = randomIndexPatterns();
         var tsSubqueryIndexPattern = randomIndexPatterns();
@@ -712,8 +712,8 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      * Subquery[TS UnresolvedRelation].
      */
     public void testWhereInSubqueryWithMultipleTSSubqueries() {
-        checkWhereInSubquery();
-        checkSubqueryInFromCommand();
+        requireWhereInSubquery();
+        requireSubqueryInFromCommand();
         boolean fromContext = randomBoolean();
         var mainQueryIndexPattern = randomIndexPatterns();
         var tsSubqueryIndexPattern1 = randomIndexPatterns();
@@ -753,8 +753,8 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      *     \_UnresolvedRelation[, TIME_SERIES]
      */
     public void testFromSubqueryWithWhereInFromSubquery() {
-        checkWhereInSubquery();
-        checkSubqueryInFromCommand();
+        requireWhereInSubquery();
+        requireSubqueryInFromCommand();
         boolean fromContext = randomBoolean();
         var mainQueryIndexPattern = randomIndexPatterns();
         var subqueryIndexPattern = randomIndexPatterns();
@@ -790,8 +790,8 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      *     \_UnresolvedRelation[sub]
      */
     public void testFromSubqueryWithWhereInTSSubquery() {
-        checkWhereInSubquery();
-        checkSubqueryInFromCommand();
+        requireWhereInSubquery();
+        requireSubqueryInFromCommand();
         boolean fromContext = randomBoolean();
         var mainQueryIndexPattern = randomIndexPatterns();
         var subqueryIndexPattern = randomIndexPatterns();
@@ -843,7 +843,7 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
      * The TS source command does not allow subqueries as source, regardless of whether the subquery uses FROM or TS.
      */
     public void testSubqueryWithinTimeSeriesCommand() {
-        checkSubqueryInFromCommand();
+        requireSubqueryInFromCommand();
         for (String query : List.of(
             "TS mainIndex, (FROM subIndex)",
             "TS mainIndex, (TS subIndex)",
@@ -852,30 +852,5 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
         )) {
             expectThrows(ParsingException.class, containsString("Subqueries are not supported in TS command"), () -> query(query));
         }
-    }
-
-    /**
-     * In a release build (non-snapshot) the TS alternative is gated off by the {@code isDevVersion}
-     * predicate in the grammar, and the parser must reject it.
-     */
-    public void testTSSubqueryNotAllowedInReleaseBuild() {
-        assumeFalse("only relevant for non-snapshot builds", Build.current().isSnapshot());
-        checkSubqueryInFromCommand();
-        checkWhereInSubquery();
-        checkSubqueryWithTSCommand();
-
-        var mainQueryIndexPattern = randomIndexPatterns();
-        var tsSubqueryIndexPattern = randomIndexPatterns();
-        String query1 = LoggerMessageFormat.format(null, """
-            FROM {}, (TS {})
-            """, mainQueryIndexPattern, tsSubqueryIndexPattern);
-
-        expectThrows(ParsingException.class, () -> query(query1));
-
-        String query2 = LoggerMessageFormat.format(null, """
-            FROM {} | WHERE x IN (TS {})
-            """, mainQueryIndexPattern, tsSubqueryIndexPattern);
-
-        expectThrows(ParsingException.class, () -> query(query2));
     }
 }

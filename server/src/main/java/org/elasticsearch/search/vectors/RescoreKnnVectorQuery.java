@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.codecs.lucene95.HasIndexSlice;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
@@ -229,7 +228,6 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             assert innerRewritten.getClass() != MatchAllDocsQuery.class;
 
             List<ScoreDoc> results = new ArrayList<>(10);
-            List<CheckedRunnable<IOException>> buffer = new LinkedList<>();
             for (var leaf : indexSearcher.getIndexReader().leaves()) {
                 var knnVectorValues = leaf.reader().getFloatVectorValues(fieldName);
                 if (knnVectorValues == null) {
@@ -246,13 +244,9 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                     continue;
                 }
                 var filterIterator = scorer.iterator();
-                rescoreIndividually(leaf.docBase, knnVectorValues, buffer, results, filterIterator);
+                rescoreIndividually(leaf.docBase, knnVectorValues, results, filterIterator);
             }
 
-            for (var runnable : buffer) {
-                runnable.run();
-            }
-            buffer.clear();
             // Remove any remaining sentinel values
             ScoreDoc[] arrayResults = results.toArray(new ScoreDoc[0]);
             return new KnnScoreDocQuery(arrayResults, indexSearcher.getIndexReader());
@@ -285,42 +279,22 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         private void rescoreIndividually(
             int docBase,
             FloatVectorValues knnVectorValues,
-            List<CheckedRunnable<IOException>> buffer,
             List<ScoreDoc> queue,
             DocIdSetIterator filterIterator
         ) throws IOException {
-            final int vectorByteSize = knnVectorValues.getVectorByteLength();
-            final HasIndexSlice sliceable = (knnVectorValues instanceof HasIndexSlice h) ? h : null;
-            final var input = sliceable != null ? sliceable.getSlice() : null;
-
             KnnVectorValues.DocIndexIterator vectorIter = knnVectorValues.iterator();
             DocIdSetIterator conjunction = ConjunctionUtils.intersectIterators(List.of(vectorIter, filterIterator));
             // using bulk doesn't get us anywhere; this is expected to be extremely sparse
             VectorScorer scorer = knnVectorValues.rescorer(floatTarget);
-            int doc;
-            while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
-                assert doc == vectorIter.docID();
-                final int docID = doc;
-                final int ord = vectorIter.index();
-
-                if (buffer.size() == PREFETCH_BUFFER_SIZE) {
-                    for (var runnable : buffer) {
-                        runnable.run();
-                    }
-                    buffer.clear();
+            int docID;
+            while ((docID = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
+                assert docID == vectorIter.docID();
+                int target = scorer.iterator().advance(docID);
+                assert target == docID;
+                float score = scorer.score();
+                if (Float.isNaN(score) == false) {
+                    queue.add(new ScoreDoc(docID + docBase, score));
                 }
-
-                if (input != null) {
-                    input.prefetch((long) ord * vectorByteSize, vectorByteSize);
-                }
-                buffer.add(() -> {
-                    int target = scorer.iterator().advance(docID);
-                    assert target == docID;
-                    float score = scorer.score();
-                    if (Float.isNaN(score) == false) {
-                        queue.add(new ScoreDoc(docID + docBase, score));
-                    }
-                });
             }
         }
     }

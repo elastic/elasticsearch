@@ -9,10 +9,12 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.codecs.lucene95.HasIndexSlice;
+import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.internal.hppc.IntObjectHashMap;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
@@ -31,6 +33,7 @@ import org.apache.lucene.search.TotalHits;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.knn.KnnCollectorManager;
 import org.apache.lucene.search.knn.KnnSearchStrategy;
+import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.codec.vectors.cluster.BulkNeighborQueue;
@@ -38,6 +41,8 @@ import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.Callable;
@@ -186,20 +191,33 @@ abstract class AbstractIVFKnnVectorQuery extends Query implements QueryProfilerP
     private TopDocs searchLeaf(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)
         throws IOException {
         TopDocs results = getLeafResults(ctx, filterWeight, knnCollectorManager, visitRatio);
-        IntObjectHashMap<ScoreDoc> dedupByDoc = new IntObjectHashMap<>(results.scoreDocs.length * 4 / 3);
+        FloatVectorValues floatVectorValues = ctx.reader().getFloatVectorValues(field);
+        IndexInput input = null;
+        int vectorByteSize = 0;
+        if (floatVectorValues != null) {
+            vectorByteSize = floatVectorValues.getVectorByteLength();
+            final HasIndexSlice sliceable = (floatVectorValues instanceof HasIndexSlice h) ? h : null;
+            input = sliceable != null ? sliceable.getSlice() : null;
+        }
+        // Sort by local doc ID to enable both simple adjacent-dedup and forward-only ordinal lookup for prefetch.
+        Arrays.sort(results.scoreDocs, Comparator.comparingInt(sd -> sd.doc));
+        KnnVectorValues.DocIndexIterator vectorIter = input != null ? floatVectorValues.iterator() : null;
+        int uniqueCount = 0;
+        int prevLocalDoc = -1;
         for (ScoreDoc scoreDoc : results.scoreDocs) {
-            int globalDoc = scoreDoc.doc + ctx.docBase;
-            if (dedupByDoc.containsKey(globalDoc) == false) {
-                scoreDoc.doc = globalDoc;
-                dedupByDoc.put(globalDoc, scoreDoc);
+            int localDoc = scoreDoc.doc;
+            if (localDoc == prevLocalDoc) {
+                continue;
+            }
+            prevLocalDoc = localDoc;
+            scoreDoc.doc = localDoc + ctx.docBase;
+            results.scoreDocs[uniqueCount++] = scoreDoc;
+            if (vectorIter != null) {
+                vectorIter.advance(localDoc);
+                input.prefetch((long) vectorIter.index() * vectorByteSize, vectorByteSize);
             }
         }
-        ScoreDoc[] deduplicatedScoreDocs = new ScoreDoc[dedupByDoc.size()];
-        int index = 0;
-        for (IntObjectHashMap.IntObjectCursor<ScoreDoc> deduplicated : dedupByDoc) {
-            deduplicatedScoreDocs[index++] = deduplicated.value;
-        }
-        return new TopDocs(results.totalHits, deduplicatedScoreDocs);
+        return new TopDocs(results.totalHits, Arrays.copyOf(results.scoreDocs, uniqueCount));
     }
 
     TopDocs getLeafResults(LeafReaderContext ctx, Weight filterWeight, IVFCollectorManager knnCollectorManager, float visitRatio)

@@ -435,9 +435,6 @@ tests:
 - class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
   method: testNestedArrayExceeded
   issue: https://github.com/elastic/elasticsearch/issues/148747
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testReindexFailsWhenPitRelocationFails
-  issue: https://github.com/elastic/elasticsearch/issues/148748
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexWhileNodeStopping
   issue: https://github.com/elastic/elasticsearch/issues/148807

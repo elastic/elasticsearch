@@ -279,6 +279,9 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
   method: testMonitorClusterHealth
   issue: https://github.com/elastic/elasticsearch/issues/148615
+- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
+  method: testCreateCursorWithFormatTxtOnNewNode
+  issue: https://github.com/elastic/elasticsearch/issues/149747
 
 # Examples:
 #

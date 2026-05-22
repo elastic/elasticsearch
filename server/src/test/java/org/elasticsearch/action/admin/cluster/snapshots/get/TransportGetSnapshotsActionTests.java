@@ -38,12 +38,7 @@ public class TransportGetSnapshotsActionTests extends ESTestCase {
                 )
             );
             mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation(
-                    "no warn",
-                    TransportGetSnapshotsAction.class.getCanonicalName(),
-                    Level.WARN,
-                    "*"
-                )
+                new MockLog.UnseenEventExpectation("no warn", TransportGetSnapshotsAction.class.getCanonicalName(), Level.WARN, "*")
             );
             TransportGetSnapshotsAction.logFetchSnapshotInfoFailure(
                 testLogger,
@@ -69,12 +64,7 @@ public class TransportGetSnapshotsActionTests extends ESTestCase {
                 )
             );
             mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation(
-                    "no warn",
-                    TransportGetSnapshotsAction.class.getCanonicalName(),
-                    Level.WARN,
-                    "*"
-                )
+                new MockLog.UnseenEventExpectation("no warn", TransportGetSnapshotsAction.class.getCanonicalName(), Level.WARN, "*")
             );
             TransportGetSnapshotsAction.logFetchSnapshotInfoFailure(
                 testLogger,
@@ -100,18 +90,9 @@ public class TransportGetSnapshotsActionTests extends ESTestCase {
                 )
             );
             mockLog.addExpectation(
-                new MockLog.UnseenEventExpectation(
-                    "no debug",
-                    TransportGetSnapshotsAction.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "*"
-                )
+                new MockLog.UnseenEventExpectation("no debug", TransportGetSnapshotsAction.class.getCanonicalName(), Level.DEBUG, "*")
             );
-            TransportGetSnapshotsAction.logFetchSnapshotInfoFailure(
-                testLogger,
-                "test-snapshot",
-                new IOException("blob not readable")
-            );
+            TransportGetSnapshotsAction.logFetchSnapshotInfoFailure(testLogger, "test-snapshot", new IOException("blob not readable"));
             mockLog.assertAllExpectationsMatched();
         }
     }

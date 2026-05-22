@@ -30,6 +30,7 @@ import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.reindex.RethrottleRequestBuilder;
 import org.elasticsearch.reindex.TransportReindexAction;
 import org.elasticsearch.reindex.management.ReindexManagementPlugin;
+import org.elasticsearch.search.SearchContextMissingException;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.tasks.TaskId;
@@ -38,6 +39,8 @@ import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.NodeShutdownTestUtils;
+import org.elasticsearch.transport.NodeDisconnectedException;
+import org.elasticsearch.transport.NodeNotConnectedException;
 
 import java.util.Arrays;
 import java.util.Collection;
@@ -49,6 +52,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.ElasticsearchException.getExceptionName;
 import static org.elasticsearch.node.ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -634,9 +638,9 @@ public class ReindexRelocationOnShutdownIT extends ESIntegTestCase {
     }
 
     private static boolean isStoppedNodeSearchPhaseShardFailureType(final Object type) {
-        return "node_not_connected_exception".equals(type)
-            || "node_disconnected_exception".equals(type)
-            || "search_context_missing_exception".equals(type);
+        return getExceptionName(NodeNotConnectedException.class).equals(type)
+            || getExceptionName(NodeDisconnectedException.class).equals(type)
+            || getExceptionName(SearchContextMissingException.class).equals(type);
     }
 
     /**

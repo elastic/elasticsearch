@@ -1233,7 +1233,7 @@ public abstract class MapperTestCase extends MapperServiceTestCase {
         SearchLookup lookup = new SearchLookup(
             f -> fieldType,
             (f, s, t) -> { throw new UnsupportedOperationException(); },
-            (ctx, docid) -> Source.fromBytes(doc.source())
+            (ctx, docid) -> Source.fromBytes(doc.source().originalBytes())
         );
 
         withLuceneIndex(mapperService, iw -> iw.addDocument(doc.rootDoc()), ir -> {

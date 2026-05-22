@@ -90,6 +90,10 @@ public class InternalBwcGitPlugin implements Plugin<Project> {
             String rootProjectName = project.getRootProject().getName();
 
             addRemote.dependsOn(findRemoteTaskProvider);
+            // Must be registered before "remote exists": when DRA is active findRemote is skipped
+            // and never sets the remoteExists system property, so the "remote exists" onlyIf would
+            // throw MissingValueException. Gradle short-circuits onlyIf in registration order, so
+            // placing this guard first prevents the unsafe check from being evaluated.
             addRemote.onlyIf("DRA snapshot not available", task -> draBuildId.get().isEmpty());
             addRemote.onlyIf("remote exists", task -> (Boolean.valueOf(providerFactory.systemProperty("remoteExists").get()) == false));
             addRemote.doLast(new Action<Task>() {

@@ -424,10 +424,10 @@ Expected chain: `createClone` → `findRemote` → `addRemote` → `fetchLatest`
 git fetch --all   # keep remote-tracking refs fresh
 
 ./gradlew :distribution:bwc:minor3:buildBwcLinuxTar --dry-run \
-  -Dtests.bwc.dra.enabled=true --info 2>&1 | grep -E "onlyIf|DRA|writeDra"
+  -Dtests.bwc.dra.enabled=true --info 2>&1 | grep -E "onlyIf|DRA"
 ```
 
-When the DRA snapshot matches the branch tip the git tasks are skipped and `writeDraRefspec` + `buildBwcLinuxTar` (a `Copy` task backed by the Ivy download) appear instead.
+When the DRA snapshot matches the branch tip the git tasks are skipped and `buildBwcLinuxTar` (a `Copy` task backed by the Ivy download) appears instead.
 `--info` surfaces lines like:
 
 ```

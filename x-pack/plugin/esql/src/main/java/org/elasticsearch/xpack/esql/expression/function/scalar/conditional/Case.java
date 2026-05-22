@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
@@ -46,7 +47,9 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 
 public final class Case extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Case", Case::new);
@@ -358,9 +361,35 @@ public final class Case extends EsqlScalarFunction {
     }
 
     private Expression finishPartialFold(List<Expression> newChildren) {
+        Expression result = innerFinishPartialFold(newChildren);
+        if (result.dataType().noText().equals(dataType()) == false) {
+            throw new IllegalStateException("partiallyFold produced type [" + result.dataType() + "] but expected [" + dataType() + "]");
+        }
+        return result;
+    }
+
+    private Expression innerFinishPartialFold(List<Expression> newChildren) {
         return switch (newChildren.size()) {
+            // CASE(false, a) -> NULL
             case 0 -> new Literal(source(), null, dataType());
-            case 1 -> newChildren.get(0);
+            /*
+             * CASE(false, a, b) -> b
+             *
+             * We *must* return something of dataType or downstream stuff will
+             * blow up. `b` can be:
+             *   - dataType - return as-is
+             *   - TEXT when dataType is keyword - convert to KEYWORD
+             *   - any NULL-typed expression — cast it to dataType so callers
+             *     see the right type (e.g. KEYWORD, not NULL)
+             */
+            case 1 -> {
+                Expression child = newChildren.getFirst();
+                if (child.dataType() == NULL) {
+                    yield new Literal(child.source(), null, dataType());
+                }
+                yield child;
+            }
+            // CASE(false, a, b, c, d) -> CASE(b, c, d)
             default -> replaceChildren(newChildren);
         };
     }

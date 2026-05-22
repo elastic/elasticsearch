@@ -373,6 +373,11 @@ public class EsqlQueryRequest extends org.elasticsearch.xpack.core.esql.action.E
         this.acceptedPragmaRisks = accepted;
     }
 
+    public EsqlQueryRequest pragmasOk() {
+        this.acceptedPragmaRisks = true;
+        return this;
+    }
+
     public EsqlQueryRequest projectRouting(String projectRouting) {
         this.projectRouting = projectRouting;
         return this;

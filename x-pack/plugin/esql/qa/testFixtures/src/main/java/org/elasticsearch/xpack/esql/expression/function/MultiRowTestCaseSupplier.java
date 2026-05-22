@@ -73,6 +73,7 @@ public final class MultiRowTestCaseSupplier {
             case GEOHEX -> geohexCases(minRows, maxRows);
             case DENSE_VECTOR -> denseVectorCases(minRows, maxRows);
             case EXPONENTIAL_HISTOGRAM -> exponentialHistogramCases(minRows, maxRows);
+            case TDIGEST -> tdigestCases(minRows, maxRows);
             // If a type is missing here it's safe to them as you need them
             default -> throw new IllegalArgumentException("unsupported type [" + type + "]");
         };

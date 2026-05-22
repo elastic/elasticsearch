@@ -36,11 +36,7 @@ public class AnyExponentialHistogramAggregator {
         }
     }
 
-    public static void combineIntermediate(
-        ExponentialHistogramStates.SeenSingleState current,
-        ExponentialHistogram values,
-        boolean seen
-    ) {
+    public static void combineIntermediate(ExponentialHistogramStates.SeenSingleState current, ExponentialHistogram values, boolean seen) {
         if (seen && current.isSeen() == false) {
             current.set(values);
         }

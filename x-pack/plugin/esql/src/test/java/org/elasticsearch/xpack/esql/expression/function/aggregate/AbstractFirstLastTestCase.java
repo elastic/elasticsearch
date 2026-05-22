@@ -59,7 +59,8 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
                 DataType.GEOHASH,
                 DataType.GEOTILE,
                 DataType.GEOHEX,
-                DataType.UNSIGNED_LONG
+                DataType.UNSIGNED_LONG,
+                DataType.TDIGEST
             );
             searchFieldTypes.addAll(extra);
             taggedTypes.addAll(extra);
@@ -129,6 +130,11 @@ public abstract class AbstractFirstLastTestCase extends AbstractAggregationTestC
                     if (effectiveValueType == DataType.EXPONENTIAL_HISTOGRAM
                         && (sorts.type() == DataType.LONG || sorts.type() == DataType.DATETIME || sorts.type() == DataType.DATE_NANOS)) {
                         evaluatorStr = "FirstExponentialHistogramByTimestamp";
+                    }
+                    // FirstTDigestByTimestamp predates the AllFirst* naming convention
+                    if (effectiveValueType == DataType.TDIGEST
+                        && (sorts.type() == DataType.LONG || sorts.type() == DataType.DATETIME || sorts.type() == DataType.DATE_NANOS)) {
+                        evaluatorStr = "FirstTDigestByTimestamp";
                     }
                 }
 

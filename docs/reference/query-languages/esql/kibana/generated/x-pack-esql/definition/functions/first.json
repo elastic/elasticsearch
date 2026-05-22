@@ -1232,6 +1232,78 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "date",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "tdigest"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "tdigest"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "tdigest"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "tdigest",
+          "optional" : false,
+          "description" : "The search field"
+        },
+        {
+          "name" : "sortField",
+          "type" : "long",
+          "optional" : false,
+          "description" : "The sort field"
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "tdigest"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "text",
           "optional" : false,
           "description" : "The search field"

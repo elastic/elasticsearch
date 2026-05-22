@@ -23,6 +23,7 @@ import org.elasticsearch.compute.aggregation.AllFirstIntByIntAggregatorFunctionS
 import org.elasticsearch.compute.aggregation.AllFirstIntByLongAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstLongByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AllFirstLongByLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AllFirstTDigestByIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyBooleanAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyBytesRefAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyDoubleAggregatorFunctionSupplier;
@@ -30,7 +31,9 @@ import org.elasticsearch.compute.aggregation.AnyExponentialHistogramAggregatorFu
 import org.elasticsearch.compute.aggregation.AnyFloatAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AnyLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AnyTDigestAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.FirstExponentialHistogramByTimestampAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.FirstTDigestByTimestampAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -80,6 +83,7 @@ public class First extends AggregateFunction implements ToAggregator {
             "ip",
             "keyword",
             "long",
+            "tdigest",
             "unsigned_long",
             "version" },
         description = """
@@ -126,6 +130,7 @@ public class First extends AggregateFunction implements ToAggregator {
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "unsigned_long",
                 "text",
                 "version" },
@@ -203,7 +208,8 @@ public class First extends AggregateFunction implements ToAggregator {
                 || dt == DataType.GEOTILE
                 || dt == DataType.GEOHEX
                 || dt == DataType.DENSE_VECTOR
-                || dt == DataType.EXPONENTIAL_HISTOGRAM,
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST,
             sourceText(),
             FIRST,
             "boolean",
@@ -212,7 +218,8 @@ public class First extends AggregateFunction implements ToAggregator {
             "exponential_histogram",
             "ip",
             "string",
-            "numeric except counter types"
+            "numeric except counter types",
+            "tdigest"
         ).and(
             isType(
                 sort,
@@ -237,6 +244,7 @@ public class First extends AggregateFunction implements ToAggregator {
                 case DOUBLE -> new AnyDoubleAggregatorFunctionSupplier();
                 case FLOAT, DENSE_VECTOR -> new AnyFloatAggregatorFunctionSupplier();
                 case EXPONENTIAL_HISTOGRAM -> new AnyExponentialHistogramAggregatorFunctionSupplier();
+                case TDIGEST -> new AnyTDigestAggregatorFunctionSupplier();
                 case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE ->
                     new AnyBytesRefAggregatorFunctionSupplier();
                 case BOOLEAN -> new AnyBooleanAggregatorFunctionSupplier();
@@ -252,6 +260,7 @@ public class First extends AggregateFunction implements ToAggregator {
                 case DOUBLE -> new AllFirstDoubleByLongAggregatorFunctionSupplier();
                 case FLOAT, DENSE_VECTOR -> new AllFirstFloatByLongAggregatorFunctionSupplier();
                 case EXPONENTIAL_HISTOGRAM -> new FirstExponentialHistogramByTimestampAggregatorFunctionSupplier();
+                case TDIGEST -> new FirstTDigestByTimestampAggregatorFunctionSupplier();
                 case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE ->
                     new AllFirstBytesRefByLongAggregatorFunctionSupplier();
                 case BOOLEAN -> new AllFirstBooleanByLongAggregatorFunctionSupplier();
@@ -267,6 +276,7 @@ public class First extends AggregateFunction implements ToAggregator {
                 case DOUBLE -> new AllFirstDoubleByIntAggregatorFunctionSupplier();
                 case FLOAT, DENSE_VECTOR -> new AllFirstFloatByIntAggregatorFunctionSupplier();
                 case EXPONENTIAL_HISTOGRAM -> new AllFirstExponentialHistogramByIntAggregatorFunctionSupplier();
+                case TDIGEST -> new AllFirstTDigestByIntAggregatorFunctionSupplier();
                 case KEYWORD, TEXT, IP, VERSION, CARTESIAN_POINT, CARTESIAN_SHAPE, GEO_POINT, GEO_SHAPE ->
                     new AllFirstBytesRefByIntAggregatorFunctionSupplier();
                 case BOOLEAN -> new AllFirstBooleanByIntAggregatorFunctionSupplier();

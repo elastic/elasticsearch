@@ -165,8 +165,8 @@ public class CrossProjectIndexExpressionsRewriter {
 
         String localExpression = null;
         final Set<String> resourcesMatchingLinkedProjectAliases = new LinkedHashSet<>();
-        final Set<String> includedProjects = isProjectWildcardExclusion ? Set.of() : new LinkedHashSet<>();
-        final Set<String> excludedProjects = isProjectWildcardExclusion ? new LinkedHashSet<>() : Set.of();
+        final Set<String> includedProjects = new LinkedHashSet<>();
+        final Set<String> excludedProjects = new LinkedHashSet<>();
         // TODO: Rewrite supports exclusion such as -project:index but it is still rejected by RemoteClusterAware#groupClusterIndices
         // We could consider supporting it all the way through, see also ES-13767
         for (String project : allProjectsMatchingAlias) {

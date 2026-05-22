@@ -2044,7 +2044,7 @@ public class InternalEngineTests extends EngineTestCase {
         BiFunction<Engine.Operation, Long, Engine.Operation> seqNoUpdater = (operation, newSeqNo) -> {
             if (operation instanceof Engine.Index index) {
                 LuceneDocument doc = testDocumentWithTextField(index.docs().get(0).get("value"));
-                ParsedDocument parsedDocument = testParsedDocument(index.id(), index.routing(), doc, index.source());
+                ParsedDocument parsedDocument = testParsedDocument(index.id(), index.routing(), doc, index.source().originalBytes());
                 return new Engine.Index(
                     index.uid(),
                     parsedDocument,

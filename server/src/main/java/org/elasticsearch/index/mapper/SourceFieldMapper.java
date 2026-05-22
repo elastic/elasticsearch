@@ -435,7 +435,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (stored() == false && (recoverySourceEnabled == false || syntheticRecovery)) {
             if (syntheticRecovery) {
                 assert isSynthetic() : "Recovery source should not be disabled for non-synthetic sources";
-                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, sourceObject.estimatedRecoverySizeInBytes()));
+                context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, sourceObject.estimatedSizeInBytes()));
             }
             return;
         }

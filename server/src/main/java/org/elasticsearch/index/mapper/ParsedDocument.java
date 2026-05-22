@@ -209,8 +209,8 @@ public class ParsedDocument {
         return this.documents;
     }
 
-    public BytesReference source() {
-        return this.source.originalBytes();
+    public SourceToParse.Source source() {
+        return this.source;
     }
 
     public XContentType getXContentType() {

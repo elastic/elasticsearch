@@ -242,11 +242,12 @@ public class SourceToParse {
             }
         }
 
-        public int estimatedRecoverySizeInBytes() {
+        public int estimatedSizeInBytes() {
             if (originalSourceBytes != null) {
                 return originalSourceBytes.length();
             }
             if (row != null) {
+                // TODO: Consider including the size of the schema
                 return row.sizeInBytes();
             }
             return 0;

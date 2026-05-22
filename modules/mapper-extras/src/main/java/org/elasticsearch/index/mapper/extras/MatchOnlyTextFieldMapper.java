@@ -88,6 +88,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermInSetQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesTermQuery;
 import org.elasticsearch.lucene.queries.SlowCustomBinaryDocValuesWildcardQuery;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.SortedBinaryDocValuesStringFieldScript;
 import org.elasticsearch.script.SortedSetDocValuesStringFieldScript;
@@ -768,13 +769,15 @@ public class MatchOnlyTextFieldMapper extends FieldMapper {
             boolean transpositions,
             SearchExecutionContext context
         ) {
-            FuzzyQuery fuzzyQuery = new FuzzyQuery(
+            FuzzyQuery fuzzyQuery = FuzzyQueries.create(
                 new Term(name(), term),
                 maxDistance,
                 prefixLength,
                 IndexSearcher.getMaxClauseCount(),
                 transpositions,
-                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
+                MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
+                context,
+                name()
             );
             IntervalsSource fuzzyIntervals = Intervals.multiterm(fuzzyQuery.getAutomata(), IndexSearcher.getMaxClauseCount(), term);
             return toIntervalsSource(fuzzyIntervals, fuzzyQuery, context);

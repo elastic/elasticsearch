@@ -898,6 +898,33 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    public void testNullsInArray2() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"id":1,"name":null,"age":null,"active":null}
+            """;
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("id", "name", "age", "active"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+
+            assertPage(page, """
+                      INT      |     NULL      |     NULL      |     NULL     \s
+                ---------------+---------------+---------------+---------------
+                1              |null           |null           |null          \s
+                """);
+
+            assertEquals(page.getBlock(0).getPositionCount(), page.getBlock(1).getPositionCount());
+            assertFalse(page.getBlock(0).isNull(0));
+            assertTrue(page.getBlock(1).isNull(0));
+            assertTrue(page.getBlock(2).isNull(0));
+        }
+    }
+
     public void testNestedArraysMisalignment() throws IOException {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
 

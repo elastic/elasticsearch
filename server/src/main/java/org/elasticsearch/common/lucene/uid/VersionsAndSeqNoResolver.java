@@ -169,30 +169,7 @@ public final class VersionsAndSeqNoResolver {
         assert results.length == n && loadSeqNo.length == n;
 
         // Sort by UID so each segment can be scanned with a single forward pass
-        final int[] order = new int[n];
-        for (int i = 0; i < n; i++) {
-            order[i] = i;
-        }
-        new IntroSorter() {
-            private int pivot;
-
-            @Override
-            protected void setPivot(int i) {
-                this.pivot = i;
-            }
-
-            @Override
-            protected int comparePivot(int j) {
-                return uids[order[pivot]].compareTo(uids[order[j]]);
-            }
-
-            @Override
-            protected void swap(int i, int j) {
-                int tmp = order[i];
-                order[i] = order[j];
-                order[j] = tmp;
-            }
-        }.sort(0, n);
+        final int[] order = sortByUid(uids);
 
         final BytesRef[] sortedUids = new BytesRef[n];
         final boolean[] sortedLoadSeqNo = new boolean[n];
@@ -313,5 +290,35 @@ public final class VersionsAndSeqNoResolver {
             }
         }
         return null;
+    }
+
+    /** Returns an {@code order[]} permutation such that {@code uids[order[i]]} is in ascending order. */
+    private static int[] sortByUid(BytesRef[] uids) {
+        final int n = uids.length;
+        final int[] order = new int[n];
+        for (int i = 0; i < n; i++) {
+            order[i] = i;
+        }
+        new IntroSorter() {
+            private int pivot;
+
+            @Override
+            protected void setPivot(int i) {
+                pivot = i;
+            }
+
+            @Override
+            protected int comparePivot(int j) {
+                return uids[order[pivot]].compareTo(uids[order[j]]);
+            }
+
+            @Override
+            protected void swap(int i, int j) {
+                int tmp = order[i];
+                order[i] = order[j];
+                order[j] = tmp;
+            }
+        }.sort(0, n);
+        return order;
     }
 }

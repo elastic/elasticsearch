@@ -56,11 +56,8 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  */
 public class ProjectEncryptionKeyMetadata extends AbstractNamedDiffable<Metadata.ProjectCustom> implements Metadata.ProjectCustom {
 
-    public static final String TYPE = "project_encryption_key";
+    public static final String TYPE = "primary_encryption_key";
 
-    // The TransportVersion identifiers below are intentionally kept as "primary_encryption_key{,_rotation}" to preserve the wire-version
-    // mapping introduced before this code moved out of the security plugin. The on-the-wire concept ("the project encryption key custom")
-    // is unchanged; only the in-process naming evolved.
     public static final TransportVersion PRIMARY_ENCRYPTION_KEY_VERSION = TransportVersion.fromName("primary_encryption_key");
     public static final TransportVersion PRIMARY_ENCRYPTION_KEY_ROTATION = TransportVersion.fromName("primary_encryption_key_rotation");
 

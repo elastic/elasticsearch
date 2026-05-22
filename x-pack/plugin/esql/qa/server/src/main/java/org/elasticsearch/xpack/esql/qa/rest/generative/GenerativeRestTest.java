@@ -83,7 +83,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * so muting a feature-specific failure doesn't widen the surface for runs that don't enable the feature.
      */
     private static final Map<GenerativeFeature, Set<String>> FEATURE_ALLOWED_ERRORS = Map.of(
-        GenerativeFeature.SUBQUERIES, Set.of(
+        GenerativeFeature.SUBQUERIES,
+        Set.of(
             // Known generator limitation: when a multi-source FROM mixes a subquery branch with
             // plain index patterns, the subquery-aware union-types resolution
             // (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION) treats cross-branch
@@ -91,7 +92,8 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             // This message is "expected" here, as predicting type conflicts has to be implemented first
             "has conflicting data types in subqueries"
         ),
-        GenerativeFeature.UNMAPPED_FIELDS_LOAD, Set.of(
+        GenerativeFeature.UNMAPPED_FIELDS_LOAD,
+        Set.of(
             // https://github.com/elastic/elasticsearch/issues/141995, https://github.com/elastic/elasticsearch/issues/141990
             "missing references \\[.*\\]",
             // https://github.com/elastic/elasticsearch/issues/142026

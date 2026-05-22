@@ -273,7 +273,7 @@ public class KnnIndexTester {
             };
         };
 
-        logger.info("Using format {}", format.getName());
+        logger.info("Using format {} (via {})", format.getName(), format.getClass().getName());
 
         return new Lucene104Codec() {
             @Override

@@ -25,6 +25,7 @@ import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.logging.LogManager;
@@ -797,7 +798,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (survivingRowGroups == null) {
             return null;
         }
-        int[] next = new int[survivingRowGroups.length];
+        int[] next = UninitializedArrays.newIntArray(survivingRowGroups.length);
         int last = survivingRowGroups.length;
         for (int i = survivingRowGroups.length - 1; i >= 0; i--) {
             next[i] = survivingRowGroups[i] ? i : last;
@@ -1514,7 +1515,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 } else {
                     // All rows in this batch survived; the projection reader will read sourceRows
                     // and we'll filter to the first newCount via a synthesized positions array.
-                    truncated = new int[newCount];
+                    truncated = UninitializedArrays.newIntArray(newCount);
                     for (int i = 0; i < newCount; i++) {
                         truncated[i] = i;
                     }
@@ -1658,7 +1659,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (newCount == source.getPositionCount()) {
             return source;
         }
-        int[] head = new int[newCount];
+        int[] head = UninitializedArrays.newIntArray(newCount);
         for (int i = 0; i < newCount; i++) {
             head[i] = i;
         }
@@ -1673,7 +1674,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
     }
 
     private static int[] toIntArray(List<Integer> values) {
-        int[] out = new int[values.size()];
+        int[] out = UninitializedArrays.newIntArray(values.size());
         for (int i = 0; i < values.size(); i++) {
             out[i] = values.get(i);
         }
@@ -1946,6 +1947,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     private Block readColumnBlock(int colIndex, ColumnInfo info, int rowsToRead) {
         if (pageColumnReaders != null && pageColumnReaders[colIndex] != null) {
+            // PageColumnReader handles maxDefLevel > 1 for nested-flat STRUCT leaves (e.g.
+            // `event.action`). maxRepLevel must stay 0 because LIST<STRUCT> is intentionally
+            // unsupported in this PR — see issue elastic/esql-planning#435.
+            assert info.maxRepLevel() == 0 : "PageColumnReader path expects maxRepLevel == 0 for [" + info + "]";
             return pageColumnReaders[colIndex].readBatch(rowsToRead, blockFactory);
         }
         ColumnReader cr = columnReaders != null ? columnReaders[colIndex] : null;

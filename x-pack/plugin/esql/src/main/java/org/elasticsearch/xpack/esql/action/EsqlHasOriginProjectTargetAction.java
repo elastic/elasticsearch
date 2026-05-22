@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.crossproject.TargetProjects;
@@ -57,9 +58,10 @@ public class EsqlHasOriginProjectTargetAction extends TransportLocalProjectMetad
     protected void localClusterStateOperation(Task task, Request request, ProjectState project, ActionListener<Response> listener) {
         if (request.getResolvedTargetProjects() == null) {
             assert false : "request.getResolvedTargetProjects() must be not null";
-            listener.onResponse(new Response(true));
+            listener.onResponse(new Response(true, null));
         } else {
-            listener.onResponse(new Response(request.getResolvedTargetProjects().originProject() != null));
+            final TargetProjects targetProjects = request.getResolvedTargetProjects();
+            listener.onResponse(new Response(targetProjects.originProject() != null, targetProjects.originProjectAlias()));
         }
     }
 
@@ -105,13 +107,21 @@ public class EsqlHasOriginProjectTargetAction extends TransportLocalProjectMetad
 
     public static class Response extends ActionResponse {
         private final boolean resolveLocalViews;
+        @Nullable
+        private final String originProjectAlias;
 
-        public Response(boolean resolveLocalViews) {
+        public Response(boolean resolveLocalViews, @Nullable String originProjectAlias) {
             this.resolveLocalViews = resolveLocalViews;
+            this.originProjectAlias = originProjectAlias;
         }
 
         public boolean resolveLocalViews() {
             return resolveLocalViews;
+        }
+
+        @Nullable
+        public String originProjectAlias() {
+            return originProjectAlias;
         }
 
         @Override

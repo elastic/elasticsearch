@@ -16,13 +16,14 @@ import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -156,8 +157,8 @@ public class ViewResolver {
         // patterns that the analyzer's ResolveTable will later look up. Keeping the resolver's
         // output uncompacted is the foundation for the CPS lenient-field-caps work in
         // esql-planning #543, #472.
-        doResolveOriginViews(projectRouting, listener.delegateFailureAndWrap((l1, shouldResolveLocalViews) -> {
-            if (shouldResolveLocalViews == false) {
+        doResolveOriginViews(projectRouting, listener.delegateFailureAndWrap((l1, originResolution) -> {
+            if (originResolution.resolveLocalViews() == false) {
                 l1.onResponse(new ViewResolutionResult(plan, viewQueries));
             } else {
                 replaceViews(
@@ -166,6 +167,7 @@ public class ViewResolver {
                     new LinkedHashSet<>(),
                     viewQueries,
                     0,
+                    originResolution.originProjectAlias(),
                     l1.delegateFailureAndWrap((l2, rewritten) -> l2.onResponse(new ViewResolutionResult(rewritten, viewQueries)))
                 );
             }
@@ -178,6 +180,7 @@ public class ViewResolver {
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
         int depth,
+        @Nullable String originProjectAlias,
         ActionListener<LogicalPlan> listener
     ) {
         LinkedHashSet<String> seenInner = new LinkedHashSet<>(seenViews);
@@ -207,6 +210,7 @@ public class ViewResolver {
                     seenInner,
                     viewQueries,
                     depth,
+                    originProjectAlias,
                     planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
                         result.forEachDown(resolvedPlans::add);
@@ -220,6 +224,7 @@ public class ViewResolver {
                     seenWildcards,
                     viewQueries,
                     depth,
+                    originProjectAlias,
                     planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
                         // Also mark the resolved result subtree so transformDown does not
@@ -239,6 +244,7 @@ public class ViewResolver {
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
         int depth,
+        @Nullable String originProjectAlias,
         ActionListener<LogicalPlan> listener
     ) {
         var currentSubplans = fork.children();
@@ -253,6 +259,7 @@ public class ViewResolver {
                     seenViews,
                     viewQueries,
                     depth + 1,
+                    originProjectAlias,
                     l.delegateFailureAndWrap((subListener, newPlan) -> {
                         if (newPlan instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
                             newPlan = named;
@@ -286,6 +293,7 @@ public class ViewResolver {
         HashSet<String> seenWildcards,
         Map<String, String> viewQueries,
         int depth,
+        @Nullable String originProjectAlias,
         ActionListener<LogicalPlan> listener
     ) {
         // Avoid re-resolving wildcards preserved for non-view matches in subsequent transformDown visits.
@@ -297,6 +305,14 @@ public class ViewResolver {
             // request is a no-op AND avoids the security layer's empty-indices → "_all"
             // normalization, which would otherwise re-expand to the full cluster lookup and
             // leak "_all" as a literal pattern into downstream merge/concat code.
+            listener.onResponse(unresolvedRelation);
+            return;
+        }
+        if (containsOriginProjectWildcardExclusion(patterns, originProjectAlias)) {
+            // Origin is fully excluded by a project-wildcard exclusion (e.g. `-_origin:*`, `-<origin-alias>:*`, `-*:*`).
+            // Skip local view resolution: any view body would otherwise be expanded into a sibling branch that queries
+            // every project (the body itself does not carry the exclusion), surfacing as an "Unknown index" failure on a
+            // linked project that does not have the body's indices.
             listener.onResponse(unresolvedRelation);
             return;
         }
@@ -352,6 +368,7 @@ public class ViewResolver {
                         branchSeenViews,
                         viewQueries,
                         depth + 1,
+                        originProjectAlias,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
                             ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);
                             resolvedViews.put(view.name(), viewPlan);
@@ -603,17 +620,22 @@ public class ViewResolver {
         client.execute(EsqlResolveViewAction.TYPE, request, listener);
     }
 
-    protected void doResolveOriginViews(String projectRouting, ActionListener<Boolean> listener) {
-        if (crossProjectModeDecider.crossProjectEnabled() == false || Strings.isNullOrBlank(projectRouting)) {
-            listener.onResponse(true);
+    protected void doResolveOriginViews(String projectRouting, ActionListener<OriginViewsResolution> listener) {
+        if (crossProjectModeDecider.crossProjectEnabled() == false) {
+            listener.onResponse(new OriginViewsResolution(true, null));
         } else {
             client.execute(
                 EsqlHasOriginProjectTargetAction.TYPE,
                 new EsqlHasOriginProjectTargetAction.Request(REST_MASTER_TIMEOUT_DEFAULT, projectRouting),
-                new ThreadedActionListener<>(executor, listener.map(EsqlHasOriginProjectTargetAction.Response::resolveLocalViews))
+                new ThreadedActionListener<>(
+                    executor,
+                    listener.map(response -> new OriginViewsResolution(response.resolveLocalViews(), response.originProjectAlias()))
+                )
             );
         }
     }
+
+    protected record OriginViewsResolution(boolean resolveLocalViews, @Nullable String originProjectAlias) {}
 
     record ViewPlan(String name, LogicalPlan plan) {}
 
@@ -767,6 +789,31 @@ public class ViewResolver {
     private static boolean containsExclusion(UnresolvedRelation ur) {
         for (String pattern : ur.indexPattern().indexPattern().split(",")) {
             if (patternIsExclusion(pattern)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * Returns true if any pattern is a project-wildcard exclusion (shape {@code -<alias>:*}) that resolves to the origin
+     * project. The origin is matched by either the special {@code _origin} alias or by simple-pattern match against the
+     * origin project's actual alias (e.g. {@code -origin_proj:*}, {@code -orig*:*}, {@code -*:*}).
+     */
+    private static boolean containsOriginProjectWildcardExclusion(String[] patterns, @Nullable String originProjectAlias) {
+        for (String pattern : patterns) {
+            // shape: -<alias>:* — at minimum 4 chars (e.g. "-x:*")
+            if (pattern.length() < 4 || pattern.charAt(0) != '-' || pattern.endsWith(":*") == false) {
+                continue;
+            }
+            String aliasPart = pattern.substring(1, pattern.length() - 2);
+            if (aliasPart.isEmpty()) {
+                continue;
+            }
+            if (ProjectRoutingResolver.ORIGIN.equals(aliasPart)) {
+                return true;
+            }
+            if (originProjectAlias != null && Regex.simpleMatch(aliasPart, originProjectAlias)) {
                 return true;
             }
         }

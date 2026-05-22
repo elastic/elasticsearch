@@ -381,9 +381,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsIntegTests
   method: testCreateAndRestoreSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/148217
-- class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
-  method: testSnapshotShardsWhileHollowing
-  issue: https://github.com/elastic/elasticsearch/issues/148236
 - class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
   method: testEstimatedHeapHighWatermarkMonitorTriggersReroute
   issue: https://github.com/elastic/elasticsearch/issues/148246
@@ -486,18 +483,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
   method: test {csv-spec:csv-union-by-name.multiFileUnionByNameRecipe [LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/149127
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/148339
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/148339
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitShouldNotStuckForConcurrentShardClose
   issue: https://github.com/elastic/elasticsearch/issues/149188
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/148190
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testSearchShardShouldRecoverWhenWarmingFailsOnGetConnection
   issue: https://github.com/elastic/elasticsearch/issues/149195
@@ -579,3 +567,9 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatTests
   method: testRangeQueryViaIndexSearcher
   issue: https://github.com/elastic/elasticsearch/issues/149657
+- class: org.elasticsearch.index.reindex.LocalReindexResumeIT
+  method: testResumeReindexFromPit_slicedN_partialCompleted
+  issue: https://github.com/elastic/elasticsearch/issues/149665
+- class: org.elasticsearch.http.netty4.Netty4ChunkedEncodingIT
+  method: testClientCancellation
+  issue: https://github.com/elastic/elasticsearch/issues/149675

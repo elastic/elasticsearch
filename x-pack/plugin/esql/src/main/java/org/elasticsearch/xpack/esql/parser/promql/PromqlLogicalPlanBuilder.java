@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.parser.promql;
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.Token;
 import org.antlr.v4.runtime.tree.ParseTree;
+import org.antlr.v4.runtime.tree.TerminalNode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.promql.subquery.Subquery;
+import org.elasticsearch.xpack.esql.parser.ExpressionBuilder;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.PromqlBaseParser;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
@@ -172,22 +174,77 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                     throw new ParsingException(source(labelCtx), "Unrecognized label matcher [{}]", kind);
                 }
 
-                String labelValue = string(labelCtx.STRING());
-                Source valueCtx = source(labelCtx.STRING());
+                String value;
+                Source valueSource;
+                PromqlBaseParser.LabelValueContext valueCtx = labelCtx.labelValue();
+                TerminalNode valueNode = valueCtx.NAMED_OR_POSITIONAL_PARAM();
+
+                if (valueNode == null) {
+                    var v = valueCtx.STRING();
+                    if (v == null) {
+                        throw new ParsingException(source(valueCtx), "Expected label value");
+                    }
+                    value = string(v);
+                    valueSource = source(v);
+                } else {
+                    valueSource = source(valueNode);
+                    var paramName = valueNode.getText();
+                    var param = ExpressionBuilder.paramByNameOrPosition(valueNode, valueSource, params());
+                    if (param == null) {
+                        throw new ParsingException(valueSource, "Parameter [{}] value not found", paramName);
+                    }
+
+                    var v = param.value();
+                    if (v == null) {
+                        throw new ParsingException(valueSource, "Parameter [{}] cannot be null", paramName);
+                    }
+
+                    if (v instanceof List<?> values) {
+                        if (values.isEmpty()) {
+                            throw new ParsingException(valueSource, "Parameter [{}] cannot be an empty list", paramName);
+                        }
+
+                        boolean implicitMultiValue = matcher.isRegex() == false;
+
+                        // If the parameter is multi-value, implicitly cast to regex.
+                        // E.g. _foo={a,b} {label=?_foo} is treated as {label=~"\"a\"|\"b\""}.
+                        matcher = switch (matcher) {
+                            case EQ -> LabelMatcher.Matcher.REG;
+                            case NEQ -> LabelMatcher.Matcher.NREG;
+                            default -> matcher;
+                        };
+
+                        var sb = new StringBuilder(values.size() * 8);
+                        for (var item : values) {
+                            if (sb.isEmpty() == false) {
+                                sb.append('|');
+                            }
+                            sb.append(
+                                implicitMultiValue
+                                    ? PromqlParserUtils.quote(toStringValue(valueSource, paramName, item))
+                                    : toStringValue(valueSource, paramName, item)
+                            );
+                        }
+                        value = sb.toString();
+                    } else {
+                        value = toStringValue(valueSource, paramName, v);
+                    }
+                }
+
                 // __name__ with explicit matcher
                 if (NAME.equals(labelName)) {
                     if (identifierId) {
-                        throw new ParsingException(source(nameCtx), "Metric name must not be defined twice: [{}] or [{}]", id, labelValue);
+                        throw new ParsingException(source(nameCtx), "Metric name must not be defined twice: [{}] or [{}]", id, value);
                     }
                     // set id/series from first label-based name
                     if (id == null) {
-                        id = labelValue;
-                        series = new UnresolvedAttribute(valueCtx, id);
+                        id = value;
+                        series = new UnresolvedAttribute(valueSource, id);
                     }
                 }
 
                 // always add label matcher
-                LabelMatcher label = new LabelMatcher(labelName, labelValue, matcher);
+                LabelMatcher label = new LabelMatcher(labelName, value, matcher);
                 labels.add(label);
                 labelExpressions.add(new UnresolvedAttribute(source(nameCtx), labelName));
 
@@ -209,6 +266,21 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
         return range == Literal.NULL
             ? new InstantSelector(source, series, labelExpressions, matchers, evaluation)
             : new RangeSelector(source, series, labelExpressions, matchers, range, evaluation);
+    }
+
+    private static String toStringValue(Source source, String paramName, Object value) {
+        return switch (value) {
+            case String s -> s;
+            case Number n -> n.toString();
+            case Boolean b -> b.toString();
+            case null -> throw new ParsingException(source, "Parameter [{}] cannot be null", paramName);
+            default -> throw new ParsingException(
+                source,
+                "Parameter [{}] has invalid type [{}], expected string, number, or boolean",
+                paramName,
+                value.getClass().getSimpleName()
+            );
+        };
     }
 
     @Override

@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.parser.promql;
 
+import org.apache.lucene.util.automaton.Automaton;
+import org.apache.lucene.util.automaton.Operations;
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -184,5 +187,48 @@ public class PromqlParserUtilsTests extends ESTestCase {
         for (String value : values) {
             invalidString(quote("\\" + value), error);
         }
+    }
+
+    public void testLuceneRegExpQuoteSimple() {
+        String quoted = PromqlParserUtils.quote("cat");
+        assertEquals("cat", quoted);
+        Automaton a = new RegExp(quoted).toAutomaton();
+        assertTrue(Operations.run(a, "cat"));
+        assertFalse(Operations.run(a, "cat1"));
+    }
+
+    public void testLuceneRegExpQuoteWithMetachars() {
+        String quoted = PromqlParserUtils.quote("k8s.pod.name");
+        assertEquals("k8s\\.pod\\.name", quoted);
+        Automaton a = new RegExp(quoted).toAutomaton();
+        assertTrue(Operations.run(a, "k8s.pod.name"));
+        assertFalse(Operations.run(a, "k8sXpodXname"));
+    }
+
+    public void testLuceneRegExpQuoteMultiValue() {
+        String pattern = PromqlParserUtils.quote("cat") + "|" + PromqlParserUtils.quote("dog");
+        assertEquals("cat|dog", pattern);
+        Automaton a = new RegExp(pattern).toAutomaton();
+        assertTrue(Operations.run(a, "cat"));
+        assertTrue(Operations.run(a, "dog"));
+        assertFalse(Operations.run(a, "cat|dog"));
+    }
+
+    public void testLuceneRegExpQuoteEscapesPipe() {
+        String quoted = PromqlParserUtils.quote("a|b");
+        assertEquals("a\\|b", quoted);
+        Automaton a = new RegExp(quoted).toAutomaton();
+        assertTrue(Operations.run(a, "a|b"));
+        assertFalse(Operations.run(a, "a"));
+        assertFalse(Operations.run(a, "b"));
+    }
+
+    public void testPatternQuoteNotSupportedByLucene() {
+        // Pattern.quote uses \Q...\E which is NOT supported by Lucene RegExp
+        String javaQuoted = java.util.regex.Pattern.quote("k8s.pod.name");
+        assertEquals("\\Qk8s.pod.name\\E", javaQuoted);
+
+        // Lucene RegExp throws on \Q because Q is not a recognized escape sequence
+        expectThrows(IllegalArgumentException.class, () -> new RegExp(javaQuoted).toAutomaton());
     }
 }

@@ -174,7 +174,7 @@ class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
                 if (Thread.currentThread().isInterrupted() || isClosing()) {
                     return;
                 }
-                if (DLMConvertToFrozen.DLM_CREATED_SETTING.get(indexMetadata.getSettings()) == true) {
+                if (DLMConvertToFrozen.DLM_CREATED_SETTING.get(indexMetadata.getSettings())) {
                     continue;
                 }
                 if (indexMarkedForFrozen(indexMetadata) == false) {

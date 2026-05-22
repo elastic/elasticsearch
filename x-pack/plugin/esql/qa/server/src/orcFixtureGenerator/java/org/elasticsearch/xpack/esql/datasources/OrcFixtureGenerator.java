@@ -12,9 +12,11 @@ import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.fs.RawLocalFileSystem;
 import org.apache.hadoop.fs.permission.FsPermission;
 import org.apache.hadoop.hive.ql.exec.vector.BytesColumnVector;
+import org.apache.hadoop.hive.ql.exec.vector.ColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.DoubleColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.ListColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.LongColumnVector;
+import org.apache.hadoop.hive.ql.exec.vector.StructColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.TimestampColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
 import org.apache.orc.CompressionKind;
@@ -28,8 +30,12 @@ import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
+import java.util.Set;
 
 /**
  * Build-time generator for ORC fixture files. Converts CSV to ORC.
@@ -125,6 +131,23 @@ public final class OrcFixtureGenerator {
             .fileSystem(localFs)
             .compress(CompressionKind.NONE);
 
+        // Precompute per-column child-index paths (top-level fields have a 1-element path);
+        // used at write-time to navigate StructColumnVector.fields[]. Flat (literal-dot)
+        // columns resolve to a single top-level index even if their name contains dots.
+        boolean[] flatten = computeFlatten(columns);
+        int[][] columnVectorPaths = new int[columns.size()][];
+        for (int i = 0; i < columns.size(); i++) {
+            if (flatten[i]) {
+                int idx = schema.getFieldNames().indexOf(columns.get(i).name());
+                if (idx < 0) {
+                    throw new IllegalStateException("Could not locate flat column [" + columns.get(i).name() + "] in ORC schema");
+                }
+                columnVectorPaths[i] = new int[] { idx };
+            } else {
+                columnVectorPaths[i] = resolveVectorPath(schema, columns.get(i).name());
+            }
+        }
+
         try (Writer writer = OrcFile.createWriter(orcPath, writerOptions)) {
             VectorizedRowBatch batch = schema.createRowBatch(100);
             int[] listChildIndex = new int[columns.size()];
@@ -132,10 +155,11 @@ public final class OrcFixtureGenerator {
                 int r = batch.size++;
                 for (int i = 0; i < columns.size(); i++) {
                     Object value = i < row.length ? row[i] : null;
-                    setOrcValue(batch.cols[i], columns.get(i), isListColumn[i], r, value, listChildIndex, i);
+                    ColumnVector leaf = navigateToLeaf(batch, columnVectorPaths[i]);
+                    setOrcValue(leaf, columns.get(i), isListColumn[i], r, value, listChildIndex, i);
                 }
                 if (batch.size == batch.getMaxSize()) {
-                    setListChildCounts(batch, columns.size(), isListColumn, listChildIndex);
+                    setListChildCounts(batch, columns.size(), columnVectorPaths, isListColumn, listChildIndex);
                     writer.addRowBatch(batch);
                     batch.reset();
                     for (int i = 0; i < listChildIndex.length; i++) {
@@ -144,20 +168,116 @@ public final class OrcFixtureGenerator {
                 }
             }
             if (batch.size > 0) {
-                setListChildCounts(batch, columns.size(), isListColumn, listChildIndex);
+                setListChildCounts(batch, columns.size(), columnVectorPaths, isListColumn, listChildIndex);
                 writer.addRowBatch(batch);
             }
         }
     }
 
+    /**
+     * Resolves a dotted column name to the root-to-leaf path of child indices within the ORC schema.
+     * Traversal stops at the first non-STRUCT type, so LIST/MAP children are not descended into.
+     */
+    private static int[] resolveVectorPath(TypeDescription schema, String dottedName) {
+        String[] segments = dottedName.split("\\.");
+        int[] path = new int[segments.length];
+        TypeDescription current = schema;
+        for (int i = 0; i < segments.length; i++) {
+            if (current.getCategory() != TypeDescription.Category.STRUCT) {
+                throw new IllegalStateException(
+                    "Cannot resolve segment [" + segments[i] + "] of [" + dottedName + "]: parent is not a STRUCT"
+                );
+            }
+            List<String> names = current.getFieldNames();
+            path[i] = names.indexOf(segments[i]);
+            if (path[i] < 0) {
+                throw new IllegalStateException("Could not resolve segment [" + segments[i] + "] of [" + dottedName + "] in ORC schema");
+            }
+            current = current.getChildren().get(path[i]);
+        }
+        return path;
+    }
+
+    private static ColumnVector navigateToLeaf(VectorizedRowBatch batch, int[] path) {
+        ColumnVector vector = batch.cols[path[0]];
+        for (int i = 1; i < path.length; i++) {
+            vector = ((StructColumnVector) vector).fields[path[i]];
+        }
+        return vector;
+    }
+
+    /**
+     * Builds an ORC schema from the CSV columns. CSV headers containing a literal {@code .}
+     * (e.g. {@code event.action:STRING}) are interpreted as paths into nested STRUCT types —
+     * columns sharing a prefix are grouped under a single struct field, <b>unless</b> that
+     * prefix already exists as a separate top-level column in the same CSV (e.g.
+     * {@code languages} + {@code languages.long}). In that case the dotted children remain
+     * flat to preserve backward compatibility with existing fixtures.
+     */
     private static TypeDescription buildSchema(List<CsvFixtureParser.ColumnSpec> columns, boolean[] isListColumn) {
-        TypeDescription struct = TypeDescription.createStruct();
+        boolean[] flatten = computeFlatten(columns);
+        SchemaNode root = new SchemaNode();
         for (int i = 0; i < columns.size(); i++) {
-            CsvFixtureParser.ColumnSpec col = columns.get(i);
-            TypeDescription type = isListColumn[i] ? orcListTypeFor(col.type()) : orcScalarTypeFor(col.type());
-            struct.addField(col.name(), type);
+            if (flatten[i]) {
+                SchemaNode leaf = new SchemaNode();
+                leaf.columnIndex = i;
+                root.children.put(columns.get(i).name(), leaf);
+                continue;
+            }
+            String[] segments = columns.get(i).name().split("\\.");
+            SchemaNode current = root;
+            for (int s = 0; s < segments.length - 1; s++) {
+                current = current.children.computeIfAbsent(segments[s], k -> new SchemaNode());
+            }
+            SchemaNode leaf = new SchemaNode();
+            leaf.columnIndex = i;
+            current.children.put(segments[segments.length - 1], leaf);
+        }
+        TypeDescription struct = TypeDescription.createStruct();
+        for (Map.Entry<String, SchemaNode> e : root.children.entrySet()) {
+            struct.addField(e.getKey(), buildType(e.getValue(), columns, isListColumn));
         }
         return struct;
+    }
+
+    /** See {@code ParquetFixtureGenerator.computeFlatten}; same rule applied for ORC. */
+    static boolean[] computeFlatten(List<CsvFixtureParser.ColumnSpec> columns) {
+        Set<String> names = new HashSet<>();
+        for (CsvFixtureParser.ColumnSpec c : columns) {
+            names.add(c.name());
+        }
+        boolean[] flatten = new boolean[columns.size()];
+        for (int i = 0; i < columns.size(); i++) {
+            String name = columns.get(i).name();
+            int dot = name.indexOf('.');
+            while (dot > 0) {
+                if (names.contains(name.substring(0, dot))) {
+                    flatten[i] = true;
+                    break;
+                }
+                dot = name.indexOf('.', dot + 1);
+            }
+        }
+        return flatten;
+    }
+
+    private static TypeDescription buildType(SchemaNode node, List<CsvFixtureParser.ColumnSpec> columns, boolean[] isListColumn) {
+        if (node.columnIndex >= 0) {
+            int i = node.columnIndex;
+            CsvFixtureParser.ColumnSpec col = columns.get(i);
+            return isListColumn[i] ? orcListTypeFor(col.type()) : orcScalarTypeFor(col.type());
+        }
+        TypeDescription struct = TypeDescription.createStruct();
+        for (Map.Entry<String, SchemaNode> e : node.children.entrySet()) {
+            struct.addField(e.getKey(), buildType(e.getValue(), columns, isListColumn));
+        }
+        return struct;
+    }
+
+    /** Trie node for grouping dotted CSV columns into nested ORC struct fields. */
+    private static final class SchemaNode {
+        int columnIndex = -1;
+        final LinkedHashMap<String, SchemaNode> children = new LinkedHashMap<>();
     }
 
     private static TypeDescription orcListTypeFor(String type) {
@@ -302,10 +422,16 @@ public final class OrcFixtureGenerator {
         }
     }
 
-    private static void setListChildCounts(VectorizedRowBatch batch, int columnCount, boolean[] isListColumn, int[] listChildIndex) {
+    private static void setListChildCounts(
+        VectorizedRowBatch batch,
+        int columnCount,
+        int[][] columnVectorPaths,
+        boolean[] isListColumn,
+        int[] listChildIndex
+    ) {
         for (int i = 0; i < columnCount; i++) {
             if (isListColumn[i]) {
-                ListColumnVector listCol = (ListColumnVector) batch.cols[i];
+                ListColumnVector listCol = (ListColumnVector) navigateToLeaf(batch, columnVectorPaths[i]);
                 listCol.childCount = listChildIndex[i];
                 if (listCol.child instanceof BytesColumnVector b) {
                     for (int j = 0; j < listChildIndex[i]; j++) {

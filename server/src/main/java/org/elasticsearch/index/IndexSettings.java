@@ -870,7 +870,33 @@ public final class IndexSettings {
             return indexMode.defaultSourceMode().name();
         },
         "index.mapping.source.mode",
-        value -> {},
+        new Setting.Validator<SourceFieldMapper.Mode>() {
+            @Override
+            public void validate(SourceFieldMapper.Mode value) {}
+
+            @Override
+            public void validate(SourceFieldMapper.Mode value, Map<Setting<?>, Object> settings) {
+                if (value == SourceFieldMapper.Mode.COLUMNAR_STORED) {
+                    var indexMode = (IndexMode) settings.get(MODE);
+                    if (indexMode.isStrictColumnar() == false) {
+                        throw new IllegalArgumentException(
+                            String.format(
+                                Locale.ROOT,
+                                "Source mode [%s] requires a columnar index mode, but [%s] is [%s].",
+                                value,
+                                MODE.getKey(),
+                                indexMode
+                            )
+                        );
+                    }
+                }
+            }
+
+            @Override
+            public Iterator<Setting<?>> settings() {
+                return List.<Setting<?>>of(MODE).iterator();
+            }
+        },
         Setting.Property.Final,
         Setting.Property.IndexScope,
         Setting.Property.ServerlessPublic

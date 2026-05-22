@@ -666,11 +666,15 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
 
         logger.info("--> create test index with case-preserving search analyzer");
 
+        // TODO: I think LuceneChangesSnapshot shouldn't rely on settings / mappings to know the id is columnar
+        // (this test removes all index setting upon restore)
+        // TODO: remove
         Settings.Builder indexSettings = Settings.builder()
             .put(indexSettings())
             .put(SETTING_NUMBER_OF_REPLICAS, between(0, 1))
             .put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), "10s")
             .put("index.analysis.analyzer.my_analyzer.type", "custom")
+            .put("index.skip.random_columnar_mode", true)
             .put("index.analysis.analyzer.my_analyzer.tokenizer", "standard");
 
         assertAcked(prepareCreate("test-idx", 2, indexSettings));
@@ -699,12 +703,10 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         logger.info("--> delete the index and recreate it while changing refresh interval and analyzer");
         cluster().wipeIndices("test-idx");
 
+        // TODO: this why LuceneChangesSnapshot needs to be updated to figure out whether columnar id is used from looking at FieldsInfo
         Settings newIndexSettings = Settings.builder()
             .put("refresh_interval", "5s")
             .put("index.analysis.analyzer.my_analyzer.type", "standard")
-            // TODO: I think LuceneChangesSnapshot shouldn't rely on settings / mappings to know the id is columnar
-            // (this test removes all index setting upon restore)
-            .put("index.mapping.use_colulmnar_id_mode_by_default", true)
             .build();
 
         Settings newIncorrectIndexSettings = Settings.builder()

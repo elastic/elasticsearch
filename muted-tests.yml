@@ -570,3 +570,6 @@ tests:
 - class: org.elasticsearch.http.netty4.Netty4ChunkedEncodingIT
   method: testClientCancellation
   issue: https://github.com/elastic/elasticsearch/issues/149675
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:SUBQUERIES}
+  issue: https://github.com/elastic/elasticsearch/issues/149681

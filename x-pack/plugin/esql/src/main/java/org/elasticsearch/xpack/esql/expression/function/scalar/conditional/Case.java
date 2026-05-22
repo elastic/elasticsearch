@@ -384,7 +384,7 @@ public final class Case extends EsqlScalarFunction {
              */
             case 1 -> {
                 Expression child = newChildren.getFirst();
-                if (child.dataType() == NULL) {
+                if (child.dataType() == NULL && dataType() != NULL) {
                     yield new Literal(child.source(), null, dataType());
                 }
                 yield child;

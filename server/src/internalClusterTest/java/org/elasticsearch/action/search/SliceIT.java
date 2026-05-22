@@ -20,7 +20,6 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
-import static org.elasticsearch.test.index.IndexVersionUtils.randomVersionBetween;
 import static org.elasticsearch.test.index.IndexVersionUtils.randomVersionOnOrAfter;
 import static org.hamcrest.Matchers.equalTo;
 

@@ -348,7 +348,7 @@ public class S3HttpHandler implements HttpHandler {
         return blobs;
     }
 
-    private static final Pattern chunkSignaturePattern = Pattern.compile("^([0-9a-z]+);chunk-signature=([^\\r\\n]*)$");
+    private static final Pattern chunkSignaturePattern = Pattern.compile("^([0-9a-fA-F]+)(;chunk-signature=[^\\r\\n]*)?$");
 
     private static Tuple<String, BytesReference> parseRequestBody(final HttpExchange exchange) throws IOException {
         try {
@@ -403,6 +403,11 @@ public class S3HttpHandler implements HttpHandler {
             }
             final int chunkSize = Integer.parseUnsignedInt(matcher.group(1), 16);
 
+            if (chunkSize == 0) {
+                // ignore any trailers (e.g. checksum)
+                break;
+            }
+
             final int chunkTerminatorIndex = headerLength + chunkSize;
             if (chunkTerminatorIndex + 2 > encodedRequestBody.length()
                 || encodedRequestBody.get(chunkTerminatorIndex) != '\r'
@@ -410,16 +415,10 @@ public class S3HttpHandler implements HttpHandler {
                 throw new IllegalStateException("chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
             }
 
-            if (chunkSize != 0) {
-                chunks.add(encodedRequestBody.slice(headerLength, chunkSize));
-            }
+            chunks.add(encodedRequestBody.slice(headerLength, chunkSize));
 
             final int toSkip = headerLength + chunkSize + 2;
             encodedRequestBody = encodedRequestBody.slice(toSkip, encodedRequestBody.length() - toSkip);
-
-            if (chunkSize == 0) {
-                break;
-            }
         }
 
         final BytesReference decodedRequestBody = CompositeBytesReference.of(chunks.toArray(new BytesReference[0]));

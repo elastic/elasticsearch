@@ -177,8 +177,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             AggregatorMode.SINGLE,
             aggregatorFactories,
             10_000,
-            fiveMinBucket,
-            false
+            fiveMinBucket
         );
 
         BlockFactory blockFactory = blockFactory();
@@ -260,8 +259,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
             AggregatorMode.SINGLE,
             aggregatorFactories,
             10_000,
-            fiveMinBucket,
-            false
+            fiveMinBucket
         );
 
         BlockFactory blockFactory = blockFactory();
@@ -369,8 +367,7 @@ public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
                 )
             ),
             10_000,
-            outputBucket,
-            false
+            outputBucket
         );
 
         BlockFactory bf = blockFactory();

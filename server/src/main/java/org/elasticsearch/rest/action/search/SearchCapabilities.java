@@ -58,6 +58,8 @@ public final class SearchCapabilities {
     private static final String KNN_FILTER_ON_NESTED_FIELDS_CAPABILITY = "knn_filter_on_nested_fields";
     private static final String BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR = "bucket_script_parent_multi_bucket_error";
     private static final String PIPELINE_AGGS_PARENT_MULTI_BUCKET_ERROR = "pipeline_aggs_parent_multi_bucket_error";
+    /** Treat unresolvable bucket_sort paths as missing values controlled by gap_policy instead of NPE'ing. */
+    private static final String BUCKET_SORT_NULL_HANDLES_MISSING_BUCKET = "bucket_sort_null_handles_missing_bucket";
     private static final String EXCLUDE_SOURCE_VECTORS_SETTING = "exclude_source_vectors_setting";
     private static final String CLUSTER_STATS_EXTENDED_USAGE = "extended-search-usage-stats";
     private static final String REJECT_INVALID_REVERSE_NESTING = "reject_invalid_reverse_nesting";
@@ -93,6 +95,7 @@ public final class SearchCapabilities {
         capabilities.add(KNN_FILTER_ON_NESTED_FIELDS_CAPABILITY);
         capabilities.add(BUCKET_SCRIPT_PARENT_MULTI_BUCKET_ERROR);
         capabilities.add(PIPELINE_AGGS_PARENT_MULTI_BUCKET_ERROR);
+        capabilities.add(BUCKET_SORT_NULL_HANDLES_MISSING_BUCKET);
         capabilities.add(EXCLUDE_SOURCE_VECTORS_SETTING);
         capabilities.add(CLUSTER_STATS_EXTENDED_USAGE);
         capabilities.add(REJECT_INVALID_REVERSE_NESTING);

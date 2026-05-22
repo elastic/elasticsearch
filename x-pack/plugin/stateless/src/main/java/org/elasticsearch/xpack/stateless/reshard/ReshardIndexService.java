@@ -32,6 +32,7 @@ import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -337,7 +338,7 @@ public class ReshardIndexService {
                         // the delete operation first.
                         // If the refresh fails, this operation will fail and higher level retry will restart at the delete step.
                         logger.debug("flushed unowned document delete for shard {}, waiting for refresh", shardId);
-                        final var refreshRequest = new BasicReplicationRequest(shardId);
+                        final var refreshRequest = new BasicReplicationRequest(shardId, SplitShardCountSummary.UNSET);
                         client.executeLocally(
                             TransportShardRefreshAction.TYPE,
                             refreshRequest,

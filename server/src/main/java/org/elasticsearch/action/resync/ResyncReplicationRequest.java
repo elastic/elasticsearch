@@ -9,6 +9,7 @@
 package org.elasticsearch.action.resync;
 
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.shard.ShardId;
@@ -43,7 +44,7 @@ public final class ResyncReplicationRequest extends ReplicatedWriteRequest<Resyn
         final long maxSeenAutoIdTimestampOnPrimary,
         final Translog.Operation[] operations
     ) {
-        super(shardId);
+        super(shardId, SplitShardCountSummary.UNSET);
         this.trimAboveSeqNo = trimAboveSeqNo;
         this.maxSeenAutoIdTimestampOnPrimary = maxSeenAutoIdTimestampOnPrimary;
         this.operations = operations;

@@ -70,11 +70,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     private long routedBasedOnClusterVersion = 0;
 
     public ReplicationRequest(StreamInput in) throws IOException {
-        this(null, in);
-    }
-
-    public ReplicationRequest(@Nullable ShardId shardId, StreamInput in) throws IOException {
-        this(shardId, SplitShardCountSummary.UNSET, in);
+        this(null, SplitShardCountSummary.UNSET, in);
     }
 
     public ReplicationRequest(@Nullable ShardId shardId, SplitShardCountSummary splitShardCountSummary, StreamInput in) throws IOException {
@@ -108,13 +104,6 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
                 this.splitShardCountSummary = SplitShardCountSummary.UNSET;
             }
         }
-    }
-
-    /**
-     * Creates a new request with resolved shard id
-     */
-    public ReplicationRequest(@Nullable ShardId shardId) {
-        this(shardId, SplitShardCountSummary.UNSET);
     }
 
     /**

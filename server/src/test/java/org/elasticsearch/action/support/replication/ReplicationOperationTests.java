@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -623,7 +624,7 @@ public class ReplicationOperationTests extends ESTestCase {
         public Set<ShardRouting> processedOnReplicas = ConcurrentCollections.newConcurrentSet();
 
         Request(ShardId shardId) {
-            super(shardId);
+            super(shardId, SplitShardCountSummary.UNSET);
             this.index = shardId.getIndexName();
             this.waitForActiveShards = ActiveShardCount.NONE;
             // keep things simple

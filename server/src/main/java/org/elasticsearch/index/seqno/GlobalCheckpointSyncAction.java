@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -111,7 +112,7 @@ public class GlobalCheckpointSyncAction extends TransportReplicationAction<
         }
 
         public Request(final ShardId shardId) {
-            super(shardId);
+            super(shardId, SplitShardCountSummary.UNSET);
         }
 
         @Override

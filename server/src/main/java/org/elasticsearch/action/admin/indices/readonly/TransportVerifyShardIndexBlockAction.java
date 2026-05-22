@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -184,7 +185,7 @@ public class TransportVerifyShardIndexBlockAction extends TransportReplicationAc
         }
 
         public ShardRequest(final ShardId shardId, final ClusterBlock clusterBlock, boolean phase1, final TaskId parentTaskId) {
-            super(shardId);
+            super(shardId, SplitShardCountSummary.UNSET);
             this.clusterBlock = Objects.requireNonNull(clusterBlock);
             this.phase1 = phase1;
             setParentTask(parentTaskId);

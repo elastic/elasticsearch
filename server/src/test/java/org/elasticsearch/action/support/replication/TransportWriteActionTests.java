@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -594,7 +595,7 @@ public class TransportWriteActionTests extends ESTestCase {
         }
 
         TestRequest() {
-            super(new ShardId("test", "test", 1));
+            super(new ShardId("test", "test", 1), SplitShardCountSummary.UNSET);
         }
 
         @Override

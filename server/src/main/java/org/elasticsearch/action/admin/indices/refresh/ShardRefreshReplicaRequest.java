@@ -10,6 +10,7 @@
 package org.elasticsearch.action.admin.indices.refresh;
 
 import org.elasticsearch.action.support.replication.ReplicationRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.ShardId;
@@ -35,7 +36,7 @@ public class ShardRefreshReplicaRequest extends ReplicationRequest<ShardRefreshR
     }
 
     public ShardRefreshReplicaRequest(ShardId shardId, Engine.RefreshResult primaryRefreshResult) {
-        super(shardId);
+        super(shardId, SplitShardCountSummary.UNSET);
         this.primaryRefreshResult = primaryRefreshResult;
     }
 

@@ -43,6 +43,7 @@ import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -892,6 +893,55 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
             assertFalse(iterator.hasNext());
         }
+    }
+
+    /**
+     * Regression: attribute nullability must reflect Parquet repetition.
+     * <ul>
+     *   <li>{@code REQUIRED} top-level fields → {@link Nullability#FALSE} (schema-level non-null guarantee).</li>
+     *   <li>{@code OPTIONAL} fields and {@code optionalList()} → {@link Nullability#TRUE} (the cell itself can be absent).</li>
+     *   <li>Top-level {@code REPEATED} primitives (the legacy un-annotated list form) → {@link Nullability#TRUE}.</li>
+     *   <li>{@code requiredList()} → {@link Nullability#FALSE} (the list group must be present, even though its
+     *       elements can be null — element-level nullability is not modelled at the attribute level).</li>
+     * </ul>
+     * A wrong default would let downstream planner rules (e.g. {@code COALESCE} simplification, {@code IS NULL}
+     * rewriting, {@code FoldNull}) drop legitimate null rows for {@code OPTIONAL} columns.
+     */
+    public void testSchemaAttributeNullabilityReflectsRepetition() throws Exception {
+        Type requiredList = Types.requiredList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("required_tags");
+        Type optionalList = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("optional_tags");
+
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("req_id")
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("opt_id")
+            .repeated(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("rep_value")
+            .addField(requiredList)
+            .addField(optionalList)
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> List.of());
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        List<Attribute> attributes = reader.metadata(storageObject).schema();
+        assertEquals(5, attributes.size());
+
+        assertNullability(attributes, "req_id", Nullability.FALSE);
+        assertNullability(attributes, "opt_id", Nullability.TRUE);
+        assertNullability(attributes, "rep_value", Nullability.TRUE);
+        assertNullability(attributes, "required_tags", Nullability.FALSE);
+        assertNullability(attributes, "optional_tags", Nullability.TRUE);
+    }
+
+    private static void assertNullability(List<Attribute> attributes, String name, Nullability expected) {
+        Attribute attr = attributes.stream()
+            .filter(a -> a.name().equals(name))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("attribute [" + name + "] not found"));
+        assertEquals("attribute [" + name + "]", expected, attr.nullable());
     }
 
     public void testReadOptionalLongWithNulls() throws Exception {

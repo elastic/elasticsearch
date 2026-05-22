@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.ParquetReadOptions;
-import org.apache.parquet.bytes.HeapByteBufferAllocator;
+import org.apache.parquet.bytes.DirectByteBufferAllocator;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
@@ -44,6 +44,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -281,7 +282,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // Note: all read operations happen synchronously with the ESQL engine. If some operations
         // change to be async, we'll have to unwrap the breaker if it's a LocalBreaker.
         var breaker = blockFactory.breaker();
-        var allocator = new CircuitBreakerByteBufferAllocator(new HeapByteBufferAllocator(), breaker);
+        var allocator = new CircuitBreakerByteBufferAllocator(new DirectByteBufferAllocator(), breaker);
         return PlainParquetReadOptions.builder(codecFactory).withAllocator(allocator);
     }
 
@@ -1174,9 +1175,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // The deferred-extraction synthetic column has no presence in the file's schema;
                 // the iterator materialises it. We must give it a real {@link DataType#LONG} so
                 // {@link #buildColumnInfos} routes it to {@link ColumnInfo#rowPosition()} instead
-                // of skipping it as an absent column.
-                DataType type = ColumnExtractor.ROW_POSITION_COLUMN.equals(columnName) ? DataType.LONG : DataType.NULL;
-                attr = new ReferenceAttribute(Source.EMPTY, columnName, type);
+                // of skipping it as an absent column. The row-position column is always materialised
+                // (non-nullable); an absent file column is always null at runtime (nullable).
+                boolean isRowPosition = ColumnExtractor.ROW_POSITION_COLUMN.equals(columnName);
+                DataType type = isRowPosition ? DataType.LONG : DataType.NULL;
+                Nullability nullability = isRowPosition ? Nullability.FALSE : Nullability.TRUE;
+                attr = new ReferenceAttribute(Source.EMPTY, null, columnName, type, nullability, null, false);
             }
             result.add(attr);
         }
@@ -1222,6 +1226,16 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return dot < 0 ? attrName : attrName.substring(0, dot);
     }
 
+    /**
+     * Derive attribute nullability from Parquet repetition: only top-level {@link Type.Repetition#REQUIRED} fields carry a
+     * schema-level non-null guarantee. Everything else ({@link Type.Repetition#OPTIONAL} and the legacy top-level
+     * {@link Type.Repetition#REPEATED}) is nullable from the planner's perspective. Note this is the cell-level guarantee
+     * for the column attribute; element-level nullability inside a {@code LIST} group is independent and not modelled here.
+     * <p>
+     * Defaulting everything to non-nullable — as the 3-arg {@link ReferenceAttribute} constructor does — would cause
+     * planner rules (e.g. {@code COALESCE} simplification, {@code IS NULL}/{@code IS NOT NULL} rewriting) to drop legitimate
+     * null rows for {@code OPTIONAL} columns.
+     */
     private List<Attribute> convertParquetSchemaToAttributes(MessageType schema) {
         List<Attribute> attributes = new ArrayList<>();
         for (Type field : schema.getFields()) {
@@ -1239,13 +1253,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     private static void collectLeafAttributes(Type field, String prefix, List<Attribute> result) {
         String name = prefix.isEmpty() ? field.getName() : prefix + "." + field.getName();
         if (field.isPrimitive()) {
-            result.add(new ReferenceAttribute(Source.EMPTY, name, convertParquetTypeToEsql(field)));
+            Nullability nullability = field.isRepetition(Type.Repetition.REQUIRED) ? Nullability.FALSE : Nullability.TRUE;
+            result.add(new ReferenceAttribute(Source.EMPTY, null, name, convertParquetTypeToEsql(field), nullability, null, false));
         } else {
             GroupType group = field.asGroupType();
             LogicalTypeAnnotation logical = group.getLogicalTypeAnnotation();
             if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation
                 || logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation) {
-                result.add(new ReferenceAttribute(Source.EMPTY, name, convertGroupTypeToEsql(group)));
+                Nullability nullability = field.isRepetition(Type.Repetition.REQUIRED) ? Nullability.FALSE : Nullability.TRUE;
+                result.add(new ReferenceAttribute(Source.EMPTY, null, name, convertGroupTypeToEsql(group), nullability, null, false));
             } else {
                 for (Type child : group.getFields()) {
                     collectLeafAttributes(child, name, result);

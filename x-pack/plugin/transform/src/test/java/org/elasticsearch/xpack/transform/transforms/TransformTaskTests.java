@@ -878,6 +878,7 @@ public class TransformTaskTests extends ESTestCase {
     }
 
     public void testRefreshFromStoreAlwaysQueuesPending() {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         // refreshFromStore always queues the new credential as pending — never swaps the active
         // synchronously — to avoid racing with an indexer thread that may capture the active
         // credential via wrappedClient() in the window between state observation and revoke.
@@ -904,6 +905,7 @@ public class TransformTaskTests extends ESTestCase {
     }
 
     public void testRefreshFromStoreRevokesDisplacedPendingOnDoubleUpdate() {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         // user submits two _update calls in quick succession; the indexer is mid-checkpoint and never
         // promotes the first pending — refresh must revoke the displaced pending and queue the new one.
         var transformId = "test-refresh-double-update";

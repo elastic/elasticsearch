@@ -12,6 +12,7 @@ package org.elasticsearch.search.basic;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
+import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
@@ -31,10 +32,8 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.instanceOf;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, minNumDataNodes = 3)
 public class SearchDuringRollingRestartIT extends ESIntegTestCase {
@@ -117,6 +116,9 @@ public class SearchDuringRollingRestartIT extends ESIntegTestCase {
                 }
                 runAndVerify(search, docCount, size);
             } catch (Throwable e) {
+                if (isExpectedRollingRestartFailure(e)) {
+                    continue;
+                }
                 firstFailure.compareAndSet(null, e);
                 return;
             }
@@ -136,7 +138,10 @@ public class SearchDuringRollingRestartIT extends ESIntegTestCase {
                 assertThat(response.getHits().getTotalHits().value(), equalTo((long) expectedTotalHits));
             } else {
                 for (ShardSearchFailure shardFailure : response.getShardFailures()) {
-                    assertExpectedRollingRestartFailure(shardFailure);
+                    assertTrue(
+                        "unexpected shard failure during rolling restart: " + shardFailure,
+                        isExpectedRollingRestartCause(shardFailure.getCause())
+                    );
                 }
             }
         } finally {
@@ -144,15 +149,24 @@ public class SearchDuringRollingRestartIT extends ESIntegTestCase {
         }
     }
 
-    private static void assertExpectedRollingRestartFailure(ShardSearchFailure shardFailure) {
-        assertThat(
-            "shard failure during rolling restart: " + shardFailure,
-            ExceptionsHelper.unwrapCause(shardFailure.getCause()),
-            anyOf(
-                instanceOf(ConnectTransportException.class),
-                instanceOf(SearchContextMissingException.class),
-                instanceOf(NoShardAvailableActionException.class)
-            )
-        );
+    private static boolean isExpectedRollingRestartFailure(Throwable e) {
+        if (e instanceof SearchPhaseExecutionException spee && spee.shardFailures().length > 0) {
+            for (ShardSearchFailure shardFailure : spee.shardFailures()) {
+                if (isExpectedRollingRestartCause(shardFailure.getCause()) == false) {
+                    return false;
+                }
+            }
+            return true;
+        }
+        return isExpectedRollingRestartCause(e);
+    }
+
+    private static boolean isExpectedRollingRestartCause(Throwable cause) {
+        return ExceptionsHelper.unwrap(
+            cause,
+            ConnectTransportException.class,
+            SearchContextMissingException.class,
+            NoShardAvailableActionException.class
+        ) != null;
     }
 }

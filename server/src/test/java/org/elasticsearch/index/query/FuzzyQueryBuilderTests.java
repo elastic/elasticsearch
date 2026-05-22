@@ -22,6 +22,7 @@ import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchParseException;
@@ -399,6 +400,59 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         }
     }
 
+    public void testFuzzyQueryEndToEndSearchHonorsOncePerPhaseAccounting() throws IOException {
+        CircuitBreaker cb = createCircuitBreakerService();
+        SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
+        try {
+            long cbBaseline = cb.getUsed();
+            Query query = new FuzzyQueryBuilder(TEXT_FIELD_NAME, "value").toQuery(context);
+            long chargedAfterConstruction = context.getQueryConstructionMemoryUsed();
+            assertTrue("a fuzzy clause must charge the breaker via the once-per-phase visitor walk", chargedAfterConstruction > 0);
+            assertEquals(
+                "breaker delta must equal the visitor's committed total after construction",
+                chargedAfterConstruction,
+                cb.getUsed() - cbBaseline
+            );
+
+            try (Directory dir = new ByteBuffersDirectory()) {
+                try (IndexWriter w = new IndexWriter(dir, new IndexWriterConfig(new StandardAnalyzer()))) {
+                    addStringDoc(w, "value");            // 0 edits — exact match
+                    addStringDoc(w, "vlaue");            // 1 Damerau-Levenshtein edit (a↔l transposition)
+                    addStringDoc(w, "totallydifferent"); // well beyond Fuzziness.AUTO's 1-edit budget for "value"
+                }
+                try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                    IndexSearcher searcher = new IndexSearcher(reader);
+                    TopDocs topDocs = searcher.search(query, 10);
+                    assertEquals(
+                        "fuzzy search must return the exact match and the 1-edit transposition neighbour, "
+                            + "and must not return the unrelated doc",
+                        2L,
+                        topDocs.totalHits.value()
+                    );
+                }
+            }
+
+            assertEquals(
+                "end-to-end search execution must not add any further breaker charges — all charging is upfront",
+                chargedAfterConstruction,
+                context.getQueryConstructionMemoryUsed()
+            );
+            assertEquals(
+                "end-to-end search execution must not move the breaker counter beyond the construction commit",
+                chargedAfterConstruction,
+                cb.getUsed() - cbBaseline
+            );
+        } finally {
+            context.releaseQueryConstructionMemory();
+        }
+    }
+
+    private static void addStringDoc(IndexWriter w, String value) throws IOException {
+        Document doc = new Document();
+        doc.add(new StringField(TEXT_FIELD_NAME, value, Field.Store.NO));
+        w.addDocument(doc);
+    }
+
     public void testFuzzyConstructionMemoryReleasedOnRelease() throws IOException {
         CircuitBreaker cb = createCircuitBreakerService();
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
@@ -452,12 +506,12 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         );
     }
 
-    public void testFieldTypeFuzzyQueryChargesUpfront() throws IOException {
-        assertFieldTypeFuzzyChargesUpfront(null);
+    public void testFieldTypeFuzzyQueryDoesNotChargeBreakerDirectly() throws IOException {
+        assertFieldTypeFuzzyDoesNotChargeDirectly(null);
     }
 
-    public void testFieldTypeFuzzyQueryWithUserRewriteChargesUpfront() throws IOException {
-        assertFieldTypeFuzzyChargesUpfront(MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE);
+    public void testFieldTypeFuzzyQueryWithUserRewriteDoesNotChargeBreakerDirectly() throws IOException {
+        assertFieldTypeFuzzyDoesNotChargeDirectly(MultiTermQuery.CONSTANT_SCORE_BOOLEAN_REWRITE);
     }
 
     private long costEstimateFor(String value, Fuzziness fuzziness, int prefixLength) throws IOException {
@@ -473,11 +527,12 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
         }
     }
 
-    private void assertFieldTypeFuzzyChargesUpfront(MultiTermQuery.RewriteMethod rewriteMethod) throws IOException {
+    private void assertFieldTypeFuzzyDoesNotChargeDirectly(MultiTermQuery.RewriteMethod rewriteMethod) throws IOException {
         CircuitBreaker cb = createCircuitBreakerService();
         SearchExecutionContext context = new SearchExecutionContext(createSearchExecutionContext(), cb);
         try {
             long cbBefore = cb.getUsed();
+            long tallyBefore = context.getQueryConstructionMemoryUsed();
             FuzzyQuery query = (FuzzyQuery) context.getFieldType(TEXT_FIELD_NAME)
                 .fuzzyQuery("value", Fuzziness.fromEdits(2), 1, 50, true, context, rewriteMethod);
 
@@ -485,18 +540,21 @@ public class FuzzyQueryBuilderTests extends AbstractQueryTestCase<FuzzyQueryBuil
             if (rewriteMethod != null) {
                 assertSame("user-supplied rewrite must be preserved on the query", rewriteMethod, query.getRewriteMethod());
             }
-            long fieldTypeBytes = FuzzyQueries.queryRamBytes(query);
-            long totalCharged = context.getQueryConstructionMemoryUsed();
-            long costEstimate = totalCharged - fieldTypeBytes;
             assertTrue(
-                "field-type fuzzy() must charge the query object's retained heap for parsers that bypass LeafQueryBuilder",
-                fieldTypeBytes > 0
+                "the produced query must still have a non-zero retained-heap estimate, even though "
+                    + "fieldType.fuzzyQuery() no longer charges the breaker itself",
+                FuzzyQueries.estimateBytes(query) > 0
             );
-            assertTrue("cost estimate must be charged upfront", costEstimate > 0);
             assertEquals(
-                "circuit breaker delta must equal the sum of field-type and cost-estimate charges",
-                totalCharged,
-                cb.getUsed() - cbBefore
+                "fieldType.fuzzyQuery() must not commit to the request circuit breaker; the visitor "
+                    + "walk in AbstractQueryBuilder#toQuery charges once per phase via FuzzyQueries.estimateBytes",
+                cbBefore,
+                cb.getUsed()
+            );
+            assertEquals(
+                "fieldType.fuzzyQuery() must not touch the per-request query-construction tally",
+                tallyBefore,
+                context.getQueryConstructionMemoryUsed()
             );
         } finally {
             context.releaseQueryConstructionMemory();

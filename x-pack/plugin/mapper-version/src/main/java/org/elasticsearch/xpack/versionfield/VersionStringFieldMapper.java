@@ -55,7 +55,6 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromOrdsBlockLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.support.CoreValuesSourceType;
 import org.elasticsearch.xcontent.XContentParser;
@@ -283,7 +282,6 @@ public class VersionStringFieldMapper extends FieldMapper {
                     };
                 }
             };
-            FuzzyQueries.chargeQuery(query, context, name());
             return query;
         }
 

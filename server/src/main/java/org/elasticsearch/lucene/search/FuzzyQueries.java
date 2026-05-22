@@ -21,19 +21,25 @@ import org.elasticsearch.lucene.search.cost.FuzzyQueryCostEstimator;
 import java.util.BitSet;
 
 /**
- * Factory for {@link FuzzyQuery} that charges the request circuit breaker for both the query
- * object's RAM (constant per-clause cost) and a parameter-driven estimate from
- * {@link FuzzyQueryCostEstimator} (dynamic cost driven by term length, edit distance, etc.).
+ * Factory for {@link FuzzyQuery}. This class does not touch the request circuit breaker; the
+ * retained {@link #queryRamBytes(FuzzyQuery)} and the parameter-driven
+ * {@link FuzzyQueryCostEstimator} estimate are accumulated by {@code MaxClauseCountQueryVisitor}
+ * during the once-per-phase walk in {@code AbstractQueryBuilder#toQuery}, alongside prefix,
+ * wildcard, regexp, and range queries. Use {@link #estimateBytes(FuzzyQuery)} when accounting
+ * outside that walk (e.g. ad-hoc field-type callers) needs the same total.
  */
 public final class FuzzyQueries {
 
     private FuzzyQueries() {}
 
     /**
-     * Build a {@link FuzzyQuery} and charge the circuit breaker on {@code context}.
+     * Build a {@link FuzzyQuery}. Circuit-breaker accounting is performed by
+     * {@code MaxClauseCountQueryVisitor} during the {@code AbstractQueryBuilder#toQuery} walk;
+     * the {@code context} parameter is retained for backwards compatibility with callers that
+     * also pass it to other parameter-driven query factories.
      *
      * @param rewriteMethod optional; defaults to {@link FuzzyQuery#defaultRewriteMethod(int)}
-     * @param context       may be {@code null} (no charging)
+     * @param context       may be {@code null}; unused for charging — see class javadoc.
      */
     public static FuzzyQuery create(
         Term term,
@@ -48,27 +54,19 @@ public final class FuzzyQueries {
         MultiTermQuery.RewriteMethod effectiveRewrite = rewriteMethod != null
             ? rewriteMethod
             : FuzzyQuery.defaultRewriteMethod(maxExpansions);
-        FuzzyQuery query = new FuzzyQuery(term, maxEdits, prefixLength, maxExpansions, transpositions, effectiveRewrite);
-        chargeQuery(query, context, fieldLabel);
-        return query;
+        return new FuzzyQuery(term, maxEdits, prefixLength, maxExpansions, transpositions, effectiveRewrite);
     }
 
     /**
-     * Charge the circuit breaker for an already-constructed {@link FuzzyQuery}: the query
-     * object's bytes plus the parameter-driven cost estimate. No-op when {@code context} or its
-     * breaker is {@code null}.
+     * Total bytes the request circuit breaker should be charged for {@code query}: the retained
+     * RAM of the query object plus the parameter-driven {@link FuzzyQueryCostEstimator} estimate.
+     * Used by {@code MaxClauseCountQueryVisitor} for fuzzy clauses during the once-per-phase walk.
      */
-    public static void chargeQuery(FuzzyQuery query, @Nullable SearchExecutionContext context, String fieldLabel) {
-        if (context == null || context.getCircuitBreaker() == null) {
-            return;
-        }
-        String label = "fuzzy:" + fieldLabel;
-        context.addCircuitBreakerMemory(queryRamBytes(query), label);
+    public static long estimateBytes(FuzzyQuery query) {
         BytesRef bytes = query.getTerm().bytes();
-        new FuzzyQueryCostEstimator(bytes.length, countDistinctUtf8Bytes(bytes), query.getMaxEdits(), query.getPrefixLength()).charge(
-            context,
-            label
-        );
+        long cost = new FuzzyQueryCostEstimator(bytes.length, countDistinctUtf8Bytes(bytes), query.getMaxEdits(), query.getPrefixLength())
+            .estimate();
+        return queryRamBytes(query) + cost;
     }
 
     /** RAM bytes retained by the {@link FuzzyQuery} object (excluding compiled automata). */

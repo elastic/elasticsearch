@@ -31,8 +31,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED;
 import static org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider.RebalancingEnabled;
+import static org.elasticsearch.xpack.stateless.allocation.DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class DisableSimulationRebalancingDeciderIT extends AbstractStatelessPluginIntegTestCase {

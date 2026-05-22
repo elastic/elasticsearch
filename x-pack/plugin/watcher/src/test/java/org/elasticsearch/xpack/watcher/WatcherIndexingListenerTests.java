@@ -181,7 +181,9 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         boolean isNewWatch = randomBoolean();
         Watch watch = mockWatch(id, watchActive, isNewWatch);
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
-
+        SourceToParse.Source source = mock(SourceToParse.Source.class);
+        when(source.originalBytes()).thenReturn(BytesArray.EMPTY);
+        when(operation.source()).thenReturn(source);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
         when(parser.parseWithSecrets(any(), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 

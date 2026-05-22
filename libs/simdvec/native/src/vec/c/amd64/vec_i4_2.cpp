@@ -150,9 +150,7 @@ static inline void doti4_bulk_impl_avx512(
         });
 
         if (has_next) {
-            apply_indexed<batches>([&](auto I) {
-                current_doc_ptrs[I] = next_doc_ptrs[I];
-            });
+            std::copy_n(next_doc_ptrs, batches, current_doc_ptrs);
         }
     }
 

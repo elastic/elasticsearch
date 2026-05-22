@@ -35,7 +35,7 @@ import static java.lang.Math.round;
 import static org.elasticsearch.core.TimeValue.timeValueNanos;
 
 /**
- * Task behavior for {@link BulkByScrollTask} that does the actual work of querying and indexing
+ * Task behavior for {@link BulkByPaginatedSearchTask} that does the actual work of querying and indexing
  */
 public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
 
@@ -46,7 +46,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
      */
     private static final TimeValue MAX_THROTTLE_WAIT_TIME = TimeValue.timeValueHours(1);
 
-    private final BulkByScrollTask task;
+    private final BulkByPaginatedSearchTask task;
 
     /**
      * The id of the slice that this worker is processing or {@code null} if this task isn't for a sliced request.
@@ -85,15 +85,15 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
     /// Otherwise, rethrottle would succeed and relocated task would proceed with old RPS value.
     private boolean capturedRpsForRelocation = false;
 
-    public WorkerBulkByScrollTaskState(BulkByScrollTask task, Integer sliceId, float requestsPerSecond) {
+    public WorkerBulkByScrollTaskState(BulkByPaginatedSearchTask task, Integer sliceId, float requestsPerSecond) {
         this.task = task;
         this.sliceId = sliceId;
         setRequestsPerSecond(requestsPerSecond);
         this.nodeToRelocateToSupplier = new SetOnce<>();
     }
 
-    public BulkByScrollTask.Status getStatus() {
-        return new BulkByScrollTask.Status(
+    public BulkByPaginatedSearchTask.Status getStatus() {
+        return new BulkByPaginatedSearchTask.Status(
             sliceId,
             total.get(),
             updated.get(),
@@ -114,7 +114,7 @@ public class WorkerBulkByScrollTaskState implements SuccessfullyProcessed {
     /**
      * Restore state from the supplied status, presumably from a previously relocated task
      */
-    public void restoreState(BulkByScrollTask.Status status) {
+    public void restoreState(BulkByPaginatedSearchTask.Status status) {
         assert status != null : "Cannot restore from null status";
         total.set(status.getTotal());
         updated.set(status.getUpdated());

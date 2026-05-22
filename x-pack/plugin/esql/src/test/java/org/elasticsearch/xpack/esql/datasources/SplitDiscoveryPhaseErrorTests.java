@@ -111,6 +111,12 @@ public class SplitDiscoveryPhaseErrorTests extends ESTestCase {
 
     private static ExternalSourceFactory testFactory(SplitProvider provider) {
         return new ExternalSourceFactory() {
+
+            @Override
+            public void validateConfig(String location, Map<String, Object> config) {
+                throw new UnsupportedOperationException("test stub does not implement validation");
+            }
+
             @Override
             public String type() {
                 return "test";

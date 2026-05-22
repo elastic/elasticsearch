@@ -35,6 +35,7 @@ import org.elasticsearch.rest.root.MainRestPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.tasks.TaskId;
@@ -50,16 +51,14 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.AUTO_SLICES;
-import static org.elasticsearch.index.reindex.AbstractBulkByScrollRequest.DEFAULT_SCROLL_TIMEOUT;
+import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.AUTO_SLICES;
+import static org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest.DEFAULT_SCROLL_TIMEOUT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
- * Tests local reindexing tasks resumed after node relocation.
- * NB This test includes tests for both scroll and point-in-time search. The scroll-based tests can be removed once
- * {@link ReindexPlugin#REINDEX_PIT_SEARCH_ENABLED} is defaulted to true.
+ * Tests local reindexing tasks resumed after node relocation using point-in-time search.
  */
 @ESIntegTestCase.ClusterScope(numDataNodes = 1, numClientNodes = 0)
 public class LocalReindexResumeIT extends ESIntegTestCase {
@@ -82,61 +81,12 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             .build();
     }
 
-    public void testResumeReindexFromScroll() {
-        assumeFalse("reindex with point-in-time search must not be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
-        String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        int totalDocs = randomIntBetween(20, 100);
-        int batchSize = randomIntBetween(1, 10);
-
-        createIndex(sourceIndex);
-        indexRandom(true, sourceIndex, totalDocs);
-
-        // Manually initiate a scroll search to get a scroll ID
-        String scrollId;
-        int remainingDocs = totalDocs - batchSize;
-        SearchResponse searchResponse = client().prepareSearch(sourceIndex).setScroll(DEFAULT_SCROLL_TIMEOUT).setSize(batchSize).get();
-        try {
-            scrollId = searchResponse.getScrollId();
-            assertNotNull(scrollId);
-            assertEquals((int) searchResponse.getHits().getTotalHits().value(), totalDocs);
-            assertEquals(searchResponse.getHits().getHits().length, batchSize);
-        } finally {
-            searchResponse.decRef();
-        }
-
-        // Resume reindexing from the manual scroll search
-        BulkByScrollTask.Status randomStats = randomStats();
-        // random start time in the past to ensure that "took" is updated
-        long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
-        ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
-            .setShouldStoreResult(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setDestIndex(destIndex)
-            .setSourceBatchSize(batchSize)
-            .setRefresh(true)
-            .setRequestsPerSecond(randomStats.getRequestsPerSecond())
-            .setResumeInfo(new ResumeInfo(randomOrigin(), new ScrollWorkerResumeInfo(scrollId, startTime, randomStats, null), null));
-        ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
-            .actionGet();
-        GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
-            .setWaitForCompletion(true)
-            .setTimeout(TimeValue.timeValueSeconds(30))
-            .get();
-
-        assertStatus(getTaskResponse.getTask(), randomStats, totalDocs, batchSize, remainingDocs);
-        // ensure remaining docs were indexed
-        assertHitCount(prepareSearch(destIndex), remainingDocs);
-        // ensure the scroll is cleared
-        assertEquals(0, currentNumberOfScrollContexts());
-    }
-
     public void testResumeReindexFromPit() {
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        int totalDocs = randomIntBetween(20, 100);
-        int batchSize = randomIntBetween(1, 10);
+        // Exceed the default cap so the resumed task's first batch seeds the cache and follow-ups exercise substitution.
+        int totalDocs = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO + randomIntBetween(50, 200);
+        int batchSize = randomIntBetween(500, 2000);
 
         createIndex(sourceIndex);
         indexRandom(true, sourceIndex, totalDocs);
@@ -147,11 +97,12 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         ).actionGet();
         BytesReference pitId = openPitResponse.getPointInTimeId();
 
-        // Manually initiate a pit search to get a pit ID
+        // Force track_total_hits=true so the assertion below sees the accurate total when totalDocs > the default cap.
         SearchRequest firstPitSearch = new SearchRequest().source(
             new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(DEFAULT_SCROLL_TIMEOUT))
                 .sort(SortBuilders.pitTiebreaker())
                 .size(batchSize)
+                .trackTotalHits(true)
         );
         SearchResponse searchResponse = client().search(firstPitSearch).actionGet();
         Object[] searchAfterValues;
@@ -170,7 +121,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
 
         // Resume reindexing
         int remainingDocs = totalDocs - batchSize;
-        BulkByScrollTask.Status randomStats = randomStats();
+        BulkByPaginatedSearchTask.Status randomStats = randomStats();
         // Random start time in the past to ensure that "took" is updated
         long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
         ReindexRequest request = new ReindexRequest().setShouldStoreResult(true)
@@ -206,68 +157,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         assertEquals(0, currentNumberOfScrollContexts());
     }
 
-    public void testResumeReindexFromScroll_slicedN() {
-        assumeFalse("reindex with point-in-time search must not be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
-        String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        final int totalDocs = randomIntBetween(200, 300);
-        final int numSlices = randomIntBetween(2, 5);
-        final int batchSize = randomIntBetween(5, 10);
-
-        createIndex(sourceIndex);
-        indexRandom(true, sourceIndex, totalDocs);
-
-        Map<Integer, SliceStatus> sliceStatus = new HashMap<>();
-        Map<Integer, Long> sliceFirstBatchDocs = new HashMap<>();
-        final long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
-        final float totalRPS = randomFloatBetween(1000, 10000, true);
-        final float perSliceRPS = totalRPS / numSlices;
-
-        // Manually create scroll slices and pass their scroll IDs in resume info
-        for (int sliceId = 0; sliceId < numSlices; sliceId++) {
-            SearchRequest searchRequest = new SearchRequest(sourceIndex).source(
-                new SearchSourceBuilder().slice(new SliceBuilder(IdFieldMapper.NAME, sliceId, numSlices)).size(batchSize)
-            ).scroll(DEFAULT_SCROLL_TIMEOUT);
-            SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            try {
-                String scrollId = searchResponse.getScrollId();
-                assertNotNull(scrollId);
-                // the actual search hits may be less than batch size if the slice has few docs, since doc are randomly sliced
-                long firstBatchDocs = searchResponse.getHits().getHits().length;
-                assertTrue(firstBatchDocs <= batchSize);
-                sliceFirstBatchDocs.put(sliceId, firstBatchDocs);
-                BulkByScrollTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
-                sliceStatus.put(sliceId, new SliceStatus(sliceId, new ScrollWorkerResumeInfo(scrollId, startTime, sliceStats, null), null));
-            } finally {
-                searchResponse.decRef();
-            }
-        }
-        // the first manual search batch creates the scroll, and is not indexed into destination
-        final long expectedDocsDest = totalDocs - sliceFirstBatchDocs.values().stream().mapToLong(Long::longValue).sum();
-
-        // Resume reindexing from the manual scroll search slices
-        ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
-            .setShouldStoreResult(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setDestIndex(destIndex)
-            .setSourceBatchSize(batchSize)
-            .setRefresh(true)
-            .setSlices(numSlices)
-            .setRequestsPerSecond(totalRPS)
-            .setResumeInfo(new ResumeInfo(randomOrigin(), null, sliceStatus));
-        ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
-            .actionGet();
-        GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
-            .setWaitForCompletion(true)
-            .setTimeout(TimeValue.timeValueSeconds(30))
-            .get();
-
-        assertHitCount(expectedDocsDest, prepareSearch(destIndex));
-        assertSlicedResponse(getTaskResponse.getTask(), sliceStatus, sliceFirstBatchDocs, totalDocs, batchSize);
-    }
-
     public void testResumeReindexFromPit_slicedN() {
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         final int totalDocs = randomIntBetween(200, 300);
@@ -314,7 +204,11 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 } else {
                     searchAfterValues = new Object[0];
                 }
-                BulkByScrollTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
+                BulkByPaginatedSearchTask.Status sliceStats = randomStats(
+                    sliceId,
+                    searchResponse.getHits().getTotalHits().value(),
+                    perSliceRPS
+                );
                 sliceStatus.put(
                     sliceId,
                     new SliceStatus(sliceId, new PitWorkerResumeInfo(pitId, searchAfterValues, startTime, sliceStats, null), null)
@@ -356,83 +250,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         assertEquals(0, currentNumberOfScrollContexts());
     }
 
-    public void testResumeReindexFromScroll_slicedN_partialCompleted() {
-        assumeFalse("reindex with point-in-time search must not be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
-        String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        final int totalDocs = randomIntBetween(200, 300);
-        final int numSlices = randomIntBetween(2, 5);
-        final int batchSize = randomIntBetween(5, 10);
-        final int numCompletedSlices = randomIntBetween(1, numSlices - 1);
-        final int activeSlices = numSlices - numCompletedSlices;
-        final float totalRPS = randomFloatBetween(1000, 10000, true);
-        final float perSliceRPS = totalRPS / activeSlices;
-
-        createIndex(sourceIndex);
-        indexRandom(true, sourceIndex, totalDocs);
-
-        Map<Integer, SliceStatus> sliceStatus = new HashMap<>();
-        Map<Integer, Long> sliceFirstBatchDocs = new HashMap<>();
-        // Complete some slices with manual slicing and pass their results as completed slices in resume info
-        for (int sliceId = 0; sliceId < numCompletedSlices; sliceId++) {
-            ReindexRequest sliceRequest = new ReindexRequest().setSourceIndices(sourceIndex)
-                .setDestIndex(destIndex)
-                .setRefresh(true)
-                .setSourceBatchSize(batchSize);
-            sliceRequest.getSearchRequest()
-                .source(new SearchSourceBuilder().slice(new SliceBuilder(IdFieldMapper.NAME, sliceId, numSlices)));
-            BulkByScrollResponse sliceResponse = client().execute(ReindexAction.INSTANCE, sliceRequest).actionGet();
-            assertTrue(sliceResponse.getCreated() > 0);
-            sliceStatus.put(sliceId, new SliceStatus(sliceId, null, new WorkerResult(sliceResponse, null)));
-        }
-
-        // Manually create scroll slices for the remaining slices that are not completed, and pass their scroll IDs in resume info
-        final long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
-        for (int sliceId = numCompletedSlices; sliceId < numSlices; sliceId++) {
-            SearchRequest searchRequest = new SearchRequest(sourceIndex).source(
-                new SearchSourceBuilder().slice(new SliceBuilder(IdFieldMapper.NAME, sliceId, numSlices)).size(batchSize)
-            ).scroll(DEFAULT_SCROLL_TIMEOUT);
-            SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            try {
-                String scrollId = searchResponse.getScrollId();
-                assertNotNull(scrollId);
-                // the actual search hits may be less than batch size if the slice has few docs, since doc are randomly sliced
-                long firstBatchDocs = searchResponse.getHits().getHits().length;
-                assertTrue(firstBatchDocs <= batchSize);
-                sliceFirstBatchDocs.put(sliceId, firstBatchDocs);
-                BulkByScrollTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
-                sliceStatus.put(sliceId, new SliceStatus(sliceId, new ScrollWorkerResumeInfo(scrollId, startTime, sliceStats, null), null));
-            } finally {
-                searchResponse.decRef();
-            }
-        }
-        // the first manual search batch creates the scroll, and is not indexed into destination
-        final long expectedDocsDest = totalDocs - sliceFirstBatchDocs.values().stream().mapToLong(Long::longValue).sum();
-
-        ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
-            .setShouldStoreResult(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setDestIndex(destIndex)
-            .setSourceBatchSize(batchSize)
-            .setRefresh(true)
-            .setSlices(numSlices)
-            .setRequestsPerSecond(totalRPS)
-            .setResumeInfo(new ResumeInfo(randomOrigin(), null, sliceStatus));
-
-        ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
-            .actionGet();
-        GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
-            .setWaitForCompletion(true)
-            .setTimeout(TimeValue.timeValueSeconds(30))
-            .get();
-
-        assertHitCount(expectedDocsDest, prepareSearch(destIndex));
-        assertEquals(0, currentNumberOfScrollContexts());
-        assertSlicedResponse(getTaskResponse.getTask(), sliceStatus, sliceFirstBatchDocs, totalDocs, batchSize);
-    }
-
     public void testResumeReindexFromPit_slicedN_partialCompleted() {
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         final int totalDocs = randomIntBetween(200, 300);
@@ -493,7 +311,11 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 } else {
                     searchAfterValues = new Object[0];
                 }
-                BulkByScrollTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
+                BulkByPaginatedSearchTask.Status sliceStats = randomStats(
+                    sliceId,
+                    searchResponse.getHits().getTotalHits().value(),
+                    perSliceRPS
+                );
                 sliceStatus.put(
                     sliceId,
                     new SliceStatus(sliceId, new PitWorkerResumeInfo(pitId, searchAfterValues, startTime, sliceStats, null), null)
@@ -535,78 +357,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         assertSlicedResponse(getTaskResponse.getTask(), sliceStatus, sliceFirstBatchDocs, totalDocs, batchSize);
     }
 
-    public void testResumeReindexFromScroll_slicedAuto() {
-        assumeFalse("reindex with point-in-time search must not be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
-        String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        final int totalDocs = randomIntBetween(200, 300);
-        final int batchSize = randomIntBetween(5, 10);
-        // at least 2 shards to ensure auto-slicing creates multiple slices
-        int numSourceShards = randomIntBetween(2, 10);
-        // slice count differs from shard count to ensure slicing is from resume info
-        int numSlices = numSourceShards + 1;
-        final float totalRPS = randomFloatBetween(1000, 10000, true);
-        final float perSliceRPS = totalRPS / numSlices;
-
-        createIndex(sourceIndex, numSourceShards, 0);
-        indexRandom(true, sourceIndex, totalDocs);
-
-        Map<Integer, SliceStatus> sliceStatus = new HashMap<>();
-        Map<Integer, Long> sliceFirstBatchDocs = new HashMap<>();
-        final long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
-
-        for (int sliceId = 0; sliceId < numSlices; sliceId++) {
-            SearchRequest searchRequest = new SearchRequest(sourceIndex).source(
-                new SearchSourceBuilder().slice(new SliceBuilder(IdFieldMapper.NAME, sliceId, numSlices)).size(batchSize)
-            ).scroll(DEFAULT_SCROLL_TIMEOUT);
-            SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            try {
-                String scrollId = searchResponse.getScrollId();
-                assertNotNull(scrollId);
-                // the actual search hits may be less than batch size if the slice has few docs, since doc are randomly sliced
-                long firstBatchDocs = searchResponse.getHits().getHits().length;
-                assertTrue(firstBatchDocs <= batchSize);
-                sliceFirstBatchDocs.put(sliceId, firstBatchDocs);
-                BulkByScrollTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
-                sliceStatus.put(sliceId, new SliceStatus(sliceId, new ScrollWorkerResumeInfo(scrollId, startTime, sliceStats, null), null));
-            } finally {
-                searchResponse.decRef();
-            }
-        }
-        // the first manual search batch per slice creates the scroll and is not indexed; resume indexes the rest
-        final long expectedDocsDest = totalDocs - sliceFirstBatchDocs.values().stream().mapToLong(Long::longValue).sum();
-
-        ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
-            .setShouldStoreResult(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setDestIndex(destIndex)
-            .setSourceBatchSize(batchSize)
-            .setRefresh(true)
-            .setSlices(AUTO_SLICES)
-            .setRequestsPerSecond(totalRPS)
-            .setResumeInfo(new ResumeInfo(randomOrigin(), null, sliceStatus));
-
-        ResumeBulkByScrollResponse resumeResponse = client().execute(ResumeReindexAction.INSTANCE, new ResumeBulkByScrollRequest(request))
-            .actionGet();
-        GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
-            .setWaitForCompletion(true)
-            .setTimeout(TimeValue.timeValueSeconds(30))
-            .get();
-
-        assertHitCount(expectedDocsDest, prepareSearch(destIndex));
-        assertEquals(0, currentNumberOfScrollContexts());
-        assertSlicedResponse(getTaskResponse.getTask(), sliceStatus, sliceFirstBatchDocs, totalDocs, batchSize);
-
-        // response must have same number of slices as resume info, not auto-resolved from shard count
-        Map<String, Object> response = getTaskResponse.getTask().getResponseAsMap();
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> slices = (List<Map<String, Object>>) response.get("slices");
-        assertNotNull(slices);
-        assertEquals(numSlices, slices.size());
-    }
-
     public void testResumeReindexFromPit_slicedAuto() {
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         final int totalDocs = randomIntBetween(200, 300);
@@ -655,7 +406,11 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
                 } else {
                     searchAfterValues = new Object[0];
                 }
-                BulkByScrollTask.Status sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value(), perSliceRPS);
+                BulkByPaginatedSearchTask.Status sliceStats = randomStats(
+                    sliceId,
+                    searchResponse.getHits().getTotalHits().value(),
+                    perSliceRPS
+                );
                 sliceStatus.put(
                     sliceId,
                     new SliceStatus(sliceId, new PitWorkerResumeInfo(pitId, searchAfterValues, startTime, sliceStats, null), null)
@@ -704,74 +459,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         assertEquals(numSlices, slices.size());
     }
 
-    public void testResumeReindexFromScroll_slicedManual() {
-        assumeFalse("reindex with point-in-time search must not be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
-        String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        final int totalDocs = randomIntBetween(200, 300);
-        final int batchSize = randomIntBetween(5, 10);
-        final int numSlices = randomIntBetween(2, 5);
-
-        createIndex(sourceIndex);
-        indexRandom(true, sourceIndex, totalDocs);
-
-        final long startTime = timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS));
-        long firstBatchDocsTotal = 0;
-
-        for (int sliceId = 0; sliceId < numSlices; sliceId++) {
-            SearchRequest searchRequest = new SearchRequest(sourceIndex).source(
-                new SearchSourceBuilder().slice(new SliceBuilder(IdFieldMapper.NAME, sliceId, numSlices)).size(batchSize)
-            ).scroll(DEFAULT_SCROLL_TIMEOUT);
-            SearchResponse searchResponse = client().search(searchRequest).actionGet();
-            final String scrollId;
-            final BulkByScrollTask.Status sliceStats;
-            final long totalHits;
-            try {
-                scrollId = searchResponse.getScrollId();
-                assertNotNull(scrollId);
-                // the actual search hits may be less than batch size if the slice has few docs, since doc are randomly sliced
-                int firstBatchDocs = searchResponse.getHits().getHits().length;
-                assertTrue(firstBatchDocs <= batchSize);
-                firstBatchDocsTotal += firstBatchDocs;
-                sliceStats = randomStats(sliceId, searchResponse.getHits().getTotalHits().value());
-                totalHits = searchResponse.getHits().getTotalHits().value();
-            } finally {
-                searchResponse.decRef();
-            }
-
-            final long remainingDocs = totalHits - Math.min(totalHits, batchSize);
-
-            ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
-                .setShouldStoreResult(true)
-                .setEligibleForRelocationOnShutdown(true)
-                .setDestIndex(destIndex)
-                .setSourceBatchSize(batchSize)
-                .setRefresh(true)
-                .setSlices(1)
-                .setRequestsPerSecond(sliceStats.getRequestsPerSecond())
-                .setResumeInfo(new ResumeInfo(randomOrigin(), new ScrollWorkerResumeInfo(scrollId, startTime, sliceStats, null), null));
-            request.getSearchRequest().source(new SearchSourceBuilder().slice(new SliceBuilder(IdFieldMapper.NAME, sliceId, numSlices)));
-
-            ResumeBulkByScrollResponse resumeResponse = client().execute(
-                ResumeReindexAction.INSTANCE,
-                new ResumeBulkByScrollRequest(request)
-            ).actionGet();
-            GetTaskResponse getTaskResponse = clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
-                .setWaitForCompletion(true)
-                .setTimeout(TimeValue.timeValueSeconds(30))
-                .get();
-            assertTrue(getTaskResponse.getTask().isCompleted());
-            assertStatus(getTaskResponse.getTask(), sliceStats, totalHits, batchSize, remainingDocs);
-        }
-
-        // the first manual search batch per slice creates the scroll and is not indexed; resume indexes the rest
-        final long expectedDocsDest = totalDocs - firstBatchDocsTotal;
-        assertHitCount(expectedDocsDest, prepareSearch(destIndex));
-        assertEquals(0, currentNumberOfScrollContexts());
-    }
-
     public void testResumeReindexFromPit_slicedManual() {
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
         final int totalDocs = randomIntBetween(200, 300);
@@ -801,7 +489,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             );
             SearchResponse searchResponse = client().search(searchRequest).actionGet();
             final Object[] searchAfterValues;
-            final BulkByScrollTask.Status sliceStats;
+            final BulkByPaginatedSearchTask.Status sliceStats;
             final long totalHits;
             try {
                 // The actual search hits may be less than batch size if the slice has few docs, since docs are randomly sliced
@@ -865,81 +553,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         assertEquals(0, currentNumberOfScrollContexts());
     }
 
-    public void testResumeReindexMetricsRecordsDurationFromRelocationOrigin() {
-        assumeFalse("reindex with point-in-time search must not be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
-        assertThat(internalCluster().numDataNodes(), equalTo(1));
-        final String dataNodeName = internalCluster().getRandomDataNodeName();
-        final TestTelemetryPlugin telemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
-        telemetryPlugin.resetMeter(); // reset previous test metrics
-
-        final String sourceIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        final String destIndex = randomAlphanumericOfLength(10).toLowerCase(Locale.ROOT);
-        final int totalDocs = randomIntBetween(20, 100);
-        final int batchSize = randomIntBetween(1, 10);
-
-        indexRandom(true, sourceIndex, totalDocs);
-
-        final String scrollId;
-        final SearchResponse searchResponse = client().prepareSearch(sourceIndex)
-            .setScroll(DEFAULT_SCROLL_TIMEOUT)
-            .setSize(batchSize)
-            .get();
-        try {
-            scrollId = searchResponse.getScrollId();
-            assertNotNull(scrollId);
-        } finally {
-            searchResponse.decRef();
-        }
-
-        final int originalStartAgoSeconds = randomIntBetween(2, 10);
-        final long originStartTimeMillis = System.currentTimeMillis() - TimeUnit.SECONDS.toMillis(originalStartAgoSeconds);
-        final ResumeInfo.RelocationOrigin origin = new ResumeInfo.RelocationOrigin(
-            new TaskId(randomAlphanumericOfLength(10), randomNonNegativeLong()),
-            originStartTimeMillis
-        );
-
-        final ReindexRequest request = new ReindexRequest().setSourceIndices(sourceIndex)
-            .setShouldStoreResult(true)
-            .setEligibleForRelocationOnShutdown(true)
-            .setDestIndex(destIndex)
-            .setSourceBatchSize(batchSize)
-            .setRefresh(true)
-            .setResumeInfo(
-                new ResumeInfo(
-                    origin,
-                    new ScrollWorkerResumeInfo(scrollId, timeAgo(randomTimeValue(2, 10, TimeUnit.HOURS)), randomStats(), null),
-                    null
-                )
-            );
-        // execute resume on data node because that's where we'll check the metrics
-        final ResumeBulkByScrollResponse resumeResponse = client(dataNodeName).execute(
-            ResumeReindexAction.INSTANCE,
-            new ResumeBulkByScrollRequest(request)
-        ).actionGet();
-        clusterAdmin().prepareGetTask(resumeResponse.getTaskId())
-            .setWaitForCompletion(true)
-            .setTimeout(TimeValue.timeValueSeconds(30))
-            .get();
-
-        telemetryPlugin.collect();
-        final List<Measurement> histograms = telemetryPlugin.getLongHistogramMeasurement(ReindexMetrics.REINDEX_TIME_HISTOGRAM);
-        assertThat(histograms.size(), equalTo(1));
-        assertThat(histograms.getFirst().getLong(), greaterThanOrEqualTo((long) originalStartAgoSeconds));
-        assertThat(
-            histograms.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SOURCE),
-            equalTo(ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_LOCAL)
-        );
-        assertThat(histograms.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE), equalTo("none"));
-        final List<Measurement> completions = telemetryPlugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_COMPLETION_COUNTER);
-        assertThat(completions.size(), equalTo(1));
-        assertNull(completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE));
-    }
-
     public void testResumeReindexFromPit_metricsRecordsDurationFromRelocationOrigin() {
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
         assertThat(internalCluster().numDataNodes(), equalTo(1));
         final String dataNodeName = internalCluster().getRandomDataNodeName();
         final TestTelemetryPlugin telemetryPlugin = internalCluster().getInstance(PluginsService.class, dataNodeName)
@@ -1071,16 +685,16 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         assertTrue(e.getMessage().contains("Resumed task should be eligible for relocation on shutdown"));
     }
 
-    private BulkByScrollTask.Status randomStats() {
+    private BulkByPaginatedSearchTask.Status randomStats() {
         return randomStats(null, randomNonNegativeLong());
     }
 
-    private BulkByScrollTask.Status randomStats(Integer sliceId, long total) {
+    private BulkByPaginatedSearchTask.Status randomStats(Integer sliceId, long total) {
         return randomStats(sliceId, total, randomFloatBetween(1000, 10000, true));
     }
 
-    private BulkByScrollTask.Status randomStats(Integer sliceId, long total, float requestsPerSecond) {
-        return new BulkByScrollTask.Status(
+    private BulkByPaginatedSearchTask.Status randomStats(Integer sliceId, long total, float requestsPerSecond) {
+        return new BulkByPaginatedSearchTask.Status(
             sliceId,
             total,
             randomNonNegativeLong(),
@@ -1128,7 +742,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
             int sliceId = intFromMap(slice, "slice_id");
             SliceStatus sliceStatus = resumeStatus.get(sliceId);
             assertNotNull(sliceStatus);
-            BulkByScrollTask.Status status;
+            BulkByPaginatedSearchTask.Status status;
             if (sliceStatus.resumeInfo() != null) {
                 status = sliceStatus.resumeInfo().status();
                 // ensure each resumed slice's status is updated compared to the resume info
@@ -1173,7 +787,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
 
     private static void assertStatus(
         TaskResult task,
-        BulkByScrollTask.Status resumeStatus,
+        BulkByPaginatedSearchTask.Status resumeStatus,
         long totalDocs,
         int batchSize,
         long remainingDocs
@@ -1204,7 +818,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
 
     private static void assertSliceStatus(
         Map<String, Object> response,
-        BulkByScrollTask.Status resumeStatus,
+        BulkByPaginatedSearchTask.Status resumeStatus,
         int batchSize,
         long firstBatchDocs
     ) {

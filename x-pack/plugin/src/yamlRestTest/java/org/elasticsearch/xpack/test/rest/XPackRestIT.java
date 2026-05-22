@@ -54,6 +54,7 @@ public class XPackRestIT extends AbstractXPackRestTest {
             return Objects.requireNonNullElse(enabled, "");
         })
         .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
+        .feature(FeatureFlag.COLUMNAR_INDEX_MODE_FEATURE_FLAG)
         .build();
 
     public XPackRestIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

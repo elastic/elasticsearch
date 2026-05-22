@@ -33,6 +33,8 @@ public final class ReplaceConstantEvaluator implements ExpressionEvaluator {
 
   private final Pattern regex;
 
+  private final byte[] literalPrefix;
+
   private final ExpressionEvaluator newStr;
 
   private final DriverContext driverContext;
@@ -40,10 +42,11 @@ public final class ReplaceConstantEvaluator implements ExpressionEvaluator {
   private Warnings warnings;
 
   public ReplaceConstantEvaluator(Source source, ExpressionEvaluator str, Pattern regex,
-      ExpressionEvaluator newStr, DriverContext driverContext) {
+      byte[] literalPrefix, ExpressionEvaluator newStr, DriverContext driverContext) {
     this.source = source;
     this.str = str;
     this.regex = regex;
+    this.literalPrefix = literalPrefix;
     this.newStr = newStr;
     this.driverContext = driverContext;
   }
@@ -103,7 +106,7 @@ public final class ReplaceConstantEvaluator implements ExpressionEvaluator {
         BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
         BytesRef newStr = newStrBlock.getBytesRef(newStrBlock.getFirstValueIndex(p), newStrScratch);
         try {
-          result.appendBytesRef(Replace.process(str, this.regex, newStr));
+          result.appendBytesRef(Replace.process(str, this.regex, this.literalPrefix, newStr));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -122,7 +125,7 @@ public final class ReplaceConstantEvaluator implements ExpressionEvaluator {
         BytesRef str = strVector.getBytesRef(p, strScratch);
         BytesRef newStr = newStrVector.getBytesRef(p, newStrScratch);
         try {
-          result.appendBytesRef(Replace.process(str, this.regex, newStr));
+          result.appendBytesRef(Replace.process(str, this.regex, this.literalPrefix, newStr));
         } catch (IllegalArgumentException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -156,19 +159,22 @@ public final class ReplaceConstantEvaluator implements ExpressionEvaluator {
 
     private final Pattern regex;
 
+    private final byte[] literalPrefix;
+
     private final ExpressionEvaluator.Factory newStr;
 
     public Factory(Source source, ExpressionEvaluator.Factory str, Pattern regex,
-        ExpressionEvaluator.Factory newStr) {
+        byte[] literalPrefix, ExpressionEvaluator.Factory newStr) {
       this.source = source;
       this.str = str;
       this.regex = regex;
+      this.literalPrefix = literalPrefix;
       this.newStr = newStr;
     }
 
     @Override
     public ReplaceConstantEvaluator get(DriverContext context) {
-      return new ReplaceConstantEvaluator(source, str.get(context), regex, newStr.get(context), context);
+      return new ReplaceConstantEvaluator(source, str.get(context), regex, literalPrefix, newStr.get(context), context);
     }
 
     @Override

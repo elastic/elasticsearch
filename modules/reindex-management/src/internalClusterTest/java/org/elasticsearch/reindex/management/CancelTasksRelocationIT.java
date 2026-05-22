@@ -41,7 +41,6 @@ import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -75,11 +74,6 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
     // RPS takes slices and batch size into account to approximate ~1s per slice
     private final int requestsPerSecond = randomIntBetween(bulkSize * numOfSlices, 20);
     private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond;
-
-    @BeforeClass
-    public static void skipSetupIfReindexResilienceDisabled() {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -140,7 +134,7 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
      * Races a cancel against an in-progress relocation and asserts that after the race settles the task is in exactly one
      * consistent final state — cancelled xor relocated — and that no orphan task remains on either node afterward.
      * <p>
-     * Which side wins depends on which CAS on {@code BulkByScrollTask.RelocationProgress} runs first:
+     * Which side wins depends on which CAS on {@code BulkByPaginatedSearchTask.RelocationProgress} runs first:
      * <ul>
      *     <li><b>Cancel wins</b>: The source task finishes cancelled; no resumed task is created on the destination.</li>
      *     <li><b>Relocation wins</b>: The resumed task runs on the destination; the cancel is rejected.</li>

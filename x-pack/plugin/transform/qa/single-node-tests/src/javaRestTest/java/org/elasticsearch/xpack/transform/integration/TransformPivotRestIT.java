@@ -40,6 +40,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
@@ -1366,6 +1367,84 @@ public class TransformPivotRestIT extends TransformRestTestCase {
             createPreviewResponse.getWarnings().get(0),
             allOf(containsString("Pipeline returned 100 errors, first error:"), containsString("type=script_exception"))
         );
+    }
+
+    /**
+     * Verifies that deprecation warnings originating from the internal _search are forwarded
+     * through _preview and PUT _transform responses. See https://github.com/elastic/elasticsearch/issues/82935
+     */
+    public void testPreviewAndPutTransformForwardSearchDeprecationWarnings() throws Exception {
+        String expectedWarning = "terms query on the _field_names field is deprecated and will be removed, use exists query instead";
+        String transformId = "test_deprecation_warning_forwarding";
+
+        {
+            Request searchRequest = new Request("GET", REVIEWS_INDEX_NAME + "/_search");
+            searchRequest.setJsonEntity("""
+                { "query": { "term": { "_field_names": "stars" } }, "size": 0 }""");
+            searchRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+            Response searchResponse = client().performRequest(searchRequest);
+            assumeTrue(
+                "Direct _search did not return the expected deprecation warning; skipping test",
+                searchResponse.getWarnings().stream().anyMatch(w -> w.contains(expectedWarning))
+            );
+        }
+
+        // bool.should with match_all ensures docs still match; the _field_names term triggers the deprecation
+        String sourceQueryAndPivot = Strings.format("""
+            "source": {
+              "index": "%s",
+              "query": {
+                "bool": {
+                  "should": [
+                    { "match_all": {} },
+                    { "term": { "_field_names": "stars" } }
+                  ]
+                }
+              }
+            },
+            "pivot": {
+              "group_by": {
+                "reviewer": { "terms": { "field": "user_id" } }
+              },
+              "aggregations": {
+                "avg_rating": { "avg": { "field": "stars" } }
+              }
+            }""", REVIEWS_INDEX_NAME);
+
+        // --- Test _preview ---
+        setupDataAccessRole(DATA_ACCESS_ROLE, REVIEWS_INDEX_NAME);
+        final Request previewRequest = createRequestWithAuth("POST", getTransformEndpoint() + "_preview", null);
+        previewRequest.setJsonEntity("{" + sourceQueryAndPivot + "}");
+        previewRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+
+        Response previewResponse = client().performRequest(previewRequest);
+        assertThat(
+            "Expected deprecation warning in _preview response, but got: " + previewResponse.getWarnings(),
+            previewResponse.getWarnings(),
+            hasItem(containsString(expectedWarning))
+        );
+
+        // --- Test PUT ---
+        try {
+            String putConfig = Strings.format("""
+                {
+                  %s,
+                  "dest": { "index": "%s" }
+                }""", sourceQueryAndPivot, transformId + "_dest");
+
+            final Request putRequest = createRequestWithAuth("PUT", getTransformEndpoint() + transformId, null);
+            putRequest.setJsonEntity(putConfig);
+            putRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+
+            Response putResponse = client().performRequest(putRequest);
+            assertThat(
+                "Expected deprecation warning in PUT response, but got: " + putResponse.getWarnings(),
+                putResponse.getWarnings(),
+                hasItem(containsString(expectedWarning))
+            );
+        } finally {
+            deleteTransform(transformId, true, true);
+        }
     }
 
     public void testPreviewTransformWithDateHistogramOffset() throws Exception {

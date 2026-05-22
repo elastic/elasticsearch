@@ -24,6 +24,8 @@ import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.xpack.stateless.commits.CommitBCCResolver;
 import org.elasticsearch.xpack.stateless.commits.IndexEngineLocalReaderListener;
 import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.engine.IndexEngineTestUtils;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
 import org.elasticsearch.xpack.stateless.recovery.RegisterCommitResponse;
 import org.junit.After;
@@ -256,7 +258,9 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessPluginInteg
 
     @After
     public void teardownTest() {
-        assertAcked(client().admin().indices().prepareDelete(indexName));
+        if (indexName != null) {
+            assertAcked(client().admin().indices().prepareDelete(indexName));
+        }
         indexNode = null;
         searchNode = null;
         indexName = null;
@@ -420,8 +424,18 @@ public class StatelessIndexCommitListenerIT extends AbstractStatelessPluginInteg
             // Wait until the shard is marked as failed and then reallocated so we can
             // release the new commits once it becomes green again.
             ensureGreen(indexName);
+
+            // Delete the index to close shards and prevent new commits from being created
+            // before releasing retained commits, avoiding a race condition.
+            final var engine = asInstanceOf(IndexEngine.class, findIndexShard(indexName).withEngine(e -> e));
+            assertAcked(indicesAdmin().prepareDelete(indexName));
+            IndexEngineTestUtils.awaitClose(engine);
         } finally {
-            plugin.listRetainedCommits(shardId).forEach(this::releaseCommit);
+            try {
+                plugin.listRetainedCommits(shardId).forEach(this::releaseCommit);
+            } finally {
+                indexName = null;
+            }
         }
     }
 

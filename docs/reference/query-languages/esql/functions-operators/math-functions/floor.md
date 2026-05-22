@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `FLOOR` function [esql-floor]
 
-:::{include} ../../_snippets/functions/layout/floor.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/floor.md
 :::

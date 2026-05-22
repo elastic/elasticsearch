@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.esql.datasource.s3;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
 public class S3ConfigurationTests extends ESTestCase {
@@ -114,16 +117,18 @@ public class S3ConfigurationTests extends ESTestCase {
         raw.put("access_key", "ak");
         raw.put("secret_key", "sk");
         raw.put("endpoint", "http://e");
-        // Format-level options that the WITH clause may carry; the storage plugin must ignore them.
+        // Format-level options that the configuration map may carry; the storage plugin must ignore them.
         raw.put("header_row", false);
         raw.put("column_prefix", "f");
 
-        S3Configuration config = S3Configuration.fromQueryConfig(raw);
+        Configured<S3Configuration> result = S3Configuration.fromQueryConfig(raw);
+        S3Configuration config = result.value();
         assertNotNull(config);
         assertEquals("ak", config.accessKey());
         assertEquals("sk", config.secretKey());
         assertEquals("http://e", config.endpoint());
         assertNull(config.region());
+        assertThat(result.consumedKeys(), containsInAnyOrder("access_key", "secret_key", "endpoint"));
     }
 
     public void testFromQueryConfigStillEnforcesAuthConflict() {
@@ -139,11 +144,15 @@ public class S3ConfigurationTests extends ESTestCase {
         Map<String, Object> raw = new HashMap<>();
         raw.put("header_row", false);
         raw.put("column_prefix", "f");
-        assertNull(S3Configuration.fromQueryConfig(raw));
+        Configured<S3Configuration> result = S3Configuration.fromQueryConfig(raw);
+        assertNull(result.value());
+        assertEquals(Set.of(), result.consumedKeys());
     }
 
     public void testFromQueryConfigWithNullReturnsNull() {
-        assertNull(S3Configuration.fromQueryConfig(null));
+        Configured<S3Configuration> result = S3Configuration.fromQueryConfig(null);
+        assertNull(result.value());
+        assertEquals(Set.of(), result.consumedKeys());
     }
 
     public void testEqualsWithAuth() {

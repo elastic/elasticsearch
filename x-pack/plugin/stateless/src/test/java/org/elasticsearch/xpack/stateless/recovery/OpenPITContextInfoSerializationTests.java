@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.stateless.recovery;
 
 import org.elasticsearch.action.search.SearchContextIdForNode;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.Tuple;
@@ -16,6 +18,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction.OpenPITContextInfo;
+import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction.OpenPITReshardingState;
 
 import java.io.IOException;
 import java.util.Map;
@@ -36,7 +39,8 @@ public class OpenPITContextInfoSerializationTests extends AbstractWireSerializin
             randomAlphaOfLength(10),
             randomLongBetween(0, 1000),
             createSearchContextId(),
-            createRandomMetadata()
+            createRandomMetadata(),
+            randomReshardingState()
         );
     }
 
@@ -64,23 +68,36 @@ public class OpenPITContextInfoSerializationTests extends AbstractWireSerializin
         );
     }
 
+    OpenPITReshardingState randomReshardingState() {
+        int shards = randomIntBetween(1, 10);
+        if (randomBoolean()) {
+            return new OpenPITReshardingState(null, SplitShardCountSummary.fromInt(shards));
+        }
+        return new OpenPITReshardingState(
+            IndexReshardingMetadata.newSplitByMultiple(randomIntBetween(1, 10), 2),
+            randomBoolean() ? SplitShardCountSummary.fromInt(shards) : SplitShardCountSummary.fromInt(shards * 2)
+        );
+    }
+
     @Override
     protected OpenPITContextInfo mutateInstance(OpenPITContextInfo instance) throws IOException {
-        int i = randomIntBetween(0, 4);
+        int i = randomIntBetween(0, 5);
         return switch (i) {
             case 0 -> new OpenPITContextInfo(
                 randomValueOtherThan(instance.shardId(), OpenPITContextInfoSerializationTests::randomShardId),
                 instance.segmentsFileName(),
                 instance.keepAlive(),
                 instance.contextId(),
-                instance.metadata()
+                instance.metadata(),
+                instance.reshardingState()
             );
             case 1 -> new OpenPITContextInfo(
                 instance.shardId(),
                 randomValueOtherThan(instance.segmentsFileName(), () -> randomAlphaOfLength(10)),
                 instance.keepAlive(),
                 instance.contextId(),
-                instance.metadata()
+                instance.metadata(),
+                instance.reshardingState()
 
             );
             case 2 -> new OpenPITContextInfo(
@@ -88,21 +105,32 @@ public class OpenPITContextInfoSerializationTests extends AbstractWireSerializin
                 instance.segmentsFileName(),
                 randomValueOtherThan(instance.keepAlive(), () -> randomLongBetween(0, 1000)),
                 instance.contextId(),
-                instance.metadata()
+                instance.metadata(),
+                instance.reshardingState()
             );
             case 3 -> new OpenPITContextInfo(
                 instance.shardId(),
                 instance.segmentsFileName(),
                 instance.keepAlive(),
                 randomValueOtherThan(instance.contextId(), this::createSearchContextId),
-                instance.metadata()
+                instance.metadata(),
+                instance.reshardingState()
             );
             case 4 -> new OpenPITContextInfo(
                 instance.shardId(),
                 instance.segmentsFileName(),
                 instance.keepAlive(),
                 instance.contextId(),
-                createRandomMetadata()
+                createRandomMetadata(),
+                instance.reshardingState()
+            );
+            case 5 -> new OpenPITContextInfo(
+                instance.shardId(),
+                instance.segmentsFileName(),
+                instance.keepAlive(),
+                instance.contextId(),
+                instance.metadata(),
+                randomValueOtherThan(instance.reshardingState(), this::randomReshardingState)
             );
             default -> throw new IllegalStateException("Unexpected value " + i);
         };

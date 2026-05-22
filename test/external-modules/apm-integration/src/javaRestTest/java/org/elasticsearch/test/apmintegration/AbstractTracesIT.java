@@ -55,6 +55,15 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
     static final long CHILD_SPAN_GRACE_PERIOD_MS = 500;
 
     /**
+     * Per-test timeout (in seconds) used when waiting for telemetry to arrive. Defaults to
+     * {@link AbstractTelemetryIT#TELEMETRY_TIMEOUT}. Subclasses on an export path with a real
+     * programmatic flush may override to use a shorter value.
+     */
+    protected int telemetryTimeout() {
+        return TELEMETRY_TIMEOUT;
+    }
+
+    /**
      * Span attribute keys every exporter implementation must produce on the
      * {@code GET /_nodes/stats} root span. Cross-path contract — the upcoming OTel SDK
      * exporter must satisfy each entry. Anything else (e.g. APM-agent-specific HTTP
@@ -138,7 +147,7 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
 
         assertTrue(
             "GET /_nodes/stats span with traceId " + traceIdValue + " should be received within timeout",
-            finished.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
+            finished.await(telemetryTimeout(), TimeUnit.SECONDS)
         );
         ReceivedTelemetry.ReceivedSpan rootSpan = rootSpanRef.get();
         assertTrue("Root span should carry a parent span ID propagated from the traceparent header", rootSpan.parentSpanId().isPresent());
@@ -252,7 +261,7 @@ public abstract class AbstractTracesIT extends AbstractTelemetryIT {
         client().performRequest(nodeStatsRequest);
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
-        assertTrue("Root span should be received within timeout", rootSpanReceived.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS));
+        assertTrue("Root span should be received within timeout", rootSpanReceived.await(telemetryTimeout(), TimeUnit.SECONDS));
 
         Thread.sleep(CHILD_SPAN_GRACE_PERIOD_MS);
         // CopyOnWriteArrayList.add() does a volatile write and size() does a volatile read, so child spans

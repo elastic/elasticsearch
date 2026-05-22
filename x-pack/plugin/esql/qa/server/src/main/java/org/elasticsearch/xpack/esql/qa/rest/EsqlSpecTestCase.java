@@ -26,6 +26,7 @@ import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.CsvAssert;
 import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.CsvTestUtils;
 import org.elasticsearch.xpack.esql.CsvTestsDataLoader;
@@ -196,7 +197,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (shouldLoadViews()) {
             VIEWS.protectedBlock(() -> {
                 if (supportsViews()) {
-                    loadViewsIntoEs(adminClient());
+                    loadViewsIntoEs(adminClient(), this::clusterHasCapability);
                 }
                 return null;
             });
@@ -263,7 +264,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     // Only load views for tests in the "views" group (from views.csv-spec)
     protected boolean shouldLoadViews() {
-        return "views".equals(groupName);
+        return "views".equals(groupName) || "approximation".equals(groupName);
     }
 
     /**
@@ -300,6 +301,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         CsvTestCase testCase
     ) {
         checkCapabilities(client, testFeatureService, testName, testCase.requiredCapabilities);
+        checkCapabilities(client, testFeatureService, testName, testCase.requiredCapabilitiesLocalCluster);
     }
 
     protected static void checkCapabilities(
@@ -452,6 +454,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         List<List<Object>> actualValues = (List<List<Object>>) values;
 
         assertResults(expectedColumnsWithValues, actualColumns, actualValues, logger);
+        CsvAssert.assertDocumentsFound(testCase.expectedDocumentsFound, (int) answer.get("documents_found"));
 
         if (checkTook) {
             LOGGER.info("checking took incremented from {}", prevTooks);

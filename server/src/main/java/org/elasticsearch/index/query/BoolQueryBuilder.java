@@ -353,7 +353,10 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
             addBooleanClauses(context, booleanQueryBuilder, clauses, occurs, queryVisitor);
             return;
         }
-        MaxClauseCountQueryVisitor clauseVisitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        MaxClauseCountQueryVisitor clauseVisitor = new MaxClauseCountQueryVisitor(
+            IndexSearcher.getMaxClauseCount(),
+            context.getCircuitBreaker()
+        );
         Set<Query> deduplicate = new HashSet<>();
         for (QueryBuilder query : clauses) {
             try (AutoPrefilteringScope autoPrefilteringScope = context.autoPrefilteringScope()) {

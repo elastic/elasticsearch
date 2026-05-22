@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.TemporalityAware;
+import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
@@ -40,7 +41,7 @@ import java.util.Objects;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
-public class Rate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TemporalityAware {
+public class Rate extends TimeSeriesAggregateFunction implements OptionalArgument, ToAggregator, TimestampAware, TemporalityAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Rate", Rate::readFrom);
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Rate.class)

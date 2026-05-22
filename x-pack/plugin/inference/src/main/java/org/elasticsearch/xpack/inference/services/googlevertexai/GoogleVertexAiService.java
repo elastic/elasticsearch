@@ -21,6 +21,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
@@ -43,6 +44,7 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.Goog
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsModelCreator;
 import org.elasticsearch.xpack.inference.services.googlevertexai.embeddings.GoogleVertexAiEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.request.completion.GoogleVertexAiUnifiedChatCompletionRequest;
+import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModel;
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankModelCreator;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -53,6 +55,7 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
+import static org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs.fromRerankRequest;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiServiceFields.EMBEDDING_MAX_BATCH_SIZE;
@@ -194,6 +197,23 @@ public class GoogleVertexAiService extends SenderService<GoogleVertexAiModel> im
             unifiedChatInput -> new GoogleVertexAiUnifiedChatCompletionRequest(unifiedChatInput, model),
             UnifiedChatInput.class
         );
+    }
+
+    @Override
+    protected void doRerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        if (!(model instanceof GoogleVertexAiRerankModel googleVertexAiRerankModel)) {
+            listener.onFailure(createInvalidModelException(model));
+            return;
+        }
+        var actionCreator = new GoogleVertexAiActionCreator(getSender(), getServiceComponents());
+
+        var action = googleVertexAiRerankModel.accept(actionCreator, request.taskSettings());
+        action.execute(fromRerankRequest(request), timeout, listener);
+    }
+
+    @Override
+    public boolean supportsNewRerankCodePath() {
+        return true;
     }
 
     @Override

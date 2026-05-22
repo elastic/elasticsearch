@@ -39,7 +39,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
     private final Executor shardReadThreadPoolExecutor;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
 
-    //TODO Merge the two constructors
+    // TODO Merge the two constructors
     public StatelessSharedBlobCacheService(
         NodeEnvironment environment,
         Settings settings,

@@ -78,7 +78,7 @@ public class BufferedArrayTests extends ComputeTestCase {
 
     public void testExponentialHistogramBuffer() {
         try (ExponentialHistogramBuffer buf = new ExponentialHistogramBuffer(blockFactory(), between(1, 1024))) {
-            for (int j=0; j<3; j++) {
+            for (int j = 0; j < 3; j++) {
                 if (j != 0) {
                     buf.clear();
                 }

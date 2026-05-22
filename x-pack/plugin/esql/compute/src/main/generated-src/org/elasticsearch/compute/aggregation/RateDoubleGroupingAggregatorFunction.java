@@ -476,7 +476,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         GroupingAggregatorEvaluationContext ctx
     ) {
         var flushQueues = rawBuffer.prepareForFlush();
-        for (int i=0; i<selected.getPositionCount(); i++) {
+        for (int i = 0; i < selected.getPositionCount(); i++) {
             flushGroup(selected.getInt(i), flushQueues);
         }
         return this::evaluateIntermediate;
@@ -684,7 +684,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         GroupingAggregatorEvaluationContext ctx
     ) {
         var flushQueues = rawBuffer.prepareForFlush();
-        for (int i=0; i<selected.getPositionCount(); i++) {
+        for (int i = 0; i < selected.getPositionCount(); i++) {
             flushGroup(selected.getInt(i), flushQueues);
         }
         return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);

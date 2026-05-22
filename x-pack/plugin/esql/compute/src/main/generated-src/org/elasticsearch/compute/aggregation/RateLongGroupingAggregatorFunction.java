@@ -475,13 +475,16 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         IntVector selected,
         GroupingAggregatorEvaluationContext ctx
     ) {
+        var flushQueues = rawBuffer.prepareForFlush();
+        for (int i = 0; i < selected.getPositionCount(); i++) {
+            flushGroup(selected.getInt(i), flushQueues);
+        }
         return this::evaluateIntermediate;
     }
 
     private void evaluateIntermediate(Block[] blocks, int offset, IntVector selectedInPage) {
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selectedInPage.getPositionCount();
-        var flushQueues = rawBuffer.prepareForFlush();
         try (
             var timestamps = blockFactory.newLongBlockBuilder(positionCount * 2);
             var values = blockFactory.newLongBlockBuilder(positionCount * 2);
@@ -490,7 +493,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         ) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
-                var state = flushAndCombineState(flushQueues, group);
+                var state = group < reducedStates.size() ? reducedStates.get(group) : null;
                 // Do not combine intervals across shards because intervals from different indices may overlap.
                 if (state != null && state.samples > 0) {
                     state.writeIntervalsToBlocks(timestamps, values);
@@ -522,15 +525,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         reducedStates = bigArrays.grow(reducedStates, rawBuffer.maxGroupId + 1);
         var flushQueues = rawBuffer.prepareForFlush();
         for (int groupId = flushQueues.minGroupId(); groupId <= flushQueues.maxGroupId(); groupId++) {
-            var flushQueue = flushQueues.getFlushQueue(groupId);
-            if (flushQueue != null) {
-                ReducedState state = reducedStates.get(groupId);
-                if (state == null) {
-                    state = new ReducedState();
-                    reducedStates.set(groupId, state);
-                }
-                flushGroup(state, rawBuffer, flushQueue);
-            }
+            flushGroup(groupId, flushQueues);
         }
         rawBuffer.clearBuffers();
     }
@@ -595,6 +590,19 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         @Override
         public void close() {
             Releasables.close(values, super::close);
+        }
+    }
+
+    void flushGroup(int group, FlushQueues flushQueues) {
+        var flushQueue = flushQueues.getFlushQueue(group);
+        if (flushQueue != null) {
+            reducedStates = bigArrays.grow(reducedStates, group + 1);
+            ReducedState state = reducedStates.get(group);
+            if (state == null) {
+                state = new ReducedState();
+                reducedStates.set(group, state);
+            }
+            flushGroup(state, rawBuffer, flushQueue);
         }
     }
 
@@ -675,26 +683,20 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         IntVector selected,
         GroupingAggregatorEvaluationContext ctx
     ) {
+        var flushQueues = rawBuffer.prepareForFlush();
+        for (int i = 0; i < selected.getPositionCount(); i++) {
+            flushGroup(selected.getInt(i), flushQueues);
+        }
         return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
     }
 
     private void evaluateFinal(Block[] blocks, int offset, IntVector selectedInPage, GroupingAggregatorEvaluationContext ctx) {
         BlockFactory blockFactory = driverContext.blockFactory();
         int positionCount = selectedInPage.getPositionCount();
-        var flushQueues = rawBuffer.prepareForFlush();
         try (var rates = blockFactory.newDoubleBlockBuilder(positionCount)) {
             for (int p = 0; p < positionCount; p++) {
                 int group = selectedInPage.getInt(p);
                 var state = group < reducedStates.size() ? reducedStates.get(group) : null;
-                var flushQueue = flushQueues.getFlushQueue(group);
-                if (flushQueue != null) {
-                    if (state == null) {
-                        state = new ReducedState();
-                        reducedStates = bigArrays.grow(reducedStates, group + 1);
-                        reducedStates.set(group, state);
-                    }
-                    flushGroup(state, rawBuffer, flushQueue);
-                }
                 if (state != null && state.samples > 1) {
                     state.combineIntervals();
                 }
@@ -723,18 +725,6 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
             }
             blocks[offset] = rates.build();
         }
-    }
-
-    ReducedState flushAndCombineState(FlushQueues flushQueues, int groupId) {
-        ReducedState state = groupId < reducedStates.size() ? reducedStates.getAndSet(groupId, null) : null;
-        var flushQueue = flushQueues.getFlushQueue(groupId);
-        if (flushQueue != null) {
-            if (state == null) {
-                state = new ReducedState();
-            }
-            flushGroup(state, rawBuffer, flushQueue);
-        }
-        return state;
     }
 
     @Override

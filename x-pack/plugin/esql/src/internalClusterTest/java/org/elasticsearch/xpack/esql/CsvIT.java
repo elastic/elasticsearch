@@ -255,7 +255,7 @@ public class CsvIT extends ESTestCase {
         if (randomBoolean()) {
             Settings.Builder pragmaSettings = Settings.builder();
             pragmaSettings.put("max_concurrent_shards_per_node", randomBoolean() ? 1 : between(2, 10));
-            request.pragmasOk().pragmas(new QueryPragmas(pragmaSettings.build()));
+            request.acceptedPragmaRisks(true).pragmas(new QueryPragmas(pragmaSettings.build()));
         }
         var listener = new ResponseListener(cluster.getInstance(TransportService.class).getThreadPool());
         cluster.client().execute(EsqlQueryAction.INSTANCE, request, listener);

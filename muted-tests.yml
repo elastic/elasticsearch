@@ -570,9 +570,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
-- class: org.elasticsearch.reindex.management.CancelTasksRelocationIT
-  method: testCancelByOriginalTaskIdAfterRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/149688
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681

@@ -1,0 +1,116 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
+
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
+import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
+
+import java.io.IOException;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+
+/**
+ * Converts a counter-typed value to its plain numeric (gauge) equivalent.
+ * The output type depends on the input: {@code counter_long} becomes {@code long},
+ * {@code counter_integer} becomes {@code integer}, and {@code counter_double} becomes {@code double}.
+ * Plain numeric inputs are returned unchanged (idempotent).
+ * No values are modified; this is a pure type-annotation change.
+ */
+public class ToGauge extends AbstractConvertFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "ToGauge", ToGauge::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGauge.class).unary(ToGauge::new).name("to_gauge");
+
+    private static final Map<DataType, BuildFactory> EVALUATORS = Map.of(
+        LONG,
+        (source, field) -> field,
+        INTEGER,
+        (source, field) -> field,
+        DOUBLE,
+        (source, field) -> field,
+        COUNTER_LONG,
+        (source, field) -> field,
+        COUNTER_INTEGER,
+        (source, field) -> field,
+        COUNTER_DOUBLE,
+        (source, field) -> field
+    );
+
+    @FunctionInfo(
+        returnType = { "long", "integer", "double" },
+        description = """
+            Converts a counter value to its gauge (plain numeric) equivalent. The output type is determined by the input:
+            `counter_long` converts to `long`, `counter_integer` to `integer`, and `counter_double` to `double`.
+            No values are modified; only the type annotation changes. If the input is already a plain numeric, the \
+            function is a no-op. This is useful when a metric field was misclassified as a counter type instead of a \
+            plain numeric (gauge) in the index mapping.
+            This function is also available as the `::gauge` cast operator.""",
+        examples = @Example(file = "k8s-timeseries-avg-over-time", tag = "toGauge")
+    )
+    public ToGauge(
+        Source source,
+        @Param(
+            name = "field",
+            type = { "integer", "counter_integer", "long", "counter_long", "double", "counter_double" },
+            description = "Input value. The input can be a single- or multi-valued column or an expression."
+        ) Expression field
+    ) {
+        super(source, field);
+    }
+
+    private ToGauge(StreamInput in) throws IOException {
+        super(in);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
+    }
+
+    @Override
+    protected Map<DataType, BuildFactory> factories() {
+        return EVALUATORS;
+    }
+
+    /**
+     * Returns the plain numeric variant of the input type: {@code counter_long→long}, etc.
+     * Plain numeric inputs pass through unchanged. By the time this is called,
+     * {@link #resolveType()} has already ensured the field type is one of the supported
+     * numeric/counter types.
+     */
+    @Override
+    public DataType dataType() {
+        DataType fieldType = field().dataType();
+        assert EVALUATORS.containsKey(fieldType) : "unsupported type: " + fieldType;
+        return fieldType.noCounter();
+    }
+
+    @Override
+    public Expression replaceChildren(List<Expression> newChildren) {
+        return new ToGauge(source(), newChildren.get(0));
+    }
+
+    @Override
+    protected NodeInfo<? extends Expression> info() {
+        return NodeInfo.create(this, ToGauge::new, field());
+    }
+}

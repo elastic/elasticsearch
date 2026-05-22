@@ -432,3 +432,84 @@ min:double | time_bucket:datetime
 174.2      | 2024-05-10T00:20:00.000Z
 
 ;
+
+// Verify that ::gauge is a no-op on a plain numeric (long) field — network.bytes_in is already a
+// long with no counter annotation, so ::gauge does not change the value or the type.
+// Results must be identical to the eval_on_avg_over_time test (same query, no cast).
+avgOverTimeOnToGaugeCastNoop
+required_capability: ts_command_v0
+required_capability: to_gauge
+
+//tag::toGauge[]
+TS k8s
+| STATS bytes_in = avg(avg_over_time(network.bytes_in::gauge)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL bytes_in = round(bytes_in, 4)
+| KEEP bytes_in, cluster, time_bucket
+| SORT time_bucket, cluster
+| LIMIT 10;
+//end::toGauge[]
+
+//tag::toGauge-result[]
+bytes_in:double | cluster:keyword | time_bucket:datetime
+402.05          | prod            | 2024-05-10T00:00:00.000Z
+499.9387        | qa              | 2024-05-10T00:00:00.000Z
+497.1889        | staging         | 2024-05-10T00:00:00.000Z
+552.5219        | prod            | 2024-05-10T00:10:00.000Z
+495.0368        | qa              | 2024-05-10T00:10:00.000Z
+445.2519        | staging         | 2024-05-10T00:10:00.000Z
+718.6667        | prod            | 2024-05-10T00:20:00.000Z
+778.8333        | qa              | 2024-05-10T00:20:00.000Z
+400.4556        | staging         | 2024-05-10T00:20:00.000Z
+;
+//end::toGauge-result[]
+
+// Convert network.total_bytes_in (counter_long) to a gauge via ::gauge so that
+// avg_over_time() — which rejects counter types — can consume it.
+avgOverTimeOnCounterToGaugeCast
+required_capability: ts_command_v0
+required_capability: to_gauge
+
+TS k8s
+| STATS total_bytes = avg(avg_over_time(network.total_bytes_in::gauge)) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL total_bytes = round(total_bytes, 4)
+| KEEP total_bytes, cluster, time_bucket
+| SORT time_bucket, cluster
+| LIMIT 10;
+
+total_bytes:double | cluster:keyword | time_bucket:datetime
+2166.213           | prod            | 2024-05-10T00:00:00.000Z
+3375.4729          | qa              | 2024-05-10T00:00:00.000Z
+1787.2306          | staging         | 2024-05-10T00:00:00.000Z
+6082.3906          | prod            | 2024-05-10T00:10:00.000Z
+4635.0996          | qa              | 2024-05-10T00:10:00.000Z
+3647.0             | staging         | 2024-05-10T00:10:00.000Z
+7725.3333          | prod            | 2024-05-10T00:20:00.000Z
+8654.0             | qa              | 2024-05-10T00:20:00.000Z
+6222.2222          | staging         | 2024-05-10T00:20:00.000Z
+;
+
+// Same as above using the TO_GAUGE() function form, grouped by cluster.
+// network.bytes_in is a plain long, so TO_GAUGE() is a no-op here.
+avgOverTimeOnToGaugeFunctionNoop
+required_capability: ts_command_v0
+required_capability: to_gauge
+
+TS k8s
+| STATS bytes_in = avg(avg_over_time(TO_GAUGE(network.bytes_in))) BY cluster, time_bucket = bucket(@timestamp, 10minute)
+| EVAL bytes_in = round(bytes_in, 4)
+| KEEP bytes_in, cluster, time_bucket
+| SORT time_bucket, cluster
+| LIMIT 10;
+
+bytes_in:double | cluster:keyword | time_bucket:datetime
+402.05          | prod            | 2024-05-10T00:00:00.000Z
+499.9387        | qa              | 2024-05-10T00:00:00.000Z
+497.1889        | staging         | 2024-05-10T00:00:00.000Z
+552.5219        | prod            | 2024-05-10T00:10:00.000Z
+495.0368        | qa              | 2024-05-10T00:10:00.000Z
+445.2519        | staging         | 2024-05-10T00:10:00.000Z
+718.6667        | prod            | 2024-05-10T00:20:00.000Z
+778.8333        | qa              | 2024-05-10T00:20:00.000Z
+400.4556        | staging         | 2024-05-10T00:20:00.000Z
+;
+

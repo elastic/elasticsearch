@@ -50,7 +50,6 @@ import javax.xml.parsers.DocumentBuilderFactory;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 import static org.elasticsearch.test.ESTestCase.assertThat;
-import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
 import static org.hamcrest.Matchers.oneOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
@@ -213,7 +212,8 @@ public class S3HttpHandler implements HttpHandler {
                         "STREAMING-AWS4-HMAC-SHA256-PAYLOAD",
                         MessageDigests.toHexString(MessageDigests.digest(blob.v2(), MessageDigests.sha256()))
                     )
-                );    blobs.put(request.path(), blob.v2());
+                );
+                blobs.put(request.path(), blob.v2());
                 exchange.getResponseHeaders().add("ETag", blob.v1());
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 

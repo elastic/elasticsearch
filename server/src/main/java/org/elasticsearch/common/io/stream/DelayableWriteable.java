@@ -309,9 +309,11 @@ public abstract class DelayableWriteable<T extends Writeable> implements Writeab
     static CompressedBytes compressToBytes(Writeable ref, TransportVersion version) throws IOException {
         final BytesStreamOutput tmp = new BytesStreamOutput();
         long uncompressedSize;
-        try (StreamOutput compressor = new PositionTrackingOutputStreamStreamOutput(
-            CompressorFactory.COMPRESSOR.threadLocalOutputStream(tmp)
-        )) {
+        try (
+            StreamOutput compressor = new PositionTrackingOutputStreamStreamOutput(
+                CompressorFactory.COMPRESSOR.threadLocalOutputStream(tmp)
+            )
+        ) {
             compressor.setTransportVersion(version);
             ref.writeTo(compressor);
             uncompressedSize = compressor.position();

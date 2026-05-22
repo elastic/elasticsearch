@@ -15,8 +15,18 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 
 /**
- * Disables rebalancing for nominated tier(s) in the simulation phase. Rebalancing is always allowed during reconciliation
- * to prevent drift between the desired balance and the actual shard allocation.
+ * Disables rebalancing for nominated tier(s) when simulating.
+ * <p>
+ * When the {@link org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator} is in use, the simulation will
+ * make moves based on a copy of the {@link org.elasticsearch.cluster.ClusterInfo} which is updated to simulate the effects of moves
+ * it has already made. For this reason {@link AllocationDecider#canRemain} will sometimes return NO or NOT_PREFERRED for the simulated
+ * ClusterInfo, but not for the real ClusterInfo used by the
+ * {@link org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReconciler}.
+ * <p>
+ * If we turn off rebalancing in both simulation and reconciliation phases, we'll leave some desired balance moves unmade, because the
+ * reconciler will only move shards that return NO or NOT_PREFERRED from {@link AllocationDecider#canRemain}. These unmade moves will
+ * accumulate and eventually result in the simulation operating on a very inaccurate view of the cluster. This Decider disables rebalancing
+ * for the simulation phase only, it is always enabled for the reconciliation phase.
  */
 public class DisableRebalanceDecider extends AllocationDecider {
 

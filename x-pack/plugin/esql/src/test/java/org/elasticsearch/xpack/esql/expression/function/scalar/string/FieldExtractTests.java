@@ -96,6 +96,7 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
                     "random " + shape.name() + " with non-existent path",
                     types(DataType.FLATTENED, DataType.KEYWORD),
                     () -> {
+                        assumeTrue("Requires FIELD_EXTRACT_FUNCTION capability", EsqlCapabilities.Cap.FIELD_EXTRACT_FUNCTION.isEnabled());
                         BytesRef json = (BytesRef) shape.get().getValue();
                         // FlattenedCases generates random keys of length 1-20, so any longer key is
                         // guaranteed not to collide. Pinning the lower bound at 25 keeps the
@@ -130,6 +131,7 @@ public class FieldExtractTests extends AbstractScalarFunctionTestCase {
 
     private static TestCaseSupplier matchingPathSupplier(String name, boolean asLiteral, Supplier<FlatJsonWithKey> jsonGen) {
         return new TestCaseSupplier(name, types(DataType.FLATTENED, DataType.KEYWORD), () -> {
+            assumeTrue("Requires FIELD_EXTRACT_FUNCTION capability", EsqlCapabilities.Cap.FIELD_EXTRACT_FUNCTION.isEnabled());
             FlatJsonWithKey flat = jsonGen.get();
             TestCaseSupplier.TypedData pathData = new TestCaseSupplier.TypedData(new BytesRef(flat.key()), DataType.KEYWORD, "path");
             if (asLiteral) {

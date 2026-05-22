@@ -1,5 +1,6 @@
 apply plugin: 'elasticsearch.java'
 apply plugin: org.elasticsearch.gradle.dependencies.CompileOnlyResolvePlugin
+apply plugin: 'elasticsearch.esql-release'
 
 dependencies {
   api project(':x-pack:plugin:esql:compute')

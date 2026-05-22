@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 148517
+summary: Repro and fix `updateShardState` allocation check edge case
+type: bug

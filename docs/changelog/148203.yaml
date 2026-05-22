@@ -1,0 +1,5 @@
+area: Security
+issues: []
+pr: 148203
+summary: Add automatic key rotation for primary encryption key
+type: enhancement

@@ -570,3 +570,9 @@ tests:
 - class: org.elasticsearch.index.reindex.LocalReindexResumeIT
   method: testResumeReindexFromPit_slicedN
   issue: https://github.com/elastic/elasticsearch/issues/149698
+- class: org.elasticsearch.index.reindex.ReindexRequestWireSerializingTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/149720
+- class: org.elasticsearch.index.reindex.ResumeBulkByScrollRequestWireSerializingTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/149721

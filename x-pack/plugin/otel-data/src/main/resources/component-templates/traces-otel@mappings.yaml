@@ -48,6 +48,9 @@ template:
         properties:
           elastic.profiler_stack_trace_ids:
             type: counted_keyword
+          # Explicitly map http.response.status_code to work around mapping conflict caused by non-semconv-compliant clients
+          http.response.status_code:
+            type: long
       links:
         synthetic_source_keep: arrays
         properties:

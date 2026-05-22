@@ -12,6 +12,7 @@ package org.elasticsearch.search.internal;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -20,10 +21,15 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.TermQuery;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.common.lucene.search.Queries.ALL_DOCS_INSTANCE;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -57,6 +63,55 @@ public class MaxClauseCountQueryVisitorTests extends ESTestCase {
         new TermQuery(new Term("field", "value")).visit(visitor);
 
         assertThat(visitor.getEstimatedBytes(), greaterThanOrEqualTo(MaxClauseCountQueryVisitor.LEAF_BASE_BYTES));
+    }
+
+    public void testChargesFuzzyQueryByFuzzyQueriesEstimateBytes() {
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        FuzzyQuery fq = new FuzzyQuery(new Term("field", "value0"), 2, 1, 50, true);
+
+        fq.visit(visitor);
+
+        long expected = FuzzyQueries.estimateBytes(fq);
+        assertEquals(expected, visitor.getEstimatedBytes());
+        assertEquals(1, visitor.getNumClauses());
+        assertThat(
+            "fuzzy estimate must dominate the generic per-clause floor or this test loses its bite",
+            expected,
+            greaterThanOrEqualTo(MaxClauseCountQueryVisitor.LEAF_BASE_BYTES)
+        );
+    }
+
+    public void testFuzzyQueryVisitDoesNotInvokeAutomatonSupplier() {
+        MaxClauseCountQueryVisitor visitor = new MaxClauseCountQueryVisitor(IndexSearcher.getMaxClauseCount());
+        AtomicInteger supplierInvocations = new AtomicInteger();
+        FuzzyQuery fq = new FuzzyQuery(new Term("field", "value0"), 2, 1, 50, true) {
+            @Override
+            public void visit(QueryVisitor v) {
+                if (v.acceptField(getField())) {
+                    Supplier<ByteRunAutomaton> counting = () -> {
+                        supplierInvocations.incrementAndGet();
+                        return getAutomata().runAutomaton;
+                    };
+                    v.consumeTermsMatching(this, getField(), counting);
+                }
+            }
+        };
+
+        fq.visit(visitor);
+
+        assertEquals(
+            "MaxClauseCountQueryVisitor must not invoke the automaton supplier — that would force "
+                + "FuzzyQuery#getAutomata() and defeat the once-per-phase \"charge before the expensive "
+                + "automaton is built\" property",
+            0,
+            supplierInvocations.get()
+        );
+        assertEquals("the visit must still register the fuzzy clause for accounting", 1, visitor.getNumClauses());
+        assertEquals(
+            "the visit must still produce the parameter-driven byte estimate",
+            FuzzyQueries.estimateBytes(fq),
+            visitor.getEstimatedBytes()
+        );
     }
 
     public void testAccumulatesBytesAcrossAllLeavesInABooleanQuery() {

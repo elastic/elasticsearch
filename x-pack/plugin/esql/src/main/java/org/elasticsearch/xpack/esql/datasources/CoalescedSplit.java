@@ -27,7 +27,7 @@ import java.util.Objects;
  * and process each one individually.
  * <p>
  * <b>Schema mapping duplication:</b> when schema reconciliation is active, each
- * child {@link FileSplit} carries its own {@link SchemaReconciliation.ColumnMapping}.
+ * child {@link FileSplit} carries its own {@link ColumnMapping}.
  * On the coordinator all splits from the same file share a single object reference
  * (see {@code FileSplitProvider}), but each is serialized independently on the wire.
  * {@link SplitCoalescer} groups splits by size, not by file, so a single

@@ -61,7 +61,7 @@ services:
     depends_on:
       kibana_settings:
         condition: service_completed_successfully
-    image: docker.elastic.co/kibana/kibana:9.4.0-SNAPSHOT
+    image: docker.elastic.co/kibana/kibana:9.5.0-SNAPSHOT
     container_name: es-local-kibana
     environment:
       SERVER_NAME: kibana

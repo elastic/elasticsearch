@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtract
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
+import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
@@ -175,8 +176,7 @@ public class TestAnalyzer {
             Map.of(),
             Map.of(noFieldsIndexName, IndexMode.STANDARD),
             Map.of("", List.of(noFieldsIndexName)),
-            Map.of("", List.of(noFieldsIndexName)),
-            Map.of()
+            Map.of("", List.of(noFieldsIndexName))
         );
         addIndex(noFieldsIndexName, IndexResolution.valid(noFieldsIndex));
         return this;
@@ -398,7 +398,8 @@ public class TestAnalyzer {
     }
 
     /**
-     * Set external source resolution.
+     * Set external source resolution. Enriches the schema with {@code _file.*} metadata columns
+     * to mirror the production path in {@link ExternalSourceResolver}.
      */
     public TestAnalyzer externalSourceResolution(String path, List<Attribute> schema, FileList fileSet) {
         var metadata = new ExternalSourceMetadata() {
@@ -417,7 +418,8 @@ public class TestAnalyzer {
                 return "parquet";
             }
         };
-        var resolvedSource = new ExternalSourceResolution.ResolvedSource(metadata, fileSet);
+        var enriched = ExternalSourceResolver.enrichSchemaWithFileMetadataColumns(metadata);
+        var resolvedSource = new ExternalSourceResolution.ResolvedSource(enriched, fileSet, java.util.Map.of());
         return externalSourceResolution(new ExternalSourceResolution(Map.of(path, resolvedSource)));
     }
 
@@ -803,7 +805,7 @@ public class TestAnalyzer {
      */
     public static IndexResolution loadMapping(String resource, String indexName, IndexMode indexMode) {
         return IndexResolution.valid(
-            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of(), Map.of())
+            new EsIndex(indexName, EsqlTestUtils.loadMapping(resource), Map.of(indexName, indexMode), Map.of(), Map.of())
         );
     }
 

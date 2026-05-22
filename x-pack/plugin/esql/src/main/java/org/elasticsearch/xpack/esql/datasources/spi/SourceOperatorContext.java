@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -53,6 +54,7 @@ public record SourceOperatorContext(
     Object pushedFilter,
     List<Expression> pushedExpressions,
     FileList fileList,
+    Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
     @Nullable ExternalSplit split,
     Set<String> partitionColumnNames,
     @Nullable ExternalSliceQueue sliceQueue,
@@ -67,6 +69,7 @@ public record SourceOperatorContext(
         config = config != null ? Map.copyOf(config) : Map.of();
         sourceMetadata = sourceMetadata != null ? Map.copyOf(sourceMetadata) : Map.of();
         pushedExpressions = pushedExpressions != null ? List.copyOf(pushedExpressions) : List.of();
+        schemaMap = schemaMap != null ? schemaMap : Map.of();
         partitionColumnNames = partitionColumnNames != null && partitionColumnNames.isEmpty() == false
             ? Collections.unmodifiableSet(new LinkedHashSet<>(partitionColumnNames))
             : Set.of();
@@ -114,6 +117,7 @@ public record SourceOperatorContext(
             pushedFilter,
             null,
             fileList,
+            Map.of(),
             split,
             null,
             null,
@@ -150,6 +154,7 @@ public record SourceOperatorContext(
             pushedFilter,
             null,
             fileList,
+            Map.of(),
             null,
             null,
             null,
@@ -185,6 +190,7 @@ public record SourceOperatorContext(
             pushedFilter,
             null,
             null,
+            Map.of(),
             null,
             null,
             null,
@@ -218,6 +224,7 @@ public record SourceOperatorContext(
             null,
             null,
             null,
+            Map.of(),
             null,
             null,
             null,
@@ -246,6 +253,7 @@ public record SourceOperatorContext(
         private Object pushedFilter;
         private List<Expression> pushedExpressions;
         private FileList fileList;
+        private Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
         private ExternalSplit split;
         private Set<String> partitionColumnNames;
         private ExternalSliceQueue sliceQueue;
@@ -327,6 +335,17 @@ public record SourceOperatorContext(
             return this;
         }
 
+        /**
+         * Per-file planner-resolved schema info, populated by the resolver and threaded through
+         * {@link org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec}. Always present
+         * for resolved sources (single-file gets a one-entry identity map; multi-file gets the
+         * reconciliation result). Empty map for legacy/unresolved paths.
+         */
+        public Builder schemaMap(Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap) {
+            this.schemaMap = schemaMap;
+            return this;
+        }
+
         public Builder split(ExternalSplit split) {
             this.split = split;
             return this;
@@ -368,6 +387,7 @@ public record SourceOperatorContext(
                 pushedFilter,
                 pushedExpressions,
                 fileList,
+                schemaMap,
                 split,
                 partitionColumnNames,
                 sliceQueue,

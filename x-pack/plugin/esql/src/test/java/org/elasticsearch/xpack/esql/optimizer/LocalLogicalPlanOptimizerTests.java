@@ -39,6 +39,8 @@ import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.DeltaOnlyHistogramMergeOverTime;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.HistogramMerge;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Increase;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
@@ -1908,5 +1910,45 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
 
         assertThat(relationTemporalities, hasSize(1));
         assertThat((relationTemporalities.getFirst()).id(), equalTo(rateTemporality.id()));
+    }
+
+    public void testHistogramMergeReplacedWithMergeOverTime() {
+        var histogramAttr = getFieldAttribute("histogram_field", DataType.EXPONENTIAL_HISTOGRAM);
+        var timestampAttr = getFieldAttribute("@timestamp", DataType.DATETIME);
+        var relation = new EsRelation(
+            EMPTY,
+            "test",
+            IndexMode.TIME_SERIES,
+            Map.of(),
+            Map.of(),
+            Map.of("test", IndexMode.TIME_SERIES),
+            List.of(histogramAttr, timestampAttr)
+        );
+        var tsAggregate = new TimeSeriesAggregate(
+            EMPTY,
+            relation,
+            List.of(),
+            List.of(new Alias(EMPTY, "merged", new HistogramMerge(EMPTY, histogramAttr, Literal.TRUE, AggregateFunction.NO_WINDOW))),
+            null,
+            timestampAttr
+        );
+
+        var searchStats = new EsqlTestUtils.TestSearchStats() {
+            @Override
+            public boolean exists(FieldAttribute.FieldName field) {
+                return field.string().equals(histogramAttr.name()) || field.string().equals(timestampAttr.name());
+            }
+        };
+        var localContext = new LocalLogicalOptimizerContext(TEST_CFG, FoldContext.small(), searchStats);
+        var optimizedPlan = new LocalLogicalPlanOptimizer(localContext).localOptimize(tsAggregate);
+
+        var optimizedTsAgg = as(optimizedPlan, TimeSeriesAggregate.class);
+        var optimizedAgg = Alias.unwrap(optimizedTsAgg.aggregates().getFirst());
+        assertThat(optimizedAgg, instanceOf(DeltaOnlyHistogramMergeOverTime.class));
+
+        var mergeOverTime = (DeltaOnlyHistogramMergeOverTime) optimizedAgg;
+        assertThat(mergeOverTime.field(), equalTo(histogramAttr));
+        assertThat(mergeOverTime.temporality(), notNullValue());
+        assertThat(mergeOverTime.temporality(), instanceOf(TemporalityAttribute.class));
     }
 }

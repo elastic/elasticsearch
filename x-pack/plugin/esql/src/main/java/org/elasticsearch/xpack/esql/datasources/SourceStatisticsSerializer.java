@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -178,6 +180,27 @@ public final class SourceStatisticsSerializer {
         return sourceMetadata != null ? asBoxedLong(sourceMetadata.get(columnSizeBytesKey(columnName))) : null;
     }
 
+    /**
+     * Merges per-file {@code _stats.*} maps into a single dataset-wide map.
+     * <p>
+     * Implements the "implicit nulls" contract for UNION_BY_NAME aggregate pushdown: a column
+     * absent from a per-file map (no {@code _stats.columns.<col>.*} keys at all) means the
+     * column is physically absent from that file, so its entire row count is folded into the
+     * merged {@code null_count} accumulator for that column. This makes
+     * {@code Count(col) = totalRowCount - mergedNullCount} correct downstream in
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushAggregatesToExternalSource}.
+     * <p>
+     * Format-reader ground truth: Parquet always writes {@code size_bytes} for present columns
+     * and ORC always writes {@code null_count}, so any column-family key in a per-file map is
+     * sufficient to mark the column as physically present in that file. The rare exception is
+     * Parquet writing a column with stats disabled — present, with {@code size_bytes}, but no
+     * {@code null_count}. We refuse to fabricate a null count in that case: the merged map
+     * drops the {@code null_count} entry entirely (via {@code poisonedNullCounts}), so
+     * downstream consumers see "unknown" and fall back rather than under-count.
+     * <p>
+     * Min/max/size_bytes accumulators are unchanged: they only sum across files where the
+     * column is present, which is the correct semantics regardless of implicit nulls.
+     */
     @SuppressWarnings({ "rawtypes", "unchecked" })
     public static Map<String, Object> mergeStatistics(List<Map<String, Object>> splitStats) {
         if (splitStats == null || splitStats.isEmpty()) {
@@ -196,24 +219,48 @@ public final class SourceStatisticsSerializer {
         Map<String, long[]> colSizeBytes = new HashMap<>();
         Set<String> poisonedMins = new HashSet<>();
         Set<String> poisonedMaxs = new HashSet<>();
+        // Columns that any file showed as physically present (any column-family key seen) but
+        // that lack a null_count value in that same file. We cannot fabricate a count for
+        // those rows, so we drop the merged null_count entry to signal "unknown" downstream.
+        Set<String> poisonedNullCounts = new HashSet<>();
+        // Tracks (per per-file map) the row count and the set of columns physically present in
+        // that file so we can fold absent-column rows into implicit nulls in a second pass.
+        long[] perFileRowCounts = new long[splitStats.size()];
+        List<Set<String>> perFileColumns = new ArrayList<>(splitStats.size());
+        Set<String> allColumns = new LinkedHashSet<>();
 
+        int fileIndex = 0;
         for (Map<String, Object> stats : splitStats) {
             if (stats == null || stats.containsKey(STATS_ROW_COUNT) == false) {
                 return null;
             }
             Object rc = stats.get(STATS_ROW_COUNT);
+            long fileRowCount;
             if (rc instanceof Number rcNum) {
-                totalRows += rcNum.longValue();
+                fileRowCount = rcNum.longValue();
+                totalRows += fileRowCount;
             } else {
                 return null;
             }
             Object sb = stats.get(STATS_SIZE_BYTES);
             if (sb instanceof Number sbNum) totalSize += sbNum.longValue();
 
+            // Probe which columns this file physically contains. The column is "present" iff
+            // any _stats.columns.<col>.* key is in the map (matches SplitStats.of's logic).
+            Set<String> columnsInThisFile = new HashSet<>();
+            // Track which present columns of this file emitted a null_count value, so we can
+            // detect the rare present-but-stats-less case after the column-family scan.
+            Set<String> nullCountSeenInThisFile = new HashSet<>();
             for (Map.Entry<String, Object> entry : stats.entrySet()) {
                 String key = entry.getKey();
                 if (key.startsWith(STATS_COL_PREFIX) == false) continue;
+                String rest = key.substring(STATS_COL_PREFIX.length());
+                int dotIdx = rest.lastIndexOf('.');
+                if (dotIdx <= 0) continue;
+                String colName = rest.substring(0, dotIdx);
+                columnsInThisFile.add(colName);
                 if (key.endsWith(NULL_COUNT_SUFFIX) && entry.getValue() instanceof Number ncNum) {
+                    nullCountSeenInThisFile.add(colName);
                     nullCounts.merge(key, new long[] { ncNum.longValue() }, (a, b) -> {
                         a[0] += b[0];
                         return a;
@@ -254,6 +301,33 @@ public final class SourceStatisticsSerializer {
                     });
                 }
             }
+            // Any column physically present in this file but lacking a null_count value
+            // poisons that column's merged null_count: we cannot reconstruct it later.
+            for (String present : columnsInThisFile) {
+                if (nullCountSeenInThisFile.contains(present) == false) {
+                    poisonedNullCounts.add(present);
+                }
+            }
+            perFileRowCounts[fileIndex++] = fileRowCount;
+            perFileColumns.add(columnsInThisFile);
+            allColumns.addAll(columnsInThisFile);
+        }
+
+        // Implicit-nulls pass: for every column ever seen, fold the row count of files that
+        // do not physically contain the column into that column's null_count accumulator.
+        // This only adds value when there are at least two files; the size==1 fast path above
+        // returns the single map verbatim and never reaches here.
+        for (String colName : allColumns) {
+            String key = columnNullCountKey(colName);
+            for (int i = 0; i < perFileColumns.size(); i++) {
+                if (perFileColumns.get(i).contains(colName) == false) {
+                    long fileRowCount = perFileRowCounts[i];
+                    nullCounts.merge(key, new long[] { fileRowCount }, (a, b) -> {
+                        a[0] += b[0];
+                        return a;
+                    });
+                }
+            }
         }
 
         Map<String, Object> merged = new HashMap<>();
@@ -261,7 +335,12 @@ public final class SourceStatisticsSerializer {
         if (totalSize > 0) {
             merged.put(STATS_SIZE_BYTES, totalSize);
         }
-        nullCounts.forEach((k, v) -> merged.put(k, v[0]));
+        nullCounts.forEach((k, v) -> {
+            String colName = k.substring(STATS_COL_PREFIX.length(), k.length() - NULL_COUNT_SUFFIX.length());
+            if (poisonedNullCounts.contains(colName) == false) {
+                merged.put(k, v[0]);
+            }
+        });
         mins.forEach((k, v) -> merged.put(k, v[0]));
         maxs.forEach((k, v) -> merged.put(k, v[0]));
         colSizeBytes.forEach((k, v) -> merged.put(k, v[0]));

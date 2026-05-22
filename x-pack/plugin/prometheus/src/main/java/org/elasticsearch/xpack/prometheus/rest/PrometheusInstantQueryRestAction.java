@@ -84,7 +84,7 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
         String start = DateTimeFormatter.ISO_INSTANT.format(startInstant);
         String end = DateTimeFormatter.ISO_INSTANT.format(endInstant);
 
-        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement(query, index, start, end, STEP);
+        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement(query, index, start, end, STEP, limit);
         var esqlRequest = PreparedEsqlQueryRequest.sync(statement, query);
 
         return channel -> client.execute(

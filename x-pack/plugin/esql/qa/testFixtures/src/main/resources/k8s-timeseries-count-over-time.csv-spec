@@ -32,6 +32,22 @@ ip:double | step:datetime            | cluster:keyword
 2.0       | 2024-05-10T00:20:00.000Z | staging
 ;
 
+count_over_time_of_ip_promql_collapsed
+required_capability: promql_command_v0
+required_capability: ts_collapse
+required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
+
+PROMQL index=k8s step=10m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:20:00.000Z" ip=(min by (cluster) (count_over_time(client.ip[10m])))
+| TS_COLLAPSE
+| SORT cluster;
+
+ip:double          | step:datetime                                                                                  | cluster:keyword
+[4.0, 9.0]        | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | prod
+[11.0, 12.0]      | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | qa
+[6.0, 5.0]        | [2024-05-10T00:10:00.000Z, 2024-05-10T00:20:00.000Z]                                        | staging
+;
+
 count_over_time_of_long
 required_capability: ts_command_v0
 TS k8s | STATS bytes_in = sum(count_over_time(network.bytes_in)) BY cluster, time_bucket = bucket(@timestamp,10minute) | SORT bytes_in DESC, cluster, time_bucket | LIMIT 10;
@@ -642,6 +658,7 @@ events:double | pod:keyword | time_bucket:datetime
 count_over_time_multi_values_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=1m start="2024-05-10T00:00:00.000Z" end="2024-05-10T00:09:00.000Z" events=(avg by (pod) (count_over_time(events_received[1m])))
 | SORT events, pod, step | LIMIT 10;
@@ -679,6 +696,7 @@ events:long | pod:keyword | time_bucket:datetime
 count_over_time_null_values_promql
 required_capability: promql_command_v0
 required_capability: fix_promql_time_bucket
+required_capability: fix_tstep_bucket_rounding
 
 PROMQL index=k8s step=1m start="2024-05-10T00:10:00.000Z" end="2024-05-10T00:14:00.000Z" events=(sum by (pod) (count_over_time(events_received[1m])))
 | SORT events, pod, step | LIMIT 10;

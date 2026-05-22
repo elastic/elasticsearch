@@ -118,7 +118,7 @@ public enum MissingValues {
     }
 
     public static SortedNumericLongValues replaceMissing(final SortedNumericLongValues values, final long missing) {
-        return new SortedNumericLongValues() {
+        return new SortedNumericLongValues(null) {
 
             private int count;
 
@@ -157,7 +157,7 @@ public enum MissingValues {
     }
 
     static SortedNumericDoubleValues replaceMissing(final SortedNumericDoubleValues values, final double missing) {
-        return new SortedNumericDoubleValues() {
+        return new SortedNumericDoubleValues(null) {
 
             private int count;
 

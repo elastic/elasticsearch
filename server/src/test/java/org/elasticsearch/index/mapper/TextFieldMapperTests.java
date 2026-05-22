@@ -2530,7 +2530,7 @@ public class TextFieldMapperTests extends MapperTestCase {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         // given
         Settings.Builder indexSettingsBuilder = getIndexSettingsBuilder();
-        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName());
+        indexSettingsBuilder.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName());
         Settings indexSettings = indexSettingsBuilder.build();
 
         XContentBuilder mapping = mapping(b -> {

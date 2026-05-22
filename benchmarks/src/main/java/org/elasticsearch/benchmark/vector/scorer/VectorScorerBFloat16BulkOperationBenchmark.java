@@ -61,7 +61,7 @@ import static org.elasticsearch.benchmark.vector.scorer.BenchmarkUtils.rethrow;
 @Measurement(iterations = 5, time = 3)
 public class VectorScorerBFloat16BulkOperationBenchmark {
 
-    static final ValueLayout.OfShort LAYOUT_LE_SHORT = ValueLayout.JAVA_SHORT.withOrder(ByteOrder.LITTLE_ENDIAN);
+    static final ValueLayout.OfShort LAYOUT_LE_BFLOAT16 = ValueLayout.JAVA_SHORT.withOrder(ByteOrder.LITTLE_ENDIAN);
     static final ValueLayout.OfFloat LAYOUT_LE_FLOAT = ValueLayout.JAVA_FLOAT.withOrder(ByteOrder.LITTLE_ENDIAN);
 
     static {
@@ -144,18 +144,18 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
 
         numVectorsToScore = vectorData.numVectorsToScore;
 
-        int bytesPerVector = dims * Short.BYTES;
+        int bytesPerVector = dims * BFloat16.BYTES;
         dataset = arena.allocate((long) numVectors * bytesPerVector);
         for (int v = 0; v < numVectors; v++) {
-            MemorySegment.copy(vectorData.bf16Vectors[v], 0, dataset, LAYOUT_LE_SHORT, (long) v * bytesPerVector, dims);
+            MemorySegment.copy(vectorData.bf16Vectors[v], 0, dataset, LAYOUT_LE_BFLOAT16, (long) v * bytesPerVector, dims);
         }
         datasetAddress = dataset.address();
 
         // Query vector: use the target ordinal's vector in the appropriate type
         switch (queryType) {
             case BFLOAT16 -> {
-                query = arena.allocate((long) dims * Short.BYTES);
-                MemorySegment.copy(vectorData.bf16Vectors[vectorData.targetOrd], 0, query, LAYOUT_LE_SHORT, 0L, dims);
+                query = arena.allocate((long) dims * BFloat16.BYTES);
+                MemorySegment.copy(vectorData.bf16Vectors[vectorData.targetOrd], 0, query, LAYOUT_LE_BFLOAT16, 0L, dims);
             }
             case FLOAT32 -> {
                 query = arena.allocate((long) dims * Float.BYTES);
@@ -199,7 +199,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
     @Benchmark
     public float[] scoreSequential() {
         int v = 0;
-        int bytesPerVector = dims * Short.BYTES;
+        int bytesPerVector = dims * BFloat16.BYTES;
         try {
             while (v < numVectorsToScore) {
                 for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
@@ -217,7 +217,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
     @Benchmark
     public float[] scoreRandom() {
         int v = 0;
-        int bytesPerVector = dims * Short.BYTES;
+        int bytesPerVector = dims * BFloat16.BYTES;
         try {
             while (v < numVectorsToScore) {
                 for (int i = 0; i < bulkSize && v < numVectorsToScore; i++, v++) {
@@ -234,7 +234,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
     /** BULK: contiguous slice — sequential by construction. */
     @Benchmark
     public float[] scoreBulk() {
-        int bytesPerVector = dims * Short.BYTES;
+        int bytesPerVector = dims * BFloat16.BYTES;
         try {
             for (int i = 0; i < numVectorsToScore; i += bulkSize) {
                 int count = Math.min(bulkSize, numVectorsToScore - i);
@@ -251,7 +251,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
     /** BULK_OFFSETS: scattered access driven by an int32 ordinals array. */
     @Benchmark
     public float[] scoreBulkOffsets() {
-        int bytesPerVector = dims * Short.BYTES;
+        int bytesPerVector = dims * BFloat16.BYTES;
         try {
             for (int i = 0; i < numVectorsToScore; i += bulkSize) {
                 int count = Math.min(bulkSize, numVectorsToScore - i);
@@ -268,7 +268,7 @@ public class VectorScorerBFloat16BulkOperationBenchmark {
     /** BULK_SPARSE: scattered access driven by a pre-resolved address array. */
     @Benchmark
     public float[] scoreBulkSparse() {
-        int bytesPerVector = dims * Short.BYTES;
+        int bytesPerVector = dims * BFloat16.BYTES;
         try {
             for (int i = 0; i < numVectorsToScore; i += bulkSize) {
                 int count = Math.min(bulkSize, numVectorsToScore - i);

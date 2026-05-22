@@ -24,21 +24,25 @@ public final class ES95TSDBDocValuesFormatFactory {
     static final int BINARY_BLOCK_BYTES_LARGE = 512 * 1024;
     static final int BINARY_BLOCK_COUNT_LARGE = 8096;
 
+    // NOTE: flat 8 element array (vs [2][2][2]) so createDocValuesFormat is one
+    // bounds checked load instead of three dependent loads on the per field hot path.
+    private static final DocValuesFormat[] INSTANCES = buildInstances();
+
     private ES95TSDBDocValuesFormatFactory() {}
 
-    /**
-     * Creates an ES95 doc values format with block sizes matching the given settings.
-     *
-     * @param useLargeNumericBlockSize whether to use 512-value numeric blocks (vs 128)
-     * @param useLargeBinaryBlockSize  whether to use large binary block thresholds (512KB/8096 vs 128KB/1024)
-     * @param writePartitions          whether to write prefix-partitioned sorted fields
-     * @return the configured format
-     */
-    public static DocValuesFormat createDocValuesFormat(
-        boolean useLargeNumericBlockSize,
-        boolean useLargeBinaryBlockSize,
-        boolean writePartitions
-    ) {
+    private static DocValuesFormat[] buildInstances() {
+        final DocValuesFormat[] cache = new DocValuesFormat[8];
+        for (int n = 0; n < 2; n++) {
+            for (int b = 0; b < 2; b++) {
+                for (int p = 0; p < 2; p++) {
+                    cache[(n << 2) + (b << 1) + p] = build(n == 1, b == 1, p == 1);
+                }
+            }
+        }
+        return cache;
+    }
+
+    private static DocValuesFormat build(boolean useLargeNumericBlockSize, boolean useLargeBinaryBlockSize, boolean writePartitions) {
         final int numericBlockShift = useLargeNumericBlockSize
             ? ES95TSDBDocValuesFormat.NUMERIC_LARGE_BLOCK_SHIFT
             : ES95TSDBDocValuesFormat.NUMERIC_BLOCK_SHIFT;
@@ -57,5 +61,32 @@ public final class ES95TSDBDocValuesFormatFactory {
             NumericCodecFactory.DEFAULT,
             ES95NumericFieldReader::defaultFallbackDecoder
         );
+    }
+
+    /**
+     * Returns a cached ES95 doc values format matching the given settings.
+     *
+     * @param useLargeNumericBlockSize whether to use numeric blocks of 512 values (vs 128)
+     * @param useLargeBinaryBlockSize  whether to use large binary block thresholds (512KB/8096 vs 128KB/1024)
+     * @param writePartitions          whether to write prefix partitioned sorted fields
+     * @return the configured format (shared, do not mutate)
+     */
+    public static DocValuesFormat get(boolean useLargeNumericBlockSize, boolean useLargeBinaryBlockSize, boolean writePartitions) {
+        final int idx = (useLargeNumericBlockSize ? 4 : 0) + (useLargeBinaryBlockSize ? 2 : 0) + (writePartitions ? 1 : 0);
+        return INSTANCES[idx];
+    }
+
+    /**
+     * Allocates a fresh ES95 doc values format with the given settings, bypassing the
+     * instance cache. Intended for benchmarks that want to measure the wall clock cost
+     * of bypassing the cache; production code should call {@link #get} instead.
+     *
+     * @param useLargeNumericBlockSize same semantics as {@link #get}
+     * @param useLargeBinaryBlockSize  same semantics as {@link #get}
+     * @param writePartitions          same semantics as {@link #get}
+     * @return a freshly allocated format with the requested parameters
+     */
+    public static DocValuesFormat create(boolean useLargeNumericBlockSize, boolean useLargeBinaryBlockSize, boolean writePartitions) {
+        return build(useLargeNumericBlockSize, useLargeBinaryBlockSize, writePartitions);
     }
 }

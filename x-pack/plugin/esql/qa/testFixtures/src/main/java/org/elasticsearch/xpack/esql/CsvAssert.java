@@ -76,6 +76,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.histogramT
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
 
 public final class CsvAssert {
@@ -188,6 +189,15 @@ public final class CsvAssert {
                     blockType
                 );
             }
+        }
+    }
+
+    public static void assertDocumentsFound(String expected, long actual) {
+        if (expected != null) {
+            assertTrue(
+                format(null, "Different numbers of documents found; expected {} but actual was {}", expected, actual),
+                CsvAssert.equals(CsvTestUtils.Type.LONG.convert(expected), actual, false)
+            );
         }
     }
 
@@ -615,23 +625,31 @@ public final class CsvAssert {
                 x -> DEFAULT_DATE_NANOS_FORMATTER.formatNanos(DEFAULT_DATE_NANOS_FORMATTER.parseNanos((String) x))
             );
             case FLATTENED -> {
-                if (actualValue instanceof Map<?, ?> map) {
-                    // REST tests come back as a LinkedHashMap and our assertions are json strings.
-                    // So we convert to json strings. This preserves order *because* of the LinkedHashMap.
-                    @SuppressWarnings("unchecked")
-                    Map<String, Object> typedMap = (Map<String, Object>) map;
-                    try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
-                        builder.map(typedMap);
-                        yield BytesReference.bytes(builder).utf8ToString();
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
+                if (actualValue instanceof List<?> list) {
+                    // REST tests return List<Map> for multi-value flattened (e.g. from mv_append)
+                    yield list.stream().map(CsvAssert::convertActualFlattenedValue).toList();
                 }
-                // CsvIT: value is already a JSON string from the block loader — compare directly
-                yield actualValue;
+                yield convertActualFlattenedValue(actualValue);
             }
             default -> actualValue;
         };
+    }
+
+    private static Object convertActualFlattenedValue(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            // REST tests come back as a LinkedHashMap and our assertions are json strings.
+            // So we convert to json strings. This preserves order *because* of the LinkedHashMap.
+            @SuppressWarnings("unchecked")
+            Map<String, Object> typedMap = (Map<String, Object>) map;
+            try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
+                builder.map(typedMap);
+                return BytesReference.bytes(builder).utf8ToString();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+        // CsvIT: value is already a JSON string from the block loader — compare directly
+        return value;
     }
 
     private static Object rebuildExpected(Object expectedValue, Class<?> clazz, Function<Object, Object> mapper) {

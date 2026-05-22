@@ -115,6 +115,28 @@ public class ReindexBasicTests extends ReindexTestCase {
         assertHitCount(prepareSearch("dest").setTrackTotalHits(true).setSize(0), numDocs);
     }
 
+    /// Sliced variant of [#testTotalIsAccurateWhenSourceExceedsDefaultTrackTotalHits]. Each slice caches its
+    /// first-batch total independently; the aggregated leader total must still equal the true doc count.
+    public void testTotalIsAccurateWhenSourceExceedsDefaultTrackTotalHitsSliced() {
+        int slices = randomIntBetween(2, 5);
+        int numDocs = SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO + randomIntBetween(1, SearchContext.DEFAULT_TRACK_TOTAL_HITS_UP_TO);
+        indexRandom(true, "source", numDocs);
+        assertHitCount(prepareSearch("source").setTrackTotalHits(true).setSize(0), numDocs);
+
+        // Small batch size so every slice paginates multiple times and the disable-on-follow-up path runs.
+        int batchSize = 100;
+        ReindexRequestBuilder copy = reindex().source("source").destination("dest").refresh(true).setSlices(slices);
+        copy.source().setSize(batchSize);
+        assertThat(
+            copy.get(),
+            matcher().created(numDocs)
+                .total(numDocs)
+                .batches(greaterThanOrEqualTo(numDocs / batchSize))
+                .slices(hasSize(expectedSliceStatuses(slices, "source")))
+        );
+        assertHitCount(prepareSearch("dest").setTrackTotalHits(true).setSize(0), numDocs);
+    }
+
     /**
      * Reindex with source and destination specified as index aliases
      */
@@ -430,6 +452,7 @@ public class ReindexBasicTests extends ReindexTestCase {
         String sourceIndex = "source";
         String destIndex = "dest";
         createIndex(sourceIndex);
+        ensureGreen(sourceIndex);
         indexRandom(true, prepareIndex(sourceIndex).setId("1").setSource("foo", "bar"));
         indicesAdmin().prepareClose(sourceIndex).get();
 

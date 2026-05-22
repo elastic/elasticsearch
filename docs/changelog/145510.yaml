@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 140470
+pr: 145510
+summary: Rewrite SUM(X+c) to SUM(X) + c*COUNT(X)
+type: enhancement

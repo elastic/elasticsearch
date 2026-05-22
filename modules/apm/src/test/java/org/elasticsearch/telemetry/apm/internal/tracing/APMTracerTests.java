@@ -9,6 +9,7 @@
 
 package org.elasticsearch.telemetry.apm.internal.tracing;
 
+import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.Span;
@@ -26,6 +27,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
+import org.elasticsearch.telemetry.apm.internal.export.TraceSupplier;
 import org.elasticsearch.telemetry.tracing.TraceContext;
 import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.test.ESTestCase;
@@ -336,12 +338,95 @@ public class APMTracerTests extends ESTestCase {
         return tracer;
     }
 
+    private APMTracer buildSdkPathTracer(Settings settings, int maxTraceDepth) {
+        APMTracer tracer = new SpyAPMTracerOnSdkPath(settings, maxTraceDepth);
+        tracer.doStart();
+        return tracer;
+    }
+
+    public void test_onSdkPath_withMaxTraceDepthZero_dropsChildSpan() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracer(settings, 0);
+
+        ThreadContext threadContext = new ThreadContext(settings);
+        threadContext.putTransient(Task.PARENT_APM_TRACE_CONTEXT, Context.root());
+
+        tracer.startTrace(threadContext, TRACEABLE1, "child-span", Map.of());
+
+        assertThat(tracer.getSpans(), anEmptyMap());
+    }
+
+    public void test_onSdkPath_withMaxTraceDepthZero_recordsRootSpan() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracer(settings, 0);
+
+        // No PARENT_APM_TRACE_CONTEXT transient => no local parent => this is a root span.
+        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "root-span", Map.of());
+
+        assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
+    }
+
+    public void test_onSdkPath_withMaxTraceDepthOne_recordsChildSpan() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracer(settings, 1);
+
+        ThreadContext threadContext = new ThreadContext(settings);
+        threadContext.putTransient(Task.PARENT_APM_TRACE_CONTEXT, Context.root());
+
+        tracer.startTrace(threadContext, TRACEABLE1, "child-span", Map.of());
+
+        assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
+    }
+
+    /**
+     * Exercises the depth chain end-to-end: with {@code maxTraceDepth=1}, the root and its first-level
+     * child are recorded but a grandchild is dropped. {@link ThreadContext#newTraceContext()} promotes
+     * the previous {@code APM_TRACE_CONTEXT} to {@code PARENT_APM_TRACE_CONTEXT} the same way the task
+     * framework does in production.
+     */
+    public void test_onSdkPath_withMaxTraceDepthOne_dropsGrandchildSpan() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildSdkPathTracer(settings, 1);
+
+        ThreadContext traceContext = new ThreadContext(settings);
+
+        tracer.startTrace(traceContext, TRACEABLE1, "root", Map.of());
+        try (var ignore1 = traceContext.newTraceContext()) {
+            tracer.startTrace(traceContext, TRACEABLE2, "child", Map.of());
+            try (var ignore2 = traceContext.newTraceContext()) {
+                tracer.startTrace(traceContext, TRACEABLE3, "grandchild", Map.of());
+            }
+        }
+
+        assertThat(tracer.getSpans(), aMapWithSize(2));
+        assertThat(tracer.getSpans(), hasKey(TRACEABLE1.getSpanId()));
+        assertThat(tracer.getSpans(), hasKey(TRACEABLE2.getSpanId()));
+        assertThat(tracer.getSpans(), not(hasKey(TRACEABLE3.getSpanId())));
+    }
+
+    public void test_addError_callsRecordException() {
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.getKey(), true).build();
+        APMTracer tracer = buildTracer(settings);
+        tracer.startTrace(new ThreadContext(settings), TRACEABLE1, "span-with-error", Map.of());
+        Span recordedSpan = Span.fromContext(tracer.getSpans().get(TRACEABLE1.getSpanId()));
+
+        Exception failure = new IllegalStateException("boom");
+        tracer.addError(TRACEABLE1, failure);
+
+        Mockito.verify(recordedSpan).recordException(failure);
+    }
+
     static class SpyAPMTracer extends APMTracer {
 
         Map<String, Instant> spanStartTimeMap;
 
         SpyAPMTracer(Settings settings) {
             super(settings);
+            this.spanStartTimeMap = new HashMap<>();
+        }
+
+        SpyAPMTracer(Settings settings, TraceSupplier traceSupplier, boolean useOtelSdkTracesExport, int maxTraceDepth) {
+            super(settings, traceSupplier, useOtelSdkTracesExport, maxTraceDepth);
             this.spanStartTimeMap = new HashMap<>();
         }
 
@@ -466,6 +551,21 @@ public class APMTracerTests extends ESTestCase {
                 .setPropagators(ContextPropagators.create(W3CTraceContextPropagator.getInstance()))
                 .build();
             return new APMServices(base.tracer(), openTelemetry);
+        }
+    }
+
+    /**
+     * Extension of {@link SpyAPMTracer} that flips {@code useOtelSdkTracesExport=true} via the test
+     * constructor, exercising the SDK-path branches in {@link APMTracer#startTrace} and
+     * {@link APMTracer#addError}. The {@link TraceSupplier} reference is irrelevant because
+     * {@link SpyAPMTracer#createApmServices} substitutes a mock {@link Tracer}.
+     */
+    static class SpyAPMTracerOnSdkPath extends SpyAPMTracer {
+
+        private static final TraceSupplier NO_OP_SUPPLIER = OpenTelemetry::noop;
+
+        SpyAPMTracerOnSdkPath(Settings settings, int maxTraceDepth) {
+            super(settings, NO_OP_SUPPLIER, true, maxTraceDepth);
         }
     }
 

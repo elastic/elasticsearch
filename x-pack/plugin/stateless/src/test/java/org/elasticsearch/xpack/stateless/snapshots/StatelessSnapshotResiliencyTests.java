@@ -137,12 +137,12 @@ import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.recovery.PITRelocationService;
 import org.elasticsearch.xpack.stateless.recovery.RecoveryCommitRegistrationHandler;
-import org.elasticsearch.xpack.stateless.recovery.RelocationHandoffMetrics;
 import org.elasticsearch.xpack.stateless.recovery.RemoveRefreshClusterBlockService;
 import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForRecoveryAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
+import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
@@ -262,7 +262,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
             tempDir,
             deterministicTaskQueue,
             transportInterceptorFactory,
-            this::assertCriticalWarnings
+            expectedWarnings -> assertWarnings(expectedWarnings)
         );
         startCluster();
     }
@@ -497,7 +497,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         mock(IndexShardCacheWarmer.class),
                         testStatelessPlugin.hollowShardsService,
                         HollowShardsMetrics.NOOP,
-                        RelocationHandoffMetrics.NOOP
+                        RecoveryMetricsCollector.NOOP
                     ),
                     StatelessUnpromotableRelocationAction.TYPE,
                     new TransportStatelessUnpromotableRelocationAction(
@@ -1055,39 +1055,10 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         false // translog is replicated to the object store, no need fsync that
                     );
 
-                    EngineConfig newConfig = new EngineConfig(
-                        config.getShardId(),
-                        config.getThreadPool(),
-                        config.getThreadPoolMergeExecutorService(),
-                        config.getIndexSettings(),
-                        config.getWarmer(),
-                        config.getStore(),
-                        config.getMergePolicy(),
-                        config.getAnalyzer(),
-                        config.getSimilarity(),
-                        config.getCodecProvider(),
-                        config.getEventListener(),
-                        config.getQueryCache(),
-                        config.getQueryCachingPolicy(),
-                        newTranslogConfig,
-                        config.getFlushMergesAfter(),
-                        config.getExternalRefreshListener(),
-                        config.getInternalRefreshListener(),
-                        config.getIndexSort(),
-                        config.getCircuitBreakerService(),
-                        config.getGlobalCheckpointSupplier(),
-                        config.retentionLeasesSupplier(),
-                        config.getPrimaryTermSupplier(),
-                        config.getSnapshotCommitSupplier(),
-                        config.getLeafSorter(),
-                        config.getRelativeTimeInNanosSupplier(),
-                        config.getIndexCommitListener(),
-                        config.isPromotableToPrimary(),
-                        config.getMapperService(),
-                        config.getEngineResetLock(),
-                        config.getMergeMetrics(),
-                        policy -> policy
-                    );
+                    EngineConfig newConfig = EngineConfig.builder(config)
+                        .translogConfig(newTranslogConfig)
+                        .indexDeletionPolicyWrapper(policy -> policy)
+                        .build();
 
                     return new IndexEngine(
                         newConfig,

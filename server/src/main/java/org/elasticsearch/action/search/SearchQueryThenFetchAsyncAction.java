@@ -399,7 +399,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         int shardIndex,
         ShardId shardId,
         ShardSearchContextId contextId,
-        SplitShardCountSummary reshardSplitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary
     ) implements Writeable {
 
         static ShardToQuery readFrom(StreamInput in) throws IOException {
@@ -423,7 +423,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             shardId.writeTo(out);
             out.writeOptionalWriteable(contextId);
             if (out.getTransportVersion().supports(ShardSearchRequest.SHARD_SEARCH_REQUEST_RESHARD_SHARD_COUNT_SUMMARY)) {
-                reshardSplitShardCountSummary.writeTo(out);
+                splitShardCountSummary.writeTo(out);
             }
         }
     }
@@ -732,7 +732,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
         int totalShardCount,
         long absoluteStartMillis,
         boolean hasResponse,
-        SplitShardCountSummary reshardSplitShardCountSummary
+        SplitShardCountSummary splitShardCountSummary
     ) {
         ShardSearchRequest shardRequest = new ShardSearchRequest(
             originalIndices,
@@ -746,7 +746,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
             clusterAlias,
             searchContextId,
             searchContextKeepAlive,
-            reshardSplitShardCountSummary
+            splitShardCountSummary
         );
         // if we already received a search result we can inform the shard that it
         // can return a null response if the request rewrites to match none rather
@@ -785,7 +785,7 @@ public class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<S
                             nodeQueryRequest.totalShards,
                             nodeQueryRequest.absoluteStartMillis,
                             state.hasResponse.getAcquire(),
-                            shardToQuery.reshardSplitShardCountSummary
+                            shardToQuery.splitShardCountSummary
                         )
                     ),
                     state.task,

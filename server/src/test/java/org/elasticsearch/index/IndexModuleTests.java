@@ -556,7 +556,13 @@ public class IndexModuleTests extends ESTestCase {
     }
 
     public void testQueryCacheEnabledByDefaultForNonStrictlyColumnarMode() {
-        IndexMode mode = randomFrom(IndexMode.STANDARD, IndexMode.TIME_SERIES, IndexMode.LOGSDB, IndexMode.LOOKUP, IndexMode.VECTORDB_DOCUMENT);
+        IndexMode mode = randomFrom(
+            IndexMode.STANDARD,
+            IndexMode.TIME_SERIES,
+            IndexMode.LOGSDB,
+            IndexMode.LOOKUP,
+            IndexMode.VECTORDB_DOCUMENT
+        );
         Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), mode.getName()).build();
         assertTrue(IndexModule.INDEX_QUERY_CACHE_ENABLED_SETTING.get(settings));
     }

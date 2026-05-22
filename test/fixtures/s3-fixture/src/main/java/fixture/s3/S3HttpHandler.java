@@ -57,7 +57,9 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
+import static org.hamcrest.Matchers.oneOf;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -71,6 +73,7 @@ public class S3HttpHandler implements HttpHandler {
 
     private static final Logger logger = LogManager.getLogger(S3HttpHandler.class);
     public static final String STORAGE_CLASS_HEADER = "X-amz-storage-class";
+    public static final String CONTENT_SHA256_HEADER = "X-amz-content-sha256";
 
     private final String bucket;
     private final String basePath;
@@ -109,8 +112,20 @@ public class S3HttpHandler implements HttpHandler {
     /**
      * Default {@code LastModified} for ListBucket {@code Contents} entries. Real S3 returns ISO-8601
      * timestamps; clients such as the AWS SDK map missing elements to {@code null} last-modified.
+     * <p>
+     * The default deliberately uses a fixed, non-epoch timestamp so consumers that distinguish
+     * "unknown" (epoch / null) from "known" mtime see a real value here. Keep this stable across
+     * releases — fixture-based tests that assert the rendered XML rely on the literal string.
      */
-    public static final String DEFAULT_LIST_OBJECT_LAST_MODIFIED = "1970-01-01T00:00:00.000Z";
+    public static final String DEFAULT_LIST_OBJECT_LAST_MODIFIED = "2024-01-01T00:00:00.000Z";
+
+    /**
+     * Default {@code Last-Modified} value (RFC 1123 / HTTP date) returned on HEAD responses.
+     * Consumers that read this header (e.g. plain HTTP clients) distinguish "unknown"
+     * (epoch / null) from "known" mtime, so the default is a fixed, non-epoch timestamp.
+     * Keep this in sync with {@link #DEFAULT_LIST_OBJECT_LAST_MODIFIED}.
+     */
+    public static final String DEFAULT_HEAD_OBJECT_LAST_MODIFIED = "Mon, 01 Jan 2024 00:00:00 GMT";
 
     public List<RequestEntry> requestLog() {
         return Collections.unmodifiableList(requestLog);
@@ -139,6 +154,10 @@ public class S3HttpHandler implements HttpHandler {
                     // HEAD response must include Content-Length header for S3 clients (AWS SDK) that read file size
                     exchange.getResponseHeaders().add("Content-Length", String.valueOf(blobEntry.contents().length()));
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    // Last-Modified is read by HTTP clients (e.g. ES|QL HttpStorageProvider) for _file.modified.
+                    // Use a fixed, non-epoch RFC 1123 timestamp so consumers that distinguish "unknown"
+                    // (epoch / null) from "known" mtime see a real value.
+                    exchange.getResponseHeaders().add("Last-Modified", DEFAULT_HEAD_OBJECT_LAST_MODIFIED);
                     if (!"STANDARD".equals(blobEntry.storageClass())) {
                         exchange.getResponseHeaders().add(STORAGE_CLASS_HEADER, blobEntry.storageClass());
                     }
@@ -329,6 +348,13 @@ public class S3HttpHandler implements HttpHandler {
                     );
 
                     if (updateResponseCode == RestStatus.OK) {
+                        assertThat(
+                            exchange.getRequestHeaders().getFirst(CONTENT_SHA256_HEADER),
+                            oneOf(
+                                "STREAMING-AWS4-HMAC-SHA256-PAYLOAD",
+                                MessageDigests.toHexString(MessageDigests.digest(blob.v2(), MessageDigests.sha256()))
+                            )
+                        );
                         exchange.getResponseHeaders().add("ETag", blob.v1());
                     }
                     exchange.sendResponseHeaders(updateResponseCode.getStatus(), -1);
@@ -409,6 +435,10 @@ public class S3HttpHandler implements HttpHandler {
                 }
 
                 exchange.getResponseHeaders().add("ETag", etagFromContents);
+                // Last-Modified is read by S3 SDK clients (e.g. ES|QL S3StorageProvider's range-GET
+                // metadata fetch) for _file.modified. Use a fixed, non-epoch RFC 1123 timestamp so
+                // consumers that distinguish "unknown" (epoch / null) from "known" mtime see a real value.
+                exchange.getResponseHeaders().add("Last-Modified", DEFAULT_HEAD_OBJECT_LAST_MODIFIED);
                 if (!"STANDARD".equals(blobEntry.storageClass())) {
                     exchange.getResponseHeaders().add(STORAGE_CLASS_HEADER, blobEntry.storageClass());
                 }

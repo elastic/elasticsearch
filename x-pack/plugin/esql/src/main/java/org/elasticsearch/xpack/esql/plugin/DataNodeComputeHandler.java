@@ -209,7 +209,8 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                                 // TopN late materialization, listed below), as the node-reduce driver would end up doing the exact same
                                 // work as the final driver.
                                 queryPragmas.nodeLevelReduction() && sameNodeAsCoordinator == false,
-                                queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization
+                                queryPragmas.nodeLevelReduction() && enableReduceNodeLateMaterialization,
+                                false
                             );
                             transportService.sendChildRequest(
                                 connection,
@@ -359,6 +360,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             new String[0],
                             IndicesOptions.STRICT_EXPAND_OPEN,
                             queryPragmas.nodeLevelReduction(),
+                            false,
                             false,
                             nodeSplits
                         );
@@ -801,6 +803,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
             request.indicesOptions(),
             request.runNodeLevelReduction(),
             request.reductionLateMaterialization(),
+            request.retainSearchContexts(),
             request.externalSplits()
         );
         // the sender doesn't support retry on shard failures, so we need to fail fast here.

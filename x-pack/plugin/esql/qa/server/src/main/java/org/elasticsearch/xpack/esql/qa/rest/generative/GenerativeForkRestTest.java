@@ -95,8 +95,9 @@ public abstract class GenerativeForkRestTest extends EsqlSpecTestCase {
         );
 
         assumeFalse(
-            "Tests using query approximation are skipped since query approximation is not supported with FORK",
+            "Tests using query approximation are skipped since they contain FORKs",
             testCase.requiredCapabilities.contains(APPROXIMATION_V7.capabilityName())
+                || testCase.requiredCapabilitiesLocalCluster.contains(APPROXIMATION_V7.capabilityName())
         );
 
         assumeFalse(

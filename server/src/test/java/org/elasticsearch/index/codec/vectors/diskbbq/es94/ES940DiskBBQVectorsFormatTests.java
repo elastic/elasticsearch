@@ -215,7 +215,7 @@ public class ES940DiskBBQVectorsFormatTests extends BaseKnnVectorsFormatTestCase
         expectThrows(IllegalArgumentException.class, () -> new ES940DiskBBQVectorsFormat(128, MAX_CENTROIDS_PER_PARENT_CLUSTER + 1));
     }
 
-    public void testEncodingVersionEnforcement() {
+    public void testbitEncodingVersionEnforcement() {
         expectThrows(
             IllegalArgumentException.class,
             () -> new ES940DiskBBQVectorsFormat(

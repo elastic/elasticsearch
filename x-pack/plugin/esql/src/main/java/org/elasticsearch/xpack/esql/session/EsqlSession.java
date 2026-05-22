@@ -37,6 +37,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -55,6 +56,7 @@ import org.elasticsearch.xpack.esql.analysis.PreAnalysisVerifier;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.UnmappedResolution;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
+import org.elasticsearch.xpack.esql.anonymizer.PlanAnonymizer;
 import org.elasticsearch.xpack.esql.approximation.ApproximationDriver;
 import org.elasticsearch.xpack.esql.approximation.ApproximationPlan;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
@@ -190,11 +192,41 @@ public class EsqlSession {
     private final PlannerSettings plannerSettings;
     private final CrossProjectModeDecider crossProjectModeDecider;
     private final String clusterName;
+    private final String clusterUuid;
 
     private boolean explainMode;
     private String parsedPlanString;
     private String optimizedLogicalPlanString;
     private final ProjectMetadata projectMetadata;
+
+    /**
+     * Snapshot of the planning stages this session has completed so far. Read once by the failure-
+     * path anonymized log to surface whichever stages succeeded before the failure. The pipeline is
+     * sequential per session — each stage's listener callback fires after the previous completes, so
+     * writes never overlap. A single volatile reference (vs four separate volatile fields) gives the
+     * failure listener an atomic, all-or-nothing view of the snapshot.
+     */
+    private record PlanSnapshot(LogicalPlan parsed, LogicalPlan analyzed, LogicalPlan optimized, PhysicalPlan physical) {
+        static final PlanSnapshot EMPTY = new PlanSnapshot(null, null, null, null);
+
+        PlanSnapshot withParsed(LogicalPlan p) {
+            return new PlanSnapshot(p, analyzed, optimized, physical);
+        }
+
+        PlanSnapshot withAnalyzed(LogicalPlan a) {
+            return new PlanSnapshot(parsed, a, optimized, physical);
+        }
+
+        PlanSnapshot withOptimized(LogicalPlan o) {
+            return new PlanSnapshot(parsed, analyzed, o, physical);
+        }
+
+        PlanSnapshot withPhysical(PhysicalPlan p) {
+            return new PlanSnapshot(parsed, analyzed, optimized, p);
+        }
+    }
+
+    private volatile PlanSnapshot planSnapshot = PlanSnapshot.EMPTY;
 
     public EsqlSession(
         String sessionId,
@@ -239,6 +271,7 @@ public class EsqlSession {
         this.plannerSettings = plannerSettings;
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
+        this.clusterUuid = resolveClusterUuid(services.clusterService());
         this.projectMetadata = projectMetadata;
     }
 
@@ -259,9 +292,16 @@ public class EsqlSession {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
         assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.queryDescription());
+        // Wrap the outer listener so any failure — parse, view-resolution, analyze, optimize, map,
+        // execute — funnels through one place that emits the anonymized log on INTERNAL_SERVER_ERROR.
+        listener = wrapForAnonymizedFailureLog(listener);
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
         EsqlStatement statement = parse(request);
+        // Capture the true parsed plan — before view resolution, before any analyzer rule runs.
+        // PROMQL syntax still visible, views still as UnresolvedRelation, surrogate rewrites not
+        // applied. This is the form closest to user intent for failure-path triage.
+        planSnapshot = planSnapshot.withParsed(statement.plan());
         gatherSettingsMetrics(statement);
         parsingProfile.stop();
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
@@ -369,6 +409,9 @@ public class EsqlSession {
                     );
 
                     LogicalPlan plan = analyzedPlan.inner();
+                    // Capture the analyzed plan for failure-path logging: schema-resolved,
+                    // PROMQL→TS conversion done, but surrogate rewrites haven't fired yet.
+                    planSnapshot = planSnapshot.withAnalyzed(plan);
                     TransportVersion minimumVersion = analyzedPlan.minimumVersion();
 
                     var logicalPlanPreOptimizer = new LogicalPlanPreOptimizer(
@@ -454,6 +497,32 @@ public class EsqlSession {
             planTimeProfile,
             listener
         );
+    }
+
+    /**
+     * Resolves the cluster UUID once at session construction. Tolerates the test-fixture case where
+     * a mocked {@code ClusterService} returns a null {@code ClusterState} — falls back to empty
+     * string. The UUID feeds the HMAC key used by the anonymizer; an empty key still produces a
+     * deterministic HMAC, only the token namespace is shared across affected sessions (test only).
+     */
+    private static String resolveClusterUuid(org.elasticsearch.cluster.service.ClusterService clusterService) {
+        try {
+            var state = clusterService.state();
+            return state != null ? state.metadata().clusterUUID() : "";
+        } catch (Exception e) {
+            return "";
+        }
+    }
+
+    private ActionListener<Versioned<Result>> wrapForAnonymizedFailureLog(ActionListener<Versioned<Result>> delegate) {
+        return delegate.delegateResponse((next, err) -> {
+            // Only log on internal server errors. User-facing failures (verification errors, parse
+            // errors, type mismatches) return a 4xx with a useful message and don't need the plan.
+            if (ExceptionsHelper.status(err) == RestStatus.INTERNAL_SERVER_ERROR) {
+                logAnonymizedPlans(planSnapshot);
+            }
+            next.onFailure(err);
+        });
     }
 
     private Map<NameId, Map<String, Object>> createColumnMetadata(LogicalPlan optimizedPlan, FoldContext foldContext) {
@@ -623,8 +692,38 @@ public class EsqlSession {
             );
         } else {
             PhysicalPlan physicalPlan = logicalPlanToPhysicalPlan(optimizedPlan, request, physicalPlanOptimizer, planTimeProfile);
-            // execute main plan
             runner.run(physicalPlan, configuration, foldContext, planTimeProfile, listener);
+        }
+    }
+
+    private void logAnonymizedPlans(PlanSnapshot snap) {
+        if (LOGGER.isErrorEnabled() == false) {
+            return;
+        }
+        // If parse never completed, there's nothing useful to anonymize. The exception message
+        // already carries the parse-error position.
+        if (snap.parsed() == null) {
+            return;
+        }
+        try {
+            var anonymized = PlanAnonymizer.forSubmission(clusterUuid)
+                .anonymize(snap.parsed(), snap.analyzed(), snap.optimized(), snap.physical());
+            LOGGER.error(
+                "ESQL anonymized plans for failed session [{}]\n"
+                    + "schema:\n{}\n"
+                    + "parsed:\n{}\n"
+                    + "analyzed:\n{}\n"
+                    + "optimized:\n{}\n"
+                    + "physical:\n{}",
+                sessionId,
+                anonymized.schema(),
+                anonymized.parsed(),
+                anonymized.analyzed(),
+                anonymized.optimized(),
+                anonymized.physical()
+            );
+        } catch (Exception e) {
+            LOGGER.warn("Plan anonymization failed for session [{}]", sessionId, e);
         }
     }
 
@@ -1704,9 +1803,16 @@ public class EsqlSession {
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
+        // Capture the optimized plan before mapping so a failure in physical planning still
+        // surfaces it in the failure log.
+        planSnapshot = planSnapshot.withOptimized(optimizedPlan);
         PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan, physicalPlanOptimizer, planTimeProfile);
         physicalPlan = PlannerUtils.integrateEsFilterIntoFragment(physicalPlan, request.filter());
-        return EstimatesRowSize.estimateRowSize(0, physicalPlan);
+        physicalPlan = EstimatesRowSize.estimateRowSize(0, physicalPlan);
+        // Overwrite on each call so a failure during subplan execution surfaces the most recent
+        // physical plan we built.
+        planSnapshot = planSnapshot.withPhysical(physicalPlan);
+        return physicalPlan;
     }
 
     private LogicalPlan analyzedPlan(

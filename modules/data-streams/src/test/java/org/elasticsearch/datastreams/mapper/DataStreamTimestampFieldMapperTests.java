@@ -163,6 +163,16 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
         assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] has disallowed attributes: [store]"));
     }
 
+    public void testValidateIndexDisabled() {
+        Exception e = expectThrows(IllegalArgumentException.class, () -> createMapperService(timestampMapping(true, b -> {
+            b.startObject("@timestamp");
+            b.field("type", "date");
+            b.field("index", false);
+            b.endObject();
+        })));
+        assertThat(e.getMessage(), equalTo("data stream timestamp field [@timestamp] indexing can't be explicitly disabled"));
+    }
+
     public void testValidateDefaultIgnoreMalformed() throws Exception {
         Settings indexSettings = Settings.builder().put(FieldMapper.IGNORE_MALFORMED_SETTING.getKey(), true).build();
         {

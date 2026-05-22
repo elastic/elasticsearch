@@ -255,6 +255,7 @@ public class OAuth2TokenCacheTests extends ESTestCase {
             TestProjectResolvers.DEFAULT_PROJECT_ONLY,
             mock(Client.class)
         );
+        cache.init();
 
         assertTrue(cache.cacheEnabled());
 

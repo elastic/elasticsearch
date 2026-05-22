@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
@@ -153,7 +154,7 @@ public interface SourceLoader {
             return new Leaf() {
                 @Override
                 public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
-                    org.apache.lucene.util.BytesRef encoded = findSourceEntry(storedFields, docId);
+                    BytesRef encoded = findSourceEntry(storedFields, docId);
                     if (encoded == null) {
                         return Source.empty(XContentType.JSON);
                     }
@@ -169,7 +170,7 @@ public interface SourceLoader {
                     b.rawValue(source.internalSourceRef().streamInput(), source.sourceContentType());
                 }
 
-                private org.apache.lucene.util.BytesRef findSourceEntry(LeafStoredFieldLoader storedFields, int docId) throws IOException {
+                private BytesRef findSourceEntry(LeafStoredFieldLoader storedFields, int docId) throws IOException {
                     Map<String, List<IgnoredSourceFieldMapper.NameValue>> ignoredFields = ignoredSourceFormat.loadIgnoredFields(
                         null,
                         storedFields.storedFields(),

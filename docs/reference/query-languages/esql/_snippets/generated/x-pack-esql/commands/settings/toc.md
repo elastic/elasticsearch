@@ -3,6 +3,9 @@
 :::{include} approximation.md
 :::
 
+:::{include} column_metadata.md
+:::
+
 :::{include} project_routing.md
 :::
 

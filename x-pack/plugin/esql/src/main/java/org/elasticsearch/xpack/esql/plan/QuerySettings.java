@@ -123,6 +123,30 @@ public class QuerySettings {
     );
 
     @Param(
+        name = "column_metadata",
+        type = { "boolean" },
+        since = "9.5.0",
+        description = "When enabled, each column in the `_query` response may carry a `_meta` object with namespaced "
+            + "per-column metadata (for example, `bucket` interval for `BUCKET` groupings). Defaults to `false`; "
+            + "must be explicitly opted in."
+    )
+    public static final QuerySettingDef<Boolean> COLUMN_METADATA = new QuerySettingDef<>(
+        "column_metadata",
+        DataType.BOOLEAN,
+        false,
+        true,
+        false,
+        (value) -> {
+            Object v = Foldables.literalValueOf(value);
+            if (v instanceof Boolean b) {
+                return b;
+            }
+            throw new IllegalArgumentException("Setting [column_metadata] must be a boolean, got [" + v + "]");
+        },
+        Boolean.FALSE
+    );
+
+    @Param(
         name = "approximation",
         type = { "boolean", "map_param" },
         since = "9.4.0",
@@ -162,7 +186,8 @@ public class QuerySettings {
         UNMAPPED_FIELDS,
         PROJECT_ROUTING,
         TIME_ZONE,
-        APPROXIMATION
+        APPROXIMATION,
+        COLUMN_METADATA
     ).collect(Collectors.toMap(QuerySettingDef::name, Function.identity()));
 
     public static void validate(EsqlStatement statement, SettingsValidationContext ctx) {

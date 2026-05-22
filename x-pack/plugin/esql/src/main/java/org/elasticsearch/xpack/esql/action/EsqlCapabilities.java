@@ -857,6 +857,12 @@ public class EsqlCapabilities {
         COLUMN_METADATA_BUCKET(Build.current().isSnapshot()),
 
         /**
+         * Gate per-column {@code _meta} emission behind the {@code SET column_metadata=true} setting.
+         * Without this setting, non-approximation metadata is omitted from the response.
+         */
+        COLUMN_METADATA_SETTING(Build.current().isSnapshot()),
+
+        /**
          * Allow mixed numeric types in coalesce
          */
         MIXED_NUMERIC_TYPES_IN_COALESCE,

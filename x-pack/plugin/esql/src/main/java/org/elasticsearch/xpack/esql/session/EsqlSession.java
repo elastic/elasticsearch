@@ -425,7 +425,7 @@ public class EsqlSession {
                             )
                         )
                         .<Result>andThen((l, p) -> {
-                            columnMetadata.set(createColumnMetadata(p, foldContext));
+                            columnMetadata.set(createColumnMetadata(p, foldContext, statement));
                             executeOptimizedPlan(
                                 request,
                                 executionInfo,
@@ -543,11 +543,14 @@ public class EsqlSession {
         });
     }
 
-    private Map<NameId, Map<String, Object>> createColumnMetadata(LogicalPlan optimizedPlan, FoldContext foldContext) {
+    private Map<NameId, Map<String, Object>> createColumnMetadata(
+        LogicalPlan optimizedPlan,
+        FoldContext foldContext,
+        EsqlStatement statement
+    ) {
         // TODO we need to enforce NameId do not change during optimization.
         // Otherwise metadata might not be found when redering result.
-        // Bucket metadata is gated on the COLUMN_METADATA_BUCKET capability — snapshot-only until the feature is finalized.
-        Map<NameId, Map<String, Object>> bucketMetadata = EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET.isEnabled()
+        Map<NameId, Map<String, Object>> bucketMetadata = bucketColumnMetadataEnabled(statement)
             ? BucketColumnMetadata.createColumnMetadata(optimizedPlan, foldContext)
             : Map.of();
         return Maps.merge(
@@ -557,6 +560,10 @@ public class EsqlSession {
                 throw new IllegalStateException("Should not produce metadata with the same key");
             })
         );
+    }
+
+    private static boolean bucketColumnMetadataEnabled(EsqlStatement statement) {
+        return statement.setting(QuerySettings.COLUMN_METADATA) && EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET.isEnabled();
     }
 
     private static Versioned<Result> attachMetadataAndVersion(

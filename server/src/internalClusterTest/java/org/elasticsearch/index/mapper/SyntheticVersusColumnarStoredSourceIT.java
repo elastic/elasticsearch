@@ -54,7 +54,15 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         return super.setRandomIndexSettings(random, builder).remove(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey());
     }
 
-    public void testColumnarStoredSourceMatchesSyntheticSource() throws Exception {
+    public void testDocValuesIgnoredSource() throws Exception {
+        runTest(true);
+    }
+
+    public void testStoredIgnoredSource() throws Exception {
+        runTest(false);
+    }
+
+    private void runTest(boolean useTimeSeriesDocValuesFormat) throws Exception {
         var spec = buildSpec();
         var template = new TemplateGenerator(spec).generate();
         var mapping = new MappingGenerator(spec).generate(template);
@@ -63,10 +71,12 @@ public class SyntheticVersusColumnarStoredSourceIT extends ESIntegTestCase {
         var syntheticSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.toString())
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesDocValuesFormat)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
         var columnarStoredSettings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
             .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.USE_TIME_SERIES_DOC_VALUES_FORMAT_SETTING.getKey(), useTimeSeriesDocValuesFormat)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1);
 
         assertAcked(prepareCreate("test_synthetic").setMapping(mappingXContent).setSettings(syntheticSettings));

@@ -12,6 +12,7 @@ package org.elasticsearch.indices.recovery;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -272,6 +273,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         }
 
         private RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, Task task, IndexShard shard) {
+            assert Thread.holdsLock(this);
             assert lifecycle.started();
             assert activeRecoveryHandlerCount < maxConcurrentOutgoingRecoveries;
             activeRecoveryHandlerCount++;
@@ -318,8 +320,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             if (shardContext != null && shardContext.reestablishRecovery(request, listener)) {
                 return;
             }
-            // The recovery may still be pending. Subscribe the new listener to the existing SubscribableListener so both
-            // channels are notified when the recovery eventually completes or is cancelled.
+            // The recovery is not in active handlers. Check if it's pending.
             for (PendingRecovery pending : pendingRecoveries) {
                 if (pending.request().recoveryId() == request.recoveryId()
                     && pending.request().targetAllocationId().equals(request.targetAllocationId())) {
@@ -327,7 +328,13 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     return;
                 }
             }
-            throw new PeerRecoveryNotFound(request.recoveryId(), request.shardId(), request.targetAllocationId());
+            if (shardContext == null) {
+                // caller will retry
+                throw new PeerRecoveryNotFound(request.recoveryId(), request.shardId(), request.targetAllocationId());
+            } else {
+                // TODO: legacy behavior, but should we consider also throwing PeerRecoveryNotFound here?
+                throw new ResourceNotFoundException("Cannot reestablish recovery, recovery id [" + request.recoveryId() + "] not found.");
+            }
         }
 
         /// Called when an active recovery completes (successfully or not).

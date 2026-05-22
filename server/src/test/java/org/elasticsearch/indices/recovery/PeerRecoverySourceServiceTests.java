@@ -9,6 +9,7 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -440,14 +441,14 @@ public class PeerRecoverySourceServiceTests extends IndexShardTestCase {
         );
         service.ongoingRecoveries.reestablishRecovery(reestablishRequest, primary, ActionListener.noop());
 
-        // Wrong recovery ID throws PeerRecoveryNotFound
+        // Wrong recovery ID throws ResourceNotFoundException
         final var wrongIdRequest = new ReestablishRecoveryRequest(
             request.recoveryId() + 1,
             request.shardId(),
             request.targetAllocationId()
         );
         expectThrows(
-            PeerRecoveryNotFound.class,
+            ResourceNotFoundException.class,
             () -> service.ongoingRecoveries.reestablishRecovery(wrongIdRequest, primary, ActionListener.noop())
         );
 

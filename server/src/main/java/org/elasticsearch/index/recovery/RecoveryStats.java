@@ -40,7 +40,7 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         currentAsSource.set(in.readVInt());
         if (in.getTransportVersion().supports(SOURCE_QUEUED_STATS)) {
             currentAsSourceQueued.set(in.readVInt());
-        }
+        } // else we cannot have any queued recoveries, the cluster is too old
         currentAsTarget.set(in.readVInt());
         throttleTimeInNanos.set(in.readLong());
     }
@@ -141,6 +141,8 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         out.writeVInt(currentAsSource.get());
         if (out.getTransportVersion().supports(SOURCE_QUEUED_STATS)) {
             out.writeVInt(currentAsSourceQueued.get());
+        } else {
+            assert currentAsSourceQueued.get() == 0 : currentAsSourceQueued.get();
         }
         out.writeVInt(currentAsTarget.get());
         out.writeLong(throttleTimeInNanos.get());

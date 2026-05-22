@@ -80,13 +80,11 @@ public class RecoveryStatsTests extends AbstractWireSerializingTestCase<Recovery
         final TransportVersion beforeQueuedAsSource = TransportVersionUtils.randomVersionNotSupporting(queuedAsSourceVersion);
         final TransportVersion atOrAfterQueuedAsSource = TransportVersionUtils.randomVersionSupporting(queuedAsSourceVersion);
 
+        // Test serialization to version pre-queued recoveries
         final var stats = new RecoveryStats();
         stats.incCurrentAsSource();
         stats.incCurrentAsSource();
         stats.incCurrentAsTarget();
-        stats.incCurrentAsSourceQueued();
-        stats.incCurrentAsSourceQueued();
-        stats.incCurrentAsSourceQueued();
         stats.addThrottleTime(randomNonNegativeLong());
 
         try (var out = new BytesStreamOutput()) {
@@ -102,6 +100,10 @@ public class RecoveryStatsTests extends AbstractWireSerializingTestCase<Recovery
             }
         }
 
+        // Test serialization to version post-queued recoveries
+        stats.incCurrentAsSourceQueued();
+        stats.incCurrentAsSourceQueued();
+        stats.incCurrentAsSourceQueued();
         try (var out = new BytesStreamOutput()) {
             out.setTransportVersion(atOrAfterQueuedAsSource);
             stats.writeTo(out);

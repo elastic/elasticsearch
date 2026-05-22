@@ -41,6 +41,7 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
 
     private String id;
     private String routing;
+    private boolean routingFromSlice;
     private String preference;
     private QueryBuilder query;
     private String[] storedFields;
@@ -89,6 +90,15 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
     public ExplainRequest routing(String routing) {
         this.routing = routing;
         return this;
+    }
+
+    public ExplainRequest setRoutingFromSlice(boolean routingFromSlice) {
+        this.routingFromSlice = routingFromSlice;
+        return this;
+    }
+
+    public boolean isRoutingFromSlice() {
+        return routingFromSlice;
     }
 
     /**

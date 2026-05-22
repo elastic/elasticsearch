@@ -486,18 +486,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
   method: test {csv-spec:csv-union-by-name.multiFileUnionByNameRecipe [LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/149127
-- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/148339
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/148339
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testGetVirtualBatchedCompoundCommitShouldNotStuckForConcurrentShardClose
   issue: https://github.com/elastic/elasticsearch/issues/149188
-- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
-  method: test
-  issue: https://github.com/elastic/elasticsearch/issues/148190
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testSearchShardShouldRecoverWhenWarmingFailsOnGetConnection
   issue: https://github.com/elastic/elasticsearch/issues/149195
@@ -531,12 +522,6 @@ tests:
 - class: org.elasticsearch.ingest.geoip.GeoIpDownloaderCliIT
   method: testIpLocationServiceLifecycle
   issue: https://github.com/elastic/elasticsearch/issues/149284
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:tdigest.isNotNullFilter (timeseries mode)}
-  issue: https://github.com/elastic/elasticsearch/issues/149293
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:exponential_histogram.isNotNullFilter}
-  issue: https://github.com/elastic/elasticsearch/issues/149291
 - class: org.elasticsearch.compute.operator.exchange.ExchangeServiceTests
   method: testBasic
   issue: https://github.com/elastic/elasticsearch/issues/149338
@@ -585,3 +570,9 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatTests
   method: testRangeQueryViaIndexSearcher
   issue: https://github.com/elastic/elasticsearch/issues/149657
+- class: org.elasticsearch.index.reindex.LocalReindexResumeIT
+  method: testResumeReindexFromPit_slicedN_partialCompleted
+  issue: https://github.com/elastic/elasticsearch/issues/149665
+- class: org.elasticsearch.http.netty4.Netty4ChunkedEncodingIT
+  method: testClientCancellation
+  issue: https://github.com/elastic/elasticsearch/issues/149675

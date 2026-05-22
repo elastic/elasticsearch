@@ -11,7 +11,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -20,12 +19,16 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
- * Schedules inbound shard recoveries on the target node with bounded concurrency.
+ * Task queue for recoveries running on target node.
  * <p>
- * Capacity slots are tied to {@link RecoveryListener} terminal callbacks.
+ * Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task
+ * to the executor and released when {@link RecoveryListener} terminates
+ * ({@link RecoveryListener#onRecoveryDone} / {@link RecoveryListener#onRecoveryFailure}),
+ * through a callback to {@link #closeAndFillSlots()}.
  * <p>
- * Limit the number of concurrent inbound recoveries (target side). Slots are released when {@link RecoveryListener}
- * terminates ({@link RecoveryListener#onRecoveryDone} / {@link RecoveryListener#onRecoveryFailure}).
+ * Max number of concurrent recovery slots are controlled by setting {@link #INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING}
+ * which can be dynamically updated. If limit is increased, pending tasks will be dispatched up to the new limit.
+ * If limit decreases, no tasks will be canceled, and we will let running tasks finish.
  */
 public final class ThrottlingRecoveryService {
     /**
@@ -43,12 +46,12 @@ public final class ThrottlingRecoveryService {
     );
 
     private final Executor executor;
+    // Dynamically updated through setting updates, controls max number of running "slots"
     private volatile int maxConcurrentRecoveries;
-
-    private final Queue<RecoveryTask> pending = new ConcurrentLinkedQueue<>();
-
-    /** In-flight tasks: dispatched to {@link ThreadPool#generic()} and not yet completed ({@link #closeAndMaybeDispatch()} not run). */
-    private final AtomicInteger running = new AtomicInteger(0);
+    // Recoveries that has been dispatched to executor and not yet reached closeAndMaybeDispatch
+    private final AtomicInteger runningRecoveries = new AtomicInteger(0);
+    // Queue of recoveries waiting to be dispatched
+    private final Queue<RecoveryTask> pendingRecoveries = new ConcurrentLinkedQueue<>();
 
     public ThrottlingRecoveryService(Executor executor, ClusterSettings clusterSettings) {
         this.executor = executor;
@@ -56,27 +59,30 @@ public final class ThrottlingRecoveryService {
     }
 
     public void enqueue(RecoveryListener recoveryListener, Consumer<RecoveryListener> task) {
-        RecoveryTask recoveryTask = new RecoveryTask(RecoveryListener.runAfter(recoveryListener, this::closeAndMaybeDispatch), task);
-        pending.add(recoveryTask);
+        RecoveryTask recoveryTask = new RecoveryTask(RecoveryListener.runAfter(recoveryListener, this::closeAndFillSlots), task);
+        pendingRecoveries.add(recoveryTask);
         fillSlots();
     }
 
+    /**
+     * Drain the pending queue up to max slot capacity (maxConcurrentRecoveries)
+     */
     private void fillSlots() {
         int current;
-        while ((current = running.get()) < maxConcurrentRecoveries && !pending.isEmpty()) {
-            if (running.compareAndSet(current, current + 1)) {
-                RecoveryTask nextTask = pending.poll();
+        while ((current = runningRecoveries.get()) < maxConcurrentRecoveries && !pendingRecoveries.isEmpty()) {
+            if (runningRecoveries.compareAndSet(current, current + 1)) {
+                RecoveryTask nextTask = pendingRecoveries.poll();
                 if (nextTask != null) {
                     dispatch(nextTask);
                 } else {
-                    running.decrementAndGet();
+                    runningRecoveries.decrementAndGet();
                 }
             }
         }
     }
 
-    private void closeAndMaybeDispatch() {
-        int current = running.decrementAndGet();
+    private void closeAndFillSlots() {
+        int current = runningRecoveries.decrementAndGet();
         assert current >= 0 : "negative number of running recoveries " + current;
         fillSlots();
     }

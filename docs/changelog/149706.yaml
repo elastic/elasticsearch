@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149706
+summary: "[ES|QL|DS] Add support for Parquet STRUCT"
+type: enhancement

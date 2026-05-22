@@ -27,32 +27,13 @@ import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 import java.lang.foreign.ValueLayout;
 import java.nio.ByteOrder;
+import java.util.Objects;
 
 import static org.apache.lucene.index.VectorSimilarityFunction.EUCLIDEAN;
 import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRODUCT;
 
 /** Panamized scorer for quantized vectors stored as a {@link MemorySegment}. */
 public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsScorer {
-
-    enum QuantEncoding {
-        D1Q1,
-        D1Q4,
-        D2Q4,
-        D4Q4_STRIPED,
-        D4Q4_PACKED,
-        D7Q7;
-
-        static QuantEncoding of(byte queryBits, byte indexBits, BitEncoding bitEncoding) {
-            return switch ((queryBits << 8) | indexBits) {
-                case (1 << 8) | 1 -> D1Q1;
-                case (4 << 8) | 1 -> D1Q4;
-                case (4 << 8) | 2 -> D2Q4;
-                case (4 << 8) | 4 -> bitEncoding == BitEncoding.PACKED ? D4Q4_PACKED : D4Q4_STRIPED;
-                case (7 << 8) | 7 -> D7Q7;
-                default -> throw new IllegalArgumentException("Unsupported query/index bits combination: " + queryBits + "/" + indexBits);
-            };
-        }
-    }
 
     public static MemorySegmentES940OSQVectorsScorer usingNative(
         IndexInput in,
@@ -63,16 +44,14 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         int bulkSize,
         @Nullable ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) {
-        if (bitEncoding == null) bitEncoding = BitEncoding.STRIPED;
+        QuantEncoding encoding = QuantEncoding.of(queryBits, indexBits, Objects.requireNonNullElse(bitEncoding, BitEncoding.STRIPED));
         return new MemorySegmentES940OSQVectorsScorer(
             in,
-            queryBits,
-            indexBits,
+            encoding,
             dimensions,
             dataLength,
             bulkSize,
-            bitEncoding,
-            createNativeScorer(QuantEncoding.of(queryBits, indexBits, bitEncoding), in, dimensions, dataLength, bulkSize)
+            createNativeScorer(encoding, in, dimensions, dataLength, bulkSize)
         );
     }
 
@@ -85,16 +64,14 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         int bulkSize,
         @Nullable ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) {
-        if (bitEncoding == null) bitEncoding = BitEncoding.STRIPED;
+        QuantEncoding encoding = QuantEncoding.of(queryBits, indexBits, Objects.requireNonNullElse(bitEncoding, BitEncoding.STRIPED));
         return new MemorySegmentES940OSQVectorsScorer(
             in,
-            queryBits,
-            indexBits,
+            encoding,
             dimensions,
             dataLength,
             bulkSize,
-            bitEncoding,
-            createPanamaScorer(QuantEncoding.of(queryBits, indexBits, bitEncoding), in, dimensions, dataLength, bulkSize)
+            createPanamaScorer(encoding, in, dimensions, dataLength, bulkSize)
         );
     }
 
@@ -102,15 +79,13 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
 
     private MemorySegmentES940OSQVectorsScorer(
         IndexInput in,
-        byte queryBits,
-        byte indexBits,
+        QuantEncoding encoding,
         int dimensions,
         int dataLength,
         int bulkSize,
-        ES940OSQVectorsScorer.BitEncoding bitEncoding,
         MemorySegmentScorer scorer
     ) {
-        super(in, queryBits, indexBits, dimensions, dataLength, bulkSize, bitEncoding);
+        super(in, encoding, dimensions, dataLength, bulkSize);
         this.scorer = scorer;
     }
 

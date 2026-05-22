@@ -36,6 +36,52 @@ public class ES940OSQVectorsScorer {
         PACKED
     }
 
+    public enum QuantEncoding {
+        D1Q1((byte) 1, (byte) 1),
+        D1Q4((byte) 1, (byte) 4),
+        D2Q4((byte) 2, (byte) 4),
+        D4Q4_STRIPED((byte) 4, (byte) 4),
+        D4Q4_PACKED((byte) 4, (byte) 4, BitEncoding.PACKED),
+        D7Q7((byte) 7, (byte) 7);
+
+        private final byte indexBits;
+        private final byte queryBits;
+        private final BitEncoding bitEncoding;
+
+        QuantEncoding(byte indexBits, byte queryBits) {
+            this(indexBits, queryBits, BitEncoding.STRIPED);
+        }
+
+        QuantEncoding(byte indexBits, byte queryBits, BitEncoding bitEncoding) {
+            this.indexBits = indexBits;
+            this.queryBits = queryBits;
+            this.bitEncoding = bitEncoding;
+        }
+
+        public static QuantEncoding of(byte queryBits, byte indexBits, BitEncoding bitEncoding) {
+            return switch ((queryBits << 8) | indexBits) {
+                case (1 << 8) | 1 -> D1Q1;
+                case (4 << 8) | 1 -> D1Q4;
+                case (4 << 8) | 2 -> D2Q4;
+                case (4 << 8) | 4 -> bitEncoding == BitEncoding.PACKED ? D4Q4_PACKED : D4Q4_STRIPED;
+                case (7 << 8) | 7 -> D7Q7;
+                default -> throw new IllegalArgumentException("Unsupported query/index bits combination: " + queryBits + "/" + indexBits);
+            };
+        }
+
+        public byte indexBits() {
+            return indexBits;
+        }
+
+        public byte queryBits() {
+            return queryBits;
+        }
+
+        public BitEncoding bitEncoding() {
+            return bitEncoding;
+        }
+    }
+
     protected static final float[] BIT_SCALES = new float[] {
         1f,
         1f / ((1 << 2) - 1),
@@ -49,12 +95,10 @@ public class ES940OSQVectorsScorer {
     /** The wrapper {@link IndexInput}. */
     protected final IndexInput in;
 
-    protected final byte queryBits;
-    protected final byte indexBits;
+    protected final QuantEncoding encoding;
     protected final int length;
     protected final int dimensions;
     protected final int bulkSize;
-    protected final BitEncoding bitEncoding;
 
     protected final float[] lowerIntervals;
     protected final float[] upperIntervals;
@@ -62,6 +106,20 @@ public class ES940OSQVectorsScorer {
     protected final float[] additionalCorrections;
     private final byte[] scratch;
     private final byte[] packedScratch;
+
+    public ES940OSQVectorsScorer(IndexInput in, QuantEncoding encoding, int dimensions, int dataLength, int bulkSize) {
+        this.in = in;
+        this.encoding = encoding;
+        this.dimensions = dimensions;
+        this.length = dataLength;
+        this.lowerIntervals = new float[bulkSize];
+        this.upperIntervals = new float[bulkSize];
+        this.targetComponentSums = new int[bulkSize];
+        this.additionalCorrections = new float[bulkSize];
+        this.bulkSize = bulkSize;
+        this.scratch = encoding.indexBits() == 7 ? new byte[dimensions] : null;
+        this.packedScratch = encoding == QuantEncoding.D4Q4_PACKED ? new byte[length] : null;
+    }
 
     public ES940OSQVectorsScorer(
         IndexInput in,
@@ -72,22 +130,7 @@ public class ES940OSQVectorsScorer {
         int bulkSize,
         BitEncoding bitEncoding
     ) {
-        if (!supportsQuantization(queryBits, indexBits)) {
-            throw new IllegalArgumentException(queryBits + " query bits with " + indexBits + " index bits is not supported");
-        }
-        this.in = in;
-        this.queryBits = queryBits;
-        this.indexBits = indexBits;
-        this.dimensions = dimensions;
-        this.length = dataLength;
-        this.lowerIntervals = new float[bulkSize];
-        this.upperIntervals = new float[bulkSize];
-        this.targetComponentSums = new int[bulkSize];
-        this.additionalCorrections = new float[bulkSize];
-        this.bulkSize = bulkSize;
-        this.bitEncoding = bitEncoding == null ? BitEncoding.STRIPED : bitEncoding;
-        this.scratch = indexBits == 7 ? new byte[dimensions] : null;
-        this.packedScratch = indexBits == 4 && this.bitEncoding == BitEncoding.PACKED ? new byte[dataLength] : null;
+        this(in, QuantEncoding.of(queryBits, indexBits, bitEncoding), dimensions, dataLength, bulkSize);
     }
 
     public ES940OSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength, int bulkSize) {
@@ -103,24 +146,14 @@ public class ES940OSQVectorsScorer {
      * that is read from the wrapped {@link IndexInput}.
      */
     public long quantizeScore(byte[] q) throws IOException {
-        if (indexBits == 1) {
-            if (queryBits == 1) {
-                return quantized1BitScoreSymmetric(q, length);
-            } else if (queryBits == 4) {
-                return quantized4BitScore(q, length);
-            }
-        }
-        if (indexBits == 2) {
-            return quantized4BitScore2BitIndex(q);
-        }
-        if (indexBits == 4) {
-            if (bitEncoding == BitEncoding.PACKED) {
-                return quantized4BitScorePacked(q);
-            }
-            return quantized4BitScoreSymmetric(q);
-        }
-        assert (indexBits == 7);
-        return quantized7BitScore(q);
+        return switch (encoding) {
+            case D1Q1 -> quantized1BitScoreSymmetric(q, length);
+            case D1Q4 -> quantized4BitScore(q, length);
+            case D2Q4 -> quantized4BitScore2BitIndex(q);
+            case D4Q4_PACKED -> quantized4BitScorePacked(q);
+            case D4Q4_STRIPED -> quantized4BitScoreSymmetric(q);
+            case D7Q7 -> quantized7BitScore(q);
+        };
     }
 
     private long quantized1BitScoreSymmetric(byte[] q, int length) throws IOException {
@@ -250,9 +283,9 @@ public class ES940OSQVectorsScorer {
     ) {
         float ax = lowerInterval;
         // Here we assume `lx` is simply bit vectors, so the scaling isn't necessary
-        float lx = (upperInterval - ax) * BIT_SCALES[indexBits - 1];
+        float lx = (upperInterval - ax) * BIT_SCALES[encoding.indexBits() - 1];
         float ay = queryLowerInterval;
-        float ly = (queryUpperInterval - ay) * BIT_SCALES[queryBits - 1];
+        float ly = (queryUpperInterval - ay) * BIT_SCALES[encoding.queryBits() - 1];
         float y1 = queryComponentSum;
         float score = ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
         // For euclidean, we need to invert the score and apply the additional correction, which is

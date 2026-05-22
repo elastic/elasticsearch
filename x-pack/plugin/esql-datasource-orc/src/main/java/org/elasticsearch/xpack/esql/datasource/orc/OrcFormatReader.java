@@ -40,6 +40,7 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -453,7 +454,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         }
         for (String columnName : projectedColumns) {
             Attribute attr = attributeMap.get(columnName);
-            projected.add(attr != null ? attr : new ReferenceAttribute(Source.EMPTY, columnName, DataType.NULL));
+            projected.add(
+                attr != null ? attr : new ReferenceAttribute(Source.EMPTY, null, columnName, DataType.NULL, Nullability.TRUE, null, false)
+            );
         }
         return projected;
     }
@@ -618,6 +621,12 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      * <p>Resolution rule for dotted projected names (see {@link #buildIncludeMask}): exact
      * top-level match against the file schema is attempted first, then dotted-path traversal.
      * This preserves files whose top-level field literally contains a dot.
+     *
+     * <p>ORC's {@link TypeDescription} carries no schema-level non-null guarantee — every column is
+     * nullable at the schema level (per-file non-null observations live in footer column statistics,
+     * not in the type itself). Attributes are built as {@link Nullability#TRUE} so downstream planner
+     * rules (e.g. {@code Coalesce} simplification, {@code IS NULL}/{@code IS NOT NULL} rewriting)
+     * don't drop legitimate null rows based on a wrong type-level assumption.
      */
     private static List<Attribute> convertOrcSchemaToAttributes(TypeDescription schema) {
         List<Attribute> attributes = new ArrayList<>();
@@ -636,7 +645,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 dottedPath,
                 MAX_STRUCT_FLATTENING_DEPTH
             );
-            out.add(new ReferenceAttribute(Source.EMPTY, dottedPath, DataType.UNSUPPORTED));
+            out.add(new ReferenceAttribute(Source.EMPTY, null, dottedPath, DataType.UNSUPPORTED, Nullability.TRUE, null, false));
             return;
         }
         if (type.getCategory() == TypeDescription.Category.STRUCT) {
@@ -647,7 +656,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             }
             return;
         }
-        out.add(new ReferenceAttribute(Source.EMPTY, dottedPath, convertOrcTypeToEsql(type)));
+        out.add(new ReferenceAttribute(Source.EMPTY, null, dottedPath, convertOrcTypeToEsql(type), Nullability.TRUE, null, false));
     }
 
     private static DataType convertOrcTypeToEsql(TypeDescription orcType) {

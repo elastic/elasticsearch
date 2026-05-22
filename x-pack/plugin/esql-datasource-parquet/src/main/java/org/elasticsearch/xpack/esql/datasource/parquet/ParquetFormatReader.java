@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.ParquetReadOptions;
-import org.apache.parquet.bytes.HeapByteBufferAllocator;
+import org.apache.parquet.bytes.DirectByteBufferAllocator;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
@@ -45,6 +45,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -284,7 +285,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // Note: all read operations happen synchronously with the ESQL engine. If some operations
         // change to be async, we'll have to unwrap the breaker if it's a LocalBreaker.
         var breaker = blockFactory.breaker();
-        var allocator = new CircuitBreakerByteBufferAllocator(new HeapByteBufferAllocator(), breaker);
+        var allocator = new CircuitBreakerByteBufferAllocator(new DirectByteBufferAllocator(), breaker);
         return PlainParquetReadOptions.builder(codecFactory).withAllocator(allocator);
     }
 
@@ -1202,9 +1203,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // The deferred-extraction synthetic column has no presence in the file's schema;
                 // the iterator materialises it. We must give it a real {@link DataType#LONG} so
                 // {@link #buildColumnInfos} routes it to {@link ColumnInfo#rowPosition()} instead
-                // of skipping it as an absent column.
-                DataType type = ColumnExtractor.ROW_POSITION_COLUMN.equals(columnName) ? DataType.LONG : DataType.NULL;
-                attr = new ReferenceAttribute(Source.EMPTY, columnName, type);
+                // of skipping it as an absent column. The row-position column is always materialised
+                // (non-nullable); an absent file column is always null at runtime (nullable).
+                boolean isRowPosition = ColumnExtractor.ROW_POSITION_COLUMN.equals(columnName);
+                DataType type = isRowPosition ? DataType.LONG : DataType.NULL;
+                Nullability nullability = isRowPosition ? Nullability.FALSE : Nullability.TRUE;
+                attr = new ReferenceAttribute(Source.EMPTY, null, columnName, type, nullability, null, false);
             }
             result.add(attr);
         }
@@ -1388,38 +1392,49 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * This preserves files whose top-level field literally contains a dot — the ES|QL parser
      * cannot distinguish {@code event.action} from {@code `event.action`} so we cannot
      * disambiguate at parse time.
+     *
+     * <p>Nullability follows Parquet repetition: a dotted leaf is {@link Nullability#FALSE} iff
+     * every field on the path is {@link Type.Repetition#REQUIRED}. Anything else
+     * ({@link Type.Repetition#OPTIONAL} or {@link Type.Repetition#REPEATED} anywhere on the path)
+     * is nullable from the planner's perspective. Element-level nullability inside a {@code LIST}
+     * group is independent and not modelled here. Defaulting everything to non-nullable — as the
+     * 3-arg {@link ReferenceAttribute} constructor does — would cause planner rules
+     * (e.g. {@code COALESCE} simplification, {@code IS NULL}/{@code IS NOT NULL} rewriting) to
+     * drop legitimate null rows for {@code OPTIONAL} columns.
      */
     private List<Attribute> convertParquetSchemaToAttributes(MessageType schema) {
         List<Attribute> attributes = new ArrayList<>();
         for (Type field : schema.getFields()) {
-            collectAttributes(field, field.getName(), 1, attributes);
+            collectAttributes(field, field.getName(), 1, field.isRepetition(Type.Repetition.REQUIRED), attributes);
         }
         return attributes;
     }
 
-    private void collectAttributes(Type field, String dottedPath, int depth, List<Attribute> out) {
+    private void collectAttributes(Type field, String dottedPath, int depth, boolean pathAllRequired, List<Attribute> out) {
         if (depth > MAX_STRUCT_FLATTENING_DEPTH) {
             logger.debug(
                 "Parquet field [{}] exceeds STRUCT flattening depth cap [{}]; emitting as UNSUPPORTED",
                 dottedPath,
                 MAX_STRUCT_FLATTENING_DEPTH
             );
-            out.add(new ReferenceAttribute(Source.EMPTY, dottedPath, DataType.UNSUPPORTED));
+            out.add(new ReferenceAttribute(Source.EMPTY, null, dottedPath, DataType.UNSUPPORTED, Nullability.TRUE, null, false));
             return;
         }
+        Nullability leafNullability = pathAllRequired ? Nullability.FALSE : Nullability.TRUE;
         if (field.isPrimitive()) {
-            out.add(new ReferenceAttribute(Source.EMPTY, dottedPath, convertParquetTypeToEsql(field)));
+            out.add(new ReferenceAttribute(Source.EMPTY, null, dottedPath, convertParquetTypeToEsql(field), leafNullability, null, false));
             return;
         }
         GroupType group = field.asGroupType();
         LogicalTypeAnnotation logical = group.getLogicalTypeAnnotation();
         if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation
             || logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation) {
-            out.add(new ReferenceAttribute(Source.EMPTY, dottedPath, convertGroupTypeToEsql(group)));
+            out.add(new ReferenceAttribute(Source.EMPTY, null, dottedPath, convertGroupTypeToEsql(group), leafNullability, null, false));
             return;
         }
         for (Type child : group.getFields()) {
-            collectAttributes(child, dottedPath + "." + child.getName(), depth + 1, out);
+            boolean childAllRequired = pathAllRequired && child.isRepetition(Type.Repetition.REQUIRED);
+            collectAttributes(child, dottedPath + "." + child.getName(), depth + 1, childAllRequired, out);
         }
     }
 

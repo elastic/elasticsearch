@@ -1266,6 +1266,7 @@ tasks.named('stringTemplates').configure {
     props.forEach { p ->
       def properties = [:]
       p.forEach { k, v -> properties["v_" + k] = v }
+      properties["v_TailArray"] = properties["v_boolean"] ? "ByteArray" : properties["v_Array"]
       template {
         it.properties = properties
         it.inputFile = inputFile

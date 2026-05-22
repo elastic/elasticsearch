@@ -453,7 +453,7 @@ public class LeaderBulkByPaginatedSearchTaskStateTests extends ESTestCase {
         assertThat(e.status(), equalTo(RestStatus.SERVICE_UNAVAILABLE));
     }
 
-    public void testCaptureAndRethrottleRaceCondition() throws Exception {
+    public void testCaptureAndRethrottleRaceCondition() {
         final float initialRps = randomFloatBetween(0.1f, 500f, true);
         final float rethrottledRps = randomFloatBetween(501f, 1000f, true);
         taskState.setRequestsPerSecondWithRelocationGuard(initialRps);

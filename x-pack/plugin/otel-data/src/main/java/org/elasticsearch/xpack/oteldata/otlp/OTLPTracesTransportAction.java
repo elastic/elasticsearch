@@ -24,6 +24,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -32,6 +33,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.docbuilder.SpanDocumentBuilder;
+import org.elasticsearch.xpack.oteldata.otlp.docbuilder.SpanEventDocumentBuilder;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
@@ -63,6 +65,7 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
         BufferedByteStringAccessor byteStringAccessor = new BufferedByteStringAccessor();
         var tracesServiceRequest = ExportTraceServiceRequest.parseFrom(request.getRequest().streamInput());
         SpanDocumentBuilder spanDocumentBuilder = new SpanDocumentBuilder(byteStringAccessor);
+        SpanEventDocumentBuilder spanEventDocumentBuilder = new SpanEventDocumentBuilder(byteStringAccessor);
         List<ResourceSpans> resourceSpansList = tracesServiceRequest.getResourceSpansList();
         for (int i = 0, resourceSpansListSize = resourceSpansList.size(); i < resourceSpansListSize; i++) {
             ResourceSpans resourceSpans = resourceSpansList.get(i);
@@ -71,14 +74,14 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
             for (int j = 0, scopeSpansListSize = scopeSpansList.size(); j < scopeSpansListSize; j++) {
                 ScopeSpans scopeSpans = scopeSpansList.get(j);
                 InstrumentationScope scope = scopeSpans.getScope();
-                String receiverName = TargetIndex.extractReceiverName(scope);
+                String scopeRoutingDataset = TargetIndex.extractScopeRoutingDataset(scope);
                 List<Span> spansList = scopeSpans.getSpansList();
                 for (int k = 0, spansListSize = spansList.size(); k < spansListSize; k++) {
                     Span span = spansList.get(k);
                     TargetIndex index = TargetIndex.evaluate(
                         TYPE_TRACES,
                         span.getAttributesList(),
-                        receiverName,
+                        scopeRoutingDataset,
                         scope.getAttributesList(),
                         resource.getAttributesList()
                     );
@@ -92,22 +95,56 @@ public class OTLPTracesTransportAction extends AbstractOTLPTransportAction {
                             index,
                             span
                         );
+                        IndexRequest indexRequest = new IndexRequest(index.index());
+                        String documentId = DocumentMetadata.documentId(span.getAttributesList());
+                        if (Strings.hasLength(documentId)) {
+                            indexRequest.id(documentId);
+                        }
                         bulkRequestBuilder.add(
-                            new IndexRequest(index.index()).opType(DocWriteRequest.OpType.CREATE)
-                                .setRequireDataStream(true)
-                                .source(xContentBuilder)
+                            indexRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder)
                         );
+                    }
+                    List<Span.Event> eventsList = span.getEventsList();
+                    for (int l = 0, eventsListSize = eventsList.size(); l < eventsListSize; l++) {
+                        Span.Event event = eventsList.get(l);
+                        TargetIndex eventIndex = TargetIndex.evaluate(
+                            TargetIndex.TYPE_LOGS,
+                            event.getAttributesList(),
+                            scopeRoutingDataset,
+                            scope.getAttributesList(),
+                            resource.getAttributesList()
+                        );
+                        try (XContentBuilder xContentBuilder = XContentFactory.cborBuilder(new BytesStreamOutput())) {
+                            spanEventDocumentBuilder.buildSpanEventDocument(
+                                xContentBuilder,
+                                resource,
+                                resourceSpans.getSchemaUrlBytes(),
+                                scope,
+                                scopeSpans.getSchemaUrlBytes(),
+                                eventIndex,
+                                span,
+                                event
+                            );
+                            IndexRequest eventRequest = new IndexRequest(eventIndex.index());
+                            String eventDocumentId = DocumentMetadata.documentId(event.getAttributesList());
+                            if (Strings.hasLength(eventDocumentId)) {
+                                eventRequest.id(eventDocumentId);
+                            }
+                            bulkRequestBuilder.add(
+                                eventRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder)
+                            );
+                        }
                     }
                 }
             }
         }
-        return ProcessingContext.withTotalDataPoints(bulkRequestBuilder.numberOfActions());
+        return ProcessingContext.withTotalItems(bulkRequestBuilder.numberOfActions());
     }
 
     @Override
-    MessageLite responseWithRejectedDataPoints(int rejectedDataPoints, String message) {
+    MessageLite responseWithRejectedItems(int rejectedItems, String message) {
         ExportTracePartialSuccess partialSuccess = ExportTracePartialSuccess.newBuilder()
-            .setRejectedSpans(rejectedDataPoints)
+            .setRejectedSpans(rejectedItems)
             .setErrorMessage(message)
             .build();
         return ExportTraceServiceResponse.newBuilder().setPartialSuccess(partialSuccess).build();

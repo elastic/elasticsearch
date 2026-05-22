@@ -72,6 +72,23 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
 
     private static final long DEFAULT_MAX_BYTES_REWRITTEN_PER_CALL = ByteSizeValue.of(100, ByteSizeUnit.MB).getBytes();
 
+    /**
+     * Default {@code updated} timestamp (RFC 3339) reported in object listings. Real GCS returns
+     * the wall-clock time the object was last modified; consumers such as {@code _file.modified}
+     * in ES|QL distinguish "unknown" (epoch / null) from "known" mtime, so the default is a fixed,
+     * non-epoch timestamp. Keep this stable across releases.
+     */
+    static final String DEFAULT_BLOB_UPDATED = "2024-01-01T00:00:00.000Z";
+
+    /**
+     * Default {@code Last-Modified} HTTP header (RFC 1123) returned by the XML-style HEAD/GET
+     * paths. Mirrors {@link #DEFAULT_BLOB_UPDATED}: a fixed, non-current timestamp keeps tests
+     * deterministic (the previous value used {@code ZonedDateTime.now()}, which silently changed
+     * between calls and caused flakes when consumers compared it to {@code _file.modified} or to
+     * cached values from a prior listing).
+     */
+    static final String DEFAULT_BLOB_LAST_MODIFIED = "Mon, 01 Jan 2024 00:00:00 GMT";
+
     public GoogleCloudStorageHttpHandler(final String bucket) {
         this.bucket = Objects.requireNonNull(bucket);
         this.mockGcsBlobStore = new MockGcsBlobStore();
@@ -152,14 +169,14 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                             throw new AssertionError("Range bytes header does not match expected format: " + rangeHeader);
                         }
 
-                        if (range.start() >= blob.contents().length()) {
+                        final HttpHeaderParser.ResolvedRange resolved = range.resolveAgainst(blob.contents().length());
+                        if (resolved == null) {
                             exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                             exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
                             return;
                         }
 
-                        final long lastIndex = Math.min(range.end(), blob.contents().length() - 1);
-                        response = blob.contents().slice(Math.toIntExact(range.start()), Math.toIntExact(lastIndex - range.start() + 1));
+                        response = blob.contents().slice(Math.toIntExact(resolved.start()), Math.toIntExact(resolved.length()));
                         statusCode = RestStatus.PARTIAL_CONTENT.getStatus();
                     }
                     // I think it's enough to use the generation here, at least until
@@ -314,7 +331,64 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
                     responseBytes.writeTo(exchange.getResponseBody());
                 }
             } else {
-                exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                // XML API routes — match against the decoded path/request to handle percent-encoded URIs
+                final String decodedRequest = exchange.getRequestMethod()
+                    + " "
+                    + URLDecoder.decode(exchange.getRequestURI().toString(), UTF_8);
+                final String decodedPath = URLDecoder.decode(exchange.getRequestURI().getPath(), UTF_8);
+                if (Regex.simpleMatch("HEAD /" + bucket + "/*", decodedRequest)) {
+                    // XML API: Head Object
+                    final String key = decodedPath.substring(("/" + bucket + "/").length());
+                    final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(key, null, null);
+                    if (blob != null) {
+                        exchange.getResponseHeaders().add("Content-Length", String.valueOf(blob.contents().length()));
+                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                        exchange.getResponseHeaders().add("ETag", "\"" + blob.generation() + "\"");
+                        exchange.getResponseHeaders().add("Last-Modified", DEFAULT_BLOB_LAST_MODIFIED);
+                        exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(blob.generation()));
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
+                    } else {
+                        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                    }
+                } else if (Regex.simpleMatch("GET /" + bucket + "/*", decodedRequest)) {
+                    // XML API: Get Object
+                    final String key = decodedPath.substring(("/" + bucket + "/").length());
+                    final MockGcsBlobStore.BlobVersion blob = mockGcsBlobStore.getBlob(key, null, null);
+                    if (blob != null) {
+                        final String rangeHeader = exchange.getRequestHeaders().getFirst("Range");
+                        final BytesReference response;
+                        final int statusCode;
+                        if (rangeHeader == null) {
+                            response = blob.contents();
+                            statusCode = RestStatus.OK.getStatus();
+                        } else {
+                            final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
+                            if (range == null) {
+                                throw new AssertionError("Range header does not match expected format: " + rangeHeader);
+                            }
+                            final HttpHeaderParser.ResolvedRange resolved = range.resolveAgainst(blob.contents().length());
+                            if (resolved == null) {
+                                exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                                exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
+                                return;
+                            }
+                            response = blob.contents().slice(Math.toIntExact(resolved.start()), Math.toIntExact(resolved.length()));
+                            exchange.getResponseHeaders()
+                                .add("Content-Range", "bytes " + resolved.start() + "-" + resolved.end() + "/" + blob.contents().length());
+                            statusCode = RestStatus.PARTIAL_CONTENT.getStatus();
+                        }
+                        exchange.getResponseHeaders().add("ETag", "\"" + blob.generation() + "\"");
+                        exchange.getResponseHeaders().add("Last-Modified", DEFAULT_BLOB_LAST_MODIFIED);
+                        exchange.getResponseHeaders().add("x-goog-generation", String.valueOf(blob.generation()));
+                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                        exchange.sendResponseHeaders(statusCode, response.length());
+                        response.writeTo(exchange.getResponseBody());
+                    } else {
+                        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                    }
+                } else {
+                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                }
             }
         } catch (MockGcsBlobStore.GcsRestException e) {
             sendError(exchange, e);
@@ -485,6 +559,9 @@ public class GoogleCloudStorageHttpHandler implements HttpHandler {
         builder.field("id", blobVersion.path());
         builder.field("size", String.valueOf(blobVersion.contents().length()));
         builder.field("generation", String.valueOf(blobVersion.generation()));
+        // Provide a fixed, non-epoch RFC 3339 update time so consumers that distinguish
+        // "unknown" mtime (epoch / null) from "known" mtime see a real value here.
+        builder.field("updated", DEFAULT_BLOB_UPDATED);
         builder.endObject();
     }
 

@@ -237,8 +237,23 @@ class Elasticsearch {
 
         var pluginData = Stream.concat(
             modulesBundles.stream()
-                .map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), false)),
-            pluginsBundles.stream().map(bundle -> new PolicyUtils.PluginData(bundle.getDir(), bundle.pluginDescriptor().isModular(), true))
+                .map(
+                    bundle -> new PolicyUtils.PluginData(
+                        bundle.getDir(),
+                        bundle.pluginDescriptor().getName(),
+                        bundle.pluginDescriptor().isModular(),
+                        false
+                    )
+                ),
+            pluginsBundles.stream()
+                .map(
+                    bundle -> new PolicyUtils.PluginData(
+                        bundle.getDir(),
+                        bundle.pluginDescriptor().getName(),
+                        bundle.pluginDescriptor().isModular(),
+                        true
+                    )
+                )
         ).toList();
 
         var pluginPolicyPatches = collectPluginPolicyPatches(modulesBundles, pluginsBundles, logger);

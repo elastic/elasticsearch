@@ -101,4 +101,9 @@ class NoopNativeAccess implements NativeAccess {
         logger.warn("cannot get vector distance because native access is not available");
         return Optional.empty();
     }
+
+    @Override
+    public Optional<ParquetRsFunctions> getParquetRsFunctions() {
+        return Optional.empty();
+    }
 }

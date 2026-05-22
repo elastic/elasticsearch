@@ -75,7 +75,7 @@ public class DlsFlsLicenseRequestInterceptor implements RequestInterceptor {
                 if (false == DOCUMENT_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)
                     || false == FIELD_LEVEL_SECURITY_FEATURE.checkWithoutTracking(frozenLicenseState)) {
                     boolean incompatibleLicense = false;
-                    IndicesAccessControl.DlsFlsUsage dlsFlsUsage = indicesAccessControl.getFieldAndDocumentLevelSecurityUsage();
+                    IndicesAccessControl.DlsFlsUsage dlsFlsUsage = indicesAccessControl.getExplicitlyGrantedDlsFlsUsage();
                     if (dlsFlsUsage.hasDocumentLevelSecurity() && false == DOCUMENT_LEVEL_SECURITY_FEATURE.check(frozenLicenseState)) {
                         incompatibleLicense = true;
                     }

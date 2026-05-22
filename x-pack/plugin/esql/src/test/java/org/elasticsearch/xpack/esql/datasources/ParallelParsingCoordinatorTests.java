@@ -21,7 +21,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -33,8 +35,10 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -269,6 +273,398 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         }
     }
 
+    /**
+     * Verifies the per-segment context flags set by {@link ParallelParsingCoordinator}:
+     * <ul>
+     *   <li>Exactly one segment owns the file's leading bytes ({@code firstSplit=true}).</li>
+     *   <li>Exactly one segment runs to file end ({@code lastSplit=true}); non-final segments must
+     *       not be marked lastSplit so codecs/readers correctly handle the segment-boundary tail.</li>
+     *   <li>Every segment is {@code recordAligned=true} so line-oriented readers can skip the
+     *       leading-partial-line trim that byte-range macro-splits otherwise need.</li>
+     * </ul>
+     */
+    public void testParseSegmentSetsExpectedSplitFlags() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 200; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append("\n");
+        }
+        byte[] content = sb.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(content);
+        BlockFactory blockFactory = blockFactory();
+        ContextCapturingLineReader reader = new ContextCapturingLineReader(blockFactory);
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, 4, exec);
+            try (iter) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            exec.shutdown();
+        }
+
+        List<FormatReadContext> seen;
+        synchronized (reader.contexts) {
+            seen = new ArrayList<>(reader.contexts);
+        }
+        assertTrue("Expected at least 2 segments, recorded " + seen.size(), seen.size() >= 2);
+        int firstSplitCount = 0;
+        int lastSplitCount = 0;
+        for (int i = 0; i < seen.size(); i++) {
+            FormatReadContext ctx = seen.get(i);
+            if (ctx.firstSplit()) {
+                firstSplitCount++;
+            }
+            if (ctx.lastSplit()) {
+                lastSplitCount++;
+            }
+            assertTrue("segment[" + i + "] must have recordAligned=true", ctx.recordAligned());
+        }
+        assertEquals("exactly one segment must own the file's leading bytes", 1, firstSplitCount);
+        assertEquals("exactly one segment must run to file end", 1, lastSplitCount);
+    }
+
+    public void testParseSegmentHonorsNonLeadingMacroSplitFirstFlag() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 200; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append("\n");
+        }
+        byte[] content = sb.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(content);
+        BlockFactory blockFactory = blockFactory();
+        ContextCapturingLineReader reader = new ContextCapturingLineReader(blockFactory);
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                reader,
+                obj,
+                List.of("line"),
+                50,
+                4,
+                exec,
+                null,
+                true,
+                false
+            );
+            try (iter) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            exec.shutdown();
+        }
+
+        List<FormatReadContext> seen;
+        synchronized (reader.contexts) {
+            seen = new ArrayList<>(reader.contexts);
+        }
+        assertTrue("Expected at least 2 segments, recorded " + seen.size(), seen.size() >= 2);
+        int firstSplitCount = 0;
+        int lastSplitCount = 0;
+        for (FormatReadContext ctx : seen) {
+            if (ctx.firstSplit()) {
+                firstSplitCount++;
+            }
+            if (ctx.lastSplit()) {
+                lastSplitCount++;
+            }
+            assertTrue("non-leading macro split still starts on a record boundary", ctx.recordAligned());
+        }
+        assertEquals("non-leading macro split must not mark any parallel segment as firstSplit", 0, firstSplitCount);
+        assertEquals("exactly one segment must run to file end", 1, lastSplitCount);
+    }
+
+    /**
+     * Files smaller than {@code 2 * minimumSegmentSize()} fall back to single-threaded reading;
+     * the coordinator skips segment computation and forwards the original {@link StorageObject}
+     * directly. Verifies that NDJSON's bumped 4 MiB threshold (Stage 5) actually enforces the
+     * "no parallelism below ~8 MiB" contract documented on {@code minimumSegmentSize()}.
+     */
+    public void testFallsBackToSingleThreadedReadWhenFileTooSmall() throws Exception {
+        // 64 KiB minimum vs ~21 byte fixture: file is far below `2 * minSegmentSize`, must fall
+        // back to a whole-file read instead of fanning out across the executor.
+        byte[] content = "line-a\nline-b\nline-c\n".getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(content);
+        ContextRecordingFormatReader reader = new ContextRecordingFormatReader(blockFactory(), 64 * 1024);
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 100, 4, exec);
+            try (iter) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            exec.shutdown();
+        }
+
+        List<FormatReadContext> seen = reader.contexts();
+        assertEquals("Below the 2*minSegmentSize threshold, parallelRead must call read() exactly once", 1, seen.size());
+        // Single-threaded fallback uses the baseCtx with the builder's defaults (firstSplit=true,
+        // lastSplit=true) - the file is read whole, so it is by definition both the first and last
+        // split. The parallel path sets the same flags but only after slicing.
+        FormatReadContext only = seen.get(0);
+        assertTrue("Whole-file fallback path must mark firstSplit=true", only.firstSplit());
+        assertTrue("Whole-file fallback path must mark lastSplit=true", only.lastSplit());
+    }
+
+    /**
+     * Regression: {@code COUNT(*)} passes empty projected columns; parallel segment workers must
+     * still see the file column width via metadata-bound schema (otherwise structural validation
+     * compares rows against schema size 0).
+     */
+    public void testParallelReadEmptyProjectionInfersCsvSchemaBeforeSegments() throws Exception {
+        String header = "a,b,c\n";
+        String row = "1,2,3\n";
+        StringBuilder sb = new StringBuilder(header);
+        while (sb.length() < 3 * 1024 * 1024) {
+            sb.append(row);
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(bytes);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory());
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of(), 500, 4, exec);
+            long rows = 0;
+            try (iter) {
+                while (iter.hasNext()) {
+                    Page p = iter.next();
+                    rows += p.getPositionCount();
+                    p.releaseBlocks();
+                }
+            }
+            assertTrue(rows > 0);
+        } finally {
+            exec.shutdown();
+        }
+    }
+
+    public void testParallelReadEmptyProjectionNonLeadingCsvMacroSplitSkipsMetadataRebind() throws Exception {
+        String header = "a,b,c\n";
+        StringBuilder sb = new StringBuilder(header);
+        while (sb.length() < 3 * 1024 * 1024) {
+            sb.append("1,2,3\n");
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        InMemoryStorageObject full = new InMemoryStorageObject(bytes);
+        long headerBytes = header.getBytes(StandardCharsets.UTF_8).length;
+        long bodyLength = bytes.length - headerBytes;
+        assertTrue("payload must exceed 2*minimumSegmentSize for parallel parsing", bodyLength > 2 * 1024 * 1024);
+        StorageObject nonLeadingRange = new RangeStorageObject(full, headerBytes, bodyLength);
+
+        CsvFormatReader base = new CsvFormatReader(blockFactory());
+        SourceMetadata meta = base.metadata(full);
+        CsvFormatReader withSchema = (CsvFormatReader) base.withSchema(meta.schema());
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                withSchema,
+                nonLeadingRange,
+                List.of(),
+                500,
+                4,
+                exec,
+                null,
+                true,
+                false
+            );
+            long rows = 0;
+            try (iter) {
+                while (iter.hasNext()) {
+                    Page p = iter.next();
+                    rows += p.getPositionCount();
+                    p.releaseBlocks();
+                }
+            }
+            assertTrue(rows > 0);
+        } finally {
+            exec.shutdown();
+        }
+    }
+
+    /**
+     * Regression: a non-leading record-aligned macro-split must set {@code recordAligned=true}
+     * in the fallback context; otherwise CsvFormatReader drops the first data row (treats it as
+     * a partial-line fragment from the previous split). Validates both paths and asserts the
+     * row-count difference.
+     */
+    public void testCsvNonLeadingMacroSplitRecordAlignedPreservesAllRows() throws Exception {
+        String header = "a,b,c\n";
+        int dataRows = 20;
+        StringBuilder sb = new StringBuilder(header);
+        for (int i = 0; i < dataRows; i++) {
+            sb.append("1,2,3\n");
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        InMemoryStorageObject full = new InMemoryStorageObject(bytes);
+        long headerBytes = header.getBytes(StandardCharsets.UTF_8).length;
+        long bodyLength = bytes.length - headerBytes;
+        StorageObject nonLeadingRange = new RangeStorageObject(full, headerBytes, bodyLength);
+
+        CsvFormatReader base = new CsvFormatReader(blockFactory());
+        SourceMetadata meta = base.metadata(full);
+        CsvFormatReader withSchema = (CsvFormatReader) base.withSchema(meta.schema());
+
+        long rowsWithRecordAligned = countCsvRows(withSchema, nonLeadingRange, List.of("a", "b", "c"), false, true);
+        long rowsWithoutRecordAligned = countCsvRows(withSchema, nonLeadingRange, List.of("a", "b", "c"), false, false);
+
+        assertEquals("recordAligned=true must preserve all data rows", dataRows, rowsWithRecordAligned);
+        assertTrue(
+            "recordAligned=false drops the first row (treats it as partial-line fragment)",
+            rowsWithoutRecordAligned < rowsWithRecordAligned
+        );
+    }
+
+    /**
+     * Regression: the coordinator's fallback path must pass recordAligned through to the
+     * reader even when parallelism is 1 (openWithParallelism returns null). This validates
+     * the single-threaded CSV read of a non-leading macro-split.
+     */
+    public void testCsvNonLeadingMacroSplitSingleThreadPreservesRows() throws Exception {
+        String header = "x,y\n";
+        int dataRows = 50;
+        StringBuilder sb = new StringBuilder(header);
+        for (int i = 0; i < dataRows; i++) {
+            sb.append(i).append(",").append(i * 10).append("\n");
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        InMemoryStorageObject full = new InMemoryStorageObject(bytes);
+        long headerBytes = header.getBytes(StandardCharsets.UTF_8).length;
+        StorageObject nonLeadingRange = new RangeStorageObject(full, headerBytes, bytes.length - headerBytes);
+
+        CsvFormatReader base = new CsvFormatReader(blockFactory());
+        SourceMetadata meta = base.metadata(full);
+        CsvFormatReader withSchema = (CsvFormatReader) base.withSchema(meta.schema());
+
+        long rowsAligned = countCsvRows(withSchema, nonLeadingRange, List.of("x", "y"), false, true);
+        assertEquals("all data rows must be read with recordAligned=true", dataRows, rowsAligned);
+    }
+
+    private static long countCsvRows(
+        CsvFormatReader reader,
+        StorageObject object,
+        List<String> projectedColumns,
+        boolean firstSplit,
+        boolean recordAligned
+    ) throws IOException {
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(projectedColumns)
+            .batchSize(100)
+            .firstSplit(firstSplit)
+            .lastSplit(true)
+            .recordAligned(recordAligned)
+            .build();
+        long rows = 0;
+        try (CloseableIterator<Page> iter = reader.read(object, ctx)) {
+            while (iter.hasNext()) {
+                Page p = iter.next();
+                rows += p.getPositionCount();
+                p.releaseBlocks();
+            }
+        }
+        return rows;
+    }
+
+    /**
+     * Partial projection (selecting 1 of 3 columns) on a non-leading record-aligned macro-split
+     * must return the correct row count and exactly one block per page (the projected column).
+     */
+    public void testCsvNonLeadingMacroSplitPartialProjectionReturnsOneColumn() throws Exception {
+        String header = "a,b,c\n";
+        int dataRows = 60;
+        StringBuilder sb = new StringBuilder(header);
+        for (int i = 0; i < dataRows; i++) {
+            sb.append(i).append(",val").append(i).append(",end").append(i).append("\n");
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+        InMemoryStorageObject full = new InMemoryStorageObject(bytes);
+        long headerBytes = header.getBytes(StandardCharsets.UTF_8).length;
+        StorageObject nonLeadingRange = new RangeStorageObject(full, headerBytes, bytes.length - headerBytes);
+
+        CsvFormatReader base = new CsvFormatReader(blockFactory());
+        SourceMetadata meta = base.metadata(full);
+        CsvFormatReader withSchema = (CsvFormatReader) base.withSchema(meta.schema());
+
+        FormatReadContext ctx = FormatReadContext.builder()
+            .projectedColumns(List.of("b"))
+            .batchSize(100)
+            .firstSplit(false)
+            .lastSplit(true)
+            .recordAligned(true)
+            .build();
+
+        long rows = 0;
+        try (CloseableIterator<Page> iter = withSchema.read(nonLeadingRange, ctx)) {
+            while (iter.hasNext()) {
+                Page p = iter.next();
+                assertEquals("partial projection must yield exactly 1 block per page", 1, p.getBlockCount());
+                rows += p.getPositionCount();
+                p.releaseBlocks();
+            }
+        }
+        assertEquals("all data rows must be returned with partial projection", dataRows, rows);
+    }
+
+    /**
+     * When {@code metadata()} returns null on a non-leading split with empty projection and
+     * {@code splitIncludesFileLeader=false}, the coordinator must not crash — it should proceed
+     * without schema binding and still produce rows via the reader's own inference.
+     */
+    public void testParallelReadNullMetadataNonLeadingSplitDoesNotCrash() throws Exception {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 200; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%04d", i)).append("\n");
+        }
+        byte[] content = sb.toString().getBytes(StandardCharsets.UTF_8);
+        StorageObject obj = new InMemoryStorageObject(content);
+        LineFormatReader reader = new LineFormatReader(blockFactory());
+
+        assertNull("precondition: LineFormatReader.metadata() returns null", reader.metadata(obj));
+
+        ExecutorService exec = Executors.newFixedThreadPool(4);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of(), 50, 4, exec, null, true, false);
+            long rows = 0;
+            try (iter) {
+                while (iter.hasNext()) {
+                    Page p = iter.next();
+                    rows += p.getPositionCount();
+                    p.releaseBlocks();
+                }
+            }
+            assertTrue("reader with null metadata must still produce rows", rows > 0);
+        } finally {
+            exec.shutdown();
+        }
+    }
+
+    /**
+     * Records the {@link FormatReadContext} of every {@code read} call so tests can assert the
+     * coordinator's per-segment split-flag dispatch behavior. Otherwise behaves like the parent
+     * {@link LineFormatReader}.
+     */
+    private static class ContextCapturingLineReader extends LineFormatReader {
+        final List<FormatReadContext> contexts = Collections.synchronizedList(new ArrayList<>());
+
+        ContextCapturingLineReader(BlockFactory blockFactory) {
+            super(blockFactory);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            contexts.add(context);
+            return super.read(object, context);
+        }
+    }
+
     private static final BlockFactory TEST_BLOCK_FACTORY = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
         .breaker(new NoopCircuitBreaker("test"))
         .build();
@@ -280,7 +676,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * Minimal SegmentableFormatReader that scans for newlines.
      */
-    private static class NewlineSegmentableReader implements SegmentableFormatReader {
+    private static class NewlineSegmentableReader implements SegmentableFormatReader, NoConfigFormatReader {
+
         private final long minSegmentSize;
 
         NewlineSegmentableReader(long minSegmentSize) {
@@ -344,7 +741,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * A line-oriented format reader that reads newline-delimited text and produces
      * single-column pages with keyword blocks. Used for testing parallel parsing.
      */
-    private static class LineFormatReader implements SegmentableFormatReader {
+    private static class LineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+
         private final BlockFactory blockFactory;
 
         LineFormatReader(BlockFactory blockFactory) {
@@ -376,7 +774,10 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-            boolean skipFirstLine = context.firstSplit() == false;
+            // Mirror production semantics: drop a leading partial record only when the caller has
+            // not guaranteed record-alignment. `ParallelParsingCoordinator` now sets
+            // `recordAligned=true` for every segment, so `skipFirstLine` is effectively false here.
+            boolean skipFirstLine = context.firstSplit() == false && context.recordAligned() == false;
             int batchSize = context.batchSize();
             InputStream stream = object.newStream();
             java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(stream, StandardCharsets.UTF_8));
@@ -463,6 +864,74 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         public void close() {}
     }
 
+    /**
+     * SegmentableFormatReader that records the {@link FormatReadContext} it was handed for each
+     * {@link #read} call. Lets tests assert per-segment flag wiring without re-implementing line
+     * parsing.
+     */
+    private static class ContextRecordingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+
+        private final BlockFactory blockFactory;
+        private final long minSegmentSize;
+        private final List<FormatReadContext> contexts = new CopyOnWriteArrayList<>();
+
+        /** Convenience: matches the original test behaviour (force multi-segment even on tiny fixtures). */
+        ContextRecordingFormatReader(BlockFactory blockFactory) {
+            this(blockFactory, 1);
+        }
+
+        ContextRecordingFormatReader(BlockFactory blockFactory, long minSegmentSize) {
+            this.blockFactory = blockFactory;
+            this.minSegmentSize = minSegmentSize;
+        }
+
+        List<FormatReadContext> contexts() {
+            return contexts;
+        }
+
+        @Override
+        public long findNextRecordBoundary(InputStream stream) throws IOException {
+            long consumed = 0;
+            int b;
+            while ((b = stream.read()) != -1) {
+                consumed++;
+                if (b == '\n') {
+                    return consumed;
+                }
+            }
+            return -1;
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return minSegmentSize;
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return null;
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            contexts.add(context);
+            return new LineFormatReader(blockFactory).read(object, context);
+        }
+
+        @Override
+        public String formatName() {
+            return "test-recording";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return List.of(".txt");
+        }
+
+        @Override
+        public void close() {}
+    }
+
     private static CloseableIterator<Page> emptyIterator() {
         return new CloseableIterator<>() {
             @Override
@@ -483,7 +952,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * A line-oriented reader that throws after producing a configurable number of lines.
      */
-    private static class FailingFormatReader implements SegmentableFormatReader {
+    private static class FailingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+
         private final BlockFactory blockFactory;
         private final int failAfterLines;
 
@@ -517,7 +987,9 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-            boolean skipFirstLine = context.firstSplit() == false;
+            // See note in the other test fixture: drop a leading partial record only when the caller
+            // has not guaranteed record-alignment.
+            boolean skipFirstLine = context.firstSplit() == false && context.recordAligned() == false;
             int batchSize = context.batchSize();
             InputStream stream = object.newStream();
             java.io.BufferedReader br = new java.io.BufferedReader(new java.io.InputStreamReader(stream, StandardCharsets.UTF_8));

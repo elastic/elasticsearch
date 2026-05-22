@@ -1,5 +1,0 @@
-area: Vector Search
-issues: []
-pr: 146347
-summary: "[DiskBBQ] Fix `offHeap` size for empty indices"
-type: bug

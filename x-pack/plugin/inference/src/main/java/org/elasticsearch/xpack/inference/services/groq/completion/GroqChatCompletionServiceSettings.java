@@ -60,7 +60,7 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
             validationException
         );
         var uri = ServiceUtils.extractOptionalUri(map, ServiceFields.URL, validationException);
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, GroqService.NAME, context);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         validationException.throwIfValidationErrorsExist();
 
@@ -100,7 +100,6 @@ public class GroqChatCompletionServiceSettings extends FilteredXContentObject im
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            GroqService.NAME,
             ConfigurationParseContext.REQUEST
         );
         var extractedOrganizationId = ServiceUtils.extractOptionalString(

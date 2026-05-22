@@ -183,6 +183,12 @@ public class NdJsonSchemaInferrer {
 
     /** Build the list of Attribute by recursively traversing the FieldInfo tree */
     private static void buildSchema(FieldInfo field, String parentName, List<Attribute> attributes) {
+        if (field.children == null) {
+            // No children were ever observed. Happens for the root when every sampled line was
+            // malformed (so {@link FieldInfo#getChild} was never called), or legitimately for
+            // leaf fields during recursion. Nothing to contribute to the schema either way.
+            return;
+        }
         for (Map.Entry<String, FieldInfo> entry : field.children.entrySet()) {
             // TODO: disallow dots in names (or replace them) as it may cause issues when decoding
             var name = entry.getKey();

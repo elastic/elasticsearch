@@ -145,7 +145,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
         final long slot = slot(rehash(code), mask);
         for (long index = slot;; index = nextSlot(index, mask)) {
             final long id = id(index);
-            if (id == -1L || key.bytesEquals(get(id, intermediate))) {
+            if (id == -1L || bytesRefs.bytesEqual(id, key)) {
                 return id;
             }
         }
@@ -177,7 +177,7 @@ public final class BytesRefHash extends AbstractHash implements Accountable, Byt
                 append(id, key, code);
                 ++size;
                 return id;
-            } else if (key.bytesEquals(get(curId, spare))) {
+            } else if (bytesRefs.bytesEqual(curId, key)) {
                 return -1 - curId;
             }
         }

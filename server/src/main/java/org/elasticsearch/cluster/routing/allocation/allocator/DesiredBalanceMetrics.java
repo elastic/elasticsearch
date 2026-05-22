@@ -317,6 +317,10 @@ public class DesiredBalanceMetrics {
         return lastReconciliationAllocationStats;
     }
 
+    DesiredBalanceStats desiredBalanceStats() {
+        return desiredBalanceStats;
+    }
+
     public void registerWriteLoadDeciderMaxLatencyGauge(Supplier<Collection<LongWithAttributes>> maxLatencySupplier) {
         meterRegistry.registerLongsGauge(
             WRITE_LOAD_DECIDER_MAX_LATENCY_VALUE,
@@ -518,6 +522,5 @@ public class DesiredBalanceMetrics {
         lastReconciliationAllocationStats = EMPTY_ALLOCATION_STATS;
         weightStatsPerNodeRef.set(Map.of());
         allocationStatsPerNodeRef.set(Map.of());
-        desiredBalanceStats = DesiredBalanceStats.ZERO;
     }
 }

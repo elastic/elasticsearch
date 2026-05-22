@@ -18,6 +18,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.search.fetch.subphase.FieldAndFormat;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -68,6 +69,7 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     private Boolean allowPartialSequenceResults;
     private String projectRouting;
     private ResolvedIndexExpressions resolvedIndexExpressions;
+    private transient TargetProjects resolvedTargetProjects;
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -322,6 +324,16 @@ public class EqlSearchRequest extends LegacyActionRequest implements IndicesRequ
     @Override
     public ResolvedIndexExpressions getResolvedIndexExpressions() {
         return resolvedIndexExpressions;
+    }
+
+    @Override
+    public void setResolvedTargetProjects(TargetProjects targetProjects) {
+        this.resolvedTargetProjects = targetProjects;
+    }
+
+    @Override
+    public TargetProjects getResolvedTargetProjects() {
+        return resolvedTargetProjects;
     }
 
     public QueryBuilder filter() {

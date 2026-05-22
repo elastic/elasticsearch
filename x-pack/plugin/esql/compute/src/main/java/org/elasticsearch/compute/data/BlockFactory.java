@@ -121,7 +121,18 @@ public class BlockFactory {
         return bigArrays;
     }
 
-    protected BlockFactory parent() {
+    /**
+     * Returns the root (request-level) {@link BlockFactory} for this factory chain, or {@code this}
+     * if this is already a root factory.
+     * <p>
+     * The root factory's circuit breaker is the global request breaker (thread-safe atomic counters);
+     * child factories wrap a {@link LocalCircuitBreaker} bound to a single driver thread for hot-path
+     * allocations. Code that allocates blocks from outside the driver run loop (e.g. on a producer
+     * thread that hands pages to the driver via a buffer) must use the root factory so accounting is
+     * not racy against the driver thread. See {@link Block#allowPassingToDifferentDriver()} for the
+     * complementary release-side mechanism.
+     */
+    public BlockFactory parent() {
         return parent != null ? parent : this;
     }
 
@@ -492,6 +503,12 @@ public class BlockFactory {
         return b;
     }
 
+    public BytesRefVector newDirectBytesRefVector(byte[] bytes, int[] startOffsets, int positionCount) {
+        var v = new DirectBytesRefVector(bytes, startOffsets, positionCount, this);
+        adjustBreaker(v.ramBytesUsed());
+        return v;
+    }
+
     public BytesRefBlock newConstantBytesRefBlockWith(BytesRef value, int positions) {
         return newConstantBytesRefVector(value, positions).asBlock();
     }
@@ -606,7 +623,16 @@ public class BlockFactory {
         DoubleBlock zeroThresholds,
         BytesRefBlock encodedHistograms
     ) {
-        return new ExponentialHistogramArrayBlock(minima, maxima, sums, valueCounts, zeroThresholds, encodedHistograms);
+        return new ExponentialHistogramArrayBlock(
+            encodedHistograms,
+            minima,
+            maxima,
+            sums,
+            valueCounts,
+            zeroThresholds,
+            encodedHistograms.getPositionCount(),
+            null
+        );
     }
 
     public BlockLoader.Block newTDigestBlockFromDocValues(
@@ -616,7 +642,7 @@ public class BlockFactory {
         DoubleBlock sums,
         LongBlock counts
     ) {
-        return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, counts);
+        return new TDigestArrayBlock(encodedDigests, minima, maxima, sums, counts, encodedDigests.getPositionCount(), null);
     }
 
     public final AggregateMetricDoubleBlock newAggregateMetricDoubleBlock(
@@ -637,7 +663,7 @@ public class BlockFactory {
         return new LongRangeBlockBuilder(estimatedSize, this);
     }
 
-    public LongRangeBlock newConstantLongRangeBlock(LongRangeBlockBuilder.LongRange value, int positions) {
+    public LongRangeBlock newConstantLongRangeBlockWith(LongRangeBlockBuilder.LongRange value, int positions) {
         try (var builder = newLongRangeBlockBuilder(positions)) {
             for (int i = 0; i < positions; i++) {
                 builder.appendLongRange(value);

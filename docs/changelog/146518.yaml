@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 146518
-summary: Fix rate/increase single-value bucket handling for delta temporality
-type: bug

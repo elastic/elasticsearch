@@ -30,7 +30,7 @@ The options are inspired by the Prometheus [HTTP API](https://prometheus.io/docs
 
 `index`
 :   A list of indices, data streams, or aliases. Supports wildcards and date math.
-    Defaults to `*` querying all indices with [`index.mode: time_series`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md).
+    Defaults to `metrics-*` querying matching indices with [`index.mode: time_series`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md).
     Example: `PROMQL index=metrics-*.otel-* sum(rate(http_requests_total))`
 
 `step`
@@ -87,9 +87,10 @@ column as a JSON string.
 ### Index patterns
 
 The `index` parameter accepts the same patterns as `FROM` and `TS`, including wildcards and comma-separated lists.
-If omitted, it defaults to `*`, which queries all indices configured with
+If omitted, it defaults to `metrics-*`, which queries matching indices configured with
 [`index.mode: time_series`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md).
-In production, specifying an explicit index pattern avoids scanning unrelated data.
+The Prometheus-compatible `query` and `query_range` endpoints use the same default when the `{index}` path parameter is omitted.
+In production, specifying an explicit index pattern can further narrow the data scanned.
 
 ### Implicit range selectors
 

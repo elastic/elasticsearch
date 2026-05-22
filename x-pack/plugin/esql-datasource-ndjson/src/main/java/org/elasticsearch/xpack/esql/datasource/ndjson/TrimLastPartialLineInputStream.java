@@ -15,6 +15,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -49,6 +50,7 @@ final class TrimLastPartialLineInputStream extends InputStream {
     private final InputStream delegate;
     private final byte[] chunk;
     private final ErrorPolicy errorPolicy;
+    private final SkipWarnings skipWarnings;
 
     /** Bytes after the last {@code '\n'} observed across all chunks read so far; discarded at EOF. */
     private byte[] carry;
@@ -59,16 +61,20 @@ final class TrimLastPartialLineInputStream extends InputStream {
     private boolean eof;
     private final byte[] single = new byte[1];
 
-    TrimLastPartialLineInputStream(InputStream delegate, ErrorPolicy errorPolicy) {
-        this(delegate, DEFAULT_TRIM_CHUNK_SIZE, errorPolicy);
+    TrimLastPartialLineInputStream(InputStream delegate, ErrorPolicy errorPolicy, String sourceLocation) {
+        this(delegate, DEFAULT_TRIM_CHUNK_SIZE, errorPolicy, sourceLocation);
     }
 
-    TrimLastPartialLineInputStream(InputStream delegate, int chunkSize, ErrorPolicy errorPolicy) {
+    TrimLastPartialLineInputStream(InputStream delegate, int chunkSize, ErrorPolicy errorPolicy, String sourceLocation) {
         this.delegate = delegate;
         Check.isTrue(chunkSize > 0, "chunkSize must strictly positive");
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.chunk = new byte[chunkSize];
         this.errorPolicy = errorPolicy;
+        this.skipWarnings = SkipWarnings.of(
+            errorPolicy,
+            "NDJSON read from [" + sourceLocation + "] discarded an oversized partial line (policy: " + errorPolicy.modeName() + ")"
+        );
     }
 
     @Override
@@ -154,6 +160,15 @@ final class TrimLastPartialLineInputStream extends InputStream {
 
     /** Same level choice as {@link NdJsonPageDecoder#onNdjsonLineParseError}. */
     private void logDiscardedOversizedPartial(long discardedBytes, String kind) {
+        skipWarnings.add(
+            "Skipping NDJSON ["
+                + kind
+                + "] of approximately ["
+                + discardedBytes
+                + "] bytes while trimming split suffix; limit is ["
+                + MAX_CARRY
+                + "]"
+        );
         logger.log(
             errorPolicy.logErrors() ? Level.INFO : Level.DEBUG,
             LoggerMessageFormat.format(

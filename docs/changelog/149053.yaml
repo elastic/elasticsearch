@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 148612
+pr: 149053
+summary: Fix "optimized incorrectly" error from project reorder
+type: bug

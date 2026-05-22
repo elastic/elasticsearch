@@ -9,15 +9,18 @@ package org.elasticsearch.xpack.esql.datasources.glob;
 
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.AutoPartitionDetector;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.HivePartitionDetector;
 import org.elasticsearch.xpack.esql.datasources.PartitionConfig;
 import org.elasticsearch.xpack.esql.datasources.PartitionDetector;
+import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor.PartitionFilterHint;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
-import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
 import org.elasticsearch.xpack.esql.datasources.TemplatePartitionDetector;
@@ -26,6 +29,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageProvider;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
@@ -38,6 +42,8 @@ import java.util.Map;
  * Supports partition-aware glob rewriting when filter hints are provided.
  */
 public final class GlobExpander {
+
+    private static final Logger logger = LogManager.getLogger(GlobExpander.class);
 
     private GlobExpander() {}
 
@@ -57,14 +63,6 @@ public final class GlobExpander {
             return FileListCompactor.compact(basePath, generic);
         }
         return raw;
-    }
-
-    /** Returns a copy of the file list with per-file schema reconciliation info attached. */
-    public static FileList withSchemaInfo(FileList fileList, Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaInfo) {
-        if (fileList instanceof GenericFileList generic) {
-            return generic.withSchemaInfo(schemaInfo);
-        }
-        return fileList;
     }
 
     /**
@@ -124,16 +122,35 @@ public final class GlobExpander {
         };
     }
 
+    /**
+     * Returns true if the given path string represents multiple files — either because it contains
+     * glob metacharacters in the path component, or because it is a comma-separated list.
+     *
+     * IPv6 host literals in URL authorities (e.g. {@code http://[::1]/data/*.parquet}) use bracket
+     * notation per RFC 3986 §3.2.2. Those brackets are parsed as part of the authority, not the
+     * path, so they are not treated as glob character-class syntax.
+     */
     public static boolean isMultiFile(String path) {
         if (path == null) {
             return false;
         }
-        for (char c : StoragePath.GLOB_METACHARACTERS) {
-            if (path.indexOf(c) >= 0) {
-                return true;
-            }
+        if (path.indexOf(',') >= 0) {
+            return true;
         }
-        return path.indexOf(',') >= 0;
+        // Only scan the path component for glob metacharacters, not the full URL string.
+        // This prevents IPv6 bracket notation in the authority from being mistaken for
+        // a glob character class.
+        try {
+            return StoragePath.of(path).isPattern();
+        } catch (IllegalArgumentException e) {
+            // Not a parseable URL; fall back to scanning the whole string
+            for (char c : StoragePath.GLOB_METACHARACTERS) {
+                if (path.indexOf(c) >= 0) {
+                    return true;
+                }
+            }
+            return false;
+        }
     }
 
     public static FileList expandGlob(String pattern, StorageProvider provider) throws IOException {
@@ -196,8 +213,8 @@ public final class GlobExpander {
                 return FileList.UNRESOLVED;
             }
             // Hints resolved all wildcards to a concrete path — resolve via exists()
-            if (provider.exists(storagePath)) {
-                var obj = provider.newObject(storagePath);
+            var obj = provider.newObject(storagePath);
+            if (obj.exists()) {
                 StorageEntry entry = new StorageEntry(storagePath, obj.length(), obj.lastModified());
                 PartitionMetadata partitionMetadata = detectPartitions(List.of(entry), hivePartitioning, partitionConfig, config);
                 return new GenericFileList(List.of(entry), pattern, partitionMetadata);
@@ -216,11 +233,14 @@ public final class GlobExpander {
                 String prefixStr = prefix.toString();
                 for (String candidate : candidates) {
                     StoragePath fullPath = StoragePath.of(prefixStr + candidate);
-                    if (provider.exists(fullPath)) {
-                        var obj = provider.newObject(fullPath);
+                    var obj = provider.newObject(fullPath);
+                    if (obj.exists()) {
                         matched.add(new StorageEntry(fullPath, obj.length(), obj.lastModified()));
                     }
                     checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
+                }
+                if (hints != null && hints.isEmpty() == false) {
+                    matched = applyFileMetadataFilters(matched, hints);
                 }
                 if (matched.isEmpty()) {
                     return FileList.EMPTY;
@@ -253,6 +273,12 @@ public final class GlobExpander {
                     checkDiscoveredFilesLimit(matched.size(), maxDiscoveredFiles);
                 }
             }
+        }
+
+        // Apply file metadata filters from WHERE clause hints (e.g., _file.modified > X, _file.size > Y).
+        // This prunes files at listing time — before any data is read.
+        if (hints != null && hints.isEmpty() == false) {
+            matched = applyFileMetadataFilters(matched, hints);
         }
 
         if (matched.isEmpty()) {
@@ -370,8 +396,8 @@ public final class GlobExpander {
                     allEntries.addAll(g.files());
                 }
             } else {
-                if (provider.exists(segmentPath)) {
-                    var obj = provider.newObject(segmentPath);
+                var obj = provider.newObject(segmentPath);
+                if (obj.exists()) {
                     allEntries.add(new StorageEntry(segmentPath, obj.length(), obj.lastModified()));
                     checkDiscoveredFilesLimit(allEntries.size(), maxDiscoveredFiles);
                 }
@@ -532,5 +558,162 @@ public final class GlobExpander {
             }
         }
         return sb.toString();
+    }
+
+    public static List<StorageEntry> applyFileMetadataFilters(List<StorageEntry> entries, List<PartitionFilterHint> hints) {
+        List<PartitionFilterHint> fileHints = new ArrayList<>();
+        for (PartitionFilterHint hint : hints) {
+            if (FileMetadataColumns.isFileMetadataColumn(hint.columnName())) {
+                fileHints.add(hint);
+            }
+        }
+        if (fileHints.isEmpty()) {
+            return entries;
+        }
+
+        int beforeCount = entries.size();
+        List<StorageEntry> filtered = new ArrayList<>(entries.size());
+        for (StorageEntry entry : entries) {
+            if (matchesAllFileHints(entry, fileHints)) {
+                filtered.add(entry);
+            }
+        }
+
+        if (filtered.size() < beforeCount) {
+            logger.debug("File metadata filter pruned {}/{} files from listing", beforeCount - filtered.size(), beforeCount);
+        }
+        return filtered;
+    }
+
+    private static boolean matchesAllFileHints(StorageEntry entry, List<PartitionFilterHint> fileHints) {
+        for (PartitionFilterHint hint : fileHints) {
+            if (matchesFileHint(entry, hint) == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean matchesFileHint(StorageEntry entry, PartitionFilterHint hint) {
+        return switch (hint.columnName()) {
+            case FileMetadataColumns.MODIFIED -> evaluateTimestamp(entry.lastModified(), hint);
+            case FileMetadataColumns.SIZE -> evaluateLong(entry.length(), hint);
+            case FileMetadataColumns.PATH -> evaluateString(entry.path().toString(), hint);
+            case FileMetadataColumns.NAME -> evaluateString(entry.path().objectName(), hint);
+            case FileMetadataColumns.DIRECTORY -> {
+                StoragePath parent = entry.path().parentDirectory();
+                yield parent != null ? evaluateString(parent.toString(), hint) : true;
+            }
+            default -> true; // Unknown hint — don't filter (safe fallback)
+        };
+    }
+
+    private static boolean evaluateTimestamp(Instant actual, PartitionFilterHint hint) {
+        // StorageEntry normalises a missing lastModified to Instant.EPOCH, so treat both
+        // null and EPOCH as "unknown" and let the file pass through rather than
+        // accidentally pruning every file whose mtime the store could not provide.
+        if (actual == null || actual.equals(Instant.EPOCH)) {
+            return true; // Unknown timestamp — don't filter (conservative)
+        }
+        if (hint.values().isEmpty()) {
+            return true;
+        }
+        long actualMillis = actual.toEpochMilli();
+
+        if (hint.operator() == PartitionFilterHintExtractor.Operator.IN) {
+            for (Object v : hint.values()) {
+                long millis = toEpochMillis(v);
+                if (millis != Long.MIN_VALUE && actualMillis == millis) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        long hintMillis = toEpochMillis(hint.values().get(0));
+        if (hintMillis == Long.MIN_VALUE) {
+            return true; // Unparseable — don't filter
+        }
+        return evaluateComparison(Long.compare(actualMillis, hintMillis), hint.operator());
+    }
+
+    private static long toEpochMillis(Object value) {
+        if (value instanceof Long l) {
+            return l;
+        } else if (value instanceof String s) {
+            try {
+                return Instant.parse(s).toEpochMilli();
+            } catch (Exception e) {
+                return Long.MIN_VALUE;
+            }
+        }
+        return Long.MIN_VALUE;
+    }
+
+    private static boolean evaluateLong(long actual, PartitionFilterHint hint) {
+        if (hint.values().isEmpty()) {
+            return true;
+        }
+        if (hint.operator() == PartitionFilterHintExtractor.Operator.IN) {
+            for (Object v : hint.values()) {
+                long inVal;
+                if (v instanceof Number n) {
+                    inVal = n.longValue();
+                } else {
+                    try {
+                        inVal = Long.parseLong(v.toString());
+                    } catch (NumberFormatException e) {
+                        continue;
+                    }
+                }
+                if (actual == inVal) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        long hintLong;
+        Object hintValue = hint.values().get(0);
+        if (hintValue instanceof Number n) {
+            hintLong = n.longValue();
+        } else if (hintValue instanceof String s) {
+            try {
+                hintLong = Long.parseLong(s);
+            } catch (NumberFormatException e) {
+                return true;
+            }
+        } else {
+            return true;
+        }
+        return evaluateComparison(Long.compare(actual, hintLong), hint.operator());
+    }
+
+    private static boolean evaluateString(String actual, PartitionFilterHint hint) {
+        if (actual == null || hint.values().isEmpty()) {
+            return true;
+        }
+        if (hint.operator() == PartitionFilterHintExtractor.Operator.IN) {
+            for (Object v : hint.values()) {
+                if (actual.equals(v.toString())) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        String hintStr = hint.values().get(0).toString();
+        return evaluateComparison(actual.compareTo(hintStr), hint.operator());
+    }
+
+    private static boolean evaluateComparison(int cmp, PartitionFilterHintExtractor.Operator operator) {
+        return switch (operator) {
+            case EQUALS -> cmp == 0;
+            case NOT_EQUALS -> cmp != 0;
+            case GREATER_THAN -> cmp > 0;
+            case GREATER_THAN_OR_EQUAL -> cmp >= 0;
+            case LESS_THAN -> cmp < 0;
+            case LESS_THAN_OR_EQUAL -> cmp <= 0;
+            case IN -> false; // Handled separately in caller
+        };
     }
 }

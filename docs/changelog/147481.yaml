@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 147361
+pr: 147481
+summary: Preserve emit size in `AdaptiveBlockHash`
+type: bug

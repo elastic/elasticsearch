@@ -13,12 +13,12 @@ import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.secrets.SecretsApplier;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.RateLimitGroupingModel;
 import org.elasticsearch.xpack.inference.services.azureopenai.action.AzureOpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.azureopenai.request.AzureOpenAiUtils;
 import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretSettings;
-import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretsApplier;
 import org.elasticsearch.xpack.inference.services.azureopenai.secrets.AzureOpenAiSecretsFactory;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -35,7 +35,7 @@ import static org.elasticsearch.core.Strings.format;
 public abstract class AzureOpenAiModel extends RateLimitGroupingModel {
 
     protected URI uri;
-    private final AzureOpenAiSecretsApplier secretsApplier;
+    private final SecretsApplier secretsApplier;
     private final AzureOpenAiServiceSettings baseServiceSettings;
 
     public AzureOpenAiModel(
@@ -106,7 +106,7 @@ public abstract class AzureOpenAiModel extends RateLimitGroupingModel {
         this.uri = newUri;
     }
 
-    public AzureOpenAiSecretsApplier secretsApplier() {
+    public SecretsApplier secretsApplier() {
         return secretsApplier;
     }
 

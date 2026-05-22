@@ -175,7 +175,9 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         int dims = random().nextInt(2, 20);
         int sampleSize = random().nextInt(100, nVectors + 1);
         int maxIterations = random().nextInt(0, 100);
-        int clustersPerNeighborhood = random().nextInt(2, 512);
+        // We require clustersPerNeighborhood > nClusters so that neighborhoods are not used in BalancedOTKMeansLocalSerial
+        // (this path is not use in production, just for the test).
+        int clustersPerNeighborhood = random().nextInt(11, 512);
         float soarLambda = random().nextFloat(0.5f, 1.5f);
         KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters, 0.5f);
 

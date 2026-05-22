@@ -39,14 +39,19 @@ import java.util.Objects;
 public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
     private final int longChannel;
     private final int intChannel;
-    private final int emitBatchSize;
+    /**
+     * Batch size for the vector-only path's bulk add arrays and for emitting
+     * ords to aggs in the vector-only path. Must be at least 4096 so that
+     * bulk-add operations can process full SIMD lanes.
+     */
+    private final int vectorBatchSize;
     private final boolean reverseOutput;
 
     public LongIntAdaptiveBlockHash(List<GroupSpec> specs, BlockFactory blockFactory, int emitBatchSize, boolean reverseOutput) {
         super(specs, blockFactory, emitBatchSize);
         this.longChannel = reverseOutput ? specs.get(1).channel() : specs.get(0).channel();
         this.intChannel = reverseOutput ? specs.get(0).channel() : specs.get(1).channel();
-        this.emitBatchSize = Math.max(emitBatchSize, 4096);
+        this.vectorBatchSize = Math.max(emitBatchSize, 4096);
         this.reverseOutput = reverseOutput;
         this.current = new LongIntVectorOnlyBlockHash(blockFactory);
     }
@@ -85,13 +90,13 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
 
         LongIntVectorOnlyBlockHash(BlockFactory blockFactory) {
             super(blockFactory);
-            final long bytes = (Integer.BYTES + Long.BYTES * 2) * (long) emitBatchSize;
+            final long bytes = (Integer.BYTES + Long.BYTES * 2) * (long) vectorBatchSize;
             blockFactory.adjustBreaker(bytes);
             this.batchUsedBytes = bytes;
             boolean success = false;
-            batchKeys1 = new long[emitBatchSize];
-            batchKeys2 = new long[emitBatchSize];
-            batchIds = new int[emitBatchSize];
+            batchKeys1 = new long[vectorBatchSize];
+            batchKeys2 = new long[vectorBatchSize];
+            batchIds = new int[vectorBatchSize];
             try {
                 this.longLongHash = HashImplFactory.newLongLongHash(blockFactory);
                 success = true;
@@ -117,7 +122,7 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
             final int position = longVector.getPositionCount();
             int offset = 0;
             while (offset < position) {
-                final int batchSize = Math.min(emitBatchSize, position - offset);
+                final int batchSize = Math.min(vectorBatchSize, position - offset);
                 longVector.copyTo(offset, batchKeys1, 0, batchSize);
                 for (int i = 0; i < batchSize; i++) {
                     batchKeys2[i] = intVector.getInt(offset + i);
@@ -135,7 +140,7 @@ public final class LongIntAdaptiveBlockHash extends AdaptiveBlockHash {
             int offset = 0;
 
             while (offset < position) {
-                final int batchSize = Math.min(emitBatchSize, position - offset);
+                final int batchSize = Math.min(vectorBatchSize, position - offset);
                 try (var groupIdsBuilder = blockFactory.newIntVectorFixedBuilder(batchSize)) {
                     for (int i = 0; i < batchSize; i++) {
                         long longKey = longVector.getLong(offset + i);

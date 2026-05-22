@@ -38,7 +38,7 @@ public class DefaultTimeSeriesAggregateFunction extends TimeSeriesAggregateFunct
         // the delegate is not propagated as a parameter, making the delegate a child expression
         // otherwise our resolveType would not be called as child expressions are resolved first
         if (field.typeResolved().resolved() && field.dataType().isHistogram()) {
-            this.delegate = new HistogramMergeOverTime(source, field, filter, window);
+            this.delegate = new DeltaOnlyHistogramMergeOverTime(source, field, filter, window);
         } else {
             this.delegate = new LastOverTime(source, field, filter, window, timestamp);
         }

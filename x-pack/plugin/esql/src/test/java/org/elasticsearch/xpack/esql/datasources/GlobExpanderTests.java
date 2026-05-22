@@ -46,6 +46,26 @@ public class GlobExpanderTests extends ESTestCase {
         assertFalse(GlobExpander.isMultiFile(null));
     }
 
+    /**
+     * RFC 3986 §3.2.2 requires brackets around IPv6 host literals in URL authorities:
+     *   http://[::1]:8080/path        s3://[fe80::1]/bucket/file.parquet
+     * An IPv6 URL with no glob metacharacters in the PATH is a single concrete URL,
+     * not a glob pattern.
+     */
+    public void testIsMultiFileIpv6HostIsNotAGlobPattern() {
+        assertFalse(GlobExpander.isMultiFile("http://[::1]:8080/logs/data.parquet"));
+        assertFalse(GlobExpander.isMultiFile("s3://[fe80::1]/bucket/hits.parquet"));
+    }
+
+    /**
+     * When a real glob IS in the path, the URL is a glob pattern — but the IPv6 authority
+     * brackets must not themselves count as glob characters. Only the path component is
+     * inspected for glob metacharacters.
+     */
+    public void testIsMultiFileIpv6HostWithGlobInPath() {
+        assertTrue(GlobExpander.isMultiFile("http://[::1]/logs/2026-*/data.parquet"));
+    }
+
     // -- expandGlob --
 
     public void testExpandGlobLiteralReturnsUnresolved() throws IOException {
@@ -83,6 +103,25 @@ public class GlobExpanderTests extends ESTestCase {
 
         FileList result = GlobExpander.expandGlob("s3://bucket/data/*.parquet", provider);
         assertEquals("s3://bucket/data/*.parquet", result.originalPattern());
+    }
+
+    /**
+     * When an EXTERNAL URL has an IPv6 host and a glob in the path, the authority brackets
+     * must be passed through unchanged and must not be treated as a glob character class.
+     * The glob expansion must match only on the path component.
+     */
+    public void testExpandGlobIpv6HostWithGlobInPath() throws IOException {
+        List<StorageEntry> listing = List.of(
+            entry("http://[::1]/logs/2026-05/data.parquet", 100),
+            entry("http://[::1]/logs/2026-06/data.parquet", 200)
+        );
+        StubProvider provider = new StubProvider(listing);
+
+        FileList result = GlobExpander.expandGlob("http://[::1]/logs/2026-*/data.parquet", provider);
+        assertTrue(result.isResolved());
+        assertEquals(2, result.fileCount());
+        assertEquals("http://[::1]/logs/2026-05/data.parquet", result.path(0).toString());
+        assertEquals("http://[::1]/logs/2026-06/data.parquet", result.path(1).toString());
     }
 
     // -- expandCommaSeparated --
@@ -465,17 +504,17 @@ public class GlobExpanderTests extends ESTestCase {
 
         @Override
         public StorageObject newObject(StoragePath path) {
-            return new StubStorageObject(path);
+            return new StubStorageObject(path, 0, existingPaths.contains(path.toString()));
         }
 
         @Override
         public StorageObject newObject(StoragePath path, long length) {
-            return new StubStorageObject(path, length);
+            return new StubStorageObject(path, length, true);
         }
 
         @Override
         public StorageObject newObject(StoragePath path, long length, Instant lastModified) {
-            return new StubStorageObject(path, length);
+            return new StubStorageObject(path, length, true);
         }
 
         @Override
@@ -518,14 +557,12 @@ public class GlobExpanderTests extends ESTestCase {
     private static class StubStorageObject implements StorageObject {
         private final StoragePath path;
         private final long length;
+        private final boolean exists;
 
-        StubStorageObject(StoragePath path) {
-            this(path, 0);
-        }
-
-        StubStorageObject(StoragePath path, long length) {
+        StubStorageObject(StoragePath path, long length, boolean exists) {
             this.path = path;
             this.length = length;
+            this.exists = exists;
         }
 
         @Override
@@ -550,12 +587,185 @@ public class GlobExpanderTests extends ESTestCase {
 
         @Override
         public boolean exists() {
-            return true;
+            return exists;
         }
 
         @Override
         public StoragePath path() {
             return path;
         }
+    }
+
+    // -- applyFileMetadataFilters --
+
+    public void testFileMetadataFilterByModifiedTime() {
+        Instant cutoff = Instant.parse("2024-06-01T00:00:00Z");
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/old.parquet"), 100, Instant.parse("2024-01-15T00:00:00Z")),
+            new StorageEntry(StoragePath.of("s3://b/new.parquet"), 200, Instant.parse("2024-07-15T00:00:00Z")),
+            new StorageEntry(StoragePath.of("s3://b/newer.parquet"), 300, Instant.parse("2024-12-01T00:00:00Z"))
+        );
+
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "_file.modified",
+            PartitionFilterHintExtractor.Operator.GREATER_THAN,
+            List.of(cutoff.toEpochMilli())
+        );
+
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(hint));
+        assertEquals(2, filtered.size());
+        assertEquals("s3://b/new.parquet", filtered.get(0).path().toString());
+        assertEquals("s3://b/newer.parquet", filtered.get(1).path().toString());
+    }
+
+    public void testFileMetadataFilterBySize() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/tiny.parquet"), 10, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/small.parquet"), 1000, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/big.parquet"), 1000000, Instant.EPOCH)
+        );
+
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "_file.size",
+            PartitionFilterHintExtractor.Operator.GREATER_THAN_OR_EQUAL,
+            List.of(1000L)
+        );
+
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(hint));
+        assertEquals(2, filtered.size());
+        assertEquals("s3://b/small.parquet", filtered.get(0).path().toString());
+        assertEquals("s3://b/big.parquet", filtered.get(1).path().toString());
+    }
+
+    public void testFileMetadataFilterByName() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/events_2024.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/events_2025.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/other.parquet"), 100, Instant.EPOCH)
+        );
+
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "_file.name",
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of("events_2024.parquet")
+        );
+
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(hint));
+        assertEquals(1, filtered.size());
+        assertEquals("s3://b/events_2024.parquet", filtered.get(0).path().toString());
+    }
+
+    public void testFileMetadataFilterIgnoresNonFileHints() {
+        List<StorageEntry> entries = List.of(new StorageEntry(StoragePath.of("s3://b/file.parquet"), 100, Instant.EPOCH));
+
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "year",
+            PartitionFilterHintExtractor.Operator.EQUALS,
+            List.of(2024)
+        );
+
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(hint));
+        assertEquals(1, filtered.size());
+    }
+
+    public void testFileMetadataFilterNullTimestampIsConservative() {
+        List<StorageEntry> entries = List.of(new StorageEntry(StoragePath.of("s3://b/file.parquet"), 100, null));
+
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "_file.modified",
+            PartitionFilterHintExtractor.Operator.GREATER_THAN,
+            List.of(Instant.parse("2024-06-01T00:00:00Z").toEpochMilli())
+        );
+
+        // Null timestamp → conservative, don't filter
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(hint));
+        assertEquals(1, filtered.size());
+    }
+
+    public void testFileMetadataFilterCombinesMultipleHints() {
+        Instant cutoff = Instant.parse("2024-06-01T00:00:00Z");
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/old_small.parquet"), 10, Instant.parse("2024-01-01T00:00:00Z")),
+            new StorageEntry(StoragePath.of("s3://b/old_big.parquet"), 1000000, Instant.parse("2024-01-01T00:00:00Z")),
+            new StorageEntry(StoragePath.of("s3://b/new_small.parquet"), 10, Instant.parse("2024-07-01T00:00:00Z")),
+            new StorageEntry(StoragePath.of("s3://b/new_big.parquet"), 1000000, Instant.parse("2024-07-01T00:00:00Z"))
+        );
+
+        var timeHint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "_file.modified",
+            PartitionFilterHintExtractor.Operator.GREATER_THAN,
+            List.of(cutoff.toEpochMilli())
+        );
+        var sizeHint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "_file.size",
+            PartitionFilterHintExtractor.Operator.GREATER_THAN,
+            List.of(100L)
+        );
+
+        // Both hints must match: modified > cutoff AND size > 100
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(timeHint, sizeHint));
+        assertEquals(1, filtered.size());
+        assertEquals("s3://b/new_big.parquet", filtered.get(0).path().toString());
+    }
+
+    public void testFileMetadataFilterByModifiedIn() {
+        Instant t1 = Instant.parse("2024-01-15T00:00:00Z");
+        Instant t2 = Instant.parse("2024-07-15T00:00:00Z");
+        Instant t3 = Instant.parse("2024-12-01T00:00:00Z");
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/a.parquet"), 100, t1),
+            new StorageEntry(StoragePath.of("s3://b/b.parquet"), 200, t2),
+            new StorageEntry(StoragePath.of("s3://b/c.parquet"), 300, t3)
+        );
+
+        // IN with two timestamps — should match a.parquet (t1) and c.parquet (t3)
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "_file.modified",
+            PartitionFilterHintExtractor.Operator.IN,
+            List.of(t1.toEpochMilli(), t3.toEpochMilli())
+        );
+
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(hint));
+        assertEquals(2, filtered.size());
+        assertEquals("s3://b/a.parquet", filtered.get(0).path().toString());
+        assertEquals("s3://b/c.parquet", filtered.get(1).path().toString());
+    }
+
+    public void testFileMetadataFilterBySizeIn() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/a.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/b.parquet"), 200, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/c.parquet"), 300, Instant.EPOCH)
+        );
+
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "_file.size",
+            PartitionFilterHintExtractor.Operator.IN,
+            List.of(100L, 300L)
+        );
+
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(hint));
+        assertEquals(2, filtered.size());
+        assertEquals("s3://b/a.parquet", filtered.get(0).path().toString());
+        assertEquals("s3://b/c.parquet", filtered.get(1).path().toString());
+    }
+
+    public void testFileMetadataFilterByNameIn() {
+        List<StorageEntry> entries = List.of(
+            new StorageEntry(StoragePath.of("s3://b/events.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/logs.parquet"), 100, Instant.EPOCH),
+            new StorageEntry(StoragePath.of("s3://b/metrics.parquet"), 100, Instant.EPOCH)
+        );
+
+        var hint = new PartitionFilterHintExtractor.PartitionFilterHint(
+            "_file.name",
+            PartitionFilterHintExtractor.Operator.IN,
+            List.of("events.parquet", "metrics.parquet")
+        );
+
+        List<StorageEntry> filtered = GlobExpander.applyFileMetadataFilters(entries, List.of(hint));
+        assertEquals(2, filtered.size());
+        assertEquals("s3://b/events.parquet", filtered.get(0).path().toString());
+        assertEquals("s3://b/metrics.parquet", filtered.get(1).path().toString());
     }
 }

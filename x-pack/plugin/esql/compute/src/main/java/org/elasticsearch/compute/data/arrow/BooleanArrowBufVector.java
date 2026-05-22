@@ -66,6 +66,11 @@ public final class BooleanArrowBufVector extends AbstractArrowBufVector<BooleanV
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Byte.BYTES;
+    }
+
+    @Override
     public boolean allTrue() {
         for (int i = 0; i < positionCount; i++) {
             if (getBoolean(i) == false) {

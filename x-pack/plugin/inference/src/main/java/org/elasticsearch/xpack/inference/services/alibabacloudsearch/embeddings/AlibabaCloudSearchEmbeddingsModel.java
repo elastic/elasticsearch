@@ -70,7 +70,8 @@ public class AlibabaCloudSearchEmbeddingsModel extends AlibabaCloudSearchModel {
         super(
             modelConfigurations,
             modelSecrets,
-            ((AlibabaCloudSearchEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
+            ((AlibabaCloudSearchEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings(),
+            null
         );
     }
 

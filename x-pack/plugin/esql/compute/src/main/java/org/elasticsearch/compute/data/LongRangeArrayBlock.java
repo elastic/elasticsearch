@@ -35,6 +35,11 @@ public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
     }
 
     @Override
+    public LongRangeBlockBuilder.LongRange getLongRange(int valueIndex, LongRangeBlockBuilder.LongRange scratch) {
+        return scratch.reset(fromBlock.getLong(valueIndex), toBlock.getLong(valueIndex));
+    }
+
+    @Override
     protected void closeInternal() {
         Releasables.close(fromBlock, toBlock);
     }
@@ -67,6 +72,11 @@ public final class LongRangeArrayBlock extends AbstractNonThreadSafeRefCounted i
     @Override
     public ElementType elementType() {
         return ElementType.LONG_RANGE;
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return Long.BYTES * 2;
     }
 
     @Override

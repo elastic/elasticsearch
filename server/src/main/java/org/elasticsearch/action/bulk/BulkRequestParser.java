@@ -57,7 +57,7 @@ public final class BulkRequestParser {
     private static final ParseField TYPE = new ParseField("_type");
     private static final ParseField ID = new ParseField("_id");
     private static final ParseField ROUTING = new ParseField("routing");
-    private static final ParseField SLICE = new ParseField("_slice");
+    private static final ParseField SLICE = new ParseField(SliceIndexing.PARAM_NAME);
     private static final ParseField OP_TYPE = new ParseField("op_type");
     private static final ParseField VERSION = new ParseField("version");
     private static final ParseField VERSION_TYPE = new ParseField("version_type");
@@ -462,7 +462,7 @@ public final class BulkRequestParser {
                             } else if (ID.match(currentFieldName, parser.getDeprecationHandler())) {
                                 id = parser.text();
                             } else if (ROUTING.match(currentFieldName, parser.getDeprecationHandler())) {
-                                if (sliceProvided) {
+                                if (sliceProvided || defaultRoutingFromSlice) {
                                     throw new IllegalArgumentException(
                                         "Action/metadata line [" + line + "] contains both [routing] and [_slice]"
                                     );
@@ -568,6 +568,7 @@ public final class BulkRequestParser {
                     }
                     currentRequest = new DeleteRequest(index).id(id)
                         .routing(routing)
+                        .setRoutingFromSlice(sliceProvided || defaultRoutingFromSlice)
                         .version(version)
                         .versionType(versionType)
                         .setIfSeqNo(ifSeqNo)
@@ -578,7 +579,7 @@ public final class BulkRequestParser {
                     if ("index".equals(action) || "create".equals(action)) {
                         var indexRequest = new IndexRequest(index).id(id)
                             .routing(routing)
-                            .setRoutingFromSlice(sliceProvided || (defaultRoutingFromSlice && routingProvided == false))
+                            .setRoutingFromSlice(sliceProvided || defaultRoutingFromSlice)
                             .version(version)
                             .versionType(versionType)
                             .setPipeline(currentPipeline)
@@ -622,7 +623,7 @@ public final class BulkRequestParser {
                         UpdateRequest updateRequest = new UpdateRequest().index(index)
                             .id(id)
                             .routing(routing)
-                            .setRoutingFromSlice(sliceProvided || (defaultRoutingFromSlice && routingProvided == false))
+                            .setRoutingFromSlice(sliceProvided || defaultRoutingFromSlice)
                             .retryOnConflict(retryOnConflict)
                             .setIfSeqNo(ifSeqNo)
                             .setIfPrimaryTerm(ifPrimaryTerm)

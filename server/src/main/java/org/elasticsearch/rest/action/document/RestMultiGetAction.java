@@ -17,7 +17,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.rest.action.RestChunkedToXContentListener;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -79,6 +79,6 @@ public class RestMultiGetAction extends BaseRestHandler {
             multiGetRequest.add(request.param("index"), sFields, defaultFetchSource, request.param("routing"), parser, allowExplicitIndex);
         }
 
-        return channel -> client.multiGet(multiGetRequest, new RestToXContentListener<>(channel));
+        return channel -> client.multiGet(multiGetRequest, new RestChunkedToXContentListener<>(channel));
     }
 }

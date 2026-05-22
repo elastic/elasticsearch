@@ -13,7 +13,6 @@ import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
 import software.amazon.awssdk.services.s3.model.GetObjectResponse;
 import software.amazon.awssdk.services.s3.model.HeadObjectRequest;
-import software.amazon.awssdk.services.s3.model.HeadObjectResponse;
 import software.amazon.awssdk.services.s3.model.NoSuchKeyException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
@@ -89,10 +88,13 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * When HeadObject returns a non-403 error, it should propagate as IOException
-     * without attempting the range GET fallback.
+     * When the suffix-range GET fails with a non-403 S3 error, falls back to HEAD.
+     * If HEAD also fails, the error propagates as IOException.
      */
     public void testHeadNon403ErrorPropagates() {
+        when(mockS3Client.getObject(any(GetObjectRequest.class))).thenThrow(
+            S3Exception.builder().statusCode(500).message("Internal Server Error").build()
+        );
         when(mockS3Client.headObject(any(HeadObjectRequest.class))).thenThrow(
             S3Exception.builder().statusCode(500).message("Internal Server Error").build()
         );
@@ -104,14 +106,17 @@ public class S3AnonymousAccessTests extends ESTestCase {
     }
 
     /**
-     * When HeadObject succeeds normally, no fallback is needed.
+     * When the suffix-range GET succeeds, metadata is resolved without HEAD.
      */
     public void testHeadSucceedsNormally() throws IOException {
-        HeadObjectResponse headResponse = HeadObjectResponse.builder()
-            .contentLength(OBJECT_SIZE)
+        GetObjectResponse resp = GetObjectResponse.builder()
+            .contentRange("bytes " + (OBJECT_SIZE - 1) + "-" + (OBJECT_SIZE - 1) + "/" + OBJECT_SIZE)
+            .contentLength(1L)
             .lastModified(Instant.parse("2026-03-18T12:00:00Z"))
             .build();
-        when(mockS3Client.headObject(any(HeadObjectRequest.class))).thenReturn(headResponse);
+        when(mockS3Client.getObject(any(GetObjectRequest.class))).thenReturn(
+            new ResponseInputStream<>(resp, AbortableInputStream.create(new ByteArrayInputStream(new byte[] { 0 })))
+        );
 
         S3StorageObject obj = new S3StorageObject(mockS3Client, BUCKET, KEY, PATH);
 

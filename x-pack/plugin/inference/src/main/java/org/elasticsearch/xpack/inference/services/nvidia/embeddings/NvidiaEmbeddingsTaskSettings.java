@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.nvidia.embeddings;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -198,5 +199,10 @@ public class NvidiaEmbeddingsTaskSettings implements TaskSettings {
     public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
         NvidiaEmbeddingsTaskSettings updatedSettings = NvidiaEmbeddingsTaskSettings.fromMap(newSettings);
         return of(this, updatedSettings);
+    }
+
+    @Override
+    public String toString() {
+        return Strings.toString(this);
     }
 }

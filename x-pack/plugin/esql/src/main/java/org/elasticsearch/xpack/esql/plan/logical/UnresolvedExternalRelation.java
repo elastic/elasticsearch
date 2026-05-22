@@ -23,27 +23,34 @@ import java.util.Objects;
 import static java.util.Collections.singletonList;
 
 /**
- * Represents an unresolved external data source reference (Iceberg table or Parquet file).
- * This plan node is created by the parser and later resolved by the analyzer
- * using metadata from ExternalSourceResolver.
+ * Unresolved external data source reference (Iceberg table or Parquet file). Produced by the parser
+ * for inline {@code EXTERNAL} commands and by the dataset rewriter for {@code FROM <dataset>}; both
+ * paths converge here so the downstream resolver/analyzer treat them uniformly.
+ *
+ * <p>The {@code config} map holds plain configuration values (no {@link
+ * org.elasticsearch.xpack.esql.core.expression.Literal} wrappers); secret values arrive as
+ * {@link org.elasticsearch.common.settings.SecureString} on the dataset path.
+ *
+ * @see UnresolvedRelation index-side counterpart for {@code FROM <index>}; if you traverse one and
+ * care about FROM-style leaves, consider whether you need the other too.
  */
 public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable {
 
     private final Expression tablePath;
-    private final Map<String, Expression> params;
+    private final Map<String, Object> config;
     private final String unresolvedMsg;
 
     /**
      * Creates an unresolved external relation.
      *
      * @param source the source location in the query
-     * @param tablePath the S3 path or external table identifier (can be a Literal or parameter reference)
-     * @param params additional parameters (e.g., S3 credentials, options)
+     * @param tablePath the resource path or external table identifier (a {@code Literal} or parameter reference)
+     * @param config plain-valued configuration (e.g., credentials, format options) — not wrapped in {@code Literal}
      */
-    public UnresolvedExternalRelation(Source source, Expression tablePath, Map<String, Expression> params) {
+    public UnresolvedExternalRelation(Source source, Expression tablePath, Map<String, Object> config) {
         super(source);
         this.tablePath = tablePath;
-        this.params = params;
+        this.config = config;
         this.unresolvedMsg = "Unknown external table or Parquet file [" + extractTablePathValue(tablePath) + "]";
     }
 
@@ -70,15 +77,15 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
 
     @Override
     protected NodeInfo<UnresolvedExternalRelation> info() {
-        return NodeInfo.create(this, UnresolvedExternalRelation::new, tablePath, params);
+        return NodeInfo.create(this, UnresolvedExternalRelation::new, tablePath, config);
     }
 
     public Expression tablePath() {
         return tablePath;
     }
 
-    public Map<String, Expression> params() {
-        return params;
+    public Map<String, Object> config() {
+        return config;
     }
 
     @Override
@@ -103,7 +110,7 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
 
     @Override
     public int hashCode() {
-        return Objects.hash(source(), tablePath, params, unresolvedMsg);
+        return Objects.hash(source(), tablePath, config, unresolvedMsg);
     }
 
     @Override
@@ -118,12 +125,13 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
 
         UnresolvedExternalRelation other = (UnresolvedExternalRelation) obj;
         return Objects.equals(tablePath, other.tablePath)
-            && Objects.equals(params, other.params)
+            && Objects.equals(config, other.config)
             && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }
 
     @Override
     public List<Object> nodeProperties() {
+        // config omitted intentionally — SecureString.toString() would leak plaintext into EXPLAIN.
         return singletonList(tablePath);
     }
 

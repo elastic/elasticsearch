@@ -15,6 +15,45 @@ static inline void prefetch(const void* ptr, int lines) {
     }
 }
 
+// Head prefetch: at the batch boundary, fetch the first `lines` cache lines
+// of every next-batch vector so the very first inner-loop iter never waits
+// on a demand miss. Counterpart to `spread_prefetch` below.
+template <int batches, int lines, typename T>
+static inline void head_prefetch(const T* const (&next_vecs)[batches]) {
+    apply_indexed<batches>([&](auto I) {
+        const uintptr_t base = align_downwards<CACHE_LINE_SIZE>(next_vecs[I]);
+        apply_indexed<lines>([&](auto K) {
+            _mm_prefetch((const void*)(base + K * CACHE_LINE_SIZE), _MM_HINT_T0);
+        });
+    });
+}
+
+// Spread prefetch: at outer-iter byte cursor `i` (relative to the document
+// start), fetch `lines_per_iter` cache lines starting `lines_per_iter` lines
+// ahead. Used together with `head_prefetch` to keep the per-core L1d
+// fill-buffer occupancy bounded (callers issue `batches * lines_per_iter`
+// prefetches per iter instead of `batches * lines_to_fetch` at the boundary).
+//
+// For callers whose outer step is < CACHE_LINE_SIZE the call site must gate
+// on `(i & (CACHE_LINE_SIZE - 1)) == 0` so the spread fires only on the iter
+// that crosses a cache-line boundary (otherwise we'd re-prefetch the same
+// line on consecutive iters).
+template <int batches, int lines_per_iter, typename T>
+static inline void spread_prefetch(
+    const T* const (&next_vecs)[batches], int i, int lines_to_fetch
+) {
+    const int next_line_start = i / CACHE_LINE_SIZE + lines_per_iter;
+    apply_indexed<lines_per_iter>([&](auto U) {
+        const int line = next_line_start + U;
+        if (line < lines_to_fetch) {
+            apply_indexed<batches>([&](auto I) {
+                const uintptr_t base = align_downwards<CACHE_LINE_SIZE>(next_vecs[I]);
+                _mm_prefetch((const void*)(base + line * CACHE_LINE_SIZE), _MM_HINT_T0);
+            });
+        }
+    });
+}
+
 /* Utility functions to perform reduce operations (horizontal ops) over a vector
  * It works by narrowing in half until you're down to 1 element.
  * Schematically, this works as depicted: from a starting vector whose elements

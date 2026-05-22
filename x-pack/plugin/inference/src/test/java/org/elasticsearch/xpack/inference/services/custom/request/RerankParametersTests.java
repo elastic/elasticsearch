@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.custom.request;
 
+import org.elasticsearch.inference.DataType;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 
@@ -18,14 +20,23 @@ import static org.hamcrest.Matchers.is;
 public class RerankParametersTests extends ESTestCase {
 
     public void testTaskTypeParameters() {
-        var queryAndDocsInputs = new QueryAndDocsInputs("query_value", List.of("doc1", "doc2"), true, 5, false);
+        var queryAndDocsInputs = new QueryAndDocsInputs(
+            new InferenceString(DataType.TEXT, "query_value"),
+            InferenceString.fromStringList(List.of("doc1", "doc2")),
+            true,
+            5,
+            false
+        );
         var parameters = RerankParameters.of(queryAndDocsInputs);
 
         assertThat(parameters.taskTypeParameters(), is(Map.of("query", "\"query_value\"", "top_n", "5", "return_documents", "true")));
     }
 
     public void testTaskTypeParameters_WithoutOptionalFields() {
-        var queryAndDocsInputs = new QueryAndDocsInputs("query_value", List.of("doc1", "doc2"));
+        var queryAndDocsInputs = new QueryAndDocsInputs(
+            new InferenceString(DataType.TEXT, "query_value"),
+            InferenceString.fromStringList(List.of("doc1", "doc2"))
+        );
         var parameters = RerankParameters.of(queryAndDocsInputs);
 
         assertThat(parameters.taskTypeParameters(), is(Map.of("query", "\"query_value\"")));

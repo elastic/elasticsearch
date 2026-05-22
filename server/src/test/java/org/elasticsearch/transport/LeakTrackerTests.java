@@ -62,6 +62,10 @@ public class LeakTrackerTests extends ESTestCase {
         trackedObjectLifecycle.createAndTrack(reachabilityChecker);
         reachabilityChecker.ensureUnreachable();
         assertBusy(ESTestCase::assertLeakDetected);
+        // The GC-based mechanism fired above. The intentional leak is still in the synchronous
+        // collector — drain it so @After's verifyNoOutstandingLeakTrackerLeaks doesn't double-report.
+        LeakTracker.clearTestLeakCollector();
+        LeakTracker.installTestLeakCollector();
     }
 
     public void testWillNotLogErrorWhenTrackedObjectIsClosed() throws IOException {

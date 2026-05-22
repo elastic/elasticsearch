@@ -117,8 +117,8 @@ public class OpenShiftAiActionCreator implements OpenShiftAiActionVisitor {
             overriddenModel,
             RERANK_HANDLER,
             inputs -> new OpenShiftAiRerankRequest(
-                inputs.getQuery(),
-                inputs.getChunks(),
+                inputs.getQueryAsString(),
+                inputs.getDocsAsStrings(),
                 inputs.getReturnDocuments(),
                 inputs.getTopN(),
                 overriddenModel

@@ -29,7 +29,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveLong;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
-import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNotEmptyMap;
 
 public class RateLimitSettings implements Writeable, ToXContentFragment {
     public static final String FIELD_NAME = "rate_limit";
@@ -40,23 +39,52 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
         "inference_api_disable_eis_rate_limiting"
     );
 
+    /**
+     * Creates a new instance of {@link RateLimitSettings} from the provided map.
+     * The map is expected to contain a nested map under the key defined by {@link #FIELD_NAME}.
+     * If the nested map contains the key defined by {@link #REQUESTS_PER_MINUTE_FIELD},
+     * its value is extracted and used to create a new instance of {@link RateLimitSettings}.
+     * If the nested map does not contain the key or if the value is null, the provided default value is returned.
+     * @param serviceSettingsMap the map containing the service settings,
+     *                           expected to contain a nested map for rate limit settings under the key defined by {@link #FIELD_NAME}
+     * @param defaultValue the default value to return if the map does not contain valid rate limit settings
+     * @param validationException the {@link ValidationException} to which validation errors will be added
+     *                            if the map contains invalid rate limit settings
+     * @param context the context of the configuration parsing, used to determine if validation should be applied
+     * @return a new instance of {@link RateLimitSettings} based on the provided map,
+     * or the default value if the map does not contain valid rate limit settings
+     */
     public static RateLimitSettings of(
-        Map<String, Object> map,
+        Map<String, Object> serviceSettingsMap,
         RateLimitSettings defaultValue,
         ValidationException validationException,
-        String serviceName,
         ConfigurationParseContext context
     ) {
-        Map<String, Object> settings = removeFromMapOrDefaultEmpty(map, FIELD_NAME);
-        var requestsPerMinute = extractOptionalPositiveLong(settings, REQUESTS_PER_MINUTE_FIELD, FIELD_NAME, validationException);
+        var rateLimitSettings = removeFromMapOrDefaultEmpty(serviceSettingsMap, FIELD_NAME);
+        var requestsPerMinute = extractOptionalPositiveLong(rateLimitSettings, REQUESTS_PER_MINUTE_FIELD, FIELD_NAME, validationException);
 
-        if (ConfigurationParseContext.isRequestContext(context)) {
-            throwIfNotEmptyMap(settings, serviceName);
+        if (ConfigurationParseContext.isRequestContext(context) && rateLimitSettings.isEmpty() == false) {
+            validationException.addValidationError(
+                Strings.format("Rate limit settings contain unknown entries [%s]", rateLimitSettings.toString())
+            );
+            return defaultValue;
         }
 
         return requestsPerMinute == null ? defaultValue : new RateLimitSettings(requestsPerMinute);
     }
 
+    /**
+     * Validates that rate limit settings are not included in the request context.
+     * If rate limit settings are found, a validation error is added to the provided {@link ValidationException}.
+     * Currently used only for {@code elastic} provider that doesn't support rate limit settings.
+     * @param map the map containing the settings to validate
+     * @param scope the scope of the settings, used for error messaging
+     * @param service the name of the service, used for error messaging
+     * @param taskType the task type, used for error messaging
+     * @param context the context of the configuration parsing, used to determine if validation should be applied
+     * @param validationException the {@link ValidationException} to which validation errors will be added
+     *                            if rate limit settings are found in the request context
+     */
     public static void rejectRateLimitFieldForRequestContext(
         Map<String, Object> map,
         String scope,

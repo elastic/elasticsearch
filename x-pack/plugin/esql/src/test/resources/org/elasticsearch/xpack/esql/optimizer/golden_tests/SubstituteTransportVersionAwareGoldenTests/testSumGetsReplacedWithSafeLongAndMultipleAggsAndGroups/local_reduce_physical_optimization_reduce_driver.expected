@@ -1,3 +1,0 @@
-ExchangeSinkExec[[emp_no{f}#0, $$sum_a$sum{r}#1, $$sum_a$seen{r}#2, $$sum_a$failed{r}#3, $$sum_b$sum{r}#4, $$sum_b$seen{r}#5],false]
-\_AggregateExec[[emp_no{f}#0],[SUM(languages.long{f}#6,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS sum_a#7, SUM(emp_no{f}#0,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS sum_b#8, emp_no{f}#0],INTERMEDIATE,[emp_no{f}#0, $$sum_a$sum{r}#9, $$sum_a$seen{r}#10, $$sum_a$failed{r}#11, $$sum_b$sum{r}#12, $$sum_b$seen{r}#13],20]
-  \_ExchangeSourceExec[[emp_no{f}#0, $$sum_a$sum{r}#1, $$sum_a$seen{r}#2, $$sum_a$failed{r}#3, $$sum_b$sum{r}#4, $$sum_b$seen{r}#5],false]

@@ -1,5 +1,0 @@
-area: Codec
-issues: []
-pr: 143922
-summary: Add panama simd implementation of `contains` function for `BinaryDocValuesContainsTermQuery`
-type: enhancement

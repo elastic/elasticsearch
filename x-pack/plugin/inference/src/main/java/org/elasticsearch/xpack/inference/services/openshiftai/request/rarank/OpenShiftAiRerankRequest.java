@@ -15,8 +15,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
-import org.elasticsearch.xpack.inference.external.request.RerankRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRerankRequest;
 import org.elasticsearch.xpack.inference.services.openshiftai.rerank.OpenShiftAiRerankModel;
 
 import java.net.URI;
@@ -41,7 +41,7 @@ public record OpenShiftAiRerankRequest(
     @Nullable Boolean returnDocuments,
     @Nullable Integer topN,
     OpenShiftAiRerankModel model
-) implements RerankRequest {
+) implements OutboundRerankRequest {
 
     public OpenShiftAiRerankRequest {
         Objects.requireNonNull(input);
@@ -85,7 +85,7 @@ public record OpenShiftAiRerankRequest(
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         // Not applicable for rerank, only used in text embedding requests
         return this;
     }

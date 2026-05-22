@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
+import com.fasterxml.jackson.core.JsonFactory;
 import com.fasterxml.jackson.core.JsonParseException;
 import com.fasterxml.jackson.core.JsonParser;
 import com.fasterxml.jackson.core.JsonToken;
@@ -14,6 +15,7 @@ import com.fasterxml.jackson.core.exc.InputCoercionException;
 import com.fasterxml.jackson.core.io.JsonEOFException;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -66,6 +68,8 @@ public class NdJsonPageDecoder implements Closeable {
      * its small-input fast paths.
      */
     private final byte[] sourceBytes;
+    /** Factory used to create (and recreate after recovery) the underlying {@link JsonParser}. */
+    private final JsonFactory jsonFactory;
     /**
      * Exclusive end of the readable region in {@link #sourceBytes}. The decoder may read bytes in
      * the half-open range {@code [parserSliceStart, sourceEnd)}; everything outside it must not
@@ -106,6 +110,11 @@ public class NdJsonPageDecoder implements Closeable {
     @Nullable
     private Block[] lenientScratchRowBlocks;
 
+    /**
+     * Reused for every keyword field; see {@link #toScratchBytesRef(String)}.
+     */
+    private final BytesRef keywordScratch = new BytesRef(BytesRef.EMPTY_BYTES);
+
     NdJsonPageDecoder(
         InputStream input,
         List<Attribute> attributes,
@@ -115,7 +124,19 @@ public class NdJsonPageDecoder implements Closeable {
         ErrorPolicy errorPolicy,
         String sourceLocation
     ) throws IOException {
-        this(input, null, 0, 0, attributes, projectedColumns, batchSize, blockFactory, errorPolicy, sourceLocation);
+        this(
+            input,
+            null,
+            0,
+            0,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            NdJsonUtils.JSON_FACTORY
+        );
     }
 
     /**
@@ -135,7 +156,36 @@ public class NdJsonPageDecoder implements Closeable {
         ErrorPolicy errorPolicy,
         String sourceLocation
     ) throws IOException {
-        this(null, data, offset, length, attributes, projectedColumns, batchSize, blockFactory, errorPolicy, sourceLocation);
+        this(
+            null,
+            data,
+            offset,
+            length,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            NdJsonUtils.JSON_FACTORY
+        );
+    }
+
+    /**
+     * Test-only: accepts an injected {@link JsonFactory} so tests can wrap the created parser in a
+     * delegate (e.g. to count token-advance calls) without reflection.
+     */
+    NdJsonPageDecoder(
+        InputStream input,
+        List<Attribute> attributes,
+        List<String> projectedColumns,
+        int batchSize,
+        BlockFactory blockFactory,
+        ErrorPolicy errorPolicy,
+        String sourceLocation,
+        JsonFactory factory
+    ) throws IOException {
+        this(input, null, 0, 0, attributes, projectedColumns, batchSize, blockFactory, errorPolicy, sourceLocation, factory);
     }
 
     private NdJsonPageDecoder(
@@ -148,8 +198,10 @@ public class NdJsonPageDecoder implements Closeable {
         int batchSize,
         BlockFactory blockFactory,
         ErrorPolicy errorPolicy,
-        String sourceLocation
+        String sourceLocation,
+        JsonFactory factory
     ) throws IOException {
+        this.jsonFactory = factory;
         this.input = input;
         this.sourceBytes = sourceBytes;
         if (sourceBytes != null) {
@@ -214,9 +266,9 @@ public class NdJsonPageDecoder implements Closeable {
         this.blockTracker = new BitSet(projectedAttributes.size());
 
         if (sourceBytes != null) {
-            this.parser = NdJsonUtils.JSON_FACTORY.createParser(sourceBytes, sourceOffset, sourceLength);
+            this.parser = factory.createParser(sourceBytes, sourceOffset, sourceLength);
         } else {
-            this.parser = NdJsonUtils.JSON_FACTORY.createParser(input);
+            this.parser = factory.createParser(input);
         }
     }
 
@@ -225,10 +277,10 @@ public class NdJsonPageDecoder implements Closeable {
             int next = nextLineStartByteAfter(failedParser);
             failedParser.close();
             this.parserSliceStart = next;
-            this.parser = NdJsonUtils.JSON_FACTORY.createParser(sourceBytes, next, sourceEnd - next);
+            this.parser = jsonFactory.createParser(sourceBytes, next, sourceEnd - next);
         } else {
             this.input = NdJsonUtils.moveToNextLine(failedParser, this.input);
-            this.parser = NdJsonUtils.JSON_FACTORY.createParser(this.input);
+            this.parser = jsonFactory.createParser(this.input);
         }
     }
 
@@ -513,6 +565,23 @@ public class NdJsonPageDecoder implements Closeable {
         return false;
     }
 
+    /**
+     * Encode {@code value} as UTF-8 into {@link #keywordScratch}, growing the backing array on demand,
+     * and return the scratch view. Callers must pass the returned {@link BytesRef} straight to a sink
+     * that copies the bytes synchronously (e.g. {@link BytesRefBlock.Builder#appendBytesRef}, which
+     * delegates to {@link org.elasticsearch.common.util.BytesRefArray#append(BytesRef)} and copies
+     * before returning); the next call to this method overwrites the scratch.
+     */
+    private BytesRef toScratchBytesRef(String value) {
+        int maxLen = UnicodeUtil.maxUTF8Length(value.length());
+        if (keywordScratch.bytes.length < maxLen) {
+            keywordScratch.bytes = new byte[maxLen];
+        }
+        keywordScratch.offset = 0;
+        keywordScratch.length = UnicodeUtil.UTF16toUTF8(value, 0, value.length(), keywordScratch.bytes);
+        return keywordScratch;
+    }
+
     @Override
     public void close() throws IOException {
         // input may be null on the byte-array fast path; IOUtils.close tolerates null entries.
@@ -565,18 +634,17 @@ public class NdJsonPageDecoder implements Closeable {
         }
 
         private void decodeObject(JsonParser parser, boolean inArray) throws IOException {
-            JsonToken token = parser.currentToken();
-            if (token != JsonToken.START_OBJECT) {
+            if (parser.currentToken() != JsonToken.START_OBJECT) {
                 throw new NdJsonParseException(parser, "Expected JSON object");
             }
-            while ((token = parser.nextToken()) != JsonToken.END_OBJECT) {
-                if (token != JsonToken.FIELD_NAME) {
-                    throw new NdJsonParseException(parser, "Expected field name in object");
-                }
-                var childDecoder = this.children == null ? null : this.children.get(parser.currentName());
+            String fieldName;
+            while ((fieldName = parser.nextFieldName()) != null) {
+                var childDecoder = this.children == null ? null : this.children.get(fieldName);
                 parser.nextToken();
                 if (childDecoder == null) {
-                    // Unknown field, skip it
+                    // Unknown/unprojected field: advance to its value then skip (no decode).
+                    // For string values nextFieldName() uses _skipString() internally on the next
+                    // call, so we avoid _finishString2 for non-projected string fields.
                     parser.skipChildren();
                 } else {
                     childDecoder.decodeValue(parser, inArray);
@@ -673,9 +741,11 @@ public class NdJsonPageDecoder implements Closeable {
             }
 
             blockTracker.set(blockIdx);
-            if (token == JsonToken.VALUE_NULL && inArray == false) {
+            if (token == JsonToken.VALUE_NULL) {
                 // Nulls in arrays aren't supported. Furthermore, appendNull will implicitly call endPositionEntry()
-                blockBuilder.appendNull();
+                if (inArray == false) {
+                    blockBuilder.appendNull();
+                }
                 return;
             }
 
@@ -738,7 +808,7 @@ public class NdJsonPageDecoder implements Closeable {
                     // Be lenient, this is a catch-all type
                     var str = parser.getValueAsString();
                     if (str != null) {
-                        ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(new BytesRef(str));
+                        ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(toScratchBytesRef(str));
                     } else {
                         unexpectedValue(blockBuilder, parser, inArray);
                     }

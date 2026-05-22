@@ -73,6 +73,9 @@ tests:
 - class: org.elasticsearch.xpack.security.support.MetadataFlattenedMigrationIntegTests
   method: testMigrationWithConcurrentUpdates
   issue: https://github.com/elastic/elasticsearch/issues/143674
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:METRICS}
+  issue: https://github.com/elastic/elasticsearch/issues/143697
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testClusterState {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/143800
@@ -148,6 +151,9 @@ tests:
 - class: org.elasticsearch.xpack.entsearch.EnterpriseSearchRestIT
   method: test {p0=entsearch/rules/40_rule_query_search/Perform a rule query with an organic query that must be rewritten to another query type}
   issue: https://github.com/elastic/elasticsearch/issues/146106
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:PROMQL}
+  issue: https://github.com/elastic/elasticsearch/issues/146923
 - class: org.elasticsearch.xpack.eql.qa.ccs_rolling_upgrade.EqlCcsRollingUpgradeIT
   method: testSequences
   issue: https://github.com/elastic/elasticsearch/issues/146263
@@ -414,6 +420,9 @@ tests:
 - class: org.elasticsearch.smoketest.SmokeTestWatcherTestSuiteIT
   method: testMonitorClusterHealth
   issue: https://github.com/elastic/elasticsearch/issues/148615
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:UNMAPPED_FIELDS_LOAD}
+  issue: https://github.com/elastic/elasticsearch/issues/148619
 - class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
   method: testGenerationalFileBlobReferenceIsRetainedCorrectly
   issue: https://github.com/elastic/elasticsearch/issues/148723

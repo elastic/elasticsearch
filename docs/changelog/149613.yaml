@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149613
+summary: Bulk decode dictionary indices in parquet reader
+type: enhancement

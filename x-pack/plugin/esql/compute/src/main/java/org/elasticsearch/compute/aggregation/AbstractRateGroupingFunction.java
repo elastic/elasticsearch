@@ -109,7 +109,6 @@ class AbstractRateGroupingFunction {
                 sliceOffsets[dstIndex * 2] = startOffset;
                 sliceOffsets[dstIndex * 2 + 1] = endOffset;
             }
-            clearBuffers();
             sliceCount = 0;
             lastGroupId = -1;
             var queues = new FlushQueues(this, minGroupId, maxGroupId, runningOffsets, sliceOffsets);
@@ -293,6 +292,7 @@ class AbstractRateGroupingFunction {
         }
 
         long get(long index) {
+            assert index < size : "Index [" + index + "] out of bounds, size: " + size;
             return pages[pageIndex(index)][indexInPage(index)];
         }
 
@@ -342,6 +342,7 @@ class AbstractRateGroupingFunction {
         }
 
         double get(long index) {
+            assert index < size : "Index [" + index + "] out of bounds, size: " + size;
             return pages[pageIndex(index)][indexInPage(index)];
         }
 
@@ -391,6 +392,7 @@ class AbstractRateGroupingFunction {
         }
 
         int get(long index) {
+            assert index < size : "Index [" + index + "] out of bounds, size: " + size;
             return pages[pageIndex(index)][indexInPage(index)];
         }
 
@@ -447,6 +449,7 @@ class AbstractRateGroupingFunction {
         }
 
         ExponentialHistogram get(long index, ExponentialHistogramScratch scratch) {
+            assert index < size : "Index [" + index + "] out of bounds, size: " + size;
             buildCurrentPage();
             return pages[pageIndex(index)].getExponentialHistogram(indexInPage(index), scratch);
         }

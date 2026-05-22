@@ -532,6 +532,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
                 flushGroup(state, rawBuffer, flushQueue);
             }
         }
+        rawBuffer.clearBuffers();
     }
 
     static final class DoubleRawBuffer extends RawBuffer {

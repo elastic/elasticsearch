@@ -532,6 +532,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
                 flushGroup(state, rawBuffer, flushQueue);
             }
         }
+        rawBuffer.clearBuffers();
     }
 
     static final class LongRawBuffer extends RawBuffer {

@@ -532,6 +532,7 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
                 flushGroup(state, rawBuffer, flushQueue);
             }
         }
+        rawBuffer.clearBuffers();
     }
 
     static final class IntRawBuffer extends RawBuffer {

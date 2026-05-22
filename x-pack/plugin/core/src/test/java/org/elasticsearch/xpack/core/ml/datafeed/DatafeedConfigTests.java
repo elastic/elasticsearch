@@ -43,7 +43,8 @@ import org.elasticsearch.search.aggregations.metrics.MaxAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.BucketScriptPipelineAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder.ScriptField;
-import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
@@ -79,8 +80,9 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.sameInstance;
 
-public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<DatafeedConfig> {
+public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<DatafeedConfig> {
 
     private static final String[] EXPAND_WILDCARDS_VALUES = { "open", "closed", "hidden" };
 
@@ -956,7 +958,7 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
     @Override
     protected DatafeedConfig mutateInstance(DatafeedConfig instance) {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder(instance);
-        switch (between(0, 12)) {
+        switch (between(0, 13)) {
             case 0:
                 builder.setId(instance.getId() + randomValidDatafeedId());
                 break;
@@ -1055,10 +1057,131 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
                     builder.setRuntimeMappings(field);
                 }
                 break;
+            case 13:
+                if (instance.getProjectRouting() == null && DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled()) {
+                    builder.setProjectRouting("_alias:" + randomAlphaOfLengthBetween(1, 10) + "-*");
+                } else {
+                    builder.setProjectRouting(null);
+                }
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
         return builder.build();
+    }
+
+    @Override
+    protected DatafeedConfig mutateInstanceForVersion(DatafeedConfig instance, TransportVersion version) {
+        if (version.supports(DatafeedConfig.DATAFEED_PROJECT_ROUTING)) {
+            return instance;
+        }
+        return new DatafeedConfig.Builder(instance).setProjectRouting(null).build();
+    }
+
+    /**
+     * Verifies that when the CPS feature flag is enabled, building a config with project_routing succeeds.
+     * Feature flags cannot be disabled in unit tests, so the forbidden case (project_routing when CPS is
+     * disabled) is validated at runtime and in integration tests.
+     */
+    public void testProjectRoutingRespectsFeatureFlag() {
+        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        builder.setIndices(List.of("logs-*"));
+        builder.setProjectRouting("_alias:prod-*");
+
+        DatafeedConfig config = builder.build();
+        assertThat(config.getProjectRouting(), equalTo("_alias:prod-*"));
+    }
+
+    public void testProjectRoutingParsing() throws IOException {
+        // Skip test if feature flag is disabled
+        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+
+        String json = """
+            {
+              "datafeed_id": "test-datafeed",
+              "job_id": "test-job",
+              "indices": ["logs-*"],
+              "project_routing": "_alias:prod-*"
+            }""";
+
+        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
+        DatafeedConfig.Builder builder = DatafeedConfig.LENIENT_PARSER.apply(parser, null);
+
+        DatafeedConfig config = builder.build();
+
+        assertThat(config.getProjectRouting(), equalTo("_alias:prod-*"));
+    }
+
+    public void testProjectRoutingNullIsOptional() throws IOException {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        builder.setIndices(List.of("logs-*"));
+        // Don't set projectRouting - it should be null and optional
+
+        DatafeedConfig config = builder.build();
+
+        assertThat(config.getProjectRouting(), nullValue());
+
+        // Verify serialization works without projectRouting
+        BytesStreamOutput output = new BytesStreamOutput();
+        output.setTransportVersion(TransportVersion.current());
+        config.writeTo(output);
+
+        StreamInput rawInput = output.bytes().streamInput();
+        rawInput.setTransportVersion(TransportVersion.current());
+        try (StreamInput input = new NamedWriteableAwareStreamInput(rawInput, getNamedWriteableRegistry())) {
+            DatafeedConfig deserialized = new DatafeedConfig(input);
+
+            assertThat(deserialized.getProjectRouting(), nullValue());
+            assertThat(deserialized, equalTo(config));
+        }
+    }
+
+    public void testProjectRoutingBuilderEqualsAndHashCode() {
+        DatafeedConfig.Builder builder1 = new DatafeedConfig.Builder("test-df", "test-job");
+        builder1.setIndices(List.of("logs-*"));
+        builder1.setProjectRouting("_alias:prod-*");
+
+        DatafeedConfig.Builder builder2 = new DatafeedConfig.Builder("test-df", "test-job");
+        builder2.setIndices(List.of("logs-*"));
+        builder2.setProjectRouting("_alias:prod-*");
+
+        DatafeedConfig.Builder builder3 = new DatafeedConfig.Builder("test-df", "test-job");
+        builder3.setIndices(List.of("logs-*"));
+        builder3.setProjectRouting("_alias:staging-*");
+
+        DatafeedConfig.Builder builder4 = new DatafeedConfig.Builder("test-df", "test-job");
+        builder4.setIndices(List.of("logs-*"));
+        // No projectRouting set
+
+        assertThat(builder1, equalTo(builder2));
+        assertThat(builder1.hashCode(), equalTo(builder2.hashCode()));
+        assertThat(builder1, not(equalTo(builder3)));
+        assertThat(builder1, not(equalTo(builder4)));
+    }
+
+    public void testProjectRoutingRoundTripXContent() throws IOException {
+        // Skip test if feature flag is disabled
+        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
+
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("test-datafeed", "test-job");
+        builder.setIndices(List.of("logs-*"));
+        builder.setProjectRouting("_alias:test-*");
+
+        DatafeedConfig original = builder.build();
+
+        // Serialize to XContent
+        BytesReference bytes = XContentHelper.toXContent(original, XContentType.JSON, ToXContent.EMPTY_PARAMS, false);
+
+        // Parse back
+        XContentParser parser = createParser(JsonXContent.jsonXContent, bytes);
+        DatafeedConfig.Builder parsedBuilder = DatafeedConfig.LENIENT_PARSER.apply(parser, null);
+        DatafeedConfig parsed = parsedBuilder.build();
+
+        assertThat(parsed.getProjectRouting(), equalTo(original.getProjectRouting()));
+        assertThat(parsed.getId(), equalTo(original.getId()));
+        assertThat(parsed.getJobId(), equalTo(original.getJobId()));
+        assertThat(parsed.getIndices(), equalTo(original.getIndices()));
     }
 
     private XContentParser parser(String json) throws IOException {
@@ -1070,5 +1193,209 @@ public class DatafeedConfigTests extends AbstractXContentSerializingTestCase<Dat
             XContentParserConfiguration.EMPTY.withRegistry(xContentRegistry()),
             json.streamInput()
         );
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenNullDatafeed() {
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(Settings.EMPTY);
+        NullPointerException e = expectThrows(
+            NullPointerException.class,
+            () -> DatafeedConfig.withCrossProjectModeIfEnabled(null, decider)
+        );
+        assertThat(e.getMessage(), equalTo("datafeed must not be null"));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenNullCrossProjectModeDecider() {
+        DatafeedConfig datafeed = createTestInstance();
+        NullPointerException e = expectThrows(
+            NullPointerException.class,
+            () -> DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, null)
+        );
+        assertThat(e.getMessage(), equalTo("crossProjectModeDecider must not be null"));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenBothNull() {
+        NullPointerException e = expectThrows(NullPointerException.class, () -> DatafeedConfig.withCrossProjectModeIfEnabled(null, null));
+        assertThat(e.getMessage(), equalTo("datafeed must not be null"));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenCrossProjectDisabled() {
+        DatafeedConfig datafeed = createTestInstance();
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", false).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
+
+        // Should return the same instance when CPS is disabled
+        assertThat(result, sameInstance(datafeed));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenCrossProjectEnabledAndNotAlreadySet() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(List.of("index1"));
+        // Explicitly set IndicesOptions without CPS enabled
+        builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
+        DatafeedConfig datafeed = builder.build();
+
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
+
+        // Should return a new instance with CPS enabled
+        assertThat(result, not(equalTo(datafeed)));
+        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenCrossProjectEnabledAndAlreadySet() {
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(List.of("index1"));
+        // Set IndicesOptions with CPS already enabled
+        IndicesOptions cpsEnabledOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+        builder.setIndicesOptions(cpsEnabledOptions);
+        DatafeedConfig datafeed = builder.build();
+
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
+
+        // Should return the same instance when CPS is already enabled (optimization)
+        assertThat(result, sameInstance(datafeed));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_GivenCrossProjectModeDeciderThrowsException() {
+        DatafeedConfig datafeed = createTestInstance();
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(Settings.EMPTY) {
+                @Override
+                public boolean crossProjectEnabled() {
+                    throw new RuntimeException("Simulated exception from crossProjectEnabled()");
+                }
+            };
+
+        RuntimeException e = expectThrows(RuntimeException.class, () -> DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider));
+        assertThat(e.getMessage(), equalTo("Simulated exception from crossProjectEnabled()"));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_PreservesAllDatafeedProperties() {
+        // Create a datafeed with various properties set
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(List.of("index1", "index2"));
+        builder.setQueryDelay(TimeValue.timeValueSeconds(30));
+        builder.setFrequency(TimeValue.timeValueMinutes(5));
+        builder.setScrollSize(2000);
+        builder.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        DatafeedConfig originalDatafeed = builder.build();
+
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(originalDatafeed, decider);
+
+        // Verify all properties except IndicesOptions are preserved
+        assertThat(result.getId(), equalTo(originalDatafeed.getId()));
+        assertThat(result.getJobId(), equalTo(originalDatafeed.getJobId()));
+        assertThat(result.getIndices(), equalTo(originalDatafeed.getIndices()));
+        assertThat(result.getQueryDelay(), equalTo(originalDatafeed.getQueryDelay()));
+        assertThat(result.getFrequency(), equalTo(originalDatafeed.getFrequency()));
+        assertThat(result.getScrollSize(), equalTo(originalDatafeed.getScrollSize()));
+        // IndicesOptions should be modified to enable CPS
+        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_WithProjectQualifiedIndices() {
+        // Test with project-qualified index patterns (e.g., "project:index")
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        // Mix of regular and project-qualified indices
+        builder.setIndices(List.of("local-index", "project1:remote-index", "project2:logs-*"));
+        builder.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        DatafeedConfig datafeed = builder.build();
+
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
+
+        // Should handle project-qualified indices correctly
+        assertThat(result.getIndices(), equalTo(datafeed.getIndices()));
+        assertThat(result.getIndices(), hasSize(3));
+        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
+    }
+
+    public void testWithCrossProjectModeIfEnabled_WithWildcardIndices() {
+        // Test with wildcard patterns
+        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
+        builder.setIndices(List.of("logs-*", "metrics-*", "*-archive"));
+        builder.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
+        DatafeedConfig datafeed = builder.build();
+
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+
+        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
+
+        // Should handle wildcard patterns correctly
+        assertThat(result.getIndices(), equalTo(datafeed.getIndices()));
+        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
+    }
+
+    public void testCrossProjectWithFeatureEnabled() throws IOException {
+        var datafeedConfig = createDatafeedConfigFromString("""
+            {
+              "datafeed_id": "cross-project-feature-enabled",
+              "job_id": "test-job",
+              "indices": ["project-1:src"]
+            }""");
+        assertNull(datafeedConfig.validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(true, null));
+    }
+
+    public void testCrossProjectWithFeatureDisabled() throws IOException {
+        var datafeedConfig = createDatafeedConfigFromString("""
+            {
+              "datafeed_id": "cross-project-feature-not-enabled",
+              "job_id": "test-job",
+              "indices": ["project-1:src"]
+            }""");
+        var validationException = datafeedConfig.validateNoCrossProjectWhenCrossProjectFeatureIsDisabled(false, null);
+        assertNotNull(validationException);
+        assertThat(
+            validationException.getMessage(),
+            containsString("Cross-project calls are not supported, but remote indices were requested: [project-1:src]")
+        );
+    }
+
+    public void testNotCrossProjectEnvironment() throws IOException {
+        var datafeedConfig = createDatafeedConfigFromString("""
+            {
+              "datafeed_id": "remote-cluster",
+              "job_id": "test-job",
+              "indices": ["remote-1:src"]
+            }""");
+        assertNull(
+            datafeedConfig.validateNoCrossProjectWhenCrossProjectIsDisabled(
+                new CrossProjectModeDecider(Settings.EMPTY),
+                (org.elasticsearch.action.ActionRequestValidationException) null
+            )
+        );
+    }
+
+    private DatafeedConfig createDatafeedConfigFromString(String json) throws IOException {
+        XContentParser parser = createParser(JsonXContent.jsonXContent, json);
+        return DatafeedConfig.LENIENT_PARSER.apply(parser, null).build();
     }
 }

@@ -186,8 +186,8 @@ public class IncrementalBulkService {
 
         }
 
-        public CancellableTask getBulkSessionTask() {
-            return this.bulkSessionTask;
+        public void cancel(String reason, Runnable listener) {
+            taskManager.cancel(bulkSessionTask, reason, listener);
         }
 
         public IndexingPressure.Incremental getIncrementalOperation() {

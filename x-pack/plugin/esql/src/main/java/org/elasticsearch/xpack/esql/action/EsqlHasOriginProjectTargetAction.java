@@ -32,15 +32,16 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class EsqlGetOriginProjectAliasAction extends TransportLocalProjectMetadataAction<
-    EsqlGetOriginProjectAliasAction.Request,
-    EsqlGetOriginProjectAliasAction.Response> {
+// TODO rename to EsqlGetOriginProjectAliasAction (and action name to `indices:data/read/esql/get_origin_project_alias`).
+public class EsqlHasOriginProjectTargetAction extends TransportLocalProjectMetadataAction<
+    EsqlHasOriginProjectTargetAction.Request,
+    EsqlHasOriginProjectTargetAction.Response> {
 
-    public static final String NAME = "indices:data/read/esql/get_origin_project_alias";
-    public static final ActionType<EsqlGetOriginProjectAliasAction.Response> TYPE = new ActionType<>(NAME);
+    public static final String NAME = "indices:data/read/esql/has_origin_project_target";
+    public static final ActionType<EsqlHasOriginProjectTargetAction.Response> TYPE = new ActionType<>(NAME);
 
     @Inject
-    public EsqlGetOriginProjectAliasAction(
+    public EsqlHasOriginProjectTargetAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
@@ -100,7 +101,7 @@ public class EsqlGetOriginProjectAliasAction extends TransportLocalProjectMetada
 
         @Override
         public String toString() {
-            return "EsqlGetOriginProjectAliasAction.Request={projectRouting:" + projectRouting + "}";
+            return "EsqlHasOriginProjectTargetAction.Request={projectRouting:" + projectRouting + "}";
         }
     }
 

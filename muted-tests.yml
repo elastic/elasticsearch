@@ -582,6 +582,3 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
   method: testRandomActivitiesStatelessSnapshotAndRelocationEnabled
   issue: https://github.com/elastic/elasticsearch/issues/149751
-- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
-  method: testSourceNodeQueuesRecoveriesPastConcurrencyLimit
-  issue: https://github.com/elastic/elasticsearch/issues/149753

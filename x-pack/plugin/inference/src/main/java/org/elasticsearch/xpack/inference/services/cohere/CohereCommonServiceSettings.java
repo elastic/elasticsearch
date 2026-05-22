@@ -81,10 +81,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
      * onto the given parser. The deprecated {@code model} alias is also registered and emits a
      * log warning when encountered in request context.
      */
-    public static <B extends Builder> void declareCommonFields(
-        AbstractObjectParser<B, ConfigurationParseContext> parser,
-        ConfigurationParseContext context
-    ) {
+    public static <B extends Builder> void declareCommonFields(AbstractObjectParser<B, ConfigurationParseContext> parser) {
         parser.declareString(Builder::setDeprecatedModelId, new ParseField(OLD_MODEL_ID_FIELD));
         parser.declareString(Builder::setModelId, new ParseField(ServiceFields.MODEL_ID));
         parser.declareString(Builder::setUrl, new ParseField(URL));

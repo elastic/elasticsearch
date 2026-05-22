@@ -70,7 +70,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
             ignoreUnknownFields,
             () -> new Builder(context)
         );
-        CohereCommonServiceSettings.declareCommonFields(parser, context);
+        CohereCommonServiceSettings.declareCommonFields(parser);
         return parser;
     }
 

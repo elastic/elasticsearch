@@ -83,7 +83,6 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
      * Failures that occur after the client-side keep-alive deadline are surfaced as {@link RestStatus#INTERNAL_SERVER_ERROR}
      */
     public void testPitKeepaliveExpiredReturns500StatusCode() {
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         TimeValue pitKeepAlive = TimeValue.timeValueMillis(200);
         assertAcked(
@@ -129,7 +128,6 @@ public class ReindexSearchContextFailuresIT extends ESIntegTestCase {
      * Failures that occur during the client-side keep-alive deadline are surfaced as {@link RestStatus#NOT_FOUND}
      */
     public void testPitSearchContextMissingInsideKeepaliveReturns404StatusCode() {
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         TimeValue pitKeepAlive = TimeValue.timeValueSeconds(5);
         assertAcked(

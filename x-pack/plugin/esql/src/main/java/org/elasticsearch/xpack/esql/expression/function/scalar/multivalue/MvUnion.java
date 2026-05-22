@@ -48,7 +48,10 @@ import java.util.Set;
  */
 public class MvUnion extends MvSetOperationFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvUnion", MvUnion::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvUnion.class).binary(MvUnion::new).name("mv_union");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvUnion.class)
+        .binary(MvUnion::new)
+        .capabilities("flattened")
+        .name("mv_union");
 
     @FunctionInfo(
         returnType = {
@@ -58,6 +61,7 @@ public class MvUnion extends MvSetOperationFunction {
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -91,6 +95,7 @@ public class MvUnion extends MvSetOperationFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -114,6 +119,7 @@ public class MvUnion extends MvSetOperationFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

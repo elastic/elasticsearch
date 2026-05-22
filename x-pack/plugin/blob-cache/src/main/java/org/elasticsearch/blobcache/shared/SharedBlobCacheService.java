@@ -300,7 +300,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     public static final Setting<Integer> SHARED_CACHE_TIME_SLOTS_COUNT_SETTING = Setting.intSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "time_slots.count",
         87600, // default 10y (for 1h slots)
-        1,
+        2, // min 2 slots to support a rolling ring
         Setting.Property.NodeScope
     );
 

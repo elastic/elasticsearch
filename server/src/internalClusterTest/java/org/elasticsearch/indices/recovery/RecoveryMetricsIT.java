@@ -175,7 +175,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             queuedPeerRecoveries = sourcePlugin.getLongUpDownCounterMeasurement(
                 RecoveryMetricsCollector.QUEUED_OUTGOING_PEER_RECOVERIES_METRIC
             );
-            assertThat("Queued peer recoveries measurements on source", activePeerRecoveries, hasSize(greaterThan(1)));
+            assertThat("Queued peer recoveries measurements on source", queuedPeerRecoveries, hasSize(greaterThan(1)));
             assertThat(
                 "Queued peer recoveries count on source after recovery",
                 queuedPeerRecoveries.stream().mapToLong(Measurement::getLong).sum(),

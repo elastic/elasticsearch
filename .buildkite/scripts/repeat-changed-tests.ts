@@ -249,15 +249,25 @@ export function dedupeTests(tests: ClassifiedTest[]): ClassifiedTest[] {
   return result;
 }
 
+// Cap the synchronous git invocations so a hung process (network credential
+// prompt during a partial-clone lazy fetch, .git/index.lock contention, etc.)
+// surfaces as a visible failure instead of silently consuming the step's
+// timeout_in_minutes budget.
+const GIT_COMMAND_TIMEOUT_MS = 60_000;
+
 function detectUnmutedTests(mergeBase: string, projectRoot: string): UnmuteDetectionResult {
   let oldYaml = "";
   try {
     oldYaml = execSync(`git show ${mergeBase}:muted-tests.yml`, {
       cwd: projectRoot,
-      stdio: ["ignore", "pipe", "ignore"],
-    }).toString();
-  } catch {
-    // File didn't exist at merge base; treat as empty.
+      stdio: ["ignore", "pipe", "pipe"],
+      timeout: GIT_COMMAND_TIMEOUT_MS,
+      encoding: "utf8",
+    });
+  } catch (err) {
+    // File didn't exist at merge base; treat as empty. Log so the next time
+    // git hangs or fails for a different reason we can see why.
+    console.log(`Could not read muted-tests.yml at ${mergeBase}: ${(err as Error).message}`);
   }
 
   let newYaml = "";
@@ -269,8 +279,11 @@ function detectUnmutedTests(mergeBase: string, projectRoot: string): UnmuteDetec
 
   const repoFilesOutput = execSync("git ls-files", {
     cwd: projectRoot,
+    stdio: ["ignore", "pipe", "pipe"],
+    timeout: GIT_COMMAND_TIMEOUT_MS,
     maxBuffer: 256 * 1024 * 1024,
-  }).toString();
+    encoding: "utf8",
+  });
   const repoFiles = repoFilesOutput
     .split("\n")
     .map((f) => f.trim())

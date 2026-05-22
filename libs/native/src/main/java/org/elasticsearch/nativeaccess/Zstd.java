@@ -128,4 +128,116 @@ public final class Zstd {
         }
         return (int) ret;
     }
+
+    /**
+     * Recommended size for the input buffer feeding {@link DStream#decompress} ({@code ZSTD_DStreamInSize}).
+     * The value is constant per libzstd build (≈ 128 KB on 1.5.7); callers typically cache it in a
+     * {@code static final} field rather than calling per-stream.
+     */
+    public int dStreamInSize() {
+        return checkSize(zstdLib.dStreamInSize(), "dStreamInSize");
+    }
+
+    /**
+     * Recommended size for the output buffer of {@link DStream#decompress} ({@code ZSTD_DStreamOutSize}).
+     * Used only by the {@code skip()} scratch buffer in the wrapper — the regular read path writes
+     * straight into the caller's destination array.
+     */
+    public int dStreamOutSize() {
+        return checkSize(zstdLib.dStreamOutSize(), "dStreamOutSize");
+    }
+
+    private int checkSize(long ret, String which) {
+        if (zstdLib.isError(ret)) {
+            throw new IllegalArgumentException(zstdLib.getErrorName(ret));
+        } else if (ret <= 0 || ret > Integer.MAX_VALUE) {
+            throw new IllegalStateException("Unexpected " + which + " value: " + Long.toUnsignedString(ret));
+        }
+        return (int) ret;
+    }
+
+    /**
+     * Allocate a streaming decompression context wrapping {@code ZSTD_DStream}. The returned
+     * {@link DStream} owns a native zstd context plus two small persistent struct holders;
+     * call {@link DStream#close()} (or use try-with-resources) to release them. Single-threaded
+     * by contract — do not share a single {@link DStream} across threads.
+     */
+    public DStream newDStream() {
+        return new DStream(zstdLib.createDStream());
+    }
+
+    /**
+     * Streaming-mode zstd decompression resource. Backs {@code PanamaZstdInputStream} and any
+     * other consumer that needs incremental {@code ZSTD_decompressStream} semantics: refill an
+     * input chunk, call {@link #decompress}, read {@link #lastSrcPos()} / {@link #lastDstPos()} to
+     * advance cursors, loop while the hint return is positive (more input wanted), and observe a
+     * zero return when the current frame finished.
+     *
+     * <p>Bounds are validated Java-side; error returns from libzstd are translated to
+     * {@link IllegalArgumentException} carrying the {@code ZSTD_getErrorName} string. All hot-path
+     * state (the two {@code ZSTD_inBuffer}/{@code ZSTD_outBuffer} struct holders, the native context
+     * handle) lives inside the binding — every {@link #decompress} call is allocation-free.
+     *
+     * <p>Not thread-safe.
+     */
+    public final class DStream implements AutoCloseable {
+
+        private final ZstdLibrary.DStream impl;
+        private boolean closed;
+
+        DStream(ZstdLibrary.DStream impl) {
+            this.impl = impl;
+        }
+
+        /**
+         * Feed {@code src[srcPos..srcLen)} into the decoder and write decompressed bytes into
+         * {@code dst[dstPos..dstLen)}. Returns the libzstd hint: {@code 0} means the current frame
+         * finished decoding (the decoder is implicitly reset for the next concatenated frame, if any),
+         * a positive return is libzstd's best guess for the amount of additional input it would like
+         * to see next, and a zstd-side error is translated to {@link IllegalArgumentException}.
+         *
+         * <p>After return, the caller reads {@link #lastSrcPos()} / {@link #lastDstPos()} to learn
+         * how far the input/output cursors advanced — these are absolute offsets within the supplied
+         * arrays, not deltas.
+         */
+        public long decompress(byte[] dst, int dstPos, int dstLen, byte[] src, int srcPos, int srcLen) {
+            if (closed) {
+                throw new IllegalStateException("DStream is closed");
+            }
+            Objects.requireNonNull(dst, "Null destination buffer");
+            Objects.requireNonNull(src, "Null source buffer");
+            Objects.checkFromToIndex(dstPos, dstLen, dst.length);
+            Objects.checkFromToIndex(srcPos, srcLen, src.length);
+            long ret = impl.decompress(dst, dstPos, dstLen, src, srcPos, srcLen);
+            if (zstdLib.isError(ret)) {
+                throw new IllegalArgumentException(zstdLib.getErrorName(ret));
+            }
+            return ret;
+        }
+
+        /**
+         * Output position after the most recent {@link #decompress} — an absolute index into the
+         * {@code dst} array that was passed to that call.
+         */
+        public int lastDstPos() {
+            return impl.lastDstPos();
+        }
+
+        /**
+         * Input position after the most recent {@link #decompress} — an absolute index into the
+         * {@code src} array that was passed to that call.
+         */
+        public int lastSrcPos() {
+            return impl.lastSrcPos();
+        }
+
+        /** Idempotent — frees the native {@code ZSTD_DStream} and the cached struct holders. */
+        @Override
+        public void close() {
+            if (closed == false) {
+                closed = true;
+                impl.close();
+            }
+        }
+    }
 }

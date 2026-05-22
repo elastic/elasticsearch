@@ -62,6 +62,29 @@ public class ZstdDecompressionCodecTests extends ESTestCase {
         }
     }
 
+    /**
+     * Decompresses a ~5 MB payload end-to-end to exercise multi-chunk refill behavior of the
+     * Panama streaming wrapper through the public codec path. Sized to span ≥ 30 of libzstd's
+     * 128 KB recommended input chunks, ensuring the wrapper's refill/needRead loop runs many times.
+     */
+    public void testLargeRoundTrip() throws IOException {
+        byte[] data = new byte[5 * 1024 * 1024];
+        for (int i = 0; i < data.length; i++) {
+            // Mildly compressible payload (cycling pattern with the high bit flipped every 256
+            // bytes) so the decoder produces a non-trivial frame structure rather than a single
+            // RLE block — exercises the internal buffering paths the wrapper has to drain across
+            // multiple read() calls.
+            data[i] = (byte) (((i * 31) ^ (i >>> 8)) & 0xFF);
+        }
+        byte[] compressed = zstd(data);
+
+        ZstdDecompressionCodec codec = new ZstdDecompressionCodec();
+        try (InputStream decompressed = codec.decompress(new ByteArrayInputStream(compressed))) {
+            byte[] result = decompressed.readAllBytes();
+            assertArrayEquals(data, result);
+        }
+    }
+
     private static byte[] zstd(byte[] input) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (ZstdOutputStream zstdOut = new ZstdOutputStream(baos)) {

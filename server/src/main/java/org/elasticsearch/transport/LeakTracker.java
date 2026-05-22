@@ -64,6 +64,21 @@ public final class LeakTracker {
         }
 
         /**
+         * Returns {@code true} if any resources opened within this window have not yet been released.
+         * Unlike {@link #assertNoLeaks()}, this method does not drain detected leaks, making it safe to use
+         * in a polling loop before a final call to {@link #assertNoLeaks()}.
+         * No-op (returns {@code false}) when assertions are disabled.
+         */
+        public boolean hasLeaks() {
+            if (preExistingTrackers == null) {
+                return false;
+            }
+            List<TrackedResource> current = new ArrayList<>(activeTrackers);
+            current.removeAll(preExistingTrackers);
+            return current.isEmpty() == false;
+        }
+
+        /**
          * Asserts that all resources opened within this scope have been properly released. Drains detected leaks
          * from the global set so an enclosing scope does not double-report them. No-op when assertions are disabled.
          */

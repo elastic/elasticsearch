@@ -325,7 +325,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 var document = reader.storedFields().document(i);
                 // Verify that there is no ignored source:
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
-                if (useColumnarId) {
+                if (isUseColumnarId(reader)) {
                     assertThat(storedFieldNames, empty());
                 } else {
                     assertThat(storedFieldNames, contains("_id"));
@@ -391,7 +391,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             for (int i = 0; i < documents.size(); i++) {
                 var document = reader.storedFields().document(i);
                 List<String> storedFieldNames = document.getFields().stream().map(IndexableField::name).toList();
-                if (useColumnarId) {
+                if (isUseColumnarId(reader)) {
                     assertThat(storedFieldNames, empty());
                 } else {
                     assertThat(storedFieldNames, hasItem("_id"));
@@ -461,7 +461,7 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
                 var document = reader.storedFields().document(i);
                 // Verify that there is no ignored source:
                 Set<String> storedFieldNames = new LinkedHashSet<>(document.getFields().stream().map(IndexableField::name).toList());
-                if (useColumnarId) {
+                if (isUseColumnarId(reader)) {
                     assertThat(storedFieldNames, empty());
                 } else {
                     assertThat(storedFieldNames, contains("_id"));
@@ -509,5 +509,10 @@ public abstract class NativeArrayIntegrationTestCase extends ESSingleNodeTestCas
             parser.nextToken(); // value token
             return XContentDataHelper.encodeToken(parser);
         }
+    }
+
+    private static boolean isUseColumnarId(DirectoryReader reader) {
+        FieldInfos fieldInfos = FieldInfos.getMergedFieldInfos(reader);
+        return fieldInfos.fieldInfo("_id").getDocValuesType() == DocValuesType.BINARY;
     }
 }

@@ -64,7 +64,6 @@ import org.elasticsearch.transport.TransportSettings;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -96,8 +95,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
 
     private static Node NODE = null;
 
-    protected static boolean useColumnarId;
-
     protected void startNode(long seed) throws Exception {
         assert NODE == null;
         NODE = RandomizedContext.current().runWithPrivateRandomness(seed, this::newNode);
@@ -116,20 +113,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             .setOrder(0)
             .setSettings(Settings.builder().put(IndexSettings.INDEX_SOFT_DELETES_RETENTION_OPERATIONS_SETTING.getKey(), between(0, 1000)))
             .get();
-        useColumnarId = ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled() && randomlyUseColumnarId() && randomBoolean();
-        if (useColumnarId) {
-            indicesAdmin().preparePutTemplate("random-columnar-id-mode-template")
-                .setPatterns(Collections.singletonList("*"))
-                .setOrder(0)
-                .setMapping("""
-                    {
-                        "_id": {
-                           "mode": "columnar"
-                        }
-                    }
-                    """, XContentType.JSON)
-                .get();
-        }
     }
 
     private static void stopNode() throws IOException, InterruptedException {
@@ -248,6 +231,15 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
         return true;
     }
 
+    /**
+     * Determines whether the columnar ID mode should be randomized in the test setup.
+     *
+     * @return {@code true} if the columnar ID mode should be randomized; otherwise, returns {@code false}.
+     */
+    protected boolean randomizeColumnarIdMode() {
+        return true;
+    }
+
     @Override
     protected List<String> filteredWarnings() {
         return Stream.concat(
@@ -257,13 +249,6 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
                     + "See the deprecation documentation for the next major version."
             )
         ).collect(Collectors.toList());
-    }
-
-    /**
-     * @return allows concrete test suites to control whether to randomly use columnar id.
-     */
-    protected boolean randomlyUseColumnarId() {
-        return true;
     }
 
     private Node newNode() {
@@ -313,6 +298,9 @@ public abstract class ESSingleNodeTestCase extends ESTestCase {
             plugins.add(ConcurrentSearchTestPlugin.class);
         }
         plugins.add(MockScriptService.TestPlugin.class);
+        if (ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled() && randomizeColumnarIdMode()) {
+            plugins.add(ESIntegTestCase.RandomizeColumnarIdModePlugin.class);
+        }
         Node node = new MockNode(settings, plugins, forbidPrivateIndexSettings(), TEST_ENTITLEMENTS.addEntitledNodePaths(settings, null));
         try {
             node.start();

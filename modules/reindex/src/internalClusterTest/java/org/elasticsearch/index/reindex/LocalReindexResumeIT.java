@@ -183,7 +183,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         for (int sliceId = 0; sliceId < numSlices; sliceId++) {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(DEFAULT_SCROLL_TIMEOUT))
-                    .slice(new SliceBuilder(IdFieldMapper.NAME, sliceId, numSlices))
+                    .slice(new SliceBuilder(sliceId, numSlices))
                     .sort(SortBuilders.pitTiebreaker())
                     .size(batchSize)
             );
@@ -385,7 +385,7 @@ public class LocalReindexResumeIT extends ESIntegTestCase {
         for (int sliceId = 0; sliceId < numSlices; sliceId++) {
             SearchRequest searchRequest = new SearchRequest().source(
                 new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(DEFAULT_SCROLL_TIMEOUT))
-                    .slice(new SliceBuilder(IdFieldMapper.NAME, sliceId, numSlices))
+                    .slice(new SliceBuilder(sliceId, numSlices))
                     .sort(SortBuilders.pitTiebreaker())
                     .size(batchSize)
             );

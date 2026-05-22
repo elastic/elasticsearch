@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -191,7 +192,7 @@ public class Enrich extends UnaryPlan
      * render via the children recursion.
      */
     @Override
-    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
         sb.append("Enrich[mode=").append(mode);
         if (concreteIndices != null && concreteIndices.isEmpty() == false) {
             sb.append(", concreteIndices={");

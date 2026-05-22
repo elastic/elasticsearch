@@ -14,6 +14,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -403,5 +404,10 @@ public class Join extends BinaryPlan implements PostAnalysisVerificationAware, S
         if (isRemote()) {
             checkRemoteJoin(failures);
         }
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("Join[...]");
     }
 }

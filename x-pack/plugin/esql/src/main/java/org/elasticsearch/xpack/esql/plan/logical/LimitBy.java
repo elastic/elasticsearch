@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -137,5 +138,10 @@ public class LimitBy extends UnaryPlan implements PostAnalysisVerificationAware,
             && Objects.equals(child(), other.child())
             && (duplicated == other.duplicated)
             && Objects.equals(groupings, other.groupings);
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("LimitBy[...]");
     }
 }

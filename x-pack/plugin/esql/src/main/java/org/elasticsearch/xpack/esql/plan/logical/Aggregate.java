@@ -143,6 +143,25 @@ public class Aggregate extends UnaryPlan
     }
 
     @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append("Aggregate[[");
+        for (int i = 0; i < groupings.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            groupings.get(i).anonymizedSelf(sb, ctx);
+        }
+        sb.append("],[");
+        for (int i = 0; i < aggregates.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            aggregates.get(i).anonymizedSelf(sb, ctx);
+        }
+        sb.append("]]");
+    }
+
+    @Override
     public String telemetryLabel() {
         return "STATS";
     }

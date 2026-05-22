@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.operator;
 
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -104,5 +105,10 @@ public final class VectorBinaryComparison extends VectorBinaryOperator {
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), boolMode);
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("VectorBinaryComparison[...]");
     }
 }

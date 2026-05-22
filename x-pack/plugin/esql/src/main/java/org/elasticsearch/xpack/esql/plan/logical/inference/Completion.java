@@ -16,6 +16,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -269,5 +270,10 @@ public class Completion extends InferencePlan<Completion> implements TelemetryAw
     @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), prompt, targetField, taskSettings);
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("Completion[...]");
     }
 }

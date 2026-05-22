@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -184,7 +185,7 @@ public class Literal extends LeafExpression implements Accountable, EvaluatorMap
     }
 
     @Override
-    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
         sb.append(ctx.literal(value, dataType));
     }
 

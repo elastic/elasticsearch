@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -200,5 +201,10 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize, ExecutesO
             case COORDINATOR -> ExecuteLocation.COORDINATOR;
             default -> ExecuteLocation.ANY;
         };
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("EnrichExec[...]");
     }
 }

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -113,5 +114,10 @@ public class ChangePointExec extends UnaryExec {
             && Objects.equals(targetType, ((ChangePointExec) other).targetType)
             && Objects.equals(targetPvalue, ((ChangePointExec) other).targetPvalue)
             && Objects.equals(groupings, ((ChangePointExec) other).groupings);
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("ChangePointExec[...]");
     }
 }

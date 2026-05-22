@@ -542,17 +542,24 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
 
     /**
      * Subclass extension point for {@link #anonymizedString(StringBuilder, AnonymizationContext)}.
-     * Default appends {@code "<SimpleClassName>[...]"} — guaranteed to leak no field content of this
-     * node. Subclasses override to expose anonymized identifiers / literals / structural details;
-     * children recursion is handled by the public entry.
+     * Every {@code Node} subclass must implement this — there is no inherited default at the base.
+     * That keeps the contract honest: any new node-class author is forced by the compiler to think
+     * about which of their fields can be safely exposed to telemetry, and how.
+     * <p>
+     * Common intermediate base classes provide concrete implementations that fit their shape:
+     * {@link org.elasticsearch.xpack.esql.core.expression.Expression} walks its children inline as
+     * {@code "<Name>(<child>, <child>)"}; logical and physical plan-node subclasses each have their
+     * own per-class override that surfaces their specific identifier / literal state via
+     * {@link AnonymizationContext#column}, {@link AnonymizationContext#index}, or
+     * {@link AnonymizationContext#literal}. Subclasses that have no safer way to render fall back
+     * to {@code sb.append("<SimpleName>[...]")} — that's a one-line explicit choice, not an
+     * inherited default.
      * <p>
      * Public (rather than protected) so a parent node can inline a child's self-text on the same
      * line when the parent renders its children compactly (e.g. {@code EsRelation}'s attribute
      * list). Mirrors {@link #nodeString(StringBuilder, NodeStringFormat)}, which is also public.
      */
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append(getClass().getSimpleName()).append("[...]");
-    }
+    public abstract void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx);
 
     protected void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format) {
         new NodePropertiesToString(sb, format, this, skipIfChild).propertiesToString();

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -127,7 +128,7 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
      * reader still sees the pattern's structure (e.g. {@code col_abc*}).
      */
     @Override
-    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
         sb.append(UNRESOLVED_PREFIX).append(ctx.wildcardPattern(pattern));
     }
 }

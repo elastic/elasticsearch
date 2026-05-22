@@ -13,6 +13,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -160,5 +161,10 @@ public class MetricsInfo extends UnaryPlan implements TelemetryAware, PostAnalys
             attributes.add(new ReferenceAttribute(source, null, name, KEYWORD));
         }
         return attributes;
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("MetricsInfo[...]");
     }
 }

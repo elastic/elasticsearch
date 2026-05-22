@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -154,8 +155,9 @@ public final class Alias extends NamedExpression {
      * children recursion.
      */
     @Override
-    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
-        sb.append("Alias[AS ").append(ctx.column(name())).append('#').append(id()).append(']');
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        child.anonymizedSelf(sb, ctx);
+        sb.append(" AS ").append(ctx.column(name())).append('#').append(id());
     }
 
     /**

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -57,5 +58,10 @@ public class OutputExec extends UnaryExec {
     @Override
     protected NodeInfo<? extends PhysicalPlan> info() {
         return NodeInfo.create(this, OutputExec::new, child(), pageConsumer);
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("OutputExec[...]");
     }
 }

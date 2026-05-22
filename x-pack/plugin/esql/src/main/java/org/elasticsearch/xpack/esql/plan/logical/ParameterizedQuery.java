@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -131,5 +132,10 @@ public class ParameterizedQuery extends LeafPlan {
             && Objects.equals(matchFields, other.matchFields)
             && Objects.equals(joinOnConditions, other.joinOnConditions)
             && emptyResult == other.emptyResult;
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("ParameterizedQuery[...]");
     }
 }

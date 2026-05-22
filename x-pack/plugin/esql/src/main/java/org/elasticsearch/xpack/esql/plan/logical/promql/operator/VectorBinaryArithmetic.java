@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.operator;
 
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
@@ -59,5 +60,10 @@ public final class VectorBinaryArithmetic extends VectorBinaryOperator {
     @Override
     protected NodeInfo<VectorBinaryArithmetic> info() {
         return NodeInfo.create(this, VectorBinaryArithmetic::new, left(), right(), match(), op());
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("VectorBinaryArithmetic[...]");
     }
 }

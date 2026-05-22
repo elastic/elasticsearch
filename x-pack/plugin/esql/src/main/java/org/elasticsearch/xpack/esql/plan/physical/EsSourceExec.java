@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
@@ -132,7 +133,7 @@ public class EsSourceExec extends LeafExec implements DataSourceExec {
     }
 
     @Override
-    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
         sb.append("EsSourceExec[").append(ctx.index(indexPattern)).append(']');
         if (indexMode != null && indexMode != IndexMode.STANDARD) {
             sb.append('[').append(indexMode.name()).append(']');

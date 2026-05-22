@@ -331,6 +331,11 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
         }
 
         @Override
+        public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+            sb.append("MockFieldAttributeCommand[...]");
+        }
+
+        @Override
         public boolean expressionsResolved() {
             return true;
         }

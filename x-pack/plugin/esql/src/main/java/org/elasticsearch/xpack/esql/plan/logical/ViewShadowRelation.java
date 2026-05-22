@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -159,5 +160,10 @@ public class ViewShadowRelation extends LeafPlan implements Unresolvable {
     @Override
     public String toString() {
         return "?shadow[" + optionalLinkedPattern() + "]";
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("ViewShadowRelation[...]");
     }
 }

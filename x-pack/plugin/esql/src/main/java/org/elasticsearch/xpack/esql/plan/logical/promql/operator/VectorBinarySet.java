@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.operator;
 
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -43,5 +44,10 @@ public final class VectorBinarySet extends VectorBinaryOperator {
     @Override
     protected NodeInfo<VectorBinarySet> info() {
         return NodeInfo.create(this, VectorBinarySet::new, left(), right(), match(), op());
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("VectorBinarySet[...]");
     }
 }

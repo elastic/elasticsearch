@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -62,5 +63,10 @@ public class PlaceholderRelation extends LeafPlan {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         throw new UnsupportedOperationException("does not support serialization");
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("PlaceholderRelation[...]");
     }
 }

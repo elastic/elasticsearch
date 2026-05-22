@@ -94,6 +94,20 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
     }
 
     @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append("TopN[[");
+        for (int i = 0; i < order.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            order.get(i).anonymizedSelf(sb, ctx);
+        }
+        sb.append("],");
+        limit.anonymizedSelf(sb, ctx);
+        sb.append(']');
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), order, limit, local);
     }

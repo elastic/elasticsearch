@@ -16,6 +16,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -283,5 +284,10 @@ public class Rerank extends InferencePlan<Rerank> implements PostAnalysisVerific
             lazyOutput = mergeOutputAttributes(List.of(scoreAttribute), child().output());
         }
         return lazyOutput;
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("Rerank[...]");
     }
 }

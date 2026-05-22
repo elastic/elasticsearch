@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -132,5 +133,10 @@ public class ExternalFieldExtractExec extends UnaryExec {
         ExternalFieldExtractExec other = (ExternalFieldExtractExec) obj;
         return Objects.equals(attributesToExtract, other.attributesToExtract)
             && Objects.equals(rowPositionAttribute, other.rowPositionAttribute);
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("ExternalFieldExtractExec[...]");
     }
 }

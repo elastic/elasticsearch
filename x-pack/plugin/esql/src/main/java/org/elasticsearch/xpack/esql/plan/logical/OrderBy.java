@@ -82,6 +82,18 @@ public class OrderBy extends UnaryPlan
     }
 
     @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append("OrderBy[[");
+        for (int i = 0; i < order.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            order.get(i).anonymizedSelf(sb, ctx);
+        }
+        sb.append("]]");
+    }
+
+    @Override
     public String telemetryLabel() {
         return "SORT";
     }

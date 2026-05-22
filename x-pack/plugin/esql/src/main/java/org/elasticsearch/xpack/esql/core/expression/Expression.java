@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.tree.Node;
@@ -237,7 +238,7 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
      * subtree members.
      */
     @Override
-    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
         sb.append(getClass().getSimpleName()).append('(');
         List<Expression> kids = children();
         for (int i = 0; i < kids.size(); i++) {

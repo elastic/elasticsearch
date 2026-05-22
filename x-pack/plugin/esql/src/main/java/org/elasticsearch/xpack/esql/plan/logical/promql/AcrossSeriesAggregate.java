@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -125,5 +126,10 @@ public final class AcrossSeriesAggregate extends PromqlFunctionCall {
     @Override
     public FunctionType functionType() {
         return FunctionType.ACROSS_SERIES_AGGREGATION;
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("AcrossSeriesAggregate[...]");
     }
 }

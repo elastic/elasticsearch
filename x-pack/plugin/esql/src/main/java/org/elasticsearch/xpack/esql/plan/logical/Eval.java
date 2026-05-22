@@ -75,6 +75,18 @@ public class Eval extends UnaryPlan
     }
 
     @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append("Eval[[");
+        for (int i = 0; i < fields.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            fields.get(i).anonymizedSelf(sb, ctx);
+        }
+        sb.append("]]");
+    }
+
+    @Override
     public List<Attribute> output() {
         if (lazyOutput == null) {
             lazyOutput = mergeOutputAttributes(fields, child().output());

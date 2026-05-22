@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -135,5 +136,10 @@ public class MMRExec extends UnaryExec {
     public int limitValue() {
         assert limit != null && limit instanceof Literal && ((Literal) limit).value() instanceof Number : "limit must be a number literal";
         return ((Number) ((Literal) limit).value()).intValue();
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("MMRExec[...]");
     }
 }

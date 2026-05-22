@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -87,5 +88,10 @@ public class Insist extends UnaryPlan implements SurrogateLogicalPlan, Streaming
 
     public Insist withAttributes(List<Attribute> attributes) {
         return new Insist(source(), child(), attributes);
+    }
+
+    @Override
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append("Insist[...]");
     }
 }

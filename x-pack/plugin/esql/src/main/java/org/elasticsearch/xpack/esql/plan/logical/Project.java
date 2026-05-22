@@ -121,6 +121,18 @@ public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortP
         return projections;
     }
 
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append("Project[[");
+        for (int i = 0; i < projections.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            projections.get(i).anonymizedSelf(sb, ctx);
+        }
+        sb.append("]]");
+    }
+
     public Project withProjections(List<? extends NamedExpression> projections) {
         return new Project(source(), child(), projections);
     }

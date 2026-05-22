@@ -16,6 +16,7 @@ import org.elasticsearch.grok.GrokCaptureType;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -165,7 +166,7 @@ public class Grok extends RegexExtract implements TelemetryAware, SortPreserving
 
     /** Pattern body is user-supplied — replace with a placeholder; child + extracted via recursion. */
     @Override
-    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
         sb.append("Grok[pattern=\"").append(ctx.grokPattern(parser.pattern())).append("\"]");
     }
 }

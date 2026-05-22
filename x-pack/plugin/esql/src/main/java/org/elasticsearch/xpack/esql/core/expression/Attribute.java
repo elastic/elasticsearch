@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -225,7 +226,7 @@ public abstract class Attribute extends NamedExpression {
      * identity within a query is still visible to triage.
      */
     @Override
-    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
         if (qualifier != null) {
             sb.append('[').append(ctx.column(qualifier)).append("].");
         }

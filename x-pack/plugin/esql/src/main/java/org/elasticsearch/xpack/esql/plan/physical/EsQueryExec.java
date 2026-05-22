@@ -15,6 +15,7 @@ import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -369,7 +370,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
      * via {@link #anonymizedSelf}; attributes are inlined on the same line.
      */
     @Override
-    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
         sb.append("EsQueryExec[").append(ctx.index(indexPattern)).append("], indexMode[").append(indexMode).append("], [");
         for (int i = 0; i < attrs.size(); i++) {
             if (i > 0) {

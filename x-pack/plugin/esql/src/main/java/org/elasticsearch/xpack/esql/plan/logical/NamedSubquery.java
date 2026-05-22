@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -67,7 +68,7 @@ public class NamedSubquery extends Subquery {
     }
 
     @Override
-    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
         sb.append("NamedSubquery[").append(ctx.index(name)).append(']');
     }
 }

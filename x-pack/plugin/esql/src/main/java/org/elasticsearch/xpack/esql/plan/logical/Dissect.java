@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -148,7 +149,7 @@ public class Dissect extends RegexExtract implements TelemetryAware, SortPreserv
 
     /** Pattern body is user-supplied — replace with a placeholder; child + extracted via recursion. */
     @Override
-    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
         sb.append("Dissect[pattern=\"").append(ctx.dissectPattern(parser.pattern())).append("\"]");
     }
 }

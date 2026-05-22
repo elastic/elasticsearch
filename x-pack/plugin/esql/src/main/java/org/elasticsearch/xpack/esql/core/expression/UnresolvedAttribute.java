@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -149,7 +150,7 @@ public class UnresolvedAttribute extends Attribute implements Unresolvable {
      * code paths which throws on an unresolved attribute.
      */
     @Override
-    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
         sb.append(UNRESOLVED_PREFIX).append(ctx.column(name()));
     }
 

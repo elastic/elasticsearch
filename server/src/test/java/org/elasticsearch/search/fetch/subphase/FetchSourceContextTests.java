@@ -19,7 +19,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.HashMap;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -76,9 +75,9 @@ public class FetchSourceContextTests extends AbstractXContentSerializingTestCase
         boolean excludeVectors = randomBoolean();
 
         // REST URL param path
-        RestRequest request = new FakeRestRequest.Builder(xContentRegistry())
-            .withParams(Map.of("_source_exclude_vectors", String.valueOf(excludeVectors)))
-            .build();
+        RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(
+            Map.of("_source_exclude_vectors", String.valueOf(excludeVectors))
+        ).build();
         FetchSourceContext fromRest = FetchSourceContext.parseFromRestRequest(request);
 
         // XContent body path

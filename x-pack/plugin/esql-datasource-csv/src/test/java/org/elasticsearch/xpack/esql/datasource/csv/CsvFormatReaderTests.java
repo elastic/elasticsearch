@@ -3524,7 +3524,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
-    // --- Datetime fast-path equivalence tests (#769) ---
+    // --- Datetime fast-path equivalence tests ---
     // tryParseSpaceSeparatedDatetimeMillis avoids the JDK DateTimeFormatter Parsed-HashMap
     // allocation that dominated ~16% of CPU on Q24 of the CSV ClickBench profile. These tests lock
     // in the equivalence contract: any input the fast path accepts must produce the same epoch
@@ -3577,6 +3577,11 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024/05/12 14:30:45"));
         // Non-ASCII digit (full-width '1') in the year — must be rejected without throwing
         assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("\uFF12024-05-12 14:30:45"));
+        // Negative year — `-2024-05-12 14:30:45` is 20 chars and fails the length guard
+        // (19 or 23 only); `-999-05-12 14:30:45` is 19 chars but the leading '-' fails
+        // parseFixedDigits at offset 0. Either way, BCE-style dates route to Stage 3.
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("-2024-05-12 14:30:45"));
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("-999-05-12 14:30:45"));
     }
 
     public void testDatetimeFastPathInvalidIsoFallsThroughCleanly() throws IOException {

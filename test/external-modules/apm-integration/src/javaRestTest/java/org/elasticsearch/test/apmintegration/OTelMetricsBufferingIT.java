@@ -190,12 +190,4 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
         client().performRequest(new Request("GET", "/_flush_telemetry"));
         assertTrue("Timed out waiting for baseline metrics", baselineLatch.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS));
     }
-
-    private static boolean positiveLongSample(ReceivedTelemetry.ReceivedMetricSet metricSet, String metricName) {
-        return longSample(metricSet, metricName) > 0;
-    }
-
-    private static long longSample(ReceivedTelemetry.ReceivedMetricSet metricSet, String metricName) {
-        return metricSet.samples().get(metricName) instanceof ReceivedTelemetry.ValueSample(Number value) ? value.longValue() : 0L;
-    }
 }

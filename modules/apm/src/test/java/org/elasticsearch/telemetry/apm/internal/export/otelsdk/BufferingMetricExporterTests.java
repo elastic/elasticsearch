@@ -39,6 +39,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.not;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class BufferingMetricExporterTests extends ESTestCase {
@@ -115,6 +116,7 @@ public class BufferingMetricExporterTests extends ESTestCase {
         delegate.setShouldFail(false);
         exportAndWait("trigger");
         assertThat(counter("replays"), empty());
+        assertThat(delegate.exportedNames(), not(hasItem("expires")));
     }
 
     public void testShutdownDrainsDiskWhileDelegateIsHealthy() throws Exception {

@@ -100,6 +100,6 @@ public class DisableRebalanceDecider extends AllocationDecider {
 
     @Override
     public Decision canRebalance(ShardRouting shardRouting, RoutingAllocation allocation) {
-        return allocation.isSimulating() == false ? RECONCILIATION_BALANCING_ALLOWED : enablement.canRebalance(shardRouting);
+        return allocation.isSimulating() ? enablement.canRebalance(shardRouting) : RECONCILIATION_BALANCING_ALLOWED;
     }
 }

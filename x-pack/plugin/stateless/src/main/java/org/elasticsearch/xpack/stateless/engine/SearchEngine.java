@@ -207,20 +207,31 @@ public class SearchEngine extends Engine {
             );
 
             // Always reserve so the close listener can release a single Reservation regardless of whether the
-            // initial commit ends up tracked as an "open reader".
+            // initial commit ends up tracked as an "open reader". trackLocalOpenReader and registerReaderHeapRelease
+            // both attach close listeners and can throw before doing so (IllegalArgumentException from
+            // ElasticsearchDirectoryReader.addReaderCloseListener, AlreadyClosedException from the cache helper);
+            // if either throws, the no-break charge above must be reverted.
             final SegmentReservations.Reservation initialReservation = reserveAndChargeWithoutBreaking(
                 initialSegmentInfosAndCommit.segmentInfos()
             );
-            // do not consider the empty commit an open reader (no data to delete from object store)
-            if (primaryTerm.isPresent()) {
-                trackLocalOpenReader(
-                    directoryReader,
-                    initialCommit,
-                    initialReservation,
-                    initialSegmentInfosAndCommit.getBCCDependenciesForCommit()
-                );
+            boolean initialReservationOwned = false;
+            try {
+                // do not consider the empty commit an open reader (no data to delete from object store)
+                if (primaryTerm.isPresent()) {
+                    trackLocalOpenReader(
+                        directoryReader,
+                        initialCommit,
+                        initialReservation,
+                        initialSegmentInfosAndCommit.getBCCDependenciesForCommit()
+                    );
+                }
+                registerReaderHeapRelease(directoryReader, initialReservation);
+                initialReservationOwned = true;
+            } finally {
+                if (initialReservationOwned == false) {
+                    releaseReservationAndUncharge(initialReservation);
+                }
             }
-            registerReaderHeapRelease(directoryReader, initialReservation);
             readerManager = new ElasticsearchReaderManager(directoryReader) {
                 private SegmentInfosAndCommit previousSegmentInfosAndCommit;
 
@@ -260,25 +271,38 @@ public class SearchEngine extends Engine {
                             readerHeapBreaker.addWithoutBreaking(delta);
                         }
                     }
-                    final IndexCommit indexCommit = Lucene.getIndexCommit(nextInfos, directory);
-                    ElasticsearchDirectoryReader next = (ElasticsearchDirectoryReader) DirectoryReader.openIfChanged(
-                        referenceToRefresh,
-                        indexCommit
-                    );
-                    if (next == null) {
-                        long freed = reservation.release();
-                        if (freed > 0) {
-                            readerHeapBreaker.addWithoutBreaking(-freed);
+                    // After the charge, every throw site below (Lucene.getIndexCommit / openIfChanged IOException,
+                    // addReaderCloseListener IllegalArgumentException or AlreadyClosedException inside
+                    // addNextReader / registerReaderHeapRelease) must roll the ledger and breaker back. Ownership
+                    // transfers to a close listener only once registerReaderHeapRelease returns successfully (or,
+                    // for the no-changes branch, once we have explicitly released the reservation ourselves).
+                    boolean reservationOwned = false;
+                    try {
+                        final IndexCommit indexCommit = Lucene.getIndexCommit(nextInfos, directory);
+                        ElasticsearchDirectoryReader next = (ElasticsearchDirectoryReader) DirectoryReader.openIfChanged(
+                            referenceToRefresh,
+                            indexCommit
+                        );
+                        if (next == null) {
+                            releaseReservationAndUncharge(reservation);
+                            reservationOwned = true;
+                        } else {
+                            addNextReader(next, segmentInfosAndCommitCopy, indexCommit, reservation);
+                            reservationOwned = true;
+                            refreshDeferredPendingBytes.set(0L);
                         }
-                    } else {
-                        addNextReader(next, segmentInfosAndCommitCopy, indexCommit, reservation);
-                        registerReaderHeapRelease(next, reservation);
-                        refreshDeferredPendingBytes.set(0L);
+                        previousSegmentInfosAndCommit = segmentInfosAndCommitCopy;
+                        return next;
+                    } finally {
+                        if (reservationOwned == false) {
+                            releaseReservationAndUncharge(reservation);
+                        }
                     }
-                    previousSegmentInfosAndCommit = segmentInfosAndCommitCopy;
-                    return next;
                 }
 
+                // Installs both close listeners (openReaders cleanup + heap-release) under a single ownership
+                // flag so that if either install throws after the new reader has been opened, the reader is
+                // closed here. The reservation itself is released by the surrounding finally in refreshIfNeeded.
                 private void addNextReader(
                     ElasticsearchDirectoryReader next,
                     SegmentInfosAndCommit segmentInfosAndCommitCopy,
@@ -288,6 +312,7 @@ public class SearchEngine extends Engine {
                     boolean added = false;
                     try {
                         trackLocalOpenReader(next, first, reservation, segmentInfosAndCommitCopy.getBCCDependenciesForCommit());
+                        registerReaderHeapRelease(next, reservation);
                         added = true;
                     } finally {
                         if (added == false) {
@@ -341,7 +366,9 @@ public class SearchEngine extends Engine {
         }
     }
 
-    private void trackLocalOpenReader(
+    // Package-private (was private) so tests can override to inject an exception and verify the leak-plug
+    // try/finally at each call site releases the reservation and refunds the breaker.
+    void trackLocalOpenReader(
         ElasticsearchDirectoryReader directoryReader,
         IndexCommit commit,
         SegmentReservations.Reservation reservation,
@@ -369,11 +396,23 @@ public class SearchEngine extends Engine {
         return reservation;
     }
 
+    // Failure-path inverse of reserveAndChargeWithoutBreaking / refreshIfNeeded's charge step. Releases the ledger
+    // reservation and refunds the breaker by however many bytes the ledger actually freed. Reservation.release()
+    // is idempotent, so this is safe to call even if a close listener was later installed and may also fire.
+    private void releaseReservationAndUncharge(SegmentReservations.Reservation reservation) {
+        long freed = reservation.release();
+        if (freed > 0) {
+            readerHeapBreaker.addWithoutBreaking(-freed);
+        }
+    }
+
     // Capture only the Reservation handle (a short key set internally) for the close listener so the lambda does
     // not pin the full SegmentInfos / SegmentInfo graph for the lifetime of the reader. When the close actually
     // frees ledger bytes, kick a budget-released retry for any pending deferred refresh.
-    private void registerReaderHeapRelease(ElasticsearchDirectoryReader reader, SegmentReservations.Reservation reservation)
-        throws IOException {
+    //
+    // Package-private (was private) so tests can override to inject an exception and verify the leak-plug
+    // try/finally at each call site releases the reservation and refunds the breaker.
+    void registerReaderHeapRelease(ElasticsearchDirectoryReader reader, SegmentReservations.Reservation reservation) throws IOException {
         ElasticsearchDirectoryReader.addReaderCloseListener(reader, ignored -> {
             long released = reservation.release();
             if (released > 0) {
@@ -1503,10 +1542,20 @@ public class SearchEngine extends Engine {
                 }
                 // Account the PIT-relocated reader against the node's reader-heap budget so its segments
                 // participate in reservation tracking and metrics; uses the no-break path because relocation
-                // must always succeed.
+                // must always succeed. trackLocalOpenReader and registerReaderHeapRelease both attach close
+                // listeners and can throw before doing so; if either throws, the surrounding finally only closes
+                // the reader, which is not enough to release the ledger reservation here — we must do it ourselves.
                 final SegmentReservations.Reservation pitReservation = reserveAndChargeWithoutBreaking(segmentCommitInfos);
-                trackLocalOpenReader(relocatedPitReader, indexCommit, pitReservation, Collections.unmodifiableSet(bccDeps));
-                registerReaderHeapRelease(relocatedPitReader, pitReservation);
+                boolean pitReservationOwned = false;
+                try {
+                    trackLocalOpenReader(relocatedPitReader, indexCommit, pitReservation, Collections.unmodifiableSet(bccDeps));
+                    registerReaderHeapRelease(relocatedPitReader, pitReservation);
+                    pitReservationOwned = true;
+                } finally {
+                    if (pitReservationOwned == false) {
+                        releaseReservationAndUncharge(pitReservation);
+                    }
+                }
                 // Register the relocated PIT reader with relocatedPITReaderTracker so it is closed
                 // when the engine closes, even if the returned SearcherSupplier is never used (e.g.
                 // because the shard closes before the PIT context is registered with SearchService).

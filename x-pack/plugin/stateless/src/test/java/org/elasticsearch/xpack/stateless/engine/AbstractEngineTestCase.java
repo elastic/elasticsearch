@@ -596,6 +596,20 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT
             )
         );
+        return newSearchEngineSubclass(searchConfig, clusterSettings, nodeEnvironment);
+    }
+
+    /**
+     * Factory hook for the {@link SearchEngine} anonymous subclass returned by
+     * {@link #newSearchEngineFromIndexEngine(IndexEngine, DeterministicTaskQueue, BiConsumer, BiConsumer)}. Tests that
+     * need to inject behavior into the engine (e.g. making {@code registerReaderHeapRelease} throw to cover the
+     * reader-heap leak invariant) override this and return a further-overridden subclass.
+     */
+    protected SearchEngine newSearchEngineSubclass(
+        EngineConfig searchConfig,
+        ClusterSettings clusterSettings,
+        NodeEnvironment nodeEnvironment
+    ) {
         return new SearchEngine(
             searchConfig,
             new ClosedShardService(),

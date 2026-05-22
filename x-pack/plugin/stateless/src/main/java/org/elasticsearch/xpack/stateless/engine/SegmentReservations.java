@@ -54,7 +54,12 @@ public final class SegmentReservations {
     private final Map<SegmentKey, Entry> entries = new HashMap<>();
     private long totalBytes;
 
-    /** Bytes that would be newly reserved if {@code infos} were accepted now. Does not mutate state. */
+    /**
+     * Bytes that would be newly reserved if {@code infos} were accepted now. Does not mutate state.
+     *
+     * <p>{@code bytesFn} runs under this instance's monitor; it must be cheap (O(1), no I/O, no blocking).
+     * An expensive {@code bytesFn} would extend the time refresh and reader-close callbacks contend on this lock.
+     */
     public synchronized long predictDelta(SegmentInfos infos, ToLongFunction<SegmentCommitInfo> bytesFn) {
         long delta = 0L;
         for (SegmentCommitInfo sci : infos) {
@@ -68,6 +73,9 @@ public final class SegmentReservations {
     /**
      * Reserve bytes for the given segments and refcount-bump segments already tracked. Returns a {@link Reservation}
      * carrying the keys to release on reader close and the bytes newly charged against the ledger.
+     *
+     * <p>{@code bytesFn} runs under this instance's monitor; it must be cheap (O(1), no I/O, no blocking).
+     * An expensive {@code bytesFn} would extend the time refresh and reader-close callbacks contend on this lock.
      */
     public synchronized Reservation reserve(SegmentInfos infos, ToLongFunction<SegmentCommitInfo> bytesFn) {
         long delta = 0L;

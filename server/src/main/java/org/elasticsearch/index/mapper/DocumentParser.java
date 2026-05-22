@@ -483,7 +483,10 @@ public final class DocumentParser {
                 if (context.canAddIgnoredField()
                     && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
                         || sourceKeepMode == Mapper.SourceKeepMode.ALL
-                        || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope() && parsesArrayValue(mapper) == false)
+                        || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS
+                            && context.inArrayScope()
+                            && parsesArrayValue(mapper) == false
+                            && mapper.supportStoringArrayOffsets() == false)
                         || (context.isWithinCopyTo() == false && context.isCopyToDestinationField(mapper.fullPath())))) {
                     context = context.addIgnoredFieldFromContext(
                         IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null)
@@ -543,6 +546,7 @@ public final class DocumentParser {
 
     private static void parseObject(final DocumentParserContext context, String currentFieldName) throws IOException {
         assert currentFieldName != null;
+        var prev = context.getImmediateXContentParent();
         context.setImmediateXContentParent(context.parser().currentToken());
         Mapper objectMapper = context.getMapper(currentFieldName);
         if (objectMapper != null) {
@@ -550,6 +554,7 @@ public final class DocumentParser {
         } else {
             parseObjectDynamic(context, currentFieldName);
         }
+        context.setImmediateXContentParent(prev);
     }
 
     private static void doParseObject(DocumentParserContext context, String currentFieldName, Mapper objectMapper) throws IOException {

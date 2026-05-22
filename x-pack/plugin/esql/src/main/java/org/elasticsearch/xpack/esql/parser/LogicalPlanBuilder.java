@@ -425,14 +425,23 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
     @Override
     public LogicalPlan visitSubquery(EsqlBaseParser.SubqueryContext ctx) {
-        // build a subquery tree
-        EsqlBaseParser.FromCommandContext fromCtx = ctx.fromCommand();
-        LogicalPlan plan = visitFromCommand(fromCtx);
+        // build a subquery tree starting from its source command (FROM or ROW),
+        // then fold any trailing processing commands on top of it
+        LogicalPlan plan = visitSubquerySourceCommand(ctx.subquerySourceCommand());
         List<PlanFactory> processingCommands = visitList(this, ctx.processingCommand(), PlanFactory.class);
         for (PlanFactory processingCommand : processingCommands) {
             plan = processingCommand.apply(plan);
         }
         return plan;
+    }
+
+    @Override
+    public LogicalPlan visitSubquerySourceCommand(EsqlBaseParser.SubquerySourceCommandContext ctx) {
+        if (ctx.fromCommand() != null) {
+            return visitFromCommand(ctx.fromCommand());
+        } else {
+            return visitRowCommand(ctx.rowCommand());
+        }
     }
 
     @Override

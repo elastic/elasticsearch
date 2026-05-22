@@ -29,10 +29,13 @@ import java.util.Set;
  */
 public final class ApmIntakeMessageParser {
 
-    static final Set<String> IGNORED_EVENT_NAMES = Set.of("metadata", "error");
+    static final Set<String> IGNORED_EVENT_NAMES = Set.of("error");
 
     private static final Set<String> TRANSACTION_DECODED_KEYS = Set.of("name", "trace_id", "id", "parent_id");
     private static final Set<String> SPAN_DECODED_KEYS = Set.of("name", "trace_id", "id", "parent_id", "transaction_id");
+
+    /** Top-level {@code labels} map on metadata is flattened with a {@code labels.} prefix. */
+    private static final String LABELS_TOP_KEY = "labels";
 
     private ApmIntakeMessageParser() {}
 
@@ -54,8 +57,10 @@ public final class ApmIntakeMessageParser {
                 return Optional.of(parseTransaction(map));
             } else if (map.containsKey("span")) {
                 return Optional.of(parseSpan(map));
+            } else if (map.containsKey("metadata")) {
+                return Optional.of(parseMetadata(map));
             } else if (IGNORED_EVENT_NAMES.containsAll(map.keySet())) {
-                // All keys in the event are known-but-unneeded types (e.g. "metadata", "error") — skip silently.
+                // All keys in the event are known-but-unneeded types (e.g. "error") — skip silently.
                 return Optional.empty();
             } else {
                 throw new IOException("Unexpected event type: " + map.keySet());
@@ -119,6 +124,35 @@ public final class ApmIntakeMessageParser {
             throw new IOException("metric sample counts is not a list");
         }
         throw new IOException("metric sample has no value or counts");
+    }
+
+    /**
+     * Parse an APM intake {@code metadata} event into a {@link ReceivedTelemetry.ReceivedResource}.
+     * <p>
+     * Produces a flat map keyed by the APM intake's own dot-notation paths
+     * (e.g. {@code service.agent.name}, {@code system.platform}). Keys are passed through
+     * verbatim — no translation to OTel Semantic Convention names — so the cross-path contract
+     * locks the keys downstream consumers actually observe today, and any future exporter that
+     * drops one of those keys will fail the assertion. The {@code labels} sub-map is flattened
+     * with a {@code labels.} prefix (e.g. {@code labels.env=staging}).
+     */
+    @SuppressWarnings("unchecked")
+    private static ReceivedTelemetry parseMetadata(Map<String, Object> root) throws IOException {
+        Object metadataObj = root.get("metadata");
+        if ((metadataObj instanceof Map<?, ?>) == false) {
+            throw new IOException("metadata missing or not an object");
+        }
+        Map<String, Object> metadata = (Map<String, Object>) metadataObj;
+        // labels is conceptually a separate flat map; flatten with a labels. prefix.
+        // Mutating `metadata` is safe — the map was just deserialized and is local to this call.
+        Object labelsObj = metadata.remove(LABELS_TOP_KEY);
+        Map<String, Object> flat = new LinkedHashMap<>(flattenAttributes(metadata, Set.of()));
+        if (labelsObj instanceof Map<?, ?> labelsMap) {
+            for (Map.Entry<?, ?> entry : labelsMap.entrySet()) {
+                flattenInto(LABELS_TOP_KEY + "." + entry.getKey(), entry.getValue(), flat);
+            }
+        }
+        return new ReceivedTelemetry.ReceivedResource(flat);
     }
 
     @SuppressWarnings("unchecked")

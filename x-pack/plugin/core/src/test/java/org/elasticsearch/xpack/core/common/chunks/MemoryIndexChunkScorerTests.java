@@ -163,4 +163,19 @@ public class MemoryIndexChunkScorerTests extends ESTestCase {
         assertTrue(scorer.scoreChunks(null, query, 3, true).isEmpty());
     }
 
+    public void testOriginalIndexTracking() {
+        var scorer = new MemoryIndexChunkScorer();
+        List<ScoredChunk> results = scorer.scoreChunks(CHUNKS, "dogs play walk", 3, false);
+
+        assertThat(results.size(), equalTo(3));
+        assertThat(results.get(0).originalIndex(), equalTo(3));
+        assertThat(results.get(1).originalIndex(), equalTo(1));
+        assertThat(results.get(2).originalIndex(), equalTo(0));
+
+        for (ScoredChunk chunk : results) {
+            assertTrue(chunk.originalIndex() >= 0);
+            assertThat(chunk.content(), equalTo(CHUNKS.get(chunk.originalIndex())));
+        }
+    }
+
 }

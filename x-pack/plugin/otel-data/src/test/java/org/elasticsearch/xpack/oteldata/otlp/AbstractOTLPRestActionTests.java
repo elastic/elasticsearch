@@ -33,6 +33,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -104,6 +105,35 @@ public abstract class AbstractOTLPRestActionTests extends ESTestCase {
         }
     }
 
+    @SuppressWarnings("unchecked")
+    public void testMappingModeHeaderIsForwarded() {
+        var expectedResponse = createSuccessResponse();
+        client = new NoOpNodeClient(threadPool) {
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> actionType,
+                Request req,
+                ActionListener<Response> listener
+            ) {
+                assertThat(actionType, equalTo(actionType()));
+                assertThat(((OTLPActionRequest) req).getRequestMappingMode(), equalTo(MappingMode.BODYMAP));
+                listener.onResponse((Response) expectedResponse);
+            }
+        };
+        try (var response = execute(1024, 64, Map.of(MappingMode.HEADER, List.of("bodymap")))) {
+            assertThat(response.status(), equalTo(RestStatus.OK));
+            assertThat(response.content(), equalTo(expectedResponse.getResponse()));
+        }
+    }
+
+    public void testUnknownMappingModeHeaderIsRejected() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> execute(1024, 0, Map.of(MappingMode.HEADER, List.of("ecs")))
+        );
+        assertThat(e.getMessage(), equalTo("Unsupported mapping mode [ecs], expected one of [otel, bodymap]"));
+    }
+
     public void testEmptyBodyReturnsSuccess() throws Exception {
         try (var response = execute(1024, 0)) {
             assertThat(response.status(), equalTo(RestStatus.OK));
@@ -160,18 +190,33 @@ public abstract class AbstractOTLPRestActionTests extends ESTestCase {
     }
 
     protected RestResponse execute(IndexingPressure pressure, long maxSize, int bodySize) {
+        return execute(pressure, maxSize, bodySize, Map.of());
+    }
+
+    protected RestResponse execute(long maxSize, int bodySize, Map<String, List<String>> headers) {
+        return execute(indexingPressure, maxSize, bodySize, headers);
+    }
+
+    protected RestResponse execute(IndexingPressure pressure, long maxSize, int bodySize, Map<String, List<String>> extraHeaders) {
         var stream = new FakeHttpBodyStream();
         var action = createAction(pressure, maxSize);
-        var httpRequest = new FakeRestRequest.FakeHttpRequest(
-            RestRequest.Method.POST,
-            routePath(),
-            Map.of("Content-Type", List.of("application/x-protobuf")),
-            stream
-        );
+        var headers = new HashMap<String, List<String>>();
+        headers.put("Content-Type", List.of("application/x-protobuf"));
+        headers.putAll(extraHeaders);
+        var httpRequest = new FakeRestRequest.FakeHttpRequest(RestRequest.Method.POST, routePath(), headers, stream);
         var request = RestRequest.request(parserConfig(), httpRequest, new FakeRestRequest.FakeHttpChannel(null));
         var channel = new FakeRestChannel(request, true);
+        BaseRestHandler.RequestBodyChunkConsumer consumer;
         try {
-            var consumer = (BaseRestHandler.RequestBodyChunkConsumer) action.prepareRequest(request, client);
+            consumer = (BaseRestHandler.RequestBodyChunkConsumer) action.prepareRequest(request, client);
+        } catch (RuntimeException e) {
+            // RuntimeExceptions from prepareRequest (e.g. invalid headers) are surfaced to callers as 400 by the REST framework;
+            // let them propagate so tests can assert on them directly.
+            throw e;
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
+        try {
             stream.setHandler(new HttpBody.ChunkHandler() {
                 @Override
                 public void onNext(ReleasableBytesReference chunk, boolean last) {

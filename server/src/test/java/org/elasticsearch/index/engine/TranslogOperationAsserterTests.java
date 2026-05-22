@@ -66,8 +66,7 @@ public class TranslogOperationAsserterTests extends EngineTestCase {
             new IndexSettings(imd, Settings.EMPTY),
             config.getStore(),
             config.getTranslogConfig().getTranslogPath(),
-            config.getMergePolicy(),
-            null
+            config.getMergePolicy()
         );
     }
 

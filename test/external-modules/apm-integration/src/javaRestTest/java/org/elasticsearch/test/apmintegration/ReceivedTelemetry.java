@@ -58,6 +58,22 @@ public sealed interface ReceivedTelemetry {
     }
 
     /**
+     * Protocol-neutral representation of the resource (telemetry source) that emitted spans.
+     * Populated from the APM intake {@code metadata} NDJSON event (service/agent/system/process/labels)
+     * and from {@code ExportTraceServiceRequest.resource_spans[].resource} on the OTLP path.
+     * <p>
+     * Attribute keys are passed through verbatim from each protocol — no translation. The
+     * cross-path contract therefore asserts on the keys downstream consumers actually observe,
+     * so an exporter that drops a legacy APM key (or fails to emit an OTel-side counterpart)
+     * fails the assertion rather than being silently normalised away.
+     */
+    record ReceivedResource(Map<String, Object> attributes) implements ReceivedTelemetry {
+        public ReceivedResource {
+            attributes = Map.copyOf(requireNonNull(attributes));
+        }
+    }
+
+    /**
      * Value of a single metric sample: either a scalar or histogram counts.
      */
     sealed interface ReceivedMetricValue {}

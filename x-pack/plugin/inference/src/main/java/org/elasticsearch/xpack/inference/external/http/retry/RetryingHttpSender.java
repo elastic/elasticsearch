@@ -24,7 +24,7 @@ import org.elasticsearch.xpack.inference.common.SizeLimitInputStream;
 import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
 import java.io.IOException;
@@ -94,7 +94,7 @@ public class RetryingHttpSender implements RequestSender {
     }
 
     private class InternalRetrier extends RetryableAction<InferenceServiceResults> {
-        private Request request;
+        private OutboundRequest outboundRequest;
         private final ResponseHandler responseHandler;
         private final Logger logger;
         private final HttpClientContext context;
@@ -103,7 +103,7 @@ public class RetryingHttpSender implements RequestSender {
 
         InternalRetrier(
             Logger logger,
-            Request request,
+            OutboundRequest outboundRequest,
             HttpClientContext context,
             Supplier<Boolean> hasRequestCompletedFunction,
             ResponseHandler responseHandler,
@@ -119,7 +119,7 @@ public class RetryingHttpSender implements RequestSender {
                 executor
             );
             this.logger = logger;
-            this.request = Objects.requireNonNull(request);
+            this.outboundRequest = Objects.requireNonNull(outboundRequest);
             this.context = Objects.requireNonNull(context);
             this.responseHandler = Objects.requireNonNull(responseHandler);
             this.hasRequestCompletedFunction = Objects.requireNonNull(hasRequestCompletedFunction);
@@ -133,7 +133,7 @@ public class RetryingHttpSender implements RequestSender {
             if (hasRequestCompletedFunction.get()) {
                 // TimedListener will drop this, just being safe to avoid a hanging listener
                 listener.onFailure(
-                    new ElasticsearchStatusException(timeoutString(request.getInferenceEntityId()), RestStatus.GATEWAY_TIMEOUT)
+                    new ElasticsearchStatusException(timeoutString(outboundRequest.getInferenceEntityId()), RestStatus.GATEWAY_TIMEOUT)
                 );
                 return;
             }
@@ -144,9 +144,15 @@ public class RetryingHttpSender implements RequestSender {
                 if (exceptionToUse instanceof SenderException senderException) {
                     exceptionToUse = senderException.getOriginalException();
 
-                    logResponseException(logger, request, senderException.getResult(), responseHandler.getRequestType(), exceptionToUse);
+                    logResponseException(
+                        logger,
+                        outboundRequest,
+                        senderException.getResult(),
+                        responseHandler.getRequestType(),
+                        exceptionToUse
+                    );
                 } else {
-                    logRequestException(logger, request, responseHandler.getRequestType(), exceptionToUse);
+                    logRequestException(logger, outboundRequest, responseHandler.getRequestType(), exceptionToUse);
                 }
 
                 /*
@@ -158,19 +164,19 @@ public class RetryingHttpSender implements RequestSender {
                 l.onFailure(transformIfRetryable(exceptionToUse));
             });
 
-            SubscribableListener.<HttpRequest>newForked(createHttpRequestListener -> request.createHttpRequest(createHttpRequestListener))
-                .<InferenceServiceResults>andThen((inferenceServiceResultsActionListener, httpRequest) -> {
-                    if (hasRequestCompletedFunction.get()) {
-                        // TimedListener will drop this, just being safe to avoid a hanging listener
-                        inferenceServiceResultsActionListener.onFailure(
-                            new ElasticsearchStatusException(timeoutString(request.getInferenceEntityId()), RestStatus.GATEWAY_TIMEOUT)
-                        );
-                        return;
-                    }
+            SubscribableListener.<HttpRequest>newForked(
+                createHttpRequestListener -> outboundRequest.createHttpRequest(createHttpRequestListener)
+            ).<InferenceServiceResults>andThen((inferenceServiceResultsActionListener, httpRequest) -> {
+                if (hasRequestCompletedFunction.get()) {
+                    // TimedListener will drop this, just being safe to avoid a hanging listener
+                    inferenceServiceResultsActionListener.onFailure(
+                        new ElasticsearchStatusException(timeoutString(outboundRequest.getInferenceEntityId()), RestStatus.GATEWAY_TIMEOUT)
+                    );
+                    return;
+                }
 
-                    sendRequest(httpRequest, inferenceServiceResultsActionListener);
-                })
-                .addListener(failureListener);
+                sendRequest(httpRequest, inferenceServiceResultsActionListener);
+            }).addListener(failureListener);
         }
 
         private static String timeoutString(String inferenceId) {
@@ -178,10 +184,10 @@ public class RetryingHttpSender implements RequestSender {
         }
 
         private void sendRequest(HttpRequest httpRequest, ActionListener<InferenceServiceResults> listener) throws IOException {
-            if (request.isStreaming() && responseHandler.canHandleStreamingResponses()) {
+            if (outboundRequest.isStreaming() && responseHandler.canHandleStreamingResponses()) {
                 httpClient.stream(httpRequest, context, listener.delegateFailureAndWrap((l, r) -> {
                     if (r.isSuccessfulResponse()) {
-                        l.onResponse(responseHandler.parseResult(request, r.toHttpResult()));
+                        l.onResponse(responseHandler.parseResult(outboundRequest, r.toHttpResult()));
                     } else {
                         r.readFullResponse(
                             l.delegateFailureAndWrap(
@@ -203,8 +209,8 @@ public class RetryingHttpSender implements RequestSender {
 
         private void validateAndParseInferenceResults(HttpResult httpResult, ActionListener<InferenceServiceResults> listener) {
             try {
-                responseHandler.validateResponse(throttlerManager, logger, request, httpResult);
-                InferenceServiceResults inferenceResults = responseHandler.parseResult(request, httpResult);
+                responseHandler.validateResponse(throttlerManager, logger, outboundRequest, httpResult);
+                InferenceServiceResults inferenceResults = responseHandler.parseResult(outboundRequest, httpResult);
 
                 listener.onResponse(inferenceResults);
             } catch (Exception e) {
@@ -222,7 +228,7 @@ public class RetryingHttpSender implements RequestSender {
         private Exception transformIfRetryable(Exception e) {
             if (e instanceof UnknownHostException) {
                 return new ElasticsearchStatusException(
-                    format("Invalid host [%s], please check that the URL is correct.", request.getURI()),
+                    format("Invalid host [%s], please check that the URL is correct.", outboundRequest.getURI()),
                     RestStatus.BAD_REQUEST,
                     e
                 );
@@ -242,7 +248,7 @@ public class RetryingHttpSender implements RequestSender {
             }
 
             if (e instanceof Retryable retry) {
-                request = retry.rebuildRequest(request);
+                outboundRequest = retry.rebuildRequest(outboundRequest);
                 return retry.shouldRetry();
             }
 
@@ -253,14 +259,14 @@ public class RetryingHttpSender implements RequestSender {
     @Override
     public void send(
         Logger logger,
-        Request request,
+        OutboundRequest outboundRequest,
         Supplier<Boolean> hasRequestTimedOutFunction,
         ResponseHandler responseHandler,
         ActionListener<InferenceServiceResults> listener
     ) {
         var retrier = new InternalRetrier(
             logger,
-            request,
+            outboundRequest,
             HttpClientContext.create(),
             hasRequestTimedOutFunction,
             responseHandler,
@@ -271,13 +277,13 @@ public class RetryingHttpSender implements RequestSender {
 
     private void logResponseException(
         Logger logger,
-        Request request,
+        OutboundRequest outboundRequest,
         @Nullable HttpResult result,
         String requestType,
         Exception exception
     ) {
         if (result == null) {
-            logRequestException(logger, request, requestType, exception);
+            logRequestException(logger, outboundRequest, requestType, exception);
             return;
         }
 
@@ -287,7 +293,7 @@ public class RetryingHttpSender implements RequestSender {
             logger,
             format(
                 "Failed to process the response for request from inference entity id [%s] of type [%s] with status [%s] [%s]",
-                request.getInferenceEntityId(),
+                outboundRequest.getInferenceEntityId(),
                 requestType,
                 result.response().getStatusLine().getStatusCode(),
                 result.response().getStatusLine().getReasonPhrase()
@@ -296,12 +302,16 @@ public class RetryingHttpSender implements RequestSender {
         );
     }
 
-    private void logRequestException(Logger logger, Request request, String requestType, Exception exception) {
+    private void logRequestException(Logger logger, OutboundRequest outboundRequest, String requestType, Exception exception) {
         var causeException = ExceptionsHelper.unwrapCause(exception);
 
         throttlerManager.warn(
             logger,
-            format("Failed while sending request from inference entity id [%s] of type [%s]", request.getInferenceEntityId(), requestType),
+            format(
+                "Failed while sending request from inference entity id [%s] of type [%s]",
+                outboundRequest.getInferenceEntityId(),
+                requestType
+            ),
             causeException
         );
     }

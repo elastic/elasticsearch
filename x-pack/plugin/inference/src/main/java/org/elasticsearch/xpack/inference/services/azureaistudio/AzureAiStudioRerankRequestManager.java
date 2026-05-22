@@ -44,11 +44,11 @@ public class AzureAiStudioRerankRequestManager extends AzureAiStudioRequestManag
         Supplier<Boolean> hasRequestRerankFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
+        var rerankInput = inferenceInputs.castTo(QueryAndDocsInputs.class);
         AzureAiStudioRerankRequest request = new AzureAiStudioRerankRequest(
             model,
-            rerankInput.getQuery(),
-            rerankInput.getChunks(),
+            rerankInput.getQueryAsString(),
+            rerankInput.getDocsAsStrings(),
             rerankInput.getReturnDocuments(),
             rerankInput.getTopN()
         );

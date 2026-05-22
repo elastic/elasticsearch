@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -107,7 +108,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
     public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
         try {
             acquirePermit();
-        } catch (IOException e) {
+        } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
@@ -129,7 +130,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
     public void readBytesAsync(long position, ByteBuffer target, Executor executor, ActionListener<Integer> listener) {
         try {
             acquirePermit();
-        } catch (IOException e) {
+        } catch (Exception e) {
             listener.onFailure(e);
             return;
         }
@@ -152,14 +153,14 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         return delegate.supportsNativeAsync();
     }
 
-    private void acquirePermit() throws IOException {
+    private void acquirePermit() {
         try {
             limiter.acquire();
         } catch (TimeoutException e) {
-            throw new IOException("Failed to acquire concurrency permit for cloud API call", e);
+            throw new EsRejectedExecutionException("Failed to acquire concurrency permit for cloud API call: " + e.getMessage());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IOException("Interrupted while waiting for concurrency permit", e);
+            throw new EsRejectedExecutionException("Interrupted while waiting for concurrency permit: " + e);
         }
     }
 

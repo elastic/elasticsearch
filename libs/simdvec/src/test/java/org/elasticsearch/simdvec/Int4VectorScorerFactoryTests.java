@@ -72,11 +72,6 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     static final byte MIN_INT4_VALUE = 0;
     static final byte MAX_INT4_VALUE = 0x0F;
 
-    // Tests that the provider instance is present or not on expected platforms/architectures
-    public void testSupport() {
-        supported();
-    }
-
     public void testSimple() throws IOException {
         testSimpleImpl(MMapDirectory.DEFAULT_MAX_CHUNK_SIZE);
     }
@@ -88,8 +83,6 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     void testSimpleImpl(long maxChunkSize) throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testSimpleImpl"), maxChunkSize)) {
             var scalarQuantizer = scalarQuantizer(similarityType.function());
@@ -148,21 +141,18 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testRandomMMap() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMMap"))) {
             testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT4_FUNC);
         }
     }
 
     public void testRandomNIO() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testRandomNIO"))) {
             testRandomSupplier(dir, BYTE_ARRAY_RANDOM_INT4_FUNC);
         }
     }
 
     public void testRandomMaxChunkSizeSmall() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         long maxChunkSize = randomLongBetween(32, 128);
         logger.info("maxChunkSize=" + maxChunkSize);
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMaxChunkSizeSmall"), maxChunkSize)) {
@@ -171,21 +161,18 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testRandomMax() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMax"))) {
             testRandomSupplier(dir, BYTE_ARRAY_MAX_INT4_FUNC);
         }
     }
 
     public void testRandomMin() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testRandomMin"))) {
             testRandomSupplier(dir, BYTE_ARRAY_MIN_INT4_FUNC);
         }
     }
 
     void testRandomSupplier(Directory dir, IntFunction<byte[]> packedByteArraySupplier) throws IOException {
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = randomIntBetween(1, 2048) * 2;
         final int size = randomIntBetween(2, 100);
@@ -265,8 +252,6 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     void testRandomScorerImpl(Directory dir, IntFunction<float[]> floatArraySupplier) throws IOException {
         assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         var scalarQuantizer = scalarQuantizer(similarityType.function());
         var encoding = Lucene104ScalarQuantizedVectorsFormat.ScalarEncoding.PACKED_NIBBLE;
@@ -323,13 +308,11 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testRandomSlice() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         testRandomSliceImpl(30, 64, 1, BYTE_ARRAY_RANDOM_INT4_FUNC);
     }
 
     void testRandomSliceImpl(int dims, long maxChunkSize, int initialPadding, IntFunction<byte[]> packedByteArraySupplier)
         throws IOException {
-        var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testRandomSliceImpl"), maxChunkSize)) {
             for (int times = 0; times < TIMES; times++) {
@@ -381,8 +364,6 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     @Nightly
     public void testLarge() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testLarge"))) {
             final int dims = 8192;
@@ -425,8 +406,6 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testDatasetGreaterThanChunkSize() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         try (Directory dir = new MMapDirectory(createTempDir("testDatasetGreaterThanChunkSize"), 8192)) {
             final int dims = 1024;
@@ -471,21 +450,18 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testBulkMMap() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testBulkMMap"))) {
             testBulkImpl(dir);
         }
     }
 
     public void testBulkNIO() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testBulkNIO"))) {
             testBulkImpl(dir);
         }
     }
 
     void testBulkImpl(Directory dir) throws IOException {
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = 1024;
         final int size = randomIntBetween(1, 102);
@@ -533,8 +509,6 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testBulkWithDatasetGreaterThanChunkSize() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = 1024;
         final int size = 128;
@@ -585,7 +559,6 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     public void testBulkScorerMMap() throws IOException {
         assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new MMapDirectory(createTempDir("testBulkScorerMMap"))) {
             testBulkScorerImpl(dir);
         }
@@ -593,14 +566,12 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
 
     public void testBulkScorerNIO() throws IOException {
         assumeTrue("scorer only supported on JDK 22+", SUPPORTS_HEAP_SEGMENTS);
-        assumeTrue(notSupportedMsg(), supported());
         try (Directory dir = new NIOFSDirectory(createTempDir("testBulkScorerNIO"))) {
             testBulkScorerImpl(dir);
         }
     }
 
     void testBulkScorerImpl(Directory dir) throws IOException {
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = 1024;
         final int size = randomIntBetween(2, 100);
@@ -656,8 +627,6 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testScorerSupplierSequentialOrdinals() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = 128;
         final int size = 10;
@@ -700,8 +669,6 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testInvalidOrdinal() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = 32;
         final int size = 2;
@@ -743,8 +710,6 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testScoreBeforeSetOrdinal() throws IOException {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         final int dims = 32;
         final int size = 2;
@@ -768,8 +733,6 @@ public class Int4VectorScorerFactoryTests extends AbstractVectorTestCase {
     }
 
     public void testRace() throws Exception {
-        assumeTrue(notSupportedMsg(), supported());
-        var factory = AbstractVectorTestCase.factory.get();
 
         final long maxChunkSize = 32;
         final int dims = 34;

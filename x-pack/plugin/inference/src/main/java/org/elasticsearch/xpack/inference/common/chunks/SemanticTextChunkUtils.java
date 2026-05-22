@@ -63,8 +63,13 @@ public class SemanticTextChunkUtils {
     public static String extractContent(OffsetAndScore offsetAndScore, DocumentField docFieldContent) {
         String content = null;
         if (docFieldContent != null && docFieldContent.getValues().size() > 0) {
+            var offset = offsetAndScore.offset();
+            if (offset.inputIndex() != null) {
+                // TODO: support input index-based content extraction for highlighting/scoring.
+                throw new UnsupportedOperationException("Content extraction for input index-based chunks is not supported yet");
+            }
             String fullContent = docFieldContent.getValue().toString();
-            content = fullContent.substring(offsetAndScore.offset().start(), offsetAndScore.offset().end());
+            content = fullContent.substring(offset.start(), offset.end());
         }
         return content;
     }
@@ -135,7 +140,7 @@ public class SemanticTextChunkUtils {
         int index = 0;
         while (scorer.docID() < docId) {
             if (offsetReader != null) {
-                var offset = offsetReader.advanceTo(scorer.docID());
+                var offset = offsetReader.advanceTo(scorer.docID(), context.indexVersionCreated());
                 if (offset == null) {
                     throw new IllegalStateException(
                         "Cannot highlight field [" + fieldType.name() + "], missing offsets for doc [" + docId + "]"

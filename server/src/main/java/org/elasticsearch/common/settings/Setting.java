@@ -174,10 +174,9 @@ public class Setting<T> implements ToXContentObject {
         IndexSettingDeprecatedInV9AndRemovedInV10,
 
         /**
-         * Indicates that this setting is accessible by non-operator users (public) in serverless
+         * Indicates that this index-level setting is accessible by non-operator users (public) in serverless.
          * Users will be allowed to set and see values of this setting.
-         * All other settings will be rejected when used on a PUT request
-         * and filtered out on a GET
+         * All other settings will be rejected when used on a PUT request and filtered out on a GET.
          */
         ServerlessPublic,
 
@@ -243,6 +242,7 @@ public class Setting<T> implements ToXContentObject {
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV7AndRemovedInV8);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV8AndRemovedInV9);
             checkPropertyRequiresIndexScope(propertiesAsSet, Property.IndexSettingDeprecatedInV9AndRemovedInV10);
+            checkPropertyRequiresIndexScope(propertiesAsSet, Property.ServerlessPublic);
             checkPropertyRequiresNodeScope(propertiesAsSet);
             this.properties = propertiesAsSet;
         }

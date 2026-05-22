@@ -102,7 +102,7 @@ public class TextEmbeddingQueryVectorBuilder implements QueryVectorBuilder {
     public void buildVector(Client client, ActionListener<float[]> listener) {
 
         if (modelId == null) {
-            throw new IllegalArgumentException("[model_id] must not be null.");
+            throw new IllegalArgumentException("[model_id] must be specified");
         }
 
         CoordinatedInferenceAction.Request inferRequest = CoordinatedInferenceAction.Request.forTextInput(

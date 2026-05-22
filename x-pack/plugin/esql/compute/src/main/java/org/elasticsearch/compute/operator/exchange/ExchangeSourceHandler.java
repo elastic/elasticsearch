@@ -212,7 +212,7 @@ public final class ExchangeSourceHandler {
                         } else {
                             future.listener().addListener(ActionListener.wrap(unused -> {
                                 if (loopControl.tryResume() == false) {
-                                    fetchPage();
+                                    fetchExecutor.execute(this::fetchPage);
                                 }
                             }, this::onSinkFailed));
                         }

@@ -46,12 +46,14 @@ import static org.hamcrest.Matchers.containsString;
 public class DLMFrozenTransitionExecutorTests extends ESTestCase {
     private ThreadPool threadPool;
     private ClusterService clusterService;
+    private DLMFrozenTransitionSettings transitionSettings;
 
     @Before
     public void setup() throws Exception {
         super.setUp();
         this.threadPool = new TestThreadPool("test-dlm-frozen-transition-executor");
         this.clusterService = ClusterServiceUtils.createClusterService(threadPool);
+        this.transitionSettings = DLMFrozenTransitionSettings.create(clusterService);
     }
 
     @After
@@ -66,7 +68,7 @@ public class DLMFrozenTransitionExecutorTests extends ESTestCase {
     }
 
     public void testTransitionSubmitted() throws Exception {
-        try (var executor = new DLMFrozenTransitionExecutor(clusterService, 2, 10, Settings.EMPTY, makeErrorStore())) {
+        try (var executor = new DLMFrozenTransitionExecutor(clusterService, 2, 10, Settings.EMPTY, transitionSettings, makeErrorStore())) {
             var task = new TestDLMFrozenTransitionRunnable("running-index");
             task.blockUntil = new CountDownLatch(1);
 
@@ -83,7 +85,7 @@ public class DLMFrozenTransitionExecutorTests extends ESTestCase {
     }
 
     public void testTransitionRemovedAfterCompletion() throws Exception {
-        try (var executor = new DLMFrozenTransitionExecutor(clusterService, 2, 100, Settings.EMPTY, makeErrorStore())) {
+        try (var executor = new DLMFrozenTransitionExecutor(clusterService, 2, 100, Settings.EMPTY, transitionSettings, makeErrorStore())) {
             var task = new TestDLMFrozenTransitionRunnable("done-index");
 
             executor.submit(task).get(10, TimeUnit.SECONDS);
@@ -94,7 +96,7 @@ public class DLMFrozenTransitionExecutorTests extends ESTestCase {
 
     public void testTransitionRemovedAfterFailure() throws Exception {
         var errorStore = makeErrorStore();
-        try (var executor = new DLMFrozenTransitionExecutor(clusterService, 2, 100, Settings.EMPTY, errorStore)) {
+        try (var executor = new DLMFrozenTransitionExecutor(clusterService, 2, 100, Settings.EMPTY, transitionSettings, errorStore)) {
             var runtimeTask = new TestDLMFrozenTransitionRunnable("exception-index");
             runtimeTask.throwOnRun = new IllegalStateException("simulated failure");
             executor.submit(runtimeTask).get(10, TimeUnit.SECONDS);
@@ -108,7 +110,7 @@ public class DLMFrozenTransitionExecutorTests extends ESTestCase {
     public void testIndexUnmarkedAfterUnrecoverableFailure() throws Exception {
         var errorStore = makeErrorStore();
         String indexName = "exception-index";
-        try (var executor = new DLMFrozenTransitionExecutor(clusterService, 2, 100, Settings.EMPTY, errorStore)) {
+        try (var executor = new DLMFrozenTransitionExecutor(clusterService, 2, 100, Settings.EMPTY, transitionSettings, errorStore)) {
             ClusterServiceUtils.setState(
                 clusterService,
                 ClusterState.builder(ClusterState.EMPTY_STATE)
@@ -157,7 +159,16 @@ public class DLMFrozenTransitionExecutorTests extends ESTestCase {
 
     public void testHasCapacity() throws Exception {
         int maxQueue = randomIntBetween(2, 50);
-        try (var executor = new DLMFrozenTransitionExecutor(clusterService, 1, maxQueue, Settings.EMPTY, makeErrorStore())) {
+        try (
+            var executor = new DLMFrozenTransitionExecutor(
+                clusterService,
+                1,
+                maxQueue,
+                Settings.EMPTY,
+                transitionSettings,
+                makeErrorStore()
+            )
+        ) {
             CountDownLatch tasksStarted = new CountDownLatch(1);
             CountDownLatch firstTaskBlock = new CountDownLatch(1);
             CountDownLatch taskBlock = new CountDownLatch(1);
@@ -187,7 +198,7 @@ public class DLMFrozenTransitionExecutorTests extends ESTestCase {
     }
 
     public void testShutdownNow() throws Exception {
-        var executor = new DLMFrozenTransitionExecutor(clusterService, 1, 10, Settings.EMPTY, makeErrorStore());
+        var executor = new DLMFrozenTransitionExecutor(clusterService, 1, 10, Settings.EMPTY, transitionSettings, makeErrorStore());
         var task = new TestDLMFrozenTransitionRunnable("block-index");
         task.blockUntil = new CountDownLatch(1);
 
@@ -206,7 +217,7 @@ public class DLMFrozenTransitionExecutorTests extends ESTestCase {
      * This is the invariant that {@code checkForFrozenIndices} relies on to prevent re-submission of queued tasks.
      */
     public void testTransitionSubmittedReturnsTrueForQueuedTask() throws Exception {
-        try (var executor = new DLMFrozenTransitionExecutor(clusterService, 1, 2, Settings.EMPTY, makeErrorStore())) {
+        try (var executor = new DLMFrozenTransitionExecutor(clusterService, 1, 2, Settings.EMPTY, transitionSettings, makeErrorStore())) {
             CountDownLatch firstStarted = new CountDownLatch(1);
             CountDownLatch block = new CountDownLatch(1);
 
@@ -232,7 +243,7 @@ public class DLMFrozenTransitionExecutorTests extends ESTestCase {
      * must remove the index from {@code submittedTransitions} before rethrowing, so that a future poll can retry.
      */
     public void testSubmitCleansUpEntryOnRejectedExecution() throws Exception {
-        var executor = new DLMFrozenTransitionExecutor(clusterService, 1, 1, Settings.EMPTY, makeErrorStore());
+        var executor = new DLMFrozenTransitionExecutor(clusterService, 1, 1, Settings.EMPTY, transitionSettings, makeErrorStore());
         try {
             CountDownLatch block = new CountDownLatch(1);
             CountDownLatch firstStarted = new CountDownLatch(1);
@@ -265,7 +276,7 @@ public class DLMFrozenTransitionExecutorTests extends ESTestCase {
      * and had not yet started, not only the currently-executing task.
      */
     public void testShutdownNowReturnsQueuedTasks() throws Exception {
-        var executor = new DLMFrozenTransitionExecutor(clusterService, 1, 5, Settings.EMPTY, makeErrorStore());
+        var executor = new DLMFrozenTransitionExecutor(clusterService, 1, 5, Settings.EMPTY, transitionSettings, makeErrorStore());
         CountDownLatch block = new CountDownLatch(1);
         CountDownLatch firstStarted = new CountDownLatch(1);
 
@@ -301,7 +312,16 @@ public class DLMFrozenTransitionExecutorTests extends ESTestCase {
      */
     public void testSimultaneousSubmissionsFromMultipleThreads() throws Exception {
         int maxConcurrency = between(2, 50);
-        try (var executor = new DLMFrozenTransitionExecutor(clusterService, maxConcurrency, 1, Settings.EMPTY, makeErrorStore())) {
+        try (
+            var executor = new DLMFrozenTransitionExecutor(
+                clusterService,
+                maxConcurrency,
+                1,
+                Settings.EMPTY,
+                transitionSettings,
+                makeErrorStore()
+            )
+        ) {
             CyclicBarrier barrier = new CyclicBarrier(maxConcurrency + 1);
             List<Future<?>> futures = new CopyOnWriteArrayList<>();
             List<Throwable> errors = new CopyOnWriteArrayList<>();

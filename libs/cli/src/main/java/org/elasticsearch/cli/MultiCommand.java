@@ -14,6 +14,7 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.util.KeyValuePair;
 
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.core.IOUtils;
 
 import java.io.IOException;

@@ -72,6 +72,7 @@ public abstract class AbstractOTLPRestAction extends BaseRestHandler {
 
     @Override
     protected final RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+        final MappingMode requestMappingMode = MappingMode.parse(request.header(MappingMode.HEADER));
         return new IndexingPressureAwareContentAggregator(
             request,
             indexingPressure,
@@ -88,7 +89,7 @@ public abstract class AbstractOTLPRestAction extends BaseRestHandler {
                         channel.sendResponse(new RestResponse(RestStatus.OK, CONTENT_TYPE_PROTOBUF, emptyResponse));
                         return;
                     }
-                    var transportRequest = new OTLPActionRequest(content);
+                    var transportRequest = new OTLPActionRequest(content, requestMappingMode);
                     var release = Releasables.wrap(content, indexingPressureRelease);
                     client.execute(
                         type,

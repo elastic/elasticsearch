@@ -7,6 +7,11 @@
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.esql-release'
+
+subprojects {
+  apply plugin: 'elasticsearch.esql-release'
+}
 
 versions << [
   'hadoop' : '3.4.3',
@@ -30,6 +35,10 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
+  // Shared Panama FFI zstd helper (PanamaZstd) and bundled compression libraries. Provided
+  // at runtime via the esql-datasource-compression-libs parent plugin classloader chain
+  // declared by extendedPlugins.
+  compileOnly project(':x-pack:plugin:esql-datasource-compression-libs')
 
   // Parquet format support - using parquet-hadoop-bundle to avoid jar hell from duplicate shaded classes
   implementation("org.apache.parquet:parquet-hadoop-bundle:${versions.parquet}")
@@ -55,6 +64,11 @@ dependencies {
 
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
+}
+
+tasks.named("test").configure {
+  // Needed for Arrow's direct memory access (UnsafeAllocationManager)
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
 }
 
 tasks.named("dependencyLicenses").configure {

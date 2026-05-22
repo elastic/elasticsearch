@@ -79,21 +79,44 @@ public final class FirstExponentialHistogramByTimestampGroupingAggregatorFunctio
       state.enableGroupIdTracking(seenGroupIds);
       return null;
     }
-    maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock);
+    LongVector timestampVector = timestampBlock.asVector();
+    if (timestampVector == null) {
+      maybeEnableGroupIdTracking(seenGroupIds, valueBlock, timestampBlock);
+      return new GroupingAggregatorFunction.AddInput() {
+        @Override
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
+        }
+
+        @Override
+        public void add(int positionOffset, IntVector groupIds) {
+          addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
+        }
+
+        @Override
+        public void close() {
+        }
+      };
+    }
     return new GroupingAggregatorFunction.AddInput() {
       @Override
       public void add(int positionOffset, IntArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
+        addRawInput(positionOffset, groupIds, valueBlock, timestampVector);
       }
 
       @Override
       public void add(int positionOffset, IntBigArrayBlock groupIds) {
-        addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
+        addRawInput(positionOffset, groupIds, valueBlock, timestampVector);
       }
 
       @Override
       public void add(int positionOffset, IntVector groupIds) {
-        addRawInput(positionOffset, groupIds, valueBlock, timestampBlock);
+        addRawInput(positionOffset, groupIds, valueBlock, timestampVector);
       }
 
       @Override
@@ -130,6 +153,29 @@ public final class FirstExponentialHistogramByTimestampGroupingAggregatorFunctio
             long timestampValue = timestampBlock.getLong(timestampOffset);
             FirstExponentialHistogramByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
           }
+        }
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntArrayBlock groups,
+      ExponentialHistogramBlock valueBlock, LongVector timestampVector) {
+    ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+        int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+        for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+          ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
+          FirstExponentialHistogramByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
         }
       }
     }
@@ -230,6 +276,29 @@ public final class FirstExponentialHistogramByTimestampGroupingAggregatorFunctio
     }
   }
 
+  private void addRawInput(int positionOffset, IntBigArrayBlock groups,
+      ExponentialHistogramBlock valueBlock, LongVector timestampVector) {
+    ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      if (groups.isNull(groupPosition)) {
+        continue;
+      }
+      int valuesPosition = groupPosition + positionOffset;
+      int groupStart = groups.getFirstValueIndex(groupPosition);
+      int groupEnd = groupStart + groups.getValueCount(groupPosition);
+      for (int g = groupStart; g < groupEnd; g++) {
+        int groupId = groups.getInt(g);
+        long timestampValue = timestampVector.getLong(valuesPosition);
+        int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+        int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+        for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+          ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
+          FirstExponentialHistogramByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
+        }
+      }
+    }
+  }
+
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
@@ -314,6 +383,22 @@ public final class FirstExponentialHistogramByTimestampGroupingAggregatorFunctio
           long timestampValue = timestampBlock.getLong(timestampOffset);
           FirstExponentialHistogramByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
         }
+      }
+    }
+  }
+
+  private void addRawInput(int positionOffset, IntVector groups,
+      ExponentialHistogramBlock valueBlock, LongVector timestampVector) {
+    ExponentialHistogramScratch valueScratch = new ExponentialHistogramScratch();
+    for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
+      int valuesPosition = groupPosition + positionOffset;
+      int groupId = groups.getInt(groupPosition);
+      long timestampValue = timestampVector.getLong(valuesPosition);
+      int valueStart = valueBlock.getFirstValueIndex(valuesPosition);
+      int valueEnd = valueStart + valueBlock.getValueCount(valuesPosition);
+      for (int valueOffset = valueStart; valueOffset < valueEnd; valueOffset++) {
+        ExponentialHistogram valueValue = valueBlock.getExponentialHistogram(valueOffset, valueScratch);
+        FirstExponentialHistogramByTimestampAggregator.combine(state, groupId, valueValue, timestampValue);
       }
     }
   }

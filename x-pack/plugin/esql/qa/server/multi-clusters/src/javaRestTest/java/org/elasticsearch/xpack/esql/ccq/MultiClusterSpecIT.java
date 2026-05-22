@@ -68,6 +68,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.TS_INFO_C
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.UNMAPPED_FIELDS;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_BRANCHING;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.VIEWS_WITH_NO_BRANCHING;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.doesntHaveCapabilities;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.hasCapabilities;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -81,7 +82,6 @@ import static org.mockito.Mockito.when;
  */
 @ThreadLeakFilters(filters = TestClustersThreadFilter.class)
 public class MultiClusterSpecIT extends EsqlSpecTestCase {
-
     private static final Path CSV_DATA_PATH = CsvTestUtils.createCsvDataDirectory();
 
     static ElasticsearchCluster remoteCluster = Clusters.remoteCluster(CSV_DATA_PATH, LOGGING_CLUSTER_SETTINGS);
@@ -170,6 +170,11 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         }
         // Check all capabilities on the local cluster first.
         super.shouldSkipTest(testName);
+
+        assumeTrue(
+            "Remote cluster must not support " + testCase.missingCapabilitiesRemoteCluster + " for test " + testName,
+            doesntHaveCapabilities(remoteClusterClient(), testCase.missingCapabilitiesRemoteCluster)
+        );
 
         // Filter out capabilities that are required only on the local cluster and then check the remaining on the remote cluster.
         List<String> remoteCapabilities = testCase.requiredCapabilities.stream()

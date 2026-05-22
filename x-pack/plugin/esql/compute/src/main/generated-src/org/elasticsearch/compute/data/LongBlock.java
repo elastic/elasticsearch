@@ -125,6 +125,12 @@ public sealed interface LongBlock extends Block permits LongArrayBlock, LongVect
     @Override
     LongBlock expand();
 
+    /**
+     * The maximum size in bytes of any single value stored in this block, or {@code 0} if there are no values.
+     * Always {@code Long.BYTES} since all long values encode to the same number of bytes.
+     */
+    int valueMaxByteSize();
+
     static LongBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {

@@ -144,22 +144,28 @@ public class EvalQueryQualityTests extends ESTestCase {
         // - everything under `hits` (we test lenient SearchHit parsing elsewhere)
         Predicate<String> pathsToExclude = path -> path.isEmpty() || path.endsWith("metric_details") || path.contains("hits");
         BytesReference withRandomFields = insertRandomFields(xContentType, originalBytes, pathsToExclude, random());
-        EvalQueryQuality parsedItem;
-        try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
-            String queryId = parser.currentName();
-            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-            parsedItem = parseInstance(parser, queryId);
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
-            ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
-            assertNull(parser.nextToken());
+        EvalQueryQuality parsedItem = null;
+        try {
+            try (XContentParser parser = createParser(xContentType.xContent(), withRandomFields)) {
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.nextToken(), parser);
+                String queryId = parser.currentName();
+                ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
+                parsedItem = parseInstance(parser, queryId);
+                ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.currentToken(), parser);
+                ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
+                assertNull(parser.nextToken());
+            }
+            assertNotSame(testItem, parsedItem);
+            // we cannot check equality of object here because some information (e.g. SearchHit#shard) cannot fully be
+            // parsed back after going through the rest layer. That's why we only check that the original and the parsed item
+            // have the same xContent representation
+            assertToXContentEquivalent(originalBytes, toXContent(parsedItem, xContentType, humanReadable), xContentType);
+        } finally {
+            if (parsedItem != null) {
+                parsedItem.getHitsAndRatings().forEach(rsh -> rsh.getSearchHit().decRef());
+            }
         }
-        assertNotSame(testItem, parsedItem);
-        // we cannot check equality of object here because some information (e.g. SearchHit#shard) cannot fully be
-        // parsed back after going through the rest layer. That's why we only check that the original and the parsed item
-        // have the same xContent representation
-        assertToXContentEquivalent(originalBytes, toXContent(parsedItem, xContentType, humanReadable), xContentType);
     }
 
     /**

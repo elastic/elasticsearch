@@ -108,7 +108,7 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             internalCluster().clusterService(),
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -139,7 +139,7 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             internalCluster().clusterService(),
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -174,7 +174,7 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             internalCluster().clusterService(),
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -204,7 +204,7 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -225,7 +225,7 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             clusterService,
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -279,7 +279,7 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
                 Metadata.DEFAULT_PROJECT_ID,
                 client(),
                 internalCluster().clusterService(),
-                licenseState,
+                () -> licenseState,
                 Clock.systemUTC()
             );
 
@@ -307,7 +307,7 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             internalCluster().clusterService(),
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 
@@ -343,7 +343,7 @@ public class DLMConvertToFrozenMarkReadOnlyIT extends ESIntegTestCase {
             Metadata.DEFAULT_PROJECT_ID,
             client(),
             internalCluster().clusterService(),
-            licenseState,
+            () -> licenseState,
             Clock.systemUTC()
         );
 

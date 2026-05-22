@@ -24,6 +24,28 @@ decay_result:double
 0.75
 ;
 
+intLinearMixedNumericTypes1
+required_capability: decay_function_parameter_conversion
+
+ROW value = 5
+| EVAL decay_result = decay(value, 10::double, 10::long, {"offset": 0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+intLinearMixedNumericTypes2
+required_capability: decay_function_unsigned_long
+
+ROW value = 5
+| EVAL decay_result = decay(value, 10::unsigned_long, 10::long, {"offset": 0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
 intExp
 required_capability: decay_function
 
@@ -177,6 +199,28 @@ decay_result:double
 0.75
 ;
 
+doubleLinearMixedNumericTypes1
+required_capability: decay_function_parameter_conversion
+
+ROW value = 5.0
+| EVAL decay_result = decay(value, 10.0::int, 10.0::long, {"offset": 0.0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+doubleLinearMixedNumericTypes2
+required_capability: decay_function_unsigned_long
+
+ROW value = 5.0
+| EVAL decay_result = decay(value, 10.0::int, 10.0::unsigned_long, {"offset": 0.0, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
 doubleExp
 required_capability: decay_function
 
@@ -221,6 +265,28 @@ decay_result:double
 1.0
 ;
 
+longLinearMixedNumericTypes1
+required_capability: decay_function_unsigned_long
+
+ROW value = 15::long
+| EVAL decay_result = decay(value, 10::int, 10::unsigned_long, {"offset": 10000000000, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+longLinearMixedNumericTypes2
+required_capability: decay_function_unsigned_long
+
+ROW value = 15::unsigned_long
+| EVAL decay_result = decay(value, 10::double, 10::int, {"offset": 10000000000, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
 longOffsetAsDouble
 required_capability: decay_function_parameter_conversion
 
@@ -230,6 +296,72 @@ ROW value = 15::long
 
 decay_result:double
 0.75
+;
+
+unsignedLongLinear
+required_capability: decay_function_unsigned_long
+
+ROW value = 15::unsigned_long
+| EVAL decay_result = decay(value, 10::unsigned_long, 10::unsigned_long, {"offset": 0, "decay": 0.5, "type": "linear"})
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+unsignedLongMixedNumericParameters
+required_capability: decay_function_unsigned_long
+
+ROW value = 15::unsigned_long
+| EVAL decay_result = decay(value, 10, 10, {"offset": 0, "decay": 0.5, "type": "linear"})
+| KEEP decay_result;
+
+decay_result:double
+0.75
+;
+
+unsignedLongLinearMaxOffset
+required_capability: decay_function_unsigned_long
+
+ROW value = 15::unsigned_long
+| EVAL decay_result = decay(value, 10::unsigned_long, 10::unsigned_long, {"offset": 18446744073709551615, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+unsignedLongLinearMixedNumericTypes1
+required_capability: decay_function_unsigned_long
+
+ROW value = 15::unsigned_long
+| EVAL decay_result = decay(value, 10::long, 10::integer, {"offset": 18446744073709551615, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+unsignedLongLinearMixedNumericTypes2
+required_capability: decay_function_unsigned_long
+
+ROW value = 15::unsigned_long
+| EVAL decay_result = decay(value, 10::double, 10::integer, {"offset": 18446744073709551615, "decay": 0.5, "type": "linear"}) 
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+longLinearUnsignedLongOriginAbovePrecision
+required_capability: decay_function_unsigned_long
+
+ROW value = 9007199254740993::long
+| EVAL decay_result = decay(value, 9007199254740993::unsigned_long, 10::long, {"offset": 0, "decay": 0.5, "type": "linear"})
+| KEEP decay_result;
+
+decay_result:double
+1.0
 ;
 
 cartesianPointLinear1
@@ -275,6 +407,39 @@ ROW value = TO_GEOPOINT("POINT(0 0)")
 
 decay_result:double
 0.606876005579706
+;
+
+geoPointLinearSameOriginAndValue
+required_capability: decay_geo_point_origin_lat_lon_fix
+
+ROW value = TO_GEOPOINT("POINT(20 50)")
+| EVAL decay_result = decay(value, TO_GEOPOINT("POINT(20 50)"), "200km", {"offset": "0km", "decay": 0.5, "type": "linear"})
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+geoPointExpSameOriginAndValue
+required_capability: decay_geo_point_origin_lat_lon_fix
+
+ROW value = TO_GEOPOINT("POINT(20 50)")
+| EVAL decay_result = decay(value, TO_GEOPOINT("POINT(20 50)"), "200km", {"offset": "0km", "decay": 0.5, "type": "exp"})
+| KEEP decay_result;
+
+decay_result:double
+1.0
+;
+
+geoPointGaussSameOriginAndValue
+required_capability: decay_geo_point_origin_lat_lon_fix
+
+ROW value = TO_GEOPOINT("POINT(20 50)")
+| EVAL decay_result = decay(value, TO_GEOPOINT("POINT(20 50)"), "200km", {"offset": "0km", "decay": 0.5, "type": "gauss"})
+| KEEP decay_result;
+
+decay_result:double
+1.0
 ;
 
 datetimeLinear1

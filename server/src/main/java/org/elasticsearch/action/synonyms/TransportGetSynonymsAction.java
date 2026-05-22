@@ -38,11 +38,22 @@ public class TransportGetSynonymsAction extends HandledTransportAction<GetSynony
 
     @Override
     protected void doExecute(Task task, GetSynonymsAction.Request request, ActionListener<GetSynonymsAction.Response> listener) {
-        synonymsManagementAPIService.getSynonymSetRules(
-            request.synonymsSetId(),
-            request.from(),
-            request.size(),
-            listener.map(GetSynonymsAction.Response::new)
-        );
+        if (request.from() > 0) {
+            // Legacy offset-based pagination
+            synonymsManagementAPIService.getSynonymSetRules(
+                request.synonymsSetId(),
+                request.from(),
+                request.size(),
+                listener.map(GetSynonymsAction.Response::new)
+            );
+        } else {
+            // Cursor-based pagination; searchAfter is null on the first page
+            synonymsManagementAPIService.getSynonymSetRulesPage(
+                request.synonymsSetId(),
+                request.size(),
+                request.searchAfter(),
+                listener.map(GetSynonymsAction.Response::new)
+            );
+        }
     }
 }

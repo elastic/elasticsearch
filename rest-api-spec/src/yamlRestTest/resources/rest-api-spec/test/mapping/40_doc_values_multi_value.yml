@@ -1,8 +1,8 @@
 ---
-"multi_value=no is enforced per document not per segment":
+"multi_value=false is enforced per document not per segment":
   - requires:
-      cluster_features: ["mapper.doc_values.multi_value"]
-      reason: "multi_value doc values parameter support"
+      cluster_features: ["mapper.doc_values.multi_value_rename"]
+      reason: "multi_value doc values parameter uses boolean wire-format"
 
   - do:
       indices.create:
@@ -15,7 +15,7 @@
               kw:
                 type: keyword
                 doc_values:
-                  multi_value: "no"
+                  multi_value: false
 
   - do:
       index:
@@ -45,10 +45,10 @@
   - match: { hits.total.value: 2 }
 
 ---
-"multi_value=no mapping serialization roundtrip":
+"multi_value=false mapping serialization roundtrip":
   - requires:
-      cluster_features: ["mapper.doc_values.multi_value"]
-      reason: "multi_value doc values parameter support"
+      cluster_features: ["mapper.doc_values.multi_value_rename"]
+      reason: "multi_value doc values parameter uses boolean wire-format"
 
   - do:
       indices.create:
@@ -61,19 +61,19 @@
               kw:
                 type: keyword
                 doc_values:
-                  multi_value: "no"
+                  multi_value: false
 
   - do:
       indices.get_mapping:
         index: test_roundtrip
 
-  - match: { test_roundtrip.mappings.properties.kw.doc_values.multi_value: "no" }
+  - match: { test_roundtrip.mappings.properties.kw.doc_values.multi_value: false }
 
 ---
-"multi_value=no on multi-field sub rejects parent array":
+"multi_value=false on multi-field sub rejects parent array":
   - requires:
-      cluster_features: ["mapper.doc_values.multi_value_enforcement"]
-      reason: "multi_value=no enforcement on indexing"
+      cluster_features: ["mapper.doc_values.multi_value_rename"]
+      reason: "multi_value=false enforcement on indexing"
 
   - do:
       indices.create:
@@ -89,7 +89,7 @@
                   child:
                     type: keyword
                     doc_values:
-                      multi_value: "no"
+                      multi_value: false
 
   # The first value is accepted by both the parent and child fields.
   - do:
@@ -102,7 +102,7 @@
 
   # The second value is rejected by the child field.
   - do:
-      catch: /configured with \[multi_value=no\] but encountered multiple values in the same document/
+      catch: /configured with \[multi_value=false\] but encountered multiple values in the same document/
       index:
         index: test_multifield_sub
         id: "2"
@@ -111,10 +111,10 @@
           parent: ["a", "b"]
 
 ---
-"multi_value=no on multi-field parent rejects parent array":
+"multi_value=false on multi-field parent rejects parent array":
   - requires:
-      cluster_features: ["mapper.doc_values.multi_value_enforcement"]
-      reason: "multi_value=no enforcement on indexing"
+      cluster_features: ["mapper.doc_values.multi_value_rename"]
+      reason: "multi_value=false enforcement on indexing"
 
   - do:
       indices.create:
@@ -127,14 +127,14 @@
               parent:
                 type: keyword
                 doc_values:
-                  multi_value: "no"
+                  multi_value: false
                 fields:
                   child:
                     type: keyword
 
   # The second value is rejected by the parent field.
   - do:
-      catch: /configured with \[multi_value=no\] but encountered multiple values in the same document/
+      catch: /configured with \[multi_value=false\] but encountered multiple values in the same document/
       index:
         index: test_multifield_parent
         id: "1"

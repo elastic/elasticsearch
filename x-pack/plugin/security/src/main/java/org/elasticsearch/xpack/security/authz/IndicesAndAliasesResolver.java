@@ -72,20 +72,17 @@ class IndicesAndAliasesResolver {
     private final IndexAbstractionResolver indexAbstractionResolver;
     private final RemoteClusterResolver remoteClusterResolver;
     private final CrossProjectModeDecider crossProjectModeDecider;
-    private final ProjectRoutingResolver crossProjectRoutingResolver;
 
     IndicesAndAliasesResolver(
         Settings settings,
         LinkedProjectConfigService linkedProjectConfigService,
         IndexNameExpressionResolver resolver,
-        CrossProjectModeDecider crossProjectModeDecider,
-        ProjectRoutingResolver crossProjectRoutingResolver
+        CrossProjectModeDecider crossProjectModeDecider
     ) {
         this.nameExpressionResolver = resolver;
         this.indexAbstractionResolver = new IndexAbstractionResolver(resolver);
         this.remoteClusterResolver = new RemoteClusterResolver(settings, linkedProjectConfigService);
         this.crossProjectModeDecider = crossProjectModeDecider;
-        this.crossProjectRoutingResolver = crossProjectRoutingResolver;
     }
 
     /**
@@ -131,7 +128,7 @@ class IndicesAndAliasesResolver {
         TransportRequest request,
         ProjectMetadata projectMetadata,
         AuthorizationEngine.AuthorizedIndices authorizedIndices,
-        TargetProjects authorizedProjects
+        TargetProjects targetProjects
     ) {
         if (request instanceof IndicesAliasesRequest indicesAliasesRequest) {
             ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
@@ -147,7 +144,7 @@ class IndicesAndAliasesResolver {
         if (request instanceof IndicesRequest == false) {
             throw new IllegalStateException("Request [" + request + "] is not an Indices request, but should be.");
         }
-        return resolveIndicesAndAliases(action, (IndicesRequest) request, projectMetadata, authorizedIndices, authorizedProjects);
+        return resolveIndicesAndAliases(action, (IndicesRequest) request, projectMetadata, authorizedIndices, targetProjects);
     }
 
     /**
@@ -155,7 +152,7 @@ class IndicesAndAliasesResolver {
      * @return The {@link ResolvedIndices} or null if wildcard expansion must be performed.
      */
     @Nullable
-    ResolvedIndices tryResolveWithoutWildcards(String action, TransportRequest transportRequest, TargetProjects authorizedProjects) {
+    ResolvedIndices tryResolveWithoutWildcards(String action, TransportRequest transportRequest, TargetProjects targetProjects) {
         // We only take care of IndicesRequest
         if (false == transportRequest instanceof IndicesRequest) {
             return null;
@@ -165,7 +162,7 @@ class IndicesAndAliasesResolver {
             return null;
         }
         // It's safe to cast IndicesRequest since the above test guarantees it
-        return resolveIndicesAndAliasesWithoutWildcards(action, indicesRequest, authorizedProjects);
+        return resolveIndicesAndAliasesWithoutWildcards(action, indicesRequest, targetProjects);
     }
 
     boolean resolvesCrossProject(TransportRequest request) {
@@ -189,11 +186,7 @@ class IndicesAndAliasesResolver {
         return resolveIndicesAndAliasesWithoutWildcards(action, indicesRequest, TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED);
     }
 
-    ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(
-        String action,
-        IndicesRequest indicesRequest,
-        TargetProjects authorizedProjects
-    ) {
+    ResolvedIndices resolveIndicesAndAliasesWithoutWildcards(String action, IndicesRequest indicesRequest, TargetProjects targetProjects) {
         assert false == requiresWildcardExpansion(indicesRequest) : "request must not require wildcard expansion";
         final String[] indices = indicesRequest.indices();
         if (indices == null || indices.length == 0) {
@@ -221,7 +214,7 @@ class IndicesAndAliasesResolver {
             assert indices.length == 1 : "SingleIndexNoWildcards request must have exactly one index";
 
             if (crossProjectModeDecider.resolvesCrossProject(single)) {
-                split = remoteClusterResolver.determineLocalOrRemoteIndexCrossProject(authorizedProjects, indices[0]);
+                split = remoteClusterResolver.determineLocalOrRemoteIndexCrossProject(targetProjects, indices[0]);
                 if (split.getLocal().isEmpty() == false) {
                     single.markOriginOnly();
                 }
@@ -327,7 +320,7 @@ class IndicesAndAliasesResolver {
         IndicesRequest indicesRequest,
         ProjectMetadata projectMetadata,
         AuthorizationEngine.AuthorizedIndices authorizedIndices,
-        TargetProjects authorizedProjects
+        TargetProjects targetProjects
     ) {
         final ResolvedIndices.Builder resolvedIndicesBuilder = new ResolvedIndices.Builder();
         boolean indicesReplacedWithNoIndices = false;
@@ -401,19 +394,14 @@ class IndicesAndAliasesResolver {
                     boolean shouldExcludeLocalResolution = false;
                     Set<String> remoteIndices = Collections.emptySet();
                     if (crossProjectModeDecider.resolvesCrossProject(replaceable)) {
-                        final var resolvedProjects = crossProjectRoutingResolver.resolve(
-                            replaceable.getProjectRouting(),
-                            projectMetadata,
-                            authorizedProjects
-                        );
                         final var rewritten = CrossProjectIndexExpressionsRewriter.rewriteIndexExpression(
                             indexExpression,
-                            resolvedProjects.originProjectAlias(),
-                            resolvedProjects.allProjectAliases(),
+                            targetProjects.originProjectAlias(),
+                            targetProjects.allProjectAliases(),
                             replaceable.getProjectRouting()
                         );
                         remoteIndices = rewritten.remoteExpressions();
-                        if (resolvedProjects.originProject() == null || rewritten.localExpression() == null) {
+                        if (targetProjects.originProject() == null || rewritten.localExpression() == null) {
                             shouldExcludeLocalResolution = true;
                         }
                     }
@@ -437,15 +425,10 @@ class IndicesAndAliasesResolver {
                     resolvedIndicesBuilder.addRemote(resolved.getRemoteIndicesList());
                 } else {
                     if (crossProjectModeDecider.resolvesCrossProject(replaceable)) {
-                        final var resolvedProjects = crossProjectRoutingResolver.resolve(
-                            replaceable.getProjectRouting(),
-                            projectMetadata,
-                            authorizedProjects
-                        );
                         CrossProjectIndexExpressionsRewriter.validateIndexExpressionWithoutRewrite(
                             indexExpression,
-                            resolvedProjects.originProjectAlias(),
-                            resolvedProjects.allProjectAliases(),
+                            targetProjects.originProjectAlias(),
+                            targetProjects.allProjectAliases(),
                             replaceable.getProjectRouting()
                         );
                     }
@@ -463,14 +446,8 @@ class IndicesAndAliasesResolver {
                     // a none expression should not go through cross-project resolution -- fall back to local resolution logic
                     && false == IndexNameExpressionResolver.isNoneExpression(replaceable.indices())) {
                     assert replaceable.allowsRemoteIndices() : "cross-project request [" + indicesRequest + "] must allow remote indices";
-                    assert authorizedProjects != TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED
-                        : "resolving cross-project request but authorized project is local only";
-
-                    final var resolvedProjects = crossProjectRoutingResolver.resolve(
-                        replaceable.getProjectRouting(),
-                        projectMetadata,
-                        authorizedProjects
-                    );
+                    assert targetProjects != TargetProjects.LOCAL_ONLY_FOR_CPS_DISABLED
+                        : "resolving cross-project request but target projects is local only";
 
                     final ResolvedIndexExpressions resolved = indexAbstractionResolver.resolveIndexAbstractions(
                         Arrays.asList(replaceable.indices()),
@@ -478,7 +455,7 @@ class IndicesAndAliasesResolver {
                         projectMetadata,
                         authorizedIndices::all,
                         authorizedIndices::check,
-                        resolvedProjects,
+                        targetProjects,
                         indicesRequest.includeDataStreams(),
                         replaceable.getProjectRouting()
                     );
@@ -531,7 +508,7 @@ class IndicesAndAliasesResolver {
             // That's why an assertion error is triggered here so that we can catch the erroneous usage in testing.
             // But we still delegate in production to avoid our (potential) programing error becoming an end-user problem.
             assert false : "Request [" + indicesRequest + "] is not a replaceable request, but should be.";
-            return resolveIndicesAndAliasesWithoutWildcards(action, indicesRequest, authorizedProjects);
+            return resolveIndicesAndAliasesWithoutWildcards(action, indicesRequest, targetProjects);
         }
 
         if (indicesRequest instanceof AliasesRequest aliasesRequest) {

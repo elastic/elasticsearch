@@ -51,7 +51,8 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
     }
 
     @TestIssueLogging(
-        value = "org.elasticsearch.repositories.azure:TRACE,org.elasticsearch.http:TRACE,reactor.netty.http.client:DEBUG",
+        value = "org.elasticsearch.repositories.azure:TRACE,org.elasticsearch.http:TRACE,"
+            + "fixture.azure.AzureHttpHandler:TRACE,reactor.netty.http.client:DEBUG",
         issueUrl = "https://github.com/elastic/elasticsearch/issues/145281"
     )
     public void testRetriesAndOperationsAreTrackedSeparately() throws IOException {

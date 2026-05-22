@@ -345,3 +345,20 @@ FROM employees
 n:null | parts.domain:keyword | parts.fragment:keyword | parts.path:keyword | parts.extension:keyword | parts.port:integer | parts.query:keyword | parts.scheme:keyword | parts.user_info:keyword | parts.username:keyword | parts.password:keyword
   null | null                 | null                   | null               | null                    | null               | null                | null                 | null                    | null                   | null 
 ;
+
+
+sortBeforeUriPartsAndStats
+required_capability: uri_parts_command
+required_capability: fix_compound_output_eval_sort_agnostic
+
+ROW a = 1, name_str = "a b"
+| RENAME a AS id_int
+| SORT id_int
+| MV_EXPAND name_str
+| URI_PARTS p = "https://www.example.com/foo"
+| STATS c = count(*) BY p.domain
+;
+
+c:long | p.domain:keyword
+1      | www.example.com
+;

@@ -137,7 +137,8 @@
 
   - match: { hits.total: 1 }
   - length: { hits.hits: 1 }
-  - length: { profile: 1 }
+  - exists: "profile"
+  - exists: "profile.shards"
 
 ---
 "Test with new response format":

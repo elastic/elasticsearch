@@ -12,6 +12,7 @@ package org.elasticsearch;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.RoutingMissingException;
+import org.elasticsearch.action.SliceMissingException;
 import org.elasticsearch.action.search.ReduceSearchPhaseException;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
@@ -898,6 +899,32 @@ public class ElasticsearchExceptionTests extends ESTestCase {
         );
         assertThat(cause.getBodyHeaderKeys(), hasSize(0));
         assertThat(cause.getMetadataKeys(), hasSize(2));
+        assertThat(cause.getMetadata("es.index"), hasItem("_test"));
+        assertThat(cause.getMetadata("es.index_uuid"), hasItem("_na_"));
+    }
+
+    public void testFromXContentWithSliceMissingCause() throws IOException {
+        ElasticsearchException e = new ElasticsearchException("foo", new SliceMissingException("_test", "_id"));
+
+        final XContent xContent = randomFrom(XContentType.values()).xContent();
+        XContentBuilder builder = XContentBuilder.builder(xContent).startObject().value(e).endObject();
+        builder = shuffleXContent(builder);
+
+        ElasticsearchException parsed;
+        try (XContentParser parser = createParser(builder)) {
+            assertEquals(XContentParser.Token.START_OBJECT, parser.nextToken());
+            parsed = ElasticsearchException.fromXContent(parser);
+            assertEquals(XContentParser.Token.END_OBJECT, parser.currentToken());
+            assertNull(parser.nextToken());
+        }
+
+        assertNotNull(parsed);
+        assertEquals(parsed.getMessage(), "Elasticsearch exception [type=exception, reason=foo]");
+        ElasticsearchException cause = (ElasticsearchException) parsed.getCause();
+        assertEquals(
+            cause.getMessage(),
+            "Elasticsearch exception [type=slice_missing_exception, reason=_slice is required for [_test]/[_id]]"
+        );
         assertThat(cause.getMetadata("es.index"), hasItem("_test"));
         assertThat(cause.getMetadata("es.index_uuid"), hasItem("_na_"));
     }

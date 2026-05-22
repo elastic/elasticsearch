@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
+import org.apache.http.HttpHeaders;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
@@ -91,7 +92,8 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
         String projectId,
         String modelId,
         String uri,
-        String serviceAccountJson
+        String serviceAccountJson,
+        String authHeaderValue
     ) {
         return new GoogleVertexAiEmbeddingsModel(
             "id",
@@ -100,7 +102,8 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
             uri,
             new GoogleVertexAiEmbeddingsServiceSettings(location, projectId, modelId, false, null, null, null, null, null),
             new GoogleVertexAiEmbeddingsTaskSettings(Boolean.FALSE, null),
-            new GoogleVertexAiSecretSettings(new SecureString(serviceAccountJson.toCharArray()))
+            new GoogleVertexAiSecretSettings(new SecureString(serviceAccountJson.toCharArray())),
+            (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, authHeaderValue)
         );
     }
 

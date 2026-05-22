@@ -14,7 +14,7 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.bulk.BulkItemResponse.Failure;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
-import org.elasticsearch.index.reindex.BulkByScrollTask.Status;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask.Status;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.xcontent.ObjectParser;
@@ -49,7 +49,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
             new ParseField(BulkByScrollResponse.FAILURES_FIELD)
         );
         // since the result of BulkByScrollResponse.Status are mixed we also parse that in this
-        BulkByScrollTaskStatusTests.declareFields(PARSER);
+        BulkByPaginatedSearchTaskStatusTests.declareFields(PARSER);
     }
 
     private static Object parseFailure(XContentParser parser) throws IOException {
@@ -138,7 +138,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
         boolean includeCreated
     ) {
         assertEquals(expected.getTook(), actual.getTook());
-        BulkByScrollTaskStatusTests.assertEqualStatus(expected.getStatus(), actual.getStatus(), includeUpdated, includeCreated);
+        BulkByPaginatedSearchTaskStatusTests.assertEqualStatus(expected.getStatus(), actual.getStatus(), includeUpdated, includeCreated);
         assertEquals(expected.getBulkFailures().size(), actual.getBulkFailures().size());
         for (int i = 0; i < expected.getBulkFailures().size(); i++) {
             Failure expectedFailure = expected.getBulkFailures().get(i);
@@ -168,7 +168,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
         if (testExceptions) {
             return new BulkByScrollResponse(
                 timeValueMillis(randomNonNegativeLong()),
-                BulkByScrollTaskStatusTests.randomStatus(),
+                BulkByPaginatedSearchTaskStatusTests.randomStatus(),
                 randomIndexingFailures(),
                 randomSearchFailures(),
                 randomBoolean()
@@ -176,7 +176,7 @@ public class BulkByScrollResponseTests extends AbstractXContentTestCase<BulkBySc
         } else {
             return new BulkByScrollResponse(
                 timeValueMillis(randomNonNegativeLong()),
-                BulkByScrollTaskStatusTests.randomStatusWithoutException(),
+                BulkByPaginatedSearchTaskStatusTests.randomStatusWithoutException(),
                 emptyList(),
                 emptyList(),
                 randomBoolean()

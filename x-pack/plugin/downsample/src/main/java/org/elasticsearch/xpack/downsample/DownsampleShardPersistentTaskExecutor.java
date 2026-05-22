@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
@@ -55,17 +54,17 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.stream.Collectors;
 
 public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecutor<DownsampleShardTaskParams> {
     private static final Logger LOGGER = LogManager.getLogger(DownsampleShardPersistentTaskExecutor.class);
     private final Client client;
-    private final boolean isStateless;
 
-    public DownsampleShardPersistentTaskExecutor(final Client client, final String taskName, Settings settings, final Executor executor) {
+    public DownsampleShardPersistentTaskExecutor(final Client client, final String taskName, final Executor executor) {
         super(taskName, executor);
         this.client = Objects.requireNonNull(client);
-        this.isStateless = DiscoveryNode.isStateless(settings);
     }
 
     @Override
@@ -139,6 +138,9 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         final ClusterState clusterState,
         @Nullable final ProjectId projectId
     ) {
+        if (candidateNodes.isEmpty()) {
+            return NO_NODE_FOUND;
+        }
         // NOTE: downsampling works by running a task per each shard of the source index.
         // Here we make sure we assign the task to the actual node holding the shard identified by
         // the downsampling task shard id.
@@ -154,34 +156,31 @@ public class DownsampleShardPersistentTaskExecutor extends PersistentTasksExecut
         }
 
         // We find the nodes that hold the eligible shards.
-        // If the current node of such a shard is a candidate node, then we assign the task there.
-        // This code is inefficient, but we are relying on the laziness of the intermediate operations
-        // and the assumption that the first shard we examine has high chances of being assigned to a candidate node.
-        return indexShardRouting.activeShards()
+        Set<String> shardNodes = indexShardRouting.activeShards()
             .stream()
             .filter(this::isEligible)
             .map(ShardRouting::currentNodeId)
-            .filter(nodeId -> isCandidateNode(candidateNodes, nodeId))
-            .findAny()
-            .map(nodeId -> new PersistentTasksCustomMetadata.Assignment(nodeId, "downsampling using node holding shard [" + shardId + "]"))
-            .orElse(NO_NODE_FOUND);
+            .collect(Collectors.toSet());
+        if (shardNodes.isEmpty()) {
+            return NO_NODE_FOUND;
+        }
+        // Considering the downsampling task is a long-running operation,
+        // we try to distribute it among the available nodes as much as possible
+        DiscoveryNode selectedNode = selectLeastLoadedNode(
+            clusterState,
+            candidateNodes,
+            candidate -> shardNodes.contains(candidate.getId())
+        );
+        return selectedNode == null
+            ? NO_NODE_FOUND
+            : new PersistentTasksCustomMetadata.Assignment(selectedNode.getId(), "downsampling using node holding shard [" + shardId + "]");
     }
 
     /**
      * Only shards that can be searched can be used as the source of a downsampling task.
-     * For simplicity, in non-stateless deployments we use the primary shard.
      */
     private boolean isEligible(ShardRouting shardRouting) {
-        return shardRouting.started() && (isStateless ? shardRouting.isSearchable() : shardRouting.primary());
-    }
-
-    private boolean isCandidateNode(Collection<DiscoveryNode> candidateNodes, String nodeId) {
-        for (DiscoveryNode candidateNode : candidateNodes) {
-            if (candidateNode.getId().equals(nodeId)) {
-                return true;
-            }
-        }
-        return false;
+        return shardRouting.started() && shardRouting.isSearchable();
     }
 
     @Override

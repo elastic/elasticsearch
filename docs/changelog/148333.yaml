@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148333
+summary: Ordinal fast path for `BytesRefTopNBlockHash`
+type: enhancement

@@ -46,6 +46,9 @@ public class DlsFlsFeatureTrackingIndicesAccessControlWrapperTests extends ESTes
         String dlsIndexName = "dls-index";
         String dlsFlsIndexName = "dls-fls-index";
         String noDlsFlsIndexName = "no-dls-fls-restriction-index";
+        String implicitFlsIndexName = "implicit-fls-index";
+        String implicitDlsIndexName = "implicit-dls-index";
+        String implicitDlsFlsIndexName = "implicit-dls-fls-index";
 
         FieldPermissions fieldPermissions = new FieldPermissions(
             new FieldPermissionsDefinition(new String[] { "*" }, new String[] { "private" })
@@ -60,7 +63,10 @@ public class DlsFlsFeatureTrackingIndicesAccessControlWrapperTests extends ESTes
                     Map.entry(noDlsFlsIndexName, new IndexAccessControl(FieldPermissions.DEFAULT, DocumentPermissions.allowAll())),
                     Map.entry(flsIndexName, new IndexAccessControl(fieldPermissions, DocumentPermissions.allowAll())),
                     Map.entry(dlsIndexName, new IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions)),
-                    Map.entry(dlsFlsIndexName, new IndexAccessControl(fieldPermissions, documentPermissions))
+                    Map.entry(dlsFlsIndexName, new IndexAccessControl(fieldPermissions, documentPermissions)),
+                    Map.entry(implicitFlsIndexName, new IndexAccessControl(fieldPermissions, DocumentPermissions.allowAll(), true)),
+                    Map.entry(implicitDlsIndexName, new IndexAccessControl(FieldPermissions.DEFAULT, documentPermissions, true)),
+                    Map.entry(implicitDlsFlsIndexName, new IndexAccessControl(fieldPermissions, documentPermissions, true))
                 )
             )
         );
@@ -81,6 +87,13 @@ public class DlsFlsFeatureTrackingIndicesAccessControlWrapperTests extends ESTes
 
         // Both DLS and FLS should be tracked
         indicesAccessControl.getIndexPermissions(dlsFlsIndexName);
+        verify(licenseState, times(2)).featureUsed(FIELD_LEVEL_SECURITY_FEATURE);
+        verify(licenseState, times(2)).featureUsed(DOCUMENT_LEVEL_SECURITY_FEATURE);
+
+        // Implicit DLS/FLS access must not bump tracking counters, regardless of which feature(s) it carries.
+        indicesAccessControl.getIndexPermissions(implicitFlsIndexName);
+        indicesAccessControl.getIndexPermissions(implicitDlsIndexName);
+        indicesAccessControl.getIndexPermissions(implicitDlsFlsIndexName);
         verify(licenseState, times(2)).featureUsed(FIELD_LEVEL_SECURITY_FEATURE);
         verify(licenseState, times(2)).featureUsed(DOCUMENT_LEVEL_SECURITY_FEATURE);
     }

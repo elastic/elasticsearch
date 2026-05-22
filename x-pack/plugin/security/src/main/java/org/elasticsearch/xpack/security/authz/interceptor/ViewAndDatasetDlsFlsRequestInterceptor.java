@@ -37,8 +37,9 @@ public class ViewAndDatasetDlsFlsRequestInterceptor implements RequestIntercepto
     static final String DATASETS_WITH_DLS_OR_FLS_METADATA_KEY = "es.datasets_with_dls_or_fls";
 
     // Two alternative user-facing messages: one when only views or only datasets are affected, one when both are.
-    private static final String DLS_FLS_VIEWS_OR_DATASETS_MESSAGE = "%s with document or field level security restrictions are not supported."
-        + " Remove DLS/FLS restrictions from the affected %s in the role definition, or exclude them from the request.";
+    private static final String DLS_FLS_VIEWS_OR_DATASETS_MESSAGE =
+        "%s with document or field level security restrictions are not supported."
+            + " Remove DLS/FLS restrictions from the affected %s in the role definition, or exclude them from the request.";
     private static final String DLS_FLS_VIEWS_AND_DATASETS_MESSAGE = "Views and datasets with document or field level security"
         + " restrictions are not supported. See views_with_dls_or_fls and datasets_with_dls_or_fls for the affected names.";
 

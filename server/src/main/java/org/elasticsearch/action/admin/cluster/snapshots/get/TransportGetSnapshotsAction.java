@@ -183,14 +183,11 @@ public class TransportGetSnapshotsAction extends TransportMasterNodeAction<GetSn
         ).runOperation(listener);
     }
 
-    /**
-     * Report a snapshot-info fetch failure that is being swallowed because {@code ignore_unavailable=true} was requested.
-     * Task cancellation is user-driven and the expected way for a cancelled get-snapshots task to propagate, so these
-     * exceptions are logged at {@code DEBUG}; any other failure is still logged at {@code WARN}.
-     */
+    /// Log a snapshot-info fetch failure (which will be swallowed because {@code ignore_unavailable=true}) at the correct logging level
+    /// depending on Exception. Visible for testing.
     static void logFetchSnapshotInfoFailure(Logger logger, Object asyncSnapshotInfo, Exception e) {
         if (ExceptionsHelper.isTaskCancelledException(e)) {
-            logger.debug(() -> Strings.format("failed to fetch snapshot info for [%s]", asyncSnapshotInfo), e);
+            logger.debug(() -> Strings.format("failed to fetch snapshot info after cancellation for [%s]", asyncSnapshotInfo), e);
         } else {
             logger.warn(() -> Strings.format("failed to fetch snapshot info for [%s]", asyncSnapshotInfo), e);
         }

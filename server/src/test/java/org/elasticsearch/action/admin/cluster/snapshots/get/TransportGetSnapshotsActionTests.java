@@ -34,7 +34,7 @@ public class TransportGetSnapshotsActionTests extends ESTestCase {
                     "debug message",
                     TransportGetSnapshotsAction.class.getCanonicalName(),
                     Level.DEBUG,
-                    "failed to fetch snapshot info for [test-snapshot]"
+                    "failed to fetch snapshot info after cancellation for [test-snapshot]"
                 )
             );
             mockLog.addExpectation(
@@ -65,7 +65,7 @@ public class TransportGetSnapshotsActionTests extends ESTestCase {
                     "debug message",
                     TransportGetSnapshotsAction.class.getCanonicalName(),
                     Level.DEBUG,
-                    "failed to fetch snapshot info for [test-snapshot]"
+                    "failed to fetch snapshot info after cancellation for [test-snapshot]"
                 )
             );
             mockLog.addExpectation(

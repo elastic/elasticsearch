@@ -22,7 +22,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -81,10 +80,9 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
             searchRequest.source().slice(null);
         }
         int times = between(2, 100);
-        String field = randomBoolean() ? IdFieldMapper.NAME : randomAlphaOfLength(5);
         int currentSliceId = 0;
-        for (SearchRequest slice : sliceIntoSubRequests(searchRequest, field, times)) {
-            assertEquals(field, slice.source().slice().getField());
+        for (SearchRequest slice : sliceIntoSubRequests(searchRequest, times)) {
+            assertNull(slice.source().slice().getField());
             assertEquals(currentSliceId, slice.source().slice().getId());
             assertEquals(times, slice.source().slice().getMax());
 
@@ -109,7 +107,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
         int times = randomIntBetween(2, 8);
         SearchRequest request = new SearchRequest();
         request.source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(keepAlive)));
-        SearchRequest[] slices = sliceIntoSubRequests(request, IdFieldMapper.NAME, times);
+        SearchRequest[] slices = sliceIntoSubRequests(request, times);
         assertThat(slices.length, equalTo(times));
         for (int i = 0; i < times; i++) {
             PointInTimeBuilder pit = slices[i].source().pointInTimeBuilder();
@@ -117,7 +115,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
             assertThat(pit.getEncodedId(), equalTo(pitId));
             assertThat(pit.getKeepAlive(), equalTo(keepAlive));
             SliceBuilder slice = slices[i].source().slice();
-            assertThat(slice.getField(), equalTo(IdFieldMapper.NAME));
+            assertThat(slice.getField(), nullValue());
             assertThat(slice.getId(), equalTo(i));
             assertThat(slice.getMax(), equalTo(times));
         }

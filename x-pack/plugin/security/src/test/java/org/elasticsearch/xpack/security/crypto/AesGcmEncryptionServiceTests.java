@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.security.crypto;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.crypto.EncryptedData;
-import org.elasticsearch.xpack.core.crypto.EncryptionKeyNotYetAvailableException;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptedData;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptionKeyNotYetAvailableException;
 
 import java.nio.ByteBuffer;
 import java.security.SecureRandom;

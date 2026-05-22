@@ -9,6 +9,7 @@ package org.elasticsearch.compute.aggregation;
 // begin generated imports
 
 import org.apache.lucene.util.ArrayUtil;
+import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
@@ -28,6 +29,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.WarningSourceLocation;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 
 import java.util.List;
@@ -85,6 +87,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
     private final DriverContext driverContext;
     private final BigArrays bigArrays;
     private ObjectArray<ReducedState> reducedStates;
+    private final IntervalBuffer intervalBuffer;
     private final boolean isRateOverTime;
     private final double dateFactor;
     private final Warnings warnings;
@@ -105,14 +108,18 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         this.bigArrays = driverContext.bigArrays();
         this.dateFactor = isDateNanos ? 1_000_000_000.0 : 1000.0;
         this.warnings = warnings;
-        DoubleRawBuffer buffer = null;
+        DoubleRawBuffer rawBuffer = null;
+        IntervalBuffer intervalBuffer = null;
         try {
-            buffer = new DoubleRawBuffer(driverContext.breaker());
+            rawBuffer = new DoubleRawBuffer(driverContext.breaker());
+            intervalBuffer = new IntervalBuffer(driverContext.breaker());
             this.reducedStates = bigArrays.newObjectArray(256);
-            this.rawBuffer = buffer;
-            buffer = null;
+            this.rawBuffer = rawBuffer;
+            rawBuffer = null;
+            this.intervalBuffer = intervalBuffer;
+            intervalBuffer = null;
         } finally {
-            Releasables.close(buffer);
+            Releasables.close(rawBuffer, intervalBuffer);
         }
     }
 
@@ -486,16 +493,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
                 var state = flushAndCombineState(flushQueues, group);
                 // Do not combine intervals across shards because intervals from different indices may overlap.
                 if (state != null && state.samples > 0) {
-                    timestamps.beginPositionEntry();
-                    values.beginPositionEntry();
-                    for (Interval interval : state.intervals) {
-                        timestamps.appendLong(interval.lastTs);
-                        timestamps.appendLong(interval.firstTs);
-                        values.appendDouble(interval.lastValue);
-                        values.appendDouble(interval.firstValue);
-                    }
-                    timestamps.endPositionEntry();
-                    values.endPositionEntry();
+                    state.writeIntervalsToBlocks(timestamps, values);
                     sampleCounts.appendLong(state.samples);
                     resets.appendDouble(state.resets);
                 } else {
@@ -514,7 +512,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
 
     @Override
     public void close() {
-        Releasables.close(reducedStates, rawBuffer);
+        Releasables.close(reducedStates, rawBuffer, intervalBuffer);
     }
 
     void flushRawBuffers() {
@@ -596,14 +594,14 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         }
     }
 
-    static void flushGroup(ReducedState state, DoubleRawBuffer buffer, FlushQueue flushQueue) {
+    void flushGroup(ReducedState state, DoubleRawBuffer buffer, FlushQueue flushQueue) {
         var timestamps = buffer.timestamps;
         var values = buffer.values;
         if (flushQueue.valueCount == 1) {
             state.samples++;
             long t = timestamps.get(flushQueue.top().start);
             var v = values.get(flushQueue.top().start);
-            state.appendInterval(new Interval(t, v, t, v));
+            state.appendInterval(t, v, t, v);
             return;
         }
         // first
@@ -665,7 +663,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             prevValue = val;
         }
         state.samples += flushQueue.valueCount;
-        state.appendInterval(new Interval(lastTimestamp, lastValue, timestamps.get(top.end - 1), prevValue));
+        state.appendInterval(lastTimestamp, lastValue, timestamps.get(top.end - 1), prevValue);
     }
 
     @Override
@@ -693,17 +691,8 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
                     }
                     flushGroup(state, rawBuffer, flushQueue);
                 }
-                if (state != null && state.samples > 1 && state.intervals.length > 1) {
-                    // combine intervals for the final evaluation
-                    Interval[] intervals = state.intervals;
-                    ArrayUtil.timSort(intervals);
-                    for (int i = 1; i < intervals.length; i++) {
-                        Interval next = intervals[i - 1]; // reversed
-                        Interval prev = intervals[i];
-                        if (prev.lastValue > next.firstValue) {
-                            state.resets += prev.lastValue;
-                        }
-                    }
+                if (state != null && state.samples > 1) {
+                    state.combineIntervals();
                 }
             }
             if (ctx instanceof TimeSeriesGroupingAggregatorEvaluationContext tsContext) {
@@ -753,74 +742,239 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         return sb.toString();
     }
 
-    static class Interval implements Comparable<Interval> {
+    static final class IntervalBuffer implements Releasable {
 
-        private long lastTs;
-        private double lastValue;
-        private long firstTs;
-        private double firstValue;
+        // Each interval occupies two consecutive slots: slot 2*intervalId stores the last (most recent)
+        // timestamp/value pair, slot 2*intervalId+1 stores the first (oldest) timestamp/value pair.
+        private final LongBuffer timestamps;
+        private final DoubleBuffer values;
 
-        public Interval(long lastTs, double lastValue, long firstTs, double firstValue) {
-            this.lastTs = lastTs;
-            this.lastValue = lastValue;
-            this.firstTs = firstTs;
-            this.firstValue = firstValue;
+        private int count = 0;
+
+        IntervalBuffer(CircuitBreaker cb) {
+            LongBuffer timestamps = null;
+            DoubleBuffer values = null;
+            boolean success = false;
+            try {
+                timestamps = new LongBuffer(cb, PAGE_SIZE);
+                values = new DoubleBuffer(cb, PAGE_SIZE);
+                success = true;
+            } finally {
+                if (success == false) {
+                    Releasables.close(timestamps, values);
+                }
+            }
+            this.timestamps = timestamps;
+            this.values = values;
+        }
+
+        long lastTs(int intervalId) {
+            return timestamps.get(2 * intervalId);
+        }
+
+        double lastValue(int intervalId) {
+            return values.get(2 * intervalId);
+        }
+
+        long firstTs(int intervalId) {
+            return timestamps.get(2 * intervalId + 1);
+        }
+
+        double firstValue(int intervalId) {
+            return values.get(2 * intervalId + 1);
+        }
+
+        int appendInterval(long lastTs, double lastValue, long firstTs, double firstValue) {
+            int newSlots = 2 * (count + 1);
+            timestamps.ensureCapacity(newSlots);
+            values.ensureCapacity(newSlots);
+
+            int lo = 2 * count;
+            int hi = lo + 1;
+            timestamps.set(lo, lastTs);
+            values.set(lo, lastValue);
+            timestamps.set(hi, firstTs);
+            values.set(hi, firstValue);
+
+            return count++;
+        }
+
+        int appendIntervalsFromBlocks(LongBlock ts, DoubleBlock vs, int position) {
+            int tsFirst = ts.getFirstValueIndex(position);
+            int vsFirst = vs.getFirstValueIndex(position);
+            int valueCount = ts.getValueCount(position);
+
+            assert valueCount % 2 == 0 : "expected even number of values for intervals, got " + valueCount + " in " + ts;
+
+            int newIntervalCount = valueCount / 2;
+            int newSlots = 2 * (count + newIntervalCount);
+            timestamps.ensureCapacity(newSlots);
+            values.ensureCapacity(newSlots);
+
+            int firstId = count;
+            for (int i = 0; i < valueCount; i += 2) {
+                int lo = 2 * count;
+                int hi = lo + 1;
+                timestamps.set(lo, ts.getLong(tsFirst + i));
+                values.set(lo, vs.getDouble(vsFirst + i));
+                timestamps.set(hi, ts.getLong(tsFirst + i + 1));
+                values.set(hi, vs.getDouble(vsFirst + i + 1));
+                count++;
+            }
+            return firstId;
         }
 
         @Override
-        public int compareTo(Interval other) {
-            return Long.compare(other.lastTs, lastTs); // want most recent first
+        public void close() {
+            Releasables.close(timestamps, values);
         }
-
     }
 
-    static final class ReducedState {
-        private static final Interval[] EMPTY_INTERVALS = new Interval[0];
+    final class ReducedState {
+        private static final int[] EMPTY_INTERVALS = new int[0];
         long samples;
         double resets;
-        // Once sorted, the intervals will be stored in reverse chronological order (highest timestamp first)
-        Interval[] intervals = EMPTY_INTERVALS;
 
-        void appendInterval(Interval interval) {
+        // Points to offsets into IntervalBuffer for the intervals belonging to this group
+        // Once sorted (after calling combineIntervals()), the intervals will be stored in reverse chronological order (highest timestamp
+        // first)
+        int[] intervals = EMPTY_INTERVALS;
+
+        // Delta tracking fields: in contrast to cumulative intervals, they need to be mutable
+        // We use deltaLastTs >= deltaFirstTs as indicator delta data exists.
+        long deltaFirstTs = Long.MAX_VALUE;
+        double deltaFirstValue;
+        long deltaLastTs = Long.MIN_VALUE;
+
+        boolean hasDelta() {
+            return deltaLastTs >= deltaFirstTs;
+        }
+
+        void appendInterval(long lastTs, double lastValue, long firstTs, double firstValue) {
+            assert hasDelta() == false : "cannot append intervals while delta data is pending";
             int currentSize = intervals.length;
             this.intervals = ArrayUtil.growExact(intervals, currentSize + 1);
-            this.intervals[currentSize] = interval;
+            this.intervals[currentSize] = intervalBuffer.appendInterval(lastTs, lastValue, firstTs, firstValue);
         }
 
         void appendIntervalsFromBlocks(LongBlock ts, DoubleBlock vs, int position) {
-            int tsFirst = ts.getFirstValueIndex(position);
-            int vsFirst = vs.getFirstValueIndex(position);
-            int count = ts.getValueCount(position);
-            assert count % 2 == 0 : "expected even number of values for intervals, got " + count + " in " + ts;
+            assert hasDelta() == false : "cannot append intervals while delta data is pending";
+            int intervalCount = ts.getValueCount(position) / 2;
+            int firstIntervalId = intervalBuffer.appendIntervalsFromBlocks(ts, vs, position);
             int currentSize = intervals.length;
-            intervals = ArrayUtil.growExact(intervals, currentSize + (count / 2));
-            for (int i = 0; i < count; i += 2) {
-                Interval interval = new Interval(
-                    ts.getLong(tsFirst + i),
-                    vs.getDouble(vsFirst + i),
-                    ts.getLong(tsFirst + i + 1),
-                    vs.getDouble(vsFirst + i + 1)
-                );
-                intervals[currentSize++] = interval;
+            intervals = ArrayUtil.growExact(intervals, currentSize + intervalCount);
+            for (int i = 0; i < intervalCount; i++) {
+                intervals[currentSize++] = firstIntervalId + i;
             }
         }
 
-        public void appendDeltaValue(long timestamp, double value) {
-            samples++;
-            resets += value;
-            if (intervals.length == 0) {
-                appendInterval(new Interval(timestamp, 0, timestamp, value));
+        void writeIntervalsToBlocks(LongBlock.Builder timestamps, DoubleBlock.Builder values) {
+            timestamps.beginPositionEntry();
+            values.beginPositionEntry();
+            if (hasDelta()) {
+                // delta data gets converted to a single, cumulative interval
+                timestamps.appendLong(lastTs());
+                timestamps.appendLong(firstTs());
+                values.appendDouble(lastValue());
+                values.appendDouble(firstValue());
             } else {
-                assert intervals.length == 1 : "Expected exactly one, pre-merged interval for delta data";
-                Interval deltaInterval = intervals[0];
-                assert deltaInterval.lastValue == 0 : "lastValue is expected to be zero for delta intervals";
-
-                deltaInterval.lastTs = Math.max(deltaInterval.lastTs, timestamp);
-                if (timestamp < deltaInterval.firstTs) {
-                    deltaInterval.firstTs = timestamp;
-                    deltaInterval.firstValue = value;
+                for (int intervalId : intervals) {
+                    timestamps.appendLong(intervalBuffer.lastTs(intervalId));
+                    timestamps.appendLong(intervalBuffer.firstTs(intervalId));
+                    values.appendDouble(intervalBuffer.lastValue(intervalId));
+                    values.appendDouble(intervalBuffer.firstValue(intervalId));
                 }
             }
+            timestamps.endPositionEntry();
+            values.endPositionEntry();
+        }
+
+        public void appendDeltaValue(long timestamp, double value) {
+            assert intervals.length == 0 : "cannot append delta data when intervals already exist";
+            samples++;
+            resets += value;
+            deltaLastTs = Math.max(deltaLastTs, timestamp);
+            if (timestamp < deltaFirstTs) {
+                deltaFirstTs = timestamp;
+                deltaFirstValue = value;
+            }
+        }
+
+        void combineIntervals() {
+            // only applies to cumulative metrics, we don't need to do anything for delta
+            if (hasDelta() == false) {
+                // Sort the intervals by the lastTs (most recent first) for the final evaluation
+                sortIntervals();
+                for (int i = 1; i < intervals.length; i++) {
+                    int next = intervals[i - 1]; // reversed
+                    int prev = intervals[i];
+                    if (intervalBuffer.lastValue(prev) > intervalBuffer.firstValue(next)) {
+                        resets += intervalBuffer.lastValue(prev);
+                    }
+                }
+            }
+        }
+
+        private void sortIntervals() {
+            new IntroSorter() {
+
+                long pivotTs;
+
+                @Override
+                protected void setPivot(int i) {
+                    pivotTs = intervalBuffer.lastTs(intervals[i]);
+                }
+
+                @Override
+                protected int comparePivot(int j) {
+                    // want most recent first
+                    return Long.compare(intervalBuffer.lastTs(intervals[j]), pivotTs);
+                }
+
+                @Override
+                protected int compare(int i, int j) {
+                    // want most recent first
+                    return Long.compare(intervalBuffer.lastTs(intervals[j]), intervalBuffer.lastTs(intervals[i]));
+                }
+
+                @Override
+                protected void swap(int i, int j) {
+                    int tmp = intervals[i];
+                    intervals[i] = intervals[j];
+                    intervals[j] = tmp;
+                }
+
+            }.sort(0, intervals.length);
+        }
+
+        // The accessor methods first*/last* must only be called after combineIntervals() for non-delta states!
+        long lastTs() {
+            if (hasDelta()) {
+                return deltaLastTs;
+            }
+            return intervalBuffer.lastTs(intervals[0]);
+        }
+
+        double lastValue() {
+            if (hasDelta()) {
+                // We use 0 as lastvalue for delta to force resets, the reset counter already has the real value in it
+                return 0;
+            }
+            return intervalBuffer.lastValue(intervals[0]);
+        }
+
+        long firstTs() {
+            if (hasDelta()) {
+                return deltaFirstTs;
+            }
+            return intervalBuffer.firstTs(intervals[intervals.length - 1]);
+        }
+
+        double firstValue() {
+            if (hasDelta()) {
+                return deltaFirstValue;
+            }
+            return intervalBuffer.firstValue(intervals[intervals.length - 1]);
         }
     }
 
@@ -828,10 +982,10 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         if (state.samples < 2) {
             return Double.NaN;
         }
-        final long firstTS = state.intervals[state.intervals.length - 1].firstTs;
-        final long lastTS = state.intervals[0].lastTs;
-        double firstValue = state.intervals[state.intervals.length - 1].firstValue;
-        double lastValue = state.intervals[0].lastValue + state.resets;
+        final long firstTS = state.firstTs();
+        final long lastTS = state.lastTs();
+        double firstValue = state.firstValue();
+        double lastValue = state.lastValue() + state.resets;
         if (isRateOverTime) {
             return (lastValue - firstValue) * dateFactor / (lastTS - firstTS);
         } else {
@@ -861,8 +1015,8 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         var previousState = (0 <= previousGroupId && previousGroupId < reducedStates.size()) ? reducedStates.get(previousGroupId) : null;
         if (previousState == null || previousState.samples == 0) {
             if (state.samples == 1) {
-                firstTsSec = state.intervals[0].firstTs / dateFactor;
-                firstValue = state.intervals[0].firstValue;
+                firstTsSec = state.firstTs() / dateFactor;
+                firstValue = state.firstValue();
             } else {
                 firstValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, true);
             }
@@ -874,8 +1028,8 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         var nextState = (nextGroupId >= 0 && nextGroupId < reducedStates.size()) ? reducedStates.get(nextGroupId) : null;
         if (nextState == null || nextState.samples == 0) {
             if (state.samples == 1) {
-                lastTsSec = state.intervals[0].lastTs / dateFactor;
-                lastValue = state.intervals[0].lastValue + state.resets;
+                lastTsSec = state.lastTs() / dateFactor;
+                lastValue = state.lastValue() + state.resets;
             } else {
                 lastValue = extrapolateToBoundary(state, tbucketStart, tbucketEnd, dateFactor, false);
             }
@@ -892,9 +1046,9 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             if (state.samples == 1) {
                 if (previousState != null) {
                     assert nextState == null;
-                    assert state.intervals[0].lastTs == firstTsSec * dateFactor : firstTsSec + ":" + state.intervals[0].lastTs;
+                    assert state.lastTs() == firstTsSec * dateFactor : firstTsSec + ":" + state.lastTs();
                     if (isRateOverTime) {
-                        final double startTs = previousState.intervals[0].lastTs / dateFactor;
+                        final double startTs = previousState.lastTs() / dateFactor;
                         final double delta = deltaBetweenStates(previousState, state, dateFactor);
                         return delta / (firstTsSec - startTs);
                     } else {
@@ -919,17 +1073,17 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
      * We still extrapolate the rate in this case, but not all the way to the boundary, only by half of the average duration between
      * samples (which is our guess for where the series actually starts or ends).
      */
-    private static double extrapolateToBoundary(
+    private double extrapolateToBoundary(
         ReducedState state,
         double tbucketStart,
         double tbucketEnd,
         double dateFactor,
         boolean isLowerBoundary
     ) {
-        final double startTs = state.intervals[state.intervals.length - 1].firstTs / dateFactor;
-        final double startValue = state.intervals[state.intervals.length - 1].firstValue;
-        final double endTs = state.intervals[0].lastTs / dateFactor;
-        final double endValue = state.intervals[0].lastValue + state.resets;
+        final double startTs = state.firstTs() / dateFactor;
+        final double startValue = state.firstValue();
+        final double endTs = state.lastTs() / dateFactor;
+        final double endValue = state.lastValue() + state.resets;
         final double sampleTsSec = endTs - startTs;
         final double averageSampleInterval = sampleTsSec / state.samples;
         final double slope = (endValue - startValue) / sampleTsSec;
@@ -965,7 +1119,7 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
      * The logic detects counter resets across the boundary, with interpolation using the last value instead of the
      * value delta to produce correct results.
      */
-    private static double interpolateBetweenStates(
+    private double interpolateBetweenStates(
         ReducedState lowerState,
         ReducedState upperState,
         double tbucketStart,
@@ -973,10 +1127,10 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         double dateFactor,
         boolean isLowerBoundary
     ) {
-        final double startValue = lowerState.intervals[0].lastValue;
-        final double startTs = lowerState.intervals[0].lastTs / dateFactor;
-        final double endValue = upperState.intervals[upperState.intervals.length - 1].firstValue;
-        final double endTs = upperState.intervals[upperState.intervals.length - 1].firstTs / dateFactor;
+        final double startValue = lowerState.lastValue();
+        final double startTs = lowerState.lastTs() / dateFactor;
+        final double endValue = upperState.firstValue();
+        final double endTs = upperState.firstTs() / dateFactor;
         assert startTs < endTs : "expected startTs < endTs, got " + startTs + " < " + endTs;
         final double delta = deltaBetweenStates(lowerState, upperState, dateFactor);
         final double slope = delta / (endTs - startTs);
@@ -992,9 +1146,9 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
         }
     }
 
-    private static double deltaBetweenStates(ReducedState lowerState, ReducedState upperState, double dateFactor) {
-        final double startValue = lowerState.intervals[0].lastValue;
-        final double endValue = upperState.intervals[upperState.intervals.length - 1].firstValue;
+    private double deltaBetweenStates(ReducedState lowerState, ReducedState upperState, double dateFactor) {
+        final double startValue = lowerState.lastValue();
+        final double endValue = upperState.firstValue();
 
         // If the end value is smaller than the start value, a counter reset occurred.
         // In this case, the delta is considered equal to the end value.

@@ -805,8 +805,12 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
                 {"job_id":"other_job","snapshot_id":"11", "snapshot_doc_count":1,"retain":false}""", XContentType.JSON)
             .get();
 
-        indicesAdmin().prepareRefresh(AnomalyDetectorsIndex.jobStateIndexPattern(), AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*")
-            .get();
+        indicesAdmin().prepareRefresh(
+            AnomalyDetectorsIndex.jobStateIndexPatterns()[0],
+            AnomalyDetectorsIndex.jobStateIndexPatterns()[1],
+            AnomalyDetectorsIndex.jobStateIndexPatterns()[2],
+            AnomalyDetectorsIndex.jobResultsIndexPrefix() + "*"
+        ).get();
 
         PlainActionFuture<QueryPage<ModelSnapshot>> future = new PlainActionFuture<>();
         jobProvider.modelSnapshots(jobId, 0, 4, "9", "15", "", false, "snap_2,snap_1", null, future::onResponse, future::onFailure);
@@ -909,7 +913,9 @@ public class JobResultsProviderIT extends MlSingleNodeTestCase {
 
         indicesAdmin().prepareRefresh(
             MlMetaIndex.indexName(),
-            AnomalyDetectorsIndex.jobStateIndexPattern(),
+            AnomalyDetectorsIndex.jobStateIndexPatterns()[0],
+            AnomalyDetectorsIndex.jobStateIndexPatterns()[1],
+            AnomalyDetectorsIndex.jobStateIndexPatterns()[2],
             AnomalyDetectorsIndex.jobResultsAliasedName(jobId)
         ).get();
 

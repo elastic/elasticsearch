@@ -280,7 +280,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
 
     protected void assertStoredProgressHits(String jobId, int hitCount) {
         assertHitCount(
-            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(
+            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns()).setQuery(
                 QueryBuilders.idsQuery().addIds(StoredProgress.documentId(jobId))
             ),
             hitCount
@@ -451,7 +451,7 @@ abstract class MlNativeDataFrameAnalyticsIntegTestCase extends MlNativeIntegTest
 
     protected static void assertModelStatePersisted(String stateDocId) {
         assertHitCount(
-            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setQuery(QueryBuilders.idsQuery().addIds(stateDocId)),
+            prepareSearch(AnomalyDetectorsIndex.jobStateIndexPatterns()).setQuery(QueryBuilders.idsQuery().addIds(stateDocId)),
             1
         );
     }

@@ -471,6 +471,8 @@ import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
+import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.REINDEXED_V7_STATE_INDEX_PREFIX;
+import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.REINDEXED_V8_STATE_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor.countInferenceProcessors;
 
@@ -1363,7 +1365,15 @@ public class MachineLearning extends Plugin
                 new MlIndexRollover(
                     List.of(
                         new MlIndexRollover.IndexPatternAndAlias(
-                            AnomalyDetectorsIndex.jobStateIndexPattern(),
+                            STATE_INDEX_PREFIX + "*",
+                            AnomalyDetectorsIndex.jobStateIndexWriteAlias()
+                        ),
+                        new MlIndexRollover.IndexPatternAndAlias(
+                            REINDEXED_V7_STATE_INDEX_PREFIX + "*",
+                            AnomalyDetectorsIndex.jobStateIndexWriteAlias()
+                        ),
+                        new MlIndexRollover.IndexPatternAndAlias(
+                            REINDEXED_V8_STATE_INDEX_PREFIX + "*",
                             AnomalyDetectorsIndex.jobStateIndexWriteAlias()
                         ),
                         new MlIndexRollover.IndexPatternAndAlias(MlStatsIndex.indexPattern(), MlStatsIndex.writeAlias()),

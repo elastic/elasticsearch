@@ -103,7 +103,10 @@ public final class AnomalyDetectorsIndex {
     }
 
     /**
-     * Comma-separated index patterns for ML state indices for APIs that split on commas (for example search).
+     * Comma-separated index patterns for ML state indices for REST query strings that split on commas.
+     * <p>
+     * Do not pass this value as a single argument to Java client methods that accept one index expression
+     * (for example {@code prepareSearch(String)}); use {@link #jobStateIndexPatterns()} instead.
      *
      * @return index patterns for ML state indices
      */

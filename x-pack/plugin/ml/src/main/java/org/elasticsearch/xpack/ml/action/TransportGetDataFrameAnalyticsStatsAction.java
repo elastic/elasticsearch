@@ -328,7 +328,7 @@ public class TransportGetDataFrameAnalyticsStatsAction extends TransportTasksAct
     }
 
     private static SearchRequest buildStoredProgressSearch(String configId) {
-        SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern());
+        SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPatterns());
         searchRequest.indicesOptions(IndicesOptions.lenientExpandOpen());
         searchRequest.source().size(1);
         searchRequest.source().query(QueryBuilders.idsQuery().addIds(StoredProgress.documentId(configId)));

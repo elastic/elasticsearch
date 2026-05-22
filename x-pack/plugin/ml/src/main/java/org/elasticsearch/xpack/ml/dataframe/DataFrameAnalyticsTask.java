@@ -273,7 +273,7 @@ public class DataFrameAnalyticsTask extends LicensedAllocatedPersistentTask impl
 
         // Step 2: Search for existing progress document in .ml-state*
         ActionListener<Void> stepProgressUpdateListener = ActionListener.wrap(aVoid -> {
-            SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPattern()).source(
+            SearchRequest searchRequest = new SearchRequest(AnomalyDetectorsIndex.jobStateIndexPatterns()).source(
                 new SearchSourceBuilder().size(1).query(new IdsQueryBuilder().addIds(progressDocId))
             );
             executeAsyncWithOrigin(clientToUse, ML_ORIGIN, TransportSearchAction.TYPE, searchRequest, searchFormerProgressDocListener);

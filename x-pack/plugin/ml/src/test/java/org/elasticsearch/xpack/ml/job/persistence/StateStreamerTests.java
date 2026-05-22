@@ -71,8 +71,10 @@ public class StateStreamerTests extends ESTestCase {
             QueryBuilders.idsQuery().addIds(CategorizerState.documentId(JOB_ID, 2))
         );
 
-        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse()
-            .prepareSearches(AnomalyDetectorsIndex.jobStateIndexPattern(), builder1, builder2, builder3, builder4);
+        MockClientBuilder clientBuilder = new MockClientBuilder(CLUSTER_NAME).addClusterStatusYellowResponse();
+        for (String stateIndex : AnomalyDetectorsIndex.jobStateIndexPatterns()) {
+            clientBuilder = clientBuilder.prepareSearches(stateIndex, builder1, builder2, builder3, builder4);
+        }
 
         ModelSnapshot modelSnapshot = new ModelSnapshot.Builder(JOB_ID).setSnapshotId(snapshotId).setSnapshotDocCount(2).build();
 

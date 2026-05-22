@@ -81,11 +81,7 @@ public final class ThrottlingRecoveryService {
      * Add exception handling to task by passing exceptions to listener.
      * Return a Runnable, ready to be dispatched to Executor or put on the pending queue.
      */
-    private Runnable asRecoveryTask(
-        RecoveryListener recoveryListener,
-        RecoveryState recoveryState,
-        Consumer<RecoveryListener> task
-    ) {
+    private Runnable asRecoveryTask(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
         RecoveryListener closingListener = RecoveryListener.runAfter(recoveryListener, this::closeAndFillSlots);
         return new AbstractRunnable() {
             @Override

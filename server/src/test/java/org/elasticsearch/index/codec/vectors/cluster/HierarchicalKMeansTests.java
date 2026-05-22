@@ -23,54 +23,78 @@ import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.N
 
 public class HierarchicalKMeansTests extends ESTestCase {
 
-    public void testHKmeans() throws IOException {
-        int nClusters = random().nextInt(1, 10);
-        int nVectors = random().nextInt(nClusters, nClusters * 200);
+    public void testHierarchicalKMeansWithBalancing() throws IOException {
+        int nVectors = random().nextInt(100, 10000);
         int dims = random().nextInt(2, 20);
+        int nClusters = random().nextInt(2, 50);
         int sampleSize = random().nextInt(Math.min(nVectors, 100), nVectors + 1);
         int maxIterations = random().nextInt(1, 100);
         int clustersPerNeighborhood = random().nextInt(2, 512);
         float soarLambda = random().nextFloat(0.5f, 1.5f);
 
-        KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters);
+        boolean useByte = randomBoolean();
+        if (useByte) {
+            ClusteringByteVectorValues vectors = generateByteData(nVectors, dims, nClusters);
+            int targetSize = (int) ((float) nVectors / (float) nClusters);
+            HierarchicalKMeans<byte[]> hkmeans = HierarchicalKMeans.ofSerial(
+                CentroidOps.BYTE,
+                dims,
+                maxIterations,
+                sampleSize,
+                clustersPerNeighborhood,
+                soarLambda
+            );
+            KMeansResult<byte[]> result = hkmeans.cluster(vectors, targetSize);
+            assertKMeansResultValid(result, nVectors, nClusters);
+        } else {
+            KMeansFloatVectorValues vectors = generateFloatData(nVectors, dims, nClusters);
+            int targetSize = (int) ((float) nVectors / (float) nClusters);
+            HierarchicalKMeans<float[]> hkmeans = HierarchicalKMeans.ofSerial(
+                CentroidOps.FLOAT,
+                dims,
+                maxIterations,
+                sampleSize,
+                clustersPerNeighborhood,
+                soarLambda
+            );
+            KMeansResult<float[]> result = hkmeans.cluster(vectors, targetSize);
+            assertKMeansResultValid(result, nVectors, nClusters);
+        }
+    }
+
+    public void testHierarchicalKMeansConcurrency() throws IOException {
+        int nVectors = random().nextInt(100, 10000);
+        int dims = random().nextInt(2, 20);
+        int nClusters = random().nextInt(2, 50);
+        int sampleSize = random().nextInt(Math.min(nVectors, 100), nVectors + 1);
+        int maxIterations = random().nextInt(1, 100);
+        int clustersPerNeighborhood = random().nextInt(2, 512);
+        float soarLambda = random().nextFloat(0.5f, 1.5f);
+
+        KMeansFloatVectorValues vectors = generateFloatData(nVectors, dims, nClusters);
 
         int targetSize = (int) ((float) nVectors / (float) nClusters);
-        HierarchicalKMeans hkmeans = HierarchicalKMeans.ofSerial(dims, maxIterations, sampleSize, clustersPerNeighborhood, soarLambda);
+        HierarchicalKMeans<float[]> hkmeansSerial = HierarchicalKMeans.ofSerial(
+            CentroidOps.FLOAT,
+            dims,
+            maxIterations,
+            sampleSize,
+            clustersPerNeighborhood,
+            soarLambda
+        );
 
-        KMeansResult result = hkmeans.cluster(vectors, targetSize);
+        KMeansResult<float[]> serialResult = hkmeansSerial.cluster(vectors, targetSize);
 
-        int[] assignmentsTemp = result.assignments();
-        int[] serialClusterSizes = new int[result.centroids().length];
-        for (int k : assignmentsTemp) {
+        int[] serialClusterSizes = new int[serialResult.centroids().length];
+        for (int k : serialResult.assignments()) {
             serialClusterSizes[k]++;
-        }
-
-        float[][] centroids = result.centroids();
-        int[] assignments = result.assignments();
-        int[] soarAssignments = result.soarAssignments();
-
-        assertEquals(Math.min(nClusters, nVectors), centroids.length, 25);
-        assertEquals(nVectors, assignments.length);
-
-        for (int assignment : assignments) {
-            assertTrue(assignment >= 0 && assignment < centroids.length);
-        }
-        if (centroids.length > 1 && centroids.length < nVectors) {
-            assertEquals(nVectors, soarAssignments.length);
-            // verify no duplicates exist
-            for (int i = 0; i < assignments.length; i++) {
-                int soarAssignment = soarAssignments[i];
-                assertTrue(soarAssignment == -1 || (soarAssignment >= 0 && soarAssignment < centroids.length));
-                assertNotEquals(assignments[i], soarAssignment);
-            }
-        } else {
-            assertEquals(0, soarAssignments.length);
         }
 
         int numWorker = randomIntBetween(2, 8);
         try (ExecutorService service = Executors.newFixedThreadPool(numWorker)) {
             TaskExecutor executor = new TaskExecutor(service);
-            hkmeans = HierarchicalKMeans.ofConcurrent(
+            HierarchicalKMeans<float[]> hkmeansConcurrent = HierarchicalKMeans.ofConcurrent(
+                CentroidOps.FLOAT,
                 dims,
                 executor,
                 numWorker,
@@ -79,11 +103,10 @@ public class HierarchicalKMeansTests extends ESTestCase {
                 clustersPerNeighborhood,
                 soarLambda
             );
-            KMeansResult resultConcurrency = hkmeans.cluster(vectors, targetSize);
+            KMeansResult<float[]> concurrentResult = hkmeansConcurrent.cluster(vectors, targetSize);
 
-            assignmentsTemp = resultConcurrency.assignments();
-            int[] concurrentClusterSizes = new int[resultConcurrency.centroids().length];
-            for (int k : assignmentsTemp) {
+            int[] concurrentClusterSizes = new int[concurrentResult.centroids().length];
+            for (int k : concurrentResult.assignments()) {
                 concurrentClusterSizes[k]++;
             }
 
@@ -95,13 +118,194 @@ public class HierarchicalKMeansTests extends ESTestCase {
         }
     }
 
+    public void testFewDifferentValues() throws IOException {
+        int nVectors = random().nextInt(100, 1000);
+        int targetSize = random().nextInt(4, 64);
+        int dims = random().nextInt(2, 20);
+        int diffValues = randomIntBetween(1, 5);
+
+        boolean useByte = randomBoolean();
+        if (useByte) {
+            byte[][] values = new byte[diffValues][dims];
+            for (int i = 0; i < diffValues; i++) {
+                for (int j = 0; j < dims; j++) {
+                    values[i][j] = (byte) randomIntBetween(-128, 127);
+                }
+            }
+            List<byte[]> vectorList = new ArrayList<>(nVectors);
+            for (int i = 0; i < nVectors; i++) {
+                vectorList.add(values[random().nextInt(diffValues)]);
+            }
+            ClusteringByteVectorValues vectors = ClusteringByteVectorValues.build(vectorList, null, dims);
+
+            HierarchicalKMeans<byte[]> hkmeans = HierarchicalKMeans.ofSerial(
+                CentroidOps.BYTE,
+                dims,
+                random().nextInt(1, 100),
+                random().nextInt(Math.min(nVectors, 100), nVectors + 1),
+                random().nextInt(2, 512),
+                random().nextFloat(0.5f, 1.5f)
+            );
+
+            KMeansResult<byte[]> result = hkmeans.cluster(vectors, targetSize);
+            assertKMeansResultValid(result, nVectors, -1);
+        } else {
+            float[][] values = new float[diffValues][dims];
+            for (int i = 0; i < diffValues; i++) {
+                for (int j = 0; j < dims; j++) {
+                    values[i][j] = random().nextFloat();
+                }
+            }
+            List<float[]> vectorList = new ArrayList<>(nVectors);
+            for (int i = 0; i < nVectors; i++) {
+                vectorList.add(values[random().nextInt(diffValues)]);
+            }
+            KMeansFloatVectorValues vectors = KMeansFloatVectorValues.build(vectorList, null, dims);
+
+            HierarchicalKMeans<float[]> hkmeans = HierarchicalKMeans.ofSerial(
+                CentroidOps.FLOAT,
+                dims,
+                random().nextInt(1, 100),
+                random().nextInt(Math.min(nVectors, 100), nVectors + 1),
+                random().nextInt(2, 512),
+                random().nextFloat(0.5f, 1.5f)
+            );
+
+            KMeansResult<float[]> result = hkmeans.cluster(vectors, targetSize);
+            assertKMeansResultValid(result, nVectors, -1);
+        }
+    }
+
+    public void testClusterQualityByte() throws IOException {
+        // Verifies that byte clustering produces reasonable assignments:
+        // vectors near the same true centroid should mostly get the same assignment.
+        int nClusters = 4;
+        int nVectors = nClusters * 200;
+        int dims = 16;
+
+        // Generate well-separated clusters
+        byte[][] trueCentroids = new byte[nClusters][dims];
+        for (int i = 0; i < nClusters; i++) {
+            for (int j = 0; j < dims; j++) {
+                // Spread centroids far apart
+                trueCentroids[i][j] = (byte) ((i * 64) - 128 + randomIntBetween(-5, 5));
+            }
+        }
+
+        List<byte[]> vectorList = new ArrayList<>(nVectors);
+        int[] trueLabels = new int[nVectors];
+        for (int i = 0; i < nVectors; i++) {
+            int cluster = i % nClusters;
+            trueLabels[i] = cluster;
+            byte[] vector = new byte[dims];
+            for (int j = 0; j < dims; j++) {
+                vector[j] = (byte) Math.clamp(trueCentroids[cluster][j] + randomIntBetween(-3, 3), -128, 127);
+            }
+            vectorList.add(vector);
+        }
+
+        ClusteringByteVectorValues vectors = ClusteringByteVectorValues.build(vectorList, null, dims);
+
+        HierarchicalKMeans<byte[]> hkmeans = HierarchicalKMeans.ofSerial(CentroidOps.BYTE, dims, 10, nVectors, 512, 1.0f);
+        KMeansResult<byte[]> result = hkmeans.cluster(vectors, nVectors / nClusters);
+
+        int[] assignments = result.assignments();
+
+        // Check that vectors in the same true cluster mostly get the same assignment
+        int[][] assignmentCounts = new int[nClusters][result.centroids().length];
+        for (int i = 0; i < nVectors; i++) {
+            assignmentCounts[trueLabels[i]][assignments[i]]++;
+        }
+
+        int correctCount = 0;
+        for (int c = 0; c < nClusters; c++) {
+            int maxCount = Arrays.stream(assignmentCounts[c]).max().orElse(0);
+            correctCount += maxCount;
+        }
+        // Expect at least 70% of vectors assigned to their correct cluster
+        float accuracy = (float) correctCount / nVectors;
+        assertTrue("Byte KMeans accuracy too low: " + accuracy, accuracy >= 0.7f);
+    }
+
+    public void testRemoveEmptyClustersWithByte() throws IOException {
+        // Test that removeEmptyClusters works correctly when V=byte[]
+        int dims = 8;
+        int nVectors = 100;
+
+        // Create vectors that naturally cluster into 2 groups, but request more clusters
+        List<byte[]> vectorList = new ArrayList<>(nVectors);
+        for (int i = 0; i < nVectors; i++) {
+            byte[] vector = new byte[dims];
+            byte base = (i < nVectors / 2) ? (byte) -50 : (byte) 50;
+            for (int j = 0; j < dims; j++) {
+                vector[j] = (byte) Math.clamp(base + randomIntBetween(-5, 5), -128, 127);
+            }
+            vectorList.add(vector);
+        }
+
+        ClusteringByteVectorValues vectors = ClusteringByteVectorValues.build(vectorList, null, dims);
+
+        // Request more clusters than natural groups — some should end up empty and get removed
+        int targetSize = nVectors / 10;
+        HierarchicalKMeans<byte[]> hkmeans = HierarchicalKMeans.ofSerial(CentroidOps.BYTE, dims, 5, nVectors, 512, -1f);
+        KMeansResult<byte[]> result = hkmeans.cluster(vectors, targetSize);
+
+        // Should not throw ClassCastException
+        assertNotNull(result);
+        assertTrue(result.centroids().length > 0);
+
+        // All assignments valid
+        for (int a : result.assignments()) {
+            assertTrue(a >= 0 && a < result.centroids().length);
+        }
+    }
+
+    // ---- Helpers ----
+
+    private static <V> void assertKMeansResultValid(KMeansResult<V> result, int nVectors, int expectedClusters) {
+        V[] centroids = result.centroids();
+        int[] assignments = result.assignments();
+        int[] soarAssignments = result.soarAssignments();
+
+        if (expectedClusters > 0) {
+            assertEquals(Math.min(expectedClusters, nVectors), centroids.length, 25);
+        }
+        assertTrue("Expected at least 1 centroid", centroids.length >= 1);
+        assertEquals(nVectors, assignments.length);
+
+        for (int assignment : assignments) {
+            assertTrue(assignment >= 0 && assignment < centroids.length);
+        }
+
+        // Verify no empty clusters
+        int[] counts = new int[centroids.length];
+        for (int a : assignments) {
+            counts[a]++;
+        }
+        for (int count : counts) {
+            assertTrue("Empty cluster found", count > 0);
+        }
+        assertArrayEquals(counts, result.clusterCounts());
+
+        if (centroids.length > 1 && centroids.length < nVectors) {
+            assertEquals(nVectors, soarAssignments.length);
+            for (int i = 0; i < assignments.length; i++) {
+                int soarAssignment = soarAssignments[i];
+                assertTrue(soarAssignment == NO_SOAR_ASSIGNMENT || (soarAssignment >= 0 && soarAssignment < centroids.length));
+                assertNotEquals(assignments[i], soarAssignment);
+            }
+        } else {
+            assertEquals(0, soarAssignments.length);
+        }
+    }
+
     static float clusterSizesStandardDeviation(int[] clusterSizes) {
         double avgSize = Arrays.stream(clusterSizes).asDoubleStream().sum() / clusterSizes.length;
         double varSize = Arrays.stream(clusterSizes).asDoubleStream().map(e -> Math.pow(e - avgSize, 2)).sum() / clusterSizes.length;
         return (float) Math.sqrt(varSize);
     }
 
-    static float kMeansMeanInertia(KMeansFloatVectorValues vectors, KMeansResult kMeansIntermediate) throws IOException {
+    static float kMeansMeanInertia(KMeansFloatVectorValues vectors, KMeansResult<float[]> kMeansIntermediate) throws IOException {
         int[] assignments = kMeansIntermediate.assignments();
         float[][] centroids = kMeansIntermediate.centroids();
 
@@ -115,16 +319,14 @@ public class HierarchicalKMeansTests extends ESTestCase {
         return mse;
     }
 
-    private static KMeansFloatVectorValues generateData(int nSamples, int nDims, int nClusters) {
+    private static KMeansFloatVectorValues generateFloatData(int nSamples, int nDims, int nClusters) {
         List<float[]> vectors = new ArrayList<>(nSamples);
         float[][] centroids = new float[nClusters][nDims];
-        // Generate random centroids
         for (int i = 0; i < nClusters; i++) {
             for (int j = 0; j < nDims; j++) {
                 centroids[i][j] = random().nextFloat() * 100;
             }
         }
-        // Generate data points around centroids
         for (int i = 0; i < nSamples; i++) {
             int cluster = random().nextInt(nClusters);
             float[] vector = new float[nDims];
@@ -136,64 +338,22 @@ public class HierarchicalKMeansTests extends ESTestCase {
         return KMeansFloatVectorValues.build(vectors, null, nDims);
     }
 
-    public void testFewDifferentValues() throws IOException {
-        int nVectors = random().nextInt(100, 1000);
-        int targetSize = random().nextInt(4, 64);
-        int dims = random().nextInt(2, 20);
-        int diffValues = randomIntBetween(1, 5);
-        float[][] values = new float[diffValues][dims];
-        for (int i = 0; i < diffValues; i++) {
-            for (int j = 0; j < dims; j++) {
-                values[i][j] = random().nextFloat();
+    private static ClusteringByteVectorValues generateByteData(int nSamples, int nDims, int nClusters) {
+        List<byte[]> vectors = new ArrayList<>(nSamples);
+        byte[][] centroids = new byte[nClusters][nDims];
+        for (int i = 0; i < nClusters; i++) {
+            for (int j = 0; j < nDims; j++) {
+                centroids[i][j] = (byte) randomIntBetween(-128, 127);
             }
         }
-        List<float[]> vectorList = new ArrayList<>(nVectors);
-        for (int i = 0; i < nVectors; i++) {
-            vectorList.add(values[random().nextInt(diffValues)]);
-        }
-        KMeansFloatVectorValues vectors = KMeansFloatVectorValues.build(vectorList, null, dims);
-
-        HierarchicalKMeans hkmeans = HierarchicalKMeans.ofSerial(
-            dims,
-            random().nextInt(1, 100),
-            random().nextInt(Math.min(nVectors, 100), nVectors + 1),
-            random().nextInt(2, 512),
-            random().nextFloat(0.5f, 1.5f)
-        );
-
-        KMeansResult result = hkmeans.cluster(vectors, targetSize);
-
-        float[][] centroids = result.centroids();
-        int[] assignments = result.assignments();
-        int[] soarAssignments = result.soarAssignments();
-
-        int[] counts = new int[centroids.length];
-        for (int i = 0; i < assignments.length; i++) {
-            counts[assignments[i]]++;
-        }
-        assertArrayEquals(counts, result.clusterCounts());
-
-        int totalCount = 0;
-        for (int count : counts) {
-            totalCount += count;
-            assertTrue(count > 0);
-        }
-        assertEquals(nVectors, totalCount);
-
-        assertEquals(nVectors, assignments.length);
-
-        for (int assignment : assignments) {
-            assertTrue(assignment >= 0 && assignment < centroids.length);
-        }
-        if (centroids.length > 1 && centroids.length < nVectors) {
-            assertEquals(nVectors, soarAssignments.length);
-            // verify no duplicates exist
-            for (int i = 0; i < assignments.length; i++) {
-                assertTrue((soarAssignments[i] == NO_SOAR_ASSIGNMENT || soarAssignments[i] >= 0) && soarAssignments[i] < centroids.length);
-                assertNotEquals(assignments[i], soarAssignments[i]);
+        for (int i = 0; i < nSamples; i++) {
+            int cluster = random().nextInt(nClusters);
+            byte[] vector = new byte[nDims];
+            for (int j = 0; j < nDims; j++) {
+                vector[j] = (byte) Math.clamp(centroids[cluster][j] + randomIntBetween(-10, 10), -128, 127);
             }
-        } else {
-            assertEquals(0, soarAssignments.length);
+            vectors.add(vector);
         }
+        return ClusteringByteVectorValues.build(vectors, null, nDims);
     }
 }

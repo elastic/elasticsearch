@@ -256,6 +256,7 @@ export function dedupeTests(tests: ClassifiedTest[]): ClassifiedTest[] {
 const GIT_COMMAND_TIMEOUT_MS = 60_000;
 
 function detectUnmutedTests(mergeBase: string, projectRoot: string): UnmuteDetectionResult {
+  console.log(`  Reading muted-tests.yml at ${mergeBase}...`);
   let oldYaml = "";
   try {
     oldYaml = execSync(`git show ${mergeBase}:muted-tests.yml`, {
@@ -267,9 +268,10 @@ function detectUnmutedTests(mergeBase: string, projectRoot: string): UnmuteDetec
   } catch (err) {
     // File didn't exist at merge base; treat as empty. Log so the next time
     // git hangs or fails for a different reason we can see why.
-    console.log(`Could not read muted-tests.yml at ${mergeBase}: ${(err as Error).message}`);
+    console.log(`  Could not read muted-tests.yml at ${mergeBase}: ${(err as Error).message}`);
   }
 
+  console.log("  Reading muted-tests.yml from working tree...");
   let newYaml = "";
   try {
     newYaml = readFileSync(resolve(projectRoot, "muted-tests.yml"), "utf8");
@@ -277,6 +279,7 @@ function detectUnmutedTests(mergeBase: string, projectRoot: string): UnmuteDetec
     // File was deleted in the PR; treat as empty.
   }
 
+  console.log("  Listing tracked files...");
   const repoFilesOutput = execSync("git ls-files", {
     cwd: projectRoot,
     stdio: ["ignore", "pipe", "pipe"],
@@ -288,6 +291,7 @@ function detectUnmutedTests(mergeBase: string, projectRoot: string): UnmuteDetec
     .split("\n")
     .map((f) => f.trim())
     .filter((f) => f !== "");
+  console.log(`  Indexed ${repoFiles.length} tracked files`);
 
   return findUnmutedTests(oldYaml, newYaml, repoFiles);
 }
@@ -552,6 +556,7 @@ export function resolveMergeBaseTarget(
   // Some target branches aren't present in the local checkout: ghstack synthetic
   // refs (gh/<user>/<n>/base) and serverless patch branches (patch/<name>). Fetch
   // the ref and use FETCH_HEAD so we don't depend on origin/<branch> naming.
+    console.log(`  ${targetBranch} not present locally, fetching from origin...`);
     run(`git fetch --no-tags origin ${targetBranch}`, { cwd: projectRoot, stdio: "inherit" });
     return "FETCH_HEAD";
   }

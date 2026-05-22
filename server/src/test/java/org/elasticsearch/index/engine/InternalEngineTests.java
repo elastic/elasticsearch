@@ -8250,8 +8250,8 @@ public class InternalEngineTests extends EngineTestCase {
     }
 
     public void testIndexBatchTimeSeriesPhase2() throws IOException {
-        // planPrimarySubBatch Phase 2 uses a per-UID timeSeriesLoadDocIdAndVersion call
-        // instead of the batch scan when the index mode is TIME_SERIES.
+        // planPrimarySubBatch Phase 2 uses timeSeriesBatchLoadDocIdAndVersion for TIME_SERIES
+        // indices, which does a single sorted segment scan with timestamp-based segment skipping.
         IndexSettings tsSettings = IndexSettingsModule.newIndexSettings(
             "test",
             Settings.builder()

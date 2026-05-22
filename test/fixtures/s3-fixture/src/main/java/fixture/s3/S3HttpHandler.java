@@ -352,76 +352,18 @@ public class S3HttpHandler implements HttpHandler {
 
     private static Tuple<String, BytesReference> parseRequestBody(final HttpExchange exchange) throws IOException {
         try {
-            final BytesReference bytesReference;
-
             final String headerDecodedContentLength = exchange.getRequestHeaders().getFirst("x-amz-decoded-content-length");
+            final var encodedRequestBody = Streams.readFully(exchange.getRequestBody());
+            final BytesReference decodedRequestBody;
             if (headerDecodedContentLength == null) {
-                bytesReference = Streams.readFully(exchange.getRequestBody());
+                decodedRequestBody = encodedRequestBody;
             } else {
-                BytesReference requestBody = Streams.readFully(exchange.getRequestBody());
-                int chunkIndex = 0;
-                final List<BytesReference> chunks = new ArrayList<>();
-
-                while (true) {
-                    chunkIndex += 1;
-
-                    final int headerLength = requestBody.indexOf((byte) '\n', 0) + 1; // includes terminating \r\n
-                    if (headerLength == 0) {
-                        throw new IllegalStateException("header of chunk [" + chunkIndex + "] was not terminated");
-                    }
-                    if (headerLength > 150) {
-                        throw new IllegalStateException(
-                            "header of chunk [" + chunkIndex + "] was too long at [" + headerLength + "] bytes"
-                        );
-                    }
-                    if (headerLength < 3) {
-                        throw new IllegalStateException(
-                            "header of chunk [" + chunkIndex + "] was too short at [" + headerLength + "] bytes"
-                        );
-                    }
-                    if (requestBody.get(headerLength - 1) != '\n' || requestBody.get(headerLength - 2) != '\r') {
-                        throw new IllegalStateException("header of chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
-                    }
-
-                    final String header = requestBody.slice(0, headerLength - 2).utf8ToString();
-                    final Matcher matcher = chunkSignaturePattern.matcher(header);
-                    if (matcher.find() == false) {
-                        throw new IllegalStateException(
-                            "header of chunk [" + chunkIndex + "] did not match expected pattern: [" + header + "]"
-                        );
-                    }
-                    final int chunkSize = Integer.parseUnsignedInt(matcher.group(1), 16);
-
-                    if (requestBody.get(headerLength + chunkSize) != '\r' || requestBody.get(headerLength + chunkSize + 1) != '\n') {
-                        throw new IllegalStateException("chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
-                    }
-
-                    if (chunkSize != 0) {
-                        chunks.add(requestBody.slice(headerLength, chunkSize));
-                    }
-
-                    final int toSkip = headerLength + chunkSize + 2;
-                    requestBody = requestBody.slice(toSkip, requestBody.length() - toSkip);
-
-                    if (chunkSize == 0) {
-                        break;
-                    }
-                }
-
-                bytesReference = CompositeBytesReference.of(chunks.toArray(new BytesReference[0]));
-
-                if (bytesReference.length() != Integer.parseInt(headerDecodedContentLength)) {
-                    throw new IllegalStateException(
-                        "Something went wrong when parsing the chunked request "
-                            + "[bytes read="
-                            + bytesReference.length()
-                            + ", expected="
-                            + headerDecodedContentLength
-                            + "]"
-                    );
-                }
+                decodedRequestBody = parseAmzChunkedRequestBody(Integer.parseInt(headerDecodedContentLength), encodedRequestBody);
             }
-            return Tuple.tuple(MessageDigests.toHexString(MessageDigests.digest(bytesReference, MessageDigests.md5())), bytesReference);
+            return Tuple.tuple(
+                MessageDigests.toHexString(MessageDigests.digest(decodedRequestBody, MessageDigests.md5())),
+                decodedRequestBody
+            );
         } catch (Exception e) {
             logger.error("exception in parseRequestBody", e);
             exchange.sendResponseHeaders(500, 0);
@@ -431,6 +373,68 @@ public class S3HttpHandler implements HttpHandler {
             }
             throw e;
         }
+    }
+
+    static BytesReference parseAmzChunkedRequestBody(int headerDecodedContentLength, BytesReference encodedRequestBody) {
+        int chunkIndex = 0;
+        final List<BytesReference> chunks = new ArrayList<>();
+
+        while (true) {
+            chunkIndex += 1;
+
+            final int headerLength = encodedRequestBody.indexOf((byte) '\n', 0) + 1; // includes terminating \r\n
+            if (headerLength == 0) {
+                throw new IllegalStateException("header of chunk [" + chunkIndex + "] was not terminated");
+            }
+            if (headerLength > 150) {
+                throw new IllegalStateException("header of chunk [" + chunkIndex + "] was too long at [" + headerLength + "] bytes");
+            }
+            if (headerLength < 3) {
+                throw new IllegalStateException("header of chunk [" + chunkIndex + "] was too short at [" + headerLength + "] bytes");
+            }
+            if (encodedRequestBody.get(headerLength - 1) != '\n' || encodedRequestBody.get(headerLength - 2) != '\r') {
+                throw new IllegalStateException("header of chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
+            }
+
+            final String header = encodedRequestBody.slice(0, headerLength - 2).utf8ToString();
+            final Matcher matcher = chunkSignaturePattern.matcher(header);
+            if (matcher.find() == false) {
+                throw new IllegalStateException("header of chunk [" + chunkIndex + "] did not match expected pattern: [" + header + "]");
+            }
+            final int chunkSize = Integer.parseUnsignedInt(matcher.group(1), 16);
+
+            final int chunkTerminatorIndex = headerLength + chunkSize;
+            if (chunkTerminatorIndex + 2 > encodedRequestBody.length()
+                || encodedRequestBody.get(chunkTerminatorIndex) != '\r'
+                || encodedRequestBody.get(chunkTerminatorIndex + 1) != '\n') {
+                throw new IllegalStateException("chunk [" + chunkIndex + "] not terminated with [\\r\\n]");
+            }
+
+            if (chunkSize != 0) {
+                chunks.add(encodedRequestBody.slice(headerLength, chunkSize));
+            }
+
+            final int toSkip = headerLength + chunkSize + 2;
+            encodedRequestBody = encodedRequestBody.slice(toSkip, encodedRequestBody.length() - toSkip);
+
+            if (chunkSize == 0) {
+                break;
+            }
+        }
+
+        final BytesReference decodedRequestBody = CompositeBytesReference.of(chunks.toArray(new BytesReference[0]));
+
+        if (decodedRequestBody.length() != headerDecodedContentLength) {
+            throw new IllegalStateException(
+                "Something went wrong when parsing the chunked request "
+                    + "[bytes read="
+                    + decodedRequestBody.length()
+                    + ", expected="
+                    + headerDecodedContentLength
+                    + "]"
+            );
+        }
+        return decodedRequestBody;
     }
 
     static List<String> extractPartEtags(BytesReference completeMultipartUploadBody) {

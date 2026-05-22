@@ -55,7 +55,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         internalCluster().startMasterOnlyNode();
         final var dataNode = internalCluster().startDataOnlyNode();
 
-        final TestTelemetryPlugin plugin = resetAndGetTelemetryPlugin(dataNode);
+        final var telemetry = resetAndGetTelemetryPlugin(dataNode);
         final var indexName = randomIndexName();
         createIndex(
             indexName,
@@ -63,11 +63,11 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         );
         ensureGreen(indexName);
 
-        List<Measurement> recoveryCount = plugin.getLongCounterMeasurement(RecoveryMetricsCollector.RECOVERY_TOTAL_COUNT_METRIC);
+        List<Measurement> recoveryCount = telemetry.getLongCounterMeasurement(RecoveryMetricsCollector.RECOVERY_TOTAL_COUNT_METRIC);
         assertThat("Recovery count measurements", recoveryCount, hasSize(1));
         assertThat("Recovery count", recoveryCount.getFirst().getLong(), equalTo(1L));
 
-        List<Measurement> totalTime = plugin.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS);
+        List<Measurement> totalTime = telemetry.getLongHistogramMeasurement(RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS);
         assertThat("Total time measurements", totalTime, hasSize(1));
         Measurement metric = totalTime.getFirst();
         assertThat("Total time value", metric.getLong(), greaterThanOrEqualTo(0L));
@@ -93,15 +93,15 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         flush(indexName);
 
         final var targetNode = internalCluster().startDataOnlyNode();
-        final TestTelemetryPlugin targetPlugin = resetAndGetTelemetryPlugin(targetNode);
-        final TestTelemetryPlugin sourcePlugin = resetAndGetTelemetryPlugin(sourceNode);
+        final var targetTelemetry = resetAndGetTelemetryPlugin(targetNode);
+        final var sourceTelemetry = resetAndGetTelemetryPlugin(sourceNode);
 
-        final MockTransportService sourceTransport = MockTransportService.getInstance(sourceNode);
-        final MockTransportService targetTransport = MockTransportService.getInstance(targetNode);
-        final TransportService targetTransportService = internalCluster().getInstance(TransportService.class, targetNode);
+        final var sourceTransport = MockTransportService.getInstance(sourceNode);
+        final var targetTransport = MockTransportService.getInstance(targetNode);
+        final var targetTransportService = internalCluster().getInstance(TransportService.class, targetNode);
 
-        final CountDownLatch recoveryBlocked = new CountDownLatch(1);
-        final CountDownLatch continueRecovery = new CountDownLatch(1);
+        final var recoveryBlocked = new CountDownLatch(1);
+        final var continueRecovery = new CountDownLatch(1);
 
         sourceTransport.addSendBehavior(targetTransportService, (connection, requestId, action, request, options) -> {
             if (PeerRecoveryTargetService.Actions.FILE_CHUNK.equals(action)) {
@@ -117,13 +117,13 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
                     .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
             );
             safeAwait(recoveryBlocked);
-            List<Measurement> activePeerRecoveries = sourcePlugin.getLongUpDownCounterMeasurement(
+            List<Measurement> activePeerRecoveries = sourceTelemetry.getLongUpDownCounterMeasurement(
                 RecoveryMetricsCollector.ACTIVE_OUTGOING_PEER_RECOVERIES_METRIC
             );
             assertThat("Active peer recoveries measurements on source during recovery", activePeerRecoveries, hasSize(1));
             assertThat("Active peer recoveries count on source during recovery", activePeerRecoveries.getFirst().getLong(), equalTo(1L));
 
-            List<Measurement> queuedPeerRecoveries = sourcePlugin.getLongUpDownCounterMeasurement(
+            List<Measurement> queuedPeerRecoveries = sourceTelemetry.getLongUpDownCounterMeasurement(
                 RecoveryMetricsCollector.QUEUED_OUTGOING_PEER_RECOVERIES_METRIC
             );
             assertThat("Queued peer recoveries measurements on source during recovery", activePeerRecoveries, hasSize(1));
@@ -132,7 +132,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             continueRecovery.countDown();
             ensureGreen(indexName);
 
-            List<Measurement> totalTime = targetPlugin.getLongHistogramMeasurement(
+            List<Measurement> totalTime = targetTelemetry.getLongHistogramMeasurement(
                 RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS
             );
             assertThat("Total time measurements", totalTime, hasSize(greaterThanOrEqualTo(1)));
@@ -141,28 +141,28 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             assertThat("Primary attribute", metric.attributes().get("primary"), equalTo(false));
             assertThat("Recovery type", metric.attributes().get("recovery_type"), equalTo("PEER"));
 
-            List<Measurement> indexTime = targetPlugin.getLongHistogramMeasurement(
+            List<Measurement> indexTime = targetTelemetry.getLongHistogramMeasurement(
                 RecoveryMetricsCollector.RECOVERY_INDEX_TIME_METRIC_IN_SECONDS
             );
             assertThat("Index time measurements", indexTime, hasSize(greaterThanOrEqualTo(1)));
             assertThat("Index time value", indexTime.getFirst().getLong(), greaterThanOrEqualTo(0L));
 
-            List<Measurement> translogTime = targetPlugin.getLongHistogramMeasurement(
+            List<Measurement> translogTime = targetTelemetry.getLongHistogramMeasurement(
                 RecoveryMetricsCollector.RECOVERY_TRANSLOG_TIME_METRIC_IN_SECONDS
             );
             assertThat("Translog time measurements", translogTime, hasSize(greaterThanOrEqualTo(1)));
             assertThat("Translog time value", translogTime.getFirst().getLong(), greaterThanOrEqualTo(0L));
 
-            List<Measurement> outgoingPeerOnTarget = targetPlugin.getLongUpDownCounterMeasurement(
+            List<Measurement> outgoingPeerOnTarget = targetTelemetry.getLongUpDownCounterMeasurement(
                 RecoveryMetricsCollector.ACTIVE_OUTGOING_PEER_RECOVERIES_METRIC
             );
             assertThat("Active outgoing peer recoveries measurements on target", outgoingPeerOnTarget, hasSize(0));
-            outgoingPeerOnTarget = targetPlugin.getLongUpDownCounterMeasurement(
+            outgoingPeerOnTarget = targetTelemetry.getLongUpDownCounterMeasurement(
                 RecoveryMetricsCollector.QUEUED_OUTGOING_PEER_RECOVERIES_METRIC
             );
             assertThat("Queued outgoing peer recoveries measurements on target", outgoingPeerOnTarget, hasSize(0));
 
-            activePeerRecoveries = sourcePlugin.getLongUpDownCounterMeasurement(
+            activePeerRecoveries = sourceTelemetry.getLongUpDownCounterMeasurement(
                 RecoveryMetricsCollector.ACTIVE_OUTGOING_PEER_RECOVERIES_METRIC
             );
             assertThat("Active peer recoveries measurements on source", activePeerRecoveries, hasSize(greaterThan(1)));
@@ -172,7 +172,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
                 equalTo(0L)
             );
 
-            queuedPeerRecoveries = sourcePlugin.getLongUpDownCounterMeasurement(
+            queuedPeerRecoveries = sourceTelemetry.getLongUpDownCounterMeasurement(
                 RecoveryMetricsCollector.QUEUED_OUTGOING_PEER_RECOVERIES_METRIC
             );
             assertThat("Queued peer recoveries measurements on source", queuedPeerRecoveries, hasSize(greaterThan(1)));
@@ -210,15 +210,15 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         );
         flush(indexName);
 
-        final TestTelemetryPlugin node1Plugin = resetAndGetTelemetryPlugin(node1);
-        final TestTelemetryPlugin node2Plugin = resetAndGetTelemetryPlugin(node2);
+        final var node1Telemetry = resetAndGetTelemetryPlugin(node1);
+        final var node2Telemetry = resetAndGetTelemetryPlugin(node2);
 
-        final MockTransportService node1Transport = MockTransportService.getInstance(node1);
-        final MockTransportService node2Transport = MockTransportService.getInstance(node2);
-        final TransportService node2TransportService = internalCluster().getInstance(TransportService.class, node2);
+        final var node1Transport = MockTransportService.getInstance(node1);
+        final var node2Transport = MockTransportService.getInstance(node2);
+        final var node2TransportService = internalCluster().getInstance(TransportService.class, node2);
 
-        final CountDownLatch recoveryBlocked = new CountDownLatch(1);
-        final CountDownLatch continueRecovery = new CountDownLatch(1);
+        final var recoveryBlocked = new CountDownLatch(1);
+        final var continueRecovery = new CountDownLatch(1);
 
         node1Transport.addSendBehavior(node2TransportService, (connection, requestId, action, request, options) -> {
             if (PeerRecoveryTargetService.Actions.FILE_CHUNK.equals(action)) {
@@ -234,7 +234,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
                     .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_SETTING.getKey() + "box", "box2"))
             );
             safeAwait(recoveryBlocked);
-            List<Measurement> activePeerRecoveriesNode1 = node1Plugin.getLongUpDownCounterMeasurement(
+            List<Measurement> activePeerRecoveriesNode1 = node1Telemetry.getLongUpDownCounterMeasurement(
                 RecoveryMetricsCollector.ACTIVE_OUTGOING_PEER_RECOVERIES_METRIC
             );
             assertThat("Active peer recoveries measurements on source", activePeerRecoveriesNode1, hasSize(1));
@@ -247,7 +247,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             continueRecovery.countDown();
             ensureGreen(indexName);
 
-            List<Measurement> totalTime = node2Plugin.getLongHistogramMeasurement(
+            List<Measurement> totalTime = node2Telemetry.getLongHistogramMeasurement(
                 RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS
             );
             assertThat("Total time measurements", totalTime, hasSize(1));
@@ -256,7 +256,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
             assertThat("Primary attribute", metric.attributes().get("primary"), equalTo(true));
             assertThat("Recovery type", metric.attributes().get("recovery_type"), equalTo("PEER"));
 
-            activePeerRecoveriesNode1 = node1Plugin.getLongUpDownCounterMeasurement(
+            activePeerRecoveriesNode1 = node1Telemetry.getLongUpDownCounterMeasurement(
                 RecoveryMetricsCollector.ACTIVE_OUTGOING_PEER_RECOVERIES_METRIC
             );
             assertThat(
@@ -270,11 +270,11 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
                 equalTo(0L)
             );
 
-            List<Measurement> outgoingPeerNode2 = node2Plugin.getLongUpDownCounterMeasurement(
+            List<Measurement> outgoingPeerNode2 = node2Telemetry.getLongUpDownCounterMeasurement(
                 RecoveryMetricsCollector.ACTIVE_OUTGOING_PEER_RECOVERIES_METRIC
             );
             assertThat("Active outgoing peer recoveries measurements on target", outgoingPeerNode2, hasSize(0));
-            outgoingPeerNode2 = node2Plugin.getLongUpDownCounterMeasurement(
+            outgoingPeerNode2 = node2Telemetry.getLongUpDownCounterMeasurement(
                 RecoveryMetricsCollector.QUEUED_OUTGOING_PEER_RECOVERIES_METRIC
             );
             assertThat("Queued outgoing peer recoveries measurements on target", outgoingPeerNode2, hasSize(0));

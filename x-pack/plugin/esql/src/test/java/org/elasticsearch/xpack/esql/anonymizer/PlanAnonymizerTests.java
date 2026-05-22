@@ -252,6 +252,98 @@ public class PlanAnonymizerTests extends ESTestCase {
     }
 
     /**
+     * Defense-in-depth: {@code MultiTypeEsField.indexToConversionExpressions} holds {@code FieldAttribute}s
+     * with their original (pre-anonymization) names inside the EsField. The plan-tree expression
+     * walker doesn't descend into these because they live in field-internal state, not as plan
+     * children. The anonymizer's subclass-aware reconstruction falls back to a base {@code EsField}
+     * for {@code MultiTypeEsField}, dropping the conversions entirely; this test asserts the
+     * post-anonymization artifacts carry no trace of the original FieldAttribute names that were
+     * referenced inside those conversions.
+     */
+    public void testMultiTypeEsFieldConversionsDoNotLeak() {
+        String sensitiveInnerName = "internal_user_secret_v1";
+        EsField innerKeyword = new EsField(sensitiveInnerName, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        FieldAttribute innerAttr = new FieldAttribute(Source.EMPTY, null, null, sensitiveInnerName, innerKeyword);
+
+        Map<String, org.elasticsearch.xpack.esql.core.expression.Expression> conversions = Map.of(
+            "idx_alpha",
+            innerAttr,
+            "idx_beta",
+            innerAttr
+        );
+        org.elasticsearch.xpack.esql.core.type.MultiTypeEsField mtf = new org.elasticsearch.xpack.esql.core.type.MultiTypeEsField(
+            "outer_conflict",
+            DataType.LONG,
+            true,
+            conversions,
+            EsField.TimeSeriesFieldType.NONE,
+            null
+        );
+        FieldAttribute outer = new FieldAttribute(Source.EMPTY, null, null, "outer_conflict", mtf);
+        EsRelation rel = new EsRelation(
+            Source.EMPTY,
+            INDEX,
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of(INDEX, IndexMode.STANDARD),
+            List.<Attribute>of(outer)
+        );
+        LogicalPlan plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), rel);
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(null, null, plan, null);
+
+        assertFalse(
+            "inner FieldAttribute name in MultiTypeEsField conversions leaked into optimized:\n" + out.optimized(),
+            out.optimized().contains(sensitiveInnerName)
+        );
+        assertFalse("inner FieldAttribute name leaked into schema:\n" + out.schema(), out.schema().contains(sensitiveInnerName));
+    }
+
+    /**
+     * Defense-in-depth: {@code InvalidMappedField.typesToIndices} holds a map of conflicting types
+     * to the set of index names that carried that type. The plan-tree walker doesn't descend into
+     * it. The subclass-aware reconstruction falls back to a base {@code EsField}, dropping the
+     * map; schema render emits only the type set, never the indices. This test asserts no original
+     * index name from that map survives in the anonymized artifacts.
+     */
+    public void testInvalidMappedFieldIndicesDoNotLeak() {
+        String sensitiveIdxA = "prod-secrets-bucket-alpha-eu";
+        String sensitiveIdxB = "prod-secrets-bucket-beta-us";
+        java.util.Map<String, java.util.Set<String>> typesToIndices = new java.util.HashMap<>();
+        typesToIndices.put("keyword", java.util.Set.of(sensitiveIdxA));
+        typesToIndices.put("long", java.util.Set.of(sensitiveIdxB));
+        org.elasticsearch.xpack.esql.core.type.InvalidMappedField imf = new org.elasticsearch.xpack.esql.core.type.InvalidMappedField(
+            "conflict_field",
+            typesToIndices
+        );
+        FieldAttribute attr = new FieldAttribute(Source.EMPTY, null, null, "conflict_field", imf);
+        EsRelation rel = new EsRelation(
+            Source.EMPTY,
+            INDEX,
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of(INDEX, IndexMode.STANDARD),
+            List.<Attribute>of(attr)
+        );
+        LogicalPlan plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, 10, DataType.INTEGER), rel);
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(null, null, plan, null);
+
+        for (String idx : List.of(sensitiveIdxA, sensitiveIdxB)) {
+            assertFalse(
+                "index name '" + idx + "' from InvalidMappedField.typesToIndices leaked into optimized:\n" + out.optimized(),
+                out.optimized().contains(idx)
+            );
+            assertFalse(
+                "index name '" + idx + "' from InvalidMappedField.typesToIndices leaked into schema:\n" + out.schema(),
+                out.schema().contains(idx)
+            );
+        }
+    }
+
+    /**
      * Adversarial: build a plan stuffed with identifiers and literal values that look like real PII
      * (emails, SSNs, credit card numbers, IPs, password-like strings, dates). After anonymization no
      * input identifier — neither a field name, nor an index name, nor a string-literal value, nor a

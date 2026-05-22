@@ -288,6 +288,9 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
   method: testNullsOrderWithMissingOrderSupportQueryingNewNode
   issue: https://github.com/elastic/elasticsearch/issues/149749
+- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlSearchIT
+  method: testAllTypesWithRequestToUpgradedNodes
+  issue: https://github.com/elastic/elasticsearch/issues/149750
 
 # Examples:
 #

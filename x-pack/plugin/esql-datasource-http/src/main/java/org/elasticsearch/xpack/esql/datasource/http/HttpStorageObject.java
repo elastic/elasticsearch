@@ -202,7 +202,7 @@ public final class HttpStorageObject implements StorageObject {
             // 206 = Partial Content (successful range request)
             // 200 = OK (server doesn't support ranges but returned full content - need to slice)
             if (statusCode == HttpStatus.SC_PARTIAL_CONTENT) {
-                listener.onResponse(ByteBuffer.wrap(response.body()));
+                listener.onResponse(toDirectBuffer(response.body()));
             } else if (statusCode == HttpStatus.SC_OK) {
                 // Server doesn't support Range requests, slice the response
                 byte[] fullBody = response.body();
@@ -216,7 +216,7 @@ public final class HttpStorageObject implements StorageObject {
                 int actualLength = (int) Math.min(length, bodyLength - position);
                 byte[] slice = new byte[actualLength];
                 System.arraycopy(fullBody, (int) position, slice, 0, actualLength);
-                listener.onResponse(ByteBuffer.wrap(slice));
+                listener.onResponse(toDirectBuffer(slice));
             } else {
                 listener.onFailure(new IOException("Range request failed for " + path + ", HTTP status: " + statusCode));
             }
@@ -232,6 +232,12 @@ public final class HttpStorageObject implements StorageObject {
     }
 
     // === Private helper methods ===
+
+    private static ByteBuffer toDirectBuffer(byte[] data) {
+        ByteBuffer direct = ByteBuffer.allocateDirect(data.length);
+        direct.put(data).flip();
+        return direct;
+    }
 
     /**
      * Builds a simple GET request without Range header.

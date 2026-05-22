@@ -27,7 +27,7 @@ import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlHasOriginProjectTargetAction;
+import org.elasticsearch.xpack.esql.action.EsqlGetOriginProjectAliasAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -625,8 +625,8 @@ public class ViewResolver {
             listener.onResponse(new OriginViewsResolution(true, null));
         } else {
             client.execute(
-                EsqlHasOriginProjectTargetAction.TYPE,
-                new EsqlHasOriginProjectTargetAction.Request(REST_MASTER_TIMEOUT_DEFAULT, projectRouting),
+                EsqlGetOriginProjectAliasAction.TYPE,
+                new EsqlGetOriginProjectAliasAction.Request(REST_MASTER_TIMEOUT_DEFAULT, projectRouting),
                 new ThreadedActionListener<>(
                     executor,
                     listener.map(response -> new OriginViewsResolution(response.resolveLocalViews(), response.originProjectAlias()))

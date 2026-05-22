@@ -32,15 +32,15 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
-public class EsqlHasOriginProjectTargetAction extends TransportLocalProjectMetadataAction<
-    EsqlHasOriginProjectTargetAction.Request,
-    EsqlHasOriginProjectTargetAction.Response> {
+public class EsqlGetOriginProjectAliasAction extends TransportLocalProjectMetadataAction<
+    EsqlGetOriginProjectAliasAction.Request,
+    EsqlGetOriginProjectAliasAction.Response> {
 
-    public static final String NAME = "indices:data/read/esql/has_origin_project_target";
-    public static final ActionType<EsqlHasOriginProjectTargetAction.Response> TYPE = new ActionType<>(NAME);
+    public static final String NAME = "indices:data/read/esql/get_origin_project_alias";
+    public static final ActionType<EsqlGetOriginProjectAliasAction.Response> TYPE = new ActionType<>(NAME);
 
     @Inject
-    public EsqlHasOriginProjectTargetAction(
+    public EsqlGetOriginProjectAliasAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ClusterService clusterService,
@@ -58,10 +58,9 @@ public class EsqlHasOriginProjectTargetAction extends TransportLocalProjectMetad
     protected void localClusterStateOperation(Task task, Request request, ProjectState project, ActionListener<Response> listener) {
         if (request.getResolvedTargetProjects() == null) {
             assert false : "request.getResolvedTargetProjects() must be not null";
-            listener.onResponse(new Response(true, null));
+            listener.onResponse(new Response(null));
         } else {
-            final TargetProjects targetProjects = request.getResolvedTargetProjects();
-            listener.onResponse(new Response(targetProjects.originProject() != null, targetProjects.originProjectAlias()));
+            listener.onResponse(new Response(request.getResolvedTargetProjects().originProjectAlias()));
         }
     }
 
@@ -101,22 +100,20 @@ public class EsqlHasOriginProjectTargetAction extends TransportLocalProjectMetad
 
         @Override
         public String toString() {
-            return "EsqlResolveLocalViewAction.Request={projectRouting:" + projectRouting + "}";
+            return "EsqlGetOriginProjectAliasAction.Request={projectRouting:" + projectRouting + "}";
         }
     }
 
     public static class Response extends ActionResponse {
-        private final boolean resolveLocalViews;
         @Nullable
         private final String originProjectAlias;
 
-        public Response(boolean resolveLocalViews, @Nullable String originProjectAlias) {
-            this.resolveLocalViews = resolveLocalViews;
+        public Response(@Nullable String originProjectAlias) {
             this.originProjectAlias = originProjectAlias;
         }
 
         public boolean resolveLocalViews() {
-            return resolveLocalViews;
+            return originProjectAlias != null;
         }
 
         @Nullable

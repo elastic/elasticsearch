@@ -259,8 +259,10 @@ public class ReindexCancelIT extends ESIntegTestCase {
                 is(expected)
             );
         } finally {
-            // Clean up the parent reindex via the real cancel API so the test's @After teardown isn't slow.
-            cancelReindexAsynchronously(parentTaskId);
+            // Sync cancel waits for the reindex to finish writing its TaskResult into `.tasks`, so the system
+            // index exists before `@After` wipe runs. Async cancel can race wipe and leave `.tasks` shard
+            // locked when assertAfterTest runs, failing it with "shard ... still locked after 5 sec waiting".
+            cancelReindexSynchronously(parentTaskId);
         }
     }
 

@@ -87,15 +87,20 @@ public interface StorageObject {
             listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
             return;
         }
+        // Allocate on the calling thread so a direct-memory OOM surfaces synchronously via the
+        // listener instead of escaping the executor's Runnable as an Error and leaving the
+        // listener permanently uncompleted.
+        final ByteBuffer direct;
+        try {
+            direct = ByteBuffer.allocateDirect((int) length);
+        } catch (OutOfMemoryError e) {
+            listener.onFailure(new IOException("failed to allocate " + length + " bytes of direct memory", e));
+            return;
+        }
         executor.execute(() -> {
             try {
-                ByteBuffer direct = ByteBuffer.allocateDirect(Math.toIntExact(length));
-                int start = direct.position();
-                int read = readBytes(position, direct);
-                if (read == -1) {
-                    read = 0;
-                }
-                direct.position(start).limit(start + read);
+                int read = Math.max(0, readBytes(position, direct));
+                direct.position(0).limit(read);
                 listener.onResponse(direct);
             } catch (Exception e) {
                 listener.onFailure(e);

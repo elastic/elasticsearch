@@ -69,7 +69,14 @@ final class DirectByteBufferBodyHandlers {
                 return;
             }
             this.subscription = subscription;
-            this.destination = ByteBuffer.allocateDirect(expectedLength);
+            try {
+                this.destination = ByteBuffer.allocateDirect(expectedLength);
+            } catch (OutOfMemoryError e) {
+                failed = true;
+                subscription.cancel();
+                body.completeExceptionally(new IOException("failed to allocate " + expectedLength + " bytes of direct memory", e));
+                return;
+            }
             subscription.request(Long.MAX_VALUE);
         }
 
@@ -165,7 +172,14 @@ final class DirectByteBufferBodyHandlers {
                 return;
             }
             this.subscription = subscription;
-            this.destination = ByteBuffer.allocateDirect(length);
+            try {
+                this.destination = ByteBuffer.allocateDirect(length);
+            } catch (OutOfMemoryError e) {
+                failed = true;
+                subscription.cancel();
+                body.completeExceptionally(new IOException("failed to allocate " + length + " bytes of direct memory", e));
+                return;
+            }
             subscription.request(Long.MAX_VALUE);
         }
 
@@ -209,8 +223,14 @@ final class DirectByteBufferBodyHandlers {
                 body.completeExceptionally(new IOException("Position " + skip + " is beyond content length for HTTP response body"));
                 return;
             }
-            if (fillOffset == 0 && length > 0) {
-                body.completeExceptionally(new IOException("Position " + skip + " is beyond content length for HTTP response body"));
+            // Strict contract: a range read must deliver exactly {@code length} bytes after the skip.
+            // Matches FixedLengthDirectSubscriber (206 path) and KnownLengthAsyncResponseTransformer (S3).
+            // Downstream consumers like CoalescedRangeReader trust the requested length when slicing,
+            // so returning a short buffer here would surface as an IllegalArgumentException at slice time.
+            if (fillOffset != length) {
+                body.completeExceptionally(
+                    new IOException("HTTP response body shorter than expected: received=" + fillOffset + ", expected=" + length)
+                );
                 return;
             }
             destination.position(0).limit(fillOffset);

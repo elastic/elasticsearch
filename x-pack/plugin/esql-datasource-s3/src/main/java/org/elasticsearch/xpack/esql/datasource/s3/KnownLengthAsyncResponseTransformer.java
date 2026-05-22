@@ -108,14 +108,15 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
      */
     private static final class ChunkCopyingSubscriber implements Subscriber<ByteBuffer> {
         private final CompletableFuture<ByteBuffer> resultFuture;
-        private final ByteBuffer destination;
+        private final int expectedLength;
+        private ByteBuffer destination;
         private int offset;
         private Subscription subscription;
         private boolean failed;
 
         ChunkCopyingSubscriber(CompletableFuture<ByteBuffer> resultFuture, int expectedLength) {
             this.resultFuture = resultFuture;
-            this.destination = ByteBuffer.allocateDirect(expectedLength);
+            this.expectedLength = expectedLength;
         }
 
         @Override
@@ -126,6 +127,16 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
                 return;
             }
             this.subscription = s;
+            // Allocate here (rather than the constructor) so a direct-memory OOM is routed through
+            // the result future instead of escaping publisher.subscribe(...) as an Error.
+            try {
+                this.destination = ByteBuffer.allocateDirect(expectedLength);
+            } catch (OutOfMemoryError e) {
+                failed = true;
+                s.cancel();
+                resultFuture.completeExceptionally(new IOException("failed to allocate " + expectedLength + " bytes of direct memory", e));
+                return;
+            }
             s.request(Long.MAX_VALUE);
         }
 

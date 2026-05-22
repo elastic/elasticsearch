@@ -93,18 +93,23 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         assertThat(ex.getCause().getMessage(), containsString("beyond content length"));
     }
 
-    public void testSkipThenFillPartialReadAtEof() throws Exception {
+    public void testSkipThenFillShortBodyAfterSkipFails() {
+        // Skip 2 of 8, then ask for 8 more bytes — only 6 are available. Must fail rather than
+        // silently return a short buffer, matching FixedLengthDirectSubscriber (206 path) and
+        // KnownLengthAsyncResponseTransformer (S3). Downstream Parquet readers trust the
+        // requested length when slicing the returned buffer.
         byte[] fullBody = "01234567".getBytes();
-        byte[] expected = "234567".getBytes();
         DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber subscriber =
             new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(2, 8);
         subscriber.onSubscribe(new TestSubscription());
         subscriber.onNext(List.of(ByteBuffer.wrap(fullBody)));
         subscriber.onComplete();
 
-        ByteBuffer result = subscriber.getBody().toCompletableFuture().get();
-        assertTrue(result.isDirect());
-        assertArrayEquals(expected, toByteArray(result));
+        ExecutionException ex = expectThrows(ExecutionException.class, () -> subscriber.getBody().get());
+        assertThat(ex.getCause(), instanceOf(IOException.class));
+        assertThat(ex.getCause().getMessage(), containsString("shorter than expected"));
+        assertThat(ex.getCause().getMessage(), containsString("received=6"));
+        assertThat(ex.getCause().getMessage(), containsString("expected=8"));
     }
 
     public void testSkipThenFillAtEofWithNoBytesRemainingFails() {
@@ -115,9 +120,13 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         subscriber.onNext(List.of(ByteBuffer.wrap(fullBody)));
         subscriber.onComplete();
 
+        // Skip fully consumes the body, leaving zero bytes for the fill — fails via the strict
+        // "shorter than expected" path (same as any other under-delivery after a successful skip).
         ExecutionException ex = expectThrows(ExecutionException.class, () -> subscriber.getBody().get());
         assertThat(ex.getCause(), instanceOf(IOException.class));
-        assertThat(ex.getCause().getMessage(), containsString("beyond content length"));
+        assertThat(ex.getCause().getMessage(), containsString("shorter than expected"));
+        assertThat(ex.getCause().getMessage(), containsString("received=0"));
+        assertThat(ex.getCause().getMessage(), containsString("expected=5"));
     }
 
     public void testRangeReadHandler206AccumulatesDirectBuffer() throws Exception {

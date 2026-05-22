@@ -1342,6 +1342,7 @@ from employees
 | keep y, language_name
 | mv_expand language_name
 | sort language_name
+| limit 1000
 | fork (where true) (where true)
 | where _fork == "fork1"
 | drop _fork

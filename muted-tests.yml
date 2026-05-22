@@ -579,3 +579,6 @@ tests:
 - class: org.elasticsearch.index.codec.tsdb.es95.ES95TSDBDocValuesFormatTests
   method: testRangeQueryViaIndexSearcher
   issue: https://github.com/elastic/elasticsearch/issues/149657
+- class: org.elasticsearch.index.reindex.LocalReindexResumeIT
+  method: testResumeReindexFromPit_slicedN_partialCompleted
+  issue: https://github.com/elastic/elasticsearch/issues/149665

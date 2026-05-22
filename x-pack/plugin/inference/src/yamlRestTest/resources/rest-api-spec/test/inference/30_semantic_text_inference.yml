@@ -1445,3 +1445,27 @@ setup:
 
   - match: { _id: doc_1 }
   - exists: _source._inference_fields
+
+---
+"Get _inference_fields via _source_exclude_vectors":
+  - requires:
+      cluster_features: "inference_fields.get_via_source_exclude_vectors"
+      reason: Bug fix for inference fields get via source exclude vectors
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          sparse_field: "value1"
+        refresh: true
+
+  - do:
+      get:
+        index: test-index
+        id: doc_1
+        _source_exclude_vectors: false
+
+  - match: { _id: doc_1 }
+  - exists: _source._inference_fields
+

@@ -573,3 +573,6 @@ tests:
 - class: org.elasticsearch.index.reindex.LocalReindexResumeIT
   method: testResumeReindexFromPit_slicedN_partialCompleted
   issue: https://github.com/elastic/elasticsearch/issues/149665
+- class: org.elasticsearch.http.netty4.Netty4ChunkedEncodingIT
+  method: testClientCancellation
+  issue: https://github.com/elastic/elasticsearch/issues/149675

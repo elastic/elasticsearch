@@ -791,6 +791,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         return false;
     }
 
+    // used by tests
+    public long countCachedRegions(Predicate<KeyType> predicate) {
+        if (cache instanceof LFUCache lfuCache) {
+            return lfuCache.countCachedRegions(predicate);
+        }
+        throw new UnsupportedOperationException("cache is not an LFUCache");
+    }
+
     private static void throwAlreadyClosed(String message) {
         throw new AlreadyClosedException(message);
     }
@@ -856,7 +864,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         sharedBytes.decRef();
     }
 
-    private record RegionKey<KeyType>(KeyType file, int region) {
+    record RegionKey<KeyType>(KeyType file, int region) {
         @Override
         public String toString() {
             return "Chunk{" + "file=" + file + ", region=" + region + '}';
@@ -2477,6 +2485,16 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 }
             }
             return false;
+        }
+
+        long countCachedRegions(Predicate<KeyType> predicate) {
+            long[] count = { 0L };
+            keyMapping.forEach((regionKey, entry) -> {
+                if (predicate.test(regionKey.file())) {
+                    count[0]++;
+                }
+            });
+            return count[0];
         }
 
         private void computeDecay() {

@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -55,8 +56,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class CsvFormatReaderTests extends ESTestCase {
 
@@ -5644,8 +5643,8 @@ public class CsvFormatReaderTests extends ESTestCase {
         byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
         assertThat("test file must be >> reader buffer size to be meaningful", bytes.length, Matchers.greaterThan(1_000_000));
 
-        AtomicLong bytesConsumed = new AtomicLong();
-        StorageObject object = drainSimulatingStorageObject(bytes, bytesConsumed);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(bytes, tracking);
 
         new CsvFormatReader(blockFactory).schema(object);
 
@@ -5654,11 +5653,11 @@ public class CsvFormatReaderTests extends ESTestCase {
         // majority of the multi-MB file must not have been touched.
         assertThat(
             "readSchema must not drain the stream after reading a typed header; consumed "
-                + bytesConsumed.get()
+                + tracking.bytesConsumed.get()
                 + " of "
                 + bytes.length
                 + " bytes",
-            bytesConsumed.get(),
+            tracking.bytesConsumed.get(),
             Matchers.lessThan((long) bytes.length / 2)
         );
     }
@@ -5681,113 +5680,21 @@ public class CsvFormatReaderTests extends ESTestCase {
         byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
         assertThat("test file must be significantly larger than the schema sample", bytes.length, Matchers.greaterThan(2_000_000));
 
-        AtomicLong bytesConsumed = new AtomicLong();
-        StorageObject object = drainSimulatingStorageObject(bytes, bytesConsumed);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(bytes, tracking);
 
         new CsvFormatReader(blockFactory).schema(object);
 
         // The sample covers at most DEFAULT_SAMPLE_SIZE rows, which is a small fraction
         // of the 200 000-row file. The remaining body must not be drained.
         assertThat(
-            "readSchema must not drain beyond the schema sample; consumed " + bytesConsumed.get() + " of " + bytes.length + " bytes",
-            bytesConsumed.get(),
+            "readSchema must not drain beyond the schema sample; consumed "
+                + tracking.bytesConsumed.get()
+                + " of "
+                + bytes.length
+                + " bytes",
+            tracking.bytesConsumed.get(),
             Matchers.lessThan((long) bytes.length / 2)
         );
-    }
-
-    /**
-     * Creates a {@link StorageObject} backed by {@code bytes} whose stream simulates the
-     * Apache HttpClient drain behaviour on close: any unread bytes are consumed before the
-     * underlying stream is released. {@code bytesConsumed} accumulates all bytes that pass
-     * through the stream, including those drained during {@code close()}.
-     * <p>
-     * The {@link StorageObject#abortStream} override sets an {@code aborted} flag before
-     * calling {@code close()}, which suppresses the drain — mirroring what
-     * {@code S3StorageObject} does by calling {@code ResponseInputStream.abort()} instead
-     * of a draining close.
-     */
-    private StorageObject drainSimulatingStorageObject(byte[] bytes, AtomicLong bytesConsumed) {
-        AtomicBoolean aborted = new AtomicBoolean(false);
-        return new StorageObject() {
-            @Override
-            public InputStream newStream() {
-                return drainTrackingStream(new ByteArrayInputStream(bytes), bytesConsumed, aborted);
-            }
-
-            @Override
-            public InputStream newStream(long position, long length) {
-                int from = (int) position;
-                int to = (int) Math.min(position + length, bytes.length);
-                return drainTrackingStream(new ByteArrayInputStream(bytes, from, to - from), bytesConsumed, aborted);
-            }
-
-            @Override
-            public void abortStream(InputStream stream) throws IOException {
-                aborted.set(true);
-                stream.close();
-            }
-
-            @Override
-            public long length() {
-                return bytes.length;
-            }
-
-            @Override
-            public Instant lastModified() {
-                return Instant.now();
-            }
-
-            @Override
-            public boolean exists() {
-                return true;
-            }
-
-            @Override
-            public StoragePath path() {
-                return StoragePath.of("memory://test-drain.csv");
-            }
-        };
-    }
-
-    /**
-     * Wraps {@code delegate} in a tracking stream whose {@code close()} simulates the
-     * Apache HttpClient drain: all remaining bytes are read before the stream is closed.
-     * Every byte that passes through — whether read normally or drained — is counted in
-     * {@code bytesConsumed}. When {@code aborted} is true (set by
-     * {@link StorageObject#abortStream}), {@code close()} skips the drain — mirroring the
-     * effect of {@code ResponseInputStream.abort()} in the real S3 provider.
-     */
-    private static InputStream drainTrackingStream(ByteArrayInputStream delegate, AtomicLong bytesConsumed, AtomicBoolean aborted) {
-        return new InputStream() {
-            @Override
-            public int read() {
-                int b = delegate.read();
-                if (b >= 0) bytesConsumed.incrementAndGet();
-                return b;
-            }
-
-            @Override
-            public int read(byte[] buf, int off, int len) {
-                int n = delegate.read(buf, off, len);
-                if (n > 0) bytesConsumed.addAndGet(n);
-                return n;
-            }
-
-            @Override
-            public void close() throws IOException {
-                if (aborted.get()) {
-                    // Abort path: discard without draining, like ResponseInputStream.abort().
-                    return;
-                }
-                // Simulate Apache HttpClient ContentLengthInputStream.close(): drain all
-                // remaining bytes to allow connection reuse. We read directly from the
-                // delegate (not through our read() overrides) to avoid double-counting.
-                byte[] drain = new byte[8192];
-                int n;
-                while ((n = delegate.read(drain)) != -1) {
-                    bytesConsumed.addAndGet(n);
-                }
-            }
-        };
     }
 }

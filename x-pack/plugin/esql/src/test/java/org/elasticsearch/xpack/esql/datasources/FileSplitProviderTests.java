@@ -65,9 +65,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
@@ -747,20 +744,18 @@ public class FileSplitProviderTests extends ESTestCase {
         byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
         long fileLength = payload.length;
 
-        AtomicLong bytesConsumed = new AtomicLong();
-        AtomicBoolean aborted = new AtomicBoolean(false);
-        AtomicInteger abortCalls = new AtomicInteger();
-        StorageObject object = drainSimulatingStorageObject(payload, bytesConsumed, aborted, abortCalls);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(payload, tracking);
 
         var csvReader = new CsvFormatReader(blockFactory);
         long stride = fileLength / 4;
         List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(csvReader, object, fileLength, stride);
 
         assertThat("expected multiple macro-split boundaries", starts.size(), greaterThan(1));
-        assertTrue("each boundary probe must abort the underlying stream", abortCalls.get() >= starts.size() - 1);
+        assertTrue("each boundary probe must abort the underlying stream", tracking.abortCalls.get() >= starts.size() - 1);
         assertThat(
-            "boundary probes must not drain the range streams; consumed " + bytesConsumed.get() + " of " + fileLength + " bytes",
-            bytesConsumed.get(),
+            "boundary probes must not drain the range streams; consumed " + tracking.bytesConsumed.get() + " of " + fileLength + " bytes",
+            tracking.bytesConsumed.get(),
             lessThan(fileLength / 2)
         );
     }
@@ -795,88 +790,6 @@ public class FileSplitProviderTests extends ESTestCase {
             @Override
             public StoragePath path() {
                 return path;
-            }
-        };
-    }
-
-    private static StorageObject drainSimulatingStorageObject(
-        byte[] data,
-        AtomicLong bytesConsumed,
-        AtomicBoolean aborted,
-        AtomicInteger abortCalls
-    ) {
-        return new StorageObject() {
-            @Override
-            public InputStream newStream() {
-                return drainTrackingStream(new ByteArrayInputStream(data), bytesConsumed, aborted);
-            }
-
-            @Override
-            public InputStream newStream(long position, long length) {
-                int from = (int) position;
-                int to = (int) Math.min(position + length, data.length);
-                return drainTrackingStream(new ByteArrayInputStream(data, from, to - from), bytesConsumed, aborted);
-            }
-
-            @Override
-            public void abortStream(InputStream stream) throws IOException {
-                aborted.set(true);
-                abortCalls.incrementAndGet();
-                stream.close();
-            }
-
-            @Override
-            public long length() {
-                return data.length;
-            }
-
-            @Override
-            public Instant lastModified() {
-                return Instant.EPOCH;
-            }
-
-            @Override
-            public boolean exists() {
-                return true;
-            }
-
-            @Override
-            public StoragePath path() {
-                return StoragePath.of("s3://bucket/data.csv");
-            }
-        };
-    }
-
-    private static InputStream drainTrackingStream(ByteArrayInputStream delegate, AtomicLong bytesConsumed, AtomicBoolean aborted) {
-        return new InputStream() {
-            @Override
-            public int read() {
-                int b = delegate.read();
-                if (b >= 0) {
-                    bytesConsumed.incrementAndGet();
-                }
-                return b;
-            }
-
-            @Override
-            public int read(byte[] buf, int off, int len) {
-                int n = delegate.read(buf, off, len);
-                if (n > 0) {
-                    bytesConsumed.addAndGet(n);
-                }
-                return n;
-            }
-
-            @Override
-            public void close() throws IOException {
-                if (aborted.get()) {
-                    return;
-                }
-                byte[] drain = new byte[8192];
-                int n;
-                while ((n = delegate.read(drain)) != -1) {
-                    bytesConsumed.addAndGet(n);
-                }
             }
         };
     }

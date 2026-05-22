@@ -25,8 +25,6 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -166,8 +164,8 @@ public class DecompressingStorageObjectTests extends ESTestCase {
             Matchers.greaterThan(200_000)
         );
 
-        AtomicLong rawBytesConsumed = new AtomicLong();
-        StorageObject rawObject = drainSimulatingStorageObject(compressed, rawBytesConsumed);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject rawObject = DrainSimulatingStorageObject.create(compressed, tracking);
         DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
         DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
 
@@ -182,11 +180,11 @@ public class DecompressingStorageObjectTests extends ESTestCase {
 
         assertThat(
             "abortStream must not drain the underlying raw stream; consumed "
-                + rawBytesConsumed.get()
+                + tracking.bytesConsumed.get()
                 + " of "
                 + compressed.length
                 + " raw bytes",
-            rawBytesConsumed.get(),
+            tracking.bytesConsumed.get(),
             Matchers.lessThan((long) compressed.length / 2)
         );
     }
@@ -206,9 +204,8 @@ public class DecompressingStorageObjectTests extends ESTestCase {
         byte[] original = "id,name\n1,a\n2,b\n3,c\n".getBytes(StandardCharsets.UTF_8);
         byte[] compressed = gzip(original);
 
-        AtomicLong rawBytesConsumed = new AtomicLong();
-        AtomicBoolean rawClosed = new AtomicBoolean(false);
-        StorageObject rawObject = drainSimulatingStorageObject(compressed, rawBytesConsumed, rawClosed, new AtomicBoolean(false));
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject rawObject = DrainSimulatingStorageObject.create(compressed, tracking);
         DecompressionCodec codec = new org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec();
         DecompressingStorageObject decompressing = new DecompressingStorageObject(rawObject, codec);
 
@@ -217,113 +214,7 @@ public class DecompressingStorageObjectTests extends ESTestCase {
             assertArrayEquals(original, decompressed);
         }
 
-        assertTrue("raw stream must be closed after the wrapper is closed (otherwise connection leaks)", rawClosed.get());
-    }
-
-    /**
-     * Creates a {@link StorageObject} whose stream simulates the Apache HttpClient drain on
-     * {@code close()}, and whose {@code abortStream} override flips an {@code aborted} flag
-     * that suppresses the drain — mirroring what {@code S3StorageObject.abortStream} does
-     * by calling {@code ResponseInputStream.abort()} instead of {@code close()}.
-     */
-    private static StorageObject drainSimulatingStorageObject(byte[] bytes, AtomicLong bytesConsumed) {
-        return drainSimulatingStorageObject(bytes, bytesConsumed, new AtomicBoolean(false), new AtomicBoolean(false));
-    }
-
-    /**
-     * Overload that also exposes {@code closed} (was {@code close()} ever called on the raw
-     * stream) and {@code aborted} (did the storage object's {@code abortStream} fire). Used
-     * by tests that need to distinguish "raw stream released via close" from "raw stream
-     * released via abort".
-     */
-    private static StorageObject drainSimulatingStorageObject(
-        byte[] bytes,
-        AtomicLong bytesConsumed,
-        AtomicBoolean closed,
-        AtomicBoolean aborted
-    ) {
-        return new StorageObject() {
-            @Override
-            public InputStream newStream() {
-                return drainTrackingStream(new ByteArrayInputStream(bytes), bytesConsumed, aborted, closed);
-            }
-
-            @Override
-            public InputStream newStream(long position, long length) {
-                int from = (int) position;
-                int to = (int) Math.min(position + length, bytes.length);
-                return drainTrackingStream(new ByteArrayInputStream(bytes, from, to - from), bytesConsumed, aborted, closed);
-            }
-
-            @Override
-            public void abortStream(InputStream stream) throws IOException {
-                aborted.set(true);
-                stream.close();
-            }
-
-            @Override
-            public long length() {
-                return bytes.length;
-            }
-
-            @Override
-            public Instant lastModified() {
-                return Instant.EPOCH;
-            }
-
-            @Override
-            public boolean exists() {
-                return true;
-            }
-
-            @Override
-            public StoragePath path() {
-                return StoragePath.of("file:///data.csv.gz");
-            }
-        };
-    }
-
-    /**
-     * Wraps {@code delegate} so that {@code close()} drains the remaining bytes (simulating
-     * Apache HttpClient's {@code ContentLengthInputStream.close()}), unless {@code aborted}
-     * was set via the storage object's {@code abortStream}. Bytes read normally and bytes
-     * drained on close are both counted in {@code bytesConsumed}. The {@code closed} flag is
-     * set whenever {@code close()} fires, regardless of the abort path.
-     */
-    private static InputStream drainTrackingStream(
-        ByteArrayInputStream delegate,
-        AtomicLong bytesConsumed,
-        AtomicBoolean aborted,
-        AtomicBoolean closed
-    ) {
-        return new InputStream() {
-            @Override
-            public int read() {
-                int b = delegate.read();
-                if (b >= 0) bytesConsumed.incrementAndGet();
-                return b;
-            }
-
-            @Override
-            public int read(byte[] buf, int off, int len) {
-                int n = delegate.read(buf, off, len);
-                if (n > 0) bytesConsumed.addAndGet(n);
-                return n;
-            }
-
-            @Override
-            public void close() throws IOException {
-                closed.set(true);
-                if (aborted.get()) {
-                    return;
-                }
-                byte[] drain = new byte[8192];
-                int n;
-                while ((n = delegate.read(drain)) != -1) {
-                    bytesConsumed.addAndGet(n);
-                }
-            }
-        };
+        assertTrue("raw stream must be closed after the wrapper is closed (otherwise connection leaks)", tracking.closed.get());
     }
 
     private static byte[] gzip(byte[] input) throws IOException {

@@ -11,6 +11,7 @@ import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.hamcrest.Matchers;
@@ -112,14 +113,18 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         byte[] bytes = ndjson.toString().getBytes(StandardCharsets.UTF_8);
         assertThat("test file must be significantly larger than the schema sample", bytes.length, Matchers.greaterThan(2_000_000));
 
-        AtomicLong bytesConsumed = new AtomicLong();
-        StorageObject object = drainSimulatingStorageObject(bytes, bytesConsumed);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(bytes, tracking);
 
         new NdJsonFormatReader(null, blockFactory).metadata(object);
 
         assertThat(
-            "metadata() must not drain beyond the schema sample; consumed " + bytesConsumed.get() + " of " + bytes.length + " bytes",
-            bytesConsumed.get(),
+            "metadata() must not drain beyond the schema sample; consumed "
+                + tracking.bytesConsumed.get()
+                + " of "
+                + bytes.length
+                + " bytes",
+            tracking.bytesConsumed.get(),
             Matchers.lessThan((long) bytes.length / 2)
         );
     }
@@ -138,8 +143,8 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         byte[] bytes = ndjson.toString().getBytes(StandardCharsets.UTF_8);
         assertThat("test file must be significantly larger than the schema sample", bytes.length, Matchers.greaterThan(2_000_000));
 
-        AtomicLong bytesConsumed = new AtomicLong();
-        StorageObject object = drainSimulatingStorageObject(bytes, bytesConsumed);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(bytes, tracking);
 
         // Simulate the production caller: open, read a small prefix (schema sample), close.
         try (InputStream stream = NdJsonFormatReader.openForSchemaInference(object, false)) {
@@ -149,8 +154,12 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         }
 
         assertThat(
-            "openForSchemaInference close() must not drain the stream; consumed " + bytesConsumed.get() + " of " + bytes.length + " bytes",
-            bytesConsumed.get(),
+            "openForSchemaInference close() must not drain the stream; consumed "
+                + tracking.bytesConsumed.get()
+                + " of "
+                + bytes.length
+                + " bytes",
+            tracking.bytesConsumed.get(),
             Matchers.lessThan((long) bytes.length / 2)
         );
     }
@@ -169,8 +178,8 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         byte[] bytes = ndjson.toString().getBytes(StandardCharsets.UTF_8);
         assertThat("test file must be significantly larger than the schema sample", bytes.length, Matchers.greaterThan(2_000_000));
 
-        AtomicLong bytesConsumed = new AtomicLong();
-        StorageObject object = drainSimulatingStorageObject(bytes, bytesConsumed);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(bytes, tracking);
 
         try (InputStream stream = NdJsonFormatReader.openForSchemaInference(object, true)) {
             byte[] sample = new byte[4096];
@@ -180,11 +189,11 @@ public class NdJsonFormatReaderTests extends ESTestCase {
 
         assertThat(
             "openForSchemaInference(skipFirstLine=true) close() must not drain the stream; consumed "
-                + bytesConsumed.get()
+                + tracking.bytesConsumed.get()
                 + " of "
                 + bytes.length
                 + " bytes",
-            bytesConsumed.get(),
+            tracking.bytesConsumed.get(),
             Matchers.lessThan((long) bytes.length / 2)
         );
     }
@@ -250,79 +259,6 @@ public class NdJsonFormatReaderTests extends ESTestCase {
         IOException thrown = expectThrows(IOException.class, () -> NdJsonFormatReader.openForSchemaInference(object, true));
         assertSame("the original scan failure must propagate unchanged", scanFailure, thrown);
         assertTrue("raw stream must be aborted when scanForTerminator fails", aborted.get());
-    }
-
-    /**
-     * Creates a {@link StorageObject} backed by {@code bytes} whose stream simulates the
-     * Apache HttpClient drain behaviour on close: any unread bytes are consumed before the
-     * underlying stream is released. {@code bytesConsumed} accumulates all bytes that pass
-     * through the stream, including those drained during {@code close()}.
-     * <p>
-     * The {@link StorageObject#abortStream} override sets an {@code aborted} flag before
-     * calling {@code close()}, which suppresses the drain — mirroring what
-     * {@code S3StorageObject} does by calling {@code ResponseInputStream.abort()} instead
-     * of a draining close.
-     */
-    private StorageObject drainSimulatingStorageObject(byte[] bytes, AtomicLong bytesConsumed) {
-        AtomicBoolean aborted = new AtomicBoolean(false);
-        return new BytesObject(bytes) {
-            @Override
-            public InputStream newStream() {
-                return drainTrackingStream(new ByteArrayInputStream(bytes), bytesConsumed, aborted);
-            }
-
-            @Override
-            public InputStream newStream(long position, long length) {
-                int from = (int) position;
-                int to = (int) Math.min(position + length, bytes.length);
-                return drainTrackingStream(new ByteArrayInputStream(bytes, from, to - from), bytesConsumed, aborted);
-            }
-
-            @Override
-            public void abortStream(InputStream stream) throws IOException {
-                aborted.set(true);
-                stream.close();
-            }
-        };
-    }
-
-    /**
-     * Wraps {@code delegate} in a tracking stream whose {@code close()} simulates the
-     * Apache HttpClient drain: all remaining bytes are read before the stream is closed.
-     * Every byte that passes through is counted in {@code bytesConsumed}. When {@code aborted}
-     * is true (set by {@link StorageObject#abortStream}), {@code close()} skips the drain —
-     * mirroring the effect of {@code ResponseInputStream.abort()} in the real S3 provider.
-     */
-    private static InputStream drainTrackingStream(ByteArrayInputStream delegate, AtomicLong bytesConsumed, AtomicBoolean aborted) {
-        return new InputStream() {
-            @Override
-            public int read() {
-                int b = delegate.read();
-                if (b >= 0) bytesConsumed.incrementAndGet();
-                return b;
-            }
-
-            @Override
-            public int read(byte[] buf, int off, int len) {
-                int n = delegate.read(buf, off, len);
-                if (n > 0) bytesConsumed.addAndGet(n);
-                return n;
-            }
-
-            @Override
-            public void close() throws IOException {
-                if (aborted.get()) {
-                    return;
-                }
-                // Simulate Apache HttpClient ContentLengthInputStream.close(): drain all
-                // remaining bytes. We read from the delegate directly to avoid double-counting.
-                byte[] drain = new byte[8192];
-                int n;
-                while ((n = delegate.read(drain)) != -1) {
-                    bytesConsumed.addAndGet(n);
-                }
-            }
-        };
     }
 
     // -- helpers --

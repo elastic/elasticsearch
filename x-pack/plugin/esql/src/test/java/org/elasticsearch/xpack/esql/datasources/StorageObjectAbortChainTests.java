@@ -14,19 +14,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.hamcrest.Matchers;
 
-import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
-import java.time.Instant;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.zip.GZIPOutputStream;
 
 /**
@@ -61,9 +55,8 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         byte[] compressed = gzip(original);
         assertThat("compressed payload must be much larger than the prefix we read", compressed.length, Matchers.greaterThan(200_000));
 
-        AtomicLong rawBytesConsumed = new AtomicLong();
-        AtomicBoolean rawAborted = new AtomicBoolean(false);
-        StorageObject raw = drainSimulatingStorageObject(compressed, rawBytesConsumed, rawAborted, new AtomicInteger());
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject raw = DrainSimulatingStorageObject.create(compressed, tracking);
 
         // Production order (inner-to-outer): decompressing wraps the S3-like raw, then the
         // global hard cap, then the per-query budget, then retry. Outer decorators delegate
@@ -91,10 +84,14 @@ public class StorageObjectAbortChainTests extends ESTestCase {
             chain.abortStream(stream);
         }
 
-        assertTrue("raw stream must have been aborted (not closed-with-drain)", rawAborted.get());
+        assertTrue("raw stream must have been aborted (not closed-with-drain)", tracking.aborted.get());
         assertThat(
-            "abort must not drain the raw stream; consumed " + rawBytesConsumed.get() + " of " + compressed.length + " compressed bytes",
-            rawBytesConsumed.get(),
+            "abort must not drain the raw stream; consumed "
+                + tracking.bytesConsumed.get()
+                + " of "
+                + compressed.length
+                + " compressed bytes",
+            tracking.bytesConsumed.get(),
             Matchers.lessThan((long) compressed.length / 2)
         );
         assertEquals("query budget permit must be released by abortStream", 0, budget.inFlight());
@@ -116,10 +113,8 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         long fileLength = payload.length;
         assertThat("payload must exceed macro-split stride", fileLength, Matchers.greaterThan(2L * 1024 * 1024));
 
-        AtomicLong rawBytesConsumed = new AtomicLong();
-        AtomicBoolean rawAborted = new AtomicBoolean(false);
-        AtomicInteger abortCalls = new AtomicInteger();
-        StorageObject raw = drainSimulatingStorageObject(payload, rawBytesConsumed, rawAborted, abortCalls);
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject raw = DrainSimulatingStorageObject.create(payload, tracking);
 
         QueryConcurrencyBudget budget = new QueryConcurrencyBudget(4, 60_000L, null);
         ConcurrencyLimiter limiter = new ConcurrencyLimiter(4);
@@ -135,104 +130,20 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         List<Long> starts = FileSplitProvider.computeRecordAlignedMacroSplitStarts(csvReader, chain, fileLength, stride);
 
         assertThat("expected multiple macro-split boundaries", starts.size(), Matchers.greaterThan(1));
-        assertTrue("each probe must abort the raw stream", abortCalls.get() >= starts.size() - 1);
+        assertTrue("each probe must abort the raw stream", tracking.abortCalls.get() >= starts.size() - 1);
         assertThat(
             "macro-split probes must not drain range streams; consumed "
-                + rawBytesConsumed.get()
+                + tracking.bytesConsumed.get()
                 + " of "
                 + fileLength
                 + " bytes across "
-                + abortCalls.get()
+                + tracking.abortCalls.get()
                 + " probes",
-            rawBytesConsumed.get(),
+            tracking.bytesConsumed.get(),
             Matchers.lessThan(fileLength / 2)
         );
         assertEquals("query budget permits must be released after split discovery", 0, budget.inFlight());
         assertEquals("global permits must be released after split discovery", 4, limiter.availablePermits());
-    }
-
-    /**
-     * Builds a {@link StorageObject} whose stream simulates Apache HttpClient's drain on
-     * {@code close()}, mirroring the real S3 behaviour. The {@link StorageObject#abortStream}
-     * override flips an {@code aborted} flag that suppresses the drain — exactly what the S3
-     * provider does by calling {@code ResponseInputStream.abort()} instead of {@code close()}.
-     */
-    private static StorageObject drainSimulatingStorageObject(
-        byte[] bytes,
-        AtomicLong bytesConsumed,
-        AtomicBoolean aborted,
-        AtomicInteger abortCalls
-    ) {
-        return new StorageObject() {
-            @Override
-            public InputStream newStream() {
-                return drainTrackingStream(new ByteArrayInputStream(bytes), bytesConsumed, aborted);
-            }
-
-            @Override
-            public InputStream newStream(long position, long length) {
-                int from = (int) position;
-                int to = (int) Math.min(position + length, bytes.length);
-                return drainTrackingStream(new ByteArrayInputStream(bytes, from, to - from), bytesConsumed, aborted);
-            }
-
-            @Override
-            public void abortStream(InputStream stream) throws IOException {
-                aborted.set(true);
-                abortCalls.incrementAndGet();
-                stream.close();
-            }
-
-            @Override
-            public long length() {
-                return bytes.length;
-            }
-
-            @Override
-            public Instant lastModified() {
-                return Instant.EPOCH;
-            }
-
-            @Override
-            public boolean exists() {
-                return true;
-            }
-
-            @Override
-            public StoragePath path() {
-                return StoragePath.of("s3://bucket/data.csv.gz");
-            }
-        };
-    }
-
-    private static InputStream drainTrackingStream(ByteArrayInputStream delegate, AtomicLong bytesConsumed, AtomicBoolean aborted) {
-        return new InputStream() {
-            @Override
-            public int read() {
-                int b = delegate.read();
-                if (b >= 0) bytesConsumed.incrementAndGet();
-                return b;
-            }
-
-            @Override
-            public int read(byte[] buf, int off, int len) {
-                int n = delegate.read(buf, off, len);
-                if (n > 0) bytesConsumed.addAndGet(n);
-                return n;
-            }
-
-            @Override
-            public void close() throws IOException {
-                if (aborted.get()) {
-                    return;
-                }
-                byte[] drain = new byte[8192];
-                int n;
-                while ((n = delegate.read(drain)) != -1) {
-                    bytesConsumed.addAndGet(n);
-                }
-            }
-        };
     }
 
     private static byte[] gzip(byte[] input) throws IOException {

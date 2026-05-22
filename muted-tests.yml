@@ -28,9 +28,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
   method: test50CredentialAutogenerationOnlyOnce
   issue: https://github.com/elastic/elasticsearch/issues/132878
-- class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
-  method: testCBTrippingOnReduction
-  issue: https://github.com/elastic/elasticsearch/issues/134667
 - class: org.elasticsearch.gradle.TestClustersPluginFuncTest
   method: override jdk usage via ES_JAVA_HOME for known jdk os incompatibilities
   issue: https://github.com/elastic/elasticsearch/issues/135413
@@ -441,9 +438,6 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/148748
-- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
-  method: testRelocateIndexingShardWithActionFailures
-  issue: https://github.com/elastic/elasticsearch/issues/148782
 - class: org.elasticsearch.xpack.stateless.StatelessIndexCommitListenerIT
   method: testRefIsNotReleasedUponNotificationFailure
   issue: https://github.com/elastic/elasticsearch/issues/148471
@@ -573,3 +567,6 @@ tests:
 - class: org.elasticsearch.http.netty4.Netty4ChunkedEncodingIT
   method: testClientCancellation
   issue: https://github.com/elastic/elasticsearch/issues/149675
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:SUBQUERIES}
+  issue: https://github.com/elastic/elasticsearch/issues/149681

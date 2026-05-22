@@ -167,7 +167,15 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
 
     // ------------------------------- decompressors -------------------------------
 
-    private static class NoopDecompressor implements BytesInputDecompressor {
+    /**
+     * Pass-through decompressor for files written with {@link CompressionCodecName#UNCOMPRESSED}.
+     *
+     * <p>Visible at package level so {@link PrefetchedPageReader#decompressToDirectBuffer} can
+     * detect this case via {@code instanceof} and skip the {@code allocateDirect} + memcopy that
+     * the {@code ByteBuffer} overload below would otherwise perform. The marker check is a narrow
+     * coupling to the only built-in pass-through codec.
+     */
+    static class NoopDecompressor implements BytesInputDecompressor {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) {
             return bytes;

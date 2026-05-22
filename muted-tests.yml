@@ -282,6 +282,9 @@ tests:
 - class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
   method: testCreateCursorWithFormatTxtOnNewNode
   issue: https://github.com/elastic/elasticsearch/issues/149747
+- class: org.elasticsearch.xpack.sql.qa.mixed_node.SqlCompatIT
+  method: testNullsOrderWithMissingOrderSupportQueryingOldNode
+  issue: https://github.com/elastic/elasticsearch/issues/149748
 
 # Examples:
 #

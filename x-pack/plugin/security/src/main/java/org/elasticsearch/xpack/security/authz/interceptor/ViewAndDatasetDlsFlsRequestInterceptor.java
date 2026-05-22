@@ -23,6 +23,7 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_VALUE;
 
 /**
@@ -35,11 +36,10 @@ public class ViewAndDatasetDlsFlsRequestInterceptor implements RequestIntercepto
     static final String VIEWS_WITH_DLS_OR_FLS_METADATA_KEY = "es.views_with_dls_or_fls";
     static final String DATASETS_WITH_DLS_OR_FLS_METADATA_KEY = "es.datasets_with_dls_or_fls";
 
-    private static final String VIEWS_DLS_FLS_MESSAGE = "Views with document or field level security restrictions are not supported."
-        + " Remove DLS/FLS restrictions from the affected views in the role definition, or exclude them from the request.";
-    private static final String DATASETS_DLS_FLS_MESSAGE = "Datasets with document or field level security restrictions are not supported."
-        + " Remove DLS/FLS restrictions from the affected datasets in the role definition, or exclude them from the request.";
-    private static final String VIEWS_AND_DATASETS_DLS_FLS_MESSAGE = "Views and datasets with document or field level security"
+    // Two alternative user-facing messages: one when only views or only datasets are affected, one when both are.
+    private static final String DLS_FLS_VIEWS_OR_DATASETS_MESSAGE = "%s with document or field level security restrictions are not supported."
+        + " Remove DLS/FLS restrictions from the affected %s in the role definition, or exclude them from the request.";
+    private static final String DLS_FLS_VIEWS_AND_DATASETS_MESSAGE = "Views and datasets with document or field level security"
         + " restrictions are not supported. See views_with_dls_or_fls and datasets_with_dls_or_fls for the affected names.";
 
     private final ThreadContext threadContext;
@@ -106,21 +106,30 @@ public class ViewAndDatasetDlsFlsRequestInterceptor implements RequestIntercepto
     }
 
     private static ElasticsearchSecurityException getDlsFlsException(List<String> viewsWithDlsOrFls, List<String> datasetsWithDlsOrFls) {
-        final String message;
-        if (viewsWithDlsOrFls.isEmpty() == false && datasetsWithDlsOrFls.isEmpty() == false) {
-            message = VIEWS_AND_DATASETS_DLS_FLS_MESSAGE;
-        } else if (viewsWithDlsOrFls.isEmpty() == false) {
-            message = VIEWS_DLS_FLS_MESSAGE;
+        final boolean hasViews = viewsWithDlsOrFls.isEmpty() == false;
+        final boolean hasDatasets = datasetsWithDlsOrFls.isEmpty() == false;
+        if (hasViews && hasDatasets) {
+            ElasticsearchSecurityException exception = new ElasticsearchSecurityException(
+                DLS_FLS_VIEWS_AND_DATASETS_MESSAGE,
+                RestStatus.FORBIDDEN
+            );
+            exception.addMetadata(VIEWS_WITH_DLS_OR_FLS_METADATA_KEY, viewsWithDlsOrFls);
+            exception.addMetadata(DATASETS_WITH_DLS_OR_FLS_METADATA_KEY, datasetsWithDlsOrFls);
+            return exception;
+        } else if (hasViews) {
+            ElasticsearchSecurityException exception = new ElasticsearchSecurityException(
+                format(DLS_FLS_VIEWS_OR_DATASETS_MESSAGE, "Views", "views"),
+                RestStatus.FORBIDDEN
+            );
+            exception.addMetadata(VIEWS_WITH_DLS_OR_FLS_METADATA_KEY, viewsWithDlsOrFls);
+            return exception;
         } else {
-            message = DATASETS_DLS_FLS_MESSAGE;
+            ElasticsearchSecurityException exception = new ElasticsearchSecurityException(
+                format(DLS_FLS_VIEWS_OR_DATASETS_MESSAGE, "Datasets", "datasets"),
+                RestStatus.FORBIDDEN
+            );
+            exception.addMetadata(DATASETS_WITH_DLS_OR_FLS_METADATA_KEY, datasetsWithDlsOrFls);
+            return exception;
         }
-        ElasticsearchSecurityException dlsFlsException = new ElasticsearchSecurityException(message, RestStatus.FORBIDDEN);
-        if (viewsWithDlsOrFls.isEmpty() == false) {
-            dlsFlsException.addMetadata(VIEWS_WITH_DLS_OR_FLS_METADATA_KEY, viewsWithDlsOrFls);
-        }
-        if (datasetsWithDlsOrFls.isEmpty() == false) {
-            dlsFlsException.addMetadata(DATASETS_WITH_DLS_OR_FLS_METADATA_KEY, datasetsWithDlsOrFls);
-        }
-        return dlsFlsException;
     }
 }

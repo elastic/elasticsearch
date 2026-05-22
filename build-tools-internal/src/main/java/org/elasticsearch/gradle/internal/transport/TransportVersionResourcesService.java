@@ -207,7 +207,7 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     }
 
     /** Read all upper bound files and return them mapped by their release name */
-    Map<String, TransportVersionUpperBound> getUpperBounds() throws IOException {
+    public Map<String, TransportVersionUpperBound> getUpperBounds() throws IOException {
         Map<String, TransportVersionUpperBound> upperBounds = new HashMap<>();
         try (var stream = Files.list(transportResourcesDir.resolve(UPPER_BOUNDS_DIR))) {
             for (var latestFile : stream.toList()) {
@@ -223,6 +223,17 @@ public abstract class TransportVersionResourcesService implements BuildService<T
     TransportVersionUpperBound getUpperBoundFromGitBase(String name) {
         Path resourcePath = getUpperBoundRelativePath(name);
         return getUpstreamFile(resourcePath, TransportVersionUpperBound::fromString);
+    }
+
+    /** Retrieve an upper bound from the given git ref by name, or null if it doesn't exist at that ref */
+    public TransportVersionUpperBound getUpperBoundFromRef(String ref, String name) {
+        Path resourcePath = getUpperBoundRelativePath(name);
+        String pathString = resourcePath.toString().replace('\\', '/');
+        String output = gitCommandOrNull("show", ref + ":./" + pathString);
+        if (output == null) {
+            return null;
+        }
+        return TransportVersionUpperBound.fromString(resourcePath, output.strip());
     }
 
     /** Retrieve all upper bounds that exist in the merge base ref in git */
@@ -457,6 +468,28 @@ public abstract class TransportVersionResourcesService implements BuildService<T
                     + System.lineSeparator()
                     + stdout.toString(StandardCharsets.UTF_8)
             );
+        }
+
+        return stdout.toString(StandardCharsets.UTF_8);
+    }
+
+    // run a git command relative to the transport version resources directory, returning null on non-zero exit
+    private String gitCommandOrNull(String... args) {
+        ByteArrayOutputStream stdout = new ByteArrayOutputStream();
+
+        List<String> command = new ArrayList<>();
+        Collections.addAll(command, "git", "-C", getTransportResourcesDir().toString());
+        Collections.addAll(command, args);
+
+        ExecResult result = getExecOperations().exec(spec -> {
+            spec.setCommandLine(command);
+            spec.setStandardOutput(stdout);
+            spec.setErrorOutput(stdout);
+            spec.setIgnoreExitValue(true);
+        });
+
+        if (result.getExitValue() != 0) {
+            return null;
         }
 
         return stdout.toString(StandardCharsets.UTF_8);

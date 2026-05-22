@@ -146,6 +146,51 @@ public class StorageObjectAbortChainTests extends ESTestCase {
         assertEquals("global permits must be released after split discovery", 4, limiter.availablePermits());
     }
 
+    /**
+     * Regression guard for {@link ParallelParsingCoordinator#computeSegments}: in-file parallel parsing
+     * probes record boundaries through the same decorator chain used for uncompressed object-store reads.
+     */
+    public void testComputeSegmentsAbortPropagatesThroughDecoratorChainWithoutDrain() throws IOException {
+        StringBuilder csv = new StringBuilder("id,name\n");
+        for (int i = 0; i < 200_000; i++) {
+            csv.append(i).append(",value_").append(i).append('\n');
+        }
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+        long fileLength = payload.length;
+        assertThat("payload must exceed minimum segment size", fileLength, Matchers.greaterThan(2L * 1024 * 1024));
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject raw = DrainSimulatingStorageObject.create(payload, tracking);
+
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(4, 60_000L, null);
+        ConcurrencyLimiter limiter = new ConcurrencyLimiter(4);
+        StorageObject chain = new RetryableStorageObject(
+            new ConcurrencyLimitedStorageObject(new QueryBudgetedStorageObject(raw, budget), limiter),
+            new RetryPolicy(3, 1, 10)
+        );
+
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+        CsvFormatReader csvReader = new CsvFormatReader(blockFactory);
+
+        List<long[]> segments = ParallelParsingCoordinator.computeSegments(csvReader, chain, fileLength, 4, csvReader.minimumSegmentSize());
+
+        assertThat("expected multiple parse segments", segments.size(), Matchers.greaterThan(1));
+        assertTrue("each probe must abort the raw stream", tracking.abortCalls.get() >= segments.size() - 1);
+        assertThat(
+            "segment probes must not drain range streams; consumed "
+                + tracking.bytesConsumed.get()
+                + " of "
+                + fileLength
+                + " bytes across "
+                + tracking.abortCalls.get()
+                + " probes",
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan(fileLength / 2)
+        );
+        assertEquals("query budget permits must be released after segment discovery", 0, budget.inFlight());
+        assertEquals("global permits must be released after segment discovery", 4, limiter.availablePermits());
+    }
+
     private static byte[] gzip(byte[] input) throws IOException {
         ByteArrayOutputStream baos = new ByteArrayOutputStream();
         try (GZIPOutputStream gzipOut = new GZIPOutputStream(baos)) {

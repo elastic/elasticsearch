@@ -1100,7 +1100,7 @@ public class InternalEngine extends Engine {
                         useTsdbSyntheticId
                     );
                 } else {
-                    return VersionsAndSeqNoResolver.timeSeriesLoadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
+                    return VersionsAndSeqNoResolver.loadDocIdAndVersion(directoryReader, op.uid(), loadSeqNo);
                 }
             });
             if (docIdAndVersion != null) {

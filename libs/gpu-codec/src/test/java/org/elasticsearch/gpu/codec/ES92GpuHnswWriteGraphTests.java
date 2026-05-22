@@ -64,6 +64,29 @@ public class ES92GpuHnswWriteGraphTests extends ESTestCase {
         numVectors = randomIntBetween(100, 500);
         dims = randomIntBetween(128, 1024);
         similarity = randomSimilarity();
+        warmupVectorScoring(similarity, dims);
+    }
+
+    /**
+     * Warm up JIT compilation of vector scoring code paths for the given similarity
+     * and dimensionality. Without this, the JIT compiler may be at different compilation
+     * tiers (interpreter/C1/C2) during the GPU and Lucene graph builds, producing 1-ULP
+     * floating-point differences in dotProduct that cause different HNSW graph topologies.
+     */
+    private static void warmupVectorScoring(VectorSimilarityFunction sim, int dims) {
+        float[] a = new float[dims];
+        float[] b = new float[dims];
+        for (int i = 0; i < dims; i++) {
+            a[i] = (i + 1) * 0.001f;
+            b[i] = (i + 2) * 0.001f;
+        }
+        float sink = 0;
+        for (int i = 0; i < 20_000; i++) {
+            sink += sim.compare(a, b);
+        }
+        if (sink == Float.NEGATIVE_INFINITY) {
+            throw new AssertionError("unreachable");
+        }
     }
 
     public void testCpuFallbackGraphMatchesLucene() throws Exception {

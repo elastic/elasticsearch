@@ -25,9 +25,13 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Build-time generator for Parquet fixture files. Converts CSV to Parquet.
@@ -95,7 +99,7 @@ public final class ParquetFixtureGenerator {
             for (int part = 0; part < numParts; part++) {
                 int from = part * partSize;
                 int to = Math.min(from + partSize, total);
-                String fileName = String.format(java.util.Locale.ROOT, "%s_%02d.parquet", baseName, part);
+                String fileName = String.format(Locale.ROOT, "%s_%02d.parquet", baseName, part);
                 Path outputPath = outputDir.resolve(fileName);
                 byte[] parquetBytes = generateFromRows(result, from, to, codec);
                 Files.write(outputPath, parquetBytes);
@@ -212,7 +216,7 @@ public final class ParquetFixtureGenerator {
         try (ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile).withType(schema).withCompressionCodec(codec).build()) {
             for (Object[] row : rows) {
                 Group g = factory.newGroup();
-                Map<String, Group> parentCache = new java.util.HashMap<>();
+                Map<String, Group> parentCache = new HashMap<>();
                 for (int i = 0; i < columns.size(); i++) {
                     Object value = i < row.length ? row[i] : null;
                     Group target = resolveParent(g, columnPaths[i], parentCache);
@@ -294,7 +298,7 @@ public final class ParquetFixtureGenerator {
      * column with sibling flat columns named {@code languages.long}, {@code languages.short}, etc.
      */
     static boolean[] computeFlatten(List<CsvFixtureParser.ColumnSpec> columns) {
-        java.util.Set<String> names = new java.util.HashSet<>();
+        Set<String> names = new HashSet<>();
         for (CsvFixtureParser.ColumnSpec c : columns) {
             names.add(c.name());
         }

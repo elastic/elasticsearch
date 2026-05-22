@@ -1129,15 +1129,6 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * Top-level fields are recognised via {@link MessageType#containsField}; leaf paths are
      * joined with {@code "."} (mirroring {@link ColumnChunkPrefetcher}'s prefetch key).
      */
-    /**
-     * Maps each projected attribute to its {@link ColumnInfo}. Resolution is path-aware:
-     * <ol>
-     *   <li>Exact match against a top-level field name in {@code projectedSchema} (preserves
-     *       files whose top-level fields literally contain a dot).</li>
-     *   <li>Otherwise, the attribute name is interpreted as a dotted path and looked up against
-     *       the full leaf paths of {@code projectedSchema}.</li>
-     * </ol>
-     */
     static ColumnInfo[] buildColumnInfos(MessageType projectedSchema, List<Attribute> attributes) {
         ColumnInfo[] columnInfos = new ColumnInfo[attributes.size()];
         // Per-top-level-field descriptors handle LIST<primitive> and other cases where the

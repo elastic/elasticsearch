@@ -630,33 +630,21 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      */
     private static List<Attribute> convertOrcSchemaToAttributes(TypeDescription schema) {
         List<Attribute> attributes = new ArrayList<>();
-        List<String> fieldNames = schema.getFieldNames();
-        List<TypeDescription> children = schema.getChildren();
-        for (int i = 0; i < fieldNames.size(); i++) {
-            collectOrcAttributes(children.get(i), fieldNames.get(i), 1, attributes);
-        }
-        return attributes;
-    }
-
-    private static void collectOrcAttributes(TypeDescription type, String dottedPath, int depth, List<Attribute> out) {
-        if (depth > MAX_STRUCT_FLATTENING_DEPTH) {
-            LOGGER.debug(
-                "ORC field [{}] exceeds STRUCT flattening depth cap [{}]; emitting as UNSUPPORTED",
-                dottedPath,
-                MAX_STRUCT_FLATTENING_DEPTH
-            );
-            out.add(new ReferenceAttribute(Source.EMPTY, null, dottedPath, DataType.UNSUPPORTED, Nullability.TRUE, null, false));
-            return;
-        }
-        if (type.getCategory() == TypeDescription.Category.STRUCT) {
-            List<String> childNames = type.getFieldNames();
-            List<TypeDescription> children = type.getChildren();
-            for (int i = 0; i < childNames.size(); i++) {
-                collectOrcAttributes(children.get(i), dottedPath + "." + childNames.get(i), depth + 1, out);
+        walkDottedLeaves(schema, (dottedPath, type, truncated) -> {
+            if (truncated) {
+                LOGGER.debug(
+                    "ORC field [{}] exceeds STRUCT flattening depth cap [{}]; emitting as UNSUPPORTED",
+                    dottedPath,
+                    MAX_STRUCT_FLATTENING_DEPTH
+                );
+                attributes.add(new ReferenceAttribute(Source.EMPTY, null, dottedPath, DataType.UNSUPPORTED, Nullability.TRUE, null, false));
+            } else {
+                attributes.add(
+                    new ReferenceAttribute(Source.EMPTY, null, dottedPath, convertOrcTypeToEsql(type), Nullability.TRUE, null, false)
+                );
             }
-            return;
-        }
-        out.add(new ReferenceAttribute(Source.EMPTY, null, dottedPath, convertOrcTypeToEsql(type), Nullability.TRUE, null, false));
+        });
+        return attributes;
     }
 
     private static DataType convertOrcTypeToEsql(TypeDescription orcType) {
@@ -675,37 +663,49 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     }
 
     /**
-     * Builds a map from dotted attribute names to the corresponding leaf (or UNSUPPORTED) ORC
+     * Builds a map from dotted attribute names to the corresponding leaf (or truncated-group) ORC
      * {@link TypeDescription}, mirroring the flattening done in {@link #convertOrcSchemaToAttributes}.
      * Used by {@link #buildIncludeMask} and {@link OrcPageIterator} to walk struct vectors.
      */
     private static Map<String, TypeDescription> buildDottedNameToType(TypeDescription schema) {
         Map<String, TypeDescription> map = new HashMap<>();
-        List<String> fieldNames = schema.getFieldNames();
-        List<TypeDescription> children = schema.getChildren();
-        for (int i = 0; i < fieldNames.size(); i++) {
-            collectDottedNames(children.get(i), fieldNames.get(i), 1, map);
-        }
+        walkDottedLeaves(schema, (dottedPath, type, truncated) -> map.put(dottedPath, type));
         return map;
     }
 
-    private static void collectDottedNames(TypeDescription type, String dottedPath, int depth, Map<String, TypeDescription> out) {
+    /**
+     * Walks {@code schema}'s STRUCT children and invokes {@code visitor} once per dotted-path
+     * leaf, with {@code truncated == true} when the depth cap stops recursion (the visitor sees
+     * the surviving group as the leaf type). Single source of truth for the flattening shape so
+     * {@link #convertOrcSchemaToAttributes} and {@link #buildDottedNameToType} stay in sync.
+     */
+    @FunctionalInterface
+    private interface DottedLeafVisitor {
+        void visit(String dottedPath, TypeDescription type, boolean truncated);
+    }
+
+    private static void walkDottedLeaves(TypeDescription schema, DottedLeafVisitor visitor) {
+        List<String> fieldNames = schema.getFieldNames();
+        List<TypeDescription> children = schema.getChildren();
+        for (int i = 0; i < fieldNames.size(); i++) {
+            walkDottedLeaves(children.get(i), fieldNames.get(i), 1, visitor);
+        }
+    }
+
+    private static void walkDottedLeaves(TypeDescription type, String dottedPath, int depth, DottedLeafVisitor visitor) {
         if (depth > MAX_STRUCT_FLATTENING_DEPTH) {
-            // Mirror the conversion: deep groups become a single UNSUPPORTED attribute; include
-            // the truncated entry so include-mask construction can find it (it will be filtered
-            // out at projection time via UNSUPPORTED). We map to the group itself.
-            out.put(dottedPath, type);
+            visitor.visit(dottedPath, type, true);
             return;
         }
         if (type.getCategory() == TypeDescription.Category.STRUCT) {
             List<String> childNames = type.getFieldNames();
             List<TypeDescription> children = type.getChildren();
             for (int i = 0; i < childNames.size(); i++) {
-                collectDottedNames(children.get(i), dottedPath + "." + childNames.get(i), depth + 1, out);
+                walkDottedLeaves(children.get(i), dottedPath + "." + childNames.get(i), depth + 1, visitor);
             }
             return;
         }
-        out.put(dottedPath, type);
+        visitor.visit(dottedPath, type, false);
     }
 
     private static class OrcPageIterator implements CloseableIterator<Page> {
@@ -875,16 +875,23 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             return new Page(blocks);
         }
 
-        private Block createBlock(ColumnVector vector, DataType dataType, int rowCount) {
-            return createBlock(vector, dataType, rowCount, null);
-        }
-
         /**
          * Builds a block from {@code vector}, OR'ing in {@code ancestorNulls} (the per-row null
          * mask synthesized from any STRUCT ancestors on the path to this leaf). Pass {@code null}
          * for top-level columns. For nested leaves, this is the only place ancestor null
          * propagation happens — ORC populates child vector slots independently of parent struct
          * nulls, so callers must compose the two before block construction.
+         *
+         * <p>When the leaf vector has {@code isRepeating == true} (all values identical) and
+         * {@code ancestorNulls} carries per-row variation, the repeating optimization in
+         * {@link ColumnBlockConversions} (which only inspects position 0) would erase that
+         * per-row signal. In this case we both materialize {@code leafNulls} per-row and force
+         * the downstream conversion to iterate position-by-position by passing
+         * {@code effectiveRepeating == false}. Because the helpers iterate
+         * {@code values[0..rowCount-1]} in their non-repeating branch, we also broadcast the
+         * underlying value array via {@link #longValuesFor}/{@link #doubleValuesFor} (and the
+         * inline {@code readFromZero} pattern in the bytes/decimal/datetime paths) so positions
+         * {@code >0} read the only meaningful slot ({@code 0}) rather than stale data.
          */
         private Block createBlock(ColumnVector vector, DataType dataType, int rowCount, BitSet ancestorNulls) {
             if (vector instanceof ListColumnVector listCol) {
@@ -894,42 +901,99 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 // listCol path needs the same OR.
                 return createListBlock(listCol, dataType, rowCount);
             }
-            boolean effectiveNoNulls = vector.noNulls && (ancestorNulls == null || ancestorNulls.isEmpty());
-            BitSet leafNulls = ColumnBlockConversions.toBitSet(vector.isNull, rowCount);
+            boolean ancestorContributes = ancestorNulls != null && ancestorNulls.isEmpty() == false;
+            boolean effectiveNoNulls = vector.noNulls && ancestorContributes == false;
+            BitSet leafNulls = leafNullsFor(vector, rowCount);
             if (ancestorNulls != null) {
                 leafNulls.or(ancestorNulls);
             }
+            // A repeating leaf below per-row ancestor nulls must be expanded: the conversion
+            // helpers treat isRepeating as "constant block from position 0" which would drop
+            // ancestor-null variation at positions >0. We also need to materialize the value
+            // array because the helpers iterate values[0..rowCount-1] in their non-repeating
+            // branch, and ORC only guarantees values[0] is meaningful when isRepeating==true.
+            boolean expandRepeating = vector.isRepeating && ancestorContributes;
+            boolean effectiveRepeating = vector.isRepeating && ancestorContributes == false;
             return switch (dataType) {
                 case BOOLEAN -> ColumnBlockConversions.booleanColumnFromLongs(
                     blockFactory,
-                    ((LongColumnVector) vector).vector,
+                    longValuesFor((LongColumnVector) vector, rowCount, expandRepeating),
                     rowCount,
                     effectiveNoNulls,
-                    vector.isRepeating,
+                    effectiveRepeating,
                     leafNulls
                 );
                 case INTEGER -> ColumnBlockConversions.intColumnFromLongs(
                     blockFactory,
-                    ((LongColumnVector) vector).vector,
+                    longValuesFor((LongColumnVector) vector, rowCount, expandRepeating),
                     rowCount,
                     effectiveNoNulls,
-                    vector.isRepeating,
+                    effectiveRepeating,
                     leafNulls
                 );
                 case LONG -> ColumnBlockConversions.longColumn(
                     blockFactory,
-                    ((LongColumnVector) vector).vector,
+                    longValuesFor((LongColumnVector) vector, rowCount, expandRepeating),
                     rowCount,
                     effectiveNoNulls,
-                    vector.isRepeating,
+                    effectiveRepeating,
                     leafNulls,
                     true
                 );
-                case DOUBLE -> createDoubleBlock(vector, rowCount, effectiveNoNulls, leafNulls);
-                case KEYWORD, TEXT -> createBytesRefBlock(vector, rowCount, effectiveNoNulls, leafNulls);
-                case DATETIME -> createDatetimeBlock(vector, rowCount, effectiveNoNulls, leafNulls);
+                case DOUBLE -> createDoubleBlock(vector, rowCount, effectiveNoNulls, leafNulls, effectiveRepeating, expandRepeating);
+                case KEYWORD, TEXT -> createBytesRefBlock(vector, rowCount, effectiveNoNulls, leafNulls, effectiveRepeating);
+                case DATETIME -> createDatetimeBlock(vector, rowCount, effectiveNoNulls, leafNulls, effectiveRepeating);
                 default -> blockFactory.newConstantNullBlock(rowCount);
             };
+        }
+
+        /**
+         * Returns the long-valued backing array for {@code vector}, broadcasting position 0 to a
+         * fresh per-row array when {@code expandRepeating} is true. ORC's repeating contract
+         * only populates index 0, so iterating positions {@code >0} on the original array
+         * would read stale data.
+         */
+        private static long[] longValuesFor(LongColumnVector vector, int rowCount, boolean expandRepeating) {
+            if (expandRepeating == false) {
+                return vector.vector;
+            }
+            long[] expanded = new long[rowCount];
+            long v0 = vector.vector[0];
+            for (int i = 0; i < rowCount; i++) {
+                expanded[i] = v0;
+            }
+            return expanded;
+        }
+
+        private static double[] doubleValuesFor(DoubleColumnVector vector, int rowCount, boolean expandRepeating) {
+            if (expandRepeating == false) {
+                return vector.vector;
+            }
+            double[] expanded = new double[rowCount];
+            double v0 = vector.vector[0];
+            for (int i = 0; i < rowCount; i++) {
+                expanded[i] = v0;
+            }
+            return expanded;
+        }
+
+        /**
+         * Builds a per-row null bitset for {@code vector}. When the vector is repeating with
+         * nulls, ORC only guarantees {@code isNull[0]} is meaningful — positions {@code >0} may
+         * be stale, so broadcast position 0 to all rows rather than reading the array.
+         */
+        private static BitSet leafNullsFor(ColumnVector vector, int rowCount) {
+            if (vector.noNulls) {
+                return new BitSet(rowCount);
+            }
+            if (vector.isRepeating) {
+                BitSet bits = new BitSet(rowCount);
+                if (vector.isNull[0]) {
+                    bits.set(0, rowCount);
+                }
+                return bits;
+            }
+            return ColumnBlockConversions.toBitSet(vector.isNull, rowCount);
         }
 
         private Block createListBlock(ListColumnVector listCol, DataType elementType, int rowCount) {
@@ -1122,33 +1186,36 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             }
         }
 
-        private Block createDoubleBlock(ColumnVector vector, int rowCount) {
-            return createDoubleBlock(vector, rowCount, vector.noNulls, ColumnBlockConversions.toBitSet(vector.isNull, rowCount));
-        }
-
-        private Block createDoubleBlock(ColumnVector vector, int rowCount, boolean effectiveNoNulls, BitSet effectiveNulls) {
+        private Block createDoubleBlock(
+            ColumnVector vector,
+            int rowCount,
+            boolean effectiveNoNulls,
+            BitSet effectiveNulls,
+            boolean effectiveRepeating,
+            boolean expandRepeating
+        ) {
             if (vector instanceof DoubleColumnVector doubleVector) {
                 return ColumnBlockConversions.doubleColumn(
                     blockFactory,
-                    doubleVector.vector,
+                    doubleValuesFor(doubleVector, rowCount, expandRepeating),
                     rowCount,
                     effectiveNoNulls,
-                    doubleVector.isRepeating,
+                    effectiveRepeating,
                     effectiveNulls,
                     true
                 );
             } else if (vector instanceof DecimalColumnVector decVector) {
-                return createDecimalDoubleBlock(decVector, rowCount, effectiveNoNulls, effectiveNulls);
+                return createDecimalDoubleBlock(decVector, rowCount, effectiveNoNulls, effectiveNulls, effectiveRepeating);
             } else if (vector instanceof Decimal64ColumnVector dec64Vector) {
                 // Decimal64ColumnVector extends LongColumnVector — must check before LongColumnVector
-                return createDecimal64DoubleBlock(dec64Vector, rowCount, effectiveNoNulls, effectiveNulls);
+                return createDecimal64DoubleBlock(dec64Vector, rowCount, effectiveNoNulls, effectiveNulls, effectiveRepeating);
             } else if (vector instanceof LongColumnVector longVector) {
                 return ColumnBlockConversions.doubleColumnFromLongs(
                     blockFactory,
-                    longVector.vector,
+                    longValuesFor(longVector, rowCount, expandRepeating),
                     rowCount,
                     effectiveNoNulls,
-                    longVector.isRepeating,
+                    effectiveRepeating,
                     effectiveNulls
                 );
             }
@@ -1164,20 +1231,22 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             DecimalColumnVector decVector,
             int rowCount,
             boolean effectiveNoNulls,
-            BitSet effectiveNulls
+            BitSet effectiveNulls,
+            boolean effectiveRepeating
         ) {
-            if (decVector.isRepeating) {
+            if (effectiveRepeating) {
                 if (effectiveNoNulls == false && (decVector.isNull[0] || (effectiveNulls != null && effectiveNulls.get(0)))) {
                     return blockFactory.newConstantNullBlock(rowCount);
                 }
                 return blockFactory.newConstantDoubleBlockWith(decVector.vector[0].doubleValue(), rowCount);
             }
+            boolean readFromZero = decVector.isRepeating;
             try (var builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
                 for (int i = 0; i < rowCount; i++) {
                     if (effectiveNoNulls == false && effectiveNulls.get(i)) {
                         builder.appendNull();
                     } else {
-                        builder.appendDouble(decVector.vector[i].doubleValue());
+                        builder.appendDouble(decVector.vector[readFromZero ? 0 : i].doubleValue());
                     }
                 }
                 return builder.build();
@@ -1192,35 +1261,39 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             Decimal64ColumnVector dec64Vector,
             int rowCount,
             boolean effectiveNoNulls,
-            BitSet effectiveNulls
+            BitSet effectiveNulls,
+            boolean effectiveRepeating
         ) {
             double scaleFactor = Math.pow(10, dec64Vector.scale);
-            if (dec64Vector.isRepeating) {
+            if (effectiveRepeating) {
                 if (effectiveNoNulls == false && (dec64Vector.isNull[0] || (effectiveNulls != null && effectiveNulls.get(0)))) {
                     return blockFactory.newConstantNullBlock(rowCount);
                 }
                 return blockFactory.newConstantDoubleBlockWith(dec64Vector.vector[0] / scaleFactor, rowCount);
             }
+            boolean readFromZero = dec64Vector.isRepeating;
             try (var builder = blockFactory.newDoubleBlockBuilder(rowCount)) {
                 for (int i = 0; i < rowCount; i++) {
                     if (effectiveNoNulls == false && effectiveNulls.get(i)) {
                         builder.appendNull();
                     } else {
-                        builder.appendDouble(dec64Vector.vector[i] / scaleFactor);
+                        builder.appendDouble(dec64Vector.vector[readFromZero ? 0 : i] / scaleFactor);
                     }
                 }
                 return builder.build();
             }
         }
 
-        private Block createBytesRefBlock(ColumnVector vector, int rowCount) {
-            return createBytesRefBlock(vector, rowCount, vector.noNulls, ColumnBlockConversions.toBitSet(vector.isNull, rowCount));
-        }
-
-        private Block createBytesRefBlock(ColumnVector vector, int rowCount, boolean effectiveNoNulls, BitSet effectiveNulls) {
+        private Block createBytesRefBlock(
+            ColumnVector vector,
+            int rowCount,
+            boolean effectiveNoNulls,
+            BitSet effectiveNulls,
+            boolean effectiveRepeating
+        ) {
             Check.isTrue(vector instanceof BytesColumnVector, "Unsupported column type: " + vector.getClass().getSimpleName());
             BytesColumnVector bytesVector = (BytesColumnVector) vector;
-            if (bytesVector.isRepeating) {
+            if (effectiveRepeating) {
                 if (effectiveNoNulls == false && (bytesVector.isNull[0] || (effectiveNulls != null && effectiveNulls.get(0)))) {
                     return blockFactory.newConstantNullBlock(rowCount);
                 }
@@ -1229,13 +1302,17 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     rowCount
                 );
             }
+            // If the underlying vector is repeating but the leaf isn't (ancestor nulls forced us
+            // here), positions >0 hold stale bytes. Read from position 0 for every non-null row.
+            boolean readFromZero = vector.isRepeating;
             try (var builder = blockFactory.newBytesRefBlockBuilder(rowCount)) {
                 for (int i = 0; i < rowCount; i++) {
                     if (effectiveNoNulls == false && effectiveNulls.get(i)) {
                         builder.appendNull();
                     } else {
+                        int idx = readFromZero ? 0 : i;
                         builder.appendBytesRef(
-                            new org.apache.lucene.util.BytesRef(bytesVector.vector[i], bytesVector.start[i], bytesVector.length[i])
+                            new org.apache.lucene.util.BytesRef(bytesVector.vector[idx], bytesVector.start[idx], bytesVector.length[idx])
                         );
                     }
                 }
@@ -1243,36 +1320,54 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             }
         }
 
-        private Block createDatetimeBlock(ColumnVector vector, int rowCount) {
-            return createDatetimeBlock(vector, rowCount, vector.noNulls, ColumnBlockConversions.toBitSet(vector.isNull, rowCount));
-        }
-
-        private Block createDatetimeBlock(ColumnVector vector, int rowCount, boolean effectiveNoNulls, BitSet effectiveNulls) {
+        private Block createDatetimeBlock(
+            ColumnVector vector,
+            int rowCount,
+            boolean effectiveNoNulls,
+            BitSet effectiveNulls,
+            boolean effectiveRepeating
+        ) {
             if (vector instanceof TimestampColumnVector tsVector) {
-                if (tsVector.isRepeating) {
+                if (effectiveRepeating) {
                     if (effectiveNoNulls == false && (tsVector.isNull[0] || (effectiveNulls != null && effectiveNulls.get(0)))) {
                         return blockFactory.newConstantNullBlock(rowCount);
                     }
                     return blockFactory.newConstantLongBlockWith(tsVector.getTime(0), rowCount);
                 }
                 long[] millis = new long[rowCount];
-                for (int i = 0; i < rowCount; i++) {
-                    millis[i] = tsVector.getTime(i);
+                // Under !effectiveRepeating but vector.isRepeating, only position 0 is meaningful;
+                // positions where leafNulls is set are skipped downstream so stale reads are OK.
+                if (vector.isRepeating) {
+                    long t0 = tsVector.getTime(0);
+                    for (int i = 0; i < rowCount; i++) {
+                        millis[i] = t0;
+                    }
+                } else {
+                    for (int i = 0; i < rowCount; i++) {
+                        millis[i] = tsVector.getTime(i);
+                    }
                 }
                 if (effectiveNoNulls) {
                     return blockFactory.newLongArrayVector(millis, rowCount).asBlock();
                 }
                 return blockFactory.newLongArrayBlock(millis, rowCount, null, effectiveNulls, Block.MvOrdering.UNORDERED);
             } else if (vector instanceof LongColumnVector longVector) {
-                if (longVector.isRepeating) {
+                if (effectiveRepeating) {
                     if (effectiveNoNulls == false && (longVector.isNull[0] || (effectiveNulls != null && effectiveNulls.get(0)))) {
                         return blockFactory.newConstantNullBlock(rowCount);
                     }
                     return blockFactory.newConstantLongBlockWith(longVector.vector[0] * MILLIS_PER_DAY, rowCount);
                 }
                 long[] millis = new long[rowCount];
-                for (int i = 0; i < rowCount; i++) {
-                    millis[i] = longVector.vector[i] * MILLIS_PER_DAY;
+                if (vector.isRepeating) {
+                    long v0 = longVector.vector[0] * MILLIS_PER_DAY;
+                    for (int i = 0; i < rowCount; i++) {
+                        millis[i] = v0;
+                    }
+                } else {
+                    for (int i = 0; i < rowCount; i++) {
+                        millis[i] = longVector.vector[i] * MILLIS_PER_DAY;
+                    }
                 }
                 if (effectiveNoNulls) {
                     return blockFactory.newLongArrayVector(millis, rowCount).asBlock();

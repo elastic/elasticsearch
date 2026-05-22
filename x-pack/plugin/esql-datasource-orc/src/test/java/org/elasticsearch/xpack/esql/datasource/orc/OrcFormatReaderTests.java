@@ -1497,6 +1497,89 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Repeating string leaf below per-row ancestor nulls. ORC's reader sets
+     * {@code child.isRepeating = true} when every value in the batch is equal; combined with
+     * a parent struct that is null on some rows this exercises the per-row expansion path —
+     * without it the conversion would either produce a constant non-null block (losing parent
+     * nulls) or a constant-null block (losing all real values).
+     */
+    public void testReadNestedStructAncestorNullPropagationRepeatingStringChild() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("event", TypeDescription.createStruct().addField("action", TypeDescription.createString()));
+        int rows = 200;
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = rows;
+            var ev = (org.apache.hadoop.hive.ql.exec.vector.StructColumnVector) batch.cols[0];
+            BytesColumnVector action = (BytesColumnVector) ev.fields[0];
+            ev.noNulls = false;
+            byte[] sameValue = "same".getBytes(StandardCharsets.UTF_8);
+            for (int i = 0; i < rows; i++) {
+                ev.isNull[i] = (i % 3 == 0); // every 3rd parent is null
+                action.setVal(i, sameValue);
+            }
+        });
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        try (CloseableIterator<Page> iter = reader.read(createStorageObject(orcData), List.of("event.action"), 1024)) {
+            int seen = 0;
+            BytesRef scratch = new BytesRef();
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+                for (int i = 0; i < block.getPositionCount(); i++, seen++) {
+                    if (seen % 3 == 0) {
+                        assertTrue("row " + seen + " parent null -> leaf null", block.isNull(i));
+                    } else {
+                        assertFalse("row " + seen + " parent non-null -> leaf non-null", block.isNull(i));
+                        assertEquals(new BytesRef("same"), block.getBytesRef(block.getFirstValueIndex(i), scratch));
+                    }
+                }
+                page.releaseBlocks();
+            }
+            assertEquals(rows, seen);
+        }
+    }
+
+    /**
+     * Repeating numeric leaf below per-row ancestor nulls. Covers the
+     * {@code ColumnBlockConversions.longColumn} path that iterates {@code values[0..rowCount-1]}
+     * in its non-repeating branch — without value-array expansion, positions {@code >0} would
+     * read stale slots under ORC's repeating contract.
+     */
+    public void testReadNestedStructAncestorNullPropagationRepeatingLongChild() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("event", TypeDescription.createStruct().addField("timestamp_ms", TypeDescription.createLong()));
+        int rows = 200;
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = rows;
+            var ev = (org.apache.hadoop.hive.ql.exec.vector.StructColumnVector) batch.cols[0];
+            LongColumnVector ts = (LongColumnVector) ev.fields[0];
+            ev.noNulls = false;
+            for (int i = 0; i < rows; i++) {
+                ev.isNull[i] = (i % 3 == 0);
+                ts.vector[i] = 1_700_000_000L; // identical at every slot
+            }
+        });
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        try (CloseableIterator<Page> iter = reader.read(createStorageObject(orcData), List.of("event.timestamp_ms"), 1024)) {
+            int seen = 0;
+            while (iter.hasNext()) {
+                Page page = iter.next();
+                LongBlock block = (LongBlock) page.getBlock(0);
+                for (int i = 0; i < block.getPositionCount(); i++, seen++) {
+                    if (seen % 3 == 0) {
+                        assertTrue("row " + seen + " parent null -> leaf null", block.isNull(i));
+                    } else {
+                        assertFalse("row " + seen + " parent non-null -> leaf non-null", block.isNull(i));
+                        assertEquals(1_700_000_000L, block.getLong(block.getFirstValueIndex(i)));
+                    }
+                }
+                page.releaseBlocks();
+            }
+            assertEquals(rows, seen);
+        }
+    }
+
     public void testReadNestedStructAncestorNullPropagation() throws Exception {
         // Rows: (a) parent struct null, (b) parent non-null + child null, (c) both non-null.
         TypeDescription schema = TypeDescription.createStruct()

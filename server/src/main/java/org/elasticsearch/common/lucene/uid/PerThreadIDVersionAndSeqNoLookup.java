@@ -204,7 +204,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
             : "context's reader is not the same as the reader class was initialized on.";
 
         final Bits liveDocs = context.reader().getLiveDocs();
-        int found = 0;
+        int resolved = 0;
         // currentTerm tracks where the TermsEnum is positioned after a NOT_FOUND seek, allowing
         // subsequent UIDs that fall before it to be skipped without issuing another seek.
         BytesRef currentTerm = null;
@@ -254,11 +254,11 @@ final class PerThreadIDVersionAndSeqNoLookup {
                     : UNASSIGNED_PRIMARY_TERM;
                 final long version = readNumericDocValues(context.reader(), VersionFieldMapper.NAME, docID);
                 results[i] = new DocIdAndVersion(docID, version, seqNo, term, context.reader(), context.docBase);
-                found++;
+                resolved++;
             }
         }
 
-        return found;
+        return resolved;
     }
 
     /**

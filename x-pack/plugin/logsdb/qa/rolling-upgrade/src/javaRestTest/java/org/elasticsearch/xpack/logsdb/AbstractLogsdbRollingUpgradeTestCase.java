@@ -145,7 +145,7 @@ public abstract class AbstractLogsdbRollingUpgradeTestCase extends ESRestTestCas
 
     @Override
     protected final boolean resetFeatureStates() {
-        // /_features/_reset can fail on mixed-version or recently-upgraded clusters
+        // /_features/_reset can fail on recently-upgraded clusters
         return false;
     }
 }

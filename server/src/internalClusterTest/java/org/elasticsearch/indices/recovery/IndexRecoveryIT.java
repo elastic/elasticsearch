@@ -2137,8 +2137,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final var transportService = MockTransportService.getInstance(sourceNode);
 
         transportService.addRequestHandlingBehavior(PeerRecoverySourceService.Actions.START_RECOVERY, (handler, request, channel, task) -> {
+            logger.info("--> Received START_RECOVERY request for task {}", task);
             handler.messageReceived(request, channel, task);
+            logger.info("--> Finished handling START_RECOVERY request for task {}", task);
             recoveryRequestsLatch.countDown();
+            logger.info("--> recoveryRequestsLatch counted down for task {}", task);
         });
 
         // Stall the recovery and keeps its source slot occupied.
@@ -2155,6 +2158,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         );
 
         safeAwait(recoveryRequestsLatch);
+        logger.info("--> Checking recoveryStats");
         final var recoveryStats = clusterAdmin().prepareNodesStats(sourceNode)
             .clear()
             .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
@@ -2163,6 +2167,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             .getFirst()
             .getIndices()
             .getRecoveryStats();
+        logger.info("--> Recovery stats: queued={}, active={}", recoveryStats.currentAsSourceQueued(), recoveryStats.currentAsSource());
         assertThat("expected one queued recovery request", recoveryStats.currentAsSourceQueued(), equalTo(1));
         assertThat("expected one running recovery", recoveryStats.currentAsSource(), equalTo(1));
 
@@ -2194,7 +2199,9 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         final var transportService = MockTransportService.getInstance(sourceNode);
 
         transportService.addRequestHandlingBehavior(PeerRecoverySourceService.Actions.START_RECOVERY, (handler, request, channel, task) -> {
+            logger.info("--> [TEST] Received START_RECOVERY request for task {}", task);
             handler.messageReceived(request, channel, task);
+            logger.info("--> [TEST] Finished handling START_RECOVERY request for task {}", task);
             recoveryRequestsLatch.countDown();
         });
 
@@ -2313,6 +2320,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         );
 
         safeAwait(recoveryRequestsLatch);
+        logger.info("--> [TEST] All START_RECOVERY requests have been handled, now checking stats");
         final var recoveryStats = clusterAdmin().prepareNodesStats(sourceNode)
             .clear()
             .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
@@ -2321,6 +2329,11 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             .getFirst()
             .getIndices()
             .getRecoveryStats();
+        logger.info(
+            "--> [TEST] Recovery stats: queued={}, active={}",
+            recoveryStats.currentAsSourceQueued(),
+            recoveryStats.currentAsSource()
+        );
         assertThat("expected one queued recovery request", recoveryStats.currentAsSourceQueued(), equalTo(1));
         assertThat("expected one running recovery", recoveryStats.currentAsSource(), equalTo(1));
 

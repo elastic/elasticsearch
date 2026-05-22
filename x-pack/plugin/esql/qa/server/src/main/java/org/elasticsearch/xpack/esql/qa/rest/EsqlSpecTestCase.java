@@ -197,7 +197,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         if (shouldLoadViews()) {
             VIEWS.protectedBlock(() -> {
                 if (supportsViews()) {
-                    loadViewsIntoEs(adminClient());
+                    loadViewsIntoEs(adminClient(), this::clusterHasCapability);
                 }
                 return null;
             });

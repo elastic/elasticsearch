@@ -43,12 +43,12 @@ import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentGenerator;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -297,6 +297,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             return resolveSourceMode() == Mode.SYNTHETIC;
         }
 
+        public boolean isColumnarStored() {
+            return resolveSourceMode() == Mode.COLUMNAR_STORED;
+        }
+
         private Mode resolveSourceMode() {
             // If the `index.mapping.source.mode` exists it takes precedence to determine the source mode for `_source`
             // otherwise the mode is determined according to `_source.mode`.
@@ -511,10 +515,23 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 var sourceLeafLoader = sourceLoader.leaf(leafCtx.reader(), docIds);
                 var storedFieldLoader = StoredFieldLoader.create(false, sourceLoader.requiredStoredFields()).getLoader(leafCtx, docIds);
                 storedFieldLoader.advanceTo(docId);
-                try (var b = new XContentBuilder(context.sourceToParse().source().xContentType().xContent(), new ByteArrayOutputStream())) {
+                try (var b = XContentFactory.jsonBuilder()) {
                     sourceLeafLoader.write(storedFieldLoader, docId, b);
-                    final BytesRef ref = BytesReference.bytes(b).toBytesRef();
-                    context.doc().add(new StoredField(fieldType().name(), ref.bytes, ref.offset, ref.length));
+                    BytesRef encodedValue = XContentDataHelper.encodeXContentBuilder(b);
+                    // Remove individual _ignored_source entries collected during parsing — their contents are
+                    // subsumed by the whole-document entry written below, and binary doc values only allow
+                    // one field instance per document.
+                    String countsFieldName = IgnoredSourceFieldMapper.NAME
+                        + MultiValuedBinaryDocValuesField.SeparateCount.COUNT_FIELD_SUFFIX;
+                    context.doc()
+                        .getFields()
+                        .removeIf(f -> IgnoredSourceFieldMapper.NAME.equals(f.name()) || countsFieldName.equals(f.name()));
+                    IgnoredSourceFieldMapper.ignoredSourceFormat(context.indexSettings())
+                        .writeIgnoredFields(
+                            List.of(new IgnoredSourceFieldMapper.NameValue(NAME, 0, encodedValue, context.doc())),
+                            context.indexSettings().getIndexVersionCreated(),
+                            false
+                        );
                 }
             }
         }
@@ -611,6 +628,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public boolean isSynthetic() {
         return mode == Mode.SYNTHETIC;
+    }
+
+    public boolean isColumnarStored() {
+        return mode == Mode.COLUMNAR_STORED;
     }
 
     /**

@@ -786,9 +786,10 @@ public class DataStreamTimestampFieldMapperTests extends MetadataMapperTestCase 
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), DataStreamTimestampFieldMapper.DEFAULT_PATH)
             .build();
-        // logsdb_columnar disables indexing by default, but @timestamp can be explicitly re-enabled.
-        // Since USE_DOC_VALUES_SKIPPER defaults to true for logsdb_columnar, the field gets doc values skippers.
-        final MapperService mapperService = createMapperService(settings, timestampMapping(true, b -> {
+        // logsdb_columnar disables indexing by default, but indexing for @timestamp can be explicitly re-enabled.
+        // In this case, doc value skipper is redundant and thus disabled.
+        final MapperService mapperService = createMapperService(IndexVersion.current(), settings, () -> false);
+        merge(mapperService, MapperService.MergeReason.INDEX_TEMPLATE, timestampMapping(true, b -> {
             b.startObject(DataStreamTimestampFieldMapper.DEFAULT_PATH);
             b.field("type", "date");
             b.field("index", true);

@@ -309,11 +309,6 @@ public final class DateFieldMapper extends FieldMapper {
         ) {
             super(name);
             this.index = Parameter.indexParam(m -> toType(m).indexed, indexSettings.isIndexDisabledByDefault() == false);
-            if (indexSettings.isIndexDisabledByDefault()) {
-                // When the mode disables indexing by default, allow users to explicitly re-enable it.
-                // Disabling indexing once enabled is still blocked.
-                this.index.setMergeValidator((prev, curr, c) -> prev == curr || curr);
-            }
             this.resolution = resolution;
             this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);

@@ -272,4 +272,19 @@ public class TimeSlottedCounterTests extends ESTestCase {
         assertThat(counter.sum(106 * HOUR, 110 * HOUR), equalTo(21L));
     }
 
+    public void testRegisteredWindowsStayConsistent() {
+        AtomicLong clock = new AtomicLong(30 * DAY);
+        TimeSlottedCounter counter = new TimeSlottedCounter(TimeValue.timeValueHours(1), 1000, clock::get);
+        TimeSlottedCounterWindow recent = counter.registerRelativeWindow(0, 7 * DAY);
+        TimeSlottedCounterWindow prior = counter.registerRelativeWindow(7 * DAY, 30 * DAY);
+
+        counter.add(clock.get() - 2 * DAY, 11);
+        counter.add(clock.get() - 10 * DAY, 22);
+        counter.remove(clock.get() - 2 * DAY, 3);
+
+        assertThat(recent.sum(), equalTo(recent.sumUncached()));
+        assertThat(prior.sum(), equalTo(prior.sumUncached()));
+        assertThat(recent.sum(), equalTo(8L));
+        assertThat(prior.sum(), equalTo(22L));
+    }
 }

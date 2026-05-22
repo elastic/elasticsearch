@@ -12,6 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLongArray;
 import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
@@ -24,6 +26,11 @@ import java.util.function.LongSupplier;
  * Used at node level for cache boost quota tracking (expected totals from shard data, and actual
  * totals from cache residency). Callers pass arbitrary counts via {@link #add} and {@link #remove};
  * this type is agnostic to what is being counted (the expectation is that it is cache regions).
+ * <p>
+ * Fixed relative window sums can be registered via {@link #registerRelativeWindow} and read
+ * through {@link TimeSlottedCounterWindow#sum()}. The class automatically updates registered
+ * window sums as counts change. We expect a limited number of such windows, corresponding to the
+ * configured boost levels.
  * <p>
  * Bucket sums are updated atomically; ring structure ({@code tailSlotStart}, {@code tailBucketIndex},
  * rollover/eviction) is guarded by {@link #structureLock}. Concurrent {@link #add} and
@@ -41,6 +48,7 @@ public class TimeSlottedCounter {
     private final long granularityMillis;
     private final LongSupplier timeProvider;
     private final ReadWriteLock structureLock = new ReentrantReadWriteLock();
+    private final List<TimeSlottedCounterWindow> registeredWindows = new ArrayList<>();
 
     private final AtomicLongArray counts;
 
@@ -109,6 +117,33 @@ public class TimeSlottedCounter {
     }
 
     /**
+     * Registers a fixed relative window {@code [now - endOffsetMillis, now - startOffsetMillis)} whose sum
+     * is maintained incrementally by this counter.
+     * <p>
+     * Example at {@code now=10d}, {@code registerRelativeWindow(1d, 3d)}:
+     * <pre>
+     *   window = [now-3d, now-1d)  — counts in slots overlapping that interval
+     *
+     *   |---- retained buckets ----|.... now ....|
+     *                    ^windowStart    ^windowEnd
+     * </pre>
+     * The returned {@link TimeSlottedCounterWindow} is updated on every {@link #add}/{@link #remove} and ring roll.
+     */
+    public TimeSlottedCounterWindow registerRelativeWindow(long startOffsetMillis, long endOffsetMillis) {
+        TimeSlottedCounterWindow window = new TimeSlottedCounterWindow(this, startOffsetMillis, endOffsetMillis);
+        structureLock.writeLock().lock();
+        try {
+            long now = currentTimeMillis();
+            advanceToNowUnderWriteLock(now);
+            window.initializeUnderWriteLock(now);
+            registeredWindows.add(window);
+        } finally {
+            structureLock.writeLock().unlock();
+        }
+        return window;
+    }
+
+    /**
      * Adds {@code count} to the slot containing {@code timestampMillis}.
      * <p>
      * Delegates to {@link #mutateSlot}; may roll the ring forward first if wall clock has moved past the head slot.
@@ -146,13 +181,33 @@ public class TimeSlottedCounter {
     /**
      * Rolls buckets forward to the current time. Exposed for tests.
      * <p>
-     * Repeatedly calls {@link #rollForwardOneSlot} until the head slot matches the current time slot.
+     * Equivalent to {@link #advanceIfNeededForWindow} with no window: repeatedly calls
+     * {@link #rollForwardOneSlot} until the head slot matches the current time slot.
      */
     public void advanceToNow() {
+        advanceIfNeededForWindow(null);
+    }
+
+    /**
+     * Advances ring structure and the given window when required.
+     * <p>
+     * Fast path (structure read lock only): return immediately when the head slot is already current
+     * <em>and</em> the window's {@code [start, end)} boundaries have not crossed a slot boundary since the last slide.
+     * <p>
+     * Slow path: take the write lock, re-read {@code now}, re-check, then {@link #advanceToNowUnderWriteLock(long)}
+     * (ring roll + window slide) using that fresh timestamp.
+     * <pre>
+     *   read lock: needsAdvance? / window.needsTimeSlide?
+     *        | no                          | yes
+     *        v                             v
+     *     return                    write lock + roll/slide
+     * </pre>
+     */
+    void advanceIfNeededForWindow(TimeSlottedCounterWindow window) {
+        long now = currentTimeMillis();
         structureLock.readLock().lock();
         try {
-            long now = currentTimeMillis();
-            if (needsAdvanceToNow(now) == false) {
+            if (needsAdvanceToNow(now) == false && (window == null || window.needsTimeSlide(now) == false)) {
                 return;
             }
         } finally {
@@ -160,7 +215,14 @@ public class TimeSlottedCounter {
         }
         structureLock.writeLock().lock();
         try {
-            advanceToNowUnderWriteLock(currentTimeMillis());
+            now = currentTimeMillis();
+            if (needsAdvanceToNow(now) == false && (window == null || window.needsTimeSlide(now) == false)) {
+                if (window != null) {
+                    window.touchMetadataIfNewer(now);
+                }
+                return;
+            }
+            advanceToNowUnderWriteLock(now);
         } finally {
             structureLock.writeLock().unlock();
         }
@@ -260,6 +322,7 @@ public class TimeSlottedCounter {
      *     2. offsetFromTail = (10:00 - 09:00) / 1h = 1
      *     3. index = bucketIndexForOffset(1) = floorMod(3+1, 4) = 0
      *     4. counts.addAndGet(0, 4) -> counts[0] becomes 4
+     *     5. notify windows overlapping slot 10:00-10:59
      * </pre>
      * If the ring is stale ({@link #needsAdvanceToNow(long)}), loops: release read lock, take write lock and
      * {@link #advanceToNowUnderWriteLock}, then retry. {@link #resolveSlotStart} clamps timestamps to the retained
@@ -277,7 +340,10 @@ public class TimeSlottedCounter {
                 if (needsAdvanceToNow(now) == false) {
                     long slotStart = resolveSlotStart(timestampMillis, now);
                     int index = findSlotIndex(slotStart);
-                    mutation.apply(index, slotStart);
+                    long delta = mutation.apply(index, slotStart);
+                    if (delta != 0) {
+                        notifyRegisteredWindowsSlotDelta(slotStart, delta, now);
+                    }
                     return;
                 }
             } finally {
@@ -293,8 +359,22 @@ public class TimeSlottedCounter {
     }
 
     /**
-     * Whether {@link #advanceToNowUnderWriteLock(long)} must roll the ring forward. Caller must hold structure lock
-     * and pass a {@code now} read while holding it.
+     * Propagates a bucket change to registered windows whose interval overlaps {@code slotStart}.
+     */
+    private void notifyRegisteredWindowsSlotDelta(long slotStart, long delta, long now) {
+        if (registeredWindows.isEmpty()) {
+            return;
+        }
+        long slotEnd = slotStart + granularityMillis;
+        for (TimeSlottedCounterWindow window : registeredWindows) {
+            if (window.mayOverlapSlot(slotStart, slotEnd, now)) {
+                window.onSlotDelta(slotStart, delta, now);
+            }
+        }
+    }
+
+    /**
+     * Whether {@link #advanceToNowUnderWriteLock(long)} must roll the ring forward. Caller must hold structure lock.
      * <p>
      * True when the current time slot is newer than the head slot (wall clock moved into a future bucket).
      */
@@ -303,7 +383,7 @@ public class TimeSlottedCounter {
     }
 
     /**
-     * Rolls the ring until the head slot equals the current time slot.
+     * Rolls the ring until the head slot equals the current time slot, then updates registered windows.
      * Caller must hold {@link #structureLock} write lock and pass a {@code now} read while holding it.
      * <p>
      * The expectation is that this will be (indirectly) called frequently enough that the ring is rolled
@@ -313,7 +393,14 @@ public class TimeSlottedCounter {
     private void advanceToNowUnderWriteLock(long now) {
         long targetHeadSlot = slotStartForTimestamp(now);
         while (headSlotStart() < targetHeadSlot) {
-            rollForwardOneSlot();
+            rollForwardOneSlot(now);
+        }
+        for (TimeSlottedCounterWindow window : registeredWindows) {
+            if (window.needsTimeSlide(now)) {
+                window.advanceTimeSlideUnderWriteLock(now);
+            } else {
+                window.touchMetadataIfNewer(now);
+            }
         }
     }
 
@@ -403,9 +490,9 @@ public class TimeSlottedCounter {
      *   former tail mass [99] merged into physical 0 (neighbor of tail)
      * </pre>
      */
-    private void rollForwardOneSlot() {
+    private void rollForwardOneSlot(long now) {
         if (counts.length() >= 2) {
-            mergeTailIntoNeighbor(bucketIndexForOffset(0), bucketIndexForOffset(1));
+            mergeTailIntoNeighbor(bucketIndexForOffset(0), bucketIndexForOffset(1), now);
         }
         tailBucketIndex = (tailBucketIndex + 1) % counts.length();
         tailSlotStart += granularityMillis;
@@ -416,9 +503,22 @@ public class TimeSlottedCounter {
      * Moves all count from the tail bucket into the next-older neighbor before the tail slot is reused.
      * <p>
      * Overflow from slots evicted off the left of the ring accumulates in the tail; merging preserves that mass
-     * in the oldest retained bucket.
+     * in the oldest retained bucket. Notifies registered windows via
+     * {@link TimeSlottedCounterWindow#onTailMergeUnderWriteLock} when tail/neighbor overlap with the window differs.
      */
-    private void mergeTailIntoNeighbor(int tailIndex, int neighborIndex) {
+    private void mergeTailIntoNeighbor(int tailIndex, int neighborIndex, long now) {
+        long tailCount = counts.get(tailIndex);
+        if (tailCount != 0 && registeredWindows.isEmpty() == false) {
+            long neighborSlotStart = slotStartForOffset(1);
+            long tailSlotEnd = tailSlotStart + granularityMillis;
+            long neighborSlotEnd = neighborSlotStart + granularityMillis;
+            for (TimeSlottedCounterWindow window : registeredWindows) {
+                if (window.mayOverlapSlot(tailSlotStart, tailSlotEnd, now)
+                    || window.mayOverlapSlot(neighborSlotStart, neighborSlotEnd, now)) {
+                    window.onTailMergeUnderWriteLock(tailSlotStart, neighborSlotStart, tailCount, now);
+                }
+            }
+        }
         counts.addAndGet(neighborIndex, counts.getAndSet(tailIndex, 0));
     }
 

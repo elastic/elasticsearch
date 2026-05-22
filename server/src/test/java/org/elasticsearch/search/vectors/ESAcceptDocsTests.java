@@ -142,7 +142,8 @@ public class ESAcceptDocsTests extends ESTestCase {
         assertEquals(DocIdSetIterator.NO_MORE_DOCS, acceptDocsIterator.nextDoc());
         Bits acceptDocsBits = acceptDocs.bits();
         for (int i = 0; i < 10; i++) {
-            boolean expected = i >= 3 && i <= 7 && acceptedDocs.get(i);
+            // no special handling for slice
+            boolean expected = acceptedDocs.get(i);
             assertEquals(expected, acceptDocsBits.get(i));
         }
     }

@@ -156,6 +156,103 @@ public class NdJsonFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * Regression guard for the {@code skipFirstLine=true} happy path: after the scanner
+     * consumes the partial first record, the returned stream's {@code close()} must abort
+     * the raw stream rather than draining it. Without the abort path, closing after a
+     * schema-sample read on S3 would drain the remaining body of a multi-GB file.
+     */
+    public void testOpenForSchemaInferenceWithSkipFirstLineDoesNotDrainStream() throws IOException {
+        StringBuilder ndjson = new StringBuilder("incomplete-first-record\n");
+        for (int i = 0; i < 200_000; i++) {
+            ndjson.append("{\"id\":").append(i).append(",\"name\":\"n_").append(i).append("\",\"v\":").append(i * 1.5).append("}\n");
+        }
+        byte[] bytes = ndjson.toString().getBytes(StandardCharsets.UTF_8);
+        assertThat("test file must be significantly larger than the schema sample", bytes.length, Matchers.greaterThan(2_000_000));
+
+        AtomicLong bytesConsumed = new AtomicLong();
+        StorageObject object = drainSimulatingStorageObject(bytes, bytesConsumed);
+
+        try (InputStream stream = NdJsonFormatReader.openForSchemaInference(object, true)) {
+            byte[] sample = new byte[4096];
+            // noinspection ResultOfMethodCallIgnored
+            stream.read(sample);
+        }
+
+        assertThat(
+            "openForSchemaInference(skipFirstLine=true) close() must not drain the stream; consumed "
+                + bytesConsumed.get()
+                + " of "
+                + bytes.length
+                + " bytes",
+            bytesConsumed.get(),
+            Matchers.lessThan((long) bytes.length / 2)
+        );
+    }
+
+    /**
+     * Regression guard: the {@link InputStream#close()} contract requires {@code close()} to be
+     * idempotent (a no-op when the stream is already closed). The wrapper returned by
+     * {@code openForSchemaInference} must honour that and call {@code abortStream} at most once,
+     * even when {@code close()} is invoked twice (a real pattern in defensive cleanup chains).
+     * {@code Abortable.abort()} is not contractually guaranteed to be idempotent, so a double
+     * call could break on future SDK versions or alternate {@code Abortable} implementations.
+     */
+    public void testOpenForSchemaInferenceCloseIsIdempotent() throws IOException {
+        AtomicLong abortCount = new AtomicLong();
+        StorageObject object = new BytesObject("{\"id\":1}\n".getBytes(StandardCharsets.UTF_8)) {
+            @Override
+            public void abortStream(InputStream stream) throws IOException {
+                abortCount.incrementAndGet();
+                stream.close();
+            }
+        };
+
+        InputStream stream = NdJsonFormatReader.openForSchemaInference(object, false);
+        stream.close();
+        stream.close();
+        stream.close();
+
+        assertEquals("close() must call abortStream at most once across repeated invocations", 1, abortCount.get());
+    }
+
+    /**
+     * Regression guard for the {@code skipFirstLine=true} failure path: if
+     * {@code scanForTerminator} throws while looking for the first newline, the raw stream
+     * must be aborted (not drained) before the exception propagates. Without the catch-block
+     * abort, the throwing stream would be left dangling for a finalizer/GC and on real S3
+     * the connection would stay leased to the client.
+     */
+    public void testOpenForSchemaInferenceAbortsRawOnSkipFirstLineScanFailure() {
+        AtomicBoolean aborted = new AtomicBoolean(false);
+        IOException scanFailure = new IOException("simulated read failure during skip-first-line scan");
+        StorageObject object = new BytesObject(new byte[0]) {
+            @Override
+            public InputStream newStream() {
+                return new InputStream() {
+                    @Override
+                    public int read() throws IOException {
+                        throw scanFailure;
+                    }
+
+                    @Override
+                    public int read(byte[] buf, int off, int len) throws IOException {
+                        throw scanFailure;
+                    }
+                };
+            }
+
+            @Override
+            public void abortStream(InputStream stream) {
+                aborted.set(true);
+            }
+        };
+
+        IOException thrown = expectThrows(IOException.class, () -> NdJsonFormatReader.openForSchemaInference(object, true));
+        assertSame("the original scan failure must propagate unchanged", scanFailure, thrown);
+        assertTrue("raw stream must be aborted when scanForTerminator fails", aborted.get());
+    }
+
+    /**
      * Creates a {@link StorageObject} backed by {@code bytes} whose stream simulates the
      * Apache HttpClient drain behaviour on close: any unread bytes are consumed before the
      * underlying stream is released. {@code bytesConsumed} accumulates all bytes that pass

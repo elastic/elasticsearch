@@ -177,10 +177,19 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         }
         // Override close() to abort the raw stream rather than drain it: the caller reads
         // only a schema sample, so providers that drain on close (e.g. S3) would otherwise
-        // block for as long as it takes to consume the remaining object bytes.
+        // block for as long as it takes to consume the remaining object bytes. The closed flag
+        // honours the InputStream.close() idempotency contract — callers that close defensively
+        // twice (or chain close in finally blocks) must not double-abort the underlying stream,
+        // since Abortable does not contractually guarantee abort() idempotency.
         return new FilterInputStream(stream) {
+            private boolean closed;
+
             @Override
             public void close() throws IOException {
+                if (closed) {
+                    return;
+                }
+                closed = true;
                 object.abortStream(raw);
             }
         };

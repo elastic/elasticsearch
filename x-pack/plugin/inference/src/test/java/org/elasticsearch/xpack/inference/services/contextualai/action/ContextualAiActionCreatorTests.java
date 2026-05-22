@@ -13,7 +13,9 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
@@ -122,7 +124,11 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, Map.of());
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, null, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
+                null,
+                listener
+            );
 
             var result = listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(result.asMap(), is(buildExpectationRerank(RERANK_EXPECTATIONS)));
@@ -159,7 +165,11 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, new HashMap<>());
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, null, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
+                null,
+                listener
+            );
 
             listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(webServer.requests(), hasSize(1));
@@ -193,7 +203,11 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, taskSettingsOverride);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, null, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
+                null,
+                listener
+            );
 
             listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(webServer.requests(), hasSize(1));
@@ -220,7 +234,17 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             var action = actionCreator.create(model, Map.of());
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, NEW_TEST_TOP_N, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(
+                    new InferenceString(DataType.TEXT, TEST_QUERY),
+                    InferenceString.fromStringList(TEST_DOCUMENTS),
+                    null,
+                    NEW_TEST_TOP_N,
+                    false
+                ),
+                null,
+                listener
+            );
 
             listener.actionGet(TEST_REQUEST_TIMEOUT);
             assertThat(webServer.requests(), hasSize(1));
@@ -255,7 +279,11 @@ public class ContextualAiActionCreatorTests extends ESTestCase {
             var action = new ContextualAiActionCreator(sender, createWithEmptySettings(threadPool)).create(model, Map.of());
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-            action.execute(new QueryAndDocsInputs(TEST_QUERY, TEST_DOCUMENTS, null, null, false), null, listener);
+            action.execute(
+                new QueryAndDocsInputs(new InferenceString(DataType.TEXT, TEST_QUERY), InferenceString.fromStringList(TEST_DOCUMENTS)),
+                null,
+                listener
+            );
 
             var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TEST_REQUEST_TIMEOUT));
 

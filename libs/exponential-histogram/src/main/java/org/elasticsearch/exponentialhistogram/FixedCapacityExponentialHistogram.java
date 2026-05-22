@@ -183,6 +183,108 @@ final class FixedCapacityExponentialHistogram extends AbstractExponentialHistogr
         }
     }
 
+    /**
+     * Scales all bucket counts (negative, zero, positive) so that the total count equals the desired value.
+     * <p>
+     * Rounding is performed on cumulative counts rather than on individual buckets. This means that rounding
+     * errors do not accumulate but are instead compensated by neighboring buckets: each bucket's scaled count
+     * is derived as the difference between two rounded cumulative totals. As a result, individual bucket counts
+     * may differ by up to 1 from the naively rounded value, but the overall total count is always exactly
+     * {@code desiredTotalCount}.
+     * <p>
+     * Buckets whose count rounds to zero are pruned from the histogram.
+     *
+     * @param desiredTotalCount the exact total count the histogram should have after scaling
+     */
+    void scaleBucketCountsTo(long desiredTotalCount) {
+        long currentCount = valueCount();
+        if (currentCount == desiredTotalCount) {
+            return;
+        }
+        negativeBuckets.cachedCountsSum = null;
+        positiveBuckets.cachedCountsSum = null;
+
+        double factor = 1.0 * desiredTotalCount / currentCount;
+        assert Math.round(currentCount * factor) == desiredTotalCount
+            : "factor is too imprecise to scale the counts to the desired total count";
+
+        long unscaledCumulativeCount = 0;
+        long scaledCumulativeCount = 0;
+
+        boolean anyEmptyBuckets = false;
+
+        // iterate from -Inf to 0
+        for (int i = negativeBuckets.numBuckets - 1; i >= 0; i--) {
+            unscaledCumulativeCount += bucketCounts[i];
+            long targetCumulativeCount = Math.round(unscaledCumulativeCount * factor);
+            bucketCounts[i] = targetCumulativeCount - scaledCumulativeCount;
+            anyEmptyBuckets |= bucketCounts[i] == 0;
+            assert bucketCounts[i] >= 0;
+            scaledCumulativeCount = targetCumulativeCount;
+        }
+
+        unscaledCumulativeCount += zeroBucket.count();
+        long targetCumulativeCount = Math.round(unscaledCumulativeCount * factor);
+        long zbCount = targetCumulativeCount - scaledCumulativeCount;
+        assert zbCount >= 0;
+        zeroBucket = zeroBucket.withCount(zbCount);
+        scaledCumulativeCount = targetCumulativeCount;
+
+        // iterate from 0 to Inf
+        for (int i = negativeBuckets.numBuckets; i < negativeBuckets.numBuckets + positiveBuckets.numBuckets; i++) {
+            unscaledCumulativeCount += bucketCounts[i];
+            targetCumulativeCount = Math.round(unscaledCumulativeCount * factor);
+            bucketCounts[i] = targetCumulativeCount - scaledCumulativeCount;
+            anyEmptyBuckets |= bucketCounts[i] == 0;
+            assert bucketCounts[i] >= 0;
+            scaledCumulativeCount = targetCumulativeCount;
+        }
+
+        if (anyEmptyBuckets) {
+            pruneEmptyBuckets();
+        }
+
+        assert scaledCumulativeCount == desiredTotalCount;
+    }
+
+    private void pruneEmptyBuckets() {
+        int writePos = 0;
+        for (int i = 0; i < negativeBuckets.numBuckets; i++) {
+            if (bucketCounts[i] > 0) {
+                if (i != writePos) {
+                    bucketCounts[writePos] = bucketCounts[i];
+                    bucketIndices[writePos] = bucketIndices[i];
+                }
+                writePos++;
+            }
+        }
+        int newNegativeBucketCount = writePos;
+        for (int i = negativeBuckets.numBuckets; i < negativeBuckets.numBuckets + positiveBuckets.numBuckets; i++) {
+            if (bucketCounts[i] > 0) {
+                if (i != writePos) {
+                    bucketCounts[writePos] = bucketCounts[i];
+                    bucketIndices[writePos] = bucketIndices[i];
+                }
+                writePos++;
+            }
+        }
+        int newPositiveBucketCount = writePos - newNegativeBucketCount;
+        boolean negativeBucketsPruned = newNegativeBucketCount != negativeBuckets.numBuckets;
+        if (negativeBucketsPruned) {
+            negativeBuckets.numBuckets = newNegativeBucketCount;
+            negativeBuckets.cachedCountsSum = null;
+        }
+        if (negativeBucketsPruned || newPositiveBucketCount != positiveBuckets.numBuckets) {
+            positiveBuckets.numBuckets = newPositiveBucketCount;
+            positiveBuckets.cachedCountsSum = null;
+        }
+    }
+
+    @Override
+    public boolean isEmpty() {
+        return negativeBuckets.numBuckets == 0 && positiveBuckets.numBuckets == 0 && zeroBucket.count() == 0;
+    }
+
     @Override
     public int scale() {
         return bucketScale;

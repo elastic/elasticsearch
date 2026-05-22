@@ -295,6 +295,7 @@ public class SearchShardRecoveryIT extends AbstractStatelessPluginIntegTestCase 
         var refreshResponse = future.get();
         assertThat("Refresh should have been successful", refreshResponse.getSuccessfulShards(), equalTo(1));
 
+        ensureGreen(indexName); // wait for green status for replica to be allocated to search node and be searchable
         assertResponse(prepareSearch(indexName).setQuery(matchAllQuery()), searchResponse -> {
             assertNoFailures(searchResponse);
             assertEquals(totalDocs, searchResponse.getHits().getTotalHits().value());

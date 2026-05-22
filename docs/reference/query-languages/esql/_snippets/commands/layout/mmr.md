@@ -53,13 +53,13 @@ For example, you can use the [LIMIT command](../../../../esql/commands/limit.md)
 ## Examples
 
 ### Basic result diversification
-:::{include} ../examples/mmr.csv-spec/simpleMMR.md
+:::{include} ../../generated/x-pack-esql/commands/examples/mmr.csv-spec/simpleMMR.md
 :::
 
 ### Result diversification with a query vector
-:::{include} ../examples/mmr.csv-spec/simpleMMRWithQueryVector.md
+:::{include} ../../generated/x-pack-esql/commands/examples/mmr.csv-spec/simpleMMRWithQueryVector.md
 :::
 
 ### Result diversification using a text embedding to generate a query vector
-:::{include} ../examples/mmr.csv-spec/simpleMMRWithTextEmbedding.md
+:::{include} ../../generated/x-pack-esql/commands/examples/mmr.csv-spec/simpleMMRWithTextEmbedding.md
 :::

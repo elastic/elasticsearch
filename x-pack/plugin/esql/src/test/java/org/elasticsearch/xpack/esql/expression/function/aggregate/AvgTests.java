@@ -132,7 +132,7 @@ public class AvgTests extends AbstractAggregationTestCase {
                     }
                     case EXPONENTIAL_HISTOGRAM -> {
                         var expHisto = (ExponentialHistogram) fieldData.get(0);
-                        if (expHisto.valueCount() == 0) {
+                        if (expHisto.isEmpty()) {
                             yield null;
                         }
                         yield expHisto.sum() / expHisto.valueCount();

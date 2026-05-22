@@ -17,7 +17,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.request.AlibabaCloudSearchRequest;
 
 import java.io.IOException;
@@ -28,10 +28,13 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
 public abstract class AlibabaCloudSearchResponseEntity {
     private static final Logger logger = LogManager.getLogger(AlibabaCloudSearchResponseEntity.class);
 
-    public static <R> R fromResponse(Request request, HttpResult response, CheckedFunction<XContentParser, R, IOException> function)
-        throws IOException {
+    public static <R> R fromResponse(
+        OutboundRequest outboundRequest,
+        HttpResult response,
+        CheckedFunction<XContentParser, R, IOException> function
+    ) throws IOException {
         var parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE);
-        AlibabaCloudSearchRequest alibabaCloudSearchRequest = (AlibabaCloudSearchRequest) request;
+        AlibabaCloudSearchRequest alibabaCloudSearchRequest = (AlibabaCloudSearchRequest) outboundRequest;
 
         try (XContentParser parser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, response.body())) {
             moveToFirstToken(parser);
@@ -66,7 +69,7 @@ public abstract class AlibabaCloudSearchResponseEntity {
 
             logger.debug(
                 "AlibabaCloud Search uri [{}] response: request_id [{}], latency [{}ms], client cost [{}ms], usage [{}]",
-                request.getURI().getPath(),
+                outboundRequest.getURI().getPath(),
                 requestID,
                 latency,
                 System.currentTimeMillis() - alibabaCloudSearchRequest.getStartTime(),

@@ -568,3 +568,80 @@ setup:
 
   - match: { error.caused_by.caused_by.caused_by.type: "illegal_argument_exception" }
   - match: { error.caused_by.caused_by.caused_by.reason: "Required [type, value]" }
+
+---
+"Non-text input and multiple inputs rejected for text_embedding inference endpoint on semantic_text field":
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: text-embedding-semantic-text-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 4,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: test-semantic-text-field-index
+        body:
+          mappings:
+            properties:
+              my_field:
+                type: semantic_text
+                inference_id: text-embedding-semantic-text-id
+
+  - do:
+      index:
+        index: test-semantic-text-field-index
+        id: "1"
+        body:
+          my_field: "the quick brown fox"
+        refresh: true
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-semantic-text-field-index
+        body:
+          query:
+            knn:
+              field: my_field
+              k: 1
+              num_candidates: 10
+              query_vector_builder:
+                embedding:
+                  input:
+                    type: image
+                    value: "data:image/jpeg;base64,abcdef1234567890"
+
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "/Non-text.input.is.not.supported.for.\\[text_embedding\\].inference.endpoints.for.inference_id.\\[text-embedding-semantic-text-id\\]/" }
+
+  - do:
+      catch: bad_request
+      search:
+        index: test-semantic-text-field-index
+        body:
+          query:
+            knn:
+              field: my_field
+              k: 1
+              num_candidates: 10
+              query_vector_builder:
+                embedding:
+                  input:
+                    - type: text
+                      value: "test query"
+                    - type: text
+                      value: "another test query"
+
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "/Multiple.text.inputs.are.not.supported.for.\\[text_embedding\\].inference.endpoints.for.inference_id.\\[text-embedding-semantic-text-id\\]/" }

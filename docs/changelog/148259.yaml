@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148259
+summary: Prune `NotEq` pages where min == max == value
+type: enhancement

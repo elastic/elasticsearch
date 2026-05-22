@@ -837,11 +837,12 @@ public class ObjectStoreServiceTests extends ESTestCase {
     }
 
     public void testCopyShardCancel() throws IOException {
-        var primaryTerm = randomLongBetween(1, 42);
-        var commitCount = between(2, 5);
-        var blobsToCopyBeforeCancel = between(1, commitCount - 1);
-        var blobCopyCount = new AtomicInteger(0);
-        var task = new CancellableTask(0, "test", "test", "test", TaskId.EMPTY_TASK_ID, Map.of());
+        final var primaryTerm = randomLongBetween(1, 42);
+        final int numCopyThreads = 4;
+        final var commitCount = between(10, 15);
+        final var blobsToCopyBeforeCancel = between(1, commitCount - 1 - numCopyThreads);
+        final var blobCopyCount = new AtomicInteger(0);
+        final var task = new CancellableTask(0, "test", "test", "test", TaskId.EMPTY_TASK_ID, Map.of());
 
         var node = new FakeStatelessNode(
             this::newEnvironment,
@@ -876,13 +877,14 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         String blobName,
                         long blobSize
                     ) throws IOException {
-                        var blobsCopied = blobCopyCount.incrementAndGet();
-                        if (blobsCopied == blobsToCopyBeforeCancel) {
-                            // cancel task, no more blobs should be copied from here on
-                            TaskCancelHelper.cancel(task, "cancel copy");
-                        } else if (blobsCopied > blobsToCopyBeforeCancel) {
-                            fail("Cancelled copy task but copy still ongoing");
-                        }
+                        blobCopyCount.updateAndGet(count -> {
+                            count++;
+                            if (count == blobsToCopyBeforeCancel) {
+                                // cancel task, no more blobs should be copied from here on
+                                TaskCancelHelper.cancel(task, "cancel copy");
+                            }
+                            return count;
+                        });
                     }
                 };
             }
@@ -903,6 +905,87 @@ public class ObjectStoreServiceTests extends ESTestCase {
                 TaskCancelledException.class,
                 () -> objectStoreService.copyShard(task, sourceShardId, destinationShardId, primaryTerm)
             );
+            // Some threads might have already passed the cancellation check at the time of cancel
+            if (blobCopyCount.get() > blobsToCopyBeforeCancel + numCopyThreads) {
+                fail("Cancelled copy task but copy still ongoing");
+            }
+        }
+    }
+
+    public void testCopyShardFailure() throws IOException {
+        var primaryTerm = randomLongBetween(1, 42);
+        var commitCount = between(2, 15);
+        var task = new CancellableTask(0, "test", "test", "test", TaskId.EMPTY_TASK_ID, Map.of());
+        final var copyFailureIOE = new IOException("Fail copy");
+        final var copyFailureRE = new RuntimeException("Fail copy");
+        final boolean throwIOE = randomBoolean();
+        final var blobsToCopy = new AtomicInteger();
+
+        var node = new FakeStatelessNode(
+            this::newEnvironment,
+            this::newNodeEnvironment,
+            xContentRegistry(),
+            primaryTerm,
+            TestProjectResolvers.allProjects()
+        ) {
+            @Override
+            protected Settings nodeSettings() {
+                return Settings.builder()
+                    .put(super.nodeSettings())
+                    // the wait on commitCloseLatch below assumes every commit is released immediately, not true when delayed.
+                    .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 1)
+                    .build();
+            }
+
+            @Override
+            public BlobContainer wrapBlobContainer(BlobPath path, BlobContainer innerContainer) {
+                return new FilterBlobContainer(innerContainer) {
+
+                    @Override
+                    protected BlobContainer wrapChild(BlobContainer child) {
+                        return child;
+                    }
+
+                    @Override
+                    public void copyBlob(
+                        OperationPurpose purpose,
+                        BlobContainer sourceBlobContainer,
+                        String sourceBlobName,
+                        String blobName,
+                        long blobSize
+                    ) throws IOException {
+                        // always fail last blob
+                        if (blobsToCopy.decrementAndGet() == 0 || randomBoolean()) {
+                            if (throwIOE) {
+                                throw copyFailureIOE;
+                            } else {
+                                throw copyFailureRE;
+                            }
+                        }
+                        innerContainer.copyBlob(purpose, sourceBlobContainer, sourceBlobName, blobName, blobSize);
+                    }
+                };
+            }
+        };
+
+        try (node) {
+            ShardId sourceShardId = node.shardId;
+            ObjectStoreService objectStoreService = node.objectStoreService;
+            var commitCloseLatch = new CountDownLatch(commitCount);
+            var commits = node.generateIndexCommits(commitCount, randomBoolean(), false, ignored -> commitCloseLatch.countDown());
+            for (var indexCommit : commits) {
+                node.commitService.onCommitCreation(indexCommit);
+            }
+            safeAwait(commitCloseLatch);
+            blobsToCopy.set(commits.size());
+
+            var destinationShardId = new ShardId(sourceShardId.getIndex(), node.shardId.getId() + 1);
+
+            var failure = assertThrows(
+                Exception.class,
+                () -> objectStoreService.copyShard(task, sourceShardId, destinationShardId, primaryTerm)
+            );
+            assertSame(failure, throwIOE ? copyFailureIOE : copyFailureRE);
         }
     }
 

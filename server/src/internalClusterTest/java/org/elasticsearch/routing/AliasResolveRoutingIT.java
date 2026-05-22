@@ -15,11 +15,14 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentFactory;
+import org.junit.Before;
 
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.ExecutionException;
 
 import static org.elasticsearch.common.util.set.Sets.newHashSet;
 import static org.elasticsearch.index.query.QueryBuilders.queryStringQuery;
@@ -29,10 +32,29 @@ import static org.hamcrest.Matchers.nullValue;
 
 public class AliasResolveRoutingIT extends ESIntegTestCase {
 
+    private boolean routingDocValues;
+
+    @Before
+    public void randomizeRoutingStorage() {
+        routingDocValues = randomBoolean();
+        logger.info("--> using routing doc_values [{}]", routingDocValues);
+    }
+
+    /**
+     * Builds a {@code _routing} mapping that randomly enables {@code doc_values} based on {@link #routingDocValues}.
+     */
+    private XContentBuilder routingMapping() throws IOException {
+        XContentBuilder mapping = XContentFactory.jsonBuilder().startObject().startObject("_doc").startObject("_routing");
+        if (routingDocValues) {
+            mapping.field("doc_values", true);
+        }
+        return mapping.endObject().endObject().endObject();
+    }
+
     // see https://github.com/elastic/elasticsearch/issues/13278
-    public void testSearchClosedWildcardIndex() throws ExecutionException, InterruptedException {
-        createIndex("test-0");
-        createIndex("test-1");
+    public void testSearchClosedWildcardIndex() throws Exception {
+        prepareCreate("test-0").setMapping(routingMapping()).get();
+        prepareCreate("test-1").setMapping(routingMapping()).get();
         ensureGreen();
         indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
             .addAlias("test-0", "alias-0")
@@ -52,9 +74,9 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         );
     }
 
-    public void testResolveIndexRouting() {
-        createIndex("test1");
-        createIndex("test2");
+    public void testResolveIndexRouting() throws Exception {
+        prepareCreate("test1").setMapping(routingMapping()).get();
+        prepareCreate("test2").setMapping(routingMapping()).get();
         clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
@@ -93,10 +115,10 @@ public class AliasResolveRoutingIT extends ESIntegTestCase {
         }
     }
 
-    public void testResolveSearchRouting() {
-        createIndex("test1");
-        createIndex("test2");
-        createIndex("test3");
+    public void testResolveSearchRouting() throws Exception {
+        prepareCreate("test1").setMapping(routingMapping()).get();
+        prepareCreate("test2").setMapping(routingMapping()).get();
+        prepareCreate("test3").setMapping(routingMapping()).get();
         clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).setWaitForGreenStatus().get();
 
         indicesAdmin().prepareAliases(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)

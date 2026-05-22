@@ -120,14 +120,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
     /** How long an indexing shard should not have sent new commit notifications in order to be deemed as inactive. */
     public static final Setting<TimeValue> SHARD_INACTIVITY_DURATION_TIME_SETTING = Setting.positiveTimeSetting(
-        "shard.inactivity.duration",
+        "stateless.shard.inactivity.duration",
         TimeValue.timeValueMinutes(10),
         Setting.Property.NodeScope
     );
 
     /** How frequently we check for inactive indexing shards, and potentially send requests for in-use commits to the search shards. */
     public static final Setting<TimeValue> SHARD_INACTIVITY_MONITOR_INTERVAL_TIME_SETTING = Setting.positiveTimeSetting(
-        "shard.inactivity.monitor.interval",
+        "stateless.shard.inactivity.monitor.interval",
         TimeValue.timeValueMinutes(30),
         Setting.Property.NodeScope
     );
@@ -1167,12 +1167,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      *
      * Visible for testing.
      */
-    private static ShardCommitState getSafe(ConcurrentHashMap<ShardId, ShardCommitState> map, ShardId shardId) {
+    static ShardCommitState getSafe(ConcurrentHashMap<ShardId, ShardCommitState> map, ShardId shardId) {
         final ShardCommitState commitState = map.get(shardId);
         if (commitState == null) {
             throw new AlreadyClosedException("shard [" + shardId + "] has already been closed");
         }
         return commitState;
+    }
+
+    // Visible for testing.
+    ShardCommitState getSafe(ShardId shardId) {
+        return getSafe(shardsCommitsStates, shardId);
     }
 
     class ShardCommitState implements IndexEngineLocalReaderListener, CommitBCCResolver {
@@ -1259,6 +1264,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         // TransportStatelessPrimaryRelocationAction. It is a workaround to avoid modifying the IndexShard#preRecovery code.
         @Nullable
         private volatile RecoveryInfoFromSource recoveryInfoFromSource = null;
+
+        // This field is only accessed by appendCommit which is called within a lock ensuring this variable visibility.
+        private Set<PrimaryTermAndGeneration> previousReferencedBccs = null;
 
         private final Set<ShardId> copyTargets = ConcurrentHashMap.newKeySet();
 
@@ -1674,9 +1682,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             assert commitPrimaryTermAndGeneration.primaryTerm() == reference.getPrimaryTerm();
             assert commitPrimaryTermAndGeneration.generation() == reference.getGeneration();
 
-            Set<PrimaryTermAndGeneration> referencedBCCs = new HashSet<>(
-                BatchedCompoundCommit.computeReferencedBCCGenerations(statelessCompoundCommit)
-            );
+            Set<PrimaryTermAndGeneration> referencedBCCs = new HashSet<>();
+            BatchedCompoundCommit.appendBCCGenerations(referencedBCCs, statelessCompoundCommit);
 
             // For generational files used by local readers we must reference the original blob that contained them as Lucene might
             // delete the file and rely on the fact that in POSIX deleted files are kept around until the last process releases the
@@ -1690,9 +1697,21 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     }
                 }
             }
+
+            // In the case where commits are appended at a high rate and blob reference are not released fast enough, the size of the
+            // commitReferencesInfos can consume a significant amount of memory mainly due to referencedBCCs. To minimize, that impact
+            // we use Set.copyOf that use a Set implementation more memory friendly than HashSet and reuse the referencedBCCs instance of
+            // the previous CommitReferencesInfo if it contains the same PrimaryTermAndGeneration objects.
+            if (referencedBCCs.equals(previousReferencedBccs)) {
+                referencedBCCs = previousReferencedBccs;
+            } else {
+                referencedBCCs = Set.copyOf(referencedBCCs);
+                previousReferencedBccs = referencedBCCs;
+            }
+
             var previousCommitReferencesInfo = commitReferencesInfos.put(
                 commitPrimaryTermAndGeneration,
-                new CommitReferencesInfo(currentVirtualBcc.getPrimaryTermAndGeneration(), Collections.unmodifiableSet(referencedBCCs))
+                new CommitReferencesInfo(currentVirtualBcc.getPrimaryTermAndGeneration(), referencedBCCs)
             );
 
             assert previousCommitReferencesInfo == null
@@ -1910,6 +1929,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 );
             }
             blobReference.removeLocalCommitRef(commitPrimaryTermAndGeneration);
+        }
+
+        // Visible for testing.
+        Map<PrimaryTermAndGeneration, BlobReference> getPrimaryTermAndGenToBlobReferences() {
+            return primaryTermAndGenToBlobReference;
         }
 
         private PrimaryTermAndGeneration resolvePrimaryTermForGeneration(long generation) {

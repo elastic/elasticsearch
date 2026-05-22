@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 143779
-summary: Add error policy and configurable options for CSV format reader
-type: enhancement

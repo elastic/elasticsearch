@@ -68,6 +68,11 @@ public class NodeTranslogBuffer implements Releasable {
         return bufferSize.get() >= flushSizeThreshold && flushTaken.compareAndSet(false, true);
     }
 
+    // visible for testing
+    long getBufferSize() {
+        return bufferSize.get();
+    }
+
     /**
      * Returns true if the write to the buffer succeeded. Otherwise, this buffer has been closed for writing and the user must try again
      * on the next node buffer.
@@ -135,8 +140,8 @@ public class NodeTranslogBuffer implements Releasable {
                 }
             }
 
-            // It is possible that there were operations in the buffer which are no longer associated with active shards. If there is not
-            // data to sync related to active shards, do not produce a translog to sync
+            // It is possible that there were operations in the buffer which are no longer associated with active shards.
+            // If there is no data to sync related to active shards, do not produce a translog to sync
             if (dataToSync == false) {
                 Releasables.close(headerStream, compoundTranslogStream);
                 return null;
@@ -149,13 +154,19 @@ public class NodeTranslogBuffer implements Releasable {
                 CompositeBytesReference.of(headerStream.bytes(), compoundTranslogStream.bytes()),
                 () -> Releasables.close(headerStream, compoundTranslogStream)
             );
-            Map<ShardId, TranslogMetadata.Operations> operations = metadata.entrySet()
+
+            // We do not need to store totalOps when they are equal to zero as it can simply be assumed when there is no entry
+            // for a specified ShardId. Storing them has a memory cost that is non-negligible in some scenarios.
+            // We also use toUnmodifiableMap as it has a lower memory usage than HashMap.
+            Map<ShardId, Long> totalOps = metadata.entrySet()
                 .stream()
-                .collect(Collectors.toMap(Map.Entry::getKey, e -> e.getValue().operations()));
+                .filter(e -> e.getValue().operations().totalOps() > 0)
+                .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, e -> e.getValue().operations().totalOps()));
+
             TranslogReplicator.CompoundTranslogMetadata compoundMetadata = new TranslogReplicator.CompoundTranslogMetadata(
                 Strings.format("%019d", generation),
                 generation,
-                operations,
+                totalOps,
                 syncedLocations
             );
 

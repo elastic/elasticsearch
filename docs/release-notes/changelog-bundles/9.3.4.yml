@@ -1,6 +1,6 @@
 version: 9.3.4
-released: false
-generated: 2026-04-24T00:07:53.119826658Z
+released: true
+generated: 2026-04-30T15:37:04.777736430Z
 changelogs:
   - pr: 140200
     summary: Use `IllegalArgumentException` over `RepositoryException` for readonly-repository checks

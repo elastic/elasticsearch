@@ -120,7 +120,9 @@ import static org.elasticsearch.index.IndexSettings.INDEX_REFRESH_INTERVAL_SETTI
 import static org.elasticsearch.index.IndexSettings.STATELESS_DEFAULT_REFRESH_INTERVAL;
 import static org.elasticsearch.indices.IndexingMemoryController.SHARD_INACTIVE_TIME_SETTING;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
 import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static org.hamcrest.Matchers.containsString;
@@ -535,6 +537,58 @@ public class StatelessIT extends AbstractStatelessPluginIntegTestCase {
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1), indexName);
         ensureGreen(indexName);
         // TODO assertObjectStoreConsistentWithSearchShards(); doesn't work yet because closing the index incremented the primary term
+    }
+
+    public void testRelocationForClosedIndex() throws Exception {
+        final var node0 = startMasterAndIndexNode();
+        final var node1 = startSearchNode();
+        ensureStableCluster(2);
+
+        final var indexName = randomIndexName();
+        createIndex(indexName, 1, 1);
+        ensureGreen(indexName);
+        indexDocs(indexName, 10);
+        safeGet(indicesAdmin().prepareClose(indexName).execute());
+
+        final var node2 = startMasterAndIndexNode();
+        final var node3 = startSearchNode();
+        ensureStableCluster(4);
+
+        logger.info("--> force relocation to new nodes");
+        updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", node0 + "," + node1), indexName);
+        ensureGreen(indexName);
+
+        assertThat(internalCluster().nodesInclude(indexName), equalTo(Set.of(node2, node3)));
+
+        // Open the index and it should work
+        safeGet(indicesAdmin().prepareOpen(indexName).execute());
+        ensureGreen(indexName);
+        // Index also works and we get expected number of docs
+        indexDocsAndRefresh(indexName, 10);
+        assertResponse(prepareSearch(indexName).setSize(0), response -> { assertHitCount(response, 20); });
+    }
+
+    public void testRestartNodeWithClosedIndex() throws Exception {
+        final var node0 = startMasterOnlyNode();
+        final var node1 = startMasterAndIndexNode();
+        final var node2 = startSearchNode();
+        ensureStableCluster(3);
+
+        final var indexName = "index";
+        createIndex(indexName, 1, 1);
+        indexDocs(indexName, 10);
+        flush(indexName);
+        safeGet(indicesAdmin().prepareClose(indexName).execute());
+
+        internalCluster().restartNode(node1);
+        ensureGreen(indexName);
+
+        // Open the index and it should work
+        safeGet(indicesAdmin().prepareOpen(indexName).execute());
+        ensureGreen(indexName);
+        // Index also works and we get expected number of docs
+        indexDocsAndRefresh(indexName, 10);
+        assertResponse(prepareSearch(indexName).setSize(0), response -> { assertHitCount(response, 20); });
     }
 
     public void testSetsRecyclableBigArraysInTranslogReplicator() throws Exception {

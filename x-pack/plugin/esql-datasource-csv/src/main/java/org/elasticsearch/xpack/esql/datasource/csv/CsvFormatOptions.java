@@ -29,7 +29,9 @@ import java.time.format.DateTimeFormatter;
  *                           are synthesized from {@link #columnPrefix}.
  * @param columnPrefix       prefix used to synthesize column names when {@link #headerRow} is
  *                           {@code false}. Counters are appended starting at 0 (e.g.
- *                           {@code col0, col1, col2, ...}). Default: {@code "col"}.
+ *                           {@code col0, col1, col2, ...}). Default: {@code "col"}. Ignored when
+ *                           {@code headerRow} is {@code true}. An empty prefix yields purely numeric
+ *                           names ({@code 0, 1, 2, ...}) which must be backtick-quoted in ES|QL.
  */
 public record CsvFormatOptions(
     char delimiter,
@@ -54,7 +56,7 @@ public record CsvFormatOptions(
     static final int DEFAULT_MAX_FIELD_SIZE = 10 * 1024 * 1024;
 
     /** Default prefix for synthesized column names when {@link #headerRow} is {@code false}. */
-    public static final String DEFAULT_COLUMN_PREFIX = "col";
+    static final String DEFAULT_COLUMN_PREFIX = "col";
 
     public static final CsvFormatOptions DEFAULT = new CsvFormatOptions(
         ',',

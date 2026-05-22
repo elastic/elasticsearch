@@ -19,7 +19,16 @@ import org.elasticsearch.core.Nullable;
  * instrumentation scope attribute (which takes precedence).
  */
 public enum MappingMode {
+    /**
+     * Maps OTLP fields into Elasticsearch's standard OTel document structure, preserving resource, scope, and record metadata.
+     * Documents are routed to data streams backed by the built-in OTel templates, using the
+     * {@code <type>-<dataset>.otel-<namespace>} naming pattern.
+     */
     OTEL("otel"),
+
+    /**
+     * Uses a log record's body map as the complete document, without copying the surrounding OTLP metadata.
+     */
     BODYMAP("bodymap");
 
     public static final String HEADER = "X-Elastic-Mapping-Mode";
@@ -49,6 +58,17 @@ public enum MappingMode {
                 return mode;
             }
         }
-        throw new IllegalArgumentException("Unsupported mapping mode [" + value + "], expected one of [otel, bodymap]");
+        throw new IllegalArgumentException("Unsupported mapping mode [" + value + "], expected one of [" + acceptedModes() + "]");
+    }
+
+    private static String acceptedModes() {
+        StringBuilder acceptedModes = new StringBuilder();
+        for (MappingMode mode : values()) {
+            if (acceptedModes.isEmpty() == false) {
+                acceptedModes.append(", ");
+            }
+            acceptedModes.append(mode.name);
+        }
+        return acceptedModes.toString();
     }
 }

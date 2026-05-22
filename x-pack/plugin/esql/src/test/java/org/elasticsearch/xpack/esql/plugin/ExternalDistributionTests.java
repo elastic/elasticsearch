@@ -517,7 +517,7 @@ public class ExternalDistributionTests extends ESTestCase {
             new FieldAttribute(SRC, "name", new EsField("name", DataType.KEYWORD, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
         );
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "parquet", "s3://bucket/data/*.parquet");
-        return new ExternalRelation(SRC, "s3://bucket/data/*.parquet", metadata, output, null);
+        return new ExternalRelation(SRC, "s3://bucket/data/*.parquet", metadata, output, null, Map.of());
     }
 
     private static ExternalRelation createMultiFieldExternalRelation() {
@@ -527,7 +527,7 @@ public class ExternalDistributionTests extends ESTestCase {
             new FieldAttribute(SRC, "age", new EsField("age", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE))
         );
         SimpleSourceMetadata metadata = new SimpleSourceMetadata(output, "parquet", "s3://bucket/data/*.parquet");
-        return new ExternalRelation(SRC, "s3://bucket/data/*.parquet", metadata, output, null);
+        return new ExternalRelation(SRC, "s3://bucket/data/*.parquet", metadata, output, null, Map.of());
     }
 
     private static ExternalSourceExec createExternalSourceExec() {

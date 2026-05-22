@@ -46,15 +46,15 @@ public class IndexingDiskController extends AbstractLifecycleComponent {
 
     /** How much of total disk space should be reserved before flushing shards (default: 20%) **/
     public static final Setting<RelativeByteSizeValue> INDEXING_DISK_RESERVED_BYTES_SETTING = new Setting<>(
-        "indices.disk.reserved_bytes",
+        "stateless.indices.disk.reserved_bytes",
         "20%",
-        (s) -> RelativeByteSizeValue.parseRelativeByteSizeValue(s, "indices.disk.reserved_bytes"),
+        (s) -> RelativeByteSizeValue.parseRelativeByteSizeValue(s, "stateless.indices.disk.reserved_bytes"),
         Setting.Property.NodeScope
     );
 
     /** How frequently we check disk usage (default: 5 seconds). */
     public static final Setting<TimeValue> INDEXING_DISK_INTERVAL_TIME_SETTING = Setting.timeSetting(
-        "indices.disk.interval",
+        "stateless.indices.disk.interval",
         TimeValue.timeValueSeconds(5),
         TimeValue.MINUS_ONE,
         Setting.Property.NodeScope

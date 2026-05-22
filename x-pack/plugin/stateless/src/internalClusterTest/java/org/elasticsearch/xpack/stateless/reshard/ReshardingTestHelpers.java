@@ -8,11 +8,15 @@
 package org.elasticsearch.xpack.stateless.reshard;
 
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.test.ESTestCase;
+
+import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
+import static org.hamcrest.Matchers.equalTo;
 
 public class ReshardingTestHelpers {
     public static IndexRouting postSplitRouting(ClusterState state, Index index, int targetShardCount) {
@@ -37,5 +41,20 @@ public class ReshardingTestHelpers {
 
     public static IndexMetadata indexMetadata(ClusterState state, Index index) {
         return state.metadata().indexMetadata(index);
+    }
+
+    public static void checkNumberOfShardsSetting(Client client, String indexName, int expectedShards) {
+        ESTestCase.assertThat(
+            IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(
+                client.admin()
+                    .indices()
+                    .prepareGetSettings(TEST_REQUEST_TIMEOUT, indexName)
+                    .execute()
+                    .actionGet()
+                    .getIndexToSettings()
+                    .get(indexName)
+            ),
+            equalTo(expectedShards)
+        );
     }
 }

@@ -79,6 +79,7 @@ public class LogDocumentBuilder extends OTelDocumentBuilder {
      */
     public void buildBodyMapLogDocument(XContentBuilder builder, LogRecord logRecord) throws IOException {
         AnyValue body = logRecord.getBody();
+        // Keep this guard for direct callers even though transport actions pre-validate bodymap records.
         if (body.getValueCase() != AnyValue.ValueCase.KVLIST_VALUE) {
             throw new IllegalArgumentException("invalid log record body type for 'bodymap' mapping mode: " + body.getValueCase());
         }

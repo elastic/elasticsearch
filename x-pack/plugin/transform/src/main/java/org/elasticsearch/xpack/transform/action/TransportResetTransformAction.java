@@ -102,7 +102,7 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        if (TransformMetadata.upgradeMode(state)) {
+        if (TransformMetadata.isUpgradeMode(state)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot reset any Transform while the Transform feature is upgrading.",
@@ -112,7 +112,10 @@ public class TransportResetTransformAction extends AcknowledgedTransportMasterNo
             return;
         }
 
-        final boolean transformIsRunning = TransformTask.getTransformTask(request.getId(), state) != null;
+        final boolean transformIsRunning = TransformTask.getTransformTask(
+            request.getId(),
+            projectResolver.getProjectMetadata(state)
+        ) != null;
         if (transformIsRunning && request.isForce() == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(

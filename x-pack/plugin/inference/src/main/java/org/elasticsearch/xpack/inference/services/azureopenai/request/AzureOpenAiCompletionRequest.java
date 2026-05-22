@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.inference.services.azureopenai.request;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.xpack.inference.external.request.CompletionRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundCompletionRequest;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModel;
 
 import java.util.List;
 import java.util.Objects;
 
-public class AzureOpenAiCompletionRequest extends AzureOpenAiRequest<AzureOpenAiCompletionModel> implements CompletionRequest {
+public class AzureOpenAiCompletionRequest extends AzureOpenAiRequest<AzureOpenAiCompletionModel> implements OutboundCompletionRequest {
 
     private final boolean stream;
 

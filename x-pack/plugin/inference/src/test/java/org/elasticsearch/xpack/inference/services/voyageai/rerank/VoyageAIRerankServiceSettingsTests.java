@@ -20,24 +20,25 @@ import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettings;
-import org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.DEFAULT_RATE_LIMIT;
-import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.INITIAL_TEST_MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.INITIAL_TEST_RATE_LIMIT;
-import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.TEST_MODEL_ID;
-import static org.elasticsearch.xpack.inference.services.voyageai.VoyageAICommonServiceSettingsTests.TEST_RATE_LIMIT;
 import static org.hamcrest.Matchers.is;
 
 public class VoyageAIRerankServiceSettingsTests extends AbstractBWCWireSerializationTestCase<VoyageAIRerankServiceSettings> {
 
+    private static final String TEST_MODEL_ID = "test-model-id";
+    private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
+
+    private static final int TEST_RATE_LIMIT = 20;
+    private static final int INITIAL_TEST_RATE_LIMIT = 30;
+    private static final int DEFAULT_RATE_LIMIT = 2_000;
+
     public static VoyageAIRerankServiceSettings createRandom() {
-        return new VoyageAIRerankServiceSettings(VoyageAICommonServiceSettingsTests.createRandom());
+        return new VoyageAIRerankServiceSettings(randomAlphaOfLength(15), RateLimitSettingsTests.createRandom());
     }
 
     public void testFromMap_AllFields_CreatesSettingsCorrectly() {
@@ -46,10 +47,7 @@ public class VoyageAIRerankServiceSettingsTests extends AbstractBWCWireSerializa
             randomFrom(ConfigurationParseContext.values())
         );
 
-        assertThat(
-            serviceSettings,
-            is(new VoyageAIRerankServiceSettings(new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))))
-        );
+        assertThat(serviceSettings, is(new VoyageAIRerankServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))));
     }
 
     public void testFromMap_OnlyMandatoryFields_CreatesSettingsCorrectly() {
@@ -58,14 +56,7 @@ public class VoyageAIRerankServiceSettingsTests extends AbstractBWCWireSerializa
             randomFrom(ConfigurationParseContext.values())
         );
 
-        assertThat(
-            serviceSettings,
-            is(
-                new VoyageAIRerankServiceSettings(
-                    new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT))
-                )
-            )
-        );
+        assertThat(serviceSettings, is(new VoyageAIRerankServiceSettings(TEST_MODEL_ID, new RateLimitSettings(DEFAULT_RATE_LIMIT))));
     }
 
     public void testFromMap_NoModelId_ThrowsValidationError() {
@@ -83,33 +74,29 @@ public class VoyageAIRerankServiceSettingsTests extends AbstractBWCWireSerializa
 
     public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
         var originalServiceSettings = new VoyageAIRerankServiceSettings(
-            new VoyageAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT))
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
 
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(buildServiceSettingsMap(TEST_MODEL_ID, TEST_RATE_LIMIT));
 
         assertThat(
             updatedServiceSettings,
-            is(
-                new VoyageAIRerankServiceSettings(
-                    new VoyageAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))
-                )
-            )
+            is(new VoyageAIRerankServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT)))
         );
     }
 
     public void testUpdateServiceSettings_EmptyMap_DoesNotChangeSettings() {
         var originalServiceSettings = new VoyageAIRerankServiceSettings(
-            new VoyageAICommonServiceSettings(INITIAL_TEST_MODEL_ID, new RateLimitSettings(INITIAL_TEST_RATE_LIMIT))
+            INITIAL_TEST_MODEL_ID,
+            new RateLimitSettings(INITIAL_TEST_RATE_LIMIT)
         );
 
         assertThat(originalServiceSettings.updateServiceSettings(new HashMap<>()), is(originalServiceSettings));
     }
 
     public void testToXContent_WritesAllValues() throws IOException {
-        var serviceSettings = new VoyageAIRerankServiceSettings(
-            new VoyageAICommonServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT))
-        );
+        var serviceSettings = new VoyageAIRerankServiceSettings(TEST_MODEL_ID, new RateLimitSettings(TEST_RATE_LIMIT));
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         serviceSettings.toXContent(builder, null);
@@ -137,8 +124,13 @@ public class VoyageAIRerankServiceSettingsTests extends AbstractBWCWireSerializa
 
     @Override
     protected VoyageAIRerankServiceSettings mutateInstance(VoyageAIRerankServiceSettings instance) throws IOException {
-        var commonSettings = randomValueOtherThan(instance.getCommonSettings(), VoyageAICommonServiceSettingsTests::createRandom);
-        return new VoyageAIRerankServiceSettings(commonSettings);
+        if (randomBoolean()) {
+            var modelId = randomValueOtherThan(instance.modelId(), () -> randomAlphaOfLength(15));
+            return new VoyageAIRerankServiceSettings(modelId, instance.rateLimitSettings());
+        } else {
+            var rateLimitSettings = randomValueOtherThan(instance.rateLimitSettings(), RateLimitSettingsTests::createRandom);
+            return new VoyageAIRerankServiceSettings(instance.modelId(), rateLimitSettings);
+        }
     }
 
     @Override

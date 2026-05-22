@@ -129,8 +129,8 @@ public class TransportCancelTasksAction extends TransportTasksAction<Cancellable
     ///
     /// - Captured tasks are deduplicated by `originalTaskId`; second pass wins, [TransportListTasksAction#preferNewer] resolves intra-pass
     ///   ties.
-    /// - Per-task failures are kept unless they refer to a logical task we already captured (e.g. the source side's `409 Conflict` is
-    ///   irrelevant once the relocated successor was cancelled).
+    /// - Per-task failures are kept unless they refer to a logical task we already captured (e.g. the source side's `503 Service
+    ///   Unavailable` is irrelevant once the relocated successor was cancelled).
     /// - Node failures are deduplicated; any failure with a [ResourceNotFoundException] in its cause chain is dropped when the merge
     ///   captured any task for a targeted cancel.
     static ListTasksResponse mergeResponses(

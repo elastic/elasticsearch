@@ -16,6 +16,7 @@ import org.elasticsearch.index.query.MatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 
@@ -60,8 +61,8 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
     }
 
     @Override
-    protected String getQuery() {
-        return originalQuery.value().toString();
+    protected InferenceStringGroup getInput() {
+        return new InferenceStringGroup(originalQuery.value().toString());
     }
 
     @Override
@@ -94,8 +95,9 @@ public class InterceptedInferenceMatchQueryBuilder extends InterceptedInferenceQ
         if (fieldType == null) {
             rewritten = new MatchNoneQueryBuilder();
         } else if (fieldType instanceof SemanticFieldMapper.SemanticFieldType) {
-            rewritten = new SemanticQueryBuilder(getField(), getQuery(), null, inferenceResultsMap).boost(originalQuery.boost())
-                .queryName(originalQuery.queryName());
+            rewritten = new SemanticQueryBuilder(getField(), originalQuery.value().toString(), null, inferenceResultsMap).boost(
+                originalQuery.boost()
+            ).queryName(originalQuery.queryName());
         } else {
             rewritten = originalQuery;
         }

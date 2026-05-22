@@ -131,7 +131,7 @@ public abstract class AbstractOTLPRestActionTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> execute(1024, 0, Map.of(MappingMode.HEADER, List.of("ecs")))
         );
-        assertThat(e.getMessage(), containsString("Unsupported mapping mode [ecs]"));
+        assertThat(e.getMessage(), equalTo("Unsupported mapping mode [ecs], expected one of [otel, bodymap]"));
     }
 
     public void testEmptyBodyReturnsSuccess() throws Exception {

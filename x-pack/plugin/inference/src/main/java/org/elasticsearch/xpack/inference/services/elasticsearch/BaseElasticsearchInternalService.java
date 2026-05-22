@@ -22,6 +22,7 @@ import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.telemetry.InferenceProductContext;
 import org.elasticsearch.inference.telemetry.InferenceStats;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -109,6 +110,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
             }
 
             var timer = InferenceTimer.start();
+            var productContext = InferenceProductContext.create(threadPool.getThreadContext());
             // instead of a subscribably listener, use some wait to wait for the first one.
             var subscribableListener = SubscribableListener.<Boolean>newForked(
                 forkedListener -> { isBuiltinModelPut(model, forkedListener); }
@@ -125,7 +127,11 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
             });
             subscribableListener.addTimeout(timeout, threadPool, inferenceExecutor);
             subscribableListener.addListener(ActionListener.wrap(started -> {
-                inferenceStats.deploymentDuration().record(timer.elapsedMillis(), inferenceStats.serviceAndResponseAttributes(model, null));
+                inferenceStats.deploymentDuration()
+                    .withModel(model)
+                    .withSuccess()
+                    .withProductContext(productContext)
+                    .record(timer.elapsedMillis());
                 finalListener.onResponse(started);
             }, e -> {
                 if (e instanceof ElasticsearchTimeoutException) {
@@ -139,11 +145,17 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                         )
                     );
                     inferenceStats.deploymentDuration()
-                        .record(timer.elapsedMillis(), inferenceStats.serviceAndResponseAttributes(model, timeoutException));
+                        .withModel(model)
+                        .withThrowable(timeoutException)
+                        .withProductContext(productContext)
+                        .record(timer.elapsedMillis());
                     finalListener.onFailure(timeoutException);
                 } else {
                     inferenceStats.deploymentDuration()
-                        .record(timer.elapsedMillis(), inferenceStats.serviceAndResponseAttributes(model, unwrapCause(e)));
+                        .withModel(model)
+                        .withThrowable(unwrapCause(e))
+                        .withProductContext(productContext)
+                        .record(timer.elapsedMillis());
                     finalListener.onFailure(e);
                 }
             }));

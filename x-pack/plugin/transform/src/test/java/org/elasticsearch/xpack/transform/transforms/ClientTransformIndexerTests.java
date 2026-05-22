@@ -580,7 +580,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                         ActionListener.respondAndRelease(
                             listener,
                             (Response) new SearchResponse(
-                                SearchHits.unpooled(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0f),
+                                new SearchHits(new SearchHit[0], new TotalHits(0L, TotalHits.Relation.EQUAL_TO), 0f),
                                 null,
                                 new Suggest(Collections.emptyList()),
                                 false,
@@ -851,37 +851,36 @@ public class ClientTransformIndexerTests extends ESTestCase {
                     && new BytesArray("the_pit_id+++").equals(searchRequest.pointInTimeBuilder().getEncodedId())) {
                     listener.onFailure(new SearchContextMissingException(new ShardSearchContextId("sc_missing", 42)));
                 } else {
-                    ActionListener.respondAndRelease(
-                        listener,
-                        (Response) new SearchResponse(
-                            SearchHits.unpooled(
-                                new SearchHit[] { SearchHit.unpooled(1) },
-                                new TotalHits(1L, TotalHits.Relation.EQUAL_TO),
-                                1.0f
-                            ),
-                            // Simulate completely null aggs
-                            null,
-                            new Suggest(Collections.emptyList()),
-                            false,
-                            false,
-                            new SearchProfileResults(Collections.emptyMap()),
-                            1,
-                            null,
-                            1,
-                            1,
-                            0,
-                            0,
-                            ShardSearchFailure.EMPTY_ARRAY,
-                            SearchResponse.Clusters.EMPTY,
-                            // copy the pit from the request
-                            searchRequest.pointInTimeBuilder() != null
-                                ? CompositeBytesReference.of(searchRequest.pointInTimeBuilder().getEncodedId(), new BytesArray("+"))
-                                : null,
-                            null,
-                            null
-                        )
+                    SearchHits searchHits = new SearchHits(
+                        new SearchHit[] { new SearchHit(1) },
+                        new TotalHits(1L, TotalHits.Relation.EQUAL_TO),
+                        1.0f
                     );
-
+                    // Simulate completely null aggs
+                    SearchResponse searchResponse = new SearchResponse(
+                        searchHits,
+                        null,
+                        new Suggest(Collections.emptyList()),
+                        false,
+                        false,
+                        new SearchProfileResults(Collections.emptyMap()),
+                        1,
+                        null,
+                        1,
+                        1,
+                        0,
+                        0,
+                        ShardSearchFailure.EMPTY_ARRAY,
+                        SearchResponse.Clusters.EMPTY,
+                        // copy the pit from the request
+                        searchRequest.pointInTimeBuilder() != null
+                            ? CompositeBytesReference.of(searchRequest.pointInTimeBuilder().getEncodedId(), new BytesArray("+"))
+                            : null,
+                        null,
+                        null
+                    );
+                    searchHits.decRef(); // transfer ownership to searchResponse
+                    ActionListener.respondAndRelease(listener, (Response) searchResponse);
                 }
                 return;
             }

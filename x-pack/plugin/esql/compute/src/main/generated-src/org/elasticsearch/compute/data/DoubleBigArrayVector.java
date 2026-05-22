@@ -78,6 +78,11 @@ public final class DoubleBigArrayVector extends AbstractVector implements Double
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Double.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.DOUBLE;
     }

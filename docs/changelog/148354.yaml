@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148354
+summary: Cache `FilterOperator/EvalOperator` `toString`
+type: enhancement

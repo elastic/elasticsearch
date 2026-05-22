@@ -14,48 +14,31 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.settings.SecureString;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.EmptyTaskSettings;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.inference.ModelSecrets;
-import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.completion.ContentString;
 import org.elasticsearch.inference.completion.Message;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
-import org.elasticsearch.test.http.MockWebServer;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.UnifiedChatCompletionException;
-import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
-import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
-import org.elasticsearch.xpack.inference.services.AbstractInferenceServiceTests;
-import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
-import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionModelTests;
-import org.elasticsearch.xpack.inference.services.ai21.completion.Ai21ChatCompletionServiceSettings;
-import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
-import org.hamcrest.Matchers;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -67,7 +50,6 @@ import static org.elasticsearch.ExceptionsHelper.unwrapCause;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
@@ -78,180 +60,15 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isA;
-import static org.mockito.Mockito.mock;
 
-public class Ai21ServiceTests extends AbstractInferenceServiceTests {
+public class Ai21ServiceTests extends InferenceServiceTestCase {
     private static final TimeValue TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
-    private final MockWebServer webServer = new MockWebServer();
-    private ThreadPool threadPool;
-    private HttpClientManager clientManager;
-
-    public Ai21ServiceTests() {
-        super(createTestConfiguration());
-    }
-
-    public static AbstractInferenceServiceTests.TestConfiguration createTestConfiguration() {
-        return new TestConfiguration.Builder(
-            new CommonConfig(TaskType.COMPLETION, TaskType.TEXT_EMBEDDING, EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)) {
-
-                @Override
-                protected Ai21Service createService(ThreadPool threadPool, HttpClientManager clientManager) {
-                    return Ai21ServiceTests.createService(threadPool, clientManager);
-                }
-
-                @Override
-                protected Map<String, Object> createServiceSettingsMap(TaskType taskType) {
-                    return Ai21ServiceTests.createServiceSettingsMap();
-                }
-
-                @Override
-                protected ModelSecrets createModelSecrets(ConfigurationParseContext context) {
-                    return new ModelSecrets(DefaultSecretSettings.fromMap(createSecretSettingsMap(), context));
-                }
-
-                @Override
-                protected ModelConfigurations createModelConfigurations(TaskType taskType) {
-                    switch (taskType) {
-                        case COMPLETION, CHAT_COMPLETION -> {
-                            return new ModelConfigurations(
-                                "some_inference_id",
-                                taskType,
-                                Ai21Service.NAME,
-                                Ai21ChatCompletionServiceSettings.fromMap(
-                                    createServiceSettingsMap(taskType),
-                                    ConfigurationParseContext.PERSISTENT
-                                ),
-                                EmptyTaskSettings.INSTANCE
-                            );
-                        }
-                        // Text embedding is not supported, but in order to test unsupported task types it is included here
-                        case TEXT_EMBEDDING -> {
-                            return new ModelConfigurations(
-                                "some_inference_id",
-                                taskType,
-                                Ai21Service.NAME,
-                                mock(ServiceSettings.class),
-                                EmptyTaskSettings.INSTANCE
-                            );
-                        }
-                        default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
-                    }
-                }
-
-                @Override
-                protected Map<String, Object> createTaskSettingsMap() {
-                    return new HashMap<>();
-                }
-
-                @Override
-                protected Map<String, Object> createSecretSettingsMap() {
-                    return Ai21ServiceTests.createSecretSettingsMap();
-                }
-
-                @Override
-                protected void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
-                    Ai21ServiceTests.assertModel(model, taskType, modelIncludesSecrets);
-                }
-
-                @Override
-                protected EnumSet<TaskType> supportedStreamingTasks() {
-                    return EnumSet.of(TaskType.CHAT_COMPLETION, TaskType.COMPLETION);
-                }
-            }
-        ).build();
-    }
-
-    private static void assertModel(Model model, TaskType taskType, boolean modelIncludesSecrets) {
-        switch (taskType) {
-            case COMPLETION -> assertCompletionModel(model, modelIncludesSecrets);
-            case CHAT_COMPLETION -> assertChatCompletionModel(model, modelIncludesSecrets);
-            default -> fail("unexpected task type [" + taskType + "]");
-        }
-    }
-
-    private static Ai21Model assertCommonModelFields(Model model, boolean modelIncludesSecrets) {
-        assertThat(model, instanceOf(Ai21Model.class));
-
-        var customModel = (Ai21Model) model;
-        assertThat(customModel.uri.toString(), Matchers.is("https://api.ai21.com/studio/v1/chat/completions"));
-        assertThat(customModel.getTaskSettings(), Matchers.is(EmptyTaskSettings.INSTANCE));
-
-        if (modelIncludesSecrets) {
-            assertThat(customModel.getSecretSettings().apiKey(), Matchers.is(new SecureString("secret".toCharArray())));
-        }
-
-        return customModel;
-    }
-
-    private static void assertCompletionModel(Model model, boolean modelIncludesSecrets) {
-        var customModel = assertCommonModelFields(model, modelIncludesSecrets);
-        assertThat(customModel.getTaskType(), Matchers.is(TaskType.COMPLETION));
-    }
-
-    private static void assertChatCompletionModel(Model model, boolean modelIncludesSecrets) {
-        var customModel = assertCommonModelFields(model, modelIncludesSecrets);
-        assertThat(customModel.getTaskType(), Matchers.is(TaskType.CHAT_COMPLETION));
-    }
-
-    public static Ai21Service createService(ThreadPool threadPool, HttpClientManager clientManager) {
-        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
-        return new Ai21Service(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty());
-    }
-
-    private static Map<String, Object> createServiceSettingsMap() {
-        return new HashMap<>(Map.of(ServiceFields.MODEL_ID, "model_id"));
-    }
-
-    private static Map<String, Object> createSecretSettingsMap() {
-        return new HashMap<>(Map.of("api_key", "secret"));
-    }
-
-    @Before
-    public void init() throws Exception {
-        webServer.start();
-        threadPool = createThreadPool(inferenceUtilityExecutors());
-        clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
-    }
-
-    @After
-    public void shutdown() throws IOException {
-        clientManager.close();
-        terminate(threadPool);
-        webServer.close();
-    }
-
-    public void testParseRequestConfig_CreatesChatCompletionsModel() throws IOException {
-        var url = "url";
-        var model = "model";
-        var secret = "secret";
-
-        try (var service = createService()) {
-            ActionListener<Model> modelVerificationListener = ActionListener.wrap(m -> {
-                assertThat(m, instanceOf(Ai21ChatCompletionModel.class));
-
-                var chatCompletionModel = (Ai21ChatCompletionModel) m;
-
-                chatCompletionModel.setURI(url);
-                assertThat(chatCompletionModel.uri().toString(), is("url"));
-                assertThat(chatCompletionModel.getServiceSettings().modelId(), is(model));
-                assertThat((chatCompletionModel.getSecretSettings()).apiKey().toString(), is("secret"));
-
-            }, exception -> fail("Unexpected exception: " + exception));
-
-            service.parseRequestConfig(
-                "id",
-                TaskType.CHAT_COMPLETION,
-                getRequestConfigMap(getServiceSettingsMap(model, null), getSecretSettingsMap(secret)),
-                modelVerificationListener
-            );
-        }
-    }
 
     public void testParseRequestConfig_ThrowsException_WithoutModelId() throws IOException {
         var url = "url";
         var secret = "secret";
 
-        try (var service = createService()) {
+        try (var service = createInferenceService()) {
             ActionListener<Model> modelVerificationListener = ActionListener.wrap(m -> {
                 assertThat(m, instanceOf(Ai21ChatCompletionModel.class));
 
@@ -489,15 +306,8 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
             {"completion":[{"delta":"Hello there"}]}""");
     }
 
-    public void testSupportsStreaming() throws IOException {
-        try (var service = new Ai21Service(mock(), createWithEmptySettings(mock()), mockClusterServiceEmpty())) {
-            assertThat(service.supportedStreamingTasks(), is(EnumSet.of(TaskType.COMPLETION, TaskType.CHAT_COMPLETION)));
-            assertFalse(service.canStream(TaskType.ANY));
-        }
-    }
-
     public void testGetConfiguration() throws Exception {
-        try (var service = createService()) {
+        try (var service = createInferenceService()) {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "service": "ai21",
@@ -560,8 +370,13 @@ public class Ai21ServiceTests extends AbstractInferenceServiceTests {
         }
     }
 
-    private Ai21Service createService() {
-        return new Ai21Service(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool), mockClusterServiceEmpty());
+    @Override
+    public InferenceService createInferenceService() {
+        return new Ai21Service(
+            HttpRequestSenderTests.createSenderFactory(threadPool, clientManager),
+            createWithEmptySettings(threadPool),
+            mockClusterServiceEmpty()
+        );
     }
 
     private Map<String, Object> getRequestConfigMap(Map<String, Object> serviceSettings, Map<String, Object> secretSettings) {

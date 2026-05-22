@@ -242,7 +242,7 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
                 ActionListener.respondAndRelease(
                     (ActionListener<SearchResponse>) listener,
                     SearchResponseUtils.successfulResponse(
-                        SearchHits.unpooled(SearchHits.EMPTY, new TotalHits(ruleCount, TotalHits.Relation.EQUAL_TO), Float.NaN)
+                        new SearchHits(SearchHits.EMPTY, new TotalHits(ruleCount, TotalHits.Relation.EQUAL_TO), Float.NaN)
                     )
                 );
                 return;

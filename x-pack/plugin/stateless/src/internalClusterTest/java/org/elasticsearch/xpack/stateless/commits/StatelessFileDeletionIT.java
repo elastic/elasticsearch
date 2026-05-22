@@ -71,7 +71,6 @@ import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -145,7 +144,6 @@ import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrima
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasItems;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -154,12 +152,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 
-@TestIssueLogging(
-    issueUrl = "https://github.com/elastic/elasticsearch/issues/129445",
-    value = "org.elasticsearch.action.search:DEBUG,"
-        + "org.elasticsearch.search.SearchService:TRACE,"
-        + "org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction:DEBUG"
-)
 public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCase {
 
     /**
@@ -1071,7 +1063,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         if (excludeOrStop) {
             updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", nodeToExclude), indexName);
             if (randomBoolean()) {
-                assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(nodeToExclude))));
+                internalCluster().awaitNodeVacated(indexName, nodeToExclude);
             }
         } else {
             internalCluster().stopNode(nodeToExclude);
@@ -1097,7 +1089,7 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
 
         logger.info("--> excluding {}", indexNodeA);
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
 
         logger.info("--> deleting index");
         assertAcked(indicesAdmin().delete(new DeleteIndexRequest(indexName)).actionGet());
@@ -1325,6 +1317,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
             indexDocs(indexName, randomIntBetween(1, 100));
             refresh(indexName);
         }
+        // flush so they make it to the blob-store
+        flush(indexName);
 
         final long recoveryGeneration = initialGeneration + commits;
         logger.debug("--> search shard 2 will recover from generation {}", recoveryGeneration);
@@ -1406,6 +1400,8 @@ public class StatelessFileDeletionIT extends AbstractStatelessPluginIntegTestCas
         updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 2), indexName);
         safeAwait(commitRegistrationStarted);
         var blobsBeforeMerge = Sets.difference(listBlobsWithAbsolutePath(shardCommitsContainer), initialBlobs);
+        // We're testing that these don't get deleted, so there should be some
+        assertThat(blobsBeforeMerge, not(empty()));
 
         // While search shard is recovering, create a new merged commit
         logger.debug("--> force merging");

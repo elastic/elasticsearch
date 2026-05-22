@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+ - 147867
+pr: 148813
+summary: Disallow casting to snapshot-only type
+type: bug

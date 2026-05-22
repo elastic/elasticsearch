@@ -290,6 +290,20 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         Setting.Property.NodeScope
     );
 
+    public static final Setting<TimeValue> SHARED_CACHE_TIME_SLOTS_GRANULARITY_SETTING = Setting.timeSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "time_slots.granularity",
+        TimeValue.timeValueHours(1),
+        TimeValue.timeValueMinutes(1),
+        Setting.Property.NodeScope
+    );
+
+    public static final Setting<Integer> SHARED_CACHE_TIME_SLOTS_COUNT_SETTING = Setting.intSetting(
+        SHARED_CACHE_SETTINGS_PREFIX + "time_slots.count",
+        87600, // default 10y (for 1h slots)
+        1,
+        Setting.Property.NodeScope
+    );
+
     public static final Setting<Boolean> SHARED_CACHE_MMAP = Setting.boolSetting(
         SHARED_CACHE_SETTINGS_PREFIX + "mmap",
         false,

@@ -14,10 +14,12 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class UnionAll extends Fork implements PostOptimizationPlanVerificationAware {
@@ -51,6 +53,26 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
         return new UnionAll(source(), children(), refreshedOutput());
     }
 
+    /**
+     * Override of {@link Fork#pruneEmptyBranches(Predicate)} that returns a {@link UnionAll}
+     * (rather than letting the base implementation produce whatever {@link #replaceChildren}
+     * would). Mirrors the base behaviour otherwise: single-survivor wrappers are preserved
+     * (callers that want to collapse to the lone child do so explicitly).
+     */
+    @Override
+    public LogicalPlan pruneEmptyBranches(Predicate<LogicalPlan> isEmpty) {
+        List<LogicalPlan> kept = new ArrayList<>(children().size());
+        for (LogicalPlan child : children()) {
+            if (isEmpty.test(child) == false) {
+                kept.add(child);
+            }
+        }
+        if (kept.size() == children().size()) {
+            return this;
+        }
+        return new UnionAll(source(), kept, output());
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(UnionAll.class, children());
@@ -75,6 +97,7 @@ public class UnionAll extends Fork implements PostOptimizationPlanVerificationAw
     }
 
     private static void checkUnionAll(LogicalPlan plan, Failures failures) {
+        Fork.checkBranchCount(plan, failures);
         // Check that all UnionAll branches have compatible data types for each column
         if (plan instanceof UnionAll unionAll) {
             Map<String, DataType> outputTypes = unionAll.output().stream().collect(Collectors.toMap(Attribute::name, Attribute::dataType));

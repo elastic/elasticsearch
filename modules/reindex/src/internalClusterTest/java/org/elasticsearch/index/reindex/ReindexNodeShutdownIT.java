@@ -90,8 +90,8 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
     }
 
     private void createReindexTaskAndShutdown(final String coordNodeName) throws Exception {
-        AbstractBulkByScrollRequestBuilder<?, ?> builder = reindex(coordNodeName).source(INDEX).destination(DEST_INDEX);
-        AbstractBulkByScrollRequest<?> reindexRequest = builder.request();
+        AbstractBulkByPaginatedSearchRequestBuilder<?, ?> builder = reindex(coordNodeName).source(INDEX).destination(DEST_INDEX);
+        AbstractBulkByPaginatedSearchRequest<?> reindexRequest = builder.request();
         ShutdownPrepareService shutdownPrepareService = internalCluster().getInstance(ShutdownPrepareService.class, coordNodeName);
 
         // Now execute the reindex action...

@@ -354,6 +354,18 @@ public class IRDecorations {
         }
     }
 
+    /**
+     * Marker that opts a function into the cancellation-aware loop guard (vs. the legacy
+     * {@link IRDMaxLoopCounter}). Attached when the script base class overrides
+     * {@code _getCancellationCheck()}.
+     */
+    public static class IRCCancellationCheck implements IRCondition {
+
+        private IRCCancellationCheck() {
+
+        }
+    }
+
     /** describes the type for an instanceof instruction */
     public static class IRDInstanceType extends IRDType {
 

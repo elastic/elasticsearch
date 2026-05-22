@@ -449,7 +449,7 @@ took:
   - exists: esql.took.gt_1d
 
 ---
-"Views telemetry (snapshot only)":
+"Views telemetry":
   - requires:
       test_runner_features: [ capabilities ]
       capabilities:
@@ -460,7 +460,7 @@ took:
         - method: GET
           path: /_query/view
           capabilities: [ view_index_abstraction ]
-      reason: "Views telemetry test requires snapshot build with views enabled"
+      reason: "Views telemetry test requires views enabled"
 
   - do: { xpack.usage: { } }
   - set: { esql.features.view: view_counter }

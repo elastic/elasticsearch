@@ -197,6 +197,22 @@ public final class WriterConstants {
     public static final Type COLLECTION_TYPE = Type.getType(Collection.class);
     public static final Method COLLECTION_SIZE = getAsmMethod(int.class, "size");
 
+    public static final Type RUNNABLE_TYPE = Type.getType(Runnable.class);
+    public static final Method RUNNABLE_RUN = getAsmMethod(void.class, "run");
+
+    /**
+     * Decrement interval for the persistent cancellation poll counter.  The counter is stored in
+     * {@link #CANCEL_POLL_FIELD} on the generated script instance and is decremented at every
+     * function entry and loop back-edge.  The cancellation runnable fires (and the counter resets)
+     * once every {@code CANCELLATION_POLL_INTERVAL} decrements, amortising the check cost.
+     */
+    public static final int CANCELLATION_POLL_INTERVAL = 1000;
+
+    /** Name of the synthetic {@code int} field added to opted-in generated script classes. */
+    public static final String CANCEL_POLL_FIELD = "$cancelPoll";
+
+    public static final Method GET_CANCELLATION_CHECK = getAsmMethod(Runnable.class, "_getCancellationCheck");
+
     private static Method getAsmMethod(final Class<?> rtype, final String name, final Class<?>... ptypes) {
         return new Method(name, MethodType.methodType(rtype, ptypes).toMethodDescriptorString());
     }

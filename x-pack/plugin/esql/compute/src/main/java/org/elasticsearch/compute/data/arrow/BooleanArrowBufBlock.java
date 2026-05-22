@@ -40,7 +40,11 @@ public final class BooleanArrowBufBlock extends AbstractArrowBufBlock<BooleanVec
         super(valueBuffer, validityBuffer, offsetBuffer, valueCount, offsetCount, blockFactory);
     }
 
-    public static BooleanArrowBufBlock of(BitVector bitVector, BlockFactory blockFactory) {
+    public static BooleanBlock of(BitVector bitVector, BlockFactory blockFactory) {
+        BooleanBlock constant = tryConstant(bitVector, blockFactory);
+        if (constant != null) {
+            return constant;
+        }
         var result = new BooleanArrowBufBlock(
             bitVector.getDataBuffer(),
             bitVector.getNullCount() == 0 ? null : bitVector.getValidityBuffer(),
@@ -52,6 +56,30 @@ public final class BooleanArrowBufBlock extends AbstractArrowBufBlock<BooleanVec
 
         ArrowUtils.retainBuffers(result.valueBuffer, result.validityBuffer);
         return result;
+    }
+
+    /**
+     * Returns a constant block when the bit vector is fully present and all bits are identical,
+     * a constant-null block when all values are null, or {@code null} when the caller should
+     * fall through to the zero-copy {@link BooleanArrowBufBlock} path.
+     */
+    private static BooleanBlock tryConstant(BitVector bitVector, BlockFactory blockFactory) {
+        int rowCount = bitVector.getValueCount();
+        if (rowCount == 0) {
+            return null;
+        }
+        if (bitVector.getNullCount() == rowCount) {
+            return (BooleanBlock) blockFactory.newConstantNullBlock(rowCount);
+        }
+        if (bitVector.getNullCount() != 0) {
+            return null;
+        }
+        ArrowBuf valueBuffer = bitVector.getDataBuffer();
+        if (ArrowBufConstantDetection.isUniformBits(valueBuffer, rowCount) == false) {
+            return null;
+        }
+        boolean value = (valueBuffer.getByte(0) & 0x01) != 0;
+        return blockFactory.newConstantBooleanBlockWith(value, rowCount);
     }
 
     @Override

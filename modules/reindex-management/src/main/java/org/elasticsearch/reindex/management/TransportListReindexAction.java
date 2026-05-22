@@ -21,13 +21,11 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
 
@@ -56,36 +54,9 @@ public class TransportListReindexAction extends HandledTransportAction<ListReind
             final List<TaskInfo> tasks = response.getTasks()
                 .stream()
                 .filter(t -> t.parentTaskId().isSet() == false)
-                .map(TransportListReindexAction::relocatedTaskInfo)
+                .map(TaskInfo::withOriginalRelocationIdentity)
                 .toList();
             l.onResponse(new ListReindexResponse(tasks, response.getTaskFailures(), response.getNodeFailures()));
         }));
-    }
-
-    /// Rewrite a {@link TaskInfo} so the caller sees the original (pre-relocation) identity.
-    /// For non-relocated tasks this is a no-op because {@code originalTaskId == taskId} and
-    /// {@code originalStartTimeMillis == startTime}.
-    private static TaskInfo relocatedTaskInfo(final TaskInfo info) {
-        assert ReindexAction.NAME.equals(info.action()) : "unexpected task action [" + info.action() + "]";
-        assert info.parentTaskId().isSet() == false : "unexpected child task with parent [" + info.parentTaskId() + "]";
-        final TaskId originalId = info.originalTaskId();
-        final long originalStartMillis = info.originalStartTimeMillis();
-        final long adjustedRunningTimeNanos = info.runningTimeNanos() + TimeUnit.MILLISECONDS.toNanos(
-            info.startTime() - originalStartMillis
-        );
-        return new TaskInfo(
-            originalId,
-            info.type(),
-            originalId.getNodeId(),
-            info.action(),
-            info.description(),
-            info.status(),
-            originalStartMillis,
-            adjustedRunningTimeNanos,
-            info.cancellable(),
-            info.cancelled(),
-            info.parentTaskId(),
-            info.headers()
-        );
     }
 }

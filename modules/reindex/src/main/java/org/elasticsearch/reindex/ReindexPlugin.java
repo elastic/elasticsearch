@@ -16,10 +16,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
@@ -53,16 +52,6 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
     public static final NodeFeature RELOCATE_ON_SHUTDOWN_NODE_FEATURE = new NodeFeature("reindex_relocate_on_shutdown");
     public static final NodeFeature REINDEX_PIT_SEARCH_FEATURE = new NodeFeature("reindex_pit_search");
 
-    /**
-     * Whether the feature flag to guard the work to make reindex more resilient while it is under development.
-     */
-    public static final boolean REINDEX_RESILIENCE_ENABLED = new FeatureFlag("reindex_resilience").isEnabled();
-
-    /**
-     * Guards the development work to change reindexing to use point in time (PIT) searching
-     */
-    public static final boolean REINDEX_PIT_SEARCH_ENABLED = new FeatureFlag("reindex_pit_search").isEnabled();
-
     public static ReindexRelocationNodePicker getReindexRelocationNodePicker(final Environment environment) {
         return DiscoveryNode.isStateless(environment.settings())
             ? new StatelessReindexRelocationNodePicker()
@@ -83,7 +72,11 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
-            new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new),
+            new NamedWriteableRegistry.Entry(
+                Task.Status.class,
+                BulkByPaginatedSearchTask.Status.NAME,
+                BulkByPaginatedSearchTask.Status::new
+            ),
             new NamedWriteableRegistry.Entry(WorkerResumeInfo.class, ScrollWorkerResumeInfo.NAME, ScrollWorkerResumeInfo::new),
             new NamedWriteableRegistry.Entry(WorkerResumeInfo.class, PitWorkerResumeInfo.NAME, PitWorkerResumeInfo::new)
         );
@@ -124,6 +117,7 @@ public class ReindexPlugin extends Plugin implements ActionPlugin, ExtensiblePlu
         settings.add(TransportReindexAction.REMOTE_CLUSTER_WHITELIST);
         settings.add(TransportReindexAction.REMOTE_CLUSTER_BLOCKLIST);
         settings.add(ReindexSettings.REINDEX_PIT_KEEP_ALIVE_SETTING);
+        settings.add(ReindexSettings.REINDEX_MEMORY_ACCOUNTING_THRESHOLD_SETTING);
         settings.addAll(ReindexSslConfig.getSettings());
         return settings;
     }

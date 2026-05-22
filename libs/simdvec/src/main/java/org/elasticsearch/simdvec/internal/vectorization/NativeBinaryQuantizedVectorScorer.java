@@ -11,7 +11,9 @@ package org.elasticsearch.simdvec.internal.vectorization;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
+import org.elasticsearch.simdvec.internal.AddressesScratch;
 import org.elasticsearch.simdvec.internal.IndexInputUtils;
+import org.elasticsearch.simdvec.internal.OffsetsScratch;
 import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.io.IOException;
@@ -21,6 +23,8 @@ import java.lang.foreign.ValueLayout;
 public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantizedVectorScorer {
 
     private byte[] scratch;
+    private final AddressesScratch addrsScratch = new AddressesScratch();
+    private final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     public NativeBinaryQuantizedVectorScorer(IndexInput in, int dimensions, int vectorLengthInBytes) {
         super(in, dimensions, vectorLengthInBytes);
@@ -79,13 +83,13 @@ public class NativeBinaryQuantizedVectorScorer extends DefaultES93BinaryQuantize
         if (bulkSize == 0) {
             return Float.NEGATIVE_INFINITY;
         }
-        long[] vectorOffsets = new long[bulkSize];
+        long[] vectorOffsets = offsetsScratch.get(bulkSize);
         for (int i = 0; i < bulkSize; i++) {
             vectorOffsets[i] = (long) nodes[i] * byteSize;
         }
 
         float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
-        boolean resolved = IndexInputUtils.withSliceAddresses(slice, vectorOffsets, byteSize, bulkSize, addrs -> {
+        boolean resolved = IndexInputUtils.withSliceAddresses(slice, vectorOffsets, byteSize, bulkSize, addrsScratch::get, addrs -> {
             var scoresSegment = MemorySegment.ofArray(scores);
             Similarities.dotProductD1Q4BulkSparse(addrs, MemorySegment.ofArray(q), numBytes, bulkSize, scoresSegment);
             maxScore[0] = ScoreCorrections.nativeBbqApplyCorrectionsBulk(

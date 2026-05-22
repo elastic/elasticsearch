@@ -41,11 +41,18 @@ import static org.elasticsearch.test.knn.KnnIndexTester.logger;
  * Provide vectors for indexing. Implementations must be thread-safe.
  */
 public interface IndexVectorReader extends Closeable {
-    /** Returns the next float vector. Thread-safe. */
-    float[] nextFloatVector() throws IOException;
+    record OrdinalVector<T>(int ordinal, T vector) {}
 
-    /** Returns the next byte vector. Thread-safe. */
-    byte[] nextByteVector() throws IOException;
+    /** Returns the next float vector with its ordinal. Thread-safe and atomic. */
+    OrdinalVector<float[]> nextFloatVector() throws IOException;
+
+    /** Returns the next byte vector with its ordinal. Thread-safe and atomic. */
+    OrdinalVector<byte[]> nextByteVector() throws IOException;
+
+    /** Returns the total number of vectors, or -1 if unknown. */
+    default int totalVectors() {
+        return -1;
+    }
 
     @Override
     default void close() throws IOException {}
@@ -61,6 +68,8 @@ public interface IndexVectorReader extends Closeable {
         private final int totalDocs;
         private final int dim;
         private final boolean normalizeVectors;
+        // guarded by synchronized nextFloatVector/nextByteVector
+        private int nextOrdinal;
         private int currentReaderIdx;
         private int docsReadFromCurrent;
 
@@ -161,7 +170,8 @@ public interface IndexVectorReader extends Closeable {
         }
 
         @Override
-        public synchronized float[] nextFloatVector() throws IOException {
+        public synchronized OrdinalVector<float[]> nextFloatVector() throws IOException {
+            int ordinal = nextOrdinal++;
             VectorReader reader = currentReader();
             docsReadFromCurrent++;
             float[] dest = new float[dim];
@@ -169,16 +179,22 @@ public interface IndexVectorReader extends Closeable {
             if (normalizeVectors) {
                 VectorUtil.l2normalize(dest);
             }
-            return dest;
+            return new OrdinalVector<>(ordinal, dest);
         }
 
         @Override
-        public synchronized byte[] nextByteVector() throws IOException {
+        public synchronized OrdinalVector<byte[]> nextByteVector() throws IOException {
+            int ordinal = nextOrdinal++;
             VectorReader reader = currentReader();
             docsReadFromCurrent++;
             byte[] dest = new byte[dim];
             reader.next(dest);
-            return dest;
+            return new OrdinalVector<>(ordinal, dest);
+        }
+
+        @Override
+        public int totalVectors() {
+            return totalDocs;
         }
 
         @Override
@@ -253,6 +269,8 @@ public interface IndexVectorReader extends Closeable {
         private final Random random;
         private final int dimensions;
         private final boolean normalizeVectors;
+        // guarded by synchronized nextFloatVector/nextByteVector
+        private int nextOrdinal;
 
         public RandomVectorReader(long seed, int dimensions, boolean normalizeVectors) {
             this.random = new Random(seed);
@@ -261,7 +279,8 @@ public interface IndexVectorReader extends Closeable {
         }
 
         @Override
-        public float[] nextFloatVector() {
+        public synchronized OrdinalVector<float[]> nextFloatVector() {
+            int ordinal = nextOrdinal++;
             float[] vector = new float[dimensions];
             for (int i = 0; i < dimensions; i++) {
                 vector[i] = random.nextFloat() * 2 - 1; // uniform in [-1, 1]
@@ -269,14 +288,15 @@ public interface IndexVectorReader extends Closeable {
             if (normalizeVectors) {
                 VectorUtil.l2normalize(vector);
             }
-            return vector;
+            return new OrdinalVector<>(ordinal, vector);
         }
 
         @Override
-        public byte[] nextByteVector() {
+        public synchronized OrdinalVector<byte[]> nextByteVector() {
+            int ordinal = nextOrdinal++;
             byte[] vector = new byte[dimensions];
             random.nextBytes(vector);
-            return vector;
+            return new OrdinalVector<>(ordinal, vector);
         }
     }
 }

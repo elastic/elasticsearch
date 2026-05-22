@@ -161,6 +161,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 IndexSettings.INDEX_TRANSLOG_RETENTION_SIZE_SETTING,
                 IndexSettings.INDEX_SEARCH_IDLE_AFTER,
                 IndexSettings.DENSE_VECTOR_EXPERIMENTAL_FEATURES_SETTING,
+                IndexSettings.DYNAMIC_STRINGS_AUTO_TEXT,
                 DenseVectorFieldMapper.HNSW_FILTER_HEURISTIC,
                 DenseVectorFieldMapper.HNSW_EARLY_TERMINATION,
                 IndexFieldDataService.INDEX_FIELDDATA_CACHE_KEY,
@@ -172,6 +173,7 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
                 MapperService.INDEX_MAPPING_NESTED_FIELDS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_NESTED_PARENTS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_NESTED_DOCS_LIMIT_SETTING,
+                MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_LIMIT_SETTING,
                 MapperService.INDEX_MAPPING_IGNORE_DYNAMIC_BEYOND_FIELD_NAME_LENGTH_SETTING,
                 MapperService.INDEX_MAPPING_TOTAL_FIELDS_LIMIT_SETTING,
@@ -269,6 +271,9 @@ public final class IndexScopedSettings extends AbstractScopedSettings {
         }
         if (IndexSettings.ES95_CODEC_FEATURE_FLAG.isEnabled()) {
             settings.add(IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING);
+        }
+        if (IndexSettings.INDEX_DISABLED_BY_DEFAULT_FEATURE_FLAG.isEnabled()) {
+            settings.add(IndexSettings.INDEX_DISABLED_BY_DEFAULT);
         }
         settings.add(IndexSettings.INDEX_MAPPING_EXCLUDE_SOURCE_VECTORS_SETTING);
         BUILT_IN_INDEX_SETTINGS = Collections.unmodifiableSet(settings);

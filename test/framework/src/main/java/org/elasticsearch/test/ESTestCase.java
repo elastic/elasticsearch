@@ -99,6 +99,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
+import org.elasticsearch.common.util.MockPageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -158,9 +159,11 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
+import org.hamcrest.TypeSafeMatcher;
 import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -171,7 +174,6 @@ import org.junit.internal.AssumptionViolatedException;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 import org.junit.rules.TestWatcher;
-import org.junit.runner.Description;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -223,7 +225,6 @@ import java.util.function.IntConsumer;
 import java.util.function.IntFunction;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.stream.Collectors;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -232,12 +233,10 @@ import java.util.stream.Stream;
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.common.util.CollectionUtils.arrayAsArrayList;
 import static org.hamcrest.Matchers.anyOf;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.empty;
-import static org.hamcrest.Matchers.emptyCollectionOf;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeFalse;
 
@@ -307,7 +306,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         TEST_WORKER_VM_ID = System.getProperty(TEST_WORKER_SYS_PROPERTY, DEFAULT_TEST_WORKER_ID);
         setTestSysProps(random);
         // TODO: consolidate logging initialization for tests so it all occurs in logconfigurator
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging();
         MockLog.init();
 
@@ -685,14 +683,21 @@ public abstract class ESTestCase extends LuceneTestCase {
         return true;
     }
 
-    protected boolean enableBigArraysReleasedCheck() {
+    protected boolean enableArraysReleasedCheck() {
+        return true;
+    }
+
+    protected boolean enableAllPagesReleasedCheck() {
         return true;
     }
 
     @After
     public final void after() throws Exception {
-        if (enableBigArraysReleasedCheck()) {
+        if (enableArraysReleasedCheck()) {
             MockBigArrays.ensureAllArraysAreReleased();
+        }
+        if (enableAllPagesReleasedCheck()) {
+            MockPageCacheRecycler.ensureAllPagesAreReleased();
         }
         checkStaticState();
         // We check threadContext != null rather than enableWarningsCheck()
@@ -719,23 +724,12 @@ public abstract class ESTestCase extends LuceneTestCase {
         return "[" + name.substring(start + 1, end) + "] ";
     }
 
+    /**
+     * Check that there are no unaccounted warning headers. These should be checked with {@link #assertWarnings(String...)} in the
+     * appropriate test.
+     */
     public void ensureNoWarnings() {
-        // Check that there are no unaccounted warning headers. These should be checked with {@link #assertWarnings(String...)} in the
-        // appropriate test
-        try {
-            final List<String> warnings = threadContext.getResponseHeaders().get("Warning");
-            if (warnings != null) {
-                // unit tests do not run with the bundled JDK, if there are warnings we need to filter the no-jdk deprecation warning
-                final List<String> filteredWarnings = warnings.stream()
-                    .filter(k -> filteredWarnings().stream().noneMatch(s -> k.contains(s)))
-                    .collect(Collectors.toList());
-                assertThat("unexpected warning headers", filteredWarnings, empty());
-            } else {
-                assertNull("unexpected warning headers", warnings);
-            }
-        } finally {
-            resetDeprecationLogger();
-        }
+        assertThat("unexpected warning headers", filterOutExcludedWarnings(getActualWarningStrings(true)), empty());
     }
 
     protected List<String> filteredWarnings() {
@@ -755,103 +749,97 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     /**
      * Convenience method to assert warnings for settings deprecations and general deprecation warnings.
+     *
      * @param settings the settings that are expected to be deprecated
      * @param warnings other expected general deprecation warnings
      */
-    protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final DeprecationWarning... warnings) {
-        assertWarnings(true, Stream.concat(Arrays.stream(settings).map(setting -> {
+    protected final void assertSettingDeprecationsAndWarnings(final Setting<?>[] settings, final String... warnings) {
+        assertWarnings(Stream.concat(Arrays.stream(settings).map(setting -> {
             Level level = setting.getProperties().contains(Setting.Property.Deprecated) ? DeprecationLogger.CRITICAL : Level.WARN;
-            String warningMessage = Strings.format(
+            return Strings.format(
                 "[%s] setting was deprecated in Elasticsearch and will be removed in a future release. "
                     + "See the %s documentation for the next major version.",
                 setting.getKey(),
                 (level == Level.WARN) ? "deprecation" : "breaking changes"
             );
-            return new DeprecationWarning(level, warningMessage);
-        }), Arrays.stream(warnings)).toArray(DeprecationWarning[]::new));
+        }), Arrays.stream(warnings)).toArray(String[]::new));
     }
 
     /**
-     * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
-     * are assumed to be at WARNING level.
+     * Convenience method to assert warnings for settings deprecations and general deprecation warnings.
+     *
      * @param expectedWarnings expected general deprecation warning messages.
      */
     protected final void assertWarnings(String... expectedWarnings) {
+        assertWarnings(true, expectedWarnings);
+    }
+
+    /**
+     * Convenience method to assert warnings for settings deprecations and general deprecation warnings.
+     *
+     * @param stripXContentPosition whether to remove XContent location information or not.
+     * @param expectedWarnings expected general deprecation warning messages.
+     */
+    protected final void assertWarnings(boolean stripXContentPosition, String... expectedWarnings) {
         assertWarnings(
-            true,
-            Arrays.stream(expectedWarnings)
-                .map(expectedWarning -> new DeprecationWarning(Level.WARN, expectedWarning))
-                .toArray(DeprecationWarning[]::new)
+            stripXContentPosition,
+            Arrays.stream(expectedWarnings).map(expectedWarning -> equalTo(HeaderWarning.escapeAndEncode(expectedWarning))).toList()
         );
     }
 
     /**
-     * Convenience method to assert warnings for settings deprecations and general deprecation warnings. All warnings passed to this method
-     * are assumed to be at CRITICAL level.
-     * @param expectedWarnings expected general deprecation warning messages.
+     * Convenience method to assert warnings for settings deprecations and general deprecation warnings.
+     *
+     * @param stripXContentPosition whether to remove XContent location information or not.
+     * @param expectedWarnings matchers describing the expected general deprecation warning messages.
      */
-    protected final void assertCriticalWarnings(String... expectedWarnings) {
-        assertWarnings(
-            true,
-            Arrays.stream(expectedWarnings)
-                .map(expectedWarning -> new DeprecationWarning(DeprecationLogger.CRITICAL, expectedWarning))
-                .toArray(DeprecationWarning[]::new)
-        );
-    }
-
-    protected final void assertWarnings(boolean stripXContentPosition, DeprecationWarning... expectedWarnings) {
+    protected final void assertWarnings(boolean stripXContentPosition, Collection<Matcher<String>> expectedWarnings) {
         if (enableWarningsCheck() == false) {
             throw new IllegalStateException("unable to check warning headers if the test is not set to do so");
         }
-        try {
-            final List<String> actualWarningStrings = threadContext.getResponseHeaders().get("Warning");
-            if (expectedWarnings == null || expectedWarnings.length == 0) {
-                assertNull("expected 0 warnings, actual: " + actualWarningStrings, actualWarningStrings);
-            } else {
-                assertNotNull("no warnings, expected: " + Arrays.asList(expectedWarnings), actualWarningStrings);
-                final Set<DeprecationWarning> actualDeprecationWarnings = actualWarningStrings.stream().map(warningString -> {
-                    String warningText = HeaderWarning.extractWarningValueFromWarningHeader(warningString, stripXContentPosition);
-                    final Level level;
-                    if (warningString.startsWith(Integer.toString(DeprecationLogger.CRITICAL.intLevel()))) {
-                        level = DeprecationLogger.CRITICAL;
-                    } else if (warningString.startsWith(Integer.toString(Level.WARN.intLevel()))) {
-                        level = Level.WARN;
-                    } else {
-                        throw new IllegalArgumentException("Unknown level in deprecation message " + warningString);
-                    }
-                    return new DeprecationWarning(level, warningText);
-                }).collect(Collectors.toSet());
-                for (DeprecationWarning expectedWarning : expectedWarnings) {
-                    DeprecationWarning escapedExpectedWarning = new DeprecationWarning(
-                        expectedWarning.level,
-                        HeaderWarning.escapeAndEncode(expectedWarning.message)
-                    );
-                    assertThat(actualDeprecationWarnings, hasItem(escapedExpectedWarning));
+        var actual = new ArrayList<>(getActualWarningStrings(stripXContentPosition));
+        var expected = new ArrayList<>(expectedWarnings);
+
+        var expectedIt = expected.iterator();
+        while (expectedIt.hasNext()) {
+            var expectedMatcher = expectedIt.next();
+
+            var actualIt = actual.iterator();
+            while (actualIt.hasNext()) {
+                if (expectedMatcher.matches(actualIt.next())) {
+                    actualIt.remove();
+                    expectedIt.remove();
                 }
-                assertEquals(
-                    "Expected "
-                        + expectedWarnings.length
-                        + " warnings but found "
-                        + actualWarningStrings.size()
-                        + "\nExpected: "
-                        + Arrays.asList(expectedWarnings)
-                        + "\nActual: "
-                        + actualWarningStrings,
-                    expectedWarnings.length,
-                    actualWarningStrings.size()
-                );
             }
-        } finally {
-            resetDeprecationLogger();
+        }
+
+        var remainingWarnings = filterOutExcludedWarnings(actual);
+
+        if (!expected.isEmpty()) {
+            throw new AssertionError("Expected warnings " + expected + " not found in " + remainingWarnings);
+        }
+        if (!remainingWarnings.isEmpty()) {
+            throw new AssertionError("Unexpected warnings found " + remainingWarnings);
         }
     }
 
-    /**
-     * Reset the deprecation logger by clearing the current thread context.
-     */
-    private void resetDeprecationLogger() {
-        // "clear" context by stashing current values and dropping the returned StoredContext
-        threadContext.stashContext();
+    private List<String> getActualWarningStrings(boolean stripXContentPosition) {
+        try {
+            return threadContext.getResponseHeaders()
+                .getOrDefault("Warning", List.of())
+                .stream()
+                .map(warningString -> HeaderWarning.extractWarningValueFromWarningHeader(warningString, stripXContentPosition))
+                .toList();
+        } finally {
+            // Reset the deprecation logger: clear the current thread context by stashing current values and dropping the returned
+            // StoredContext
+            threadContext.stashContext();
+        }
+    }
+
+    private List<String> filterOutExcludedWarnings(List<String> warnings) {
+        var excluded = filteredWarnings();
+        return warnings.stream().filter(message -> excluded.stream().noneMatch(message::contains)).toList();
     }
 
     private static final List<StatusData> statusData = new ArrayList<>();
@@ -874,11 +862,16 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     // Tolerate the absence or otherwise denial of these specific lookup classes.
     // At some future time, we should require the JDNI warning.
-    private static final List<String> LOG_4J_MSG_PREFIXES = List.of(
-        "JNDI lookup class is not available because this JRE does not support JNDI. "
-            + "JNDI string lookups will not be available, continuing configuration.",
-        "JMX runtime input lookup class is not available because this JRE does not support JMX. "
-            + "JMX lookups will not be available, continuing configuration. "
+    private static final Matcher<String> LOG_4J_MSG_PREFIXES = anyOf(
+        startsWith(
+            "JNDI lookup class is not available because this JRE does not support JNDI. "
+                + "JNDI string lookups will not be available, continuing configuration."
+        ),
+        startsWith(
+            "JMX runtime input lookup class is not available because this JRE does not support JMX. "
+                + "JMX lookups will not be available, continuing configuration. "
+        ),
+        startsWith("No Root logger was configured, creating default ERROR-level Root logger with Console appender")
     );
 
     // separate method so that this can be checked again after suite scoped cluster is shut down
@@ -887,16 +880,25 @@ public abstract class ESTestCase extends LuceneTestCase {
         assertThat(StatusLogger.getLogger().getLevel(), equalTo(Level.WARN));
         synchronized (statusData) {
             try {
-                // ensure that there are no status logger messages which would indicate a problem with our Log4j usage; we map the
-                // StatusData instances to Strings as otherwise their toString output is useless
-                assertThat(
-                    statusData.stream().map(status -> status.getMessage().getFormattedMessage()).collect(Collectors.toList()),
-                    anyOf(
-                        emptyCollectionOf(String.class),
-                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(0)), startsWith(LOG_4J_MSG_PREFIXES.get(1))),
-                        contains(startsWith(LOG_4J_MSG_PREFIXES.get(1)))
-                    )
-                );
+                // ensure that there are no status logger messages which would indicate a problem with our Log4j usage;
+                assertThat(statusData, everyItem(new TypeSafeMatcher<StatusData>() {
+                    @Override
+                    protected boolean matchesSafely(StatusData item) {
+                        return LOG_4J_MSG_PREFIXES.matches(item.getMessage().getFormattedMessage());
+                    }
+
+                    @Override
+                    public void describeTo(Description description) {
+                        LOG_4J_MSG_PREFIXES.describeTo(description);
+                    }
+
+                    @Override
+                    protected void describeMismatchSafely(StatusData item, Description mismatchDescription) {
+                        // make sure we see log4j exceptions in case of issues
+                        mismatchDescription.appendText("was ").appendValue(item.getFormattedStatus());
+                    }
+                }));
+
             } finally {
                 // we clear the list so that status data from other tests do not interfere with tests within the same JVM
                 statusData.clear();
@@ -2568,34 +2570,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
-    public static final class DeprecationWarning {
-        private final Level level; // Intentionally ignoring level for the sake of equality for now
-        private final String message;
-
-        public DeprecationWarning(Level level, String message) {
-            this.level = level;
-            this.message = message;
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hash(message);
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            DeprecationWarning that = (DeprecationWarning) o;
-            return Objects.equals(message, that.message);
-        }
-
-        @Override
-        public String toString() {
-            return Strings.format("%s: %s", level.name(), message);
-        }
-    }
-
     /**
      * Call method at the beginning of a test to disable its execution
      * until a given Lucene version is released and integrated into Elasticsearch
@@ -3250,7 +3224,7 @@ public abstract class ESTestCase extends LuceneTestCase {
     @Rule
     public final TestWatcher previousFailureSkipsRemainingRule = new TestWatcher() {
         @Override
-        protected void failed(Throwable e, Description description) {
+        protected void failed(Throwable e, org.junit.runner.Description description) {
             previousFailureSkipsRemaining = shouldFailureSkipRemainingTests();
         }
     };

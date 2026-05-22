@@ -42,6 +42,7 @@ dependencies {
   internalClusterTestImplementation project(':modules:mapper-extras')
   internalClusterTestImplementation project(xpackModule('esql'))
   internalClusterTestImplementation project(xpackModule('esql-core'))
+  internalClusterTestImplementation 'com.google.cloud:google-cloud-storage:2.50.0'
 
   javaRestTestImplementation project(':x-pack:test:stateless-test-framework')
   yamlRestTestImplementation project(':x-pack:test:stateless-test-framework')

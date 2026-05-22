@@ -23,7 +23,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -172,7 +172,7 @@ public class DataFrameAnalyticsDeleter {
         DeleteByQueryRequest request = new DeleteByQueryRequest(index);
         request.setQuery(query);
         request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));
-        request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        request.setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
         request.setAbortOnVersionConflict(false);
         request.setRefresh(true);
         request.setTimeout(timeout);

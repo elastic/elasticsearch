@@ -11,6 +11,7 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
@@ -138,7 +139,8 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         assertFalse(pointField.fieldType().stored());
     }
 
-    public final void testNotIndexed() throws Exception {
+    @Override
+    public final void testNotIndexed() throws IOException {
         DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> {
             minimalMapping(b);
             b.field("index", false);
@@ -146,6 +148,7 @@ public abstract class RangeFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(this::rangeSource));
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.size());
+        assertEquals(IndexOptions.NONE, fields.get(0).fieldType().indexOptions());
     }
 
     public final void testNoDocValues() throws Exception {

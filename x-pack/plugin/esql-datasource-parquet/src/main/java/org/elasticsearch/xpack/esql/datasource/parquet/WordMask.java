@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.parquet;
 
+import java.nio.LongBuffer;
 import java.util.Arrays;
 import java.util.BitSet;
 
@@ -50,6 +51,15 @@ final class WordMask {
 
     int wordCount() {
         return (numBits + 63) >>> 6;
+    }
+
+    /**
+     * Returns the raw {@code long} word at {@code index} within the backing array. Exposed for
+     * helpers that walk the mask word-by-word (e.g., survivor-run extraction); callers must
+     * apply trailing-bit masking themselves when {@code index == wordCount() - 1}.
+     */
+    long wordAt(int index) {
+        return words[index];
     }
 
     void clear(int index) {
@@ -237,6 +247,6 @@ final class WordMask {
     }
 
     BitSet toBitSet() {
-        return BitSet.valueOf(Arrays.copyOf(words, wordCount()));
+        return BitSet.valueOf(LongBuffer.wrap(words, 0, wordCount()));
     }
 }

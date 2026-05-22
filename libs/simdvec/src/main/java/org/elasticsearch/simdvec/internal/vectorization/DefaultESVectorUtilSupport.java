@@ -13,12 +13,15 @@ import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.BFloat16Support;
 import org.elasticsearch.simdvec.MathUtils;
 import org.elasticsearch.simdvec.MultiBFloat16VectorsSource;
 import org.elasticsearch.simdvec.MultiByteVectorsSource;
 import org.elasticsearch.simdvec.MultiFloatVectorsSource;
 
-final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
+import java.nio.ByteOrder;
+
+public final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     private static float fma(float a, float b, float c) {
         if (Constants.HAS_FAST_SCALAR_FMA) {
@@ -26,6 +29,30 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         } else {
             return a * b + c;
         }
+    }
+
+    static void floatToBFloat16Impl(float[] floats, int floatOffset, byte[] bFloats, int bfloatOffset, int count, ByteOrder byteOrder) {
+        var arrayAccess = byteOrder == ByteOrder.BIG_ENDIAN ? BitUtil.VH_BE_SHORT : BitUtil.VH_LE_SHORT;
+        for (int i = 0; i < count; i++) {
+            arrayAccess.set(bFloats, i * Short.BYTES + bfloatOffset, BFloat16Support.floatToBFloat16(floats[i + floatOffset]));
+        }
+    }
+
+    static void bFloat16ToFloatImpl(byte[] bFloats, int bfOffset, float[] floats, int floatOffset, int count, ByteOrder byteOrder) {
+        var arrayAccess = byteOrder == ByteOrder.BIG_ENDIAN ? BitUtil.VH_BE_SHORT : BitUtil.VH_LE_SHORT;
+        for (int i = 0; i < count; i++) {
+            floats[i + floatOffset] = BFloat16Support.bFloat16ToFloat((short) arrayAccess.get(bFloats, i * Short.BYTES + bfOffset));
+        }
+    }
+
+    @Override
+    public void floatToBFloat16(float[] floats, int floatOffset, byte[] bfBytes, int bfOffset, int floatCount, ByteOrder byteOrder) {
+        floatToBFloat16Impl(floats, 0, bfBytes, 0, floatCount, byteOrder);
+    }
+
+    @Override
+    public void bFloat16ToFloat(byte[] bfBytes, int bfOffset, float[] floats, int floatOffset, int floatCount, ByteOrder byteOrder) {
+        bFloat16ToFloatImpl(bfBytes, bfOffset, floats, floatOffset, floatCount, byteOrder);
     }
 
     @Override
@@ -59,14 +86,31 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         return VectorUtil.dotProduct(a, b);
     }
 
-    @Override
-    public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
+    static float maxSimDotProductImpl(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
         float sum = 0f;
         for (float[] floats : query) {
             float max = Float.NEGATIVE_INFINITY;
             var vectorValues = source.vectorValues();
             while (vectorValues.hasNext()) {
-                max = Math.max(max, dotProduct(floats, vectorValues.next()));
+                max = Math.max(max, VectorUtil.dotProduct(floats, vectorValues.next()));
+            }
+            sum += max;
+        }
+        return sum;
+    }
+
+    @Override
+    public float maxSimDotProduct(MultiFloatVectorsSource source, float[][] query, float[] scoresScratch) {
+        return maxSimDotProductImpl(source, query, scoresScratch);
+    }
+
+    static float maxSimDotProductImpl(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
+        float sum = 0f;
+        for (float[] floats : query) {
+            float max = Float.NEGATIVE_INFINITY;
+            var vectorValues = source.vectorValues();
+            while (vectorValues.hasNext()) {
+                max = Math.max(max, VectorUtil.dotProduct(floats, vectorValues.next()));
             }
             sum += max;
         }
@@ -75,12 +119,16 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public float maxSimDotProduct(MultiBFloat16VectorsSource source, float[][] query, float[] scoresScratch) {
+        return maxSimDotProductImpl(source, query, scoresScratch);
+    }
+
+    static float maxSimDotProductImpl(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
         float sum = 0f;
-        for (float[] floats : query) {
+        for (byte[] bytes : query) {
             float max = Float.NEGATIVE_INFINITY;
             var vectorValues = source.vectorValues();
             while (vectorValues.hasNext()) {
-                max = Math.max(max, dotProduct(floats, vectorValues.next()));
+                max = Math.max(max, VectorUtil.dotProduct(bytes, vectorValues.next()));
             }
             sum += max;
         }
@@ -89,16 +137,7 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
 
     @Override
     public float maxSimDotProduct(MultiByteVectorsSource source, byte[][] query, float[] scoresScratch) {
-        float sum = 0f;
-        for (byte[] bytes : query) {
-            float max = Float.NEGATIVE_INFINITY;
-            var vectorValues = source.vectorValues();
-            while (vectorValues.hasNext()) {
-                max = Math.max(max, dotProduct(bytes, vectorValues.next()));
-            }
-            sum += max;
-        }
-        return sum;
+        return maxSimDotProductImpl(source, query, scoresScratch);
     }
 
     @Override
@@ -205,6 +244,30 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public void centerAndCalculateOSQStatsEuclidean(byte[] target, byte[] centroid, float[] centered, float[] stats) {
+        float vecMean = 0;
+        float vecVar = 0;
+        float norm2 = 0;
+        float min = Float.MAX_VALUE;
+        float max = -Float.MAX_VALUE;
+        for (int i = 0; i < target.length; i++) {
+            centered[i] = (float) (target[i] - centroid[i]);
+            min = Math.min(min, centered[i]);
+            max = Math.max(max, centered[i]);
+            norm2 = fma(centered[i], centered[i], norm2);
+            float delta = centered[i] - vecMean;
+            vecMean += delta / (i + 1);
+            float delta2 = centered[i] - vecMean;
+            vecVar = fma(delta, delta2, vecVar);
+        }
+        stats[0] = vecMean;
+        stats[1] = vecVar / target.length;
+        stats[2] = norm2;
+        stats[3] = min;
+        stats[4] = max;
+    }
+
+    @Override
     public void centerAndCalculateOSQStatsDp(float[] target, float[] centroid, float[] centered, float[] stats) {
         float vecMean = 0;
         float vecVar = 0;
@@ -215,6 +278,35 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
         for (int i = 0; i < target.length; i++) {
             centroidDot = fma(target[i], centroid[i], centroidDot);
             centered[i] = target[i] - centroid[i];
+            min = Math.min(min, centered[i]);
+            max = Math.max(max, centered[i]);
+            norm2 = fma(centered[i], centered[i], norm2);
+            float delta = centered[i] - vecMean;
+            vecMean += delta / (i + 1);
+            float delta2 = centered[i] - vecMean;
+            vecVar = fma(delta, delta2, vecVar);
+        }
+        stats[0] = vecMean;
+        stats[1] = vecVar / target.length;
+        stats[2] = norm2;
+        stats[3] = min;
+        stats[4] = max;
+        stats[5] = centroidDot;
+    }
+
+    @Override
+    public void centerAndCalculateOSQStatsDp(byte[] target, byte[] centroid, float[] centered, float[] stats) {
+        float vecMean = 0;
+        float vecVar = 0;
+        float norm2 = 0;
+        float centroidDot = 0;
+        float min = Float.MAX_VALUE;
+        float max = -Float.MAX_VALUE;
+        for (int i = 0; i < target.length; i++) {
+            float t = (float) target[i];
+            float c = (float) centroid[i];
+            centroidDot = fma(t, c, centroidDot);
+            centered[i] = (float) (target[i] - centroid[i]);
             min = Math.min(min, centered[i]);
             max = Math.max(max, centered[i]);
             norm2 = fma(centered[i], centered[i], norm2);
@@ -403,6 +495,42 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     }
 
     @Override
+    public float squareDistance(byte[] a, byte[] b, int offset, int length) {
+        int sum = 0;
+        for (int i = offset; i < offset + length; i++) {
+            int diff = a[i] - b[i];
+            sum += diff * diff;
+        }
+        return sum;
+    }
+
+    @Override
+    public void squareDistanceBulk(byte[] query, byte[] v0, byte[] v1, byte[] v2, byte[] v3, int distancesOffset, float[] distances) {
+        distances[distancesOffset] = VectorUtil.squareDistance(query, v0);
+        distances[distancesOffset + 1] = VectorUtil.squareDistance(query, v1);
+        distances[distancesOffset + 2] = VectorUtil.squareDistance(query, v2);
+        distances[distancesOffset + 3] = VectorUtil.squareDistance(query, v3);
+    }
+
+    @Override
+    public void squareDistanceBulk(
+        byte[] query,
+        int queryOffset,
+        int length,
+        byte[] v0,
+        byte[] v1,
+        byte[] v2,
+        byte[] v3,
+        int distancesOffset,
+        float[] distances
+    ) {
+        distances[distancesOffset] = squareDistance(query, v0, queryOffset, length);
+        distances[distancesOffset + 1] = squareDistance(query, v1, queryOffset, length);
+        distances[distancesOffset + 2] = squareDistance(query, v2, queryOffset, length);
+        distances[distancesOffset + 3] = squareDistance(query, v3, queryOffset, length);
+    }
+
+    @Override
     public void soarDistanceBulk(
         float[] v1,
         float[] c0,
@@ -563,6 +691,17 @@ final class DefaultESVectorUtilSupport implements ESVectorUtilSupport {
     @Override
     public boolean contains(byte[] value, int valueOffset, int valueLength, byte[] term, int termOffset, int termLength) {
         return ByteArrayUtils.contains(value, valueOffset, valueLength, term, termOffset, termLength);
+    }
+
+    @Override
+    public void inRangeBitmask(long[] values, long lowerValue, long upperValue, long[] matches) {
+        assert values.length % 8 == 0 && matches.length == values.length / 64;
+        for (int i = 0; i < values.length; i++) {
+            long v = values[i];
+            if (lowerValue <= v && v <= upperValue) {
+                matches[i >>> 6] |= 1L << (i & 0x3f);
+            }
+        }
     }
 
     @Override

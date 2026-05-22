@@ -9,28 +9,38 @@
 package org.elasticsearch.index;
 
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
+import org.elasticsearch.action.bulk.BulkItemRequest;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.TransportShardBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
+import org.elasticsearch.action.update.UpdateHelper;
+import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.InternalTestCluster;
@@ -492,6 +502,70 @@ public class IndexingPressureIT extends ESIntegTestCase {
             assertEquals(0, coordinatingWriteLimits.stats().getCurrentCombinedCoordinatingAndPrimaryBytes());
             assertEquals(0, coordinatingWriteLimits.stats().getCurrentReplicaBytes());
         }
+    }
+
+    public void testUpdatePreparedExpansionRejectedWhenExceedingPrimaryLimit() throws Exception {
+        assertAcked(prepareCreate(INDEX_NAME, indexSettings(1, 1)));
+        ensureGreen(INDEX_NAME);
+
+        final String docId = "1";
+        final int largeSourceChars = scaledRandomIntBetween(35_000, 55_000);
+        client().prepareIndex(INDEX_NAME)
+            .setId(docId)
+            .setSource(Collections.singletonMap("big", randomAlphaOfLength(largeSourceChars)))
+            .get();
+        indicesAdmin().prepareRefresh(INDEX_NAME).get();
+
+        final UpdateRequest updateRequest = new UpdateRequest(INDEX_NAME, docId).doc(
+            Collections.singletonMap("patch", randomAlphaOfLength(scaledRandomIntBetween(4, 32)))
+        );
+
+        String primaryNameForPrepare = getPrimaryReplicaNodeNames().v1();
+        final IndexShard primaryShard = internalCluster().getInstance(IndicesService.class, primaryNameForPrepare)
+            .indexServiceSafe(resolveIndex(INDEX_NAME))
+            .getShard(0);
+
+        final UpdateHelper updateHelper = internalCluster().getInstance(UpdateHelper.class, primaryNameForPrepare);
+        final ThreadPool primaryThreadPool = internalCluster().getInstance(ThreadPool.class, primaryNameForPrepare);
+
+        final UpdateHelper.Result prepared = updateHelper.prepare(
+            updateRequest,
+            primaryShard,
+            primaryThreadPool::absoluteTimeInMillis,
+            FetchSourceContext.FETCH_ALL_SOURCE
+        );
+        final DocWriteRequest<?> preparedWrite = prepared.action();
+        final long expansionDeltaBytes = Math.max(0L, preparedWrite.ramBytesUsed() - updateRequest.ramBytesUsed());
+
+        final BulkShardRequest measuredShardBulk = new BulkShardRequest(
+            primaryShard.shardId(),
+            RefreshPolicy.NONE,
+            new BulkItemRequest[] { new BulkItemRequest(0, updateRequest) }
+        );
+        final long primaryShardBytes = measuredShardBulk.ramBytesUsed();
+        final long expansionOverheadBytes = TransportShardBulkAction.getMaxOperationMemoryOverhead(measuredShardBulk);
+        final long primaryLimitBytes = primaryShardBytes + expansionOverheadBytes + Math.max(1L, expansionDeltaBytes / 2);
+
+        restartNodesWithSettings(
+            Settings.builder()
+                .put(IndexingPressure.MAX_PRIMARY_BYTES.getKey(), ByteSizeValue.ofBytes(primaryLimitBytes).getStringRep())
+                .build()
+        );
+
+        ensureGreen(INDEX_NAME);
+
+        final String primaryName = getPrimaryReplicaNodeNames().v1();
+        final String coordinatingOnlyNode = getCoordinatingOnlyNode();
+
+        final BulkRequest clientBulk = new BulkRequest();
+        clientBulk.add(updateRequest);
+
+        final BulkResponse responses = client(coordinatingOnlyNode).bulk(clientBulk).actionGet();
+        assertTrue(responses.hasFailures());
+        assertThat(responses.getItems()[0].getFailure().getCause().getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
+
+        IndexingPressure primaryWriteLimits = internalCluster().getInstance(IndexingPressure.class, primaryName);
+        assertEquals(1L, primaryWriteLimits.stats().getPrimaryRejections());
     }
 
     public void testWriteCanRejectOnReplicaBasedOnMaxDocumentSize() throws Exception {

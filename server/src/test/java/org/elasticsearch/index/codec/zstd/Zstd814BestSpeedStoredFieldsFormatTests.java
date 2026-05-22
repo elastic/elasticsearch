@@ -17,7 +17,6 @@ import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 public class Zstd814BestSpeedStoredFieldsFormatTests extends BaseStoredFieldsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

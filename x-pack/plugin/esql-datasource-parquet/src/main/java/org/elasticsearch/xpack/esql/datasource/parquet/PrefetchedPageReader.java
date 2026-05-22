@@ -194,9 +194,21 @@ final class PrefetchedPageReader implements PageReader {
      * from heap to direct once at fetch time (one copy per coalesced range), so page slices
      * derived from it are already direct and the conditional copy below is a no-op. The copy
      * remains as a safety net for the non-prefetched sync fallback path.
+     *
+     * <p>Uncompressed Parquet files take a short-circuit: when the decompressor is the pass-through
+     * {@link PlainCompressionCodecFactory.NoopDecompressor} and the input slice is already direct,
+     * the input is returned as-is. This avoids one {@code ByteBuffer.allocateDirect(pageSize)} plus
+     * a full page memcopy per V1 data page (and per dictionary page) — wasted work since
+     * {@code NoopDecompressor} would just copy the input into the output buffer verbatim. DataPageV2
+     * already has its own {@code isCompressed()=false} early exit upstream of this method; V1 has no
+     * equivalent flag in the page header, so the marker check on the decompressor instance is the
+     * only signal we have at the page-read layer. See elastic/esql-planning#804.
      */
     private BytesInput decompressToDirectBuffer(BytesInput compressed, int decompressedSize) throws IOException {
         ByteBuffer input = compressed.toByteBuffer();
+        if (decompressor instanceof PlainCompressionCodecFactory.NoopDecompressor && input.isDirect()) {
+            return BytesInput.from(input);
+        }
         if (input.isDirect() == false) {
             ByteBuffer directInput = ByteBuffer.allocateDirect(input.remaining());
             directInput.put(input);

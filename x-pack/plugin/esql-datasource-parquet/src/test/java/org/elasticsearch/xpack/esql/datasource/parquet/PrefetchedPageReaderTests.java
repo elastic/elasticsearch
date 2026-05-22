@@ -116,6 +116,68 @@ public class PrefetchedPageReaderTests extends ESTestCase {
         assertThat(reader.readPage(), nullValue());
     }
 
+    public void testUncompressedV1PageWithDirectInputSkipsAllocAndCopy() throws IOException {
+        // Regression coverage for elastic/esql-planning#804: when the codec is UNCOMPRESSED and
+        // the page slice is already direct (the prefetched path), decompressV1 must return a view
+        // over the input buffer rather than allocating a fresh direct buffer and memcopying into
+        // it.
+        byte[] payload = randomBytesOfLength(64);
+        ByteBuffer direct = ByteBuffer.allocateDirect(payload.length);
+        direct.put(payload).flip();
+        DataPageV1 v1 = new DataPageV1(
+            BytesInput.from(direct.duplicate()),
+            10,
+            payload.length,
+            intStats(),
+            Encoding.RLE,
+            Encoding.RLE,
+            Encoding.PLAIN
+        );
+        PrefetchedPageReader reader = new PrefetchedPageReader(
+            codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
+            List.of(new PrefetchedPageReader.CompressedPage(v1, -1L)),
+            null,
+            10
+        );
+        DataPageV1 out = (DataPageV1) reader.readPage();
+        assertThat(out, notNullValue());
+        ByteBuffer decompressedBuf = out.getBytes().toByteBuffer();
+        assertTrue("Uncompressed V1 page must be backed by a direct buffer", decompressedBuf.isDirect());
+        assertThat(out.getBytes().toByteArray(), equalTo(payload));
+        // Mutating the underlying direct buffer must show through the returned BytesInput — i.e.,
+        // the page reader handed back a view rather than a copy of the input. The buffer
+        // duplicate's position/limit are independent of the original, so writing through the
+        // original is safe.
+        byte sentinel = (byte) (payload[0] ^ 0xFF);
+        direct.put(0, sentinel);
+        assertEquals("Returned BytesInput must alias the direct input slice, not a copy", sentinel, out.getBytes().toByteArray()[0]);
+    }
+
+    public void testUncompressedDictionaryPageWithDirectInputSkipsAllocAndCopy() throws IOException {
+        // Same short-circuit, exercised through the dictionary-page path.
+        byte[] payload = randomBytesOfLength(48);
+        ByteBuffer direct = ByteBuffer.allocateDirect(payload.length);
+        direct.put(payload).flip();
+        DictionaryPage compressedDict = new DictionaryPage(BytesInput.from(direct.duplicate()), payload.length, 4, Encoding.PLAIN);
+        PrefetchedPageReader reader = new PrefetchedPageReader(
+            codecFactory.getDecompressor(CompressionCodecName.UNCOMPRESSED),
+            List.of(),
+            compressedDict,
+            0
+        );
+        DictionaryPage out = reader.readDictionaryPage();
+        assertThat(out, notNullValue());
+        ByteBuffer decompressedBuf = out.getBytes().toByteBuffer();
+        assertTrue("Uncompressed dictionary page must be backed by a direct buffer", decompressedBuf.isDirect());
+        byte sentinel = (byte) (payload[0] ^ 0xFF);
+        direct.put(0, sentinel);
+        assertEquals(
+            "Returned BytesInput must alias the direct dictionary input slice, not a copy",
+            sentinel,
+            out.getBytes().toByteArray()[0]
+        );
+    }
+
     public void testReadDictionaryPageDecompressesLazilyAndCaches() throws IOException {
         byte[] payload = randomBytesOfLength(48);
         BytesInputCompressor compressor = codecFactory.getCompressor(CompressionCodecName.SNAPPY);

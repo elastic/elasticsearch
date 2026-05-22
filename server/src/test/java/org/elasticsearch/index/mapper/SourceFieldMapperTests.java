@@ -534,6 +534,23 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         }
     }
 
+    public void testRecoverySourceWithColumnarStoredSource() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("field1");
+            b.field("type", "keyword");
+            b.endObject();
+        }));
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParsedDocument doc = docMapper.parse(source(b -> b.field("field1", "value1")));
+        assertNotNull(doc.rootDoc().getField("_recovery_source"));
+    }
+
     public void testRecoverySourceWithLogs() throws IOException {
         {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).build();

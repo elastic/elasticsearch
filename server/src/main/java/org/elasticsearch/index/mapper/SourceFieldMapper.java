@@ -482,8 +482,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             // This size is used by LuceneSyntheticSourceChangesSnapshot to manage memory usage
             // when loading batches of synthetic sources during recovery.
             context.doc().add(new NumericDocValuesField(RECOVERY_SOURCE_SIZE_NAME, originalSource.length()));
-        } else if (stored() == false || adaptedStoredSource != storedSource) {
-            // If the source is missing (due to synthetic source or disabled mode)
+        } else if (stored() == false || useColumnarSource || adaptedStoredSource != storedSource) {
+            // If the source is missing (due to synthetic source, columnar_stored, or disabled mode)
             // or has been altered (via source filtering), store a reduced recovery source.
             // This includes the original source with synthetic vector fields removed for operation-based recovery.
             var recoverySource = removeSyntheticVectorFields(context.mappingLookup(), originalSource, contentType).toBytesRef();

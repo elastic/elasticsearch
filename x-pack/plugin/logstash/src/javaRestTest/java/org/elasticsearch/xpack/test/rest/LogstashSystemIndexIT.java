@@ -203,6 +203,18 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
         }
     }
 
+    public void testPipelineDescriptionLengthLimit() throws IOException {
+        Request putRequest = new Request("PUT", "/_logstash/pipeline/test_pipeline");
+        putRequest.setJsonEntity(getPipelineJson("2020-03-09T15:42:30.229Z", randomAlphaOfLength(1025)));
+
+        ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(putRequest));
+        Response response = exception.getResponse();
+        assertThat(response.getStatusLine().getStatusCode(), is(400));
+
+        String responseBody = EntityUtils.toString(response.getEntity());
+        assertThat(responseBody, containsString("[description] must be less than 1024 characters in length."));
+    }
+
     private void createPipeline(String id, String json) throws IOException {
         Request putRequest = new Request("PUT", "/_logstash/pipeline/" + id);
         putRequest.setJsonEntity(json);
@@ -215,10 +227,14 @@ public class LogstashSystemIndexIT extends ESRestTestCase {
     }
 
     private String getPipelineJson(String date) throws IOException {
+        return getPipelineJson(date, "test pipeline");
+    }
+
+    private String getPipelineJson(String date, String description) throws IOException {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
             {
-                builder.field("description", "test pipeline");
+                builder.field("description", description);
                 builder.field("last_modified", date);
                 builder.startObject("pipeline_metadata");
                 {

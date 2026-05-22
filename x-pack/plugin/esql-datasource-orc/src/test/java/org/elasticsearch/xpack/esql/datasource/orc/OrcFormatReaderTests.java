@@ -1331,6 +1331,173 @@ public class OrcFormatReaderTests extends ESTestCase {
         }
     }
 
+    // --- Nested STRUCT subfield projection tests ---
+
+    public void testNestedStructFlatteningOrc() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField(
+                "event",
+                TypeDescription.createStruct()
+                    .addField("action", TypeDescription.createString())
+                    .addField("outcome", TypeDescription.createString())
+                    .addField("tags", TypeDescription.createList(TypeDescription.createString()))
+            );
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 1;
+            ((LongColumnVector) batch.cols[0]).vector[0] = 1L;
+            var ev = (org.apache.hadoop.hive.ql.exec.vector.StructColumnVector) batch.cols[1];
+            ((BytesColumnVector) ev.fields[0]).setVal(0, "login".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) ev.fields[1]).setVal(0, "success".getBytes(StandardCharsets.UTF_8));
+            ListColumnVector tags = (ListColumnVector) ev.fields[2];
+            tags.offsets[0] = 0;
+            tags.lengths[0] = 2;
+            tags.child.ensureSize(2, false);
+            ((BytesColumnVector) tags.child).setVal(0, "x".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) tags.child).setVal(1, "y".getBytes(StandardCharsets.UTF_8));
+        });
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(orcData));
+        List<Attribute> attrs = metadata.schema();
+        assertEquals(4, attrs.size());
+        assertEquals("id", attrs.get(0).name());
+        assertEquals(DataType.LONG, attrs.get(0).dataType());
+        assertEquals("event.action", attrs.get(1).name());
+        assertEquals(DataType.KEYWORD, attrs.get(1).dataType());
+        assertEquals("event.outcome", attrs.get(2).name());
+        assertEquals(DataType.KEYWORD, attrs.get(2).dataType());
+        assertEquals("event.tags", attrs.get(3).name());
+        assertEquals(DataType.KEYWORD, attrs.get(3).dataType());
+    }
+
+    public void testReadNestedStructSingleSubfield() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("event", TypeDescription.createStruct().addField("action", TypeDescription.createString()));
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 1;
+            var ev = (org.apache.hadoop.hive.ql.exec.vector.StructColumnVector) batch.cols[0];
+            ((BytesColumnVector) ev.fields[0]).setVal(0, "login".getBytes(StandardCharsets.UTF_8));
+        });
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        try (CloseableIterator<Page> iter = reader.read(createStorageObject(orcData), List.of("event.action"), 10)) {
+            assertTrue(iter.hasNext());
+            Page page = iter.next();
+            assertEquals(1, page.getBlockCount());
+            BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+            assertEquals(new BytesRef("login"), block.getBytesRef(0, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testReadNestedStructTwoSubfieldsSameParent() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField(
+                "event",
+                TypeDescription.createStruct()
+                    .addField("action", TypeDescription.createString())
+                    .addField("outcome", TypeDescription.createString())
+            );
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 1;
+            var ev = (org.apache.hadoop.hive.ql.exec.vector.StructColumnVector) batch.cols[0];
+            ((BytesColumnVector) ev.fields[0]).setVal(0, "login".getBytes(StandardCharsets.UTF_8));
+            ((BytesColumnVector) ev.fields[1]).setVal(0, "success".getBytes(StandardCharsets.UTF_8));
+        });
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        try (CloseableIterator<Page> iter = reader.read(createStorageObject(orcData), List.of("event.action", "event.outcome"), 10)) {
+            assertTrue(iter.hasNext());
+            Page page = iter.next();
+            assertEquals(2, page.getBlockCount());
+            assertEquals(new BytesRef("login"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("success"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testReadNestedStructMixedTopLevelAndNested() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("event", TypeDescription.createStruct().addField("action", TypeDescription.createString()));
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 1;
+            ((LongColumnVector) batch.cols[0]).vector[0] = 7L;
+            var ev = (org.apache.hadoop.hive.ql.exec.vector.StructColumnVector) batch.cols[1];
+            ((BytesColumnVector) ev.fields[0]).setVal(0, "logout".getBytes(StandardCharsets.UTF_8));
+        });
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        try (CloseableIterator<Page> iter = reader.read(createStorageObject(orcData), List.of("id", "event.action"), 10)) {
+            assertTrue(iter.hasNext());
+            Page page = iter.next();
+            assertEquals(2, page.getBlockCount());
+            assertEquals(7L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("logout"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testReadNestedStructDeepNesting() throws Exception {
+        // a.b.c.d
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField(
+                "a",
+                TypeDescription.createStruct()
+                    .addField(
+                        "b",
+                        TypeDescription.createStruct()
+                            .addField("c", TypeDescription.createStruct().addField("d", TypeDescription.createLong()))
+                    )
+            );
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 1;
+            var a = (org.apache.hadoop.hive.ql.exec.vector.StructColumnVector) batch.cols[0];
+            var b = (org.apache.hadoop.hive.ql.exec.vector.StructColumnVector) a.fields[0];
+            var c = (org.apache.hadoop.hive.ql.exec.vector.StructColumnVector) b.fields[0];
+            ((LongColumnVector) c.fields[0]).vector[0] = 999L;
+        });
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        try (CloseableIterator<Page> iter = reader.read(createStorageObject(orcData), List.of("a.b.c.d"), 10)) {
+            assertTrue(iter.hasNext());
+            Page page = iter.next();
+            assertEquals(999L, ((LongBlock) page.getBlock(0)).getLong(0));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testReadNestedStructAncestorNullPropagation() throws Exception {
+        // Rows: (a) parent struct null, (b) parent non-null + child null, (c) both non-null.
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("event", TypeDescription.createStruct().addField("action", TypeDescription.createString()));
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            var ev = (org.apache.hadoop.hive.ql.exec.vector.StructColumnVector) batch.cols[0];
+            BytesColumnVector action = (BytesColumnVector) ev.fields[0];
+            // (a) parent null at row 0
+            ev.noNulls = false;
+            ev.isNull[0] = true;
+            // stale child value at the same slot — must NOT leak through
+            action.setVal(0, "stale".getBytes(StandardCharsets.UTF_8));
+            // (b) parent non-null, child null
+            ev.isNull[1] = false;
+            action.noNulls = false;
+            action.isNull[1] = true;
+            // (c) both non-null
+            ev.isNull[2] = false;
+            action.isNull[2] = false;
+            action.setVal(2, "real".getBytes(StandardCharsets.UTF_8));
+        });
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+        try (CloseableIterator<Page> iter = reader.read(createStorageObject(orcData), List.of("event.action"), 10)) {
+            assertTrue(iter.hasNext());
+            Page page = iter.next();
+            BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+            assertTrue("row 0 (parent null) -> child null", block.isNull(0));
+            assertTrue("row 1 (parent non-null, child null) -> child null", block.isNull(1));
+            assertFalse("row 2 (both non-null) -> non-null", block.isNull(2));
+            assertEquals(new BytesRef("real"), block.getBytesRef(block.getFirstValueIndex(2), new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
     private StorageObject createStorageObject(byte[] data) {
         return new StorageObject() {
             @Override

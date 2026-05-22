@@ -1947,6 +1947,10 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
 
     private Block readColumnBlock(int colIndex, ColumnInfo info, int rowsToRead) {
         if (pageColumnReaders != null && pageColumnReaders[colIndex] != null) {
+            // PageColumnReader handles maxDefLevel > 1 for nested-flat STRUCT leaves (e.g.
+            // `event.action`). maxRepLevel must stay 0 because LIST<STRUCT> is intentionally
+            // unsupported in this PR — see issue elastic/esql-planning#435.
+            assert info.maxRepLevel() == 0 : "PageColumnReader path expects maxRepLevel == 0 for [" + info + "]";
             return pageColumnReaders[colIndex].readBatch(rowsToRead, blockFactory);
         }
         ColumnReader cr = columnReaders != null ? columnReaders[colIndex] : null;

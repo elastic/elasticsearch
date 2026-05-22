@@ -2455,6 +2455,17 @@ public class EsqlCapabilities {
         EXTERNAL_SOURCE_FILE_METADATA_COLUMNS(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
+         * Parquet (Java) and ORC external sources. Gated so format readers that do not yet
+         * implement nested support (parquet-rs, csv, ndjson, etc.) skip the csv-spec tests
+         * until they catch up.
+         *
+         * <p>Tracks: elastic/esql-planning#435 (this PR) and elastic/esql-planning#320
+         * (correctness gap for Parquet-Java MAP/STRUCT/nested LIST).
+         */
+        EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
          * Gated on the same flag as {@link #EXTERNAL_COMMAND}.
          */

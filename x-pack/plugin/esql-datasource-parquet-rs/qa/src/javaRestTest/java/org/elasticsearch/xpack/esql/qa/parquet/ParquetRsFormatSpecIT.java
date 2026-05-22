@@ -77,7 +77,17 @@ public class ParquetRsFormatSpecIT extends AbstractExternalSourceSpecTestCase {
         // IndexOutOfBoundsException when the block participates in a multi-key PackedValuesBlockHash.
         // The single-key BlockHash path doesn't call areAllValuesNull, which is why other STATS BY
         // tests pass. Re-enable once the parquet-rs reader pads validity buffers correctly.
-        "hivePartitionStatsByLangAndGender"
+        "hivePartitionStatsByLangAndGender",
+        // Nested STRUCT subfield projection is supported by the Java Parquet reader (and ORC)
+        // but not by parquet-rs yet — see elastic/esql-planning#435. Tests live in
+        // external-nested-struct.csv-spec and are gated on the cluster-wide
+        // EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION capability, which cannot disambiguate per
+        // reader, so we mirror the skip list pattern used for other parquet-rs gaps above.
+        "nestedKeepSingleSubfield",
+        "nestedKeepTwoSubfieldsSameParent",
+        "nestedKeepMixedTopLevelAndNested",
+        "nestedStatsByNested",
+        "nestedNullPropagation"
     );
 
     @Override

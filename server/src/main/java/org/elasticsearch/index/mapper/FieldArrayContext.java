@@ -58,7 +58,13 @@ public class FieldArrayContext {
         for (var entry : offsetsPerField.entrySet()) {
             var fieldName = entry.getKey();
             var offset = entry.getValue();
-
+            // In columnar mode, a single non-null value carries no ordering or shape information beyond what the sorted-set doc values
+            // already encode, so the offsets entry is redundant.
+            // This means that single-valued arrays are rebuilt as single valued; ex. ["a"] -> "a".
+            boolean strictlyColumnar = context.indexSettings().getMode().isStrictColumnar();
+            if (strictlyColumnar && offset.currentOffset <= 1 && offset.nullValueOffsets.isEmpty()) {
+                continue;
+            }
             context.doc().add(new SortedDocValuesField(fieldName, encodeOffsetArray(offset)));
         }
     }

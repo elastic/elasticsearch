@@ -136,10 +136,18 @@ public class ColumnarSourceIT extends ESIntegTestCase {
             .isEqualTo(List.of(columnarStoredSource));
         assertTrue(matchResult.getMessage(), matchResult.isMatch());
 
+        // A Map value is only acceptable for leaf field types that use an object representation
+        // (e.g. geo_point stored as {lat, lon}). Object mappers must not appear — those should
+        // have been flattened to dotted-path keys.
         for (var entry : columnarStoredSource.entrySet()) {
-            // A Map value is only acceptable for leaf field types that use an object representation
-            // (e.g. geo_point stored as {lat, lon}). Object mappers must not appear — those should
-            // have been flattened to dotted-path keys.
+            if (entry.getValue() instanceof Map<?, ?>) {
+                assertTrue(
+                    "source should be flat, but key '" + entry.getKey() + "' has a nested object value",
+                    isMappedLeafField(entry.getKey(), mapping.lookup())
+                );
+            }
+        }
+        for (var entry : syntheticSource.entrySet()) {
             if (entry.getValue() instanceof Map<?, ?>) {
                 assertTrue(
                     "source should be flat, but key '" + entry.getKey() + "' has a nested object value",

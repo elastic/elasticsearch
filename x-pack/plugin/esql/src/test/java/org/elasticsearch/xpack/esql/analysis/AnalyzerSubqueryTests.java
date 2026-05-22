@@ -3251,6 +3251,163 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         }
     }
 
+    public void testSubqueryRenameKeepStarOnMissingColumnPreservesType() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        LogicalPlan plan = basic().addLanguages().query("""
+            FROM test, (FROM languages)
+            | KEEP emp_no
+            | RENAME emp_no AS x
+            | KEEP *
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute x = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("x", x.name());
+        assertEquals(INTEGER, x.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        Alias xAlias = as(projections.get(0), Alias.class);
+        assertEquals("x", xAlias.name());
+        assertEquals(INTEGER, xAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute total_bytes_in = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("emp_no", total_bytes_in.name());
+        assertEquals(INTEGER, total_bytes_in.dataType());
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertTrue(unionAll.output().stream().anyMatch(a -> "emp_no".equals(a.name()) && INTEGER.equals(a.dataType())));
+    }
+
+    public void testSubqueryRenameKeepOnMissingCounterFields() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Require the fix to inconsistent counter type",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+        );
+        LogicalPlan plan = analyzer().addK8s().addLanguages().query("""
+            FROM k8s, (FROM languages)
+            | KEEP network.total_bytes_in, network.total_bytes_out
+            | RENAME network.total_bytes_in AS x, network.total_bytes_out AS y
+            | KEEP *
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(2, projections.size());
+        ReferenceAttribute x = as(projections.get(0), ReferenceAttribute.class);
+        ReferenceAttribute y = as(projections.get(1), ReferenceAttribute.class);
+        assertEquals("x", x.name());
+        assertEquals(LONG, x.dataType());
+        assertEquals("y", y.name());
+        assertEquals(LONG, y.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(2, projections.size());
+        Alias xAlias = as(projections.get(0), Alias.class);
+        assertEquals("x", xAlias.name());
+        assertEquals(LONG, xAlias.dataType());
+        Alias yAlias = as(projections.get(1), Alias.class);
+        assertEquals("y", yAlias.name());
+        assertEquals(LONG, yAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(2, projections.size());
+        ReferenceAttribute total_bytes_in = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("network.total_bytes_in", total_bytes_in.name());
+        assertEquals(LONG, total_bytes_in.dataType());
+        ReferenceAttribute total_bytes_out = as(projections.get(1), ReferenceAttribute.class);
+        assertEquals("network.total_bytes_out", total_bytes_out.name());
+        assertEquals(LONG, total_bytes_out.dataType());
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertTrue(unionAll.output().stream().anyMatch(a -> "network.total_bytes_in".equals(a.name()) && LONG.equals(a.dataType())));
+        assertTrue(unionAll.output().stream().anyMatch(a -> "network.total_bytes_out".equals(a.name()) && LONG.equals(a.dataType())));
+    }
+
+    public void testSubqueryRenameChainKeepStarOnMissingCounterField() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Require the fix to inconsistent counter type",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+        );
+        LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().query("""
+            FROM k8s, (FROM languages)
+            | KEEP network.total_bytes_in
+            | RENAME network.total_bytes_in AS x, x as y
+            | KEEP y
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute y = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("y", y.name());
+        assertEquals(LONG, y.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        Alias yAlias = as(projections.get(0), Alias.class);
+        assertEquals("y", yAlias.name());
+        assertEquals(LONG, yAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute total_bytes_in = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("network.total_bytes_in", total_bytes_in.name());
+        assertEquals(LONG, total_bytes_in.dataType());
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertTrue(unionAll.output().stream().anyMatch(a -> "network.total_bytes_in".equals(a.name()) && LONG.equals(a.dataType())));
+    }
+
+    public void testSubqueryDoubleRenameKeepStarOnMissingCounterField() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+        assumeTrue(
+            "Require the fix to inconsistent counter type",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
+        );
+        LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().query("""
+            FROM k8s, (FROM languages)
+            | KEEP network.total_bytes_in
+            | RENAME network.total_bytes_in AS x
+            | RENAME x as y
+            | KEEP *
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        Project project = as(limit.child(), Project.class);
+        List<? extends NamedExpression> projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute y = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("y", y.name());
+        assertEquals(LONG, y.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        Alias yAlias = as(projections.get(0), Alias.class);
+        assertEquals("y", yAlias.name());
+        assertEquals(LONG, yAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        Alias xAlias = as(projections.get(0), Alias.class);
+        assertEquals("x", xAlias.name());
+        assertEquals(LONG, xAlias.dataType());
+        project = as(project.child(), Project.class);
+        projections = project.projections();
+        assertEquals(1, projections.size());
+        ReferenceAttribute total_bytes_in = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("network.total_bytes_in", total_bytes_in.name());
+        assertEquals(LONG, total_bytes_in.dataType());
+        UnionAll unionAll = as(project.child(), UnionAll.class);
+        assertTrue(unionAll.output().stream().anyMatch(a -> "network.total_bytes_in".equals(a.name()) && LONG.equals(a.dataType())));
+    }
+
     /**
      * Helper: asserts the {@link UnionAll} output contains an attribute with the given name and
      * data type; the attribute is expected to be a {@link ReferenceAttribute} (not an

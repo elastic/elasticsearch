@@ -201,10 +201,7 @@ public class UpdateInferenceModelActionRequestTests extends AbstractWireSerializ
         // The returned map is modifiable; callers (the chunking-settings builder) may freely
         // mutate it without affecting the cached state.
         chunkingSettings.clear();
-        assertThat(
-            request.getChunkingSettings(),
-            equalTo(Map.of("strategy", "sentence", "max_chunk_size", TEST_MAX_CHUNK_SIZE))
-        );
+        assertThat(request.getChunkingSettings(), equalTo(Map.of("strategy", "sentence", "max_chunk_size", TEST_MAX_CHUNK_SIZE)));
     }
 
     public void testParseContent_EmptyBody_ThrowsBadRequest() {

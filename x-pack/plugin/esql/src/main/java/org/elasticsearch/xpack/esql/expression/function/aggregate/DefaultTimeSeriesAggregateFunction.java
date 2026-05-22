@@ -46,8 +46,7 @@ public class DefaultTimeSeriesAggregateFunction extends TimeSeriesAggregateFunct
 
     @Override
     public AggregateFunction perTimeSeriesAggregation() {
-        // modified so testNoDimensionsInAggsOnlyInByClause doesn't return "argument of [bool_field]" instead of what it should return...
-        return this;
+        return delegate.perTimeSeriesAggregation();
     }
 
     @Override

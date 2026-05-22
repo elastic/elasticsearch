@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -23,11 +24,11 @@ import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
-public class ApplyWindowFilter extends OptimizerRules.ParameterizedOptimizerRule<TimeSeriesAggregate, AnalyzerContext> {
-    // TODO: move to analyzer package and extend AnalyzerRules.ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext>
+public class ApplyWindowFilter extends AnalyzerRules.ParameterizedAnalyzerRule<TimeSeriesAggregate, AnalyzerContext> {
 
-    public ApplyWindowFilter() {
-        super(OptimizerRules.TransformDirection.UP);
+    @Override
+    protected boolean skipResolved() {
+        return false;
     }
 
     @Override

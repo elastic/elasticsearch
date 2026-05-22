@@ -1710,7 +1710,10 @@ public class VerifierTests extends ESTestCase {
         tsdb().error(
             "TS test  | STATS SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")",
             equalTo(
-                "1:18: sparkline [SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")]" + " can't be used with TS command"
+                "1:28: count_star [SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")] can't be used "
+                    + "with TS command; use count on a field instead\n"
+                    + "line 1:18: sparkline [SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", "
+                    + "\"2024-02-01\")] can't be used with TS command"
             )
         );
     }
@@ -3548,27 +3551,31 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
-    // public void testNoMetricInStatsByClause() {
-    // // TODO: fix
-    // tsdb().error(
-    // "TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, round(network.connections)",
-    // equalTo(
-    // "1:90: cannot group by a metric field [network.connections] in a time-series aggregation. "
-    // + "If you want to group by a metric field, use the FROM command instead of the TS command."
-    // )
-    // );
-    // tsdb().error(
-    // "TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, network.bytes_in",
-    // equalTo("1:84: cannot group by on [counter_long] type for grouping [network.bytes_in]")
-    // );
-    // tsdb().error(
-    // "TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, to_long(network.bytes_in)",
-    // equalTo(
-    // "1:92: cannot group by a metric field [network.bytes_in] in a time-series aggregation. "
-    // + "If you want to group by a metric field, use the FROM command instead of the TS command."
-    // )
-    // );
-    // }
+    public void testNoMetricInStatsByClause() {
+        tsdb().error(
+            "TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, round(network.connections)",
+            equalTo(
+                "1:90: cannot group by a metric field [network.connections] in a time-series aggregation. "
+                    + "If you want to group by a metric field, use the FROM command instead of the TS command."
+            )
+        );
+        // different error on this one because we wrap network.bytes_in in a Values and Values does not accept counters
+        tsdb().error(
+            "TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, network.bytes_in",
+            equalTo(
+                "1:84: argument of [network.bytes_in] must be [any type except counter types, dense_vector, "
+                    + "aggregate_metric_double, tdigest, histogram, exponential_histogram, or date_range], "
+                    + "found value [network.bytes_in] type [counter_long]"
+            )
+        );
+        tsdb().error(
+            "TS test | STATS avg(rate(network.bytes_in)) BY bucket(@timestamp, 1 minute), host, to_long(network.bytes_in)",
+            equalTo(
+                "1:92: cannot group by a metric field [network.bytes_in] in a time-series aggregation. "
+                    + "If you want to group by a metric field, use the FROM command instead of the TS command."
+            )
+        );
+    }
 
     public void testNoDimensionsInAggsOnlyInByClause() {
         tsdb().error(

@@ -772,7 +772,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
                 // Wrap in an explicit LIMIT 0 so that AddImplicitLimit skips the "No limit defined" warning,
                 // which would otherwise fire because the LocalRelation contains no PromqlCommand marker.
-                // TODO: is this still needed?
                 return new Limit(source, new Literal(source, 0, DataType.INTEGER), localRelation);
             }
             LogicalPlan promqlPlan = promql.promqlPlan();

@@ -10270,8 +10270,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
                 metricsAnalyzer().query("TS k8s | KEEP network.total_bytes_in | STATS count(*)")
             )
         ).getMessage();
-        // removed because we no longer make it to the Aggregate check
-        // assertThat(errorMessage, containsString("count_star [count(*)] can't be used with TS command; use count on a field instead"));
         assertThat(
             errorMessage,
             containsString(

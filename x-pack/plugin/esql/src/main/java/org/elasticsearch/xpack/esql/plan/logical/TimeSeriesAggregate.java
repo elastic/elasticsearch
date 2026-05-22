@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
@@ -21,8 +22,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.Sparkline;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
 import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 
@@ -320,10 +321,22 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
     @Override
     protected void checkTimeSeriesAggregates(Failures failures, boolean shouldContainTimeSeriesAggregate) {
         for (NamedExpression aggregate : aggregates) {
+            aggregate.forEachDown(Values.class, values -> {
+                values.forEachDown(FieldAttribute.class, fieldAttr -> {
+                    if (fieldAttr.isMetric()) {
+                        failures.add(
+                            fail(
+                                fieldAttr,
+                                "cannot group by a metric field [{}] in a time-series aggregation. "
+                                    + "If you want to group by a metric field, use the FROM "
+                                    + "command instead of the TS command.",
+                                fieldAttr.sourceText()
+                            )
+                        );
+                    }
+                });
+            });
             if (aggregate instanceof Alias alias && Alias.unwrap(alias) instanceof AggregateFunction outer) {
-                if (outer instanceof Sparkline sparkline) {
-                    failures.add(fail(sparkline, "sparkline [{}] can't be used with TS command", sparkline.sourceText()));
-                }
                 outer.field().forEachDown(TimeSeriesAggregateFunction.class, nested -> {
                     failures.add(
                         fail(

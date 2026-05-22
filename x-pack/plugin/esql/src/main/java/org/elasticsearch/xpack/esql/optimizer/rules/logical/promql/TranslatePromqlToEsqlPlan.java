@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -46,7 +47,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
@@ -135,15 +135,10 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combi
  *   <li>{@link VectorBinaryOperator}: plan = merged from both sides, expression = left op right</li>
  * </ul>
  */
-public final class TranslatePromqlToEsqlPlan extends OptimizerRules.ParameterizedOptimizerRule<PromqlCommand, AnalyzerContext> {
-    // TODO: move to analyzer package and extend AnalyzerRules.ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext>
+public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.ParameterizedAnalyzerRule<PromqlCommand, AnalyzerContext> {
 
     // TODO make configurable via lookback_delta parameter and (cluster?) setting
     public static final Duration DEFAULT_LOOKBACK = Duration.ofMinutes(5);
-
-    public TranslatePromqlToEsqlPlan() {
-        super(OptimizerRules.TransformDirection.UP);
-    }
 
     /** Result flows upward */
     private record TranslationResult(
@@ -169,8 +164,8 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     private record TranslationContext(
         /* The root PromQL command. */
         PromqlCommand promqlCommand,
-        /* Optimizer context (configuration, transport version, etc.). */
-        AnalyzerContext optimizerContext,
+        /* Analyzer context (configuration, transport version, etc.). */
+        AnalyzerContext analyzerContext,
         /* Alias for the step bucket expression used in all aggregation groupings. */
         Alias stepBucketAlias,
         /*  What aggregate labels the child subtree MUST expose */
@@ -179,6 +174,11 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         Attribute stepAttr() {
             return stepBucketAlias.toAttribute();
         }
+    }
+
+    @Override
+    protected boolean skipResolved() {
+        return false;
     }
 
     @Override
@@ -337,7 +337,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
 
         TranslationContext childCtx = new TranslationContext(
             ctx.promqlCommand,
-            ctx.optimizerContext,
+            ctx.analyzerContext,
             ctx.stepBucketAlias,
             importAggregateLabels
         );
@@ -420,7 +420,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ctx.promqlCommand().timestamp(),
             window,
             ctx.stepAttr(),
-            ctx.optimizerContext().configuration()
+            ctx.analyzerContext().configuration()
         );
 
         Expression function = functionCall.buildEsqlFunction(childResult.expression(), promqlCtx);
@@ -450,7 +450,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ctx.promqlCommand().timestamp(),
             null,
             ctx.stepAttr(),
-            ctx.optimizerContext().configuration()
+            ctx.analyzerContext().configuration()
         );
         Expression function = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
             scalarFunction.functionName(),
@@ -480,7 +480,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
 
         Expression binaryExpr = binaryOp.binaryOp()
             .asFunction()
-            .create(binaryOp.source(), leftExpr, rightExpr, ctx.optimizerContext().configuration());
+            .create(binaryOp.source(), leftExpr, rightExpr, ctx.analyzerContext().configuration());
 
         boolean leftAgg = findAggregate(leftResult.plan(), Aggregate.class) != null;
         boolean rightAgg = findAggregate(rightResult.plan(), Aggregate.class) != null;
@@ -610,7 +610,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ctx.promqlCommand().timestamp(),
             AggregateFunction.NO_WINDOW,
             ctx.stepAttr(),
-            ctx.optimizerContext().configuration()
+            ctx.analyzerContext().configuration()
         );
         return agg.buildEsqlFunction(inputValue, promqlCtx);
     }

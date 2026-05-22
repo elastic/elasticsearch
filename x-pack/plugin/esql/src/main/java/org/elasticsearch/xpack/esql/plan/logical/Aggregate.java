@@ -293,6 +293,11 @@ public class Aggregate extends UnaryPlan
                     );
                 }
             }));
+            aggregates.forEach(a -> a.forEachDown(e -> {
+                if (e instanceof Sparkline sparkline) {
+                    failures.add(fail(sparkline, "sparkline [{}] can't be used with TS command", sparkline.sourceText()));
+                }
+            }));
         }
         Holder<Boolean> isTimeSeriesIndexMode = new Holder<>(false);
         child().forEachDown(p -> {
@@ -310,12 +315,13 @@ public class Aggregate extends UnaryPlan
     }
 
     protected void checkInvalidTimeSeriesExpression(Expression exp, Failures failures) {
-        if (exp instanceof Count count && count.field().equals(Literal.keyword(exp.source(), StringUtils.WILDCARD))) {
-            // reject `TS metrics | STATS COUNT(*)`
-            failures.add(fail(count, "count_star [{}] can't be used with TS command; use count on a field instead", exp.sourceText()));
-            // reject COUNT(keyword), but allow COUNT(numeric)
-        }
-
+        exp.forEachDown(Count.class, count -> {
+            if (count.field().equals(Literal.keyword(exp.source(), StringUtils.WILDCARD))) {
+                // reject `TS metrics | STATS COUNT(*)`
+                failures.add(fail(count, "count_star [{}] can't be used with TS command; use count on a field instead", exp.sourceText()));
+                // reject COUNT(keyword), but allow COUNT(numeric)
+            }
+        });
     }
 
     private void checkMultipleScoreAggregations(Failures failures) {

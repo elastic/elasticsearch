@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -29,11 +30,11 @@ import java.util.Map;
  * Lowers {@link TimeSeriesWithout} into the {@code _timeseries} metadata attribute expected by
  * the time-series aggregation pipeline.
  */
-public final class TranslateTimeSeriesWithout extends OptimizerRules.ParameterizedOptimizerRule<TimeSeriesAggregate, AnalyzerContext> {
-    // TODO: move to analyzer package and extend AnalyzerRules.ParameterizedAnalyzerRule<LogicalPlan, AnalyzerContext>
+public final class TranslateTimeSeriesWithout extends AnalyzerRules.ParameterizedAnalyzerRule<TimeSeriesAggregate, AnalyzerContext> {
 
-    public TranslateTimeSeriesWithout() {
-        super(OptimizerRules.TransformDirection.UP);
+    @Override
+    protected boolean skipResolved() {
+        return false;
     }
 
     private static NamedExpression replaceReferences(NamedExpression expression, Map<NameId, TimeSeriesMetadataAttribute> replacements) {

@@ -3506,7 +3506,6 @@ public class AnalyzerTests extends ESTestCase {
      * {@code mappingAsAttributes} converts it to an {@link UnsupportedAttribute} immediately,
      * any query that references the field is rejected with a clear error message.
      */
-    // TODO: fix
     public void testTsStatsQueryWithConflictingTsTypesMarksFieldUnsupported() {
         FieldCapabilitiesResponse caps = buildCapsWithConflictingTsTypes();
         IndexResolution resolution = IndexResolver.mergedMappings(

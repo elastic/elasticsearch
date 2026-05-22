@@ -17,6 +17,7 @@ import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompre
 import org.apache.parquet.io.ParquetDecodingException;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
@@ -93,7 +94,7 @@ final class PrefetchedPageReader implements PageReader {
             return cachedDictionaryPage;
         }
         try {
-            BytesInput decompressed = decompressor.decompress(
+            BytesInput decompressed = decompressToDirectBuffer(
                 compressedDictionaryPage.getBytes(),
                 compressedDictionaryPage.getUncompressedSize()
             );
@@ -114,7 +115,7 @@ final class PrefetchedPageReader implements PageReader {
 
     private DataPageV1 decompressV1(DataPageV1 v1) {
         try {
-            BytesInput decompressed = decompressor.decompress(v1.getBytes(), v1.getUncompressedSize());
+            BytesInput decompressed = decompressToDirectBuffer(v1.getBytes(), v1.getUncompressedSize());
             int indexRowCount = v1.getIndexRowCount().orElse(-1);
             long firstRowIndex = v1.getFirstRowIndex().orElse(-1L);
             if (firstRowIndex >= 0 && indexRowCount >= 0) {
@@ -165,7 +166,7 @@ final class PrefetchedPageReader implements PageReader {
             int rlBytes = (int) v2.getRepetitionLevels().size();
             int dlBytes = (int) v2.getDefinitionLevels().size();
             int uncompressedDataSize = v2.getUncompressedSize() - rlBytes - dlBytes;
-            BytesInput decompressedData = decompressor.decompress(v2.getData(), uncompressedDataSize);
+            BytesInput decompressedData = decompressToDirectBuffer(v2.getData(), uncompressedDataSize);
             return DataPageV2.uncompressed(
                 v2.getRowCount(),
                 v2.getNullCount(),
@@ -180,5 +181,31 @@ final class PrefetchedPageReader implements PageReader {
         } catch (IOException e) {
             throw new ParquetDecodingException("Could not decompress V2 data page", e);
         }
+    }
+
+    /**
+     * Decompresses {@code compressed} into a direct {@link ByteBuffer}, then wraps the result
+     * as a {@link BytesInput}. Both the input and output sides are direct so each codec takes its
+     * direct-to-direct JNI fast path (Zstd: {@code decompressDirectByteBuffer}; Snappy:
+     * {@code Snappy.uncompress(ByteBuffer, ByteBuffer)}), avoiding
+     * {@code GetPrimitiveArrayCritical} JNI pinning and the G1GC evacuation failures it causes.
+     *
+     * <p>For the prefetched path, {@link ColumnChunkPrefetcher} promotes each S3 response buffer
+     * from heap to direct once at fetch time (one copy per coalesced range), so page slices
+     * derived from it are already direct and the conditional copy below is a no-op. The copy
+     * remains as a safety net for the non-prefetched sync fallback path.
+     */
+    private BytesInput decompressToDirectBuffer(BytesInput compressed, int decompressedSize) throws IOException {
+        ByteBuffer input = compressed.toByteBuffer();
+        if (input.isDirect() == false) {
+            ByteBuffer directInput = ByteBuffer.allocateDirect(input.remaining());
+            directInput.put(input);
+            directInput.flip();
+            input = directInput;
+        }
+        ByteBuffer output = ByteBuffer.allocateDirect(decompressedSize);
+        decompressor.decompress(input, Math.toIntExact(compressed.size()), output, decompressedSize);
+        output.flip();
+        return BytesInput.from(output);
     }
 }

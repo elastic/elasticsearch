@@ -82,9 +82,7 @@ public final class NdJsonFixtureGenerator {
                 Path outputPath = outputDir.resolve(fileName);
                 byte[] ndjson = generateFromRows(parsed, range.from(), range.to());
                 Files.write(outputPath, ndjson);
-                System.out.println(
-                    "Generated NDJSON split fixture: " + outputPath + " (rows " + range.from() + "-" + range.to() + ")"
-                );
+                System.out.println("Generated NDJSON split fixture: " + outputPath + " (rows " + range.from() + "-" + range.to() + ")");
             }
         } else {
             System.err.println("Usage: NdJsonFixtureGenerator <source-csv-path> <output-ndjson-path>");

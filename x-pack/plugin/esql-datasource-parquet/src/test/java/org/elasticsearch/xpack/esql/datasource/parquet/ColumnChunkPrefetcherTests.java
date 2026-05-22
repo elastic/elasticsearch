@@ -124,6 +124,85 @@ public class ColumnChunkPrefetcherTests extends ESTestCase {
         assertThat(result.isEmpty(), equalTo(false));
     }
 
+    /**
+     * Production {@code StorageObject} backends all return direct buffers from
+     * {@code readBytesAsync}, but {@link ColumnChunkPrefetcher} defensively promotes any heap
+     * buffer to direct so that the JNI/Panama decompression path is never starved of direct
+     * memory if a future backend deviates from that convention. This test forces a heap-backed
+     * response and asserts the {@code PrefetchedChunk} ends up direct.
+     */
+    public void testPrefetchPromotesHeapBufferToDirect() throws Exception {
+        byte[] fileData = new byte[1000];
+        for (int i = 0; i < fileData.length; i++) {
+            fileData[i] = (byte) (i & 0xFF);
+        }
+
+        StorageObject storage = new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(fileData);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                int pos = (int) position;
+                int len = (int) Math.min(length, fileData.length - position);
+                return new ByteArrayInputStream(fileData, pos, len);
+            }
+
+            @Override
+            public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
+                executor.execute(() -> {
+                    int pos = (int) position;
+                    int len = (int) Math.min(length, fileData.length - position);
+                    byte[] copy = new byte[len];
+                    System.arraycopy(fileData, pos, copy, 0, len);
+                    // Intentionally heap-backed: ColumnChunkPrefetcher must promote this to direct.
+                    listener.onResponse(ByteBuffer.wrap(copy));
+                });
+            }
+
+            @Override
+            public long length() {
+                return fileData.length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                return Instant.now();
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("test://heap.parquet");
+            }
+        };
+
+        BlockMetaData block = createBlockWithColumns(new ColMeta("col_a", 100, 50));
+
+        CompletableFuture<NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk>> future = ColumnChunkPrefetcher.prefetchAsync(
+            storage,
+            block,
+            null
+        );
+
+        NavigableMap<Long, ColumnChunkPrefetcher.PrefetchedChunk> result = future.get();
+        ColumnChunkPrefetcher.PrefetchedChunk chunk = result.get(100L);
+        assertThat(chunk, notNullValue());
+        assertTrue("PrefetchedChunk must be direct after promotion", chunk.data().isDirect());
+
+        byte[] expected = new byte[50];
+        System.arraycopy(fileData, 100, expected, 0, 50);
+        byte[] actual = new byte[50];
+        chunk.data().duplicate().get(actual);
+        assertArrayEquals(expected, actual);
+    }
+
     public void testPrefetchConcurrentReadCalls() throws Exception {
         AtomicInteger concurrentReads = new AtomicInteger(0);
         AtomicInteger maxConcurrent = new AtomicInteger(0);

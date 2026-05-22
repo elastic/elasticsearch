@@ -112,6 +112,13 @@ public final class VersionsAndSeqNoResolver {
         }
     }
 
+    /**
+     * Sentinel used by {@link PerThreadIDVersionAndSeqNoLookup#timeSeriesBatchLookupVersion} to mark
+     * a position as permanently not found (timestamp newer than all remaining segments) without
+     * producing an actual result. Callers replace it with {@code null} before returning to the user.
+     */
+    static final DocIdAndVersion PERMANENTLY_NOT_FOUND = new DocIdAndVersion(-1, -1L, -1L, -1L, null, -1);
+
     /** Wraps an {@link LeafReaderContext}, a doc ID <b>relative to the context doc base</b> and a seqNo. */
     public static final class DocIdAndSeqNo {
         public final int docId;
@@ -248,7 +255,6 @@ public final class VersionsAndSeqNoResolver {
         }
 
         final DocIdAndVersion[] sortedResults = new DocIdAndVersion[n];
-        final boolean[] done = new boolean[n];
         final PerThreadIDVersionAndSeqNoLookup[] lookups = getLookupState(reader, true);
         final List<LeafReaderContext> leaves = reader.leaves();
         int remaining = n;
@@ -260,19 +266,14 @@ public final class VersionsAndSeqNoResolver {
             final LeafReaderContext leaf = leaves.get(s);
             assert prevMaxTimestamp >= lookups[leaf.ord].maxTimestamp;
             prevMaxTimestamp = lookups[leaf.ord].maxTimestamp;
-            remaining -= lookups[leaf.ord].timeSeriesBatchLookupVersion(
-                leaf,
-                sortedUids,
-                sortedTimestamps,
-                sortedLoadSeqNo,
-                sortedResults,
-                done
-            );
+            remaining -= lookups[leaf.ord].timeSeriesBatchLookupVersion(leaf, sortedUids, sortedTimestamps, sortedLoadSeqNo, sortedResults);
         }
 
-        // Map sorted results back to the caller's original index order.
+        // Map sorted results back to the caller's original index order, replacing the
+        // PERMANENTLY_NOT_FOUND sentinel (timestamp too new for all segments) with null.
         for (int i = 0; i < n; i++) {
-            results[order[i]] = sortedResults[i];
+            final DocIdAndVersion r = sortedResults[i];
+            results[order[i]] = r == PERMANENTLY_NOT_FOUND ? null : r;
         }
     }
 

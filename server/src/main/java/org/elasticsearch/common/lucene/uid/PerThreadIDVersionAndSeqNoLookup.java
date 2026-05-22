@@ -268,15 +268,16 @@ final class PerThreadIDVersionAndSeqNoLookup {
      * <p>
      * {@code sortedUids} must be provided in ascending lexicographic order; {@code sortedTimestamps}
      * must be aligned with {@code sortedUids}. For each uid at sorted position {@code i}, if
-     * {@code done[i]} is false and the uid's timestamp falls within this segment's
+     * {@code results[i]} is null and the uid's timestamp falls within this segment's
      * {@link #minTimestamp}/{@link #maxTimestamp} range, the uid is looked up and the result is written
      * into {@code results[i]} if found.
      * <p>
-     * UIDs whose timestamps exceed {@code maxTimestamp} are permanently resolved (marked done=true)
-     * without a terms lookup, because later segments in
+     * UIDs whose timestamps exceed {@code maxTimestamp} are permanently resolved by storing
+     * {@link VersionsAndSeqNoResolver#PERMANENTLY_NOT_FOUND} in {@code results[i]}, without a terms
+     * lookup, because later segments in
      * {@link org.elasticsearch.cluster.metadata.DataStream#TIMESERIES_LEAF_READERS_SORTER} forward
      * order have even lower maxTimestamps, and therefore also cannot contain them. UIDs with
-     * timestamps below {@code minTimestamp} are skipped for this segment but remain undone so that
+     * timestamps below {@code minTimestamp} are skipped for this segment but remain null so that
      * later segments may resolve them.
      *
      * @return the number of newly resolved UIDs (found in this segment + permanently not found)
@@ -286,8 +287,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
         BytesRef[] sortedUids,
         long[] sortedTimestamps,
         boolean[] loadSeqNo,
-        DocIdAndVersion[] results,
-        boolean[] done
+        DocIdAndVersion[] results
     ) throws IOException {
         assert loadedTimestampRange : "timeSeriesBatchLookupVersion requires loadedTimestampRange=true";
         if (termsEnum == null) {
@@ -304,7 +304,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
         BytesRef currentTerm = null;
 
         for (int i = 0; i < sortedUids.length; i++) {
-            if (done[i]) {
+            if (results[i] != null) {
                 continue;
             }
 
@@ -312,7 +312,7 @@ final class PerThreadIDVersionAndSeqNoLookup {
             if (ts > maxTimestamp) {
                 // Timestamp is newer than any doc in this or subsequent segments (maxTimestamp
                 // decreases monotonically in TIME_SERIES forward iteration order).
-                done[i] = true;
+                results[i] = VersionsAndSeqNoResolver.PERMANENTLY_NOT_FOUND;
                 resolved++;
                 continue;
             }
@@ -369,7 +369,6 @@ final class PerThreadIDVersionAndSeqNoLookup {
                     : UNASSIGNED_PRIMARY_TERM;
                 final long version = readNumericDocValues(context.reader(), VersionFieldMapper.NAME, docID);
                 results[i] = new DocIdAndVersion(docID, version, seqNo, term, context.reader(), context.docBase);
-                done[i] = true;
                 resolved++;
             }
         }

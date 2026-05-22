@@ -4,13 +4,16 @@
  * 2.0; you may not use this file except in compliance with the Elastic License
  * 2.0.
  */
-package org.elasticsearch.xpack.core.crypto;
+package org.elasticsearch.xpack.security.spi.encryption;
 
 /**
  * Provides symmetric encrypt/decrypt operations.
  *
- * <p>Callers never handle raw key material. The returned {@link EncryptedData} is self-describing,
- * carrying the key ID alongside the encrypted payload so that features can store both.
+ * <p>Callers never handle raw key material. The returned {@link EncryptedData} is self-describing, carrying the key ID alongside the
+ * encrypted payload so that features can store both.
+ *
+ * <p>Features that store encrypted data must register an {@code EncryptedDataHandler} so that their data can be re-encrypted under
+ * a new key when the primary encryption key rotates. Registration is done via the {@code EncryptedDataHandlerProvider} SPI.
  */
 public interface EncryptionService {
 

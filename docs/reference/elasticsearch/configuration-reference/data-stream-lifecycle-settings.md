@@ -8,7 +8,6 @@ applies_to:
 
 # Data stream lifecycle settings in {{es}} [data-stream-lifecycle-settings]
 
-
 These are the settings available for configuring [data stream lifecycle](docs-content://manage-data/lifecycle/data-stream.md).
 
 ## Cluster level settings [_cluster_level_settings]
@@ -38,7 +37,6 @@ $$$cluster-lifecycle-default-rollover$$$
     * or the index reaches a certain age which depends on the retention time of your data stream,
     * **and** has at least one document.
 
-
 $$$data-streams-lifecycle-target-merge-factor$$$
 
 `data_streams.lifecycle.target.merge.policy.merge_factor`
@@ -59,7 +57,7 @@ $$$data-streams-lifecycle-signalling-error-retry-interval$$$
 stack: ga 9.5
 ```
 
-The following settings control the behavior of the [frozen tier transition](/reference/elasticsearch/rest-apis/data-stream-lifecycle-frozen-transition.md), which automatically converts data stream backing indices to [searchable snapshots](docs-content://deploy-manage/tools/snapshot-and-restore/searchable-snapshots.md) on the frozen tier.
+The following settings control the behavior of the frozen tier transition, which automatically converts data stream backing indices to [searchable snapshots](docs-content://deploy-manage/tools/snapshot-and-restore/searchable-snapshots.md) on the frozen tier.
 
 $$$dlm-frozen-transition-poll-interval$$$
 
@@ -81,7 +79,6 @@ $$$dlm-frozen-cleanup-poll-interval$$$
 `dlm.frozen_cleanup.poll_interval`
 :   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), [time unit value](/reference/elasticsearch/rest-apis/api-conventions.md#time-units)) How often the master node scans for and deletes orphaned artifacts (clone indices and snapshots) left behind by interrupted frozen conversions. Must be at least `1h`. Defaults to `1d`.
 
-
 ## Index level settings [_index_level_settings]
 
 :::{include} ../index-settings/_snippets/serverless-availability.md
@@ -102,7 +99,7 @@ $$$index-data-stream-lifecycle-origination-date$$$
 $$$index-dlm-frozen-created$$$
 
 `index.dlm.frozen.created`
-:   ([Static](../index-settings/index.md#index-modules-settings-description), boolean) An internal marker set on indices created by the data stream lifecycle during [frozen tier conversion](/reference/elasticsearch/rest-apis/data-stream-lifecycle-frozen-transition.md) (clone indices and mounted searchable snapshots). This setting is not user-configurable. It is surfaced here for diagnostics and tooling purposes only.
+:   ([Static](../index-settings/index.md#index-modules-settings-description), boolean) An internal marker set on indices created by the data stream lifecycle during frozen tier conversion (clone indices and mounted searchable snapshots). This setting is not user-configurable. It is surfaced here for diagnostics and tooling purposes only.
 
 ## Reindex settings [reindex-data-stream-settings]
 

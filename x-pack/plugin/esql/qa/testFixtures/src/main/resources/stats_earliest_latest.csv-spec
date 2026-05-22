@@ -405,3 +405,19 @@ FROM exp_histo_sample
 first_hist:exponential_histogram
 "{""scale"":0}"
 ;
+
+# ----------------------------------------------------------------------------------------------------------------------
+
+Test earliest aggregation on tdigest type
+required_capability: earliest_latest_aggs
+required_capability: first_agg_extended_types_2
+required_capability: tdigest_time_series_metric
+
+FROM tdigest_standard_index
+| WHERE instance == "hand-rolled-empty"
+| STATS first_td = EARLIEST(responseTime)
+;
+
+first_td:tdigest
+"{""centroids"":[], ""counts"":[]}"
+;

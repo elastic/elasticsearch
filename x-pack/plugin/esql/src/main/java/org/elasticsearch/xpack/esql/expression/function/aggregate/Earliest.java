@@ -56,6 +56,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
             "ip",
             "keyword",
             "long",
+            "tdigest",
             "unsigned_long",
             "version" },
         description = """
@@ -86,6 +87,7 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
                 "ip",
                 "keyword",
                 "long",
+                "tdigest",
                 "unsigned_long",
                 "text",
                 "version" },
@@ -144,7 +146,8 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
                 || dt == DataType.GEOTILE
                 || dt == DataType.GEOHEX
                 || dt == DataType.DENSE_VECTOR
-                || dt == DataType.EXPONENTIAL_HISTOGRAM,
+                || dt == DataType.EXPONENTIAL_HISTOGRAM
+                || dt == DataType.TDIGEST,
             sourceText(),
             DEFAULT,
             "boolean",
@@ -153,7 +156,8 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
             "exponential_histogram",
             "ip",
             "string",
-            "numeric except counter types"
+            "numeric except counter types",
+            "tdigest"
         ).and(
             isType(
                 timestamp,

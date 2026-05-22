@@ -20,6 +20,7 @@ import org.apache.parquet.schema.Type;
 import org.apache.parquet.schema.Types;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFixtureParser;
+import org.elasticsearch.xpack.esql.datasource.csv.SplitPartitioner;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -95,13 +96,14 @@ public final class ParquetFixtureGenerator {
             String baseName = sourcePath.getFileName().toString().replaceFirst("\\.csv$", "");
             CsvFixtureParser.CsvFixtureResult result = CsvFixtureParser.parseCsvFile(sourcePath);
             int total = result.rows().size();
-            int partSize = (total + numParts - 1) / numParts;
             for (int part = 0; part < numParts; part++) {
-                int from = part * partSize;
-                int to = Math.min(from + partSize, total);
+                SplitPartitioner.Range range = SplitPartitioner.partitionRange(total, numParts, part);
+                if (range == null) {
+                    break;
+                }
                 String fileName = String.format(Locale.ROOT, "%s_%02d.parquet", baseName, part);
                 Path outputPath = outputDir.resolve(fileName);
-                byte[] parquetBytes = generateFromRows(result, from, to, codec);
+                byte[] parquetBytes = generateFromRows(result, range.from(), range.to(), codec);
                 Files.write(outputPath, parquetBytes);
                 System.out.println("Generated Parquet fixture (" + codec + "): " + outputPath);
             }

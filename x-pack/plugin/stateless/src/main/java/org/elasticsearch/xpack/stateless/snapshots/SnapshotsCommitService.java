@@ -187,7 +187,7 @@ public class SnapshotsCommitService implements ClusterStateListener {
      */
     // Package private for testing
     void registerReleaseForSnapshot(ShardId shardId, Snapshot snapshot, SnapshotIndexCommit snapshotIndexCommit) {
-        final var releasable = Releasables.releaseOnce(() -> closeSnapshotIndexCommit(snapshotIndexCommit, shardId, snapshot));
+        final var releasable = Releasables.releaseOnce(snapshotIndexCommit::releaseInitialReference);
 
         final var old = new Releasable[1];
         final var shardReleasables = snapshotsCommitReleasables.compute(shardId, (k, v) -> {

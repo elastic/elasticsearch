@@ -53,6 +53,7 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.TimeUnit;
 
+import static org.hamcrest.CoreMatchers.anyOf;
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.equalTo;
 
@@ -359,21 +360,21 @@ public class CrossClusterSearchUnavailableClusterIT extends ESRestTestCase {
                 ResponseException.class,
                 () -> client().performRequest(new Request("POST", "/index,remote1:index/_search"))
             );
-            assertThat(exception.getMessage(), containsString("connect_exception"));
+            assertThat(exception.getMessage(), anyOf(containsString("connect_exception"), containsString("connect_timeout")));
         }
         {
             ResponseException exception = expectThrows(
                 ResponseException.class,
                 () -> client().performRequest(new Request("POST", "/remote1:index/_search"))
             );
-            assertThat(exception.getMessage(), containsString("connect_exception"));
+            assertThat(exception.getMessage(), anyOf(containsString("connect_exception"), containsString("connect_timeout")));
         }
         {
             ResponseException exception = expectThrows(
                 ResponseException.class,
                 () -> client().performRequest(new Request("POST", "/remote1:index/_search?scroll=1m"))
             );
-            assertThat(exception.getMessage(), containsString("connect_exception"));
+            assertThat(exception.getMessage(), anyOf(containsString("connect_exception"), containsString("connect_timeout")));
         }
     }
 

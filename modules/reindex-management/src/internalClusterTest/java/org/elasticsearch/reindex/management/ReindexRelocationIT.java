@@ -207,7 +207,6 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         final boolean isRemote,
         final int shards
     ) throws Exception {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
 
         final String nodeAName = internalCluster().startNode(
             NodeRoles.onlyRoles(Set.of(DiscoveryNodeRole.DATA_ROLE, DiscoveryNodeRole.MASTER_ROLE))
@@ -267,7 +266,6 @@ public class ReindexRelocationIT extends ESIntegTestCase {
      * The source's CREATE actually executes but is a no-op since the document already exists.
      */
     public void testTasksIndexDestinationWritesFirstThenSourceIsNoOp() throws Exception {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final int shards = randomIntBetween(1, 5);
         final var expectedDescription = localReindexDescription();
 
@@ -327,7 +325,6 @@ public class ReindexRelocationIT extends ESIntegTestCase {
      * the source's document, bumping the version to 2.
      */
     public void testTasksIndexSourceWritesFirstThenDestinationOverwrites() throws Exception {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final int shards = randomIntBetween(1, 5);
         final var expectedDescription = localReindexDescription();
 
@@ -377,7 +374,6 @@ public class ReindexRelocationIT extends ESIntegTestCase {
      * node, so only the destination's write (in {@code Reindexer.storeRelocationSourceTaskResult}) succeeds.
      */
     public void testTasksIndexDestinationWrites() throws Exception {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final int shards = randomIntBetween(1, 5);
         final var expectedDescription = localReindexDescription();
 
@@ -563,7 +559,7 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         // trigger reindex relocation
         internalCluster().getInstance(ShutdownPrepareService.class, nodeName).prepareForShutdown();
 
-        assertOnlyRelocationReindexMetricsOnNode(nodeName);
+        assertNoReindexMetricsOnSourceNode(nodeName);
 
         // Wait for .tasks and replica to be created before stopping nodeB, otherwise the replica
         // on nodeA is stale and can't be promoted to primary when nodeB leaves
@@ -905,18 +901,15 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             .orElseThrow();
     }
 
-    private void assertOnlyRelocationReindexMetricsOnNode(final String nodeName) {
+    private void assertNoReindexMetricsOnSourceNode(final String nodeName) {
         final TestTelemetryPlugin plugin = getTelemetryPlugin(nodeName);
         plugin.collect();
         assertThat(plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_COMPLETION_COUNTER), is(empty()));
         assertThat(plugin.getLongHistogramMeasurement(ReindexMetrics.REINDEX_TIME_HISTOGRAM), is(empty()));
-        final var relocationCounter = plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER);
-        assertThat("relocation metric updated", relocationCounter.size(), equalTo(1));
-        assertThat("relocation metric updated", relocationCounter.getFirst().getLong(), equalTo(1L));
         assertThat(
-            "relocation metric was successful",
-            relocationCounter.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE),
-            is(nullValue())
+            "relocation metric should not be updated on the source node [" + nodeName + "]",
+            plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER),
+            is(empty())
         );
     }
 
@@ -928,20 +921,12 @@ public class ReindexRelocationIT extends ESIntegTestCase {
         assertNull(completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE));
         final String expectedSource = isRemote ? ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_REMOTE : ReindexMetrics.ATTRIBUTE_VALUE_SOURCE_LOCAL;
         assertThat(completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SOURCE), equalTo(expectedSource));
-        SlicingMode slicingMode = null;
-        if (slices == 0) {
-            slicingMode = SlicingMode.AUTO;
-        } else if (slices == 1) {
-            slicingMode = SlicingMode.NONE;
-        } else if (slices > 1) {
-            slicingMode = SlicingMode.FIXED;
-        } else {
-            fail("invalid slices value: " + slices);
-        }
+        final SlicingMode slicingMode = slicingModeFromSliceCount(slices);
         assertThat(
             completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
             equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
         );
+        assertThat(completions.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_RELOCATED), equalTo(true));
         final List<Measurement> durations = plugin.getLongHistogramMeasurement(ReindexMetrics.REINDEX_TIME_HISTOGRAM);
         assertThat(durations.size(), equalTo(1));
         final Measurement duration = durations.getFirst();
@@ -951,7 +936,30 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             duration.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
             equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
         );
-        assertThat("no relocation metric", plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER).size(), equalTo(0));
+        assertThat(duration.attributes().get(ReindexMetrics.ATTRIBUTE_NAME_RELOCATED), equalTo(true));
+        final List<Measurement> relocations = plugin.getLongCounterMeasurement(ReindexMetrics.REINDEX_RELOCATION_COUNTER);
+        assertThat(relocations.size(), equalTo(1));
+        assertThat(relocations.getFirst().getLong(), equalTo(1L));
+        assertThat(relocations.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_ERROR_TYPE), is(nullValue()));
+        assertThat(relocations.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SOURCE), equalTo(expectedSource));
+        assertThat(
+            relocations.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_SLICING_MODE),
+            equalTo(slicingMode.name().toLowerCase(Locale.ROOT))
+        );
+        assertThat(relocations.getFirst().attributes().get(ReindexMetrics.ATTRIBUTE_NAME_RELOCATED), equalTo(true));
+    }
+
+    private static SlicingMode slicingModeFromSliceCount(final int slices) {
+        if (slices == 0) {
+            return SlicingMode.AUTO;
+        } else if (slices == 1) {
+            return SlicingMode.NONE;
+        } else if (slices > 1) {
+            return SlicingMode.FIXED;
+        } else {
+            fail("invalid slices value: " + slices);
+            return null;
+        }
     }
 
     private void assertExpectedNumberOfDocumentsInDestinationIndex() throws IOException {

@@ -35,17 +35,19 @@ import static org.apache.lucene.index.VectorSimilarityFunction.MAXIMUM_INNER_PRO
 public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsScorer {
 
     enum QuantEncoding {
+        D1Q1,
         D1Q4,
         D2Q4,
         D4Q4_STRIPED,
         D4Q4_PACKED,
         D7Q7;
 
-        static QuantEncoding of(byte queryBits, byte indexBits, ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding) {
+        static QuantEncoding of(byte queryBits, byte indexBits, BitEncoding bitEncoding) {
             return switch ((queryBits << 8) | indexBits) {
+                case (1 << 8) | 1 -> D1Q1;
                 case (4 << 8) | 1 -> D1Q4;
                 case (4 << 8) | 2 -> D2Q4;
-                case (4 << 8) | 4 -> int4Encoding == ES940OSQVectorsScorer.SymmetricInt4Encoding.PACKED_NIBBLE ? D4Q4_PACKED : D4Q4_STRIPED;
+                case (4 << 8) | 4 -> bitEncoding == BitEncoding.PACKED ? D4Q4_PACKED : D4Q4_STRIPED;
                 case (7 << 8) | 7 -> D7Q7;
                 default -> throw new IllegalArgumentException("Unsupported query/index bits combination: " + queryBits + "/" + indexBits);
             };
@@ -59,9 +61,9 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         int dimensions,
         int dataLength,
         int bulkSize,
-        @Nullable ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+        @Nullable ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) {
-        if (int4Encoding == null) int4Encoding = SymmetricInt4Encoding.STRIPED;
+        if (bitEncoding == null) bitEncoding = BitEncoding.STRIPED;
         return new MemorySegmentES940OSQVectorsScorer(
             in,
             queryBits,
@@ -69,8 +71,8 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             dimensions,
             dataLength,
             bulkSize,
-            int4Encoding,
-            createNativeScorer(QuantEncoding.of(queryBits, indexBits, int4Encoding), in, dimensions, dataLength, bulkSize)
+            bitEncoding,
+            createNativeScorer(QuantEncoding.of(queryBits, indexBits, bitEncoding), in, dimensions, dataLength, bulkSize)
         );
     }
 
@@ -81,9 +83,9 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         int dimensions,
         int dataLength,
         int bulkSize,
-        @Nullable ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+        @Nullable ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) {
-        if (int4Encoding == null) int4Encoding = SymmetricInt4Encoding.STRIPED;
+        if (bitEncoding == null) bitEncoding = BitEncoding.STRIPED;
         return new MemorySegmentES940OSQVectorsScorer(
             in,
             queryBits,
@@ -91,8 +93,8 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             dimensions,
             dataLength,
             bulkSize,
-            int4Encoding,
-            createPanamaScorer(QuantEncoding.of(queryBits, indexBits, int4Encoding), in, dimensions, dataLength, bulkSize)
+            bitEncoding,
+            createPanamaScorer(QuantEncoding.of(queryBits, indexBits, bitEncoding), in, dimensions, dataLength, bulkSize)
         );
     }
 
@@ -105,15 +107,16 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         int dimensions,
         int dataLength,
         int bulkSize,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding,
+        ES940OSQVectorsScorer.BitEncoding bitEncoding,
         MemorySegmentScorer scorer
     ) {
-        super(in, queryBits, indexBits, dimensions, dataLength, bulkSize, int4Encoding);
+        super(in, queryBits, indexBits, dimensions, dataLength, bulkSize, bitEncoding);
         this.scorer = scorer;
     }
 
     private static MemorySegmentScorer createNativeScorer(QuantEncoding enc, IndexInput in, int dimensions, int dataLength, int bulkSize) {
         return switch (enc) {
+            case D1Q1 -> throw new IllegalArgumentException("D1Q1 has no native scorer yet");
             case D1Q4 -> new NativeD1Q4Scorer(in, dimensions, dataLength, bulkSize);
             case D2Q4 -> new NativeD2Q4Scorer(in, dimensions, dataLength, bulkSize);
             case D4Q4_STRIPED -> new NativeD4Q4Scorer(in, dimensions, dataLength, bulkSize);
@@ -124,6 +127,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
 
     private static MemorySegmentScorer createPanamaScorer(QuantEncoding enc, IndexInput in, int dimensions, int dataLength, int bulkSize) {
         return switch (enc) {
+            case D1Q1 -> new MSBitToBitESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D1Q4 -> new MSBitToInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D2Q4 -> new MSDibitToInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
             case D4Q4_STRIPED -> new MSInt4SymmetricES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
@@ -278,7 +282,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
     }
 
     static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, NativeD7Q7ES940OSQVectorsScorer,
-        MSBitToInt4ES940OSQVectorsScorer, MSDibitToInt4ES940OSQVectorsScorer, MSInt4SymmetricES940OSQVectorsScorer,
+        MSBitToBitESNextOSQVectorsScorer,  MSBitToInt4ES940OSQVectorsScorer, MSDibitToInt4ES940OSQVectorsScorer, MSInt4SymmetricES940OSQVectorsScorer,
         MSD7Q7ES940OSQVectorsScorer, NativePackedInt4ES940OSQVectorsScorer {
 
         static final float ONE_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[0];
@@ -313,7 +317,7 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
          * otherwise an {@link IllegalArgumentException} is thrown.
          *
          * <p> Memory segment access is handled by
-         * {@link org.elasticsearch.simdvec.internal.IndexInputUtils#withSlice
+         * {@link IndexInputUtils#withSlice
          * IndexInputUtils.withSlice}, which probes the index input for
          * {@link MemorySegmentAccessInput} /
          * {@link DirectAccessInput} support and

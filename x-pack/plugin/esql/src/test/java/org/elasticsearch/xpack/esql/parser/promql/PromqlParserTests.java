@@ -11,6 +11,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.parser.QueryParams;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.AcrossSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
@@ -621,6 +622,27 @@ public class PromqlParserTests extends ESTestCase {
             () -> TEST_PARSER.parseQuery("PROMQL index=?idx step=5m avg(foo)", paramsAsConstant("idx", 42))
         );
         assertThat(e.getMessage(), containsString("Parameter [?idx] for index must be a string"));
+    }
+
+    public void testTsCollapseAfterPromql() {
+        TimeSeriesCollapse collapse = as(
+            TEST_PARSER.parseQuery("PROMQL index=test step=5m (avg(foo)) | TS_COLLAPSE"),
+            TimeSeriesCollapse.class
+        );
+        as(collapse.child(), PromqlCommand.class);
+    }
+
+    public void testTsCollapseNotAfterPromql() {
+        ParsingException e = assertThrows(ParsingException.class, () -> TEST_PARSER.parseQuery("ROW a = 1 | TS_COLLAPSE"));
+        assertThat(e.getMessage(), containsString("TS_COLLAPSE can only appear directly after a PROMQL command"));
+    }
+
+    public void testTsCollapseNotDirectlyAfterPromql() {
+        ParsingException e = assertThrows(
+            ParsingException.class,
+            () -> TEST_PARSER.parseQuery("PROMQL index=test step=5m (avg(foo)) | LIMIT 1 | TS_COLLAPSE")
+        );
+        assertThat(e.getMessage(), containsString("TS_COLLAPSE can only appear directly after a PROMQL command"));
     }
 
     private static PromqlCommand parse(String query) {

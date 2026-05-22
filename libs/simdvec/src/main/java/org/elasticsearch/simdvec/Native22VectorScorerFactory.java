@@ -41,6 +41,11 @@ import java.util.Optional;
 final class Native22VectorScorerFactory implements VectorScorerFactory {
 
     @Override
+    public boolean usesNative() {
+        return true;
+    }
+
+    @Override
     public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
         // no native implementation, just use the panama one
         return new Panama22VectorScorerFactory().newES91OSQVectorsScorer(input, dimension, bulkSize);
@@ -54,7 +59,7 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
         int dimension,
         int dataLength,
         int bulkSize,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+        ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) throws IOException {
         // native scorers might still use panama for some things, so check panama is ok
         // this is true for all modern CPUs anyway
@@ -69,11 +74,11 @@ final class Native22VectorScorerFactory implements VectorScorerFactory {
                     dimension,
                     dataLength,
                     bulkSize,
-                    int4Encoding
+                    bitEncoding
                 );
             }
         }
-        return new ES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
+        return new ES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, bitEncoding);
     }
 
     @Override

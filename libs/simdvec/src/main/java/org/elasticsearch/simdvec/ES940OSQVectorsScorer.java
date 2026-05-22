@@ -26,14 +26,14 @@ public class ES940OSQVectorsScorer {
 
     public static boolean supportsQuantization(byte queryBits, byte indexBits) {
         return switch ((queryBits << 8) | indexBits) {
-            case (4 << 8) | 1, (4 << 8) | 2, (4 << 8) | 4, (7 << 8) | 7 -> true;
+            case (1 << 8) | 1, (4 << 8) | 1, (4 << 8) | 2, (4 << 8) | 4, (7 << 8) | 7 -> true;
             default -> false;
         };
     }
 
-    public enum SymmetricInt4Encoding {
+    public enum BitEncoding {
         STRIPED,
-        PACKED_NIBBLE
+        PACKED
     }
 
     protected static final float[] BIT_SCALES = new float[] {
@@ -54,7 +54,7 @@ public class ES940OSQVectorsScorer {
     protected final int length;
     protected final int dimensions;
     protected final int bulkSize;
-    protected final SymmetricInt4Encoding int4Encoding;
+    protected final BitEncoding bitEncoding;
 
     protected final float[] lowerIntervals;
     protected final float[] upperIntervals;
@@ -70,7 +70,7 @@ public class ES940OSQVectorsScorer {
         int dimensions,
         int dataLength,
         int bulkSize,
-        SymmetricInt4Encoding int4Encoding
+        BitEncoding bitEncoding
     ) {
         if (!supportsQuantization(queryBits, indexBits)) {
             throw new IllegalArgumentException(queryBits + " query bits with " + indexBits + " index bits is not supported");
@@ -85,13 +85,13 @@ public class ES940OSQVectorsScorer {
         this.targetComponentSums = new int[bulkSize];
         this.additionalCorrections = new float[bulkSize];
         this.bulkSize = bulkSize;
-        this.int4Encoding = int4Encoding == null ? SymmetricInt4Encoding.STRIPED : int4Encoding;
+        this.bitEncoding = bitEncoding == null ? BitEncoding.STRIPED : bitEncoding;
         this.scratch = indexBits == 7 ? new byte[dimensions] : null;
-        this.packedScratch = indexBits == 4 && this.int4Encoding == SymmetricInt4Encoding.PACKED_NIBBLE ? new byte[dataLength] : null;
+        this.packedScratch = indexBits == 4 && this.bitEncoding == BitEncoding.PACKED ? new byte[dataLength] : null;
     }
 
     public ES940OSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength, int bulkSize) {
-        this(in, queryBits, indexBits, dimensions, dataLength, bulkSize, SymmetricInt4Encoding.STRIPED);
+        this(in, queryBits, indexBits, dimensions, dataLength, bulkSize, BitEncoding.STRIPED);
     }
 
     public ES940OSQVectorsScorer(IndexInput in, byte queryBits, byte indexBits, int dimensions, int dataLength) {
@@ -104,19 +104,32 @@ public class ES940OSQVectorsScorer {
      */
     public long quantizeScore(byte[] q) throws IOException {
         if (indexBits == 1) {
-            return quantized4BitScore(q, length);
+            if (queryBits == 1) {
+                return quantized1BitScoreSymmetric(q, length);
+            } else if (queryBits == 4) {
+                return quantized4BitScore(q, length);
+            }
         }
         if (indexBits == 2) {
             return quantized4BitScore2BitIndex(q);
         }
         if (indexBits == 4) {
-            if (int4Encoding == SymmetricInt4Encoding.PACKED_NIBBLE) {
+            if (bitEncoding == BitEncoding.PACKED) {
                 return quantized4BitScorePacked(q);
             }
             return quantized4BitScoreSymmetric(q);
         }
         assert (indexBits == 7);
         return quantized7BitScore(q);
+    }
+
+    private long quantized1BitScoreSymmetric(byte[] q, int length) throws IOException {
+        assert q.length == length : "length mismatch q " + q.length + " vs " + length;
+        long score = 0;
+        for (int i = 0; i < length; i++) {
+            score += Long.bitCount((q[i] & in.readByte()) & 0xFF);
+        }
+        return score;
     }
 
     private long quantized7BitScore(byte[] q) throws IOException {

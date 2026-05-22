@@ -31,6 +31,11 @@ import java.util.Optional;
 final class Panama21VectorScorerFactory implements VectorScorerFactory {
 
     @Override
+    public boolean usesNative() {
+        return false;
+    }
+
+    @Override
     public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
         if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
@@ -50,7 +55,7 @@ final class Panama21VectorScorerFactory implements VectorScorerFactory {
         int dimension,
         int dataLength,
         int bulkSize,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+        ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) throws IOException {
         if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS && ES940OSQVectorsScorer.supportsQuantization(queryBits, indexBits)) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
@@ -63,11 +68,11 @@ final class Panama21VectorScorerFactory implements VectorScorerFactory {
                     dimension,
                     dataLength,
                     bulkSize,
-                    int4Encoding
+                bitEncoding
                 );
             }
         }
-        return new ES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
+        return new ES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, bitEncoding);
     }
 
     @Override

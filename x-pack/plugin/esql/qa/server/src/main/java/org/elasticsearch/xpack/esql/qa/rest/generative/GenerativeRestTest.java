@@ -35,6 +35,8 @@ import org.elasticsearch.xpack.esql.generator.command.pipe.RenameGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.StatsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.pipe.UriPartsGenerator;
 import org.elasticsearch.xpack.esql.generator.command.source.FromGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.FromLoadGenerator;
+import org.elasticsearch.xpack.esql.generator.command.source.PromQLGenerator;
 import org.elasticsearch.xpack.esql.qa.rest.ProfileLogger;
 import org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase;
 import org.junit.AfterClass;
@@ -81,14 +83,32 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      * so muting a feature-specific failure doesn't widen the surface for runs that don't enable the feature.
      */
     private static final Map<GenerativeFeature, Set<String>> FEATURE_ALLOWED_ERRORS = Map.of(
-        GenerativeFeature.SUBQUERIES,
-        Set.of(
+        GenerativeFeature.SUBQUERIES, Set.of(
             // Known generator limitation: when a multi-source FROM mixes a subquery branch with
             // plain index patterns, the subquery-aware union-types resolution
             // (EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION) treats cross-branch
             // type differences as a hard error instead of merging them via union types like plain "FROM a, b" would.
             // This message is "expected" here, as predicting type conflicts has to be implemented first
             "has conflicting data types in subqueries"
+        ),
+        GenerativeFeature.UNMAPPED_FIELDS_LOAD, Set.of(
+            // https://github.com/elastic/elasticsearch/issues/141995, https://github.com/elastic/elasticsearch/issues/141990
+            "missing references \\[.*\\]",
+            // https://github.com/elastic/elasticsearch/issues/142026
+            "column \\[.*\\] already resolved",
+            // https://github.com/elastic/elasticsearch/issues/142033, https://github.com/elastic/elasticsearch/issues/142026
+            "is not supported with unmapped_fields",
+            "does not support full-text search function",
+            "type \\[null\\] .* not supported",
+            // https://github.com/elastic/elasticsearch/issues/145555
+            "Multiple index patterns should be disabled with unmapped fields",
+            // https://github.com/elastic/elasticsearch/issues/146036
+            "argument of \\[.*\\] must be \\[unsupported\\], found value",
+            "LOOKUP JOIN is not supported with unmapped_fields=\\\"load\\\"",
+            // https://github.com/elastic/elasticsearch/issues/146074
+            "Input for REGISTERED_DOMAIN must be of type \\[string\\] but is \\[unsupported]\\",
+            "argument of \\[.*\\] is \\[keyword\\] so .* argument must also be \\[keyword\\] but was \\[.*\\]",
+            "FORK is not supported with unmapped_fields=\\\"load\\\""
         )
     );
 
@@ -212,6 +232,16 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
         Pattern.DOTALL
     );
 
+    /**
+     * Matches "argument of [X] is [keyword] so ... argument must also be [keyword] but was [Y]" errors.
+     * This happens when an unmapped field that is force-loaded as keyword is used in a binary operation
+     * with a non-keyword typed value (e.g. {@code unmapped_field > 31}).
+     */
+    private static final Pattern KEYWORD_TYPE_MISMATCH_FOR_LOADED_FIELD_PATTERN = Pattern.compile(
+        ".*argument of \\[([^]]+)] is \\[keyword] so .* argument must also be \\[keyword] but was \\[.*].*",
+        Pattern.DOTALL
+    );
+
     private static final Set<String> UNMAPPED_NAMES = Set.of(UNMAPPED_FIELD_NAMES);
 
     @Before
@@ -236,7 +266,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     protected abstract boolean supportsSourceFieldMapping();
 
     protected boolean requiresTimeSeries() {
-        return false;
+        return isFeatureEnabled(GenerativeFeature.METRICS) || isFeatureEnabled(GenerativeFeature.PROMQL);
     }
 
     @AfterClass
@@ -374,6 +404,15 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     protected CommandGenerator sourceCommand() {
+        if (isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD)) {
+            return FromLoadGenerator.INSTANCE;
+        }
+        if (isFeatureEnabled(GenerativeFeature.METRICS)) {
+            return EsqlQueryGenerator.timeSeriesSourceCommand();
+        }
+        if (isFeatureEnabled(GenerativeFeature.PROMQL)) {
+            return PromQLGenerator.INSTANCE;
+        }
         return EsqlQueryGenerator.sourceCommand();
     }
 
@@ -383,6 +422,10 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
      */
     protected Set<GenerativeFeature> enabledFeatures() {
         return Set.of();
+    }
+
+    protected boolean isFeatureEnabled(GenerativeFeature feature) {
+        return enabledFeatures().contains(feature);
     }
 
     /**
@@ -482,6 +525,9 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             if (rule.matches(ctx)) {
                 return true;
             }
+        }
+        if (isFeatureEnabled(GenerativeFeature.UNMAPPED_FIELDS_LOAD) && isUnmappedFieldsLoadAllowedFailure(ctx)) {
+            return true;
         }
         return false;
     }
@@ -594,7 +640,7 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
     }
 
     protected static boolean isUnmappedFieldPrefixError(String errorMessage, String query, String prefix) {
-        if (query.startsWith(prefix) == false) {
+        if (query == null || query.startsWith(prefix) == false) {
             return false;
         }
         String errorWithoutLineBreaks = normalizeErrorMessage(errorMessage);
@@ -619,6 +665,22 @@ public abstract class GenerativeRestTest extends ESRestTestCase implements Query
             return UNMAPPED_NAMES.stream().anyMatch(name -> functionExpression.contains(name) || foundValue.contains(name));
         }
 
+        return false;
+    }
+
+    private static boolean isUnmappedFieldsLoadAllowedFailure(FailureContext ctx) {
+        if (isUnmappedFieldPrefixError(ctx.errorMessage, ctx.query, FromLoadGenerator.SET_LOAD_PREFIX)) {
+            return true;
+        }
+        return isKeywordTypeMismatchForLoadedField(ctx.normalizedErrorMessage);
+    }
+
+    private static boolean isKeywordTypeMismatchForLoadedField(String errorMessage) {
+        Matcher matcher = KEYWORD_TYPE_MISMATCH_FOR_LOADED_FIELD_PATTERN.matcher(errorMessage);
+        if (matcher.matches()) {
+            String expression = matcher.group(1);
+            return UNMAPPED_NAMES.stream().anyMatch(expression::contains);
+        }
         return false;
     }
 

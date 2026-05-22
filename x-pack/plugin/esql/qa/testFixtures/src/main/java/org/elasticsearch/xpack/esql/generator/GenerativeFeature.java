@@ -24,5 +24,21 @@ public enum GenerativeFeature {
      * Allow {@code FROM (...)} subqueries to be produced as sources. See
      * {@code GenerativeSubqueryRestTest}.
      */
-    SUBQUERIES
+    SUBQUERIES,
+
+    /**
+     * Always prepend {@code SET unmapped_fields="load"} and force unmapped
+     * fields to be loaded as keyword fields.
+     */
+    UNMAPPED_FIELDS_LOAD,
+
+    /**
+     * Start generated pipelines from time-series source commands.
+     */
+    METRICS,
+
+    /**
+     * Start generated pipelines from {@code PROMQL}.
+     */
+    PROMQL
 }

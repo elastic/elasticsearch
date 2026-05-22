@@ -53,7 +53,6 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
     private final SourceLoader sourceLoader;
 
     private final boolean routingDocValues;
-    private final boolean columnarId;
     private int skippedOperations;
     private long lastSeenSeqNo;
 
@@ -98,7 +97,6 @@ public final class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChang
         this.storedFieldLoader = StoredFieldLoader.create(false, storedFields, forceSequentialReader);
         RoutingFieldMapper routingMapper = (RoutingFieldMapper) mapperService.mappingLookup().getMapper(RoutingFieldMapper.NAME);
         this.routingDocValues = routingMapper != null && routingMapper.docValues();
-        columnarId = mapperService.isUseColumnarId();
         this.lastSeenSeqNo = fromSeqNo - 1;
     }
 

@@ -577,23 +577,34 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         );
                         indexService.removeShard(
                             shardId.id(),
-                            "removing shard (stale copy)",
+                            "removing shard (stale allocation id)",
                             shardCloseExecutor,
                             getShardsClosedListener()
                         );
-                    } else if (newShardRouting.initializing() && currentShardRouting.active()) {
+                        continue;
+                    }
+
+                    if (newShardRouting.initializing() && currentShardRouting.active()) {
                         // This can happen if the node was isolated/gc-ed, rejoins the cluster and a new shard with the same allocation id
                         // is assigned to it.
                         // Batch cluster state processing or a shard fetching completion before the node gets a new cluster state may result
                         // in a new shard being initialized while having the same allocation id as the currently started shard.
-                        logger.debug("{} removing shard (not active, current {}, new {})", shardId, currentShardRouting, newShardRouting);
+                        logger.debug(
+                            "{} removing shard (stale active shard, current {}, new {})",
+                            shardId,
+                            currentShardRouting,
+                            newShardRouting
+                        );
                         indexService.removeShard(
                             shardId.id(),
-                            "removing shard (stale copy)",
+                            "removing shard (stale active shard)",
                             shardCloseExecutor,
                             getShardsClosedListener()
                         );
-                    } else if (newShardRouting.initializing() && newShardRouting.primary() && currentShardRouting.primary() == false) {
+                        continue;
+                    }
+
+                    if (newShardRouting.initializing() && newShardRouting.primary() && currentShardRouting.primary() == false) {
                         assert currentShardRouting.initializing() : currentShardRouting; // see above if clause
                         assert newTerm > existingTerm
                             : Strings.format(
@@ -606,14 +617,22 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                             );
                         // During a replica promotion, batch cluster state processing could cause the cluster state changed event
                         // to go straight from initializing (term1) -> initializing (term2). The stale shard should be cleaned up.
-                        logger.debug("{} removing shard (promotion, current {}, new {})", shardId, currentShardRouting, newShardRouting);
+                        logger.debug(
+                            "{} removing shard (primary promotion, current {}, new {})",
+                            shardId,
+                            currentShardRouting,
+                            newShardRouting
+                        );
                         indexService.removeShard(
                             shardId.id(),
-                            "removing shard (stale copy)",
+                            "removing shard (primary promotion)",
                             shardCloseExecutor,
                             getShardsClosedListener()
                         );
-                    } else if (newShardRouting.initializing() && currentShardRouting.initializing() && newTerm > existingTerm) {
+                        continue;
+                    }
+
+                    if (newShardRouting.initializing() && currentShardRouting.initializing() && newTerm > existingTerm) {
                         // This can happen if a primary shard failed recovery and is re-assigned with the same allocation id but a
                         // bumped primary term.
                         // Batch cluster state processing could cause the cluster state changed event to go straight from
@@ -628,7 +647,7 @@ public class IndicesClusterStateService extends AbstractLifecycleComponent imple
                         );
                         indexService.removeShard(
                             shardId.id(),
-                            "removing shard (stale copy)",
+                            "removing shard (primary term bumped)",
                             shardCloseExecutor,
                             getShardsClosedListener()
                         );

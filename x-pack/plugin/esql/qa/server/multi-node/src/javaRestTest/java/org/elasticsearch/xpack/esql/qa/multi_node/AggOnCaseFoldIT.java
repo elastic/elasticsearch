@@ -60,6 +60,7 @@ public class AggOnCaseFoldIT extends ESRestTestCase {
 
     @Before
     public void loadAndPinIndices() throws Exception {
+        assumeFalse("Cannot pin shards to specific nodes in serverless mode", isServerless());
         CsvTestsDataLoader.loadDatasetsIntoEs(client(), List.of("event_alerts", "event_logs"));
 
         // Pin each index to a different node so they are optimized independently of one another.
@@ -219,6 +220,23 @@ public class AggOnCaseFoldIT extends ESRestTestCase {
             | SORT ts_month
             """);
         assertThat(values, equalTo(List.of(List.of(0, 0, "2024-01-01T00:00:00.000Z"), List.of(0, 3, "2024-02-01T00:00:00.000Z"))));
+    }
+
+    /**
+     * Returns true when the cluster is running in serverless mode, where index settings like
+     * {@code index.number_of_replicas} and shard allocation filters are not available.
+     */
+    private boolean isServerless() throws IOException {
+        for (Map<?, ?> nodeInfo : getNodesInfo(client()).values()) {
+            @SuppressWarnings("unchecked")
+            List<Map<?, ?>> modules = (List<Map<?, ?>>) nodeInfo.get("modules");
+            for (Map<?, ?> module : modules) {
+                if (module.get("name").toString().startsWith("serverless-")) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

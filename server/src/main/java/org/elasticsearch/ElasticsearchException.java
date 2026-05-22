@@ -824,7 +824,11 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
      * Returns a underscore case name for the given exception. This method strips {@code Elasticsearch} prefixes from exception names.
      */
     public static String getExceptionName(Throwable ex) {
-        String simpleName = ex.getClass().getSimpleName();
+        return getExceptionName(ex.getClass());
+    }
+
+    public static String getExceptionName(Class<? extends Throwable> clazz) {
+        String simpleName = clazz.getSimpleName();
         // TODO: do we really need to make the exception name in underscore casing?
         return toUnderscoreCase(simpleName, simpleName.startsWith("Elasticsearch") ? "Elasticsearch".length() : 0);
     }

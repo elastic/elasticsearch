@@ -19,19 +19,31 @@ import type { MultiRunTaskStatus, TaskStatusReport } from "./types.ts";
 // Classification
 // ---------------------------------------------------------------------------
 
+export interface TaskRef {
+  path: string;
+  buildScanUrl?: string;
+}
+
 export interface TestRef {
   task: string;
   test: string;
+  buildScanUrl?: string;
+}
+
+export interface BuildScanRef {
+  id: string;
+  url: string;
 }
 
 export interface TaskStatusSummary {
   totalRuns: number;
   preemptedAt: string | null | undefined;
-  failedTasks: string[];
+  buildScans: BuildScanRef[];
+  failedTasks: TaskRef[];
   failedTests: TestRef[];
-  flakyTasks: string[];
+  flakyTasks: TaskRef[];
   flakyTests: TestRef[];
-  interruptedTasks: string[];
+  interruptedTasks: TaskRef[];
 }
 
 export function classifyRuns(multi: MultiRunTaskStatus): TaskStatusSummary {
@@ -41,6 +53,7 @@ export function classifyRuns(multi: MultiRunTaskStatus): TaskStatusSummary {
     return {
       totalRuns: 0,
       preemptedAt: null,
+      buildScans: [],
       failedTasks: [],
       failedTests: [],
       flakyTasks: [],
@@ -51,21 +64,28 @@ export function classifyRuns(multi: MultiRunTaskStatus): TaskStatusSummary {
 
   const current = runs[runs.length - 1];
   const previous = runs.slice(0, -1);
+  const currentScanUrl = current.buildScanUrl ?? undefined;
 
-  const failedTasks = current.tasks.filter((t) => t.outcome === "FAILED").map((t) => t.path);
-  const interruptedTasks = current.tasks.filter((t) => t.outcome === "INTERRUPTED").map((t) => t.path);
+  const failedTasks: TaskRef[] = current.tasks
+    .filter((t) => t.outcome === "FAILED")
+    .map((t) => ({ path: t.path, buildScanUrl: currentScanUrl }));
+
+  const interruptedTasks: TaskRef[] = current.tasks
+    .filter((t) => t.outcome === "INTERRUPTED")
+    .map((t) => ({ path: t.path, buildScanUrl: currentScanUrl }));
 
   const failedTests: TestRef[] = current.tests
     .filter((t) => t.result === "FAILURE")
-    .map((t) => ({ task: t.taskPath, test: `${t.className}#${t.methodName}` }));
+    .map((t) => ({ task: t.taskPath, test: `${t.className}#${t.methodName}`, buildScanUrl: currentScanUrl }));
 
-  const currentFailedTaskSet = new Set(failedTasks);
-  const flakyTasks: string[] = [];
+  const currentFailedTaskPaths = new Set(failedTasks.map((t) => t.path));
+  const flakyTasks: TaskRef[] = [];
   const seenFlakyTasks = new Set<string>();
   for (const run of previous) {
+    const scanUrl = run.buildScanUrl ?? undefined;
     for (const task of run.tasks) {
-      if (task.outcome === "FAILED" && !currentFailedTaskSet.has(task.path) && !seenFlakyTasks.has(task.path)) {
-        flakyTasks.push(task.path);
+      if (task.outcome === "FAILED" && !currentFailedTaskPaths.has(task.path) && !seenFlakyTasks.has(task.path)) {
+        flakyTasks.push({ path: task.path, buildScanUrl: scanUrl });
         seenFlakyTasks.add(task.path);
       }
     }
@@ -77,18 +97,24 @@ export function classifyRuns(multi: MultiRunTaskStatus): TaskStatusSummary {
   const flakyTests: TestRef[] = [];
   const seenFlakyTests = new Set<string>();
   for (const run of previous) {
+    const scanUrl = run.buildScanUrl ?? undefined;
     for (const test of run.tests) {
       const key = `${test.taskPath}\0${test.className}\0${test.methodName}`;
       if (test.result === "FAILURE" && !currentFailedTestKeys.has(key) && !seenFlakyTests.has(key)) {
-        flakyTests.push({ task: test.taskPath, test: `${test.className}#${test.methodName}` });
+        flakyTests.push({ task: test.taskPath, test: `${test.className}#${test.methodName}`, buildScanUrl: scanUrl });
         seenFlakyTests.add(key);
       }
     }
   }
 
+  const buildScans: BuildScanRef[] = runs
+    .filter((r) => r.buildScanId && r.buildScanUrl)
+    .map((r) => ({ id: r.buildScanId!, url: r.buildScanUrl! }));
+
   return {
     totalRuns: runs.length,
     preemptedAt: current.preemptedAt,
+    buildScans,
     failedTasks,
     failedTests,
     flakyTasks,
@@ -101,6 +127,14 @@ export function classifyRuns(multi: MultiRunTaskStatus): TaskStatusSummary {
 // Console output
 // ---------------------------------------------------------------------------
 
+export function buildkiteInlineLink(url: string, content?: string): string {
+  let link = `url='${url}'`;
+  if (content) {
+    link += `;content='${content}'`;
+  }
+  return `\x1b]1339;${link}\x07`;
+}
+
 function printHeaderFooter(summary: TaskStatusSummary) {
   console.log(`${"=".repeat(80)}`);
   console.log(`  Task Status Summary — ${summary.totalRuns} run${summary.totalRuns !== 1 ? "s" : ""}`);
@@ -109,31 +143,43 @@ function printHeaderFooter(summary: TaskStatusSummary) {
     console.log(`  This means that GCP terminated the spot instance before its work was complete.`);
     console.log(`  The job should be auto-retrying. If not, likely because it reached the maximum number of automatic retries, you can manually retry it.`);
   }
+  if (summary.buildScans.length > 0) {
+    const links = summary.buildScans
+      .map((scan, i) => buildkiteInlineLink(scan.url, summary.buildScans.length > 1 ? `Build Scan (run ${i + 1})` : "Build Scan"))
+      .join("  ");
+    console.log(`  ${links}`);
+  }
   console.log(`${"=".repeat(80)}\n`);
+}
+
+function scanLink(url?: string): string {
+  return url ? buildkiteInlineLink(url, "Build Scan") : "";
 }
 
 export function printSummary(summary: TaskStatusSummary): void {
   printHeaderFooter(summary);
 
-  function printSection(title: string, items: TestRef[] | string[], emoji: string) {
+  function printTaskSection(title: string, items: TaskRef[], emoji: string) {
     if (items.length === 0) return;
-
     console.log(`${emoji} ${title} (${items.length}):`);
     console.log(`${"-".repeat(60)}`);
-
-    if (typeof items[0] === "string") {
-      console.table((items as string[]).map((path) => ({ "Task Path": path })));
-    } else {
-      console.table((items as TestRef[]).map((i) => ({ "Task Path": i.task, Test: i.test })));
-    }
+    console.table(items.map((t) => ({ "Task Path": t.path, "Build Scan": scanLink(t.buildScanUrl) })));
     console.log();
   }
 
-  printSection("Failed Tasks", summary.failedTasks, "❌");
-  printSection("Failed Tests", summary.failedTests, "❌");
-  printSection("Flaky Tasks", summary.flakyTasks, "⚠️");
-  printSection("Flaky Tests", summary.flakyTests, "⚠️");
-  printSection("Interrupted Tasks", summary.interruptedTasks, "⏸️");
+  function printTestSection(title: string, items: TestRef[], emoji: string) {
+    if (items.length === 0) return;
+    console.log(`${emoji} ${title} (${items.length}):`);
+    console.log(`${"-".repeat(60)}`);
+    console.table(items.map((t) => ({ "Task Path": t.task, Test: t.test, "Build Scan": scanLink(t.buildScanUrl) })));
+    console.log();
+  }
+
+  printTaskSection("Failed Tasks", summary.failedTasks, "❌");
+  printTestSection("Failed Tests", summary.failedTests, "❌");
+  printTaskSection("Flaky Tasks", summary.flakyTasks, "⚠️");
+  printTestSection("Flaky Tests", summary.flakyTests, "⚠️");
+  printTaskSection("Interrupted Tasks", summary.interruptedTasks, "⏸️");
 
   printHeaderFooter(summary);
 

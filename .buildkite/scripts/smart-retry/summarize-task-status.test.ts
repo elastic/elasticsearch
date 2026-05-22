@@ -1,6 +1,6 @@
 import { describe, expect, test } from "vitest";
 
-import { classifyRuns } from "./summarize-task-status.ts";
+import { classifyRuns, buildkiteInlineLink } from "./summarize-task-status.ts";
 import type { TaskStatusReport, MultiRunTaskStatus } from "./types.ts";
 
 // ---------------------------------------------------------------------------
@@ -13,6 +13,16 @@ function makeReport(overrides: Partial<TaskStatusReport> = {}): TaskStatusReport
 
 function makeMultiRun(...runs: TaskStatusReport[]): MultiRunTaskStatus {
   return { runs };
+}
+
+/** Extract just the paths from TaskRef[] for concise assertions. */
+function paths(refs: { path: string }[]): string[] {
+  return refs.map((r) => r.path);
+}
+
+/** Extract just task+test from TestRef[] for concise assertions. */
+function testKeys(refs: { task: string; test: string }[]): string[] {
+  return refs.map((r) => `${r.task} ${r.test}`);
 }
 
 // ---------------------------------------------------------------------------
@@ -61,7 +71,7 @@ describe("classifyRuns", () => {
         }),
       ),
     );
-    expect(result.failedTasks).toEqual([":server:test"]);
+    expect(paths(result.failedTasks)).toEqual([":server:test"]);
     expect(result.flakyTasks).toEqual([]);
   });
 
@@ -77,7 +87,7 @@ describe("classifyRuns", () => {
         }),
       ),
     );
-    expect(result.failedTests).toEqual([{ task: ":server:test", test: "FooTests#testA" }]);
+    expect(testKeys(result.failedTests)).toEqual([":server:test FooTests#testA"]);
   });
 
   test("single run — interrupted tasks", () => {
@@ -92,7 +102,7 @@ describe("classifyRuns", () => {
         }),
       ),
     );
-    expect(result.interruptedTasks).toEqual([":server:test", ":x-pack:test"]);
+    expect(paths(result.interruptedTasks)).toEqual([":server:test", ":x-pack:test"]);
     expect(result.failedTasks).toEqual([]);
   });
 
@@ -117,7 +127,7 @@ describe("classifyRuns", () => {
       ),
     );
     expect(result.failedTasks).toEqual([]);
-    expect(result.flakyTasks).toEqual([":server:test"]);
+    expect(paths(result.flakyTasks)).toEqual([":server:test"]);
   });
 
   test("two runs — task failed both times is failed, not flaky", () => {
@@ -127,7 +137,7 @@ describe("classifyRuns", () => {
         makeReport({ tasks: [{ path: ":server:test", outcome: "FAILED" }] }),
       ),
     );
-    expect(result.failedTasks).toEqual([":server:test"]);
+    expect(paths(result.failedTasks)).toEqual([":server:test"]);
     expect(result.flakyTasks).toEqual([]);
   });
 
@@ -145,7 +155,7 @@ describe("classifyRuns", () => {
       ),
     );
     expect(result.failedTests).toEqual([]);
-    expect(result.flakyTests).toEqual([{ task: ":server:test", test: "FooTests#testA" }]);
+    expect(testKeys(result.flakyTests)).toEqual([":server:test FooTests#testA"]);
   });
 
   test("two runs — test failed both times is failed, not flaky", () => {
@@ -159,7 +169,7 @@ describe("classifyRuns", () => {
         }),
       ),
     );
-    expect(result.failedTests).toEqual([{ task: ":server:test", test: "FooTests#testA" }]);
+    expect(testKeys(result.failedTests)).toEqual([":server:test FooTests#testA"]);
     expect(result.flakyTests).toEqual([]);
   });
 
@@ -172,7 +182,7 @@ describe("classifyRuns", () => {
       ),
     );
     expect(result.failedTasks).toEqual([]);
-    expect(result.flakyTasks).toEqual([":server:test"]);
+    expect(paths(result.flakyTasks)).toEqual([":server:test"]);
   });
 
   test("mixed — some tasks failed, some flaky, some interrupted", () => {
@@ -204,11 +214,11 @@ describe("classifyRuns", () => {
         }),
       ),
     );
-    expect(result.failedTasks).toEqual([":modules:painless:test"]);
-    expect(result.failedTests).toEqual([{ task: ":modules:painless:test", test: "DefTests#testCast" }]);
-    expect(result.flakyTasks).toEqual([":server:test"]);
-    expect(result.flakyTests).toEqual([{ task: ":server:test", test: "FooTests#testA" }]);
-    expect(result.interruptedTasks).toEqual([":x-pack:esql:test"]);
+    expect(paths(result.failedTasks)).toEqual([":modules:painless:test"]);
+    expect(testKeys(result.failedTests)).toEqual([":modules:painless:test DefTests#testCast"]);
+    expect(paths(result.flakyTasks)).toEqual([":server:test"]);
+    expect(testKeys(result.flakyTests)).toEqual([":server:test FooTests#testA"]);
+    expect(paths(result.interruptedTasks)).toEqual([":x-pack:esql:test"]);
     expect(result.preemptedAt).toBe("2026-05-21T15:00:00Z");
   });
 
@@ -230,7 +240,7 @@ describe("classifyRuns", () => {
     expect(result.failedTests).toEqual([]);
     expect(result.flakyTasks).toEqual([]);
     expect(result.flakyTests).toEqual([]);
-    expect(result.interruptedTasks).toEqual([":server:test"]);
+    expect(paths(result.interruptedTasks)).toEqual([":server:test"]);
     expect(result.preemptedAt).toBe("2026-05-21T14:00:00Z");
   });
 
@@ -275,7 +285,7 @@ describe("classifyRuns", () => {
         makeReport({ tasks: [{ path: ":server:test", outcome: "SUCCESS" }] }),
       ),
     );
-    expect(result.flakyTasks).toEqual([":server:test"]);
+    expect(paths(result.flakyTasks)).toEqual([":server:test"]);
   });
 
   test("flaky test deduplicated across multiple previous runs", () => {
@@ -292,7 +302,7 @@ describe("classifyRuns", () => {
         }),
       ),
     );
-    expect(result.flakyTests).toEqual([{ task: ":server:test", test: "FooTests#testA" }]);
+    expect(testKeys(result.flakyTests)).toEqual([":server:test FooTests#testA"]);
   });
 
   test("interrupted task in previous run is not flaky", () => {
@@ -314,18 +324,12 @@ describe("classifyRuns", () => {
 
   test("preemptedAt comes from the current (final) run", () => {
     const result = classifyRuns(
-      makeMultiRun(
-        makeReport({ preemptedAt: "2026-05-21T14:00:00Z" }),
-        makeReport({ preemptedAt: null }),
-      ),
+      makeMultiRun(makeReport({ preemptedAt: "2026-05-21T14:00:00Z" }), makeReport({ preemptedAt: null })),
     );
     expect(result.preemptedAt).toBeNull();
 
     const result2 = classifyRuns(
-      makeMultiRun(
-        makeReport({ preemptedAt: null }),
-        makeReport({ preemptedAt: "2026-05-21T15:00:00Z" }),
-      ),
+      makeMultiRun(makeReport({ preemptedAt: null }), makeReport({ preemptedAt: "2026-05-21T15:00:00Z" })),
     );
     expect(result2.preemptedAt).toBe("2026-05-21T15:00:00Z");
   });
@@ -356,10 +360,174 @@ describe("classifyRuns", () => {
       ),
     );
     expect(result.failedTasks).toEqual([]);
-    expect(result.flakyTasks).toEqual([":a:test", ":b:test"]);
-    expect(result.flakyTests).toEqual([
-      { task: ":a:test", test: "ATests#testX" },
-      { task: ":b:test", test: "BTests#testY" },
+    expect(paths(result.flakyTasks)).toEqual([":a:test", ":b:test"]);
+    expect(testKeys(result.flakyTests)).toEqual([":a:test ATests#testX", ":b:test BTests#testY"]);
+  });
+
+  // --- Build scan association ---
+
+  test("build scans collected from all runs that have them", () => {
+    const result = classifyRuns(
+      makeMultiRun(
+        makeReport({ buildScanId: "scan-1", buildScanUrl: "https://ge.elastic.co/s/scan-1" }),
+        makeReport({ buildScanId: "scan-2", buildScanUrl: "https://ge.elastic.co/s/scan-2" }),
+      ),
+    );
+    expect(result.buildScans).toEqual([
+      { id: "scan-1", url: "https://ge.elastic.co/s/scan-1" },
+      { id: "scan-2", url: "https://ge.elastic.co/s/scan-2" },
     ]);
+  });
+
+  test("runs without build scan are excluded from buildScans", () => {
+    const result = classifyRuns(
+      makeMultiRun(makeReport({}), makeReport({ buildScanId: "scan-2", buildScanUrl: "https://ge.elastic.co/s/scan-2" })),
+    );
+    expect(result.buildScans).toEqual([{ id: "scan-2", url: "https://ge.elastic.co/s/scan-2" }]);
+  });
+
+  test("runs with null build scan fields are excluded", () => {
+    const result = classifyRuns(makeMultiRun(makeReport({ buildScanId: null, buildScanUrl: null })));
+    expect(result.buildScans).toEqual([]);
+  });
+
+  test("no build scans when none present", () => {
+    const result = classifyRuns(makeMultiRun(makeReport()));
+    expect(result.buildScans).toEqual([]);
+  });
+
+  test("failed tasks carry build scan URL from the current run", () => {
+    const result = classifyRuns(
+      makeMultiRun(
+        makeReport({
+          tasks: [{ path: ":server:test", outcome: "FAILED" }],
+          buildScanId: "scan-1",
+          buildScanUrl: "https://ge.elastic.co/s/scan-1",
+        }),
+      ),
+    );
+    expect(result.failedTasks).toEqual([{ path: ":server:test", buildScanUrl: "https://ge.elastic.co/s/scan-1" }]);
+  });
+
+  test("failed tests carry build scan URL from the current run", () => {
+    const result = classifyRuns(
+      makeMultiRun(
+        makeReport({
+          tests: [{ taskPath: ":server:test", className: "FooTests", methodName: "testA", result: "FAILURE" }],
+          buildScanId: "scan-1",
+          buildScanUrl: "https://ge.elastic.co/s/scan-1",
+        }),
+      ),
+    );
+    expect(result.failedTests).toEqual([
+      { task: ":server:test", test: "FooTests#testA", buildScanUrl: "https://ge.elastic.co/s/scan-1" },
+    ]);
+  });
+
+  test("interrupted tasks carry build scan URL from the current run", () => {
+    const result = classifyRuns(
+      makeMultiRun(
+        makeReport({
+          tasks: [{ path: ":server:test", outcome: "INTERRUPTED" }],
+          buildScanId: "scan-1",
+          buildScanUrl: "https://ge.elastic.co/s/scan-1",
+        }),
+      ),
+    );
+    expect(result.interruptedTasks).toEqual([{ path: ":server:test", buildScanUrl: "https://ge.elastic.co/s/scan-1" }]);
+  });
+
+  test("flaky tasks carry build scan URL from the previous run where they failed", () => {
+    const result = classifyRuns(
+      makeMultiRun(
+        makeReport({
+          tasks: [{ path: ":server:test", outcome: "FAILED" }],
+          buildScanId: "scan-1",
+          buildScanUrl: "https://ge.elastic.co/s/scan-1",
+        }),
+        makeReport({
+          tasks: [{ path: ":server:test", outcome: "SUCCESS" }],
+          buildScanId: "scan-2",
+          buildScanUrl: "https://ge.elastic.co/s/scan-2",
+        }),
+      ),
+    );
+    expect(result.flakyTasks).toEqual([{ path: ":server:test", buildScanUrl: "https://ge.elastic.co/s/scan-1" }]);
+  });
+
+  test("flaky tests carry build scan URL from the previous run where they failed", () => {
+    const result = classifyRuns(
+      makeMultiRun(
+        makeReport({
+          tests: [{ taskPath: ":server:test", className: "FooTests", methodName: "testA", result: "FAILURE" }],
+          buildScanId: "scan-1",
+          buildScanUrl: "https://ge.elastic.co/s/scan-1",
+        }),
+        makeReport({
+          tests: [{ taskPath: ":server:test", className: "FooTests", methodName: "testA", result: "SUCCESS" }],
+          buildScanId: "scan-2",
+          buildScanUrl: "https://ge.elastic.co/s/scan-2",
+        }),
+      ),
+    );
+    expect(result.flakyTests).toEqual([
+      { task: ":server:test", test: "FooTests#testA", buildScanUrl: "https://ge.elastic.co/s/scan-1" },
+    ]);
+  });
+
+  test("entries without build scan URL have undefined buildScanUrl", () => {
+    const result = classifyRuns(
+      makeMultiRun(
+        makeReport({
+          tasks: [
+            { path: ":server:test", outcome: "FAILED" },
+            { path: ":other:test", outcome: "INTERRUPTED" },
+          ],
+          tests: [{ taskPath: ":server:test", className: "FooTests", methodName: "testA", result: "FAILURE" }],
+        }),
+      ),
+    );
+    expect(result.failedTasks[0].buildScanUrl).toBeUndefined();
+    expect(result.failedTests[0].buildScanUrl).toBeUndefined();
+    expect(result.interruptedTasks[0].buildScanUrl).toBeUndefined();
+  });
+
+  test("flaky task uses first previous run's scan URL when failed in multiple previous runs", () => {
+    const result = classifyRuns(
+      makeMultiRun(
+        makeReport({
+          tasks: [{ path: ":server:test", outcome: "FAILED" }],
+          buildScanId: "scan-1",
+          buildScanUrl: "https://ge.elastic.co/s/scan-1",
+        }),
+        makeReport({
+          tasks: [{ path: ":server:test", outcome: "FAILED" }],
+          buildScanId: "scan-2",
+          buildScanUrl: "https://ge.elastic.co/s/scan-2",
+        }),
+        makeReport({
+          tasks: [{ path: ":server:test", outcome: "SUCCESS" }],
+          buildScanId: "scan-3",
+          buildScanUrl: "https://ge.elastic.co/s/scan-3",
+        }),
+      ),
+    );
+    expect(result.flakyTasks).toEqual([{ path: ":server:test", buildScanUrl: "https://ge.elastic.co/s/scan-1" }]);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// buildkiteInlineLink
+// ---------------------------------------------------------------------------
+
+describe("buildkiteInlineLink", () => {
+  test("url only", () => {
+    const link = buildkiteInlineLink("https://example.com");
+    expect(link).toBe("\x1b]1339;url='https://example.com'\x07");
+  });
+
+  test("url with content", () => {
+    const link = buildkiteInlineLink("https://example.com/scan", "Build Scan");
+    expect(link).toBe("\x1b]1339;url='https://example.com/scan';content='Build Scan'\x07");
   });
 });

@@ -10,6 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.ArrayList;
@@ -500,6 +501,30 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
 
     public String toString(NodeStringFormat format) {
         return new NodeToString(format).treeString(this, 0).toString();
+    }
+
+    /**
+     * Returns an anonymized text rendering of this node and its subtree, safe to ship to telemetry.
+     * <p>
+     * Default implementation emits {@code "<SimpleClassName>[...]"} followed by recursively-anonymized
+     * children — guaranteed to leak no field content of this node. Subclasses that carry
+     * customer-sensitive data (column / index / view / alias / pattern strings, literal values, etc.)
+     * must override and route every such piece through {@link AnonymizationContext#column},
+     * {@link AnonymizationContext#index}, or {@link AnonymizationContext#literal} so the value is
+     * intern-and-tokenized consistently with the rest of the tree.
+     * <p>
+     * <strong>Default-safe.</strong> A new {@code Node} subclass that does not override this method
+     * inherits a baseline that exposes the class name and structure but no field content. Authors
+     * adding sensitive fields are nudged to think about anonymization at the same time they think
+     * about {@code nodeString()}.
+     */
+    public String anonymize(AnonymizationContext ctx) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(getClass().getSimpleName()).append("[...]");
+        for (T child : children) {
+            sb.append("\n\\_").append(child.anonymize(ctx).indent(2).stripTrailing());
+        }
+        return sb.toString();
     }
 
     protected void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format) {

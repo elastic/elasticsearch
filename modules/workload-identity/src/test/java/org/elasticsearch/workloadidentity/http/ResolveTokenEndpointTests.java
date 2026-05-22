@@ -60,18 +60,12 @@ public class ResolveTokenEndpointTests extends ESTestCase {
     }
 
     public void testRejectsQueryOnIssuerUrl() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> resolve("https://issuer.example.com/api?x=1")
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> resolve("https://issuer.example.com/api?x=1"));
         assertThat(e.getMessage(), containsString("must not include a query string or fragment"));
     }
 
     public void testRejectsFragmentOnIssuerUrl() {
-        IllegalArgumentException e = expectThrows(
-            IllegalArgumentException.class,
-            () -> resolve("https://issuer.example.com/api#anchor")
-        );
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> resolve("https://issuer.example.com/api#anchor"));
         assertThat(e.getMessage(), containsString("must not include a query string or fragment"));
     }
 

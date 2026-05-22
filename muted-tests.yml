@@ -594,3 +594,6 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.RevertModelSnapshotIT
   method: testRevertModelSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/147383
+- class: org.elasticsearch.index.reindex.LocalReindexResumeIT
+  method: testResumeReindexFromPit_slicedN_partialCompleted
+  issue: https://github.com/elastic/elasticsearch/issues/149665

@@ -102,12 +102,8 @@ public final class OrcFixtureGenerator {
         generateFromRows(result, 0, result.rows().size(), outputPath);
     }
 
-    private static void generateFromRows(
-        CsvFixtureParser.CsvFixtureResult result,
-        int from,
-        int to,
-        java.nio.file.Path outputPath
-    ) throws IOException {
+    private static void generateFromRows(CsvFixtureParser.CsvFixtureResult result, int from, int to, java.nio.file.Path outputPath)
+        throws IOException {
         List<CsvFixtureParser.ColumnSpec> columns = result.schema();
         List<Object[]> rows = result.rows().subList(from, Math.min(to, result.rows().size()));
 

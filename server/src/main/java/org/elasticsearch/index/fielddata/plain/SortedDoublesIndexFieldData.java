@@ -207,6 +207,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         final SortedNumericDocValues in;
 
         MultiHalfFloatValues(SortedNumericDocValues in) {
+            super(in);
             this.in = in;
         }
 
@@ -300,6 +301,7 @@ public class SortedDoublesIndexFieldData extends IndexNumericFieldData {
         final SortedNumericDocValues in;
 
         MultiFloatValues(SortedNumericDocValues in) {
+            super(in);
             this.in = in;
         }
 

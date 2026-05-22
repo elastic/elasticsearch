@@ -140,7 +140,6 @@ setup:
               number_of_shards: 2
               number_of_replicas: 0
           mappings:
-            subobjects: false
             properties:
               "@timestamp":
                 type: date
@@ -216,7 +215,6 @@ setup:
                 mode: logsdb_columnar
                 number_of_replicas: 0
             mappings:
-              subobjects: false
               properties:
                 "@timestamp":
                   type: date

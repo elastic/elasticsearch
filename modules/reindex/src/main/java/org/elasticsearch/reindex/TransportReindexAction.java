@@ -27,6 +27,7 @@ import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.tasks.Task;
@@ -70,7 +71,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         ReindexRelocationNodePicker relocationNodePicker,
         ReindexSettings reindexSettings,
         FeatureService featureService,
-        TaskResultsService taskResultsService
+        TaskResultsService taskResultsService,
+        CircuitBreakerService circuitBreakerService
     ) {
         this(
             ReindexAction.NAME,
@@ -90,7 +92,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             relocationNodePicker,
             reindexSettings,
             featureService,
-            taskResultsService
+            taskResultsService,
+            circuitBreakerService
         );
     }
 
@@ -112,7 +115,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
         ReindexRelocationNodePicker relocationNodePicker,
         ReindexSettings reindexSettings,
         FeatureService featureService,
-        TaskResultsService taskResultsService
+        TaskResultsService taskResultsService,
+        CircuitBreakerService circuitBreakerService
     ) {
         super(name, transportService, actionFilters, ReindexRequest::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.client = client;
@@ -136,7 +140,8 @@ public class TransportReindexAction extends HandledTransportAction<ReindexReques
             transportService,
             relocationNodePicker,
             featureService,
-            taskResultsService
+            taskResultsService,
+            circuitBreakerService
         );
     }
 

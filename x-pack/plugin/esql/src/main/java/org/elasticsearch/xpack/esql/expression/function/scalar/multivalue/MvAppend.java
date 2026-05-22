@@ -49,7 +49,10 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
  */
 public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvAppend", MvAppend::new);
-    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvAppend.class).binary(MvAppend::new).name("mv_append");
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvAppend.class)
+        .binary(MvAppend::new)
+        .capabilities("flattened")
+        .name("mv_append");
 
     private final Expression field1, field2;
     private DataType dataType;
@@ -62,6 +65,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
             "geohash",
@@ -87,6 +91,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -109,6 +114,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

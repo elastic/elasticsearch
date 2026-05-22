@@ -394,7 +394,7 @@ public class PrefetchedRowGroupBuilderParityTests extends ESTestCase {
 
     private ParquetFileReader openReader(byte[] file) throws IOException {
         return ParquetFileReader.open(
-            new ParquetStorageObjectAdapter(new InMemoryStorageObject(file)),
+            new ParquetStorageObjectAdapter(new InMemoryStorageObject(file), blockFactory.arrowAllocator()),
             PlainParquetReadOptions.builder(codecFactory).build()
         );
     }

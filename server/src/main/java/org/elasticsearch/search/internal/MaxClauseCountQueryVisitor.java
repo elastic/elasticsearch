@@ -11,6 +11,7 @@ package org.elasticsearch.search.internal;
 
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.IndexOrDocValuesQuery;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.IndexSortSortedNumericDocValuesRangeQuery;
@@ -21,6 +22,7 @@ import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 
 import java.util.function.Supplier;
 
@@ -114,9 +116,14 @@ public final class MaxClauseCountQueryVisitor extends QueryVisitor {
      */
     private void chargeBytesFor(Query query, int termMultiplier) {
         assert termMultiplier > 0 : "termMultiplier must be positive, got " + termMultiplier;
-        long bytes = query instanceof Accountable a
-            ? a.ramBytesUsed()
-            : RamUsageEstimator.shallowSizeOf(query) + LEAF_BASE_BYTES * termMultiplier;
+        long bytes;
+        if (query instanceof FuzzyQuery fq) {
+            bytes = FuzzyQueries.estimateBytes(fq);
+        } else if (query instanceof Accountable a) {
+            bytes = a.ramBytesUsed();
+        } else {
+            bytes = RamUsageEstimator.shallowSizeOf(query) + LEAF_BASE_BYTES * termMultiplier;
+        }
         addEstimatedBytes(bytes);
     }
 

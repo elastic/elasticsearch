@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless;
 
+import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -1257,7 +1258,7 @@ public class StatelessHollowIndexShardsIT extends AbstractStatelessPluginIntegTe
                 if (response.getFailedShards() != 0) {
                     final AssertionError assertionError = new AssertionError("[" + response.getFailedShards() + "] shard failures");
                     for (DefaultShardOperationFailedException shardFailure : response.getShardFailures()) {
-                        if (shardFailure.getCause().toString().toLowerCase(Locale.ROOT).contains("aborted") == false) {
+                        if (ExceptionsHelper.unwrap(shardFailure.getCause(), MergePolicy.MergeAbortedException.class) == null) {
                             assertionError.addSuppressed(new ElasticsearchException(shardFailure.toString(), shardFailure.getCause()));
                         }
                     }

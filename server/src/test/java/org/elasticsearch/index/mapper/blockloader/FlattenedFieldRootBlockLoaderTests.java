@@ -15,7 +15,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datageneration.Mapping;
 import org.elasticsearch.index.mapper.BinaryDVBlockLoaderTestCase;
 import org.elasticsearch.index.mapper.BlockLoaderTestRunner;
-import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
@@ -103,16 +102,10 @@ public class FlattenedFieldRootBlockLoaderTests extends BinaryDVBlockLoaderTestC
     @Override
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var nullValue = (String) fieldMapping.get("null_value");
-        // null_value is only applied during indexing into doc values. When the block loader
-        // uses the source path (syntheticSource=false with STORED preference or no doc values),
-        // null leaf values are simply dropped.
-        boolean useDocValues = hasDocValues(fieldMapping, true);
-        if (params.syntheticSource() == false) {
-            useDocValues = useDocValues
-                && fieldMapping.get("ignore_above") == null
-                && params.preference() != MappedFieldType.FieldExtractPreference.STORED;
-        }
-        if (nullValue != null && useDocValues) {
+        // null_value is applied via doc values (substituted at index time by FlattenedFieldParser)
+        // and via the source path (substituted at read time by FlattenedSourceValueFetcher).
+        // Apply it unconditionally here to match both code paths.
+        if (nullValue != null) {
             value = applyFlattenedNullValue(value, nullValue);
         }
         ValuesMode mode = ValuesMode.from(fieldMapping, params);

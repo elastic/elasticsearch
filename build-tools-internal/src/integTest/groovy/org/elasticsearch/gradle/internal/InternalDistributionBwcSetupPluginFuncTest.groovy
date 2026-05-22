@@ -95,7 +95,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         "8.4.0"       | "linux"
     }
 
-    def "downloads distribution from DRA snapshot when hash matches"() {
+    def "downloads distribution from DRA snapshot when mode=dra and hash override is set"() {
         given:
         def bwcVersion = "8.4.0"
         def bwcBranch = "8.x"
@@ -110,7 +110,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             ":distribution:bwc:major1:buildBwcDarwinTar",
             "-DtestRemoteRepo=" + remoteGitRepo,
             "-Dbwc.remote=origin",
-            "-Dtests.bwc.dra.enabled=true",
+            "-Dtests.bwc.mode=dra",
             "-Dtests.bwc.dra.hash.${bwcBranch}=${shortHash}",
             "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
         ).build()
@@ -157,7 +157,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             ":distribution:bwc:major1:buildBwcDarwinTar",
             "-DtestRemoteRepo=" + remoteGitRepo,
             "-Dbwc.remote=elastic",
-            "-Dtests.bwc.dra.enabled=true",
+            "-Dtests.bwc.mode=auto",
             "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
         ).build()
 
@@ -171,7 +171,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.output.contains("DRA snapshot ${buildId}")
     }
 
-    def "downloads JDBC jar from DRA snapshot when hash matches"() {
+    def "downloads JDBC jar from DRA snapshot when mode=dra and hash override is set"() {
         given:
         def bwcVersion = "8.4.0"
         def bwcBranch = "8.x"
@@ -186,7 +186,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             ":distribution:bwc:major1:buildBwcJdbc",
             "-DtestRemoteRepo=" + remoteGitRepo,
             "-Dbwc.remote=origin",
-            "-Dtests.bwc.dra.enabled=true",
+            "-Dtests.bwc.mode=dra",
             "-Dtests.bwc.dra.hash.${bwcBranch}=${shortHash}",
             "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
         ).build()
@@ -206,7 +206,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             "x-pack-sql-jdbc-${bwcVersion}-SNAPSHOT.jar").exists()
     }
 
-    def "falls back to local gradle build when DRA is disabled"() {
+    def "builds from source when mode is gradle (default)"() {
         when:
         def result = gradleRunner(":distribution:bwc:major1:buildBwcDarwinTar",
             "-DtestRemoteRepo=" + remoteGitRepo,
@@ -233,7 +233,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             "-DtestRemoteRepo=" + remoteGitRepo,
             "-Dbwc.remote=origin",
             "-Dbwc.dist.version=8.4.0-SNAPSHOT",
-            "-Dtests.bwc.dra.enabled=true",
+            "-Dtests.bwc.mode=auto",
             "-Dtests.bwc.dra.hash.8.x=${shortHash}",
             "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
         ).build()
@@ -245,7 +245,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         assertOutputContains(result.output, "[8.4.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
     }
 
-    def "downloads distribution via resolveByLatest when remote tracking ref matches DRA manifest commit"() {
+    def "downloads distribution via resolveByLatest when mode=auto and remote tracking ref matches DRA manifest commit"() {
         given:
         def bwcVersion = "8.4.0"
         def bwcBranch = "8.x"
@@ -267,7 +267,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             ":distribution:bwc:major1:buildBwcDarwinTar",
             "-DtestRemoteRepo=" + remoteGitRepo,
             "-Dbwc.remote=origin",
-            "-Dtests.bwc.dra.enabled=true",
+            "-Dtests.bwc.mode=auto",
             "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
         ).build()
 
@@ -281,7 +281,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.output.contains("DRA snapshot ${buildId}")
     }
 
-    def "falls back to local build when DRA manifest commit does not match remote tracking ref"() {
+    def "falls back to local build when mode=auto and DRA manifest commit does not match remote tracking ref"() {
         given:
         def bwcBranch = "8.x"
         def fullHash = execute("git rev-parse HEAD", file("cloned")).trim()
@@ -305,7 +305,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
             "-DtestRemoteRepo=" + remoteGitRepo,
             "-Dbwc.remote=origin",
             "-Dbwc.dist.version=8.4.0-SNAPSHOT",
-            "-Dtests.bwc.dra.enabled=true",
+            "-Dtests.bwc.mode=auto",
             "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
         ).build()
 
@@ -317,6 +317,66 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
 
         and: "log explains why DRA was not used"
         result.output.contains("DRA snapshot commit did not match")
+    }
+
+    def "downloads distribution from DRA when mode=dra and no hash override uses latest snapshot without commit check"() {
+        given:
+        def bwcVersion = "8.4.0"
+        def bwcBranch = "8.x"
+        def shortHash = "abc12345"
+        def buildId = "${bwcVersion}-${shortHash}"
+        // resolveLatestBuildId does not read local git refs — no remote tracking ref needed.
+        stubLatest(wireMock, draLatestPath(bwcBranch), buildId)
+        stubTarArtifact(wireMock, draTarArtifactPath(buildId, bwcVersion, "darwin-x86_64"), bwcVersion)
+        redirectDraRepositories(wireMock.baseUrl())
+
+        when:
+        def result = gradleRunner(
+            ":distribution:bwc:major1:buildBwcDarwinTar",
+            "-DtestRemoteRepo=" + remoteGitRepo,
+            "-Dbwc.remote=origin",
+            "-Dtests.bwc.mode=dra",
+            "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
+        ).build()
+
+        then: "DRA Copy task succeeds without any commit-hash comparison"
+        result.task(":distribution:bwc:major1:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+
+        and: "no nested Gradle build was triggered"
+        result.output.contains("extractedAssemble") == false
+
+        and: "the DRA log message names the snapshot build ID"
+        result.output.contains("DRA snapshot ${buildId}")
+
+        and: "the distribution directory was created at the expected path"
+        file("cloned/distribution/bwc/major1/build/bwc/checkout-${bwcBranch}/" +
+            "distribution/archives/darwin-tar/build/install/" +
+            "elasticsearch-${bwcVersion}-SNAPSHOT").exists()
+    }
+
+    def "falls back to source build with warning when mode=dra but DRA snapshot is unavailable (distribution archive)"() {
+        given:
+        // Stub the latest endpoint with 404 so resolveLatestBuildId returns an empty build ID.
+        wireMock.stubFor(get(urlEqualTo(draLatestPath("8.x"))).willReturn(aResponse().withStatus(404)))
+
+        when:
+        def result = gradleRunner(
+            ":distribution:bwc:major1:buildBwcDarwinTar",
+            "-DtestRemoteRepo=" + remoteGitRepo,
+            "-Dbwc.remote=origin",
+            "-Dbwc.dist.version=8.4.0-SNAPSHOT",
+            "-Dtests.bwc.mode=dra",
+            "-Dtests.bwc.dra.base.url=${wireMock.baseUrl()}"
+        ).build()
+
+        then: "task still succeeds via source-build fallback"
+        result.task(":distribution:bwc:major1:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
+
+        and: "local nested build was triggered"
+        assertOutputContains(result.output, "[8.4.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
+
+        and: "a warning explains that DRA was unavailable"
+        result.output.contains("tests.bwc.mode=dra but no DRA snapshot was available")
     }
 
     def "bwc expanded distribution folder can be resolved as bwc project artifact"() {

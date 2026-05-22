@@ -27,15 +27,29 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 
 /**
- * Resolves the DRA (Distribution Release Artifacts) snapshot build ID for a BWC branch and validates
- * that the snapshot was built from the same commit as the local remote tracking reference.
+ * Resolves the DRA (Distribution Release Artifacts) snapshot build ID for a BWC branch.
  *
- * <p>Returns the DRA build ID (e.g. {@code "9.4.2-abc12345"}) when a matching snapshot is found,
- * or an empty string when no match exists or when DRA resolution is disabled.
+ * <p>The behaviour is controlled by the {@link Params#getMode()} parameter, which mirrors the
+ * {@code tests.bwc.mode} system property:
  *
- * <p>DRA resolution is opt-in: set system property {@code tests.bwc.dra.enabled=true} to enable.
- * Without that property all calls return an empty string immediately with no network activity,
- * keeping local development builds unaffected.
+ * <ul>
+ *   <li>{@code gradle} (the default) — returns {@code ""} immediately with no network activity,
+ *       so the caller falls back to a nested Gradle source build.</li>
+ *   <li>{@code dra} — resolves the <em>latest</em> DRA snapshot build ID for the branch without
+ *       comparing commit hashes.  Returns the build ID when the latest endpoint responds
+ *       successfully, or {@code ""} on any error (the caller should treat {@code ""} as a fatal
+ *       condition for this mode).</li>
+ *   <li>{@code auto} — resolves the latest DRA snapshot build ID <em>and</em> verifies
+ *       that the snapshot was built from the same commit as the local remote-tracking ref.
+ *       Returns the build ID on a match, or {@code ""} when the hashes differ or when the
+ *       endpoint is unreachable (the caller will then fall back to a source build).</li>
+ * </ul>
+ *
+ * <p>In both DRA modes an optional commit-hash override can be supplied via
+ * {@code -Dtests.bwc.dra.hash.{branch}}.  When set, the build ID is constructed directly as
+ * {@code {version}-{hash}} and its existence is verified against the manifest endpoint — the
+ * "latest" lookup and remote-tracking ref comparison are both skipped.  This lets you pin to a
+ * specific DRA snapshot even after the branch tip has moved.
  */
 public abstract class DraSnapshotBuildIdValueSource implements ValueSource<String, DraSnapshotBuildIdValueSource.Params> {
 
@@ -54,8 +68,15 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
         /** Git remote name, e.g. {@code "elastic"}. */
         Property<String> getRemote();
 
-        /** Gate flag: when {@code false} (the default) return {@code ""} immediately with no network I/O. */
-        Property<Boolean> getDraEnabled();
+        /**
+         * BWC mode that controls how DRA snapshots are resolved.  Accepted values:
+         * {@code "gradle"} (default — always build from source),
+         * {@code "dra"} (always download latest DRA snapshot, no hash check), or
+         * {@code "auto"} (download from DRA if commit hash matches, otherwise build from source).
+         *
+         * <p>Set via the {@code tests.bwc.mode} system property.
+         */
+        Property<String> getMode();
 
         /**
          * Optional abbreviated commit hash supplied via {@code -Dtests.bwc.dra.hash.{branch}}.
@@ -76,7 +97,8 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
 
     @Override
     public String obtain() {
-        if (getParameters().getDraEnabled().get() == false) {
+        String mode = getParameters().getMode().getOrElse("gradle");
+        if (mode.equals("gradle")) {
             return "";
         }
         try {
@@ -84,6 +106,7 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
             String branch = getParameters().getBranch().get();
             String baseUrl = getParameters().getBaseUrl().get();
             HttpClient client = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+            ObjectMapper mapper = new ObjectMapper();
 
             String hashOverride = getParameters().getHashOverride().getOrElse("");
             if (hashOverride.isEmpty() == false) {
@@ -92,9 +115,16 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
                 return resolveByHash(client, baseUrl, version, hashOverride);
             }
 
+            if (mode.equals("dra")) {
+                // Always use DRA: return the latest build ID without checking the commit hash.
+                return resolveLatestBuildId(client, mapper, baseUrl, version, branch);
+            }
+
+            // mode is "auto": only use DRA when the latest snapshot commit matches the
+            // local remote-tracking ref.
             return resolveByLatest(
                 client,
-                new ObjectMapper(),
+                mapper,
                 baseUrl,
                 version,
                 branch,
@@ -117,6 +147,38 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
         return response.statusCode() == 200 ? buildId : "";
     }
 
+    /**
+     * Fetches the latest DRA snapshot build ID for {@code branch} without comparing commit hashes.
+     * Used for {@code dra} mode where the caller always wants the newest pre-built snapshot.
+     */
+    private static String resolveLatestBuildId(HttpClient client, ObjectMapper mapper, String baseUrl, String version, String branch)
+        throws Exception {
+        String latestUrl = baseUrl + "/elasticsearch/latest/" + branch + ".json";
+        HttpResponse<String> latestResponse = client.send(
+            HttpRequest.newBuilder().uri(URI.create(latestUrl)).timeout(Duration.ofSeconds(10)).GET().build(),
+            HttpResponse.BodyHandlers.ofString()
+        );
+        if (latestResponse.statusCode() != 200) {
+            return "";
+        }
+        JsonNode latestJson = mapper.readTree(latestResponse.body());
+        String buildId = latestJson.path("build_id").asText("");
+        if (buildId.isEmpty()) {
+            return "";
+        }
+        int lastDash = buildId.lastIndexOf('-');
+        if (lastDash < 0 || buildId.substring(0, lastDash).equals(version) == false) {
+            return "";
+        }
+        return buildId;
+    }
+
+    /**
+     * Fetches the latest DRA snapshot build ID for {@code branch} and returns it only when the
+     * snapshot commit hash matches the local remote-tracking ref for that branch.  Used for
+     * {@code auto} mode so that a stale snapshot does not silently replace a newer
+     * local build.
+     */
     private static String resolveByLatest(
         HttpClient client,
         ObjectMapper mapper,
@@ -137,23 +199,8 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
             return "";
         }
 
-        String latestUrl = baseUrl + "/elasticsearch/latest/" + branch + ".json";
-        HttpResponse<String> latestResponse = client.send(
-            HttpRequest.newBuilder().uri(URI.create(latestUrl)).timeout(Duration.ofSeconds(10)).GET().build(),
-            HttpResponse.BodyHandlers.ofString()
-        );
-        if (latestResponse.statusCode() != 200) {
-            return "";
-        }
-
-        JsonNode latestJson = mapper.readTree(latestResponse.body());
-        String buildId = latestJson.path("build_id").asText("");
+        String buildId = resolveLatestBuildId(client, mapper, baseUrl, version, branch);
         if (buildId.isEmpty()) {
-            return "";
-        }
-
-        int lastDash = buildId.lastIndexOf('-');
-        if (lastDash < 0 || buildId.substring(0, lastDash).equals(version) == false) {
             return "";
         }
 
@@ -172,6 +219,18 @@ public abstract class DraSnapshotBuildIdValueSource implements ValueSource<Strin
             return "";
         }
 
-        return branchTipHash.equals(draCommit) ? buildId : "";
+        if (branchTipHash.equals(draCommit) == false) {
+            logger.info(
+                "BWC DRA [{}]: commit mismatch for branch [{}] — local ref is [{}] but DRA build [{}] was built from [{}];"
+                    + " falling back to source build",
+                version,
+                branch,
+                branchTipHash,
+                buildId,
+                draCommit
+            );
+            return "";
+        }
+        return buildId;
     }
 }

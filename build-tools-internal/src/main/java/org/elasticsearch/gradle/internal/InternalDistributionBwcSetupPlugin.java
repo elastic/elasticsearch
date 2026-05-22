@@ -189,6 +189,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         Provider<String> remote = providerFactory.systemProperty("bwc.remote").orElse("elastic");
         Provider<String> draBaseUrl = providerFactory.systemProperty("tests.bwc.dra.base.url")
             .orElse("https://artifacts-snapshot.elastic.co");
+        String bwcMode = providerFactory.systemProperty("tests.bwc.mode").getOrElse("gradle");
+        validateBwcMode(bwcMode);
         Provider<String> draBuildId = providerFactory.of(DraSnapshotBuildIdValueSource.class, spec -> {
             spec.getParameters().getVersion().set(versionInfoProvider.map(info -> info.version().toString()));
             Provider<String> branch = versionInfoProvider.map(info -> info.branch());
@@ -196,8 +198,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             spec.getParameters().getRootProjectDir().set(project.getRootProject().getLayout().getProjectDirectory().getAsFile());
             spec.getParameters().getRemote().set(remote);
             spec.getParameters()
-                .getDraEnabled()
-                .set(providerFactory.systemProperty("tests.bwc.dra.enabled").map(Boolean::parseBoolean).orElse(false));
+                .getMode()
+                .set(providerFactory.systemProperty("tests.bwc.mode").orElse("gradle"));
             // -Dtests.bwc.dra.hash.{branch} overrides the local remote-tracking ref lookup,
             // allowing the DRA fast path on stale or absent refs.
             spec.getParameters()
@@ -475,8 +477,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             : projectArtifact.distFile;
 
         boolean isDistributionArchive = projectPath.startsWith("distribution/");
-        // Evaluate the DRA build ID at configuration time. When tests.bwc.dra.enabled is not set
-        // (the default), the ValueSource returns "" immediately with no network activity.
+        // Evaluate mode and DRA build ID at configuration time. For "gradle" mode the ValueSource
+        // returns "" immediately with no network activity.
+        String bwcMode = project.getProviders().systemProperty("tests.bwc.mode").getOrElse("gradle");
         String buildId = draBuildId.get();
         boolean useDra = buildId.isEmpty() == false && (isDistributionArchive || mavenModule.isEmpty() == false);
 
@@ -499,31 +502,15 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 mavenModule
             );
         } else {
-            // Evaluate tests.bwc.dra.enabled at configuration time so the boolean is captured
-            // in the doFirst action rather than the Project instance (which is not CC-serializable).
-            boolean draEnabled = project.getProviders().systemProperty("tests.bwc.dra.enabled").map(Boolean::parseBoolean).getOrElse(false);
+            // Evaluate bwcMode at configuration time so the value is captured in the doFirst
+            // action rather than the Project instance (which is not CC-serializable).
             bwcSetupExtension.bwcTask(bwcTaskName, c -> {
                 c.doFirst(task -> {
-                    if (isDistributionArchive) {
-                        if (draEnabled) {
-                            task.getLogger()
-                                .lifecycle(
-                                    "BWC [{}]: building distribution [{}] from source"
-                                        + " — DRA snapshot commit did not match local remote-tracking ref (or was unreachable)",
-                                    bwcVersion.get(),
-                                    projectName
-                                );
-                        } else {
-                            task.getLogger()
-                                .lifecycle(
-                                    "BWC [{}]: building distribution [{}] from source"
-                                        + " — set -Dtests.bwc.dra.enabled=true to use a pre-built DRA snapshot when the commit matches",
-                                    bwcVersion.get(),
-                                    projectName
-                                );
-                        }
+                    String msg = buildFallbackMessage(bwcMode, isDistributionArchive, bwcVersion.get().toString(), projectName);
+                    if (bwcMode.equals("dra")) {
+                        task.getLogger().warn(msg);
                     } else {
-                        task.getLogger().lifecycle("BWC [{}]: building [{}] from source", bwcVersion.get(), projectName);
+                        task.getLogger().lifecycle(msg);
                     }
                 });
                 c.getInputs().file(new File(project.getBuildDir(), "refspec")).withPathSensitivity(PathSensitivity.RELATIVE);
@@ -677,6 +664,45 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             });
         }
         bwcTaskProvider.configure(t -> t.dependsOn(bwcTaskName));
+    }
+
+    /**
+     * Validates the {@code tests.bwc.mode} value, throwing {@link InvalidUserDataException} for
+     * unrecognised values so users get a clear error message rather than a silent no-op.
+     */
+    static void validateBwcMode(String mode) {
+        if (Set.of("gradle", "dra", "auto").contains(mode) == false) {
+            throw new InvalidUserDataException(
+                "Invalid tests.bwc.mode value [" + mode + "]. Must be one of: gradle, dra, auto"
+            );
+        }
+    }
+
+    /**
+     * Returns the human-readable log message to emit when the gradle source-build fallback is
+     * taken.  The message varies by mode (to explain <em>why</em> the fallback occurred) and by
+     * artifact type (distribution archive vs. Maven JAR).
+     *
+     * <p>Extracted as a package-private static method so it can be exercised by unit tests without
+     * standing up a full Gradle project.
+     */
+    static String buildFallbackMessage(String bwcMode, boolean isDistributionArchive, String bwcVersion, String projectName) {
+        String draUnavailable = " — tests.bwc.mode=dra but no DRA snapshot was available"
+            + " (endpoint unreachable or no build for this branch yet); falling back to source build";
+        if (isDistributionArchive) {
+            return switch (bwcMode) {
+                case "dra" -> "BWC [" + bwcVersion + "]: building distribution [" + projectName + "] from source" + draUnavailable;
+                case "auto" -> "BWC [" + bwcVersion + "]: building distribution [" + projectName + "] from source"
+                    + " — DRA snapshot commit did not match local remote-tracking ref (or was unreachable)";
+                default -> "BWC [" + bwcVersion + "]: building distribution [" + projectName + "] from source"
+                    + " — set -Dtests.bwc.mode=auto to use a pre-built DRA snapshot when the commit matches";
+            };
+        } else {
+            return switch (bwcMode) {
+                case "dra" -> "BWC [" + bwcVersion + "]: building [" + projectName + "] from source" + draUnavailable;
+                default -> "BWC [" + bwcVersion + "]: building [" + projectName + "] from source";
+            };
+        }
     }
 
     /**

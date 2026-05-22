@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ReplaceSampledStatsBySampleAndStats;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.EnableSpatialDistancePushdown;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.ExtractDimensionFieldsAfterAggregation;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertExternalFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.InsertFieldExtraction;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushAggregatesToExternalSource;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushCountQueryAndTagsToSource;
@@ -111,7 +112,11 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             new ExtractDimensionFieldsAfterAggregation(),
             new InsertFieldExtraction(),
             new SpatialDocValuesExtraction(),
-            new SpatialShapeDocValuesExtraction()
+            new SpatialShapeDocValuesExtraction(),
+            // Runs after PushTopNIntoExternalSource (which lives in the pushdown batch above) so we
+            // see the surviving TopN nodes that did not get fully pushed into the source. Inserts
+            // an ExternalFieldExtractExec above each remaining TopN whose source supports it.
+            new InsertExternalFieldExtraction()
         );
 
         return List.of(pushdown, substitutionRules, fieldExtraction);

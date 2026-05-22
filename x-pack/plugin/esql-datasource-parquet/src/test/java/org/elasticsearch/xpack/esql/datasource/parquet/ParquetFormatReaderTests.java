@@ -39,9 +39,11 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -53,6 +55,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.junit.After;
+import org.junit.BeforeClass;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -79,6 +82,13 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class ParquetFormatReaderTests extends ESTestCase {
+
+    @BeforeClass
+    public static void assertUninitializedArraysFastPath() {
+        // The parquet read path relies on UninitializedArrays' Unsafe-backed allocation;
+        // fail loudly rather than silently exercising the zero-initialized fallback.
+        UninitializedArrays.ensureUnsafeEnabled();
+    }
 
     private BlockFactory blockFactory;
 
@@ -326,6 +336,60 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Empty projection (e.g. EXTERNAL parquet | STATS COUNT(*) — or a query that only references
+     * {@code _file.*} virtual columns) must not allocate any column reader. The reader emits
+     * row-count-only pages directly from the row group metadata, and the request circuit breaker
+     * stays at zero because no buffer is ever charged. Regression test for the ~44KB-per-query
+     * leak in https://github.com/elastic/elasticsearch/issues/149393.
+     */
+    public void testReadWithEmptyProjectionEmitsCountOnlyPagesAndDoesNotAllocate() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("id")
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .required(PrimitiveType.PrimitiveTypeName.DOUBLE)
+            .named("score")
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            List<Group> groups = new java.util.ArrayList<>();
+            for (int i = 0; i < 5; i++) {
+                Group g = factory.newGroup();
+                g.add("id", (long) i);
+                g.add("name", "row" + i);
+                g.add("score", (double) i);
+                groups.add(g);
+            }
+            return groups;
+        });
+
+        StorageObject storageObject = createStorageObject(parquetData);
+        var trackingBreaker = new LimitedBreaker("test", ByteSizeValue.ofMb(64));
+        var localFactory = new BlockFactory(trackingBreaker, this.blockFactory.bigArrays());
+        ParquetFormatReader reader = new ParquetFormatReader(localFactory);
+
+        long beforeRead = trackingBreaker.getUsed();
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, List.of(), 10)) {
+            long afterOpen = trackingBreaker.getUsed();
+            int totalRows = 0;
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                assertEquals("count-only path must emit zero blocks", 0, page.getBlockCount());
+                totalRows += page.getPositionCount();
+            }
+            assertEquals(5, totalRows);
+            // After open, only the parquet I/O window buffer / footer parsing may have been charged
+            // — the count-only path must not grow the breaker further per row group / page. (Iterating
+            // pages allocates no column readers, no decode buffers, no value blocks.)
+            assertEquals("count-only iteration must not allocate per-page; breaker must not grow", afterOpen, trackingBreaker.getUsed());
+        }
+        // After close everything allocated during open is released and the breaker returns to its initial level.
+        assertEquals("count-only path must release all allocations on close", beforeRead, trackingBreaker.getUsed());
+    }
+
     public void testCircuitBreaker() throws IOException {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.INT64)
@@ -359,7 +423,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
 
         {
-            var limitedFactory = new BlockFactory(new LimitedBreaker("test", ByteSizeValue.ofBytes(1000)), this.blockFactory.bigArrays());
+            // The window buffer (DEFAULT_WINDOW_SIZE) is now tracked by the circuit breaker, so the limit
+            // must be large enough to accommodate the window plus leave headroom to trip on page allocation.
+            var limitedFactory = new BlockFactory(
+                new LimitedBreaker("test", ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 1000)),
+                this.blockFactory.bigArrays()
+            );
             var reader = new ParquetFormatReader(limitedFactory);
 
             // Read the schema is now ok
@@ -441,7 +510,12 @@ public class ParquetFormatReaderTests extends ESTestCase {
         // 2. Breaker fits the footer but cannot accommodate the prefetcher reservation →
         // iterator falls back to sync I/O, still produces all rows, releases all bytes on close.
         {
-            var smallBreaker = new LimitedBreaker("test", ByteSizeValue.ofKb(32));
+            // The window buffer is now tracked by the circuit breaker; add DEFAULT_WINDOW_SIZE so the
+            // window fits and the remaining 32 KB budget still cannot accommodate the prefetcher reservation.
+            var smallBreaker = new LimitedBreaker(
+                "test",
+                ByteSizeValue.ofBytes(ParquetStorageObjectAdapter.DEFAULT_WINDOW_SIZE + 32 * 1024)
+            );
             var smallFactory = new BlockFactory(smallBreaker, this.blockFactory.bigArrays());
             var pageCount = new AtomicInteger();
             int totalRows = 0;
@@ -819,6 +893,55 @@ public class ParquetFormatReaderTests extends ESTestCase {
 
             assertFalse(iterator.hasNext());
         }
+    }
+
+    /**
+     * Regression: attribute nullability must reflect Parquet repetition.
+     * <ul>
+     *   <li>{@code REQUIRED} top-level fields → {@link Nullability#FALSE} (schema-level non-null guarantee).</li>
+     *   <li>{@code OPTIONAL} fields and {@code optionalList()} → {@link Nullability#TRUE} (the cell itself can be absent).</li>
+     *   <li>Top-level {@code REPEATED} primitives (the legacy un-annotated list form) → {@link Nullability#TRUE}.</li>
+     *   <li>{@code requiredList()} → {@link Nullability#FALSE} (the list group must be present, even though its
+     *       elements can be null — element-level nullability is not modelled at the attribute level).</li>
+     * </ul>
+     * A wrong default would let downstream planner rules (e.g. {@code COALESCE} simplification, {@code IS NULL}
+     * rewriting, {@code FoldNull}) drop legitimate null rows for {@code OPTIONAL} columns.
+     */
+    public void testSchemaAttributeNullabilityReflectsRepetition() throws Exception {
+        Type requiredList = Types.requiredList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("required_tags");
+        Type optionalList = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("optional_tags");
+
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("req_id")
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("opt_id")
+            .repeated(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("rep_value")
+            .addField(requiredList)
+            .addField(optionalList)
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> List.of());
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        List<Attribute> attributes = reader.metadata(storageObject).schema();
+        assertEquals(5, attributes.size());
+
+        assertNullability(attributes, "req_id", Nullability.FALSE);
+        assertNullability(attributes, "opt_id", Nullability.TRUE);
+        assertNullability(attributes, "rep_value", Nullability.TRUE);
+        assertNullability(attributes, "required_tags", Nullability.FALSE);
+        assertNullability(attributes, "optional_tags", Nullability.TRUE);
+    }
+
+    private static void assertNullability(List<Attribute> attributes, String name, Nullability expected) {
+        Attribute attr = attributes.stream()
+            .filter(a -> a.name().equals(name))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("attribute [" + name + "] not found"));
+        assertEquals("attribute [" + name + "]", expected, attr.nullable());
     }
 
     public void testReadOptionalLongWithNulls() throws Exception {
@@ -1593,6 +1716,33 @@ public class ParquetFormatReaderTests extends ESTestCase {
     }
 
     /**
+     * A signed INT32 value of -1 in Parquet must be sign-extended to -1L when the planner schema
+     * declares the column as LONG. Zero-extension would produce 4294967295L — incorrect.
+     */
+    public void testSignedInt32WideningToLong() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("x").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("x", -1);
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                storageObject,
+                FormatReadContext.builder().projectedColumns(List.of("x")).batchSize(10).readSchema(plannerSchema).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(-1L, ((LongBlock) page.getBlock(0)).getLong(0));
+        }
+    }
+
+    /**
      * Parquet string-annotated BINARY maps to KEYWORD; planner KEYWORD is still readable (both ESQL strings).
      */
     public void testPlannerKeywordCompatibleWithTextParquetColumnReadRange() throws Exception {
@@ -1949,49 +2099,88 @@ public class ParquetFormatReaderTests extends ESTestCase {
         FilterPredicate filter = FilterApi.gt(FilterApi.longColumn("id"), -1L);
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory).withPushedFilter(FilterCompat.get(filter));
 
-        List<String> fullRows = new ArrayList<>();
-        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 500)) {
-            while (iterator.hasNext()) {
-                Page page = iterator.next();
-                LongBlock ids = (LongBlock) page.getBlock(0);
-                BytesRefBlock payloads = (BytesRefBlock) page.getBlock(1);
-                BytesRef scratch = new BytesRef();
-                for (int row = 0; row < page.getPositionCount(); row++) {
-                    fullRows.add(ids.getLong(row) + "|" + payloads.getBytesRef(row, scratch).utf8ToString());
-                }
-            }
-        }
+        List<String> fullRows = collectIdPayloadRows(reader.read(storageObject, null, 500));
 
         List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
         assertTrue("Need at least 2 ranges for this test, got " + ranges.size(), ranges.size() >= 2);
-
-        List<String> rangeRows = new ArrayList<>();
-        for (RangeAwareFormatReader.SplitRange range : ranges) {
-            long rangeStart = range.offset();
-            long rangeEnd = rangeStart + range.length();
-            try (
-                CloseableIterator<Page> iterator = reader.readRange(
-                    storageObject,
-                    new RangeReadContext(null, 500, rangeStart, rangeEnd, List.of(), ErrorPolicy.STRICT)
-                )
-            ) {
-                while (iterator.hasNext()) {
-                    Page page = iterator.next();
-                    LongBlock ids = (LongBlock) page.getBlock(0);
-                    BytesRefBlock payloads = (BytesRefBlock) page.getBlock(1);
-                    BytesRef scratch = new BytesRef();
-                    for (int row = 0; row < page.getPositionCount(); row++) {
-                        rangeRows.add(ids.getLong(row) + "|" + payloads.getBytesRef(row, scratch).utf8ToString());
-                    }
-                }
-            }
-        }
+        List<String> rangeRows = collectRangeRows(reader, storageObject, ranges);
 
         assertEquals(fullRows.size(), rangeRows.size());
         Comparator<String> byId = Comparator.comparingLong(s -> Long.parseLong(s.split("\\|", 2)[0]));
         fullRows.sort(byId);
         rangeRows.sort(byId);
         assertEquals(fullRows, rangeRows);
+    }
+
+    public void testReadRangeBaselineNoFilter() throws Exception {
+        byte[] parquetData = createWideMultiRowGroupFile(500);
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, false);
+
+        List<String> fullRows = collectIdPayloadRows(reader.read(storageObject, null, 500));
+
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("Need at least 2 ranges for this test, got " + ranges.size(), ranges.size() >= 2);
+        List<String> rangeRows = collectRangeRows(reader, storageObject, ranges);
+
+        assertEquals(fullRows.size(), rangeRows.size());
+        Comparator<String> byId = Comparator.comparingLong(s -> Long.parseLong(s.split("\\|", 2)[0]));
+        fullRows.sort(byId);
+        rangeRows.sort(byId);
+        assertEquals(fullRows, rangeRows);
+    }
+
+    public void testReadRangeBaselineWithFilterProducesCorrectResults() throws Exception {
+        byte[] parquetData = createWideMultiRowGroupFile(500);
+        StorageObject storageObject = createStorageObject(parquetData);
+        FilterPredicate filter = FilterApi.gt(FilterApi.longColumn("id"), -1L);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory, false).withPushedFilter(FilterCompat.get(filter));
+
+        List<String> fullRows = collectIdPayloadRows(reader.read(storageObject, null, 500));
+
+        List<RangeAwareFormatReader.SplitRange> ranges = reader.discoverSplitRanges(storageObject);
+        assertTrue("Need at least 2 ranges for this test, got " + ranges.size(), ranges.size() >= 2);
+        List<String> rangeRows = collectRangeRows(reader, storageObject, ranges);
+
+        assertEquals(fullRows.size(), rangeRows.size());
+        Comparator<String> byId = Comparator.comparingLong(s -> Long.parseLong(s.split("\\|", 2)[0]));
+        fullRows.sort(byId);
+        rangeRows.sort(byId);
+        assertEquals(fullRows, rangeRows);
+    }
+
+    private static List<String> collectIdPayloadRows(CloseableIterator<Page> iterator) throws IOException {
+        List<String> rows = new ArrayList<>();
+        try (iterator) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                LongBlock ids = (LongBlock) page.getBlock(0);
+                BytesRefBlock payloads = (BytesRefBlock) page.getBlock(1);
+                BytesRef scratch = new BytesRef();
+                for (int row = 0; row < page.getPositionCount(); row++) {
+                    rows.add(ids.getLong(row) + "|" + payloads.getBytesRef(row, scratch).utf8ToString());
+                }
+            }
+        }
+        return rows;
+    }
+
+    private static List<String> collectRangeRows(
+        ParquetFormatReader reader,
+        StorageObject storageObject,
+        List<RangeAwareFormatReader.SplitRange> ranges
+    ) throws IOException {
+        List<String> rows = new ArrayList<>();
+        for (RangeAwareFormatReader.SplitRange range : ranges) {
+            long rangeStart = range.offset();
+            long rangeEnd = rangeStart + range.length();
+            rows.addAll(
+                collectIdPayloadRows(
+                    reader.readRange(storageObject, new RangeReadContext(null, 500, rangeStart, rangeEnd, List.of(), ErrorPolicy.STRICT))
+                )
+            );
+        }
+        return rows;
     }
 
     // --- Test helpers ---
@@ -2441,5 +2630,315 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         assertSame(reader, reader.withConfig(null));
         assertSame(reader, reader.withConfig(Map.of()));
+    }
+
+    // --- Nested STRUCT subfield projection tests ---
+
+    public void testNestedStructFlattening() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalGroup()
+                .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("action")
+                .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("outcome")
+                .named("event")
+        );
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group ev = g.addGroup("event");
+            ev.append("action", "login");
+            ev.append("outcome", "success");
+            return List.of(g);
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+        List<Attribute> attrs = metadata.schema();
+        assertEquals(2, attrs.size());
+        assertEquals("event.action", attrs.get(0).name());
+        assertEquals(DataType.KEYWORD, attrs.get(0).dataType());
+        assertEquals("event.outcome", attrs.get(1).name());
+        assertEquals(DataType.KEYWORD, attrs.get(1).dataType());
+    }
+
+    public void testNestedStructDeepFlattening() throws Exception {
+        // three-level nesting a.b.c.x
+        MessageType schema = new MessageType(
+            "deep",
+            Types.optionalGroup()
+                .addField(
+                    Types.optionalGroup()
+                        .addField(Types.optionalGroup().optional(PrimitiveType.PrimitiveTypeName.INT32).named("x").named("c"))
+                        .named("b")
+                )
+                .named("a")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.addGroup("a").addGroup("b").addGroup("c").append("x", 42);
+            return List.of(g);
+        });
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+        assertEquals(1, metadata.schema().size());
+        assertEquals("a.b.c.x", metadata.schema().get(0).name());
+        assertEquals(DataType.INTEGER, metadata.schema().get(0).dataType());
+    }
+
+    public void testNestedStructProjectionSingleSubfield() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("id"),
+            Types.optionalGroup()
+                .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("action")
+                .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("outcome")
+                .named("event")
+        );
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("id", 1L);
+            Group ev = g.addGroup("event");
+            ev.append("action", "login");
+            ev.append("outcome", "success");
+            return List.of(g);
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        StorageObject so = createStorageObject(parquetData);
+        try (CloseableIterator<Page> iterator = reader.read(so, List.of("event.action"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getBlockCount());
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+            assertEquals(new BytesRef("login"), block.getBytesRef(0, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testNestedStructProjectionTwoSubfieldsSameParent() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalGroup()
+                .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("action")
+                .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("outcome")
+                .named("event")
+        );
+
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            Group ev = g.addGroup("event");
+            ev.append("action", "login");
+            ev.append("outcome", "success");
+            return List.of(g);
+        });
+
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        StorageObject so = createStorageObject(parquetData);
+        try (CloseableIterator<Page> iterator = reader.read(so, List.of("event.action", "event.outcome"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getBlockCount());
+            assertEquals(new BytesRef("login"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+            assertEquals(new BytesRef("success"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testNestedStructProjectionMixedTopLevelAndNested() throws Exception {
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.required(PrimitiveType.PrimitiveTypeName.INT64).named("id"),
+            Types.optionalGroup()
+                .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("action")
+                .named("event")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("id", 7L);
+            g.addGroup("event").append("action", "logout");
+            return List.of(g);
+        });
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        StorageObject so = createStorageObject(parquetData);
+        try (CloseableIterator<Page> iterator = reader.read(so, List.of("id", "event.action"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getBlockCount());
+            assertEquals(7L, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertEquals(new BytesRef("logout"), ((BytesRefBlock) page.getBlock(1)).getBytesRef(0, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testLiteralDottedNamePrecedence() throws Exception {
+        // Top-level primitive literally named "event.action"; projecting "event.action" must
+        // resolve to this field, not to a nested path.
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optional(PrimitiveType.PrimitiveTypeName.BINARY).as(LogicalTypeAnnotation.stringType()).named("event.action")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.append("event.action", "literal");
+            return List.of(g);
+        });
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        StorageObject so = createStorageObject(parquetData);
+        SourceMetadata metadata = reader.metadata(so);
+        assertEquals(1, metadata.schema().size());
+        assertEquals("event.action", metadata.schema().get(0).name());
+        try (CloseableIterator<Page> iterator = reader.read(so, List.of("event.action"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(new BytesRef("literal"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    public void testNestedStructDepthCap() throws Exception {
+        // Synthesize a struct that exceeds MAX_STRUCT_FLATTENING_DEPTH; assert the over-cap group
+        // surfaces as a single UNSUPPORTED attribute (no infinite loop).
+        int over = ParquetFormatReader.MAX_STRUCT_FLATTENING_DEPTH + 4;
+        Type field = Types.optional(PrimitiveType.PrimitiveTypeName.INT32).named("leaf");
+        for (int i = 0; i < over; i++) {
+            field = Types.optionalGroup().addField(field).named("g" + i);
+        }
+        MessageType schema = new MessageType("deep_schema", field);
+
+        // No data needed; we only inspect metadata. Write an empty row group via no rows.
+        byte[] parquetData = createParquetFile(schema, factory -> List.of());
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        SourceMetadata metadata = reader.metadata(createStorageObject(parquetData));
+        // Once recursion crosses the cap, the over-cap group is emitted as one UNSUPPORTED
+        // attribute and recursion stops; deeper leaves never surface. So we expect exactly one
+        // attribute, UNSUPPORTED, whose dotted name has cap+1 segments (the cap-exceeding group
+        // itself; everything below it is collapsed).
+        assertEquals(1, metadata.schema().size());
+        Attribute attr = metadata.schema().get(0);
+        assertEquals(DataType.UNSUPPORTED, attr.dataType());
+        assertEquals(
+            "expected name with cap+1 segments (the first over-cap level)",
+            ParquetFormatReader.MAX_STRUCT_FLATTENING_DEPTH + 1,
+            attr.name().split("\\.").length
+        );
+    }
+
+    public void testNestedStructEndToEndWithThreeWayNullPropagation() throws Exception {
+        // OPTIONAL event { OPTIONAL action, OPTIONAL outcome }; rows cover:
+        // (a) parent null
+        // (b) parent non-null, action null
+        // (c) both non-null
+        MessageType schema = new MessageType(
+            "test_schema",
+            Types.optionalGroup()
+                .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("action")
+                .optional(PrimitiveType.PrimitiveTypeName.BINARY)
+                .as(LogicalTypeAnnotation.stringType())
+                .named("outcome")
+                .named("event")
+        );
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g1 = factory.newGroup(); // (a) parent null — no addGroup call
+            Group g2 = factory.newGroup(); // (b) parent non-null, action null
+            g2.addGroup("event").append("outcome", "success");
+            Group g3 = factory.newGroup(); // (c) both non-null
+            Group ev3 = g3.addGroup("event");
+            ev3.append("action", "logout");
+            ev3.append("outcome", "failure");
+            return List.of(g1, g2, g3);
+        });
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        StorageObject so = createStorageObject(parquetData);
+        try (CloseableIterator<Page> iterator = reader.read(so, List.of("event.action"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(3, page.getPositionCount());
+            BytesRefBlock block = (BytesRefBlock) page.getBlock(0);
+            assertTrue("row 0 (parent null) -> child null", block.isNull(0));
+            assertTrue("row 1 (parent non-null, child null) -> child null", block.isNull(1));
+            assertFalse("row 2 (both non-null) -> non-null", block.isNull(2));
+            assertEquals(new BytesRef("logout"), block.getBytesRef(block.getFirstValueIndex(2), new BytesRef()));
+            page.releaseBlocks();
+        }
+    }
+
+    // UINT_32: value 3,000,000,000 overflows signed int to -1,294,967,296
+    public void testLargeUint32() throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(32, false)) // unsigned
+            .named("object_id")
+            .named("test_schema");
+        int unsignedBits = 0xFFFFFFFF; // negative in signed int
+        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("object_id", unsignedBits)));
+        StorageObject storageObject = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        var meta = reader.metadata(storageObject);
+        assertEquals("UINT_32 should map to LONG to hold unsigned 32-bit range", DataType.LONG, meta.schema().get(0).dataType());
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(0xFFFFFFFFL, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    // UINT_8: value 200 should be read as such
+    public void testLargeUint8() throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(8, false)) // unsigned
+            .named("object_id")
+            .named("test_schema");
+        int unsignedBits = 200;
+        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("object_id", unsignedBits)));
+        StorageObject storageObject = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        var meta = reader.metadata(storageObject);
+        assertEquals("UINT_8 should map to INT to hold unsigned 8-bit range", DataType.INTEGER, meta.schema().get(0).dataType());
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(200, ((IntBlock) page.getBlock(0)).getInt(0));
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    public void testLargeUnsignedLong() throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.intType(64, false)) // unsigned
+            .named("object_id")
+            .named("test_schema");
+        long unsignedBits = 0xFFFFFFFFFFFFFFFFL; // negative in signed long
+        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("object_id", unsignedBits)));
+        StorageObject storageObject = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        var meta = reader.metadata(storageObject);
+        assertEquals("UINT_64 should map to UNSIGNED_LONG", DataType.UNSIGNED_LONG, meta.schema().get(0).dataType());
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(unsignedBits, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertFalse(iterator.hasNext());
+        }
     }
 }

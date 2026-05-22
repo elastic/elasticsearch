@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.ExternalSchema;
 import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -75,7 +76,6 @@ import org.elasticsearch.xpack.esql.plan.physical.MergeExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
-import org.elasticsearch.xpack.esql.type.EsFieldTests;
 import org.mockito.exceptions.base.MockitoException;
 
 import java.io.IOException;
@@ -117,6 +117,7 @@ import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomIndexNam
 import static org.elasticsearch.xpack.esql.index.EsIndexGenerator.randomRemotesWithIndices;
 import static org.elasticsearch.xpack.esql.plan.AbstractNodeSerializationTests.randomFieldAttributes;
 import static org.elasticsearch.xpack.esql.plan.physical.LookupJoinExecSerializationTests.randomJoinOnExpression;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomEsField;
 import static org.mockito.Mockito.mock;
 
 /**
@@ -475,7 +476,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return StoragePath.of("s3://bucket/" + randomAlphaOfLength(8));
         } else if (argClass == SchemaReconciliation.FileSchemaInfo.class) {
             // Record with unmockable list-of-attribute parts; build a trivial instance for tree tests.
-            return new SchemaReconciliation.FileSchemaInfo(List.of(), null, null);
+            return new SchemaReconciliation.FileSchemaInfo(new ExternalSchema(List.of()), null, null);
+        } else if (argClass == ExternalSchema.class) {
+            return new ExternalSchema(List.of());
         } else if (argClass == MatchConfig.class) {
             // MatchConfig is final, cannot be mocked
             return new MatchConfig(randomAlphaOfLength(5), randomInt(10), randomFrom(DataType.types()));
@@ -556,7 +559,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             return randomConfiguration();
         }
         if (argClass == EsField.class) {
-            return EsFieldTests.randomEsField(4);
+            return randomEsField(4);
         }
         if (argClass == EsIndex.class) {
             return randomEsIndex();

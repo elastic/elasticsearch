@@ -129,6 +129,7 @@ import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
 import org.elasticsearch.ingest.IngestService;
+import org.elasticsearch.iplocation.api.IpLocationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.monitor.StatusInfo;
@@ -842,6 +843,7 @@ public class SnapshotResiliencyTestHelper {
                             client,
                             null,
                             UserAgentParserRegistry.NOOP,
+                            IpLocationService.NOOP,
                             FailureStoreMetrics.NOOP,
                             projectResolver,
                             new FeatureService(List.of()) {

@@ -4478,3 +4478,269 @@ s:integer | y:integer | x:integer | z:integer | w:integer | ww:integer
 -1        | 3         | 1         | 0         | 6         | 0
 -1        | 3         | 1         | 1         | 6         | 3
 ;
+
+sumExpressionWithConstantMultipleClausesInteger
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)
+;
+
+s1:long  | s2:long
+4824955  | 4825055
+;
+
+sumExpressionWithConstantThreeClausesShareOneSvPair
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2), s3 = SUM(salary + 3)
+;
+
+s1:long  | s2:long  | s3:long
+4824955  | 4825055  | 4825155
+;
+
+sumExpressionWithConstantMultipleClausesOnlySingleValued
+FROM employees
+| WHERE mv_count(salary_change) == 1
+| STATS s1 = round(SUM(salary_change + 1.0), 2), s2 = round(SUM(salary_change + 2.0), 2)
+;
+
+s1:double | s2:double
+-1.47     | 22.53
+;
+
+sumExpressionWithConstantMultipleClausesWithMultiValuedField
+FROM employees
+| STATS s1 = round(SUM(salary_change + 1.0), 2), s2 = round(SUM(salary_change + 2.0), 2)
+;
+warning:Line 2:24: evaluation of [salary_change + 1.0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:24: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:65: evaluation of [salary_change + 2.0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:65: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+s1:double | s2:double
+-1.47     | 22.53
+;
+
+sumExpressionWithConstantMultipleClausesSubtraction
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary - 2)
+;
+
+s1:long  | s2:long
+4824955  | 4824655
+;
+
+sumExpressionWithConstantMinusField
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(3 - salary)
+;
+
+s1:long  | s2:long
+4824955  | -4824555
+;
+
+sumExpressionWithConstantMultipleClausesMultiValueWarning
+row salary_change = [1.1, 2.2]
+| stats s1 = sum(salary_change + 1.0), s2 = sum(salary_change + 2.0)
+;
+warning:Line 2:18: evaluation of [salary_change + 1.0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:18: java.lang.IllegalArgumentException: single-value function encountered multi-value
+warning:Line 2:49: evaluation of [salary_change + 2.0] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:49: java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+s1:double | s2:double
+null       | null
+;
+
+sumExpressionWithConstantOnNullField
+FROM employees
+| WHERE salary_change IS NULL
+| STATS s = SUM(salary_change + 1.0)
+;
+
+s:double
+null
+;
+
+sumExpressionWithConstantMultipleClausesWithGroupBy
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2) BY languages
+| SORT languages
+;
+
+s1:long  | s2:long  | languages:integer
+758665   | 758680   | 1
+915417   | 915436   | 2
+891138   | 891155   | 3
+859212   | 859230   | 4
+875317   | 875338   | 5
+525206   | 525216   | null
+;
+
+sumExpressionWithConstantAlongsideBareSumOfSameField
+FROM employees
+| STATS s1 = SUM(salary + 1), bare = SUM(salary), s2 = SUM(salary + 2)
+;
+
+s1:long  | bare:long | s2:long
+4824955  | 4824855   | 4825055
+;
+
+sumExpressionWithConstantDuplicateAliasShadowing
+required_capability: stats_alias_collision_warnings
+FROM employees
+| STATS s = SUM(salary + 1), s = SUM(salary + 2)
+;
+warning:Line 2:9: Field 's' shadowed by field at line 2:30
+
+s:long
+4825055
+;
+
+sumExpressionWithConstantFoldableCastInConstantPosition
+FROM employees
+| STATS s1 = SUM(salary + "1.0"::int), s2 = SUM(salary + TO_INTEGER("2"))
+;
+
+s1:long  | s2:long
+4824955  | 4825055
+;
+
+sumExpressionWithNullInDataExpressionPosition
+FROM employees
+| STATS s1 = SUM(salary + null + 1), s2 = SUM(salary + null + 2)
+;
+
+s1:long | s2:long
+null    | null
+;
+
+sumExpressionWithConstantMultipleClausesByGroupingAlias
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2) BY l = languages
+| SORT l
+;
+
+s1:long  | s2:long  | l:integer
+758665   | 758680   | 1
+915417   | 915436   | 2
+891138   | 891155   | 3
+859212   | 859230   | 4
+875317   | 875338   | 5
+525206   | 525216   | null
+;
+
+sumExpressionWithConstantCountAlongside
+FROM employees
+| STATS s1 = SUM(salary + 1), c = COUNT(salary), s2 = SUM(salary + 2)
+;
+
+s1:long  | c:long | s2:long
+4824955  | 100    | 4825055
+;
+
+sumExpressionWithConstantShadowedBareSum
+required_capability: stats_alias_collision_warnings
+FROM employees
+| STATS s1 = SUM(salary + 1), c = SUM(salary), c = COUNT(salary), s2 = SUM(salary + 2)
+;
+warning:Line 2:31: Field 'c' shadowed by field at line 2:48
+
+s1:long  | c:long | s2:long
+4824955  | 100    | 4825055
+;
+
+sumExpressionWithConstantWithWhereBeforeStats
+FROM employees
+| WHERE gender == "M"
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)
+;
+
+s1:long  | s2:long
+2671111  | 2671168
+;
+
+sumExpressionWithConstantEvalOverride
+FROM employees
+| EVAL salary = salary * 2
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)
+;
+
+s1:long  | s2:long
+9649810  | 9649910
+;
+
+sumExpressionWithConstantAlongsideAvg
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2), a = AVG(salary)
+;
+
+s1:long  | s2:long | a:double
+4824955  | 4825055 | 48248.55
+;
+
+sumExpressionWithConstantFilteredBothSameFilter
+required_capability: per_agg_filtering
+FROM employees
+| STATS s1 = SUM(salary + 1) WHERE gender == "M", s2 = SUM(salary + 2) WHERE gender == "M"
+;
+
+s1:long  | s2:long
+2671111  | 2671168
+;
+
+sumExpressionWithConstantFilteredMixedWithUnfiltered
+required_capability: per_agg_filtering
+FROM employees
+| STATS s1 = SUM(salary + 1) WHERE gender == "M", s2 = SUM(salary + 2) WHERE gender == "M", s3 = SUM(salary + 3), s4 = SUM(salary + 4)
+;
+
+s1:long  | s2:long  | s3:long  | s4:long
+2671111  | 2671168  | 4825155  | 4825255
+;
+
+sumExpressionWithConstantChainedStats
+FROM employees
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2) BY languages
+| STATS t1 = SUM(s1 + 3), t2 = SUM(s1 + 4), t3 = SUM(s2 + 5), t4 = SUM(s2 + 6)
+;
+
+t1:long  | t2:long  | t3:long  | t4:long
+4824973  | 4824979  | 4825085  | 4825091
+;
+
+sumExpressionWithConstantMixedIntDouble
+FROM employees
+| STATS s1 = SUM(salary + 1.5), s2 = SUM(salary + 2.5)
+;
+
+s1:double    | s2:double
+4825005.0    | 4825105.0
+;
+
+sumExpressionWithConstantDoubleNegation
+FROM employees
+| STATS s1 = SUM(-(-salary) + 1), s2 = SUM(-(-salary) + 2)
+;
+
+s1:long  | s2:long
+4824955  | 4825055
+;
+
+sumExpressionWithConstantExpressionInsteadOfField
+FROM employees
+| STATS s1 = SUM((2 * salary) + 1), s2 = SUM(-3 - (2 * salary))
+;
+
+s1:long  | s2:long
+9649810  | -9650010
+;
+
+sumExpressionWithConstantWhereFiltersAllRows
+FROM employees
+| WHERE salary < 0
+| STATS s1 = SUM(salary + 1), s2 = SUM(salary + 2)
+;
+
+s1:long | s2:long
+null    | null
+;

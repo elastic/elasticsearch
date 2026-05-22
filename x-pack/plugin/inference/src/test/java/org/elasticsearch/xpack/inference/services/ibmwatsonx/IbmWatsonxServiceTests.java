@@ -8,52 +8,51 @@
 package org.elasticsearch.xpack.inference.services.ibmwatsonx;
 
 import org.apache.http.HttpHeaders;
-import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.RerankingInferenceService;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.http.MockResponse;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceEmbedding;
 import org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResults;
-import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.InferenceServiceTestCase;
-import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
-import org.elasticsearch.xpack.inference.services.ibmwatsonx.action.IbmWatsonxActionCreator;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.completion.IbmWatsonxChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModelTests;
-import org.elasticsearch.xpack.inference.services.ibmwatsonx.request.IbmWatsonxEmbeddingsRequest;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModelTests;
 import org.hamcrest.MatcherAssert;
@@ -63,16 +62,21 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettings;
 import static org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.core.inference.results.RankedDocsResults.RankedDoc.INDEX;
+import static org.elasticsearch.xpack.core.inference.results.RankedDocsResults.RankedDoc.RELEVANCE_SCORE;
+import static org.elasticsearch.xpack.core.inference.results.RankedDocsResultsTests.buildExpectationRerank;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
@@ -87,6 +91,7 @@ import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -634,7 +639,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new IbmWatsonxService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             String responseJson = """
                 {
                      "results": [
@@ -676,6 +681,153 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         }
     }
 
+    public void testRerankInfer_SendsRerankRequest() throws IOException {
+        try (var service = createInferenceService()) {
+            String responseJson = """
+                {
+                    "results": [
+                        {
+                            "index": 2,
+                            "score": 0.98005307
+                        },
+                        {
+                            "index": 3,
+                            "score": 0.27904198
+                        }
+                    ]
+                }
+                """;
+            webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+            var modelId = randomAlphaOfLength(8);
+            var projectId = randomAlphaOfLength(8);
+            var topN = randomBoolean() ? null : randomIntBetween(1, 128);
+            var returnDocuments = randomOptionalBoolean();
+            var truncateInputTokens = randomBoolean() ? null : randomIntBetween(1, 128);
+            var model = IbmWatsonxRerankModelTests.createModel(
+                modelId,
+                projectId,
+                URI.create(URL_VALUE),
+                API_VERSION_VALUE,
+                API_KEY_VALUE,
+                getUrl(webServer),
+                randomAlphaOfLength(8),
+                topN,
+                returnDocuments,
+                truncateInputTokens
+            );
+
+            var inputOne = randomAlphanumericOfLength(8);
+            var inputTwo = randomAlphanumericOfLength(8);
+            var query = randomAlphanumericOfLength(8);
+            var request = new RerankRequest(
+                List.of(new InferenceString(DataType.TEXT, inputOne), new InferenceString(DataType.TEXT, inputTwo)),
+                new InferenceString(DataType.TEXT, query),
+                null,
+                null,
+                null
+            );
+
+            var listener = new TestPlainActionFuture<InferenceServiceResults>();
+            service.rerankInfer(model, request, null, listener);
+            var result = listener.actionGet(TIMEOUT);
+
+            var expectedResults = List.of(
+                new RankedDocsResultsTests.RerankExpectation(Map.of(INDEX, 2, RELEVANCE_SCORE, 0.98005307f)),
+                new RankedDocsResultsTests.RerankExpectation(Map.of(INDEX, 3, RELEVANCE_SCORE, 0.27904198f))
+            );
+            assertThat(result.asMap(), is(buildExpectationRerank(expectedResults)));
+
+            assertThat(webServer.requests(), hasSize(1));
+            assertNull(webServer.requests().getFirst().getUri().getQuery());
+            assertThat(webServer.requests().getFirst().getHeader(HttpHeaders.CONTENT_TYPE), equalTo(XContentType.JSON.mediaType()));
+
+            var requestMap = entityAsMap(webServer.requests().getFirst().getBody());
+            var expectedRequestMap = buildExpectedRequestMap(
+                modelId,
+                query,
+                inputOne,
+                inputTwo,
+                projectId,
+                topN,
+                returnDocuments,
+                truncateInputTokens
+            );
+            assertThat(requestMap, is(expectedRequestMap));
+        }
+    }
+
+    private static Map<String, Object> buildExpectedRequestMap(
+        String modelId,
+        String query,
+        String inputOne,
+        String inputTwo,
+        String projectId,
+        @Nullable Integer topN,
+        @Nullable Boolean returnDocuments,
+        @Nullable Integer truncateInputTokens
+    ) {
+        Map<String, Object> expectedRequestMap = new HashMap<>(
+            Map.of(
+                "model_id",
+                modelId,
+                "query",
+                query,
+                "inputs",
+                List.of(Map.of("text", inputOne), Map.of("text", inputTwo)),
+                "project_id",
+                projectId
+            )
+        );
+        var returnOptionsMap = new HashMap<>();
+        if (topN != null) {
+            returnOptionsMap.put("top_n", topN);
+        }
+        if (returnDocuments != null) {
+            returnOptionsMap.put("inputs", returnDocuments);
+        }
+        var parametersMap = new HashMap<String, Object>(Map.of("return_options", returnOptionsMap));
+        if (truncateInputTokens != null) {
+            parametersMap.put("truncate_input_tokens", truncateInputTokens);
+        }
+        expectedRequestMap.put("parameters", parametersMap);
+        return expectedRequestMap;
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextQuery() throws IOException {
+        var textInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.of(DataType.TEXT)));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(textInputs, nonTextQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputs() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var textQuery = createRandomUsingDataTypes(EnumSet.of(DataType.TEXT));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, textQuery);
+    }
+
+    public void testRerankInfer_ThrowsError_WithNonTextInputsAndQuery() throws IOException {
+        var nonTextInputs = randomList(1, 5, () -> createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT))));
+        var nonTextQuery = createRandomUsingDataTypes(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        testRerankInfer_ThrowsError_WithNonTextInputOrQuery(nonTextInputs, nonTextQuery);
+    }
+
+    private void testRerankInfer_ThrowsError_WithNonTextInputOrQuery(List<InferenceString> inputs, InferenceString query)
+        throws IOException {
+
+        var model = mock(IbmWatsonxRerankModel.class);
+
+        try (var service = createInferenceService()) {
+            TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
+
+            service.rerankInfer(model, new RerankRequest(inputs, query, null, null, new HashMap<>()), null, listener);
+
+            var thrownException = expectThrows(ElasticsearchStatusException.class, () -> listener.actionGet(TIMEOUT));
+            assertThat(thrownException.status(), is(RestStatus.BAD_REQUEST));
+            assertThat(thrownException.getMessage(), is("The watsonxai service does not support rerank with non-text inputs or queries"));
+        }
+    }
+
     public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
         testChunkedInfer_Batches(null);
     }
@@ -694,7 +846,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
             API_KEY_VALUE,
             getUrl(webServer)
         );
-        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new IbmWatsonxService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             PlainActionFuture<List<ChunkedInference>> listener = new PlainActionFuture<>();
             service.chunkedInfer(model, null, List.of(), new HashMap<>(), InputType.INTERNAL_INGEST, null, listener);
 
@@ -709,7 +861,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
 
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new IbmWatsonxService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
             String responseJson = """
                 {
                      "results": [
@@ -789,7 +941,7 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
     public void testInfer_ResourceNotFound() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
-        try (var service = new IbmWatsonxServiceWithoutAuth(senderFactory, createWithEmptySettings(threadPool))) {
+        try (var service = new IbmWatsonxService(senderFactory, createWithEmptySettings(threadPool), mockClusterServiceEmpty())) {
 
             String responseJson = """
                 {
@@ -950,71 +1102,6 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
         assertThat(rerankingInferenceService.rerankerWindowSize("any model"), is(RERANK_WINDOW_SIZE));
     }
 
-    private static class IbmWatsonxServiceWithoutAuth extends IbmWatsonxService {
-        IbmWatsonxServiceWithoutAuth(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
-            super(factory, serviceComponents, mockClusterServiceEmpty());
-        }
-
-        @Override
-        protected IbmWatsonxActionCreator getActionCreator(Sender sender, ServiceComponents serviceComponents) {
-            return new IbmWatsonxActionCreatorWithoutAuth(getSender(), getServiceComponents());
-        }
-    }
-
-    private static class IbmWatsonxActionCreatorWithoutAuth extends IbmWatsonxActionCreator {
-        IbmWatsonxActionCreatorWithoutAuth(Sender sender, ServiceComponents serviceComponents) {
-            super(sender, serviceComponents);
-        }
-
-        @Override
-        protected IbmWatsonxEmbeddingsRequestManager getEmbeddingsRequestManager(
-            IbmWatsonxEmbeddingsModel model,
-            Truncator truncator,
-            ThreadPool threadPool
-        ) {
-            return new IbmWatsonxEmbeddingsRequestManagerWithoutAuth(model, truncator, threadPool);
-        }
-    }
-
-    private static class IbmWatsonxEmbeddingsRequestManagerWithoutAuth extends IbmWatsonxEmbeddingsRequestManager {
-        IbmWatsonxEmbeddingsRequestManagerWithoutAuth(IbmWatsonxEmbeddingsModel model, Truncator truncator, ThreadPool threadPool) {
-            super(model, truncator, threadPool);
-        }
-
-        @Override
-        protected IbmWatsonxEmbeddingsRequest getEmbeddingRequest(
-            Truncator truncator,
-            Truncator.TruncationResult truncatedInput,
-            IbmWatsonxEmbeddingsModel model
-        ) {
-            return new IbmWatsonxEmbeddingsWithoutAuthRequest(truncator, truncatedInput, model);
-        }
-
-    }
-
-    private static class IbmWatsonxEmbeddingsWithoutAuthRequest extends IbmWatsonxEmbeddingsRequest {
-        private static final String AUTH_HEADER_VALUE = "foo";
-
-        IbmWatsonxEmbeddingsWithoutAuthRequest(Truncator truncator, Truncator.TruncationResult input, IbmWatsonxEmbeddingsModel model) {
-            super(truncator, input, model);
-        }
-
-        @Override
-        public void decorateWithAuth(HttpPost httpPost) {
-            httpPost.setHeader(HttpHeaders.AUTHORIZATION, AUTH_HEADER_VALUE);
-        }
-
-        @Override
-        public OutboundRequest truncate() {
-            IbmWatsonxEmbeddingsRequest embeddingsRequest = (IbmWatsonxEmbeddingsRequest) super.truncate();
-            return new IbmWatsonxEmbeddingsWithoutAuthRequest(
-                embeddingsRequest.truncator(),
-                embeddingsRequest.truncationResult(),
-                embeddingsRequest.model()
-            );
-        }
-    }
-
     public void testBuildModelFromConfigAndSecrets_TextEmbedding() throws IOException, URISyntaxException {
         var model = createTestModel(TaskType.TEXT_EMBEDDING);
         validateModelBuilding(model);
@@ -1084,7 +1171,9 @@ public class IbmWatsonxServiceTests extends InferenceServiceTestCase {
                 PROJECT_ID_VALUE,
                 URI.create(URL_VALUE),
                 API_VERSION_VALUE,
-                API_KEY_VALUE
+                API_KEY_VALUE,
+                URL_VALUE,
+                randomAlphaOfLength(8)
             );
             default -> throw new IllegalArgumentException("Unsupported task type: " + taskType);
         };

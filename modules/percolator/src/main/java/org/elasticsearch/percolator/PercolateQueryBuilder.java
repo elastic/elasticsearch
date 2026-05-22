@@ -707,6 +707,11 @@ public class PercolateQueryBuilder extends LeafQueryBuilder<PercolateQueryBuilde
             }
 
             @Override
+            public void addCircuitBreakerMemory(long bytes, long heldBreakerBytes, String label) {
+                source.addCircuitBreakerMemory(bytes, heldBreakerBytes, label);
+            }
+
+            @Override
             public long getQueryConstructionMemoryUsed() {
                 return source.getQueryConstructionMemoryUsed();
             }

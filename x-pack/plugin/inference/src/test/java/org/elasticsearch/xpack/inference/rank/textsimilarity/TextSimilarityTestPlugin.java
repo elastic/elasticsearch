@@ -33,8 +33,8 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.action.GetInferenceModelAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereService;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 
@@ -140,7 +140,9 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                         request.getInferenceEntityId(),
                         TaskType.RERANK,
                         CohereService.NAME,
-                        new CohereRerankServiceSettings("uri", "model", null, CohereServiceSettings.CohereApiVersion.V2),
+                        new CohereRerankServiceSettings(
+                            new CohereCommonServiceSettings("model", null, CohereCommonServiceSettings.CohereApiVersion.V2)
+                        ),
                         topN == null ? new EmptyTaskSettings() : new CohereRerankTaskSettings(topN, null, null)
                     )
                 )

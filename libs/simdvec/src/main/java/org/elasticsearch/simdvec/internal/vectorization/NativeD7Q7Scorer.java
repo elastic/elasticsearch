@@ -20,11 +20,11 @@ import java.lang.foreign.MemorySegment;
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7uBulkWithOffsets;
 
 /** Vectorized scorer for 7-bit symmetric quantized vectors stored as a {@link MemorySegment}. */
-final class NativeD7Q7ES940OSQVectorsScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer {
+final class NativeD7Q7Scorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer {
 
     private final MemorySegmentES92NativeInt7VectorsScorer int7Scorer;
 
-    NativeD7Q7ES940OSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
+    NativeD7Q7Scorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
         super(in, dimensions, dataLength, bulkSize);
         this.int7Scorer = new MemorySegmentES92NativeInt7VectorsScorer(in, dimensions, bulkSize);
     }

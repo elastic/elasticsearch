@@ -116,12 +116,12 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
 
     private static MemorySegmentScorer createNativeScorer(QuantEncoding enc, IndexInput in, int dimensions, int dataLength, int bulkSize) {
         return switch (enc) {
-            case D1Q1 -> throw new IllegalArgumentException("D1Q1 has no native scorer yet");
+            case D1Q1 -> new MSBitToBitESNextOSQVectorsScorer(in, dimensions, dataLength, bulkSize);    // no native, use panama for now
             case D1Q4 -> new NativeD1Q4Scorer(in, dimensions, dataLength, bulkSize);
             case D2Q4 -> new NativeD2Q4Scorer(in, dimensions, dataLength, bulkSize);
             case D4Q4_STRIPED -> new NativeD4Q4Scorer(in, dimensions, dataLength, bulkSize);
-            case D4Q4_PACKED -> new NativePackedInt4ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
-            case D7Q7 -> new NativeD7Q7ES940OSQVectorsScorer(in, dimensions, dataLength, bulkSize);
+            case D4Q4_PACKED -> new NativePackedInt4Scorer(in, dimensions, dataLength, bulkSize);
+            case D7Q7 -> new NativeD7Q7Scorer(in, dimensions, dataLength, bulkSize);
         };
     }
 
@@ -281,9 +281,9 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         );
     }
 
-    static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, NativeD7Q7ES940OSQVectorsScorer,
-        MSBitToBitESNextOSQVectorsScorer, MSBitToInt4ES940OSQVectorsScorer, MSDibitToInt4ES940OSQVectorsScorer,
-        MSInt4SymmetricES940OSQVectorsScorer, MSD7Q7ES940OSQVectorsScorer, NativePackedInt4ES940OSQVectorsScorer {
+    static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, NativeD7Q7Scorer, MSBitToBitESNextOSQVectorsScorer,
+        MSBitToInt4ES940OSQVectorsScorer, MSDibitToInt4ES940OSQVectorsScorer, MSInt4SymmetricES940OSQVectorsScorer,
+        MSD7Q7ES940OSQVectorsScorer, NativePackedInt4Scorer {
 
         static final float ONE_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[0];
         static final float TWO_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[1];

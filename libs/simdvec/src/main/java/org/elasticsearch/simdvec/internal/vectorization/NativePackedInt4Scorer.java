@@ -19,14 +19,14 @@ import java.lang.foreign.MemorySegment;
  * Packed-nibble int4 scorer that uses existing native dot-product ops.
  * Returns sentinel values when native support is unavailable so callers can fallback.
  */
-final class NativePackedInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer {
+final class NativePackedInt4Scorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer {
 
     private byte[] cachedQueryArray;
     private MemorySegment cachedQuerySeg;
     private float[] cachedScoresArray;
     private MemorySegment cachedScoresSeg;
 
-    NativePackedInt4ES940OSQVectorsScorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
+    NativePackedInt4Scorer(IndexInput in, int dimensions, int dataLength, int bulkSize) {
         super(in, dimensions, dataLength, bulkSize);
     }
 

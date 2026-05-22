@@ -19,23 +19,17 @@ import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.reindex.ReindexPlugin.REINDEX_RESILIENCE_ENABLED;
-
 public class ReindexManagementPlugin extends Plugin implements ActionPlugin {
 
     public static final String CAPABILITY_REINDEX_MANAGEMENT_API = "reindex_management_api";
 
     @Override
     public List<ActionHandler> getActions() {
-        if (REINDEX_RESILIENCE_ENABLED) {
-            return List.of(
-                new ActionHandler(TransportGetReindexAction.TYPE, TransportGetReindexAction.class),
-                new ActionHandler(TransportListReindexAction.TYPE, TransportListReindexAction.class),
-                new ActionHandler(TransportCancelReindexAction.TYPE, TransportCancelReindexAction.class)
-            );
-        } else {
-            return List.of();
-        }
+        return List.of(
+            new ActionHandler(TransportGetReindexAction.TYPE, TransportGetReindexAction.class),
+            new ActionHandler(TransportListReindexAction.TYPE, TransportListReindexAction.class),
+            new ActionHandler(TransportCancelReindexAction.TYPE, TransportCancelReindexAction.class)
+        );
     }
 
     @Override
@@ -44,14 +38,10 @@ public class ReindexManagementPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        if (REINDEX_RESILIENCE_ENABLED) {
-            return List.of(
-                new RestGetReindexAction(clusterSupportsFeature),
-                new RestListReindexAction(clusterSupportsFeature),
-                new RestCancelReindexAction(clusterSupportsFeature)
-            );
-        } else {
-            return List.of();
-        }
+        return List.of(
+            new RestGetReindexAction(clusterSupportsFeature),
+            new RestListReindexAction(clusterSupportsFeature),
+            new RestCancelReindexAction(clusterSupportsFeature)
+        );
     }
 }

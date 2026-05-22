@@ -113,7 +113,7 @@ public class ShardMetrics extends AbstractLifecycleComponent {
                     var stats = shard.storeStats();
                     shardSizeHistogram.record(
                         stats.totalDataSetSize().getGbFrac(),
-                        Map.of("datastream", indexAbstraction.get().getParentDataStream() != null)
+                        Map.of("es_is_in_datastream", indexAbstraction.get().getParentDataStream() != null)
                     );
                 } catch (Exception e) {
                     // Ignore individual shard failures and keep going.

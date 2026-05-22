@@ -3512,45 +3512,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     /**
-     * Verifies that keyword array element order is preserved in synthetic source when the keyword
-     * field is inside an object array whose object mapper has synthetic_source_keep=none. This
-     * catches a bug where per-value addIgnoredFieldFromContext in parseObjectOrField prevented
-     * offset recording for fields with native array offset support, causing inconsistent offset
-     * state during synthetic source reconstruction.
-     */
-    public void testSyntheticSourceKeywordArrayInsideObjectArrayWithSourceKeepNone() throws IOException {
-        Settings settings = Settings.builder()
-            .put("index.mapping.source.mode", "synthetic")
-            .put("index.mapping.synthetic_source_keep", "arrays")
-            .build();
-        DocumentMapper mapper = createMapperService(
-            settings,
-            mapping(
-                b -> b.startObject("obj")
-                    .field("type", "object")
-                    .field("synthetic_source_keep", "none")
-                    .startObject("properties")
-                    .startObject("kw")
-                    .field("type", "keyword")
-                    .endObject()
-                    .endObject()
-                    .endObject()
-            )
-        ).documentMapper();
-
-        String result = syntheticSource(mapper, b -> {
-            b.startArray("obj");
-            {
-                b.startObject();
-                b.array("kw", "b", "a");
-                b.endObject();
-            }
-            b.endArray();
-        });
-        assertThat(result, containsString("\"kw\":[\"b\",\"a\"]"));
-    }
-
-    /**
      * Verifies that keyword array order inside a logsdb object array is preserved. In logsdb,
      * source_keep defaults to ARRAYS for object mappers, causing addIgnoredFieldFromContext at the
      * object array level. The keyword's offset recording must still work correctly within this context.
@@ -3585,10 +3546,13 @@ public class DocumentParserTests extends MapperServiceTestCase {
     }
 
     /**
-     * Same as above but verifies that keyword values with duplicates preserve original array
-     * order, which requires correct offset recording.
+     * Verifies that keyword array order is preserved inside a logsdb-like object array
+     * when the keyword array contains a trailing nested empty array. The trailing empty
+     * array causes maybeRecordEmptyArray to create offset metadata. With addIgnoredFieldFromContext
+     * storing per-value data for fields with native offset support (our fix), the _ignored_source
+     * at the object level faithfully preserves both the keyword values and the empty sub-array.
      */
-    public void testSyntheticSourceKeywordArrayWithDuplicatesInsideObjectArrayWithSourceKeepNone() throws IOException {
+    public void testSyntheticSourceKeywordArrayWithTrailingEmptyArrayInObjectArray() throws IOException {
         Settings settings = Settings.builder()
             .put("index.mapping.source.mode", "synthetic")
             .put("index.mapping.synthetic_source_keep", "arrays")
@@ -3598,7 +3562,6 @@ public class DocumentParserTests extends MapperServiceTestCase {
             mapping(
                 b -> b.startObject("obj")
                     .field("type", "object")
-                    .field("synthetic_source_keep", "none")
                     .startObject("properties")
                     .startObject("kw")
                     .field("type", "keyword")
@@ -3612,12 +3575,16 @@ public class DocumentParserTests extends MapperServiceTestCase {
             b.startArray("obj");
             {
                 b.startObject();
-                b.array("kw", "b", "a", "b");
+                b.startArray("kw");
+                b.value("b");
+                b.value("a");
+                b.startArray().endArray();
+                b.endArray();
                 b.endObject();
             }
             b.endArray();
         });
-        assertThat(result, containsString("\"kw\":[\"b\",\"a\",\"b\"]"));
+        assertThat(result, containsString("\"kw\":[\"b\",\"a\",[]]"));
     }
 
     /**

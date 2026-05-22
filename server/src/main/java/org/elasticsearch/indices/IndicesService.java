@@ -17,6 +17,7 @@ import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
@@ -996,6 +997,7 @@ public class IndicesService extends AbstractLifecycleComponent
         indexShard.addShardFailureCallback(onShardFailure);
         throttlingRecoveryService.enqueue(
             recoveryListener,
+            recoveryState,
             (recoveryListener1) -> projectResolver.executeOnProject(
                 projectId,
                 () -> indexShard.startRecovery(

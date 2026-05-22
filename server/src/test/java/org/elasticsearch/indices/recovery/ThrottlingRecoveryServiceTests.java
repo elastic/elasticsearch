@@ -9,6 +9,10 @@
 
 package org.elasticsearch.indices.recovery;
 
+import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +41,7 @@ import static org.elasticsearch.indices.recovery.ThrottlingRecoveryService.INDIC
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -76,7 +81,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 fail(e);
             }
         };
-        service.enqueue(userListener, schedulingListener -> {
+        service.enqueue(userListener, fakeRecoveryState(), schedulingListener -> {
             executionThread.set(Thread.currentThread());
             schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
         });
@@ -108,7 +113,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 fail(e);
             }
         };
-        service.enqueue(userListener, schedulingListener -> {
+        service.enqueue(userListener, fakeRecoveryState(), schedulingListener -> {
             schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
             consumerReturned.set(true);
         });
@@ -140,7 +145,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 fail(e);
             }
         };
-        service.enqueue(userListener, schedulingListener -> {
+        service.enqueue(userListener, fakeRecoveryState(), schedulingListener -> {
             executor.execute(() -> {
                 safeAwait(proceedNested);
                 assertTrue(consumerReturned.get());
@@ -198,7 +203,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         int enqueued = 0;
         for (; enqueued < maxConcurrentRecoveries; enqueued++) {
-            service.enqueue(decrementingListener, recoveryBody);
+            service.enqueue(decrementingListener, fakeRecoveryState(), recoveryBody);
         }
 
         safeAwait(maxConcurrentReached);
@@ -206,7 +211,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         assertThat(running.get(), equalTo(maxConcurrentRecoveries));
 
         for (; enqueued < totalEnqueuedTasks; enqueued++) {
-            service.enqueue(decrementingListener, recoveryBody);
+            service.enqueue(decrementingListener, fakeRecoveryState(), recoveryBody);
         }
 
         unblock.countDown();
@@ -226,7 +231,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         final RecoveryListener noopUserListener = noopRecoveryListener();
 
         for (int i = 0; i < 4; i++) {
-            service.enqueue(noopUserListener, schedulingListener -> {
+            service.enqueue(noopUserListener, fakeRecoveryState(), schedulingListener -> {
                 firstBatchStarted.countDown();
                 secondBatchStarted.countDown();
                 safeAwait(unblockAll);
@@ -256,7 +261,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         for (int i = 0; i < 3; i++) {
             final int index = i;
-            service.enqueue(noopUserListener, schedulingListener -> executor.execute(() -> {
+            service.enqueue(noopUserListener, fakeRecoveryState(), schedulingListener -> executor.execute(() -> {
                 runningEntered.countDown();
                 safeAwait(unblockEachFirstBatch.get(index));
                 schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
@@ -267,7 +272,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
 
         for (int p = 0; p < 3; p++) {
             final int pendingIndex = p;
-            service.enqueue(noopUserListener, schedulingListener -> {
+            service.enqueue(noopUserListener, fakeRecoveryState(), schedulingListener -> {
                 pendingStarted[pendingIndex].set(true);
                 safeAwait(pendingBarrier);
                 schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY);
@@ -330,6 +335,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
             };
             service.enqueue(
                 userListener,
+                fakeRecoveryState(),
                 schedulingListener -> schedulingListener.onRecoveryDone(null, ShardLongFieldRange.EMPTY, ShardLongFieldRange.EMPTY)
             );
         }
@@ -339,6 +345,31 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
         for (int i = 0; i < total; i++) {
             assertThat(completionOrder.get(i), equalTo(i));
         }
+    }
+
+    public void testTaskFailurePropagateToListener() throws Exception {
+        ThrottlingRecoveryService service = new ThrottlingRecoveryService(executor, newClusterService(1));
+        AtomicReference<Exception> exceptionReceived = new AtomicReference<>();
+        CountDownLatch done = new CountDownLatch(1);
+        RecoveryListener userListener = new RecoveryListener() {
+            @Override
+            public void onRecoveryDone(
+                RecoveryState state,
+                ShardLongFieldRange timestampMillisFieldRange,
+                ShardLongFieldRange eventIngestedMillisFieldRange
+            ) {
+                fail("unexpected success");
+            }
+
+            @Override
+            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+                exceptionReceived.set(e);
+                done.countDown();
+            }
+        };
+        service.enqueue(userListener, fakeRecoveryState(), schedulingListener -> { throw new RuntimeException("Leeeeroooooy"); });
+        safeAwait(done);
+        assertThat("recovery executed on enqueueing thread instead of generic pool", exceptionReceived.get(), notNullValue());
     }
 
     /**
@@ -401,6 +432,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                             totalTasksEnqueued.incrementAndGet();
                             service.enqueue(
                                 noopUserListener,
+                                fakeRecoveryState(),
                                 schedulingListener -> runStressInboundRecoveryTask(
                                     schedulingListener,
                                     running,
@@ -418,6 +450,7 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                             totalTasksEnqueued.incrementAndGet();
                             service.enqueue(
                                 noopUserListener,
+                                fakeRecoveryState(),
                                 schedulingListener -> runStressInboundRecoveryTask(
                                     schedulingListener,
                                     running,
@@ -505,5 +538,10 @@ public class ThrottlingRecoveryServiceTests extends ESTestCase {
                 fail(e);
             }
         };
+    }
+
+    private RecoveryState fakeRecoveryState() {
+        ShardRouting shardRouting = TestShardRouting.newShardRouting("index", 1, "node", true, ShardRoutingState.INITIALIZING);
+        return new RecoveryState(shardRouting, DiscoveryNodeUtils.create("source"), DiscoveryNodeUtils.create("target"));
     }
 }

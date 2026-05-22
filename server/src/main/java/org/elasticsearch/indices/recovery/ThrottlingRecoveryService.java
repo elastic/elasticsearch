@@ -11,6 +11,7 @@ package org.elasticsearch.indices.recovery;
 
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -51,7 +52,7 @@ public final class ThrottlingRecoveryService {
     // Recoveries that has been dispatched to executor and not yet reached closeAndMaybeDispatch
     private final AtomicInteger runningRecoveries = new AtomicInteger(0);
     // Queue of recoveries waiting to be dispatched
-    private final Queue<RecoveryTask> pendingRecoveries = new ConcurrentLinkedQueue<>();
+    private final Queue<Runnable> pendingRecoveries = new ConcurrentLinkedQueue<>();
 
     public ThrottlingRecoveryService(Executor executor, ClusterService clusterService) {
         this.executor = executor;
@@ -65,10 +66,38 @@ public final class ThrottlingRecoveryService {
         }
     }
 
-    public void enqueue(RecoveryListener recoveryListener, Consumer<RecoveryListener> task) {
-        RecoveryTask recoveryTask = new RecoveryTask(RecoveryListener.runAfter(recoveryListener, this::closeAndFillSlots), task);
-        pendingRecoveries.add(recoveryTask);
+    /**
+     * Enqueue recovery task and dispatch to async Executor if there are available slots.
+     * Exceptions from task are propagated to {@link RecoveryListener#onRecoveryFailure(RecoveryFailedException, boolean)}
+     * on provided listener.
+     */
+    public void enqueue(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
+        pendingRecoveries.add(asRecoveryTask(recoveryListener, recoveryState, task));
         fillSlots();
+    }
+
+    /**
+     * Add termination hook to recoveryListener that dispatches next pending recovery task.
+     * Add exception handling to task by passing exceptions to listener.
+     * Return a Runnable, ready to be dispatched to Executor or put on the pending queue.
+     */
+    private Runnable asRecoveryTask(
+        RecoveryListener recoveryListener,
+        RecoveryState recoveryState,
+        Consumer<RecoveryListener> task
+    ) {
+        RecoveryListener closingListener = RecoveryListener.runAfter(recoveryListener, this::closeAndFillSlots);
+        return new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                closingListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true);
+            }
+
+            @Override
+            protected void doRun() {
+                task.accept(closingListener);
+            }
+        };
     }
 
     /**
@@ -78,9 +107,9 @@ public final class ThrottlingRecoveryService {
         int current;
         while ((current = runningRecoveries.get()) < maxConcurrentRecoveries && !pendingRecoveries.isEmpty()) {
             if (runningRecoveries.compareAndSet(current, current + 1)) {
-                RecoveryTask nextTask = pendingRecoveries.poll();
+                Runnable nextTask = pendingRecoveries.poll();
                 if (nextTask != null) {
-                    dispatch(nextTask);
+                    executor.execute(nextTask);
                 } else {
                     runningRecoveries.decrementAndGet();
                 }
@@ -101,10 +130,4 @@ public final class ThrottlingRecoveryService {
             fillSlots();
         }
     }
-
-    private void dispatch(RecoveryTask recoveryTask) {
-        executor.execute(() -> recoveryTask.task.accept(recoveryTask.recoveryListener));
-    }
-
-    private record RecoveryTask(RecoveryListener recoveryListener, Consumer<RecoveryListener> task) {}
 }

@@ -254,37 +254,39 @@ public class DLMFrozenTransitionIT extends ESIntegTestCase {
             assertThat("Frozen index should be in the data stream's backing indices", frozenInDataStream, is(true));
         }, 300, TimeUnit.SECONDS);
 
-        logger.info("--> frozen index [{}] is now in the data stream, verifying cleanup", expectedFrozenIndexName);
+        logger.info("--> frozen index [{}] is now in the data stream, waiting for cleanup", expectedFrozenIndexName);
 
-        // --- Verify cleanup of original and clone indices ---
-        ClusterStateResponse resp = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
-        var projectMetadata = resp.getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
-        assertThat("Project metadata should not be null", projectMetadata, notNullValue());
+        assertBusy(() -> {
+            // --- Verify cleanup of original and clone indices ---
+            ClusterStateResponse resp = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get();
+            var projectMetadata = resp.getState().metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+            assertThat("Project metadata should not be null", projectMetadata, notNullValue());
 
-        // Verify the original index has been cleaned up (removed from cluster state)
-        assertThat("Original index [" + candidateIndex + "] should have been deleted", projectMetadata.index(candidateIndex), nullValue());
+            // Verify the original index has been cleaned up (removed from cluster state)
+            assertThat("Original index [" + candidateIndex + "] should have been deleted", projectMetadata.index(candidateIndex), nullValue());
 
-        // Verify the clone index has been cleaned up
-        String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndex;
-        assertThat("Clone index [" + cloneIndexName + "] should have been deleted", projectMetadata.index(cloneIndexName), nullValue());
+            // Verify the clone index has been cleaned up
+            String cloneIndexName = DLMConvertToFrozen.CLONE_INDEX_PREFIX + candidateIndex;
+            assertThat("Clone index [" + cloneIndexName + "] should have been deleted", projectMetadata.index(cloneIndexName), nullValue());
 
-        // Verify the original index is no longer in the data stream
-        GetDataStreamAction.Response dsResp = client().execute(
-            GetDataStreamAction.INSTANCE,
-            new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { DATA_STREAM_NAME })
-        ).actionGet();
-        List<Index> backingIndices = dsResp.getDataStreams().getFirst().getDataStream().getIndices();
-        boolean originalInDataStream = backingIndices.stream().anyMatch(idx -> idx.getName().equals(candidateIndex));
-        assertThat("Original index should no longer be in the data stream", originalInDataStream, is(false));
+            // Verify the original index is no longer in the data stream
+            GetDataStreamAction.Response dsResp = client().execute(
+                GetDataStreamAction.INSTANCE,
+                new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { DATA_STREAM_NAME })
+            ).actionGet();
+            List<Index> backingIndices = dsResp.getDataStreams().getFirst().getDataStream().getIndices();
+            boolean originalInDataStream = backingIndices.stream().anyMatch(idx -> idx.getName().equals(candidateIndex));
+            assertThat("Original index should no longer be in the data stream", originalInDataStream, is(false));
 
-        // Verify the frozen index exists in project metadata and has the DLM-created setting
-        IndexMetadata frozenMeta = projectMetadata.index(expectedFrozenIndexName);
-        assertThat("Frozen index [" + expectedFrozenIndexName + "] should exist", frozenMeta, notNullValue());
-        assertThat(
-            "Frozen index should have the DLM-created setting",
-            DLMConvertToFrozen.DLM_CREATED_SETTING.get(frozenMeta.getSettings()),
-            is(true)
-        );
+            // Verify the frozen index exists in project metadata and has the DLM-created setting
+            IndexMetadata frozenMeta = projectMetadata.index(expectedFrozenIndexName);
+            assertThat("Frozen index [" + expectedFrozenIndexName + "] should exist", frozenMeta, notNullValue());
+            assertThat(
+                "Frozen index should have the DLM-created setting",
+                DLMConvertToFrozen.DLM_CREATED_SETTING.get(frozenMeta.getSettings()),
+                is(true)
+            );
+        }, 120, TimeUnit.SECONDS);
 
         logger.info("--> end-to-end DLM frozen transition test completed successfully");
     }

@@ -425,6 +425,12 @@ public class EsqlCapabilities {
         FLATTENED_DATATYPE_SORTED_KEYS(Build.current().isSnapshot()),
 
         /**
+         * Flattened fields apply {@code null_value} replacement when loading from {@code _source},
+         * matching the doc-values behaviour applied at index time.
+         */
+        FLATTENED_DATATYPE_NULL_VALUE(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code field_extract} function, which reads a sub-key from a {@code flattened} field root.
          */
         FIELD_EXTRACT_FUNCTION(Build.current().isSnapshot()),
@@ -1301,6 +1307,11 @@ public class EsqlCapabilities {
          * once the InSubquery feature graduates from snapshot-only to production.
          */
         WHERE_IN_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
+         * Support ROW as a source command inside subquery in the from command.
+         */
+        SUBQUERY_WITH_ROW(Build.current().isSnapshot()),
 
         /**
          * Support for views in cluster state (and REST API).
@@ -2747,7 +2758,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation with LOOKUP JOIN
          */
-        APPROXIMATION_LOOKUP_JOIN(Build.current().isSnapshot()),
+        APPROXIMATION_LOOKUP_JOIN_V2(Build.current().isSnapshot()),
 
         /**
          * Support query approximation with INLINE STATS
@@ -2849,7 +2860,13 @@ public class EsqlCapabilities {
         /**
          * Support query approximation with FORK and subqueries.
          */
-        APPROXIMATION_FORK(Build.current().isSnapshot())
+        APPROXIMATION_FORK(Build.current().isSnapshot()),
+
+        /**
+         * Support FIRST aggregation on extended types: version, unsigned_long, geo_point,
+         * cartesian_point, geo_shape, cartesian_shape, geohash, geotile, geohex.
+         */
+        FIRST_AGG_EXTENDED_TYPES,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

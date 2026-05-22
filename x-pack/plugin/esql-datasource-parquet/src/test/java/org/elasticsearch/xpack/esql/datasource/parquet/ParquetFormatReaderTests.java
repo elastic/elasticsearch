@@ -43,6 +43,7 @@ import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -894,6 +895,55 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression: attribute nullability must reflect Parquet repetition.
+     * <ul>
+     *   <li>{@code REQUIRED} top-level fields → {@link Nullability#FALSE} (schema-level non-null guarantee).</li>
+     *   <li>{@code OPTIONAL} fields and {@code optionalList()} → {@link Nullability#TRUE} (the cell itself can be absent).</li>
+     *   <li>Top-level {@code REPEATED} primitives (the legacy un-annotated list form) → {@link Nullability#TRUE}.</li>
+     *   <li>{@code requiredList()} → {@link Nullability#FALSE} (the list group must be present, even though its
+     *       elements can be null — element-level nullability is not modelled at the attribute level).</li>
+     * </ul>
+     * A wrong default would let downstream planner rules (e.g. {@code COALESCE} simplification, {@code IS NULL}
+     * rewriting, {@code FoldNull}) drop legitimate null rows for {@code OPTIONAL} columns.
+     */
+    public void testSchemaAttributeNullabilityReflectsRepetition() throws Exception {
+        Type requiredList = Types.requiredList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("required_tags");
+        Type optionalList = Types.optionalList().optionalElement(PrimitiveType.PrimitiveTypeName.INT32).named("optional_tags");
+
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("req_id")
+            .optional(PrimitiveType.PrimitiveTypeName.INT64)
+            .named("opt_id")
+            .repeated(PrimitiveType.PrimitiveTypeName.INT32)
+            .named("rep_value")
+            .addField(requiredList)
+            .addField(optionalList)
+            .named("test_schema");
+
+        byte[] parquetData = createParquetFile(schema, factory -> List.of());
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+
+        List<Attribute> attributes = reader.metadata(storageObject).schema();
+        assertEquals(5, attributes.size());
+
+        assertNullability(attributes, "req_id", Nullability.FALSE);
+        assertNullability(attributes, "opt_id", Nullability.TRUE);
+        assertNullability(attributes, "rep_value", Nullability.TRUE);
+        assertNullability(attributes, "required_tags", Nullability.FALSE);
+        assertNullability(attributes, "optional_tags", Nullability.TRUE);
+    }
+
+    private static void assertNullability(List<Attribute> attributes, String name, Nullability expected) {
+        Attribute attr = attributes.stream()
+            .filter(a -> a.name().equals(name))
+            .findFirst()
+            .orElseThrow(() -> new AssertionError("attribute [" + name + "] not found"));
+        assertEquals("attribute [" + name + "]", expected, attr.nullable());
+    }
+
     public void testReadOptionalLongWithNulls() throws Exception {
         MessageType schema = Types.buildMessage().optional(PrimitiveType.PrimitiveTypeName.INT64).named("value").named("test_schema");
 
@@ -1662,6 +1712,33 @@ public class ParquetFormatReaderTests extends ESTestCase {
             Page page = iterator.next();
             assertEquals(1, page.getPositionCount());
             assertEquals(42L, ((LongBlock) page.getBlock(0)).getLong(0));
+        }
+    }
+
+    /**
+     * A signed INT32 value of -1 in Parquet must be sign-extended to -1L when the planner schema
+     * declares the column as LONG. Zero-extension would produce 4294967295L — incorrect.
+     */
+    public void testSignedInt32WideningToLong() throws Exception {
+        MessageType schema = Types.buildMessage().required(PrimitiveType.PrimitiveTypeName.INT32).named("x").named("test_schema");
+        byte[] parquetData = createParquetFile(schema, factory -> {
+            Group g = factory.newGroup();
+            g.add("x", -1);
+            return List.of(g);
+        });
+        StorageObject storageObject = createStorageObject(parquetData);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        List<Attribute> plannerSchema = List.of(new ReferenceAttribute(Source.EMPTY, "x", DataType.LONG));
+        try (
+            CloseableIterator<Page> iterator = reader.read(
+                storageObject,
+                FormatReadContext.builder().projectedColumns(List.of("x")).batchSize(10).readSchema(plannerSchema).build()
+            )
+        ) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(-1L, ((LongBlock) page.getBlock(0)).getLong(0));
         }
     }
 
@@ -2553,5 +2630,67 @@ public class ParquetFormatReaderTests extends ESTestCase {
         ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
         assertSame(reader, reader.withConfig(null));
         assertSame(reader, reader.withConfig(Map.of()));
+    }
+
+    // UINT_32: value 3,000,000,000 overflows signed int to -1,294,967,296
+    public void testLargeUint32() throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(32, false)) // unsigned
+            .named("object_id")
+            .named("test_schema");
+        int unsignedBits = 0xFFFFFFFF; // negative in signed int
+        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("object_id", unsignedBits)));
+        StorageObject storageObject = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        var meta = reader.metadata(storageObject);
+        assertEquals("UINT_32 should map to LONG to hold unsigned 32-bit range", DataType.LONG, meta.schema().get(0).dataType());
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(0xFFFFFFFFL, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    // UINT_8: value 200 should be read as such
+    public void testLargeUint8() throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT32)
+            .as(LogicalTypeAnnotation.intType(8, false)) // unsigned
+            .named("object_id")
+            .named("test_schema");
+        int unsignedBits = 200;
+        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("object_id", unsignedBits)));
+        StorageObject storageObject = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        var meta = reader.metadata(storageObject);
+        assertEquals("UINT_8 should map to INT to hold unsigned 8-bit range", DataType.INTEGER, meta.schema().get(0).dataType());
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(200, ((IntBlock) page.getBlock(0)).getInt(0));
+            assertFalse(iterator.hasNext());
+        }
+    }
+
+    public void testLargeUnsignedLong() throws Exception {
+        var schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.INT64)
+            .as(LogicalTypeAnnotation.intType(64, false)) // unsigned
+            .named("object_id")
+            .named("test_schema");
+        long unsignedBits = 0xFFFFFFFFFFFFFFFFL; // negative in signed long
+        byte[] data = createParquetFile(schema, f -> List.of(f.newGroup().append("object_id", unsignedBits)));
+        StorageObject storageObject = createStorageObject(data);
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        var meta = reader.metadata(storageObject);
+        assertEquals("UINT_64 should map to UNSIGNED_LONG", DataType.UNSIGNED_LONG, meta.schema().get(0).dataType());
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(unsignedBits, ((LongBlock) page.getBlock(0)).getLong(0));
+            assertFalse(iterator.hasNext());
+        }
     }
 }

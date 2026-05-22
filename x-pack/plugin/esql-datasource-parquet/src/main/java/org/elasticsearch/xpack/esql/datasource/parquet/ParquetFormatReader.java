@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.parquet.ParquetReadOptions;
-import org.apache.parquet.bytes.HeapByteBufferAllocator;
+import org.apache.parquet.bytes.DirectByteBufferAllocator;
 import org.apache.parquet.column.ColumnDescriptor;
 import org.apache.parquet.column.ColumnReader;
 import org.apache.parquet.column.impl.ColumnReadStoreImpl;
@@ -44,6 +44,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -281,7 +282,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         // Note: all read operations happen synchronously with the ESQL engine. If some operations
         // change to be async, we'll have to unwrap the breaker if it's a LocalBreaker.
         var breaker = blockFactory.breaker();
-        var allocator = new CircuitBreakerByteBufferAllocator(new HeapByteBufferAllocator(), breaker);
+        var allocator = new CircuitBreakerByteBufferAllocator(new DirectByteBufferAllocator(), breaker);
         return PlainParquetReadOptions.builder(codecFactory).withAllocator(allocator);
     }
 
@@ -592,7 +593,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             context.projectedColumns(),
             context.batchSize(),
             context.rowLimit(),
-            null,
+            context.readSchema(),
             // For full-file reads the iterator's footer is the file's footer; the deferred
             // extractor scopes itself to the same set of row groups. {@link #readRange} below
             // threads the unranged footer separately so the extractor can address rows in the
@@ -1167,9 +1168,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 // The deferred-extraction synthetic column has no presence in the file's schema;
                 // the iterator materialises it. We must give it a real {@link DataType#LONG} so
                 // {@link #buildColumnInfos} routes it to {@link ColumnInfo#rowPosition()} instead
-                // of skipping it as an absent column.
-                DataType type = ColumnExtractor.ROW_POSITION_COLUMN.equals(columnName) ? DataType.LONG : DataType.NULL;
-                attr = new ReferenceAttribute(Source.EMPTY, columnName, type);
+                // of skipping it as an absent column. The row-position column is always materialised
+                // (non-nullable); an absent file column is always null at runtime (nullable).
+                boolean isRowPosition = ColumnExtractor.ROW_POSITION_COLUMN.equals(columnName);
+                DataType type = isRowPosition ? DataType.LONG : DataType.NULL;
+                Nullability nullability = isRowPosition ? Nullability.FALSE : Nullability.TRUE;
+                attr = new ReferenceAttribute(Source.EMPTY, null, columnName, type, nullability, null, false);
             }
             result.add(attr);
         }
@@ -1198,12 +1202,23 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return new MessageType(fullSchema.getName(), projectedFields);
     }
 
+    /**
+     * Derive attribute nullability from Parquet repetition: only top-level {@link Type.Repetition#REQUIRED} fields carry a
+     * schema-level non-null guarantee. Everything else ({@link Type.Repetition#OPTIONAL} and the legacy top-level
+     * {@link Type.Repetition#REPEATED}) is nullable from the planner's perspective. Note this is the cell-level guarantee
+     * for the column attribute; element-level nullability inside a {@code LIST} group is independent and not modelled here.
+     * <p>
+     * Defaulting everything to non-nullable — as the 3-arg {@link ReferenceAttribute} constructor does — would cause
+     * planner rules (e.g. {@code COALESCE} simplification, {@code IS NULL}/{@code IS NOT NULL} rewriting) to drop legitimate
+     * null rows for {@code OPTIONAL} columns.
+     */
     private List<Attribute> convertParquetSchemaToAttributes(MessageType schema) {
         List<Attribute> attributes = new ArrayList<>();
         for (Type field : schema.getFields()) {
             String name = field.getName();
             DataType esqlType = convertParquetTypeToEsql(field);
-            attributes.add(new ReferenceAttribute(Source.EMPTY, name, esqlType));
+            Nullability nullability = field.isRepetition(Type.Repetition.REQUIRED) ? Nullability.FALSE : Nullability.TRUE;
+            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, esqlType, nullability, null, false));
         }
         return attributes;
     }
@@ -1218,7 +1233,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return switch (primitive.getPrimitiveTypeName()) {
             case BOOLEAN -> DataType.BOOLEAN;
             case INT32 -> {
-                if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
+                if (logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical) {
+                    if (intLogical.isSigned() == false && intLogical.getBitWidth() == 32) {
+                        // Widen to long
+                        yield DataType.LONG;
+                    }
+                } else if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
                     yield DataType.DATETIME;
                 } else if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
@@ -1226,7 +1246,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 yield DataType.INTEGER;
             }
             case INT64 -> {
-                if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
+                if (logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical) {
+                    if (intLogical.isSigned() == false && intLogical.getBitWidth() == 64) {
+                        yield DataType.UNSIGNED_LONG;
+                    }
+                } else if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
                     yield DataType.DATETIME;
                 } else if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
@@ -1633,12 +1657,21 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (info.maxRepLevel() > 0) {
                 return ParquetColumnDecoding.readListColumn(cr, info, rowsToRead, blockFactory);
             }
+            // WARNING: the dispatching logic below is duplicated in PageColumnReader#readBatch
+            // KEEP IN SYNC!
             return switch (info.esqlType()) {
                 case BOOLEAN -> readBooleanColumn(cr, info.maxDefLevel(), rowsToRead);
                 case INTEGER -> readIntColumn(cr, info.maxDefLevel(), rowsToRead);
-                case LONG -> {
+                case LONG, UNSIGNED_LONG -> {
+                    var logicalType = (LogicalTypeAnnotation.IntLogicalTypeAnnotation) info.logicalType();
                     if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
-                        yield readInt32WidenedToLongColumn(cr, info.maxDefLevel(), rowsToRead);
+                        // A plain INT32 with no logical-type annotation is historically "signed"
+                        yield readInt32WidenedToLongColumn(
+                            cr,
+                            info.maxDefLevel(),
+                            rowsToRead,
+                            logicalType == null || logicalType.isSigned()
+                        );
                     }
                     yield readLongColumn(cr, info.maxDefLevel(), rowsToRead);
                 }
@@ -1697,7 +1730,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         /**
          * Parquet INT32 columns do not support {@link ColumnReader#getLong()}; widen safely to long for planner LONG.
          */
-        private Block readInt32WidenedToLongColumn(ColumnReader cr, int maxDef, int rows) {
+        private Block readInt32WidenedToLongColumn(ColumnReader cr, int maxDef, int rows, boolean signed) {
             long[] values = UninitializedArrays.newLongArray(rows);
             BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
@@ -1706,7 +1739,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     isNull.set(i);
                     noNulls = false;
                 } else {
-                    values[i] = cr.getInteger();
+                    values[i] = signed ? cr.getInteger() : Integer.toUnsignedLong(cr.getInteger());
                 }
                 cr.consume();
             }

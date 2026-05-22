@@ -38,8 +38,11 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.elasticsearch.xpack.esql.plugin.ComputeService.DATA_DESCRIPTION;
+import static org.hamcrest.Matchers.emptyString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.not;
 
 /**
  * End-to-end correctness check for the {@code EXTERNAL ... | STATS} pipeline against a
@@ -146,19 +149,51 @@ public class ExternalParquetMultiRowGroupCorrectnessIT extends AbstractEsqlInteg
                 // external path on this query shape. Assert the kinds exactly (and that no
                 // unexpected driver kind sneaks in) rather than the count: the split count is
                 // a property of the Parquet writer / external splitter, not the bug under test.
-                long dataCount = driverDescriptions.stream().filter("data"::equals).count();
+                long dataCount = driverDescriptions.stream().filter(DATA_DESCRIPTION::equals).count();
                 long finalCount = driverDescriptions.stream().filter("final"::equals).count();
                 assertThat("coordinator must contribute exactly one 'final' driver, got " + driverDescriptions, finalCount, equalTo(1L));
                 assertThat(
-                    "at least one data-node 'data' driver must be present (this is what was lost pre-fix), got " + driverDescriptions,
+                    "at least one data-node '"
+                        + DATA_DESCRIPTION
+                        + "' driver must be present (this is what was lost pre-fix), got "
+                        + driverDescriptions,
                     dataCount,
                     greaterThanOrEqualTo(1L)
                 );
                 assertThat(
-                    "unexpected driver kinds in profile " + driverDescriptions + " (expected only 'data' and 'final')",
+                    "unexpected driver kinds in profile " + driverDescriptions + " (expected only '" + DATA_DESCRIPTION + "' and 'final')",
                     (long) driverDescriptions.size(),
                     equalTo(dataCount + finalCount)
                 );
+
+                List<String> planDescriptions = profile.plans().stream().map(p -> p.description()).toList();
+                long dataPlanCount = planDescriptions.stream().filter(DATA_DESCRIPTION::equals).count();
+                long finalPlanCount = planDescriptions.stream().filter(d -> d.endsWith("final")).count();
+                assertThat(
+                    "coordinator must contribute exactly one 'final' plan profile, got " + planDescriptions,
+                    finalPlanCount,
+                    equalTo(1L)
+                );
+                assertThat(
+                    "at least one data-node '"
+                        + DATA_DESCRIPTION
+                        + "' plan profile must be present (this is what was lost pre-fix), got "
+                        + planDescriptions,
+                    dataPlanCount,
+                    greaterThanOrEqualTo(1L)
+                );
+                assertThat(
+                    "unexpected plan profile kinds " + planDescriptions + " (expected only '" + DATA_DESCRIPTION + "' and '*final')",
+                    (long) planDescriptions.size(),
+                    equalTo(dataPlanCount + finalPlanCount)
+                );
+                String dataPlanTree = profile.plans()
+                    .stream()
+                    .filter(p -> DATA_DESCRIPTION.equals(p.description()))
+                    .map(p -> p.planTree())
+                    .findFirst()
+                    .orElse(null);
+                assertThat("data-node plan profile must include the local physical plan tree", dataPlanTree, not(emptyString()));
             }
         } finally {
             Files.deleteIfExists(parquetFile);

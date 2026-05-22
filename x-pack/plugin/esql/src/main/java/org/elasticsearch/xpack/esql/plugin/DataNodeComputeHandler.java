@@ -349,18 +349,14 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         groupTask = parentTask;
                         onGroupFailure = runOnTaskFailure;
                     }
-                    // Mirror the indexed path (startComputeOnDataNodes): the inner ComputeListener
-                    // only serializes refcounts; the actual DriverCompletionInfo travels via
-                    // nodeResponseRef into a dedicated parentComputeListener.acquireCompute() slot.
-                    // Without this, the data-node "data" driver profile never lands in the
-                    // coordinator's accumulator.
-                    final AtomicReference<DataNodeComputeResponse> nodeResponseRef = new AtomicReference<>();
+                    // Mirror the indexed path (startComputeOnDataNodes): forward the inner
+                    // ComputeListener's accumulated DriverCompletionInfo (driver + plan profiles)
+                    // into a dedicated parentComputeListener.acquireCompute() slot.
                     final ActionListener<DriverCompletionInfo> profileSlot = parentComputeListener.acquireCompute();
                     final ActionListener<Void> outerL = l;
-                    try (var computeListener = new ComputeListener(threadPool, onGroupFailure, ActionListener.wrap(ignored -> {
+                    try (var computeListener = new ComputeListener(threadPool, onGroupFailure, ActionListener.wrap(info -> {
                         try {
-                            var resp = nodeResponseRef.get();
-                            profileSlot.onResponse(resp != null ? resp.completionInfo() : DriverCompletionInfo.EMPTY);
+                            profileSlot.onResponse(info);
                         } finally {
                             outerL.onResponse(null);
                         }
@@ -391,10 +387,11 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             dataNodeRequest,
                             groupTask,
                             TransportRequestOptions.EMPTY,
-                            new ActionListenerResponseHandler<>(computeListener.acquireCompute().map(r -> {
-                                nodeResponseRef.set(r);
-                                return r.completionInfo();
-                            }), DataNodeComputeResponse::new, searchExecutor)
+                            new ActionListenerResponseHandler<>(
+                                computeListener.acquireCompute().map(DataNodeComputeResponse::completionInfo),
+                                DataNodeComputeResponse::new,
+                                searchExecutor
+                            )
                         );
                         var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, connection);
                         exchangeSource.addRemoteSink(

@@ -216,18 +216,18 @@ public final class VersionsAndSeqNoResolver {
      *
      * @param uids          the UID terms to look up
      * @param ids           the document IDs corresponding to each UID; used to extract timestamps
-     * @param loadSeqNo     whether to populate seqNo/primaryTerm in each result
-     * @param results       out parameter; null entry means not found
      * @param useSyntheticId true if IDs are synthetic TSDB IDs (timestamp embedded in UID),
      *                       false if they are standard base64-URL-encoded 20-byte IDs
+     * @param loadSeqNo     whether to populate seqNo/primaryTerm in each result
+     * @param results       out parameter; null entry means not found
      */
     public static void timeSeriesBatchLoadDocIdAndVersion(
         IndexReader reader,
         BytesRef[] uids,
         String[] ids,
+        boolean useSyntheticId,
         boolean[] loadSeqNo,
-        DocIdAndVersion[] results,
-        boolean useSyntheticId
+        DocIdAndVersion[] results
     ) throws IOException {
         final int n = uids.length;
         assert results.length == n && loadSeqNo.length == n && ids.length == n;

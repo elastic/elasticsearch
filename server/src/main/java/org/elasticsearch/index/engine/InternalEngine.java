@@ -1667,9 +1667,9 @@ public class InternalEngine extends Engine {
                         reader,
                         luceneUids,
                         luceneIds,
+                        useTsdbSyntheticId,
                         luceneLoadSeqNo,
-                        luceneResults,
-                        useTsdbSyntheticId
+                        luceneResults
                     );
                 } else {
                     VersionsAndSeqNoResolver.batchLoadDocIdAndVersion(reader, luceneUids, luceneLoadSeqNo, luceneResults);

@@ -33,8 +33,8 @@ public class RecoveryMetricsCollector implements IndexEventListener {
     public static final String RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS = "es.recovery.shard.total.time";
     public static final String RECOVERY_INDEX_TIME_METRIC_IN_SECONDS = "es.recovery.shard.index.time";
     public static final String RECOVERY_TRANSLOG_TIME_METRIC_IN_SECONDS = "es.recovery.shard.translog.time";
-    public static final String ACTIVE_OUTGOING_PEER_RECOVERIES_METRIC = "es.recovery.peer.source.active";
-    public static final String QUEUED_OUTGOING_PEER_RECOVERIES_METRIC = "es.recovery.peer.source.queued";
+    public static final String ACTIVE_OUTGOING_PEER_RECOVERIES_METRIC = "es.recovery.peer.source.active.current";
+    public static final String QUEUED_OUTGOING_PEER_RECOVERIES_METRIC = "es.recovery.peer.source.queued.current";
 
     public static final RecoveryMetricsCollector NOOP = new RecoveryMetricsCollector(TelemetryProvider.NOOP);
 

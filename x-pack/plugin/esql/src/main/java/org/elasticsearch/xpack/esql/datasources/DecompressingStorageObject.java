@@ -118,10 +118,11 @@ final class DecompressingStorageObject implements StorageObject {
             try {
                 delegate.abortStream(ds.raw());
             } catch (IOException e) {
-                if (primary != null) {
-                    e.addSuppressed(primary);
+                if (primary == null) {
+                    throw e;
                 }
-                throw e;
+                primary.addSuppressed(e);
+                throw primary;
             }
             if (primary != null) {
                 throw primary;
@@ -173,10 +174,11 @@ final class DecompressingStorageObject implements StorageObject {
             try {
                 raw.close();
             } catch (IOException e) {
-                if (primary != null) {
-                    e.addSuppressed(primary);
+                if (primary == null) {
+                    throw e;
                 }
-                throw e;
+                primary.addSuppressed(e);
+                throw primary;
             }
             if (primary != null) {
                 throw primary;
@@ -188,6 +190,13 @@ final class DecompressingStorageObject implements StorageObject {
      * Hides {@link InputStream#close()} from the wrapped stream so callers (here, the
      * decompressor) cannot cascade their close into the underlying connection. The owner of
      * the wrapped stream is responsible for closing or aborting it explicitly.
+     * <p>
+     * JDK stream codecs call {@code Inflater.end()} (or equivalent native-handle cleanup)
+     * on their own {@code close()} <em>before</em> delegating to the wrapped stream — e.g.
+     * {@code InflaterInputStream.close()} ends the {@code Inflater} and only then calls
+     * {@code in.close()}. Because the underlying {@code close()} here is a no-op, codec
+     * cleanup still runs; only connection release is deferred to the owner via
+     * {@link DecompressingStorageObject#abortStream(InputStream)} or {@link DecompressedStream#close()}.
      */
     private static final class UncloseableInputStream extends FilterInputStream {
         UncloseableInputStream(InputStream in) {

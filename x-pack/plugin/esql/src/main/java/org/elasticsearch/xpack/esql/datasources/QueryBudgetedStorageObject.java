@@ -189,7 +189,7 @@ class QueryBudgetedStorageObject implements StorageObject {
 
     private static class PermitReleasingInputStream extends FilterInputStream {
         private final QueryConcurrencyBudget budget;
-        private boolean released;
+        private volatile boolean released;
 
         PermitReleasingInputStream(InputStream in, QueryConcurrencyBudget budget) {
             super(in);

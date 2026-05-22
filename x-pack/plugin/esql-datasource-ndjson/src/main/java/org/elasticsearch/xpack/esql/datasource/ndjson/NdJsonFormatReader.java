@@ -182,7 +182,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // twice (or chain close in finally blocks) must not double-abort the underlying stream,
         // since Abortable does not contractually guarantee abort() idempotency.
         return new FilterInputStream(stream) {
-            private boolean closed;
+            private volatile boolean closed;
 
             @Override
             public void close() throws IOException {
@@ -190,6 +190,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                     return;
                 }
                 closed = true;
+                // only abort the raw stream; the PushbackInputStream/BufferedInputStream wrappers hold no external resources
                 object.abortStream(raw);
             }
         };

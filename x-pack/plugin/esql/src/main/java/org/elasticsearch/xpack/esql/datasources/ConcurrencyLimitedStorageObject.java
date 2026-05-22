@@ -188,7 +188,7 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
      */
     private static class PermitReleasingInputStream extends FilterInputStream {
         private final ConcurrencyLimiter limiter;
-        private boolean released;
+        private volatile boolean released;
 
         PermitReleasingInputStream(InputStream in, ConcurrencyLimiter limiter) {
             super(in);

@@ -175,6 +175,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * datetime-heavy queries. Space-separated {@code YYYY-MM-DD HH:MM:SS} inputs are NOT
      * accepted by this parser and are handled separately by
      * {@link #tryParseSpaceSeparatedDatetimeMillis(String)}.
+     * <p>
+     * Note: deliberately not chained with {@code .withZone(UTC)} (unlike
+     * {@code DateUtils.UTC_DATE_TIME_FORMATTER}). The downstream {@code DateFormatters.from} call
+     * already defaults to {@link ZoneOffset#UTC} when the parsed accessor carries no zone, so the
+     * extra {@code withZone} call would only allocate a second {@link DateFormatter} for no
+     * behavioural difference on this hot path.
      */
     private static final DateFormatter ISO_DATETIME_FAST_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
 
@@ -2471,15 +2477,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
             // avoids the DateTimeFormatter Parsed-HashMap allocation that dominates DateUtils.asDateTime.
             // tryParse returns null on mismatch so we don't pay an exception per missed input.
             // Iso8601Parser only checks loose bounds (month <= 12, day <= 31) and defers month-length
-            // validation to LocalDate.of(...) inside DateFormatters.from(...), which throws a generic
-            // DateTimeException (not DateTimeParseException). Catch that here and fall through so a
-            // calendar-invalid input like 2021-02-30T10:00:00 takes the slow Stage 3 path instead of
+            // validation to LocalDate.of(...) inside DateFormatters.from(...). That call can throw two
+            // distinct unchecked exceptions: a DateTimeException for calendar-invalid inputs like
+            // 2021-02-30T10:00:00, and an IllegalArgumentException for the fallthrough branch in
+            // DateFormatters.from when the parsed accessor cannot be converted to a zoned date-time.
+            // Catch both and fall through so the slow Stage 3 path handles the input instead of
             // propagating an uncaught exception and aborting the batch.
             TemporalAccessor parsed = ISO_DATETIME_FAST_FORMATTER.tryParse(value);
             if (parsed != null) {
                 try {
                     return DateFormatters.from(parsed).toInstant().toEpochMilli();
-                } catch (DateTimeException e) {
+                } catch (DateTimeException | IllegalArgumentException e) {
                     // fall through to Stage 2 / 3
                 }
             }

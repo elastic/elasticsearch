@@ -28,9 +28,6 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
   method: test50CredentialAutogenerationOnlyOnce
   issue: https://github.com/elastic/elasticsearch/issues/132878
-- class: org.elasticsearch.aggregations.bucket.AggregationReductionCircuitBreakingIT
-  method: testCBTrippingOnReduction
-  issue: https://github.com/elastic/elasticsearch/issues/134667
 - class: org.elasticsearch.gradle.TestClustersPluginFuncTest
   method: override jdk usage via ES_JAVA_HOME for known jdk os incompatibilities
   issue: https://github.com/elastic/elasticsearch/issues/135413

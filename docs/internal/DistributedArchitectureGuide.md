@@ -2594,7 +2594,7 @@ the [TaskId] addressed by the cancel request can refer to a task that has since 
 where the destination task carries on under a different local task id.
 To handle this, [TransportCancelTasksAction] fans out to every node and double-broadcasts when the request matches a relocatable action,
 deduplicating responses by `originalTaskId` (mirroring the list-tasks approach).
-`BulkByScrollTask` also rejects cancellation during the handoff window via `ensureCancellable` with a `503 Service Unavailable`,
+`BulkByPaginatedSearchTask` also rejects cancellation during the handoff window via `ensureCancellable` with a `503 Service Unavailable`,
 so a cancel that races an in-flight handoff cannot be silently lost.
 
 ### Publishing Task Results
@@ -2618,14 +2618,14 @@ so that the source and destination of a handoff can both safely attempt to persi
 
 ### Relocatable Tasks
 
-[BulkByScrollTask]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/reindex/BulkByScrollTask.java
-[LeaderBulkByScrollTaskState]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/reindex/LeaderBulkByScrollTaskState.java
+[BulkByPaginatedSearchTask]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/reindex/BulkByPaginatedSearchTask.java
+[LeaderBulkByPaginatedSearchTaskState]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/reindex/LeaderBulkByPaginatedSearchTaskState.java
 [WorkerBulkByScrollTaskState]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/reindex/WorkerBulkByScrollTaskState.java
 [ResumeInfo]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/reindex/ResumeInfo.java
 [TaskInfo]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/tasks/TaskInfo.java
 [TaskRelocatedException]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/index/reindex/TaskRelocatedException.java
 [Reindexer]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex/src/main/java/org/elasticsearch/reindex/Reindexer.java
-[AbstractAsyncBulkByScrollAction]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex/src/main/java/org/elasticsearch/reindex/AbstractAsyncBulkByScrollAction.java
+[AbstractAsyncBulkByPaginatedSearchAction]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex/src/main/java/org/elasticsearch/reindex/AbstractAsyncBulkByPaginatedSearchAction.java
 [ShutdownPrepareService]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/node/ShutdownPrepareService.java
 [ReindexRelocationNodePicker]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex/src/main/java/org/elasticsearch/reindex/ReindexRelocationNodePicker.java
 [TransportResumeReindexAction]:https://github.com/elastic/elasticsearch/blob/main/modules/reindex/src/main/java/org/elasticsearch/reindex/TransportResumeReindexAction.java
@@ -2649,7 +2649,7 @@ The destination task carries on under a new local task id but is identified to u
 Relocation is distinct from [Persistent Tasks](#persistent-tasks): there is no master-managed reassignment and no cluster state record of the task.
 The source node decides directly which node to hand off to, sends a transport-level resume request, and the destination resumes from a pagination cursor passed inline.
 
-Today the only action wired up for relocation is reindex. The state machine on [BulkByScrollTask] and the `_tasks`-layer support is generic, so update-by-query and delete-by-query (which share `BulkByScrollTask`) can be enabled with localized changes; see [Enabling relocation for another action](#enabling-relocation-for-another-action) below.
+Today the only action wired up for relocation is reindex. The state machine on [BulkByPaginatedSearchTask] and the `_tasks`-layer support is generic, so update-by-query and delete-by-query (which share `BulkByPaginatedSearchTask`) can be enabled with localized changes; see [Enabling relocation for another action](#enabling-relocation-for-another-action) below.
 
 #### Feature gating and module layout
 
@@ -2658,8 +2658,8 @@ Relocation is gated by several flags:
 - `ReindexPlugin#REINDEX_PIT_SEARCH_FEATURE` (`reindex_pit_search`) gates point-in-time-based pagination over using `scroll`.
 
 The module layout reflects who owns what:
-- `server` contains [BulkByScrollTask], [ResumeInfo], [TaskInfo], [TaskRelocatedException], and the relocation-aware bits of [TransportGetTaskAction] and [TransportListTasksAction]. These do not depend on the reindex module.
-- `modules/reindex` owns the execution and handoff: [Reindexer], [AbstractAsyncBulkByScrollAction], [TransportResumeReindexAction], [ReindexRelocationNodePicker] (with stateful and stateless implementations), [TransportRethrottleAction], and the PIT/scroll pagination sources.
+- `server` contains [BulkByPaginatedSearchTask], [ResumeInfo], [TaskInfo], [TaskRelocatedException], and the relocation-aware bits of [TransportGetTaskAction] and [TransportListTasksAction]. These do not depend on the reindex module.
+- `modules/reindex` owns the execution and handoff: [Reindexer], [AbstractAsyncBulkByPaginatedSearchAction], [TransportResumeReindexAction], [ReindexRelocationNodePicker] (with stateful and stateless implementations), [TransportRethrottleAction], and the PIT/scroll pagination sources.
 - [ReindexManagementPlugin] in `modules/reindex-management` owns the `_reindex/{id}` get/list/cancel/rethrottle endpoints. They delegate to the generic `_tasks` transport actions and overlay relocation identity on the response.
 
 [`NodeFeature`]:https://github.com/elastic/elasticsearch/blob/main/server/src/main/java/org/elasticsearch/features/NodeFeature.java
@@ -2684,39 +2684,39 @@ they keep the latest task's `taskId` (so the client can address the live task in
 ```mermaid
 sequenceDiagram
     participant Shutdown as ShutdownPrepareService (source)
-    participant Worker as BulkByScrollTask (source)
+    participant Worker as BulkByPaginatedSearchTask (source)
     participant Reindexer as Reindexer (source)
     participant Picker as ReindexRelocationNodePicker
     participant Target as TransportResumeReindexAction (target)
     participant Tasks as ".tasks index"
 
-    Shutdown->>Worker: maybeRequestRelocationForBulkByScroll → requestRelocation()
+    Shutdown->>Worker: maybeRequestRelocationForBulkByPaginatedSearch → requestRelocation()
     Worker->>Worker: notifyDone() builds ResumeInfo "(PIT or scroll id + status)"
     Worker->>Reindexer: complete with ResumeInfo
     Reindexer->>Picker: pick target node
     Reindexer->>Worker: tryInitiateRelocationHandoff() → HANDOFF_INITIATED
     Reindexer->>Target: ResumeReindexAction(ResumeInfo)
-    Target->>Target: AbstractAsyncBulkByScrollAction.start() resumes from PIT/scroll
+    Target->>Target: AbstractAsyncBulkByPaginatedSearchAction.start() resumes from PIT/scroll
     Target->>Tasks: storeRelocationSourceTaskResult "(upsert with TaskRelocatedException)"
     Worker->>Tasks: storeResultIfAbsent "(CREATE, loses race vs destination)"
 ```
 
 Step by step:
 
-1. [ShutdownPrepareService] reacts to the cluster shutdown metadata and, for each in-flight `BulkByScrollTask`, calls `maybeRequestRelocationForBulkByScroll` which invokes `BulkByScrollTask#requestRelocation`. Tasks that are not `eligibleForRelocationOnShutdown` (e.g. synchronous requests where a client is blocking on the response) are skipped.
-2. The worker in [AbstractAsyncBulkByScrollAction]`#notifyDone()` observes that relocation has been requested at a batch boundary, builds a `ResumeInfo` containing either a PIT cursor or a scroll id together with the current status (counters, throttle, slice information), and calls `cleanupWithoutClosingPagination()` so that the search context (PIT or scroll) is not closed when the worker completes.
-3. [Reindexer]`#listenerWithRelocations` receives the worker response, asks [ReindexRelocationNodePicker] for a target node (stateful and stateless variants live in `modules/reindex`), calls `BulkByScrollTask#tryInitiateRelocationHandoff` to transition the `RelocationProgress` state machine to `HANDOFF_INITIATED`, and sends a `ResumeReindexAction` transport request to the target.
-4. On the target, [TransportResumeReindexAction] feeds the `ResumeInfo` into `AbstractAsyncBulkByScrollAction#start()`, which seeds the pagination source from the inherited PIT/scroll id and continues the run.
+1. [ShutdownPrepareService] reacts to the cluster shutdown metadata and, for each in-flight `BulkByPaginatedSearchTask`, calls `maybeRequestRelocationForBulkByPaginatedSearch` which invokes `BulkByPaginatedSearchTask#requestRelocation`. Tasks that are not `eligibleForRelocationOnShutdown` (e.g. synchronous requests where a client is blocking on the response) are skipped.
+2. The worker in [AbstractAsyncBulkByPaginatedSearchAction]`#notifyDone()` observes that relocation has been requested at a batch boundary, builds a `ResumeInfo` containing either a PIT cursor or a scroll id together with the current status (counters, throttle, slice information), and calls `cleanupWithoutClosingPagination()` so that the search context (PIT or scroll) is not closed when the worker completes.
+3. [Reindexer]`#listenerWithRelocations` receives the worker response, asks [ReindexRelocationNodePicker] for a target node (stateful and stateless variants live in `modules/reindex`), calls `BulkByPaginatedSearchTask#tryInitiateRelocationHandoff` to transition the `RelocationProgress` state machine to `HANDOFF_INITIATED`, and sends a `ResumeReindexAction` transport request to the target.
+4. On the target, [TransportResumeReindexAction] feeds the `ResumeInfo` into `AbstractAsyncBulkByPaginatedSearchAction#start()`, which seeds the pagination source from the inherited PIT/scroll id and continues the run.
 5. The destination calls `Reindexer#storeRelocationSourceTaskResult` to upsert a [TaskResult] for the _source_ task into `.tasks`. The stored result wraps a [TaskRelocatedException] that carries the destination [TaskId].
-6. The source's own attempt to persist its [TaskResult] uses create-if-absent semantics (`BulkByScrollTask#useCreateSemanticsForResultStorage` returns the `HANDOFF_INITIATED` flag), routed through [TaskManager]#storeTaskResult into `TaskResultsService#storeResultIfAbsent` (`OpType.CREATE`, version conflict treated as success). If the destination's upsert won the race, the source's write is a no-op.
+6. The source's own attempt to persist its [TaskResult] uses create-if-absent semantics (`BulkByPaginatedSearchTask#useCreateSemanticsForResultStorage` returns the `HANDOFF_INITIATED` flag), routed through [TaskManager]#storeTaskResult into `TaskResultsService#storeResultIfAbsent` (`OpType.CREATE`, version conflict treated as success). If the destination's upsert won the race, the source's write is a no-op.
 
 #### Race conditions and current mitigations
 
 There are four broad races between management APIs and an in-progress handoff:
 
-- **List race.** A relocation can occur between the moment a list-tasks fan-out reaches the source and the moment it reaches the destination, so a task can appear in neither response. Mitigation: [TransportListTasksAction] performs a double-list and deduplicates results by `originalTaskId`, gated by `RELOCATABLE_ACTIONS`. For `wait_for_completion=true`, missing parents from the second pass are reconciled against `.tasks`. [AbstractAsyncBulkByScrollAction]'s `relocationCooldownNanos` prevents back-to-back hops that would defeat dedup.
-- **Cancel race.** A cancel addressed to the source [TaskId] may arrive after the task has relocated, so a naive cancel would either 404 on the source or complete "successfully" while the destination keeps running. Mitigation has two layers. First, [BulkByScrollTask]'s `RelocationProgress` state machine (`NOT_STARTED` / `HANDOFF_INITIATED` / `TASK_CANCELLED`) ensures that if cancel races the handoff itself, one side loses on a CAS and the loser is rejected (the source returns `503 Service Unavailable` from `ensureCancellable` if the handoff has committed). Second, [TransportCancelTasksAction] is relocation-aware: for actions in `RELOCATABLE_ACTIONS` it always fans out to every node (`resolveNodes` ignores the target node id) and runs a double-broadcast, with `mergeResponses` deduplicating captured tasks by `originalTaskId` and dropping the stale 503/`ResourceNotFoundException` from the merge once the successor's cancel committed. The reindex-management `POST _reindex/{id}/_cancel` endpoint delegates to the same transport action so it inherits the behavior.
-- **Rethrottle race.** Single-node-targeted rethrottle hits the same problem as cancel. Mitigation: [TransportRethrottleAction]`#followRelocationAndRethrottle`, gated on `RethrottleRequest#followRelocations` (set to true by `RestReindexRethrottleAction`), uses `GET _tasks/{id}` to follow the relocation chain to the current task, then re-issues the rethrottle. Total RPS is stored on the leader via `LeaderBulkByScrollTaskState#setRequestsPerSecondWithRelocationGuard` and travels with `ResumeInfo` so the destination starts at the right rate.
+- **List race.** A relocation can occur between the moment a list-tasks fan-out reaches the source and the moment it reaches the destination, so a task can appear in neither response. Mitigation: [TransportListTasksAction] performs a double-list and deduplicates results by `originalTaskId`, gated by `RELOCATABLE_ACTIONS`. For `wait_for_completion=true`, missing parents from the second pass are reconciled against `.tasks`. [AbstractAsyncBulkByPaginatedSearchAction]'s `relocationCooldownNanos` prevents back-to-back hops that would defeat dedup.
+- **Cancel race.** A cancel addressed to the source [TaskId] may arrive after the task has relocated, so a naive cancel would either 404 on the source or complete "successfully" while the destination keeps running. Mitigation has two layers. First, [BulkByPaginatedSearchTask]'s `RelocationProgress` state machine (`NOT_STARTED` / `HANDOFF_INITIATED` / `TASK_CANCELLED`) ensures that if cancel races the handoff itself, one side loses on a CAS and the loser is rejected (the source returns `503 Service Unavailable` from `ensureCancellable` if the handoff has committed). Second, [TransportCancelTasksAction] is relocation-aware: for actions in `RELOCATABLE_ACTIONS` it always fans out to every node (`resolveNodes` ignores the target node id) and runs a double-broadcast, with `mergeResponses` deduplicating captured tasks by `originalTaskId` and dropping the stale 503/`ResourceNotFoundException` from the merge once the successor's cancel committed. The reindex-management `POST _reindex/{id}/_cancel` endpoint delegates to the same transport action so it inherits the behavior.
+- **Rethrottle race.** Single-node-targeted rethrottle hits the same problem as cancel. Mitigation: [TransportRethrottleAction]`#followRelocationAndRethrottle`, gated on `RethrottleRequest#followRelocations` (set to true by `RestReindexRethrottleAction`), uses `GET _tasks/{id}` to follow the relocation chain to the current task, then re-issues the rethrottle. Total RPS is stored on the leader via `LeaderBulkByPaginatedSearchTaskState#setRequestsPerSecondWithRelocationGuard` and travels with `ResumeInfo` so the destination starts at the right rate.
 - **Chain-break race.** If the source crashes before writing `.tasks`, or the `ResumeReindexAction` RPC is lost, the chain through `.tasks` can break and `GET _tasks/{id}` cannot follow the hop. Mitigation: the destination is responsible for upserting the source's `.tasks` entry, and the source writes with create-if-absent semantics. Either side can fail without orphaning the chain.
 
 #### API relocation-awareness
@@ -2734,7 +2734,7 @@ The current state of each relevant endpoint:
 
 Relocation operates differently depending on whether the request was sliced:
 - **Non-sliced**: a single worker holds the pagination cursor; on relocation it builds `ResumeInfo.WorkerResumeInfo` (with either `ScrollWorkerResumeInfo` or `PitWorkerResumeInfo`) and the leader for that single worker (which is the task itself) hands off.
-- **Sliced**: each slice is its own worker task with a separate `WorkerBulkByScrollTaskState`. The leader's [LeaderBulkByScrollTaskState] aggregates per-slice completion before initiating the relocation; the combined `ResumeInfo` carries one `SliceStatus` per slice and a `WorkerResumeInfo` for each unfinished slice. Already-finished slices propagate forward to ensure the final task on the last node sees a complete result. `BulkByPaginatedSearchParallelizationHelper` handles completed slices when resuming on the destination.
+- **Sliced**: each slice is its own worker task with a separate `WorkerBulkByScrollTaskState`. The leader's [LeaderBulkByPaginatedSearchTaskState] aggregates per-slice completion before initiating the relocation; the combined `ResumeInfo` carries one `SliceStatus` per slice and a `WorkerResumeInfo` for each unfinished slice. Already-finished slices propagate forward to ensure the final task on the last node sees a complete result. `BulkByPaginatedSearchParallelizationHelper` handles completed slices when resuming on the destination.
 
 #### Pagination
 
@@ -2742,18 +2742,18 @@ Reindex's pagination has two implementations, abstracted by `PaginatedHitSource`
 - Scroll-based: [ClientScrollablePaginatedHitSource] (local) and [RemoteScrollablePaginatedHitSource] (remote).
 - Point-in-time: [PitPaginatedHitSource] / [ClientPitPaginatedHitSource] / [RemotePitPaginatedHitSource], gated by `REINDEX_PIT_SEARCH_FEATURE`. Remote PIT requires the remote cluster to be at least 7.10; older remotes still fall back to scroll.
 
-PIT is what makes relocation reliable: scroll contexts are bound to the search shard nodes that opened them, so on stateful clusters losing a search-shard node can invalidate the cursor mid-relocation. In stateless, PIT survives shard relocations and is backed by the object store. The TTL on whichever cursor is in use must outlive the handoff window: `AbstractAsyncBulkByScrollAction#cleanupWithoutClosingPagination` keeps the context alive during the hop, and `ReindexSettings#REINDEX_PIT_KEEP_ALIVE_SETTING` controls the per-cluster PIT keep-alive used by reindex.
+PIT is what makes relocation reliable: scroll contexts are bound to the search shard nodes that opened them, so on stateful clusters losing a search-shard node can invalidate the cursor mid-relocation. In stateless, PIT survives shard relocations and is backed by the object store. The TTL on whichever cursor is in use must outlive the handoff window: `AbstractAsyncBulkByPaginatedSearchAction#cleanupWithoutClosingPagination` keeps the context alive during the hop, and `ReindexSettings#REINDEX_PIT_KEEP_ALIVE_SETTING` controls the per-cluster PIT keep-alive used by reindex.
 
-#### Enabling relocation for another action
+#### Enabling relocation for other BulkByPaginatedSearchTask actions
 
-To opt update-by-query, delete-by-query, or any other [BulkByScrollTask]-based action into the relocation protocol:
+To opt update-by-query, delete-by-query, or any other [BulkByPaginatedSearchTask]-based action into the relocation protocol:
 
 1. In the REST handler (e.g. `RestUpdateByQueryAction`), follow the pattern in [RestReindexAction]: behind a `clusterSupportsFeature.test(RELOCATE_ON_SHUTDOWN_NODE_FEATURE)` check and `wait_for_completion=false`, call `setEligibleForRelocationOnShutdown(true)` on the request. Synchronous requests should never be opted in, since the originating client is blocking on the response and cannot follow a hop.
 2. Add the action name to `TransportListTasksAction#RELOCATABLE_ACTIONS` so the double-list / dedup path covers it. Without this, list responses can drop the task during a hop.
-3. Add a resume transport action analogous to [TransportResumeReindexAction] (extending `AbstractResumeBulkByScrollAction`), and register it in the corresponding [ReindexPlugin]-style plugin. The execution side just needs to plumb `ResumeInfo` through `AbstractAsyncBulkByScrollAction#start()`.
+3. Add a resume transport action analogous to [TransportResumeReindexAction] (extending `AbstractResumeBulkByScrollAction`), and register it in the corresponding [ReindexPlugin]-style plugin. The execution side just needs to plumb `ResumeInfo` through `AbstractAsyncBulkByPaginatedSearchAction#start()`.
 4. Ensure the request type propagates `eligibleForRelocationOnShutdown` to its slice subrequests (see `ReindexRequest#setEligibleForRelocationOnShutdown` and how it copies the flag onto the sliced request).
 5. Update wire serialization: add the flag to the request's `Writeable` round-trip, and follow the project convention for adding a `TransportVersion` so old nodes do not see the field. See `AGENTS.md` for the `generateTransportVersion` workflow.
-6. In [ShutdownPrepareService], extend the loop that calls `relocateReindexTasksAndAwaitComplete(...)` to also iterate the new action's tasks. The `maybeRequestRelocationForBulkByScroll` helper already handles any `BulkByScrollTask`, but the wait-for-completion driver in `awaitTasksComplete` is action-name scoped.
+6. In [ShutdownPrepareService], extend the loop that calls `relocateReindexTasksAndAwaitComplete(...)` to also iterate the new action's tasks. The `maybeRequestRelocationForBulkByPaginatedSearch` helper already handles any `BulkByPaginatedSearchTask`, but the wait-for-completion driver in `awaitTasksComplete` is action-name scoped.
 7. If you want a separate management surface (e.g. `_update_by_query/{id}` with relocation identity overlaid on responses), add a sibling to the `reindex-management` module. Otherwise, the generic `_tasks` APIs already cover the basics for any action listed in `RELOCATABLE_ACTIONS`.
 8. Add integration tests modelled on `ReindexRelocationOnShutdownIT`, `ListTasksRelocationIT`, and `GetTaskRelocationIT`. Wire serialization tests should cover the new field; see `ReindexRequestWireSerializingTests`/`UpdateByQueryRequestWireSerializingTests`.
 

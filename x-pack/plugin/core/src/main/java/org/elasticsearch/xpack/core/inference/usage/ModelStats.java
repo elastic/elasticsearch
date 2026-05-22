@@ -50,8 +50,7 @@ public class ModelStats implements ToXContentObject, Writeable {
         if (in.getTransportVersion().supports(INFERENCE_TELEMETRY_SEMANTIC_TEXT_STATS_REQUIRED)) {
             this.semanticTextStats = new SemanticTextStats(in);
         } else if (in.getTransportVersion().supports(INFERENCE_TELEMETRY_ADDED_SEMANTIC_TEXT_STATS)) {
-            var optional = in.readOptional(SemanticTextStats::new);
-            this.semanticTextStats = optional != null ? optional : new SemanticTextStats();
+            this.semanticTextStats = Objects.requireNonNullElse(in.readOptional(SemanticTextStats::new), new SemanticTextStats());
         } else {
             this.semanticTextStats = new SemanticTextStats();
         }

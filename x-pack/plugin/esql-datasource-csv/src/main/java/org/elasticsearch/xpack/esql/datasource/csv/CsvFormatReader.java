@@ -1566,12 +1566,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
         if (inQuotes) {
-            throw new MalformedRowException("Unclosed quoted field in line [" + CsvErrorMessages.summarizeAround(line, quoteOpenAt) + "]");
+            throw MalformedRowException.unclosedQuotedField(line, quoteOpenAt);
         }
         if (bracketDepth > 0) {
-            throw new MalformedRowException(
-                "Unclosed bracket cell in line [" + CsvErrorMessages.summarizeAround(line, bracketOpenAt) + "]"
-            );
+            throw MalformedRowException.unclosedBracketCell(line, bracketOpenAt);
         }
         if (current.length() > 0) {
             entries.add(emitField(current));
@@ -2081,6 +2079,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             StringBuilder current = new StringBuilder();
             boolean inQuotes = false;
             int bracketDepth = 0;
+            // Remember where the parser entered the unclosed state so error messages can anchor on
+            // the actual fault site instead of head/tail-truncating a long line and hiding it.
+            // Mirrors the offset tracking in splitCommaDelimiterBracketAwareFields.
+            int quoteOpenAt = -1;
+            int bracketOpenAt = -1;
             int fieldIndex = 0;
             boolean fieldHasNonWhitespace = false;
             boolean trailingFieldHasContent = false;
@@ -2132,12 +2135,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 } else if (c == quote && fieldHasNonWhitespace == false) {
                     trailingFieldHasContent = true;
                     inQuotes = true;
+                    quoteOpenAt = i;
                     numericValid = false;
                     i++;
                 } else if (c == '[' && fieldHasNonWhitespace == false) {
                     trailingFieldHasContent = true;
                     if (hasMvcBracketClose(line, i)) {
                         bracketDepth = 1;
+                        bracketOpenAt = i;
                     }
                     if (isProjected) current.append(c);
                     numericValid = false;
@@ -2203,10 +2208,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
 
             if (inQuotes) {
-                throw new MalformedRowException("Unclosed quoted field in line [" + CsvErrorMessages.summarize(line) + "]");
+                throw MalformedRowException.unclosedQuotedField(line, quoteOpenAt);
             }
             if (bracketDepth > 0) {
-                throw new MalformedRowException("Unclosed bracket cell in line [" + CsvErrorMessages.summarize(line) + "]");
+                throw MalformedRowException.unclosedBracketCell(line, bracketOpenAt);
             }
 
             int totalFields = trailingFieldHasContent ? fieldIndex + 1 : fieldIndex;

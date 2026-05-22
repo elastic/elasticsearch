@@ -183,7 +183,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
     }
 
     private void recoverWithFreshClusterState(StartRecoveryRequest request, Task task, ActionListener<RecoveryResponse> listener) {
-        logger.info("--> recoverWithFreshClusterState called for shard {}", request.shardId());
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard shard = indexService.getShard(request.shardId().id());
 
@@ -266,7 +265,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 return addNewRecovery(request, task, shard);
             }
             shard.recoveryStats().incCurrentAsSourceQueued();
-            logger.info("--> Enqueued recovery for shard {}, new queued count={}", shard.shardId(), pendingRecoveries.size() + 1);
             // TODO: consider capping the queue depth and rejecting with DelayRecoveryException once exceeded.
             final var subscribableListener = new SubscribableListener<RecoveryResponse>();
             subscribableListener.addListener(listener);
@@ -284,13 +282,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             final RemoteRecoveryTargetHandler recoveryTargetHandler = handlers.v2();
             nodeToHandlers.computeIfAbsent(recoveryTargetHandler.targetNode(), k -> new HashSet<>()).add(recoveryTargetHandler);
             shard.recoveryStats().incCurrentAsSource();
-            logger.info(
-                "--> Started new recovery for shard {}, active={}, max={}, queued={}",
-                shard.shardId(),
-                activeRecoveryHandlerCount,
-                maxConcurrentOutgoingRecoveries,
-                pendingRecoveries.size()
-            );
             return handlers.v1();
         }
 

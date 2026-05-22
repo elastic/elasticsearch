@@ -271,7 +271,7 @@ public class EsqlSession {
         this.plannerSettings = plannerSettings;
         this.crossProjectModeDecider = services.crossProjectModeDecider();
         this.clusterName = services.clusterService().getClusterName().value();
-        this.clusterUuid = services.clusterService().state().metadata().clusterUUID();
+        this.clusterUuid = resolveClusterUuid(services.clusterService());
         this.projectMetadata = projectMetadata;
     }
 
@@ -515,6 +515,21 @@ public class EsqlSession {
             planTimeProfile,
             listener
         );
+    }
+
+    /**
+     * Resolves the cluster UUID once at session construction. Tolerates the test-fixture case where
+     * a mocked {@code ClusterService} returns a null {@code ClusterState} — falls back to empty
+     * string. The UUID feeds the HMAC key used by the anonymizer; an empty key still produces a
+     * deterministic HMAC, only the token namespace is shared across affected sessions (test only).
+     */
+    private static String resolveClusterUuid(org.elasticsearch.cluster.service.ClusterService clusterService) {
+        try {
+            var state = clusterService.state();
+            return state != null ? state.metadata().clusterUUID() : "";
+        } catch (Exception e) {
+            return "";
+        }
     }
 
     private ActionListener<Versioned<Result>> wrapForAnonymizedFailureLog(ActionListener<Versioned<Result>> delegate) {

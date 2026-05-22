@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
@@ -18,8 +19,10 @@ import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
 import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
+import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
@@ -51,7 +54,7 @@ import javax.crypto.spec.SecretKeySpec;
  */
 public final class PlanAnonymizer {
 
-    public record AnonymizedPlans(String schema, String logicalPlan, String physicalPlan) {}
+    public record AnonymizedPlans(String schema, String parsed, String analyzed, String optimized, String physical) {}
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     private static final int TOKEN_HEX_LEN = 8;
@@ -70,17 +73,46 @@ public final class PlanAnonymizer {
         return new PlanAnonymizer(clusterUuid);
     }
 
-    public AnonymizedPlans anonymize(LogicalPlan logical, PhysicalPlan physical) {
-        LogicalPlan al = anonymizeLogical(logical);
+    /**
+     * Anonymize whichever pipeline stages reached completion. Any of the four arguments may be null
+     * (e.g. parse failed → all null; analyze failed → only parsed non-null; etc.); the corresponding
+     * record field comes back empty. Schema is rendered from analyzed when available, else
+     * optimized (the parsed plan has {@code UnresolvedRelation}s with no resolved attributes, so it
+     * carries no useful schema).
+     */
+    public AnonymizedPlans anonymize(LogicalPlan parsed, LogicalPlan analyzed, LogicalPlan optimized, PhysicalPlan physical) {
+        String parsedText = parsed == null ? "" : anonymizeLogical(parsed).toString();
+        String analyzedText = analyzed == null ? "" : anonymizeLogical(analyzed).toString();
+        String optimizedText = optimized == null ? "" : anonymizeLogical(optimized).toString();
         String physicalText = physical == null ? "" : anonymizePhysical(physical).toString();
-        return new AnonymizedPlans(renderSchema(logical), al.toString(), physicalText);
+
+        LogicalPlan schemaSource = analyzed != null ? analyzed : optimized;
+        String schema = schemaSource == null ? "" : renderSchema(schemaSource);
+
+        return new AnonymizedPlans(schema, parsedText, analyzedText, optimizedText, physicalText);
     }
 
     private LogicalPlan anonymizeLogical(LogicalPlan plan) {
         LogicalPlan out = plan.transformExpressionsDown(Attribute.class, this::anonymizeAttribute);
         out = out.transformExpressionsDown(Literal.class, this::anonymizeLiteral);
         out = out.transformDown(EsRelation.class, this::anonymizeEsRelation);
+        // Parsed plans carry UnresolvedRelation (not EsRelation) since analysis hasn't run; the
+        // EsRelation rule above doesn't touch it, so handle it explicitly.
+        out = out.transformDown(UnresolvedRelation.class, this::anonymizeUnresolvedRelation);
         return out;
+    }
+
+    private UnresolvedRelation anonymizeUnresolvedRelation(UnresolvedRelation r) {
+        String anonymizedPattern = anonymizeIndex(r.indexPattern().indexPattern());
+        return new UnresolvedRelation(
+            r.source(),
+            new IndexPattern(r.source(), anonymizedPattern),
+            r.frozen(),
+            r.metadataFields(),
+            r.indexMode(),
+            null,
+            r.telemetryLabel()
+        );
     }
 
     private PhysicalPlan anonymizePhysical(PhysicalPlan plan) {
@@ -92,7 +124,13 @@ public final class PlanAnonymizer {
     }
 
     private Attribute anonymizeAttribute(Attribute a) {
-        return a.withName(anonymizeColumn(a.name()));
+        String anonymized = anonymizeColumn(a.name());
+        // Attribute.withName(...) calls dataType() to reconstruct via clone(); UnresolvedAttribute
+        // throws on dataType() because the type hasn't been resolved yet. Build it directly.
+        if (a instanceof UnresolvedAttribute) {
+            return new UnresolvedAttribute(a.source(), anonymized, null);
+        }
+        return a.withName(anonymized);
     }
 
     private Literal anonymizeLiteral(Literal l) {

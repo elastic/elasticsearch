@@ -120,10 +120,13 @@ final class KnownLengthAsyncResponseTransformer<R extends SdkResponse> implement
     private static final class ChunkCopyingSubscriber implements Subscriber<ByteBuffer> {
         private final CompletableFuture<ByteBuffer> resultFuture;
         private final int expectedLength;
-        private ByteBuffer destination;
+        // Cross-callback fields are volatile as defense-in-depth. The Reactive Streams contract
+        // guarantees serial signals with happens-before, but making the visibility explicit avoids
+        // depending on each publisher implementation honoring that subtlety correctly.
+        private volatile ByteBuffer destination;
         private int offset;
-        private Subscription subscription;
-        private boolean failed;
+        private volatile Subscription subscription;
+        private volatile boolean failed;
 
         ChunkCopyingSubscriber(CompletableFuture<ByteBuffer> resultFuture, int expectedLength) {
             this.resultFuture = resultFuture;

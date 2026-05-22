@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * Unified interface for storage object access.
@@ -105,15 +106,22 @@ public interface StorageObject {
             listener.onFailure(new IOException("failed to allocate " + length + " bytes of direct memory", e));
             return;
         }
-        executor.execute(() -> {
-            try {
-                int read = Math.max(0, readBytes(position, direct));
-                direct.position(0).limit(read);
-                listener.onResponse(direct);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        try {
+            executor.execute(() -> {
+                try {
+                    int read = Math.max(0, readBytes(position, direct));
+                    direct.position(0).limit(read);
+                    listener.onResponse(direct);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            // Route executor rejection (saturated queue, shutdown) through the listener so the
+            // caller's ActionListener chain doesn't hang. The pre-allocated direct buffer becomes
+            // garbage and is reclaimed by the platform Cleaner.
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -132,30 +140,34 @@ public interface StorageObject {
      * @param listener callback with the number of bytes read, or failure
      */
     default void readBytesAsync(long position, ByteBuffer target, Executor executor, ActionListener<Integer> listener) {
-        executor.execute(() -> {
-            int toRead = target.remaining();
-            try (InputStream stream = newStream(position, toRead)) {
-                if (target.hasArray()) {
-                    int totalRead = 0;
-                    int off = target.arrayOffset() + target.position();
-                    while (totalRead < toRead) {
-                        int n = stream.read(target.array(), off + totalRead, toRead - totalRead);
-                        if (n < 0) {
-                            break;
+        try {
+            executor.execute(() -> {
+                int toRead = target.remaining();
+                try (InputStream stream = newStream(position, toRead)) {
+                    if (target.hasArray()) {
+                        int totalRead = 0;
+                        int off = target.arrayOffset() + target.position();
+                        while (totalRead < toRead) {
+                            int n = stream.read(target.array(), off + totalRead, toRead - totalRead);
+                            if (n < 0) {
+                                break;
+                            }
+                            totalRead += n;
                         }
-                        totalRead += n;
+                        target.position(target.position() + totalRead);
+                        listener.onResponse(totalRead);
+                    } else {
+                        byte[] bytes = stream.readAllBytes();
+                        target.put(bytes);
+                        listener.onResponse(bytes.length);
                     }
-                    target.position(target.position() + totalRead);
-                    listener.onResponse(totalRead);
-                } else {
-                    byte[] bytes = stream.readAllBytes();
-                    target.put(bytes);
-                    listener.onResponse(bytes.length);
+                } catch (Exception e) {
+                    listener.onFailure(e);
                 }
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
+            });
+        } catch (RejectedExecutionException e) {
+            listener.onFailure(e);
+        }
     }
 
     // === POSITIONAL BYTE-BUFFER API (optional - enables zero-copy for columnar formats) ===

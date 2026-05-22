@@ -50,10 +50,13 @@ final class DirectByteBufferBodyHandlers {
     static final class FixedLengthDirectSubscriber implements HttpResponse.BodySubscriber<ByteBuffer> {
         private final int expectedLength;
         private final CompletableFuture<ByteBuffer> body = new CompletableFuture<>();
-        private ByteBuffer destination;
+        // Cross-callback fields are volatile as defense-in-depth. The Reactive Streams contract
+        // guarantees serial signals with happens-before, but making the visibility explicit avoids
+        // depending on each publisher implementation honoring that subtlety correctly.
+        private volatile ByteBuffer destination;
         private int offset;
-        private Flow.Subscription subscription;
-        private boolean failed;
+        private volatile Flow.Subscription subscription;
+        private volatile boolean failed;
 
         FixedLengthDirectSubscriber(int expectedLength) {
             if (expectedLength < 0) {
@@ -147,11 +150,12 @@ final class DirectByteBufferBodyHandlers {
         private final long skip;
         private final int length;
         private final CompletableFuture<ByteBuffer> body = new CompletableFuture<>();
-        private ByteBuffer destination;
+        // See FixedLengthDirectSubscriber for the volatility rationale.
+        private volatile ByteBuffer destination;
         private long skipRemaining;
         private int fillOffset;
-        private Flow.Subscription subscription;
-        private boolean failed;
+        private volatile Flow.Subscription subscription;
+        private volatile boolean failed;
 
         SkipThenFillDirectSubscriber(long skip, int length) {
             if (skip < 0) {

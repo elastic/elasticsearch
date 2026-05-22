@@ -380,19 +380,18 @@ public class CancelTasksRelocationIT extends ESIntegTestCase {
         assertThat("relocated task has a distinct numeric id", relocatedTaskId, not(equalTo(originalTaskId)));
 
         if (slices > 1) {
-            BulkByPaginatedSearchTask.Status status = asInstanceOf(
-                BulkByPaginatedSearchTask.Status.class,
-                clusterAdmin().getTask(new GetTaskRequest().setTaskId(originalTaskId)).actionGet().getTask().getTask().status()
-            );
-            int slicesCompletedOnOriginalTask = toIntExact(status.getSliceStatuses().stream().filter(Objects::nonNull).count());
-
-            assertBusy(
-                () -> assertThat(
+            assertBusy(() -> {
+                BulkByPaginatedSearchTask.Status status = asInstanceOf(
+                    BulkByPaginatedSearchTask.Status.class,
+                    clusterAdmin().getTask(new GetTaskRequest().setTaskId(originalTaskId)).actionGet().getTask().getTask().status()
+                );
+                int slicesCompletedOnOriginalTask = toIntExact(status.getSliceStatuses().stream().filter(Objects::nonNull).count());
+                assertThat(
                     "slice workers should be registered under the relocated parent",
                     listChildrenOf(relocatedTaskId),
                     hasSize(slices - slicesCompletedOnOriginalTask)
-                )
-            );
+                );
+            });
         }
 
         return new RelocatedReindex(survivorNodeName, originalTaskId, relocatedTaskId);

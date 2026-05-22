@@ -551,6 +551,28 @@ public class SourceFieldMapperTests extends MetadataMapperTestCase {
         assertNotNull(doc.rootDoc().getField("_recovery_source"));
     }
 
+    public void testColumnarStoredSourceWithSkipIgnoredSourceWrite() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName())
+            .put(IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.COLUMNAR_STORED.toString())
+            .put(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey(), SeqNoFieldMapper.SeqNoIndexOptions.DOC_VALUES_ONLY)
+            .put(IgnoredSourceFieldMapper.SKIP_IGNORED_SOURCE_WRITE_SETTING.getKey(), true)
+            .build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("field1");
+            b.field("type", "keyword");
+            b.endObject();
+        }));
+        DocumentMapper docMapper = mapperService.documentMapper();
+        ParsedDocument doc = docMapper.parse(source(b -> b.field("field1", "value1")));
+        // columnar_stored always writes its whole-document _ignored_source entry, even
+        // when skip_ignored_source_write=true suppresses per-field entries
+        assertNotNull(doc.rootDoc().getField(IgnoredSourceFieldMapper.NAME));
+        // _recovery_source must also be present for operation-based peer recovery
+        assertNotNull(doc.rootDoc().getField("_recovery_source"));
+    }
+
     public void testRecoverySourceWithLogs() throws IOException {
         {
             Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.getName()).build();

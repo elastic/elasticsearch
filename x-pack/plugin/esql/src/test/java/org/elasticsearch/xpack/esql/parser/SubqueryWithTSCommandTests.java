@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.parser;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;

@@ -470,9 +470,9 @@ import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
-import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.REINDEXED_V7_STATE_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.REINDEXED_V8_STATE_INDEX_PREFIX;
+import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndexFields.STATE_INDEX_PREFIX;
 import static org.elasticsearch.xpack.core.ml.utils.InferenceProcessorInfoExtractor.countInferenceProcessors;
 
@@ -1364,10 +1364,7 @@ public class MachineLearning extends Plugin
                 new DatafeedConfigAutoUpdater(datafeedConfigProvider, indexNameExpressionResolver),
                 new MlIndexRollover(
                     List.of(
-                        new MlIndexRollover.IndexPatternAndAlias(
-                            STATE_INDEX_PREFIX + "*",
-                            AnomalyDetectorsIndex.jobStateIndexWriteAlias()
-                        ),
+                        new MlIndexRollover.IndexPatternAndAlias(STATE_INDEX_PREFIX + "*", AnomalyDetectorsIndex.jobStateIndexWriteAlias()),
                         new MlIndexRollover.IndexPatternAndAlias(
                             REINDEXED_V7_STATE_INDEX_PREFIX + "*",
                             AnomalyDetectorsIndex.jobStateIndexWriteAlias()

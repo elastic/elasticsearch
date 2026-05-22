@@ -168,7 +168,12 @@ public class DataFrameAnalyticsDeleter {
         );
     }
 
-    private void executeDeleteByQuery(String[] indices, QueryBuilder query, TimeValue timeout, ActionListener<BulkByScrollResponse> listener) {
+    private void executeDeleteByQuery(
+        String[] indices,
+        QueryBuilder query,
+        TimeValue timeout,
+        ActionListener<BulkByScrollResponse> listener
+    ) {
         DeleteByQueryRequest request = new DeleteByQueryRequest(indices);
         request.setQuery(query);
         request.setIndicesOptions(MlIndicesUtils.addIgnoreUnavailable(IndicesOptions.lenientExpandOpen()));

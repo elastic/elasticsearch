@@ -77,17 +77,22 @@ public class BufferedArrayTests extends ComputeTestCase {
     }
 
     public void testExponentialHistogramBuffer() {
-        int count = randomIntBetween(1, PAGE_SIZE * 3);
-        ExponentialHistogram[] expected = new ExponentialHistogram[count];
         try (ExponentialHistogramBuffer buf = new ExponentialHistogramBuffer(blockFactory(), between(1, 1024))) {
-            for (int i = 0; i < count; i++) {
-                expected[i] = BlockTestUtils.randomExponentialHistogram();
-                buf.append(expected[i]);
-            }
-            assertThat(buf.size(), equalTo(count));
-            ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
-            for (int i = 0; i < count; i++) {
-                assertThat(buf.get(i, scratch), equalTo(expected[i]));
+            for (int j=0; j<3; j++) {
+                if (j != 0) {
+                    buf.clear();
+                }
+                int count = randomIntBetween(1, PAGE_SIZE * 3);
+                ExponentialHistogram[] expected = new ExponentialHistogram[count];
+                for (int i = 0; i < count; i++) {
+                    expected[i] = BlockTestUtils.randomExponentialHistogram();
+                    buf.append(expected[i]);
+                }
+                assertThat(buf.size(), equalTo(count));
+                ExponentialHistogramScratch scratch = new ExponentialHistogramScratch();
+                for (int i = 0; i < count; i++) {
+                    assertThat(buf.get(i, scratch), equalTo(expected[i]));
+                }
             }
         }
     }

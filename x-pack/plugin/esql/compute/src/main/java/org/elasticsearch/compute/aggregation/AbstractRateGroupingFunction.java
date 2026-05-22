@@ -23,6 +23,9 @@ import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.util.Arrays;
 
+import static org.elasticsearch.compute.aggregation.AbstractRateGroupingFunction.BufferedArray.indexInPage;
+import static org.elasticsearch.compute.aggregation.AbstractRateGroupingFunction.BufferedArray.pageIndex;
+
 class AbstractRateGroupingFunction {
     /**
      * Buffers data points in two arrays: one for timestamps and one for values, partitioned into multiple slices.
@@ -425,16 +428,22 @@ class AbstractRateGroupingFunction {
      * Append-only paged buffer for {@link ExponentialHistogram} values backed by {@link ExponentialHistogramBlock} pages.
      * Pages are built lazily via a block builder and finalized when full or when a read is requested.
      */
-    static final class ExponentialHistogramBuffer extends BufferedArray {
+    static final class ExponentialHistogramBuffer implements Releasable {
 
         private final BlockFactory factory;
         private ExponentialHistogramBlock[] pages;
         private ExponentialHistogramBlock.Builder activeBuilder;
+        private int size = 0;
 
         ExponentialHistogramBuffer(BlockFactory factory, long initialCapacity) {
-            super(factory.breaker(), initialCapacity, 0);
             this.factory = factory;
-            pages = new ExponentialHistogramBlock[numPages];
+            int initialNumPages = Math.max(1, Math.toIntExact((initialCapacity + PAGE_SIZE - 1) >>> PAGE_SHIFT));
+            pages = new ExponentialHistogramBlock[initialNumPages];
+            size = 0;
+        }
+
+        int size() {
+            return size;
         }
 
         ExponentialHistogram get(long index, ExponentialHistogramScratch scratch) {
@@ -502,6 +511,14 @@ class AbstractRateGroupingFunction {
 
         void ensureCapacity(long minCapacity) {
             // Pages are allocated on demand automatically via the block builder
+        }
+
+        void clear() {
+            size = 0;
+            Releasables.close(activeBuilder);
+            Releasables.close(pages);
+            activeBuilder = null;
+            Arrays.fill(pages, null);
         }
 
         @Override

@@ -340,8 +340,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             mergeExpressions(firstPassAggs, firstPassGroupings),
             internalBucket != null ? internalBucket : userBucket,
             userBucket,
-            aggregate.timestamp(),
-            aggregate.isCollapsed()
+            aggregate.timestamp()
         );
         checkWindow(firstPhase);
         if (packDimensions.isEmpty()) {

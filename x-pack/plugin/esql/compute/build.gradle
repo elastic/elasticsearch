@@ -4,6 +4,11 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.string-templates'
 apply plugin: 'elasticsearch.publish'
 apply plugin: 'elasticsearch.transport-version-references'
+apply plugin: 'elasticsearch.esql-release'
+
+subprojects {
+  apply plugin: 'elasticsearch.esql-release'
+}
 
 base {
   archivesName = 'x-pack-esql-compute'
@@ -1261,6 +1266,7 @@ tasks.named('stringTemplates').configure {
     props.forEach { p ->
       def properties = [:]
       p.forEach { k, v -> properties["v_" + k] = v }
+      properties["v_TailArray"] = properties["v_boolean"] ? "ByteArray" : properties["v_Array"]
       template {
         it.properties = properties
         it.inputFile = inputFile

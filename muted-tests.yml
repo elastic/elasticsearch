@@ -315,9 +315,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessMergeIT
   method: testOnlyForceMergesAreAllowedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/147880
-- class: org.elasticsearch.reindex.management.ReindexCancelIT
-  method: testCancellingChildTaskRejected
-  issue: https://github.com/elastic/elasticsearch/issues/147925
 - class: org.elasticsearch.xpack.sql.qa.single_node.RestSqlIT
   method: testNextPageText
   issue: https://github.com/elastic/elasticsearch/issues/147950
@@ -438,9 +435,6 @@ tests:
 - class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
   method: testReindexFailsWhenPitRelocationFails
   issue: https://github.com/elastic/elasticsearch/issues/148748
-- class: org.elasticsearch.xpack.stateless.StatelessIndexCommitListenerIT
-  method: testRefIsNotReleasedUponNotificationFailure
-  issue: https://github.com/elastic/elasticsearch/issues/148471
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexWhileNodeStopping
   issue: https://github.com/elastic/elasticsearch/issues/148807
@@ -534,9 +528,6 @@ tests:
 - class: org.elasticsearch.gateway.PersistedClusterStateServiceTests
   method: testLimitsFileCount
   issue: https://github.com/elastic/elasticsearch/issues/149557
-- class: org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReaderTests
-  method: testMalformedRowErrorAnchorsOnQuoteOffset
-  issue: https://github.com/elastic/elasticsearch/issues/149567
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats.sumWithOverflowRow}
   issue: https://github.com/elastic/elasticsearch/issues/149574
@@ -576,3 +567,15 @@ tests:
 - class: org.elasticsearch.index.reindex.LocalReindexResumeIT
   method: testResumeReindexFromPit_slicedN
   issue: https://github.com/elastic/elasticsearch/issues/149698
+- class: org.elasticsearch.index.reindex.ReindexRequestWireSerializingTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/149720
+- class: org.elasticsearch.index.reindex.ResumeBulkByScrollRequestWireSerializingTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/149721
+- class: org.elasticsearch.indices.memory.breaker.AccountableQueryCircuitBreakerIT
+  method: testRegexpQueryMemoryReleased
+  issue: https://github.com/elastic/elasticsearch/issues/149727
+- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
+  method: testRetainCommitForReadersAfterShardReplicasSetToZero
+  issue: https://github.com/elastic/elasticsearch/issues/149740

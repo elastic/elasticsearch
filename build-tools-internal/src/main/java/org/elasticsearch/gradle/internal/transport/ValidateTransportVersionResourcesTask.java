@@ -194,13 +194,7 @@ public abstract class ValidateTransportVersionResourcesTask extends PrecommitTas
                 int increment = getIncrement().get();
                 int remainder = primaryId % increment;
                 if (remainder != 0) {
-                    throwDefinitionFailure(
-                        definition,
-                        "has primary id "
-                            + primaryId
-                            + " which is not aligned to increment "
-                            + increment
-                    );
+                    throwDefinitionFailure(definition, "has primary id " + primaryId + " which is not aligned to increment " + increment);
                 }
             }
         }
@@ -357,13 +351,8 @@ public abstract class ValidateTransportVersionResourcesTask extends PrecommitTas
         Set<String> changedUpperBoundNames = resources.getChangedUpperBoundNames();
         for (String name : changedDefinitionNames) {
             TransportVersionDefinition definition = referableDefinitions.get(name);
-            if (definition != null
-                && resources.getReferableDefinitionFromGitBase(name) == null
-                && changedUpperBoundNames.isEmpty()) {
-                throwDefinitionFailure(
-                    definition,
-                    "was added but no corresponding upper bounds file was changed"
-                );
+            if (definition != null && resources.getReferableDefinitionFromGitBase(name) == null && changedUpperBoundNames.isEmpty()) {
+                throwDefinitionFailure(definition, "was added but no corresponding upper bounds file was changed");
             }
         }
     }

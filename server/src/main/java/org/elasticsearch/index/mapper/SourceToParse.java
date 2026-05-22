@@ -260,6 +260,7 @@ public class SourceToParse {
                     EirfRowToXContent.writeRowFromSchema(row, schemaTree, builder);
                     originalSourceBytes = BytesReference.bytes(builder);
                 } catch (IOException e) {
+                    assert false : e.getMessage();
                     throw new UncheckedIOException(e);
                 }
             }

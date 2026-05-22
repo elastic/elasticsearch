@@ -13,9 +13,10 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.ArrayDeque;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 
 /**
@@ -44,10 +45,10 @@ public final class ThrottlingRecoveryService {
     private final Executor executor;
     private volatile int maxConcurrentRecoveries;
 
-    private final Queue<RecoveryTask> pending = new ArrayDeque<>();
+    private final Queue<RecoveryTask> pending = new ConcurrentLinkedQueue<>();
 
     /** In-flight tasks: dispatched to {@link ThreadPool#generic()} and not yet completed ({@link #closeAndMaybeDispatch()} not run). */
-    private int running;
+    private final AtomicInteger running = new AtomicInteger(0);
 
     public ThrottlingRecoveryService(Executor executor, ClusterSettings clusterSettings) {
         this.executor = executor;
@@ -56,52 +57,40 @@ public final class ThrottlingRecoveryService {
 
     public void enqueue(RecoveryListener recoveryListener, Consumer<RecoveryListener> task) {
         RecoveryTask recoveryTask = new RecoveryTask(RecoveryListener.runAfter(recoveryListener, this::closeAndMaybeDispatch), task);
-        synchronized (this) {
-            if (running < maxConcurrentRecoveries) {
-                dispatch(recoveryTask);
-            } else {
-                pending.add(recoveryTask);
+        pending.add(recoveryTask);
+        fillSlots();
+    }
+
+    private void fillSlots() {
+        int current;
+        while ((current = running.get()) < maxConcurrentRecoveries && !pending.isEmpty()) {
+            if (running.compareAndSet(current, current + 1)) {
+                RecoveryTask nextTask = pending.poll();
+                if (nextTask != null) {
+                    dispatch(nextTask);
+                } else {
+                    running.decrementAndGet();
+                }
             }
         }
     }
 
     private void closeAndMaybeDispatch() {
-        synchronized (this) {
-            running--;
-            assert running >= 0 : "negative number of running recoveries " + running;
-            maybeDispatch();
-        }
+        int current = running.decrementAndGet();
+        assert current >= 0 : "negative number of running recoveries " + current;
+        fillSlots();
     }
 
     private void setMaxConcurrentRecoveries(Integer newMaxConcurrentRecoveries) {
-        synchronized (this) {
-            int oldMax = this.maxConcurrentRecoveries;
-            this.maxConcurrentRecoveries = newMaxConcurrentRecoveries;
-            if (oldMax < newMaxConcurrentRecoveries) {
-                maybeDispatch();
-            }
+        int oldMax = this.maxConcurrentRecoveries;
+        this.maxConcurrentRecoveries = newMaxConcurrentRecoveries;
+        if (oldMax < newMaxConcurrentRecoveries) {
+            fillSlots();
         }
     }
 
-    /**
-     * Caller must hold {@code this} lock
-     */
     private void dispatch(RecoveryTask recoveryTask) {
-        running++;
         executor.execute(() -> recoveryTask.task.accept(recoveryTask.recoveryListener));
-    }
-
-    /**
-     * Dispatch next pending task(s) in queue up to max number of concurrent tasks has been reached or queue is empty.
-     * Caller must hold {@code this} lock
-     */
-    private void maybeDispatch() {
-        while (running < maxConcurrentRecoveries && pending.isEmpty() == false) {
-            assert running < maxConcurrentRecoveries : running + " vs " + maxConcurrentRecoveries;
-            RecoveryTask next = pending.poll();
-            assert next != null;
-            dispatch(next);
-        }
     }
 
     private record RecoveryTask(RecoveryListener recoveryListener, Consumer<RecoveryListener> task) {}

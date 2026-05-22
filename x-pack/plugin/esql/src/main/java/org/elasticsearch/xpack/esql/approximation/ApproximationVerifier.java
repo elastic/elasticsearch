@@ -397,7 +397,8 @@ public class ApproximationVerifier {
                         if (aggFn.dataType().isNumeric() == false) {
                             verificationException.setIfAbsent(
                                 new VerificationException(
-                                    "line {}:{}: approximation not supported: aggregation function [{}] must return a numeric value; got [{}]",
+                                    "line {}:{}: approximation not supported: "
+                                        + "aggregation function [{}] must return a numeric value; got [{}]",
                                     aggFn.source().source().getLineNumber(),
                                     aggFn.source().source().getColumnNumber(),
                                     aggFn.sourceText(),

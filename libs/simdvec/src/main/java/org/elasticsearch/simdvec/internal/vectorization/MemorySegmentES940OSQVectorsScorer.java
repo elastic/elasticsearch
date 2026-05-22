@@ -282,8 +282,8 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
     }
 
     static sealed class MemorySegmentScorer permits NativeMemorySegmentScorer, NativeD7Q7ES940OSQVectorsScorer,
-        MSBitToBitESNextOSQVectorsScorer,  MSBitToInt4ES940OSQVectorsScorer, MSDibitToInt4ES940OSQVectorsScorer, MSInt4SymmetricES940OSQVectorsScorer,
-        MSD7Q7ES940OSQVectorsScorer, NativePackedInt4ES940OSQVectorsScorer {
+        MSBitToBitESNextOSQVectorsScorer, MSBitToInt4ES940OSQVectorsScorer, MSDibitToInt4ES940OSQVectorsScorer,
+        MSInt4SymmetricES940OSQVectorsScorer, MSD7Q7ES940OSQVectorsScorer, NativePackedInt4ES940OSQVectorsScorer {
 
         static final float ONE_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[0];
         static final float TWO_BIT_SCALE = ES940OSQVectorsScorer.BIT_SCALES[1];
@@ -362,19 +362,31 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             return scratch;
         }
 
+        /**
+         * Quantized scoring operation. Returns {@link Long#MIN_VALUE}
+         * if this scorer does not implement this scoring.
+         */
         long quantizeScore(byte[] q) throws IOException {
             return Long.MIN_VALUE;
         }
 
+        /**
+         * Quantized scoring bulk operation. Returns {@code false}
+         * if this scorer does not implement this scoring.
+         */
         boolean quantizeScoreBulk(byte[] q, int count, float[] scores) throws IOException {
             return false;
         }
 
+        /**
+         * Quantized scoring bulk-with-offsets operation. Returns {@code false}
+         * if this scorer does not implement this scoring.
+         */
         boolean quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
             return false;
         }
 
-        float scoreBulk(
+        final float scoreBulk(
             byte[] q,
             float queryLowerInterval,
             float queryUpperInterval,
@@ -397,6 +409,10 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             );
         }
 
+        /**
+         * Score bulk operation. Returns {@link Float#NEGATIVE_INFINITY}
+         * if this scorer does not implement this scoring.
+         */
         float scoreBulk(
             byte[] q,
             float queryLowerInterval,
@@ -411,6 +427,10 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
             return Float.NEGATIVE_INFINITY;
         }
 
+        /**
+         * Score bulk-with-offsets operation. Returns {@link Float#NEGATIVE_INFINITY}
+         * if this scorer does not implement this scoring.
+         */
         float scoreBulkOffsets(
             byte[] q,
             float queryLowerInterval,

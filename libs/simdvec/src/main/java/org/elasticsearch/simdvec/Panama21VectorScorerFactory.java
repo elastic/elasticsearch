@@ -68,7 +68,7 @@ final class Panama21VectorScorerFactory implements VectorScorerFactory {
                     dimension,
                     dataLength,
                     bulkSize,
-                bitEncoding
+                    bitEncoding
                 );
             }
         }

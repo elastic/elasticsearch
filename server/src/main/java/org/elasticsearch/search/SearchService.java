@@ -605,14 +605,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     @Override
     public void afterIndexRemoved(Index index, IndexSettings indexSettings, IndexRemovalReason reason) {
-        // once an index is removed due to deletion or closing, we can just clean up all the pending search context information
-        // if we then close all the contexts we can get some search failures along the way which are not expected.
-        // it's fine to keep the contexts open if the index is still "alive"
-        // unfortunately we don't have a clear way to signal today why an index is closed.
-        // to release memory and let references to the filesystem go etc.
-        if (reason == IndexRemovalReason.DELETED || reason == IndexRemovalReason.CLOSED || reason == IndexRemovalReason.REOPENED) {
-            freeAllContextForIndex(index);
-        }
+        // Whenever an index is removed from this node, any open ReaderContext for it can no longer search its
+        // data: the local IndexShards are gone. Each ReaderContext holds a Store.incRef (via
+        // Engine.SearcherSupplier); leaving them in place prevents the wrapper ShardLock from releasing and
+        // blocks subsequent IndexShard creation for the same ShardId on this node (see
+        // RelocateShardWithOpenPitIT). Free them unconditionally regardless of removal reason - in particular
+        // NO_LONGER_ASSIGNED (auto-expand revert, relocation away, etc.) was previously not covered.
+        freeAllContextForIndex(index);
     }
 
     @Override

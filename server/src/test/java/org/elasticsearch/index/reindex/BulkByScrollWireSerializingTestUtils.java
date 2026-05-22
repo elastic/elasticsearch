@@ -56,7 +56,13 @@ public final class BulkByScrollWireSerializingTestUtils {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         entries.addAll(searchModule.getNamedWriteables());
         entries.addAll(ClusterModule.getNamedWriteables());
-        entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new));
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                Task.Status.class,
+                BulkByPaginatedSearchTask.Status.NAME,
+                BulkByPaginatedSearchTask.Status::new
+            )
+        );
         entries.add(
             new NamedWriteableRegistry.Entry(
                 ResumeInfo.WorkerResumeInfo.class,
@@ -75,8 +81,8 @@ public final class BulkByScrollWireSerializingTestUtils {
     }
 
     public static boolean abstractBulkByScrollRequestsEqual(
-        AbstractBulkByScrollRequest<?> firstRequest,
-        AbstractBulkByScrollRequest<?> secondRequest
+        AbstractBulkByPaginatedSearchRequest<?> firstRequest,
+        AbstractBulkByPaginatedSearchRequest<?> secondRequest
     ) {
         if (Objects.equals(firstRequest.getSearchRequest(), secondRequest.getSearchRequest()) == false) {
             return false;
@@ -121,9 +127,9 @@ public final class BulkByScrollWireSerializingTestUtils {
     }
 
     /**
-     * Equality for {@link AbstractBulkByScrollRequest#getResumeInfo()} suitable for wire tests: {@link ResumeInfo.PitWorkerResumeInfo}
-     * uses {@code searchAfterValues} that may change numeric types across {@link org.elasticsearch.common.io.stream.StreamOutput} /
-     * {@link org.elasticsearch.common.io.stream.StreamInput} round-trips.
+     * Equality for {@link AbstractBulkByPaginatedSearchRequest#getResumeInfo()} suitable for wire tests:
+     * {@link ResumeInfo.PitWorkerResumeInfo} uses {@code searchAfterValues} that may change numeric types across
+     * {@link org.elasticsearch.common.io.stream.StreamOutput} / {@link org.elasticsearch.common.io.stream.StreamInput} round-trips.
      */
     public static boolean resumeInfosEqual(Optional<ResumeInfo> first, Optional<ResumeInfo> second) {
         if (first.isPresent() != second.isPresent()) {
@@ -256,7 +262,7 @@ public final class BulkByScrollWireSerializingTestUtils {
     /**
      * Minimal random resume info for embedding in bulk-by-scroll requests (worker or multi-slice).
      */
-    public static void fillRandomBulkFields(AbstractBulkByScrollRequest<?> request) {
+    public static void fillRandomBulkFields(AbstractBulkByPaginatedSearchRequest<?> request) {
         if (ESTestCase.randomBoolean()) {
             request.setMaxDocs(ESTestCase.between(100, 10000));
         }
@@ -278,18 +284,19 @@ public final class BulkByScrollWireSerializingTestUtils {
         if (ESTestCase.randomBoolean()) {
             request.setSourceIndicesForDescription(new String[] { "idx1", "idx2" });
         }
-        if (request.getMaxDocs() != AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES && request.getMaxDocs() < request.getSlices()) {
+        if (request.getMaxDocs() != AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES
+            && request.getMaxDocs() < request.getSlices()) {
             request.setMaxDocs(request.getSlices());
         }
     }
 
     /**
      * Mutates {@code mutatedRequest} (a copy of {@code originalRequest}) by changing exactly one serialized field of
-     * {@link AbstractBulkByScrollRequest}.
+     * {@link AbstractBulkByPaginatedSearchRequest}.
      */
     public static void mutateAbstractBulkByScrollRequest(
-        AbstractBulkByScrollRequest<?> originalRequest,
-        AbstractBulkByScrollRequest<?> mutatedRequest
+        AbstractBulkByPaginatedSearchRequest<?> originalRequest,
+        AbstractBulkByPaginatedSearchRequest<?> mutatedRequest
     ) {
         switch (ESTestCase.between(0, 14)) {
             case 0 -> {
@@ -351,7 +358,7 @@ public final class BulkByScrollWireSerializingTestUtils {
             }
             default -> throw new AssertionError();
         }
-        if (mutatedRequest.getMaxDocs() != AbstractBulkByScrollRequest.MAX_DOCS_ALL_MATCHES
+        if (mutatedRequest.getMaxDocs() != AbstractBulkByPaginatedSearchRequest.MAX_DOCS_ALL_MATCHES
             && mutatedRequest.getMaxDocs() < mutatedRequest.getSlices()) {
             mutatedRequest.setMaxDocs(mutatedRequest.getSlices());
         }

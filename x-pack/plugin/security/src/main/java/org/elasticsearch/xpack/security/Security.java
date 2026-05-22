@@ -26,8 +26,10 @@ import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -119,12 +121,12 @@ import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
-import org.elasticsearch.xpack.core.crypto.EncryptionService;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.SecurityExtension;
 import org.elasticsearch.xpack.core.security.SecurityField;
@@ -333,6 +335,7 @@ import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
 import org.elasticsearch.xpack.security.authz.SecuritySearchOperationListener;
 import org.elasticsearch.xpack.security.authz.accesscontrol.OptOutQueryCache;
 import org.elasticsearch.xpack.security.authz.interceptor.BulkShardRequestInterceptor;
+import org.elasticsearch.xpack.security.authz.interceptor.DatasetDatasourceRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.DlsFlsLicenseRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.IndicesAliasesRequestInterceptor;
 import org.elasticsearch.xpack.security.authz.interceptor.RequestInterceptor;
@@ -349,7 +352,8 @@ import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
-import org.elasticsearch.xpack.security.crypto.AesGcmEncryptionService;
+import org.elasticsearch.xpack.security.crypto.EncryptionComponents;
+import org.elasticsearch.xpack.security.crypto.PrimaryEncryptionKeyMetadata;
 import org.elasticsearch.xpack.security.crypto.PrimaryEncryptionKeyService;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
@@ -424,6 +428,7 @@ import org.elasticsearch.xpack.security.rest.action.user.RestProfileHasPrivilege
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestQueryUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
+import org.elasticsearch.xpack.security.spi.encryption.EncryptedDataHandlerProvider;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesProviderFactory;
@@ -623,6 +628,7 @@ public class Security extends Plugin
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
     private final SetOnce<List<BootstrapCheck>> bootstrapChecks = new SetOnce<>();
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
+    private final List<EncryptedDataHandlerProvider> encryptedDataHandlerProviders = new ArrayList<>();
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
     private final SetOnce<OperatorOnlyRegistry> operatorOnlyRegistry = new SetOnce<>();
@@ -832,10 +838,9 @@ public class Security extends Plugin
         final RestrictedIndices restrictedIndices = new RestrictedIndices(expressionResolver);
 
         // audit trail service construction
-        final AuditTrail auditTrail = XPackSettings.AUDIT_ENABLED.get(settings)
-            ? new LoggingAuditTrail(settings, clusterService, threadPool)
-            : null;
-        final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState());
+        final AuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, threadPool);
+
+        final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState(), clusterService);
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
 
@@ -1141,7 +1146,8 @@ public class Security extends Plugin
         dlsFlsEnabled.set(XPackSettings.DLS_FLS_ENABLED.get(settings));
         Set<RequestInterceptor> requestInterceptors = Sets.newHashSet(
             new ResizeRequestInterceptor(threadPool, auditTrailService, dlsFlsEnabled.get()),
-            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), auditTrailService, dlsFlsEnabled.get())
+            new IndicesAliasesRequestInterceptor(threadPool.getThreadContext(), auditTrailService, dlsFlsEnabled.get()),
+            new DatasetDatasourceRequestInterceptor()
         );
 
         if (dlsFlsEnabled.get()) {
@@ -1281,9 +1287,16 @@ public class Security extends Plugin
         cacheInvalidatorRegistry.validate();
 
         if (PrimaryEncryptionKeyService.PRIMARY_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
-            PrimaryEncryptionKeyService pekService = PrimaryEncryptionKeyService.create(clusterService, projectResolver, featureService);
-            components.add(new PluginComponentBinding<>(EncryptionService.class, new AesGcmEncryptionService(pekService)));
-            components.add(pekService);
+            components.addAll(
+                EncryptionComponents.create(
+                    clusterService,
+                    threadPool,
+                    projectResolver,
+                    featureService,
+                    settings,
+                    encryptedDataHandlerProviders
+                )
+            );
         }
 
         setClosableAndReloadableComponents(components);
@@ -1687,6 +1700,10 @@ public class Security extends Plugin
 
         // hide settings
         settingsList.add(Setting.stringListSetting(SecurityField.setting("hide_settings"), Property.NodeScope, Property.Filtered));
+
+        if (PrimaryEncryptionKeyService.PRIMARY_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
+            settingsList.addAll(EncryptionComponents.settings());
+        }
         return settingsList;
     }
 
@@ -2581,6 +2598,7 @@ public class Security extends Plugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
+        encryptedDataHandlerProviders.addAll(loader.loadExtensions(EncryptedDataHandlerProvider.class));
         loadSingletonExtensionAndSetOnce(loader, operatorOnlyRegistry, OperatorOnlyRegistry.class);
         loadSingletonExtensionAndSetOnce(loader, putRoleRequestBuilderFactory, PutRoleRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, bulkPutRoleRequestBuilderFactory, BulkPutRoleRequestBuilderFactory.class);
@@ -2647,6 +2665,29 @@ public class Security extends Plugin
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return systemIndices.getSystemIndexDescriptors();
+    }
+
+    @Override
+    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                PrimaryEncryptionKeyMetadata.TYPE,
+                PrimaryEncryptionKeyMetadata::new
+            ),
+            new NamedWriteableRegistry.Entry(NamedDiff.class, PrimaryEncryptionKeyMetadata.TYPE, PrimaryEncryptionKeyMetadata::readDiffFrom)
+        );
+    }
+
+    @Override
+    public List<NamedXContentRegistry.Entry> getNamedXContent() {
+        return List.of(
+            new NamedXContentRegistry.Entry(
+                Metadata.ProjectCustom.class,
+                new ParseField(PrimaryEncryptionKeyMetadata.TYPE),
+                PrimaryEncryptionKeyMetadata::fromXContent
+            )
+        );
     }
 
     @Override

@@ -19,12 +19,12 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.inference.EmbeddingRequest.JINA_AI_EMBEDDING_TASK_ADDED;
 import static org.elasticsearch.inference.InferenceString.EMBEDDING_AUDIO_VIDEO_PDF_INPUT_SUPPORT_ADDED;
+import static org.elasticsearch.inference.InferenceStringTests.randomDataTypeSupportingBase64;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.is;
 
@@ -47,7 +47,7 @@ public class EmbeddingRequestTests extends AbstractBWCSerializationTestCase<Embe
     }
 
     public void testParser_withBase64ContentObject() throws IOException {
-        var nonTextType = randomFrom(EnumSet.complementOf(EnumSet.of(DataType.TEXT)));
+        var nonTextType = randomDataTypeSupportingBase64();
         var format = DataFormat.BASE64;
         var requestJson = Strings.format("""
             {

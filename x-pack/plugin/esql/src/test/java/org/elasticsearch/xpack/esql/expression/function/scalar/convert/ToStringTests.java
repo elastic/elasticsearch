@@ -165,6 +165,7 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
             List.of()
         );
         TestCaseSupplier.forUnaryStrings(suppliers, read, DataType.KEYWORD, bytesRef -> bytesRef, List.of());
+        TestCaseSupplier.forUnaryFlattened(suppliers, read, DataType.KEYWORD, bytesRef -> bytesRef, List.of());
         TestCaseSupplier.forUnaryVersion(
             suppliers,
             "ToStringFromVersionEvaluator[version=" + read + "]",
@@ -260,7 +261,7 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
         );
         TestCaseSupplier.forUnaryDateRange(
             fixedTimezoneSuppliers,
-            "ToStringFromDateRangeEvaluator[field=" + read + ", formatter=format[strict_date_optional_time] locale[]]",
+            "ToStringFromDateRangeEvaluator[range=" + read + ", formatter=format[strict_date_optional_time] locale[]]",
             DataType.KEYWORD,
             dr -> matchesBytesRef(EsqlDataTypeConverter.dateRangeToString(dr)),
             List.of()
@@ -335,7 +336,7 @@ public class ToStringTests extends AbstractConfigurationFunctionTestCase {
                                 "date"
                             )
                         ),
-                        "ToStringFromDateRangeEvaluator[field=Attribute[channel=0], "
+                        "ToStringFromDateRangeEvaluator[range=Attribute[channel=0], "
                             + "formatter=format[strict_date_optional_time] locale[]]",
                         DataType.KEYWORD,
                         matchesBytesRef(

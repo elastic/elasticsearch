@@ -1,0 +1,12 @@
+area: Search
+issues: []
+pr: 148622
+summary: Enable the batched query phase
+type: enhancement
+highlight:
+  notable: true
+  title: Batched execution in the query phase
+  body: |-
+    Searches that target multiple shards on the same data node now batch shards into a single round-trip per data node, with partial reductions performed on the data nodes.
+    This reduces transport layer overhead and spreads the load of reductions across multiple nodes.
+    The enhancement is controlled by a setting `search.batched_query_phase`, which is enabled by default in 9.5.0.

@@ -101,6 +101,21 @@ public class CountOverTimeTests extends AbstractAggregationTestCase {
         return new CountOverTime(source, args.get(0), AggregateFunction.NO_WINDOW);
     }
 
+    @Override
+    public void testAggregate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateToString() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
+    @Override
+    public void testAggregateIntermediate() {
+        assumeTrue("time-series aggregation doesn't support ungrouped", false);
+    }
+
     public static List<DocsV3Support.Param> signatureTypes(List<DocsV3Support.Param> params) {
         ArrayList<DocsV3Support.Param> copies = new ArrayList<>(params);
         var preview = appliesTo(FunctionAppliesToLifecycle.PREVIEW, "9.3.0", "", false);

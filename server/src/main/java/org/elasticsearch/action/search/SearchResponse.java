@@ -55,7 +55,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 
@@ -1279,26 +1278,62 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
         }
     }
 
-    // public for tests
-    public static SearchResponse empty(Supplier<Long> tookInMillisSupplier, Clusters clusters) {
-        return new SearchResponse(
-            SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN),
-            InternalAggregations.EMPTY,
-            null,
-            false,
-            null,
-            null,
-            0,
-            null,
-            0,
-            0,
-            0,
-            tookInMillisSupplier.get(),
-            ShardSearchFailure.EMPTY_ARRAY,
-            clusters,
-            null,
-            null,
-            null
-        );
+    public static EmptyResponseBuilder emptyResponseBuilder() {
+        return new EmptyResponseBuilder();
+    }
+
+    /**
+     * Builds a {@link SearchResponse} carrying no hits and no shards. Use cases include the scroll path when the
+     * scroll id resolves to zero shard contexts, and cross-cluster search when a remote cluster is unavailable.
+     * <p>
+     * The response is fixed to: no hits ({@code total=0}), zero shards (total/successful/skipped/failed all 0), no
+     * shard failures, {@link InternalAggregations#EMPTY} aggregations, no suggestions, no profile. Configurable via
+     * the chained setters: scroll id (default {@code null}), took (default {@code 0}), clusters (default
+     * {@link Clusters#EMPTY}).
+     */
+    public static final class EmptyResponseBuilder {
+        @Nullable
+        private String scrollId;
+        private long tookInMillis;
+        private Clusters clusters = Clusters.EMPTY;
+
+        private EmptyResponseBuilder() {}
+
+        public EmptyResponseBuilder scrollId(@Nullable String scrollId) {
+            this.scrollId = scrollId;
+            return this;
+        }
+
+        public EmptyResponseBuilder tookInMillis(long tookInMillis) {
+            this.tookInMillis = tookInMillis;
+            return this;
+        }
+
+        public EmptyResponseBuilder clusters(Clusters clusters) {
+            this.clusters = Objects.requireNonNull(clusters);
+            return this;
+        }
+
+        public SearchResponse build() {
+            return new SearchResponse(
+                SearchHits.empty(Lucene.TOTAL_HITS_EQUAL_TO_ZERO, Float.NaN),
+                InternalAggregations.EMPTY,
+                null,
+                false,
+                null,
+                null,
+                0,
+                scrollId,
+                0,
+                0,
+                0,
+                tookInMillis,
+                ShardSearchFailure.EMPTY_ARRAY,
+                clusters,
+                null,
+                null,
+                null
+            );
+        }
     }
 }

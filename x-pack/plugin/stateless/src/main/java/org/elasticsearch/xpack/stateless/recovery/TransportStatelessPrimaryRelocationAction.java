@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -120,7 +121,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private final IndexShardCacheWarmer indexShardCacheWarmer;
     private final HollowShardsService hollowShardsService;
     private final HollowShardsMetrics hollowShardsMetrics;
-    private final RelocationHandoffMetrics relocationHandoffMetrics;
+    private final RecoveryMetricsCollector recoveryMetricsCollector;
 
     @Inject
     public TransportStatelessPrimaryRelocationAction(
@@ -133,7 +134,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         IndexShardCacheWarmer indexShardCacheWarmer,
         HollowShardsService hollowShardsService,
         HollowShardsMetrics hollowShardsMetrics,
-        RelocationHandoffMetrics relocationHandoffMetrics
+        RecoveryMetricsCollector recoveryMetricsCollector
     ) {
         super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -148,7 +149,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         this.recoveryExecutor = threadPool.generic();
         this.threadContext = threadPool.getThreadContext();
         this.hollowShardsMetrics = hollowShardsMetrics;
-        this.relocationHandoffMetrics = relocationHandoffMetrics;
+        this.recoveryMetricsCollector = recoveryMetricsCollector;
 
         clusterService.getClusterSettings()
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
@@ -453,7 +454,10 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         logger.debug("[{}] primary context handoff succeeded", request.shardId());
                         final TimeValue secondFlushDuration = getTimeBetween(beforeFinalFlush, beforeSendingContext.get());
                         final TimeValue handOffDuration = getTimeSince(beforeSendingContext.get());
-                        relocationHandoffMetrics.handoffDuration().record(handOffDuration.millis());
+                        recoveryMetricsCollector.recordRelocationInitialFlushDuration(initialFlushDuration.millis());
+                        recoveryMetricsCollector.recordRelocationAcquirePermitsDuration(acquirePermitsDuration.millis());
+                        recoveryMetricsCollector.recordRelocationSecondFlushDuration(secondFlushDuration.millis());
+                        recoveryMetricsCollector.recordRelocationHandoffDuration(handOffDuration.millis());
 
                         boolean aboveThreshold = relocationDuration.getMillis() >= slowRelocationWarningThreshold.getMillis();
                         if (aboveThreshold || logger.isDebugEnabled()) {
@@ -624,7 +628,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             l -> indexShard.preRecovery(l.map(ignored -> {
                 final long preRecoveryEndMillis = threadPool.relativeTimeInMillis();
                 final long preRecoveryDuration = preRecoveryEndMillis - preRecoveryStartMillis;
-                relocationHandoffMetrics.preRecoveryDuration().record(preRecoveryDuration);
+                recoveryMetricsCollector.recordRelocationTargetPreRecoveryDuration(preRecoveryDuration);
 
                 indexShard.updateRetentionLeasesOnReplica(request.retentionLeases());
                 indexShard.recoveryState().setStage(RecoveryState.Stage.VERIFY_INDEX);
@@ -644,7 +648,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 recoveryState.setStage(RecoveryState.Stage.FINALIZE);
                 indexShard.activateWithPrimaryContext(request.primaryContext());
 
-                relocationHandoffMetrics.openEngineDuration().record(threadPool.relativeTimeInMillis() - preRecoveryEndMillis);
+                recoveryMetricsCollector.recordRelocationTargetOpenEngineDuration(threadPool.relativeTimeInMillis() - preRecoveryEndMillis);
 
                 threadDumpListener.onResponse(null);
                 return null;

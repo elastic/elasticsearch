@@ -193,6 +193,17 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             public int getQueryPackedLength(int dimensions) {
                 return discretizedDimensions(dimensions);
             }
+        },
+        ONE_BIT_1BIT_QUERY(5, (byte) 1, (byte) 1) {
+            @Override
+            public void pack(int[] quantized, byte[] destination) {
+                ESVectorUtil.packAsBinary(quantized, destination);
+            }
+
+            @Override
+            public void packQuery(int[] quantized, byte[] destination) {
+                ESVectorUtil.packAsBinary(quantized, destination);
+            }
         };
 
         private static void packAsBytes(int[] quantized, byte[] destination) {
@@ -280,6 +291,46 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
                 default -> throw new IllegalArgumentException("Unsupported bits: " + bits);
             };
         }
+
+        /**
+         * Resolves the quantization encoding from document and query bit widths.
+         *
+         * @throws IllegalArgumentException if the combination is unsupported
+         */
+        public static QuantEncoding fromDocAndQueryBits(byte docBits, byte queryBits) {
+            return switch (docBits) {
+                case 1 -> {
+                    if (queryBits == 1) {
+                        yield ONE_BIT_1BIT_QUERY;
+                    }
+                    if (queryBits == 4) {
+                        yield ONE_BIT_4BIT_QUERY;
+                    }
+                    throw new IllegalArgumentException("1-bit document quantization supports query bits 1 or 4, but got: " + queryBits);
+                }
+                case 2 -> {
+                    if (queryBits != 4) {
+                        throw new IllegalArgumentException(
+                            "2-bit document quantization requires 4-bit query quantization, but got: " + queryBits
+                        );
+                    }
+                    yield TWO_BIT_4BIT_QUERY;
+                }
+                case 4 -> {
+                    if (queryBits != 4) {
+                        throw new IllegalArgumentException("4-bit symmetric quantization requires query bits 4, but got: " + queryBits);
+                    }
+                    yield FOUR_BIT_SYMMETRIC;
+                }
+                case 7 -> {
+                    if (queryBits != 7) {
+                        throw new IllegalArgumentException("7-bit symmetric quantization requires query bits 7, but got: " + queryBits);
+                    }
+                    yield SEVEN_BIT_SYMMETRIC;
+                }
+                default -> throw new IllegalArgumentException("Unsupported document bits: " + docBits);
+            };
+        }
     }
 
     private final QuantEncoding quantEncoding;
@@ -293,6 +344,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
     private final int preconditioningBlockDimension;
     private final int flatVectorThreshold;
     private final String sliceField;
+    private final IvfFlushConfigSource ivfFlushConfigSource;
+    private final IvfMergeConfigResolver ivfMergeConfigResolver;
 
     public ESNextDiskBBQVectorsFormat(int vectorPerCluster, int centroidsPerParentCluster, String sliceField) {
         this(QuantEncoding.ONE_BIT_4BIT_QUERY, vectorPerCluster, centroidsPerParentCluster, sliceField);
@@ -354,6 +407,42 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         int flatVectorThreshold,
         String sliceField
     ) {
+        this(
+            quantEncoding,
+            vectorPerCluster,
+            centroidsPerParentCluster,
+            elementType,
+            useDirectIO,
+            mergingExecutorService,
+            maxMergingWorkers,
+            doPrecondition,
+            preconditioningBlockDimension,
+            flatVectorThreshold,
+            sliceField,
+            null,
+            null
+        );
+    }
+
+    /**
+     * @param ivfFlushConfigSource optional per-field config on flush ({@code null} uses writer default)
+     * @param ivfMergeConfigResolver optional merged config on merge ({@code null} uses writer default)
+     */
+    public ESNextDiskBBQVectorsFormat(
+        QuantEncoding quantEncoding,
+        int vectorPerCluster,
+        int centroidsPerParentCluster,
+        DenseVectorFieldMapper.ElementType elementType,
+        boolean useDirectIO,
+        ExecutorService mergingExecutorService,
+        int maxMergingWorkers,
+        boolean doPrecondition,
+        int preconditioningBlockDimension,
+        int flatVectorThreshold,
+        String sliceField,
+        IvfFlushConfigSource ivfFlushConfigSource,
+        IvfMergeConfigResolver ivfMergeConfigResolver
+    ) {
         super(NAME);
         if (vectorPerCluster < MIN_VECTORS_PER_CLUSTER || vectorPerCluster > MAX_VECTORS_PER_CLUSTER) {
             throw new IllegalArgumentException(
@@ -407,6 +496,8 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
         this.doPrecondition = doPrecondition;
         this.flatVectorThreshold = flatVectorThreshold == -1 ? defaultFlatThreshold(vectorPerCluster) : flatVectorThreshold;
         this.sliceField = sliceField;
+        this.ivfFlushConfigSource = ivfFlushConfigSource;
+        this.ivfMergeConfigResolver = ivfMergeConfigResolver;
     }
 
     /** Constructs a format using the given graph construction parameters and scalar quantization. */
@@ -429,7 +520,9 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
             preconditioningBlockDimension,
             doPrecondition,
             flatVectorThreshold,
-            sliceField
+            sliceField,
+            ivfFlushConfigSource,
+            ivfMergeConfigResolver
         );
     }
 
@@ -449,7 +542,16 @@ public class ESNextDiskBBQVectorsFormat extends KnnVectorsFormat {
 
     @Override
     public String toString() {
-        return "ESNextDiskBBQVectorsFormat(" + "vectorPerCluster=" + vectorPerCluster + ", " + "mergeExec=" + (mergeExec != null) + ')';
+        return "ESNextDiskBBQVectorsFormat("
+            + "vectorPerCluster="
+            + vectorPerCluster
+            + ", "
+            + "mergeExec="
+            + (mergeExec != null)
+            + ", "
+            + "sliceField="
+            + sliceField
+            + ')';
     }
 
 }

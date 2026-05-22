@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.esql.datasource.gcs;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -223,11 +226,13 @@ public class GcsConfigurationTests extends ESTestCase {
         raw.put("header_row", false);
         raw.put("column_prefix", "f");
 
-        GcsConfiguration config = GcsConfiguration.fromQueryConfig(raw);
+        Configured<GcsConfiguration> result = GcsConfiguration.fromQueryConfig(raw);
+        GcsConfiguration config = result.value();
         assertNotNull(config);
         assertEquals("{\"type\":\"service_account\"}", config.serviceAccountCredentials());
         assertEquals("my-project", config.projectId());
         assertEquals("http://localhost:4443", config.endpoint());
+        assertThat(result.consumedKeys(), containsInAnyOrder("credentials", "project_id", "endpoint"));
     }
 
     public void testFromQueryConfigStillEnforcesAuthConflict() {
@@ -243,10 +248,14 @@ public class GcsConfigurationTests extends ESTestCase {
         Map<String, Object> raw = new HashMap<>();
         raw.put("header_row", false);
         raw.put("column_prefix", "f");
-        assertNull(GcsConfiguration.fromQueryConfig(raw));
+        Configured<GcsConfiguration> result = GcsConfiguration.fromQueryConfig(raw);
+        assertNull(result.value());
+        assertEquals(Set.of(), result.consumedKeys());
     }
 
     public void testFromQueryConfigWithNullReturnsNull() {
-        assertNull(GcsConfiguration.fromQueryConfig(null));
+        Configured<GcsConfiguration> result = GcsConfiguration.fromQueryConfig(null);
+        assertNull(result.value());
+        assertEquals(Set.of(), result.consumedKeys());
     }
 }

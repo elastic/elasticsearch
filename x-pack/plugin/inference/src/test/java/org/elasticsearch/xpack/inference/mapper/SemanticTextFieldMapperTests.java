@@ -91,6 +91,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.diskbbq.DiskBBQPlugin;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.model.TestModel;
@@ -136,6 +137,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.I
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.UNSUPPORTED_INDEX_MESSAGE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettings;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.generateRandomChunkingSettingsOtherThan;
+import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomMultimodalEmbedding;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextFieldTests.randomSemanticText;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -1733,6 +1735,41 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
         assertThat(ex.getCause().getMessage(), containsString("failed to parse field [model_settings]"));
     }
 
+    public void testMultimodalChunksNotSupported() throws Exception {
+        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
+
+        // Exclude dot product because the randomly generated embedding may not have unit length
+        Model model = TestModel.createRandomInstance(TaskType.EMBEDDING, List.of(SimilarityMeasure.DOT_PRODUCT));
+        MapperService mapperService = createMapperService(
+            mapping(b -> addSemanticTextMapping(b, "field", model.getInferenceEntityId(), null, null, null)),
+            useLegacyFormat
+        );
+
+        EmbeddingResults.Embedding<?> embedding = randomMultimodalEmbedding(model);
+        SemanticTextField semanticTextField = new SemanticTextField(
+            useLegacyFormat,
+            "field",
+            null,
+            new SemanticTextField.InferenceResult(
+                model.getInferenceEntityId(),
+                new MinimalServiceSettings(model),
+                null,
+                Map.of("field", List.of(new SemanticTextField.Chunk(0, embedding.toBytesRef(XContentType.JSON.xContent()))))
+            ),
+            XContentType.JSON
+        );
+
+        String expectedMessage = useLegacyFormat
+            ? "[chunks] text doesn't support values of type: VALUE_NULL"
+            : "[semantic_text] field [field] does not support multimodal values";
+        DocumentParsingException e = assertThrows(
+            DocumentParsingException.class,
+            () -> mapperService.documentMapper()
+                .parse(semanticTextInferenceSource(useLegacyFormat, b -> b.field("field", semanticTextField)))
+        );
+        assertThat(rootCause(e).getMessage(), containsString(expectedMessage));
+    }
+
     public void testDenseVectorElementType() throws IOException {
         final String fieldName = "field";
         final String inferenceId = "test_service";
@@ -2703,5 +2740,13 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     @Override
     protected boolean supportsDocValuesSkippers() {
         return false;
+    }
+
+    private static Throwable rootCause(Throwable t) {
+        Throwable cause = t;
+        while (cause.getCause() != null && cause.getCause() != cause) {
+            cause = cause.getCause();
+        }
+        return cause;
     }
 }

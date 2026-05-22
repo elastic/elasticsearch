@@ -94,7 +94,7 @@ public class DisableSimulationRebalancingDecider extends AllocationDecider {
         abstract Decision canRebalance(ShardRouting shardRouting);
     }
 
-    public static final Setting<RebalancingEnabled> REBALANCING_ENABLED = Setting.enumSetting(
+    public static final Setting<RebalancingEnabled> SIMULATION_REBALANCING_ENABLED = Setting.enumSetting(
         RebalancingEnabled.class,
         "stateless.cluster.routing.allocation.balance.balancing_enabled",
         RebalancingEnabled.ALWAYS,
@@ -105,7 +105,10 @@ public class DisableSimulationRebalancingDecider extends AllocationDecider {
     private volatile RebalancingEnabled rebalancingEnabled;
 
     public DisableSimulationRebalancingDecider(ClusterSettings clusterSettings) {
-        clusterSettings.initializeAndWatch(REBALANCING_ENABLED, rebalancingEnabled -> this.rebalancingEnabled = rebalancingEnabled);
+        clusterSettings.initializeAndWatch(
+            SIMULATION_REBALANCING_ENABLED,
+            rebalancingEnabled -> this.rebalancingEnabled = rebalancingEnabled
+        );
     }
 
     @Override

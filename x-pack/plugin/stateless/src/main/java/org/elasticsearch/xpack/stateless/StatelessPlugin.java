@@ -676,7 +676,7 @@ public class StatelessPlugin extends Plugin
             // Disable rebalancing in the index tier. We can skip the balancing step altogether because we use
             // the write-load, index-balance and heap deciders to replace it.
             .put(
-                DisableSimulationRebalancingDecider.REBALANCING_ENABLED.getKey(),
+                DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED.getKey(),
                 DisableSimulationRebalancingDecider.RebalancingEnabled.SEARCH_TIER_ONLY
             )
             .put(InternalClusterInfoService.CLUSTER_ROUTING_ALLOCATION_ESTIMATED_HEAP_THRESHOLD_DECIDER_ENABLED.getKey(), true)
@@ -1304,7 +1304,7 @@ public class StatelessPlugin extends Plugin
             ShardsMappingSizeCollector.RETRY_INITIAL_DELAY_SETTING,
             ShardsMappingSizeCollector.FIXED_HOLLOW_SHARD_MEMORY_OVERHEAD_SETTING,
             ShardsMappingSizeCollector.HOLLOW_SHARD_SEGMENT_MEMORY_OVERHEAD_SETTING,
-            DisableSimulationRebalancingDecider.REBALANCING_ENABLED
+            DisableSimulationRebalancingDecider.SIMULATION_REBALANCING_ENABLED
         );
     }
 

@@ -1509,3 +1509,50 @@ emp_no:unsupported
 null
 ;
 
+subqueryInFromWithRenameMissingField
+required_capability: subquery_in_from_command
+
+FROM books, (from languages)
+| KEEP language_code
+| RENAME language_code as x
+| KEEP *
+| SORT x
+| LIMIT 1
+;
+
+x:integer
+1
+;
+
+subqueryInFromWithRenameMissingCounterField
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+
+FROM k8s, (from many_numbers)
+| KEEP network.total_bytes_in
+| RENAME network.total_bytes_in as x
+| KEEP *
+| SORT x
+| LIMIT 1
+;
+
+x:long
+3
+;
+
+subqueryInFromWithRenameChainMissingCounterField
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
+
+FROM k8s, (from many_numbers)
+| KEEP network.total_bytes_in
+| RENAME network.total_bytes_in as x, x as y
+| RENAME y as z
+| KEEP *
+| SORT z
+| LIMIT 1
+;
+
+z:long
+3
+;

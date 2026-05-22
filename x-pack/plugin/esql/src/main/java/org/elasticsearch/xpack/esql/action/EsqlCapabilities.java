@@ -1301,6 +1301,11 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
 
         /**
+         * Fix for union types that have counter field renamed, but the data type is inconsistent with union all output.
+         */
+        SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          * TODO: drop the {@code Build.current().isSnapshot()} gate (and the matching
          * {@code {this.isDevVersion()}?} predicates in InExpression.g4 / EsqlBaseParser.g4)

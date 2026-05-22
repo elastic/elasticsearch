@@ -3488,15 +3488,49 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         /**
          * Update the attributes referencing the updated UnionAll output.
+         * <p>
+         * The {@code updatedUnionAllOutput} list contains the {@link UnionAll} output attributes whose data type
+         * changed during implicit casting (e.g. a {@code counter_long} that was coerced to {@code long} because a
+         * sibling branch fills the column with a non-counter null). A single-pass id rewrite is not enough:
+         * downstream commands such as {@code RENAME} introduce {@link Alias} nodes whose {@link Alias#toAttribute()}
+         * is later snapshotted by {@code KEEP *} (or any other command that materialises a node's output) into a
+         * {@link ReferenceAttribute} with the alias's own {@link NameId}. That alias id is never registered in
+         * {@code updatedUnionAllOutput} — only the UnionAll column ids are — so the stale reference survives in a
+         * downstream {@code Project}, producing an {@code "Output has changed"} verification failure.
+         * <p>
+         * We walk the plan bottom-up exactly once with {@link LogicalPlan#transformUp(java.util.function.Function)}.
+         * At each node we:
+         * <ol>
+         *   <li>rewrite that node's own expressions using the running id map; and</li>
+         *   <li>register any {@link Alias} whose direct child is an {@link Attribute} already present in the map.
+         *       Such an alias is precisely a {@code RENAME}-style alias whose underlying column was re-typed by the
+         *       UnionAll resolution, so its own {@link Alias#toAttribute()} now reports the updated data type and
+         *       downstream materialised references to it must be replaced.</li>
+         * </ol>
+         * Because {@code transformUp} guarantees children are visited before their parents, every relevant alias is
+         * registered before any downstream {@code Project} that materialised its attribute is visited. The traversal
+         * is O(plan size) and the alias-registration condition is narrowly scoped to "child is a re-typed attribute"
+         * so unrelated aliases (whose data type doesn't depend on a UnionAll-driven re-typing) are left alone.
          */
         private static LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(
             LogicalPlan plan,
             List<Attribute> updatedUnionAllOutput
         ) {
             Map<NameId, Attribute> idToUpdatedAttr = updatedUnionAllOutput.stream().collect(Collectors.toMap(Attribute::id, attr -> attr));
-            return plan.transformExpressionsUp(Attribute.class, expr -> {
-                Attribute updated = idToUpdatedAttr.get(expr.id());
-                return (updated != null && expr.dataType() != updated.dataType()) ? updated : expr;
+            return plan.transformUp(node -> {
+                LogicalPlan rewritten = node.transformExpressionsOnly(Attribute.class, expr -> {
+                    Attribute updated = idToUpdatedAttr.get(expr.id());
+                    return (updated != null && expr.dataType() != updated.dataType()) ? updated : expr;
+                });
+                // check the alias that reference the attributes, the aliases have different namedId than the attributes,
+                // their data types may also need to be updated as well
+                rewritten.forEachExpression(Alias.class, alias -> {
+                    if (alias.child() instanceof Attribute child && idToUpdatedAttr.containsKey(child.id())) {
+                        Attribute aliasAttr = alias.toAttribute();
+                        idToUpdatedAttr.putIfAbsent(aliasAttr.id(), aliasAttr);
+                    }
+                });
+                return rewritten;
             });
         }
     }

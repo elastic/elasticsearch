@@ -72,6 +72,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.ResolvedSettings;
 import org.elasticsearch.xpack.esql.plan.logical.MetricsInfo;
@@ -442,6 +443,78 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
         assertThat(captured.get(), notNullValue());
         assertThat(captured.get().executor(), sameInstance(mainExecutor));
         assertThat(captured.get().fileReadExecutor(), sameInstance(fileReadExecutor));
+    }
+
+    /**
+     * When every column is pruned (e.g. {@code COUNT(*)} with no referenced fields), {@link ProjectAwayColumns}
+     * inserts a single synthetic {@code "<all-fields-projected>"} attribute into the {@link ExternalSourceExec}
+     * output. The planner must translate that sentinel into an empty {@code projectedColumns} list before
+     * handing it to the format reader, so the reader can take its row-count-only fast path.
+     */
+    public void testExternalSourceCountStarYieldsEmptyProjection() throws IOException {
+        AtomicReference<SourceOperatorContext> captured = new AtomicReference<>();
+        SourceOperatorFactoryProvider provider = context -> {
+            captured.set(context);
+            return new SourceOperator.SourceOperatorFactory() {
+                @Override
+                public SourceOperator get(DriverContext driverContext) {
+                    return new SourceOperator() {
+                        @Override
+                        public Page getOutput() {
+                            return null;
+                        }
+
+                        @Override
+                        public boolean isFinished() {
+                            return true;
+                        }
+
+                        @Override
+                        public void finish() {}
+
+                        @Override
+                        public void close() {}
+                    };
+                }
+
+                @Override
+                public String describe() {
+                    return "test-source";
+                }
+            };
+        };
+        OperatorFactoryRegistry operatorFactoryRegistry = new OperatorFactoryRegistry(Map.of(), Map.of("file", provider), Runnable::run);
+
+        // Mirrors what ProjectAwayColumns inserts when COUNT(*) prunes every real column.
+        List<Attribute> attrs = List.of(new ReferenceAttribute(Source.EMPTY, null, ProjectAwayColumns.ALL_FIELDS_PROJECTED, DataType.NULL));
+        ExternalSourceExec exec = new ExternalSourceExec(
+            Source.EMPTY,
+            "s3://bucket/data.ndjson",
+            "file",
+            attrs,
+            Map.of(),
+            Map.of(),
+            null,
+            FormatReader.NO_LIMIT,
+            10,
+            null,
+            List.of()
+        );
+
+        planner(operatorFactoryRegistry).plan(
+            "test",
+            FoldContext.small(),
+            PlannerSettings.DEFAULTS,
+            exec,
+            EmptyIndexedByShardId.instance()
+        );
+
+        assertThat(captured.get(), notNullValue());
+        assertThat(
+            "COUNT(*) sentinel must arrive at the format reader as an empty projection",
+            captured.get().projectedColumns(),
+            equalTo(List.of())
+        );
     }
 
     public void testPlanUnmappedFieldExtractStoredSource() throws Exception {

@@ -113,8 +113,6 @@ public class StatelessReshardSliceIT extends AbstractStatelessPluginIntegTestCas
     }
 
     public void testReindexManualSliceConsistency() throws Exception {
-        assumeTrue("reindex with point-in-time search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
-
         final int numShards = randomIntBetween(1, 5);
         final int numDocs = randomIntBetween(10, 100);
         final int numSlices = randomIntBetween(2, numShards * 2);

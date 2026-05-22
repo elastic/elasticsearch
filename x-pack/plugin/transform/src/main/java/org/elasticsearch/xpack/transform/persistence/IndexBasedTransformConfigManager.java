@@ -1004,7 +1004,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     }
 
     private boolean isUpgrading() {
-        return TransformMetadata.upgradeMode(clusterService.state());
+        return TransformMetadata.isUpgradeMode(clusterService.state());
     }
 
     private Exception conflictStatusException(String message) {

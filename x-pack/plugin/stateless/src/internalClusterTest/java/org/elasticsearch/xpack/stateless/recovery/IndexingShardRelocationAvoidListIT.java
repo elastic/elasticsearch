@@ -238,7 +238,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         // Trigger relocation
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
         ensureGreen(indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
         // Assert we passed all the uploaded blobs during relocation since we blocked their deletion on source.
         assertThat(passedBlobFiles, equalTo(uploadedFiles));
 
@@ -354,7 +354,7 @@ public class IndexingShardRelocationAvoidListIT extends AbstractStatelessPluginI
         // Trigger relocation
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNodeA), indexName);
         ensureGreen(indexName);
-        assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(indexNodeA))));
+        internalCluster().awaitNodeVacated(indexName, indexNodeA);
 
         // Extra activity to trigger deletions on target node after relocation.
         indexDocs(indexName, 10);

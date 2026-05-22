@@ -19,7 +19,6 @@ import io.opentelemetry.sdk.common.InternalTelemetryVersion;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.export.AggregationTemporalitySelector;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
-import io.opentelemetry.sdk.resources.Resource;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -70,12 +69,12 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         var metricHealthReader = PeriodicMetricReader.builder(createOTLPExporter(MeterProvider.noop()))
             .setInterval(intervalTimeValue.toDuration())
             .build();
-        var metricHealthProvider = sdkMeterProvider(metricHealthReader);
+        var metricHealthProvider = sdkMeterProvider(metricHealthReader, settings);
 
         var reader = PeriodicMetricReader.builder(createOTLPExporter(metricHealthProvider))
             .setInterval(intervalTimeValue.toDuration())
             .build();
-        var systemMeterProvider = sdkMeterProvider(reader);
+        var systemMeterProvider = sdkMeterProvider(reader, settings);
         var otelSdk = OpenTelemetrySdk.builder().setMeterProvider(systemMeterProvider).build();
 
         // RuntimeTelemetry uses JMX (Java 8+) and JFR (Java 17+) to collect JVM metrics. See https://ela.st/otel-runtime-telemetry
@@ -83,11 +82,8 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         return new OTelMetricsResources(systemMeterProvider, metricHealthProvider, runtimeTelemetry);
     }
 
-    private static SdkMeterProvider sdkMeterProvider(PeriodicMetricReader reader) {
-        return SdkMeterProvider.builder()
-            .setResource(Resource.builder().put("service.name", "elasticsearch").build())
-            .registerMetricReader(reader)
-            .build();
+    private static SdkMeterProvider sdkMeterProvider(PeriodicMetricReader reader, Settings settings) {
+        return SdkMeterProvider.builder().setResource(OtelSdkResource.get(settings)).registerMetricReader(reader).build();
     }
 
     private OtlpHttpMetricExporter createOTLPExporter(MeterProvider healthExportMeterProvider) {
@@ -130,12 +126,13 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     public void attemptFlushMetrics() {
         synchronized (mutex) {
             if (resources != null) {
-                resources.systemMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
-                resources.meterHealthMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
+                long timeoutMillis = OtelSdkSettings.TELEMETRY_OTEL_FLUSH_TIMEOUT.get(settings).millis();
+                resources.systemMeterProvider.forceFlush().join(timeoutMillis, TimeUnit.MILLISECONDS);
+                resources.meterHealthMeterProvider.forceFlush().join(timeoutMillis, TimeUnit.MILLISECONDS);
                 // PeriodicMetricReader records collection.duration after
                 // each collection, so a second cycle is required to collect and export it.
-                resources.systemMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
-                resources.meterHealthMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
+                resources.systemMeterProvider.forceFlush().join(timeoutMillis, TimeUnit.MILLISECONDS);
+                resources.meterHealthMeterProvider.forceFlush().join(timeoutMillis, TimeUnit.MILLISECONDS);
             }
         }
     }

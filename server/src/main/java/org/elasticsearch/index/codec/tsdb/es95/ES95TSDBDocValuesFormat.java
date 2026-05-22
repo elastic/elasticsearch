@@ -25,7 +25,8 @@ import org.elasticsearch.index.codec.tsdb.SortedFieldObserverFactory;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesFormatConfig.TermsDictConfig;
 import org.elasticsearch.index.codec.tsdb.TSDBOrdinalBlockCodec;
-import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfig;
+import org.elasticsearch.index.codec.tsdb.pipeline.PipelineConfigResolver;
+import org.elasticsearch.index.codec.tsdb.pipeline.StaticPipelineConfigResolver;
 import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 
 import java.io.IOException;
@@ -70,6 +71,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
     static final int ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL = 512;
     static final int ORDINAL_RANGE_ENCODING_BLOCK_SHIFT = 12;
 
+    static final PipelineConfigResolver PIPELINE_CONFIG_RESOLVER = StaticPipelineConfigResolver.INSTANCE;
     static final OrdinalBlockCodec ORDINAL_CODEC = new TSDBOrdinalBlockCodec();
 
     static final TermsDictConfig TERMS_DICT_CONFIG = new TermsDictConfig(
@@ -149,7 +151,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
     @Override
     public DocValuesConsumer fieldsConsumer(final SegmentWriteState state) throws IOException {
         final NumericBlockCodec numericBlockCodec = new ES95NumericCodec(
-            blockSize -> PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack(),
+            PIPELINE_CONFIG_RESOLVER,
             numericCodecFactory,
             fallbackDecoderFactory
         );
@@ -177,7 +179,7 @@ public class ES95TSDBDocValuesFormat extends DocValuesFormat {
     @Override
     public DocValuesProducer fieldsProducer(final SegmentReadState state) throws IOException {
         final NumericBlockCodec numericBlockCodec = new ES95NumericCodec(
-            blockSize -> PipelineConfig.forLongs(blockSize).delta().offset().gcd().bitPack(),
+            PIPELINE_CONFIG_RESOLVER,
             numericCodecFactory,
             fallbackDecoderFactory
         );

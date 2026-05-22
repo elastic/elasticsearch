@@ -1133,7 +1133,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             InMemoryViewResolver customViewResolver = customViewService.getViewResolver();
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view2"), this::parse, future);
+                customViewResolver.replaceViews(query("FROM view2"), null, this::parse, future);
                 // FROM view2 should fail
                 Exception e = expectThrows(VerificationException.class, future::actionGet);
                 assertThat(e.getMessage(), startsWith("The maximum allowed view depth of 1 has been exceeded"));
@@ -1141,7 +1141,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
             // But FROM view1 should work
             {
                 PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-                customViewResolver.replaceViews(query("FROM view1"), this::parse, future);
+                customViewResolver.replaceViews(query("FROM view1"), null, this::parse, future);
                 // Run the same compaction (and ViewShadowRelation strip) the production pipeline does.
                 LogicalPlan rewritten = COMPACTION.apply(future.actionGet().plan());
                 assertThat(rewritten, matchesPlan(query("FROM emp")));
@@ -2136,20 +2136,12 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         addView("v_a", "FROM emp1");
         addView("v_b", "FROM emp2");
         LogicalPlan resolved = replaceViewsWithoutCompaction(query("FROM v_*"));
-        assertThat(resolved, instanceOf(ViewUnionAll.class));
-        ViewUnionAll vua = (ViewUnionAll) resolved;
-        // CPS preserves the wildcard pattern alongside the matched view bodies in the merged
-        // strict UR. The original test (non-CPS) saw just "emp1,emp2"; under CPS the wildcard
-        // "v_*" rides along to drive the lenient lookup against linked projects.
-        UnresolvedRelation strict = vua.namedSubqueries()
-            .values()
-            .stream()
-            .filter(p -> p instanceof UnresolvedRelation)
-            .map(p -> (UnresolvedRelation) p)
-            .findFirst()
-            .orElseThrow();
+        // in cps resolved pattern should contain coalesced views patterns (emp1 and emp2)
+        // as well as v_* pattern in case it could be resolved on linked projects
+        assertThat(resolved, instanceOf(UnresolvedRelation.class));
+        UnresolvedRelation strict = (UnresolvedRelation) resolved;
         assertThat(List.of(strict.indexPattern().indexPattern().split(",")), containsInAnyOrder("emp1", "emp2", "v_*"));
-        assertThat(collectShadowNames(resolved), containsInAnyOrder("v_a", "v_b"));
+        assertThat(collectShadowNames(resolved), empty());
     }
 
     /**
@@ -2531,7 +2523,7 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
     private LogicalPlan replaceViewsWithoutCompaction(LogicalPlan plan, ViewResolver resolver) {
         PlainActionFuture<ViewResolver.ViewResolutionResult> future = new PlainActionFuture<>();
-        resolver.replaceViews(plan, this::parse, future);
+        resolver.replaceViews(plan, null, this::parse, future);
         return future.actionGet().plan();
     }
 

@@ -21,7 +21,7 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpServerTransport;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.tasks.Task;
@@ -213,14 +213,15 @@ public class ShutdownPrepareService {
             asyncReindexTimeout,
             ReindexAction.NAME,
             taskManager,
-            ShutdownPrepareService::maybeRequestRelocationForBulkByScroll
+            ShutdownPrepareService::maybeRequestRelocationForBulkByPaginatedSearch
         );
     }
 
     // package-private for tests
-    static void maybeRequestRelocationForBulkByScroll(Task task) {
-        if (task instanceof BulkByScrollTask bulkByScrollTask) {
-            if (bulkByScrollTask.isEligibleForRelocationOnShutdown() && bulkByScrollTask.isRelocationRequested() == false) {
+    static void maybeRequestRelocationForBulkByPaginatedSearch(Task task) {
+        if (task instanceof BulkByPaginatedSearchTask bulkByPaginatedSearchTask) {
+            if (bulkByPaginatedSearchTask.isEligibleForRelocationOnShutdown()
+                && bulkByPaginatedSearchTask.isRelocationRequested() == false) {
                 if (DISABLE_REINDEX_RELOCATION) {
                     logger.info(
                         "Not requesting relocation for task {} because the system property es.reindex.disable_relocation is set",
@@ -228,19 +229,22 @@ public class ShutdownPrepareService {
                     );
                     return;
                 }
-                if (bulkByScrollTask.isLeader()) {
-                    logger.info("Requesting relocation task for leader bulk-by-scroll task {} and its workers", bulkByScrollTask.getId());
+                if (bulkByPaginatedSearchTask.isLeader()) {
+                    logger.info(
+                        "Requesting relocation task for leader bulk-by-paginated-search task {} and its workers",
+                        bulkByPaginatedSearchTask.getId()
+                    );
                 } else {
                     logger.debug(
-                        "Requesting relocation task for worker bulk-by-scroll task {} (leader: {})",
-                        bulkByScrollTask.getId(),
-                        bulkByScrollTask.getParentTaskId()
+                        "Requesting relocation task for worker bulk-by-paginated-search task {} (leader: {})",
+                        bulkByPaginatedSearchTask.getId(),
+                        bulkByPaginatedSearchTask.getParentTaskId()
                     );
                 }
-                bulkByScrollTask.requestRelocation();
+                bulkByPaginatedSearchTask.requestRelocation();
             }
         } else {
-            logger.warn("Requested relocation task for non-bulk-by-scroll task {}", task);
+            logger.warn("Requested relocation task for non-bulk-by-paginated-search task {}", task);
         }
     }
 }

@@ -76,6 +76,7 @@ public interface BlockLoaderFunctionConfig {
         V_HAMMING,
         V_L1NORM,
         V_L2NORM,
-        TIME_SERIES_METADATA
+        TIME_SERIES_METADATA,
+        EXTRACT_FLATTENED_SUBFIELD
     }
 }

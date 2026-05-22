@@ -33,6 +33,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.support.MapXContentParser;
 import org.elasticsearch.xpack.core.inference.chunking.ChunkingSettingsBuilder;
+import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -442,6 +443,14 @@ public record SemanticTextField(
             chunks.add(toSemanticTextFieldChunk(offsetAdjustment, it.next()));
         }
         return chunks;
+    }
+
+    /**
+     * Converts the provided {@link EmbeddingResults.Embedding} into a {@link Chunk}.
+     */
+    public static Chunk toSemanticFieldChunk(int inputIndex, EmbeddingResults.Embedding<?> inferenceResults, XContentType contentType)
+        throws IOException {
+        return new Chunk(inputIndex, inferenceResults.toBytesRef(contentType.xContent()));
     }
 
     /**

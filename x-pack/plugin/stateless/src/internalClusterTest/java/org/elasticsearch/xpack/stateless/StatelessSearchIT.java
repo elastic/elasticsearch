@@ -119,7 +119,6 @@ import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.NONE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
 import static org.elasticsearch.blobcache.CachePopulationSource.BlobStore;
 import static org.elasticsearch.blobcache.CachePopulationSource.Peer;
-import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.get;
 import static org.elasticsearch.index.engine.LiveVersionMapTestUtils.isUnsafe;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.sum;
@@ -137,7 +136,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -1681,12 +1679,12 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
                         Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", searchNodeOne),
                         indexName
                     );
-                    assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(searchNodeOne))));
+                    internalCluster().awaitNodeVacated(indexName, searchNodeOne);
                     updateIndexSettings(
                         Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", searchNodeTwo),
                         indexName
                     );
-                    assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(searchNodeTwo))));
+                    internalCluster().awaitNodeVacated(indexName, searchNodeTwo);
                 }
                 handler.messageReceived(request, channel, task);
             });
@@ -1897,7 +1895,7 @@ public class StatelessSearchIT extends AbstractStatelessPluginIntegTestCase {
             {
                 logger.info("--> moving shards in index [{}] away from node [{}]", indexName, searchNodeA);
                 updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", searchNodeA), indexName);
-                assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(searchNodeA))));
+                internalCluster().awaitNodeVacated(indexName, searchNodeA);
                 logger.info("--> shards in index [{}] have been moved off of node [{}]", indexName, searchNodeA);
             }
             assertBusy(() -> assertThat(searchNodeAClosedShardService.getPrimaryTermAndGenerations(shardId).size(), equalTo(1)));

@@ -63,9 +63,10 @@ public final class DatasetRewriter {
     /**
      * Walks {@code parsed} and rewrites every {@link UnresolvedRelation} whose pattern resolves to
      * dataset(s) into {@link UnresolvedExternalRelation} (single dataset) or {@link UnionAll} of
-     * such (multi). All other relations are left untouched. Three short-circuits avoid resolver
-     * cost on the common path: feature flag off, {@code projectMetadata == null}, or no datasets
-     * registered.
+     * such (multi). All other relations are left untouched. Two short-circuits avoid resolver
+     * cost on the common path: {@code projectMetadata == null}, or no datasets registered — and
+     * since {@link DataSourceMetadata#ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG} gates the CRUD layer
+     * that puts datasets into cluster state, the no-datasets check is the natural off-switch.
      *
      * <p>Throws {@link VerificationException} for: heterogeneous FROM (datasets + non-datasets),
      * non-{@code STANDARD} {@link IndexMode} on a dataset, METADATA fields on a dataset, or
@@ -74,7 +75,7 @@ public final class DatasetRewriter {
      * regardless of whether the user wrote {@code FROM <dataset>} or inline {@code EXTERNAL}).
      */
     public static LogicalPlan rewrite(LogicalPlan parsed, ProjectMetadata projectMetadata, IndexNameExpressionResolver iner) {
-        if (DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled() == false || projectMetadata == null) {
+        if (projectMetadata == null) {
             return parsed;
         }
         DatasetMetadata datasetMetadata = DatasetMetadata.get(projectMetadata);

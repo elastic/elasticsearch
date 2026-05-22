@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Lookup;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.session.FieldNameUtils;
@@ -148,6 +150,7 @@ public class Verifier {
         }
 
         checkTStepIncompatibleWithTRange(plan, failures);
+        checkTimeSeriesCollapseSupported(plan, failures, context.minimumVersion());
 
         // collect plan checkers
         var planCheckers = planCheckers(plan);
@@ -185,6 +188,23 @@ public class Verifier {
         }
 
         return failures.failures();
+    }
+
+    /** Fails fast with a 4xx so older recipients never see the node and 5xx on deserialization. */
+    private static void checkTimeSeriesCollapseSupported(LogicalPlan plan, Failures failures, TransportVersion minimumVersion) {
+        if (minimumVersion.supports(TimeSeriesCollapse.TS_COLLAPSE)) {
+            return;
+        }
+        plan.forEachDown(
+            TimeSeriesCollapse.class,
+            tsc -> failures.add(
+                fail(
+                    tsc,
+                    "TS_COLLAPSE is not supported on every participating node; "
+                        + "rolling upgrade in progress, or a remote cluster is on an older version"
+                )
+            )
+        );
     }
 
     private static void checkTStepIncompatibleWithTRange(LogicalPlan plan, Failures failures) {

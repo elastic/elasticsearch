@@ -36,10 +36,10 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBina
         Map.entry(DataType.UNSIGNED_LONG, LessThanLongsEvaluator.Factory::new),
         Map.entry(DataType.DATETIME, LessThanLongsEvaluator.Factory::new),
         Map.entry(DataType.DATE_NANOS, LessThanLongsEvaluator.Factory::new),
-        Map.entry(DataType.KEYWORD, LessThanKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.TEXT, LessThanKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.VERSION, LessThanKeywordsEvaluator.Factory::new),
-        Map.entry(DataType.IP, LessThanKeywordsEvaluator.Factory::new)
+        Map.entry(DataType.KEYWORD, LessThanBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.TEXT, LessThanBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.VERSION, LessThanBytesRefEvaluator.Factory::new),
+        Map.entry(DataType.IP, LessThanBytesRefEvaluator.Factory::new)
     );
 
     @FunctionInfo(
@@ -159,8 +159,8 @@ public class LessThan extends EsqlBinaryComparison implements Negatable<EsqlBina
         return lhs < rhs;
     }
 
-    @Evaluator(extraName = "Keywords")  // TODO rename to "Bytes"
-    static boolean processKeywords(BytesRef lhs, BytesRef rhs) {
+    @Evaluator(extraName = "BytesRef")
+    static boolean processBytesRef(BytesRef lhs, BytesRef rhs) {
         return lhs.compareTo(rhs) < 0;
     }
 }

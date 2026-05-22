@@ -366,4 +366,30 @@ class TransportVersionValidationFuncTest extends AbstractTransportVersionFuncTes
         then:
         result.task(":myserver:validateTransportVersionResources").outcome == TaskOutcome.SUCCESS
     }
+
+    def "new definition must have corresponding upper bound change"() {
+        given:
+        referableAndReferencedTransportVersion("some_new_tv", "8124000")
+        when:
+        def result = validateResourcesFails()
+        then:
+        assertValidateResourcesFailure(result,
+            "was added but no corresponding upper bounds file was changed")
+    }
+
+    def "new definition must use increment"() {
+        given:
+        file("myserver/build.gradle") << """
+            tasks.named('generateTransportVersion') {
+                increment = 100
+            }
+        """
+        referableAndReferencedTransportVersion("some_new_tv", "8123050")
+        transportVersionUpperBound("9.2", "some_new_tv", "8123050")
+        when:
+        def result = validateResourcesFails()
+        then:
+        assertValidateResourcesFailure(result,
+            "has primary id 8123050 which is not aligned to increment 100")
+    }
 }

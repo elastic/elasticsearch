@@ -69,6 +69,9 @@ public abstract class ValidateTransportVersionResourcesTask extends PrecommitTas
     @Input
     public abstract Property<Boolean> getCI();
 
+    @Input
+    public abstract Property<Integer> getIncrement();
+
     private static final Pattern NAME_FORMAT = Pattern.compile("[a-z0-9_]+");
 
     @ServiceReference("transportVersionResources")
@@ -111,6 +114,9 @@ public abstract class ValidateTransportVersionResourcesTask extends PrecommitTas
                 validateUpperBound(upperBound, allDefinitions, idsByBase, validateModifications);
             }
 
+            if (validateModifications) {
+                validateResourceChanges(resources, referableDefinitions);
+            }
             validatePrimaryIds(resources, upperBounds, allDefinitions);
         }
     }
@@ -182,6 +188,19 @@ public abstract class ValidateTransportVersionResourcesTask extends PrecommitTas
                     if (found == false) {
                         throwDefinitionFailure(definition, "has removed id " + originalId);
                     }
+                }
+            } else {
+                int primaryId = definition.ids().getFirst().complete();
+                int increment = getIncrement().get();
+                int remainder = primaryId % increment;
+                if (remainder != 0) {
+                    throwDefinitionFailure(
+                        definition,
+                        "has primary id "
+                            + primaryId
+                            + " which is not aligned to increment "
+                            + increment
+                    );
                 }
             }
         }
@@ -328,6 +347,25 @@ public abstract class ValidateTransportVersionResourcesTask extends PrecommitTas
             highestDefinition,
             "has the highest transport version id [" + highestId + "] but is not present in any upper bounds files"
         );
+    }
+
+    private void validateResourceChanges(
+        TransportVersionResourcesService resources,
+        Map<String, TransportVersionDefinition> referableDefinitions
+    ) {
+        Set<String> changedDefinitionNames = resources.getChangedReferableDefinitionNames();
+        Set<String> changedUpperBoundNames = resources.getChangedUpperBoundNames();
+        for (String name : changedDefinitionNames) {
+            TransportVersionDefinition definition = referableDefinitions.get(name);
+            if (definition != null
+                && resources.getReferableDefinitionFromGitBase(name) == null
+                && changedUpperBoundNames.isEmpty()) {
+                throwDefinitionFailure(
+                    definition,
+                    "was added but no corresponding upper bounds file was changed"
+                );
+            }
+        }
     }
 
     private void throwDefinitionFailure(TransportVersionDefinition definition, String message) {

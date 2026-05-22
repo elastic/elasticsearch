@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
@@ -22,7 +23,9 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.NamedSubquery;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
@@ -31,6 +34,7 @@ import java.security.InvalidKeyException;
 import java.security.NoSuchAlgorithmException;
 import java.util.HashMap;
 import java.util.HexFormat;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -99,7 +103,24 @@ public final class PlanAnonymizer {
         // Parsed plans carry UnresolvedRelation (not EsRelation) since analysis hasn't run; the
         // EsRelation rule above doesn't touch it, so handle it explicitly.
         out = out.transformDown(UnresolvedRelation.class, this::anonymizeUnresolvedRelation);
+        // View names survive into the analyzed plan as NamedSubquery.name and
+        // ViewUnionAll.namedSubqueries keys, both of which surface in their nodeString output —
+        // anonymize via the index map (views and indices share the table-like-name namespace).
+        out = out.transformDown(NamedSubquery.class, this::anonymizeNamedSubquery);
+        out = out.transformDown(ViewUnionAll.class, this::anonymizeViewUnionAll);
         return out;
+    }
+
+    private NamedSubquery anonymizeNamedSubquery(NamedSubquery ns) {
+        return new NamedSubquery(ns.source(), ns.child(), anonymizeIndex(ns.name()));
+    }
+
+    private ViewUnionAll anonymizeViewUnionAll(ViewUnionAll v) {
+        LinkedHashMap<String, LogicalPlan> rebuilt = new LinkedHashMap<>();
+        for (Map.Entry<String, LogicalPlan> e : v.namedSubqueries().entrySet()) {
+            rebuilt.put(anonymizeIndex(e.getKey()), e.getValue());
+        }
+        return new ViewUnionAll(v.source(), rebuilt, v.output());
     }
 
     private UnresolvedRelation anonymizeUnresolvedRelation(UnresolvedRelation r) {
@@ -133,11 +154,55 @@ public final class PlanAnonymizer {
         // FieldAttribute keeps a separate parentName that flows through fieldName() and may surface
         // in rendered output for synthetic union-type attributes; anonymize it via the same map so
         // the underlying field reference doesn't leak alongside an anonymized display name.
-        if (a instanceof FieldAttribute fa && fa.parentName() != null) {
-            String anonParent = anonymizeColumn(fa.parentName());
-            return new FieldAttribute(a.source(), anonParent, fa.qualifier(), anonymized, fa.field(), a.nullable(), a.id(), a.synthetic());
+        if (a instanceof FieldAttribute fa) {
+            String anonParent = fa.parentName() == null ? null : anonymizeColumn(fa.parentName());
+            EsField anonField = anonymizeEsField(fa.field());
+            return new FieldAttribute(a.source(), anonParent, fa.qualifier(), anonymized, anonField, a.nullable(), a.id(), a.synthetic());
         }
         return a.withName(anonymized);
+    }
+
+    /**
+     * Reconstructs an {@link EsField} with its internal name (and the names of any recursive
+     * sub-field properties) anonymized via the same column-token map. The well-known subclasses get
+     * their proper constructor so subclass-specific state is preserved. Less-common ones fall back
+     * to a base {@code EsField} which loses subclass identity but keeps the field name from leaking
+     * through {@code FieldAttribute.fieldName()}.
+     */
+    private EsField anonymizeEsField(EsField f) {
+        String anonName = anonymizeColumn(f.getName());
+        Map<String, EsField> anonProps = anonymizeProperties(f.getProperties());
+        EsField.TimeSeriesFieldType ts = f.getTimeSeriesFieldType();
+        if (f instanceof KeywordEsField k) {
+            return new KeywordEsField(anonName, anonProps, f.isAggregatable(), k.getPrecision(), k.getNormalized(), f.isAlias(), ts);
+        }
+        if (f instanceof TextEsField) {
+            return new TextEsField(anonName, anonProps, f.isAggregatable(), f.isAlias(), ts);
+        }
+        if (f instanceof DateEsField) {
+            return DateEsField.dateEsField(anonName, anonProps, f.isAggregatable(), ts);
+        }
+        if (f instanceof UnsupportedEsField u) {
+            String anonInherited = u.hasInherited() ? anonymizeColumn(u.getInherited()) : null;
+            return new UnsupportedEsField(anonName, u.getOriginalTypes(), anonInherited, anonProps);
+        }
+        // Fallback for MultiTypeEsField, InvalidMappedField, PotentiallyUnmappedKeywordEsField,
+        // MissingEsField, etc. Conversion expressions / typesToIndices contents are not rendered
+        // by the schema or plan toString today, so the base wrapper is sufficient to keep the name
+        // private. Subclass identity for these surfaces via renderFieldExtras which reads the
+        // original (pre-anonymization) field passed into renderSchema.
+        return new EsField(anonName, f.getDataType(), anonProps, f.isAggregatable(), f.isAlias(), ts);
+    }
+
+    private Map<String, EsField> anonymizeProperties(Map<String, EsField> props) {
+        if (props == null || props.isEmpty()) {
+            return Map.of();
+        }
+        Map<String, EsField> out = new TreeMap<>();
+        for (Map.Entry<String, EsField> e : props.entrySet()) {
+            out.put(anonymizeColumn(e.getKey()), anonymizeEsField(e.getValue()));
+        }
+        return out;
     }
 
     private Literal anonymizeLiteral(Literal l) {

@@ -298,6 +298,10 @@ public class EsqlSession {
         TimeSpanMarker parsingProfile = executionInfo.queryProfile().parsing();
         parsingProfile.start();
         EsqlStatement statement = parse(request);
+        // Capture the true parsed plan — before view resolution, before any analyzer rule runs.
+        // PROMQL syntax still visible, views still as UnresolvedRelation, surrogate rewrites not
+        // applied. This is the form closest to user intent for failure-path triage.
+        planSnapshot = planSnapshot.withParsed(statement.plan());
         gatherSettingsMetrics(statement);
         parsingProfile.stop();
         TimeSpanMarker viewResolutionProfile = executionInfo.queryProfile().viewResolution();
@@ -369,10 +373,6 @@ public class EsqlSession {
         // ViewCompaction.postIndexResolution(), which runs as an analyzer rule after ResolveTable so
         // lenient field-caps can pair each shadow with its strict sibling.
         LogicalPlan plan = ViewCompaction.preIndexResolution(viewResolution.plan());
-        // Capture the parsed (post-view-expansion, pre-analyze) plan for failure-path logging.
-        // This is the closest form to user intent — PROMQL syntax still visible, attributes
-        // unresolved, surrogate rewrites (LIKE→STARTSWITH, AVG→SUM/COUNT) not yet applied.
-        planSnapshot = planSnapshot.withParsed(plan);
         // Run structural checks that don't need analysis or index resolution. Doing this here
         // (after view resolution, before pre-analysis) lets a malformed query fail-fast without
         // paying for field-caps round trips.

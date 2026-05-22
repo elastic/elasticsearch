@@ -146,11 +146,7 @@ public class FilterUnsupportedTemporality extends EsqlScalarFunction {
         );
     }
 
-    @Evaluator(
-        extraName = "ExpHist",
-        warnExceptions = { IllegalArgumentException.class, InvalidTemporalityException.class },
-        allNullsIsNull = false
-    )
+    @Evaluator(extraName = "ExpHist", warnExceptions = { InvalidTemporalityException.class }, allNullsIsNull = false)
     static void processExpHist(
         ExponentialHistogramBlock.Builder result,
         @Position int position,
@@ -166,19 +162,12 @@ public class FilterUnsupportedTemporality extends EsqlScalarFunction {
             accessor[0] = TemporalityAccessor.create(temporality, Temporality.DELTA);
         }
         if (accessor[0].get(position) == Temporality.CUMULATIVE) {
-            throw new IllegalArgumentException(
-                "Some nodes in your cluster don't support cumulative temporality for exponential_histograms yet."
-                    + " The affected time series are excluded from aggregations. Upgrade your cluster to fix this."
-            );
+            throw new IllegalArgumentException("Cumulative temporality is not supported for the exponential_histogram type on all nodes");
         }
         result.copyFrom(histogram, position, position + 1);
     }
 
-    @Evaluator(
-        extraName = "TDigest",
-        warnExceptions = { IllegalArgumentException.class, InvalidTemporalityException.class },
-        allNullsIsNull = false
-    )
+    @Evaluator(extraName = "TDigest", warnExceptions = { InvalidTemporalityException.class }, allNullsIsNull = false)
     static void processTDigest(
         TDigestBlock.Builder result,
         @Position int position,
@@ -194,10 +183,7 @@ public class FilterUnsupportedTemporality extends EsqlScalarFunction {
             accessor[0] = TemporalityAccessor.create(temporality, Temporality.DELTA);
         }
         if (accessor[0].get(position) == Temporality.CUMULATIVE) {
-            throw new IllegalArgumentException(
-                "Cumulative temporality is not supported for the tdigest type."
-                    + " The affected time series are excluded from aggregations."
-            );
+            throw new IllegalArgumentException("Cumulative temporality is not supported for the tdigest type.");
         }
         result.copyFrom(histogram, position, position + 1);
     }

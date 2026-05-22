@@ -4,7 +4,6 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
 
-import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import java.util.function.Function;
@@ -73,7 +72,7 @@ public final class FilterUnsupportedTemporalityTDigestEvaluator implements Expre
       position: for (int p = 0; p < positionCount; p++) {
         try {
           FilterUnsupportedTemporality.processTDigest(result, p, histogramBlock, temporalityBlock, this.accessor);
-        } catch (IllegalArgumentException | InvalidTemporalityException e) {
+        } catch (InvalidTemporalityException e) {
           warnings().registerException(e);
           result.appendNull();
         }

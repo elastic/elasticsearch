@@ -10,6 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.histogram;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.compute.aggregation.Temporality;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -91,7 +94,7 @@ public class FilterUnsupportedTemporalityTests extends AbstractScalarFunctionTes
                     DataType.KEYWORD,
                     "temporality"
                 );
-                boolean expectsNull = temporality == TemporalityParameter.CUMULATIVE || temporality == TemporalityParameter.INVALID;
+                boolean expectsNull = temporality == TemporalityParameter.INVALID;
                 TestCaseSupplier.TestCase result = new TestCaseSupplier.TestCase(
                     List.of(histogram, temporalityData),
                     getExpectedEvaluatorString(histoSupplier.type()),
@@ -99,15 +102,7 @@ public class FilterUnsupportedTemporalityTests extends AbstractScalarFunctionTes
                     expectsNull ? nullValue() : equalTo(histogram.getValue())
                 );
                 if (temporality == TemporalityParameter.CUMULATIVE) {
-                    String warningMsg = histoSupplier.type() == DataType.EXPONENTIAL_HISTOGRAM
-                        ? "Line 1:1: java.lang.IllegalArgumentException: Some nodes in your cluster don't support cumulative temporality"
-                            + " for exponential_histograms yet."
-                            + " The affected time series are excluded from aggregations. Upgrade your cluster to fix this."
-                        : "Line 1:1: java.lang.IllegalArgumentException: Cumulative temporality is not supported for the tdigest type."
-                            + " The affected time series are excluded from aggregations.";
-                    result = result.withWarning(
-                        "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
-                    ).withWarning(warningMsg);
+                    return result.withExtra(IllegalArgumentException.class).withoutEvaluator();
                 } else if (temporality == TemporalityParameter.INVALID) {
                     result = result.withWarning(
                         "Line 1:1: evaluation of [source] failed, treating result as null. Only first 20 failures recorded."
@@ -132,6 +127,42 @@ public class FilterUnsupportedTemporalityTests extends AbstractScalarFunctionTes
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new FilterUnsupportedTemporality(source, args.get(0), args.get(1));
+    }
+
+    public void testCumulativeTemporalityFailsQuery() {
+        List<TestCaseSupplier.TypedDataSupplier> histogramSuppliers = Stream.concat(
+            TestCaseSupplier.exponentialHistogramCases().stream(),
+            TestCaseSupplier.tdigestCases().stream()
+        ).toList();
+        for (TestCaseSupplier.TypedDataSupplier histoSupplier : histogramSuppliers) {
+            TestCaseSupplier.TypedData histogram = histoSupplier.get();
+            TestCaseSupplier.TypedData temporalityData = new TestCaseSupplier.TypedData(
+                Temporality.CUMULATIVE.bytesRef(),
+                DataType.KEYWORD,
+                "temporality"
+            );
+            Expression expression = buildFieldExpression(
+                new TestCaseSupplier.TestCase(
+                    List.of(histogram, temporalityData),
+                    getExpectedEvaluatorString(histoSupplier.type()),
+                    histoSupplier.type(),
+                    nullValue()
+                )
+            );
+            try (ExpressionEvaluator evaluator = evaluator(expression).get(driverContext())) {
+                Page row = row(List.of(histogram.getValue(), temporalityData.getValue()));
+                IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> evaluator.eval(row));
+                if (histoSupplier.type() == DataType.EXPONENTIAL_HISTOGRAM) {
+                    assertThat(
+                        e.getMessage(),
+                        equalTo("Cumulative temporality is not supported for the exponential_histogram type on all nodes")
+                    );
+                } else {
+                    assertThat(e.getMessage(), equalTo("Cumulative temporality is not supported for the tdigest type."));
+                }
+                row.releaseBlocks();
+            }
+        }
     }
 
     @Override

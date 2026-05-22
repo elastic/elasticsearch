@@ -21,6 +21,10 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexingPressure;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskAwareRequest;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -28,6 +32,7 @@ import org.elasticsearch.telemetry.metric.MeterRegistry;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -76,7 +81,16 @@ public class IncrementalBulkService {
         Set<String> paramsUsed
     ) {
         ensureEnabled();
-        return new Handler(client, indexingPressure, waitForActiveShards, timeout, refresh, chunkWaitTimeMillisHistogram, paramsUsed);
+        return new Handler(
+            client,
+            indexingPressure,
+            waitForActiveShards,
+            timeout,
+            refresh,
+            chunkWaitTimeMillisHistogram,
+            paramsUsed,
+            taskManager
+        );
     }
 
     private void ensureEnabled() {
@@ -128,6 +142,7 @@ public class IncrementalBulkService {
         private boolean bulkInProgress = false;
         private Exception bulkActionLevelFailure = null;
         private BulkRequest bulkRequest = null;
+        private final CancellableTask bulkSessionTask;
 
         protected Handler(
             Client client,
@@ -136,7 +151,8 @@ public class IncrementalBulkService {
             @Nullable TimeValue timeout,
             @Nullable String refresh,
             LongHistogram chunkWaitTimeMillisHistogram,
-            Set<String> paramsUsed
+            Set<String> paramsUsed,
+            TaskManager taskManager
         ) {
             this.client = client;
             this.waitForActiveShards = waitForActiveShards != null ? ActiveShardCount.parseString(waitForActiveShards) : null;
@@ -146,6 +162,28 @@ public class IncrementalBulkService {
             this.incrementalOperation = indexingPressure.startIncrementalCoordinating(0, 0, false);
             this.chunkWaitTimeMillisHistogram = chunkWaitTimeMillisHistogram;
             createNewBulkRequest(EMPTY_STATE);
+            bulkSessionTask = (CancellableTask) taskManager.register("", "", new TaskAwareRequest() {
+                @Override
+                public void setParentTask(TaskId taskId) {}
+
+                @Override
+                public void setRequestId(long requestId) {}
+
+                @Override
+                public TaskId getParentTask() {
+                    return TaskId.EMPTY_TASK_ID;
+                }
+
+                @Override
+                public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+                    return new CancellableTask(id, type, action, getDescription(), parentTaskId, headers);
+                }
+            });
+
+        }
+
+        public CancellableTask getBulkSessionTask() {
+            return this.bulkSessionTask;
         }
 
         public IndexingPressure.Incremental getIncrementalOperation() {

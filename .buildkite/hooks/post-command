@@ -11,7 +11,7 @@ if [[ -f build/task-status.json ]]; then
     && mv build/task-status-merged.json build/task-status.json
 
   cd build
-  gzip task-status.json
+  gzip -k task-status.json
   buildkite-agent artifact upload task-status.json.gz
   cd -
 

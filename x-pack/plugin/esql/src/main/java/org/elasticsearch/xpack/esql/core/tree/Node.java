@@ -497,7 +497,15 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
             return rewriter != NodeStringRewriter.IDENTITY;
         }
 
-        /** Identity-rewriter format for {@link #LIMITED} and {@link #FULL}. */
+        /**
+         * Identity-rewriter format for {@link #LIMITED} and {@link #FULL}. Note that
+         * {@code Literal.nodeString} takes a fast path under non-rewriting formats and uses
+         * {@code Literal.toString(format)} for the value portion (which honours LIMITED-format
+         * truncation); the rewriter's {@code literal} method is only consulted when
+         * {@link #rewrites()} is true. Hypothetical non-anonymizing rewriters wired via
+         * {@link #withRewriter(NodeStringRewriter)} therefore opt out of truncation; that's
+         * acceptable because the only rewriting variant today (anonymization) emits short tokens.
+         */
         private static final class Standard extends NodeStringFormat {
             Standard(int maxProperties, int maxWidth, int maxLines) {
                 super(maxProperties, maxWidth, maxLines, NodeStringRewriter.IDENTITY);

@@ -206,10 +206,7 @@ public class AggOnCaseFoldIT extends ESRestTestCase {
               BY ts_month = DATE_TRUNC(1 month, @timestamp)
             | SORT ts_month
             """);
-        assertThat(
-            values,
-            equalTo(List.of(List.of(3, 0, "2024-01-01T00:00:00.000Z"), List.of(0, 3, "2024-02-01T00:00:00.000Z")))
-        );
+        assertThat(values, equalTo(List.of(List.of(3, 0, "2024-01-01T00:00:00.000Z"), List.of(0, 3, "2024-02-01T00:00:00.000Z"))));
     }
 
     public void testDataNodeMultipleCasesAnd() throws IOException {
@@ -221,10 +218,7 @@ public class AggOnCaseFoldIT extends ESRestTestCase {
               BY ts_month = DATE_TRUNC(1 month, @timestamp)
             | SORT ts_month
             """);
-        assertThat(
-            values,
-            equalTo(List.of(List.of(0, 0, "2024-01-01T00:00:00.000Z"), List.of(0, 3, "2024-02-01T00:00:00.000Z")))
-        );
+        assertThat(values, equalTo(List.of(List.of(0, 0, "2024-01-01T00:00:00.000Z"), List.of(0, 3, "2024-02-01T00:00:00.000Z"))));
     }
 
     /**

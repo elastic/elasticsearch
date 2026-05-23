@@ -21,9 +21,11 @@ import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.N
 
 /**
  * A {@link FloatVectorValues} that adds best-centroid computation.
+ * Also implements {@link ClusteringVectorValues} for {@code float[]} so that the same
+ * instance can be used with the generic k-means infrastructure.
  */
-public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValues permits KMeansFloatVectorValues,
-    ClusteringFloatVectorValuesSlice {
+public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValues implements ClusteringVectorValues<float[]> permits
+    KMeansFloatVectorValues, ClusteringFloatVectorValuesSlice {
 
     // the minimum distance that is considered to be "far enough" to a centroid in order to compute the soar distance.
     // For vectors that are closer than this distance to the centroid don't get spilled because they are well represented
@@ -38,6 +40,9 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
 
     @Override
     public abstract ClusteringFloatVectorValues copy() throws IOException;
+
+    @Override
+    public abstract int ordToDoc(int ord);
 
     /**
      * Find the closest centroid for a batch of contiguous vectors, considering all centroids.

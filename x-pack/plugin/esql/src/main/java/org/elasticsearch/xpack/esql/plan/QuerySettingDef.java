@@ -138,9 +138,18 @@ import java.util.concurrent.ConcurrentHashMap;
  *
  * <h2>When things go wrong</h2>
  *
- * Build-time: {@code build()} rejects incoherent declarations. Parse-time: unknown body keys
- * reject with 400; unknown {@code SET} keys warn and skip; type mismatches throw. Resolve-time:
- * snapshot-only on non-snapshot throws; the validator runs.
+ * Three places things can fail, and each behaves the way the consumer of that surface should expect.
+ * <ul>
+ *   <li><b>Build time.</b> {@code build()} refuses an incoherent declaration — for example, a body-exposed
+ *       setting that has no JSON reader. The node won't start, so these surface at boot rather than in
+ *       production.</li>
+ *   <li><b>Parse time.</b> The body and {@code SET} paths diverge on purpose. Unknown body keys return a 400
+ *       naming the field. Unknown {@code SET} keys emit a deprecation header and are skipped. Type mismatches
+ *       throw on either path.</li>
+ *   <li><b>Resolve time.</b> A {@code snapshotOnly} setting supplied on a non-snapshot build throws. If a
+ *       validator was declared, it runs against the resolved value with access to cluster context (snapshot-mode
+ *       flag, cross-project mode, etc).</li>
+ * </ul>
  */
 public final class QuerySettingDef<T> {
 

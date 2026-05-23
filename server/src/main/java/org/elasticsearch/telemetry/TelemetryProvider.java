@@ -9,6 +9,7 @@
 
 package org.elasticsearch.telemetry;
 
+import org.elasticsearch.telemetry.instrumentation.HttpServerInstrumentation;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.telemetry.tracing.Tracer;
 
@@ -26,6 +27,8 @@ public interface TelemetryProvider {
     Tracer getTracer();
 
     MeterRegistry getMeterRegistry();
+
+    HttpServerInstrumentation getHttpServerInstrumentation();
 
     /**
      * Ensures buffered metrics are exported. Implementations should flush the meter provider they own
@@ -56,6 +59,11 @@ public interface TelemetryProvider {
         @Override
         public MeterRegistry getMeterRegistry() {
             return MeterRegistry.NOOP;
+        }
+
+        @Override
+        public HttpServerInstrumentation getHttpServerInstrumentation() {
+            return HttpServerInstrumentation.NOOP;
         }
 
         @Override

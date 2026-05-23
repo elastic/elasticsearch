@@ -9,6 +9,8 @@
 
 package org.elasticsearch.test.rest;
 
+import io.netty.handler.codec.http.HttpHeaders;
+
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -27,10 +29,14 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.net.InetSocketAddress;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 public class FakeRestRequest extends RestRequest {
 
@@ -67,7 +73,7 @@ public class FakeRestRequest extends RestRequest {
             this.method = method;
             this.uri = uri;
             this.body = body;
-            this.headers = headers;
+            this.headers = new FakeHttpHeaders(headers);
             this.inboundException = inboundException;
         }
 
@@ -155,6 +161,81 @@ public class FakeRestRequest extends RestRequest {
         @Override
         public Exception getInboundException() {
             return inboundException;
+        }
+    }
+
+    /**
+     * HTTP headers must be case-insensitive; this is already the case in production code, see
+     * {@link org.elasticsearch.http.netty4.Netty4HttpRequest#getHttpHeadersAsMap(HttpHeaders)}.
+     */
+    private record FakeHttpHeaders(Map<String, List<String>> original) implements Map<String, List<String>> {
+
+        FakeHttpHeaders(Map<String, List<String>> original) {
+            this.original = original.entrySet().stream().collect(Collectors.toMap(e -> lowercase(e.getKey()), Entry::getValue));
+        }
+
+        @Override
+        public int size() {
+            return original.size();
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return original.isEmpty();
+        }
+
+        @Override
+        public boolean containsKey(Object key) {
+            return original.containsKey(lowercase(key));
+        }
+
+        @Override
+        public boolean containsValue(Object value) {
+            return original.containsValue(value);
+        }
+
+        @Override
+        public List<String> get(Object key) {
+            return original.get(lowercase(key));
+        }
+
+        @Override
+        public List<String> put(String key, List<String> value) {
+            return original.put(lowercase(key), value);
+        }
+
+        @Override
+        public List<String> remove(Object key) {
+            return original.remove(lowercase(key));
+        }
+
+        @Override
+        public void putAll(Map<? extends String, ? extends List<String>> m) {
+            m.forEach((k, v) -> put(lowercase(k), v));
+        }
+
+        @Override
+        public void clear() {
+            original.clear();
+        }
+
+        @Override
+        public Set<String> keySet() {
+            return original.keySet();
+        }
+
+        @Override
+        public Collection<List<String>> values() {
+            return original.values();
+        }
+
+        @Override
+        public Set<Entry<String, List<String>>> entrySet() {
+            return original.entrySet();
+        }
+
+        private static String lowercase(Object key) {
+            return ((String) key).toLowerCase(Locale.ROOT);
         }
     }
 

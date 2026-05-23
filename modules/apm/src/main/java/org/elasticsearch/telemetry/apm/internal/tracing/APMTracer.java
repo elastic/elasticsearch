@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry.apm.internal.tracing;
 
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.common.Attributes;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanKind;
@@ -478,6 +479,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         if (span != null) {
             logger.trace("Finishing trace [{}]", spanId);
             span.end();
+        }
+    }
+
+    public void setAttributes(Traceable traceable, Attributes attributes) {
+        final var span = Span.fromContextOrNull(spans.get(traceable.getSpanId()));
+        if (span != null) {
+            span.setAllAttributes(attributes);
         }
     }
 

@@ -89,7 +89,6 @@ public class UnresolvedMetadataAttributeExpression extends UnresolvedNamedExpres
         if (pattern == null || pattern.isEmpty()) {
             return;
         }
-        var rewriter = mapper;
         StringBuilder run = new StringBuilder();
         for (int i = 0; i < pattern.length(); i++) {
             char c = pattern.charAt(i);

@@ -78,7 +78,7 @@ public final class PruneConstantSortKeysFromTopN extends ParameterizedRule<Logic
     }
 
     private static LogicalPlan simplifyTopN(TopN topN, LogicalOptimizerContext ctx) {
-        AttributeMap<Expression> foldables = RuleUtils.foldableReferences(
+        AttributeMap<Expression> foldables = RuleUtils.foldableReferencesSkipMVGroupings(
             topN.child(),
             ctx,
             p -> p instanceof Fork || p instanceof Aggregate

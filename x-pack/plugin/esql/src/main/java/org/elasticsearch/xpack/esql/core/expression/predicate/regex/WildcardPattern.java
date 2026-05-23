@@ -82,6 +82,101 @@ public class WildcardPattern extends AbstractStringPattern implements Writeable 
         return wildcard;
     }
 
+    /**
+     * Classify this pattern into one of the affix-only fast-path shapes,
+     * unwrapping backslash escapes in a single pass. The result is one of
+     * {@link Shape.Prefix}, {@link Shape.Suffix}, {@link Shape.Contains}, or
+     * {@link Shape.General#INSTANCE}. The first three carry the
+     * literal segment so callers can dispatch to a {@code startsWith} /
+     * {@code endsWith} / substring-search evaluator without building an
+     * {@code Automaton}; {@code General} signals that the pattern does not
+     * match any simple shape (multiple unescaped {@code *}s with text
+     * between them, any unescaped {@code ?}, escaped-only patterns with no
+     * wildcards, dangling backslashes, etc.) and the caller should fall
+     * back to the automaton path.
+     */
+    public Shape shape() {
+        final int n = wildcard.length();
+        if (n == 0) {
+            return Shape.General.INSTANCE;
+        }
+        StringBuilder unescaped = new StringBuilder(n);
+        int starsCount = 0;
+        boolean firstStarAtStart = false;
+        boolean lastStarAtEnd = false;
+        int i = 0;
+        while (i < n) {
+            char c = wildcard.charAt(i);
+            if (c == '\\') {
+                if (i + 1 >= n) {
+                    // Dangling escape — let the general automaton path handle it.
+                    return Shape.General.INSTANCE;
+                }
+                unescaped.append(wildcard.charAt(i + 1));
+                i += 2;
+                continue;
+            }
+            if (c == '?') {
+                return Shape.General.INSTANCE;
+            }
+            if (c == '*') {
+                starsCount++;
+                if (starsCount == 1) {
+                    firstStarAtStart = (i == 0);
+                }
+                lastStarAtEnd = (i == n - 1);
+                i++;
+                continue;
+            }
+            unescaped.append(c);
+            i++;
+        }
+        if (starsCount == 0) {
+            // Exact-match string — no specific fast path; fall through.
+            return Shape.General.INSTANCE;
+        }
+        if (starsCount == 1) {
+            if (firstStarAtStart) {
+                return new Shape.Suffix(unescaped.toString());
+            }
+            if (lastStarAtEnd) {
+                return new Shape.Prefix(unescaped.toString());
+            }
+            // Single star with non-empty body on both sides — prefix*suffix.
+            // No fast path for this shape here.
+            return Shape.General.INSTANCE;
+        }
+        if (starsCount == 2 && firstStarAtStart && lastStarAtEnd) {
+            return new Shape.Contains(unescaped.toString());
+        }
+        // More than two unescaped stars, or two stars not pinned to both ends.
+        return Shape.General.INSTANCE;
+    }
+
+    /**
+     * Classification of a {@link WildcardPattern} into the simple fast-path
+     * shapes. The three concrete records carry the unescaped literal
+     * segment; {@link General} is the fall-through case for everything else.
+     */
+    public sealed interface Shape permits Shape.Prefix, Shape.Suffix, Shape.Contains, Shape.General {
+        /** {@code literal*} — pattern matches values that start with {@code literal}. */
+        record Prefix(String literal) implements Shape {}
+
+        /** {@code *literal} — pattern matches values that end with {@code literal}. */
+        record Suffix(String literal) implements Shape {}
+
+        /** {@code *literal*} — pattern matches values that contain {@code literal}. */
+        record Contains(String literal) implements Shape {}
+
+        /**
+         * Anything that does not match {@link Prefix}, {@link Suffix}, or
+         * {@link Contains}. Callers should dispatch to the automaton path.
+         */
+        enum General implements Shape {
+            INSTANCE
+        }
+    }
+
     @Override
     public int hashCode() {
         return Objects.hash(wildcard);

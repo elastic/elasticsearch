@@ -1,5 +1,0 @@
-area: Security
-issues: []
-pr: 148271
-summary: Update elastic-apm-agent-java8 to 1.55.6
-type: upgrade

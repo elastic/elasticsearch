@@ -35,7 +35,6 @@ import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -1156,8 +1155,8 @@ public final class DateFieldMapper extends FieldMapper {
      * <p>
      * The doc values skipper is enabled only if {@code index.mapping.use_doc_values_skipper} is set to {@code true},
      * the index was created on or after {@link IndexVersions#SKIPPERS_ENABLED_BY_DEFAULT}, and the
-     * field has doc values enabled. Additionally, the index mode must be {@link IndexMode#LOGSDB} or {@link IndexMode#TIME_SERIES}, and
-     * the index sorting configuration must include the {@code @timestamp} field.
+     * field has doc values enabled. Additionally, the index mode must be columnar, and the index sorting
+     * configuration must include the {@code @timestamp} field.
      *
      * @param indexSettings  The index settings of the parent index
      * @param hasDocValues   Whether the field has doc values enabled.

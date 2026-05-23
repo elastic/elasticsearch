@@ -139,6 +139,13 @@ public class GoogleCloudStorageClientSettings {
         (key) -> Setting.longSetting(key, ByteSizeValue.ofGb(5).getMb(), 1L, Setting.Property.NodeScope)
     );
 
+    /** Tenacious retries for transient blob store errors. */
+    static final Setting.AffixSetting<Boolean> GCS_TENACIOUS_RETRIES_ENABLED_SETTING = Setting.affixKeySetting(
+        PREFIX,
+        "tenacious_retries.enabled",
+        key -> Setting.boolSetting(key, false, Setting.Property.NodeScope)
+    );
+
     /** The credentials used by the client to connect to the Storage endpoint. */
     private final ServiceAccountCredentials credential;
 
@@ -168,6 +175,9 @@ public class GoogleCloudStorageClientSettings {
     /** The maximum number of megabytes to copy for each copy RPC call. */
     private final long megabytesCopiedPerChunk;
 
+    /** Tenacious retries for transient blob store errors. */
+    private final boolean tenaciousRetriesEnabled;
+
     GoogleCloudStorageClientSettings(
         final ServiceAccountCredentials credential,
         final String endpoint,
@@ -178,7 +188,8 @@ public class GoogleCloudStorageClientSettings {
         final URI tokenUri,
         final Proxy proxy,
         final int maxRetries,
-        final long megabytesCopiedPerChunk
+        final long megabytesCopiedPerChunk,
+        final boolean tenaciousRetriesEnabled
     ) {
         this.credential = credential;
         this.endpoint = endpoint;
@@ -190,6 +201,7 @@ public class GoogleCloudStorageClientSettings {
         this.proxy = proxy;
         this.maxRetries = maxRetries;
         this.megabytesCopiedPerChunk = megabytesCopiedPerChunk;
+        this.tenaciousRetriesEnabled = tenaciousRetriesEnabled;
     }
 
     public ServiceAccountCredentials getCredential() {
@@ -233,6 +245,10 @@ public class GoogleCloudStorageClientSettings {
         return megabytesCopiedPerChunk;
     }
 
+    public boolean getTenaciousRetriesEnabled() {
+        return tenaciousRetriesEnabled;
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o == null || getClass() != o.getClass()) return false;
@@ -246,7 +262,8 @@ public class GoogleCloudStorageClientSettings {
             && Objects.equals(tokenUri, that.tokenUri)
             && Objects.equals(proxy, that.proxy)
             && maxRetries == that.maxRetries
-            && megabytesCopiedPerChunk == that.megabytesCopiedPerChunk;
+            && megabytesCopiedPerChunk == that.megabytesCopiedPerChunk
+            && tenaciousRetriesEnabled == that.tenaciousRetriesEnabled;
     }
 
     @Override
@@ -261,7 +278,8 @@ public class GoogleCloudStorageClientSettings {
             tokenUri,
             proxy,
             maxRetries,
-            megabytesCopiedPerChunk
+            megabytesCopiedPerChunk,
+            tenaciousRetriesEnabled
         );
     }
 
@@ -300,7 +318,8 @@ public class GoogleCloudStorageClientSettings {
             getConfigValue(settings, clientName, TOKEN_URI_SETTING),
             proxy,
             getConfigValue(settings, clientName, MAX_RETRIES_SETTING),
-            getConfigValue(settings, clientName, MEGABYTES_COPIED_PER_CHUNK_SETTING)
+            getConfigValue(settings, clientName, MEGABYTES_COPIED_PER_CHUNK_SETTING),
+            getConfigValue(settings, clientName, GCS_TENACIOUS_RETRIES_ENABLED_SETTING)
         );
     }
 

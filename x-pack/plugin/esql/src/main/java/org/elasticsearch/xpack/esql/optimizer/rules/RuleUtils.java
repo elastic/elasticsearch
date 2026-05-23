@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.ArrayList;
@@ -77,21 +78,34 @@ public final class RuleUtils {
     }
 
     /**
-     * Collects references to foldables from the given logical plan, returning an {@link AttributeMap} that maps
+     * Collects references to foldable expressions from the given logical plan, returning an {@link AttributeMap} that maps
      * foldable aliases to their corresponding literal values. Equivalent to calling
-     * {@link #foldableReferences(LogicalPlan, LogicalOptimizerContext, Predicate)} with a predicate that never stops.
+     * {@link #foldableReferencesSkipMVGroupings(LogicalPlan, LogicalOptimizerContext, Predicate)} with a predicate that
+     * never stops.
      *
      * @param plan The logical plan to analyze.
      * @param ctx The optimizer context providing fold context.
      * @return An {@link AttributeMap} containing foldable references and their literal values.
      */
-    public static AttributeMap<Expression> foldableReferences(LogicalPlan plan, LogicalOptimizerContext ctx) {
-        return foldableReferences(plan, ctx, __ -> false);
+    public static AttributeMap<Expression> foldableReferencesSkipMVGroupings(LogicalPlan plan, LogicalOptimizerContext ctx) {
+        return foldableReferencesSkipMVGroupings(plan, ctx, __ -> false);
     }
 
     /**
-     * Collects references to foldables from the given logical plan, returning an {@link AttributeMap} that maps
+     * Collects references to foldable expressions from the given logical plan, returning an {@link AttributeMap} that maps
      * foldable aliases to their corresponding literal values.
+     * <p>
+     * Traverses plan nodes bottom-up. At {@link Aggregate} boundaries, multi-valued grouping keys are removed from
+     * the collected references — after GROUP BY, these attributes represent expanded single values, not the original
+     * multi-valued literals. This prevents resolving post-Aggregate expressions against stale multi-valued literals,
+     * which would produce spurious warnings and incorrect fold results.
+     * <p>
+     * Note: this MV-grouping removal is applied only at {@link Aggregate} boundaries, not at {@link
+     * org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin} boundaries (i.e. {@code INLINE STATS}). For
+     * {@code INLINE STATS}, the join key is always the grouping, and callers are responsible for excluding
+     * {@code InlineJoin} plans before calling this method — see
+     * {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.local.PruneLeftJoinOnNullMatchingField} for an
+     * example of that explicit exclusion.
      *
      * @param plan The logical plan to analyze.
      * @param ctx The optimizer context providing fold context.
@@ -99,7 +113,7 @@ public final class RuleUtils {
      *                      that node and its subtree.
      * @return An {@link AttributeMap} containing foldable references and their literal values.
      */
-    public static AttributeMap<Expression> foldableReferences(
+    public static AttributeMap<Expression> foldableReferencesSkipMVGroupings(
         LogicalPlan plan,
         LogicalOptimizerContext ctx,
         Predicate<LogicalPlan> stopCondition
@@ -121,11 +135,21 @@ public final class RuleUtils {
         for (LogicalPlan child : plan.children()) {
             collectFoldableRefs(child, collectRefsBuilder, ctx, stopCondition);
         }
+        // At Aggregate boundaries, remove multi-valued grouping keys before processing this node's expressions.
+        // After GROUP BY, these attributes represent expanded single values, not the original multi-valued literals.
+        if (plan instanceof Aggregate aggregate) {
+            aggregate.groupings().forEach(group -> {
+                Expression resolved = collectRefsBuilder.build().resolve(group, group);
+                if (resolved instanceof Literal literal && literal.value() instanceof List<?>) {
+                    collectRefsBuilder.remove(group);
+                }
+            });
+        }
         plan.forEachExpression(Alias.class, a -> {
             var c = a.child();
             boolean shouldCollect = c.foldable();
             if (shouldCollect == false) {
-                // try to resolve the expression based on an existing foldables
+                // try to resolve the expression based on existing foldables
                 c = c.transformUp(ReferenceAttribute.class, r -> collectRefsBuilder.build().resolve(r, r));
                 shouldCollect = c.foldable();
             }

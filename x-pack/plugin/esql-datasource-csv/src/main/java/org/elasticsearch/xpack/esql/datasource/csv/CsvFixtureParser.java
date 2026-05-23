@@ -14,8 +14,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 /**
  * Standalone CSV parser for fixture generation. Parses CSV files with bracket-aware
@@ -412,6 +414,37 @@ public final class CsvFixtureParser {
         }
         char c = value.charAt(0);
         return c == '-' || c == '+' || (c >= '0' && c <= '9');
+    }
+
+    /**
+     * Marks columns whose dotted names must be kept literal (flat) rather than flattened into a
+     * nested STRUCT by a downstream fixture generator. A column is kept flat when any prefix of
+     * its dotted name is itself a literal top-level column name in the same CSV. This preserves
+     * files like {@code employees.csv} whose schema mixes a flat {@code languages} column with
+     * sibling flat columns named {@code languages.long}, {@code languages.short}, etc.
+     *
+     * <p>Shared by {@code ParquetFixtureGenerator} and {@code OrcFixtureGenerator} so the rule
+     * stays in lock-step between the two formats. Returns an array of the same length as
+     * {@code columns}, indexed by column position.
+     */
+    public static boolean[] computeFlatten(List<ColumnSpec> columns) {
+        Set<String> names = new HashSet<>();
+        for (ColumnSpec c : columns) {
+            names.add(c.name());
+        }
+        boolean[] flatten = new boolean[columns.size()];
+        for (int i = 0; i < columns.size(); i++) {
+            String name = columns.get(i).name();
+            int dot = name.indexOf('.');
+            while (dot > 0) {
+                if (names.contains(name.substring(0, dot))) {
+                    flatten[i] = true;
+                    break;
+                }
+                dot = name.indexOf('.', dot + 1);
+            }
+        }
+        return flatten;
     }
 
     public record ColumnSpec(String name, String type) {}

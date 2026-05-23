@@ -18,8 +18,8 @@ import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequestBuilder;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequestBuilder;
@@ -189,15 +189,15 @@ public class ReindexDocumentationIT extends ESIntegTestCase {
                 .setActions(UpdateByQueryAction.NAME).setDetailed(true).get();
             for (TaskInfo info: tasksList.getTasks()) {
                 TaskId taskId = info.taskId();
-                BulkByScrollTask.Status status =
-                    (BulkByScrollTask.Status) info.status();
+                BulkByPaginatedSearchTask.Status status =
+                    (BulkByPaginatedSearchTask.Status) info.status();
                 // do stuff
             }
             // end::update-by-query-list-tasks
         }
 
         TaskInfo mainTask = CancelTests.findTaskToCancel(ReindexAction.NAME, builder.request().getSlices());
-        BulkByScrollTask.Status status = (BulkByScrollTask.Status) mainTask.status();
+        BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) mainTask.status();
         assertNull(status.getReasonCancelled());
         TaskId taskId = mainTask.taskId();
         {

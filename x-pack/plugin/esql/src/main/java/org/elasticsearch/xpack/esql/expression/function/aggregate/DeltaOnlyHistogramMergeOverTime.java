@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
@@ -14,6 +15,7 @@ import org.elasticsearch.compute.aggregation.DeltaOnlyHistogramMergeOverTimeExpo
 import org.elasticsearch.compute.aggregation.DeltaOnlyHistogramMergeOverTimeTDigestAggregatorFunctionSupplier;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.TransportVersionAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -46,7 +48,14 @@ public class DeltaOnlyHistogramMergeOverTime extends TimeSeriesAggregateFunction
     implements
         OptionalArgument,
         ToAggregator,
-        TemporalityAware {
+        TemporalityAware,
+        TransportVersionAware {
+
+    /**
+     * Prior to this version, {@link DeltaOnlyHistogramMergeOverTime} had no aggregator.
+     * Instead, it was always replaced with {@link HistogramMerge} in {@link #perTimeSeriesAggregation()}.
+     */
+    public static final TransportVersion DEDICATED_AGGREGATOR = TransportVersion.fromName("histogram_merge_over_time_dedicated_aggregator");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -167,6 +176,17 @@ public class DeltaOnlyHistogramMergeOverTime extends TimeSeriesAggregateFunction
     @Override
     public DeltaOnlyHistogramMergeOverTime withTemporality(Expression newTemporality) {
         return new DeltaOnlyHistogramMergeOverTime(source(), field(), filter(), window(), newTemporality);
+    }
+
+    @Override
+    public Expression forTransportVersion(TransportVersion minTransportVersion) {
+        if (minTransportVersion.supports(DEDICATED_AGGREGATOR) == false) {
+            // We have some older nodes which don't have an aggregator implementation
+            // so we fallback to HistogramMerge
+            // note that on newer node we will replace this back with a DeltaOnlyHistogramMergeOverTime during local planning
+            return new HistogramMerge(source(), field(), filter(), window());
+        }
+        return null;
     }
 
 }

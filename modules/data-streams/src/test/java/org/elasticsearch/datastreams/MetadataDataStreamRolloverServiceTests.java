@@ -47,6 +47,7 @@ import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_INDEX_UUID;
 import static org.elasticsearch.datastreams.DataStreamIndexSettingsProvider.FORMATTER;
+import static org.elasticsearch.datastreams.DataStreamsPlugin.LOOK_AHEAD_TIME_DEFAULT;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
@@ -258,7 +259,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             Instant endTime = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
             assertThat(startTime.isBefore(endTime), is(true));
             assertThat(startTime, equalTo(now.minus(2, ChronoUnit.HOURS)));
-            assertThat(endTime, equalTo(now.plus(30, ChronoUnit.MINUTES)));
+            assertThat(endTime, equalTo(now.plus(9, ChronoUnit.MINUTES)));
         } finally {
             testThreadPool.shutdown();
         }
@@ -358,7 +359,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
             endTime = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
             assertThat(startTime.isBefore(endTime), is(true));
             assertThat(startTime, equalTo(now.minus(2, ChronoUnit.HOURS)));
-            assertThat(endTime, equalTo(now.plus(30, ChronoUnit.MINUTES)));
+            assertThat(endTime, equalTo(now.plus(LOOK_AHEAD_TIME_DEFAULT, ChronoUnit.MINUTES)));
         } finally {
             testThreadPool.shutdown();
         }
@@ -446,7 +447,7 @@ public class MetadataDataStreamRolloverServiceTests extends ESTestCase {
                 var lastStartTime = IndexSettings.TIME_SERIES_START_TIME.get(im.getSettings());
                 var kastEndTime = IndexSettings.TIME_SERIES_END_TIME.get(im.getSettings());
                 assertThat(lastStartTime, equalTo(now.minus(2, ChronoUnit.HOURS).truncatedTo(ChronoUnit.SECONDS)));
-                assertThat(kastEndTime, equalTo(now.plus(30, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS)));
+                assertThat(kastEndTime, equalTo(now.plus(LOOK_AHEAD_TIME_DEFAULT, ChronoUnit.MINUTES).truncatedTo(ChronoUnit.SECONDS)));
                 assertThat(im.getIndexMode(), equalTo(IndexMode.TIME_SERIES));
             }
         } finally {

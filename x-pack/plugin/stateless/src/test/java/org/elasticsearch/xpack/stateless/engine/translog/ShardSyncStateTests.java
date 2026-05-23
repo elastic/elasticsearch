@@ -40,7 +40,7 @@ public class ShardSyncStateTests extends ESTestCase {
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, new TranslogMetadata.Operations(1, 2, 1)),
+            Map.of(shardId, 1L),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -71,12 +71,7 @@ public class ShardSyncStateTests extends ESTestCase {
 
         shardSyncState.markSyncStarting(
             primaryTerm,
-            new TranslogReplicator.BlobTranslogFile(
-                1,
-                "",
-                Map.of(shardId, new TranslogMetadata.Operations(1, 2, 1)),
-                Collections.singleton(shardId)
-            ) {
+            new TranslogReplicator.BlobTranslogFile(1, "", Map.of(shardId, 1L), Collections.singleton(shardId)) {
                 @Override
                 protected void closeInternal() {}
             }
@@ -84,12 +79,7 @@ public class ShardSyncStateTests extends ESTestCase {
 
         shardSyncState.markSyncStarting(
             primaryTerm,
-            new TranslogReplicator.BlobTranslogFile(
-                2,
-                "",
-                Map.of(shardId, new TranslogMetadata.Operations(1, 3, 2)),
-                Collections.singleton(shardId)
-            ) {
+            new TranslogReplicator.BlobTranslogFile(2, "", Map.of(shardId, 2L), Collections.singleton(shardId)) {
                 @Override
                 protected void closeInternal() {}
             }
@@ -100,12 +90,7 @@ public class ShardSyncStateTests extends ESTestCase {
         assertThat(directory.referencedTranslogFileOffsets(), equalTo(new int[] { 3, 2 }));
         shardSyncState.markSyncStarting(
             primaryTerm,
-            new TranslogReplicator.BlobTranslogFile(
-                4,
-                "",
-                Map.of(shardId, new TranslogMetadata.Operations(1, 2, 1)),
-                Collections.singleton(shardId)
-            ) {
+            new TranslogReplicator.BlobTranslogFile(4, "", Map.of(shardId, 1L), Collections.singleton(shardId)) {
                 @Override
                 protected void closeInternal() {}
             }
@@ -118,12 +103,7 @@ public class ShardSyncStateTests extends ESTestCase {
         assertThat(directory2.referencedTranslogFileOffsets(), equalTo(new int[] { 4, 3, 1 }));
         shardSyncState.markSyncStarting(
             primaryTerm,
-            new TranslogReplicator.BlobTranslogFile(
-                5,
-                "",
-                Map.of(shardId, new TranslogMetadata.Operations(1, 2, 1)),
-                Collections.singleton(shardId)
-            ) {
+            new TranslogReplicator.BlobTranslogFile(5, "", Map.of(shardId, 1L), Collections.singleton(shardId)) {
                 @Override
                 protected void closeInternal() {}
             }
@@ -146,7 +126,7 @@ public class ShardSyncStateTests extends ESTestCase {
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, new TranslogMetadata.Operations(1, 2, 1)),
+            Map.of(shardId, 1L),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -179,7 +159,7 @@ public class ShardSyncStateTests extends ESTestCase {
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, new TranslogMetadata.Operations(1, 2, 1)),
+            Map.of(shardId, 1L),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -207,7 +187,7 @@ public class ShardSyncStateTests extends ESTestCase {
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, new TranslogMetadata.Operations(1, 2, 1)),
+            Map.of(shardId, 1L),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -237,7 +217,7 @@ public class ShardSyncStateTests extends ESTestCase {
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, new TranslogMetadata.Operations(0, 4, 4)),
+            Map.of(shardId, 4L),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -270,7 +250,7 @@ public class ShardSyncStateTests extends ESTestCase {
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, new TranslogMetadata.Operations(0, 3, 3)),
+            Map.of(shardId, 3L),
             Collections.singleton(shardId)
         ) {
             @Override
@@ -314,7 +294,7 @@ public class ShardSyncStateTests extends ESTestCase {
         TranslogReplicator.BlobTranslogFile activeTranslogFile = new TranslogReplicator.BlobTranslogFile(
             generation,
             "",
-            Map.of(shardId, new TranslogMetadata.Operations(0, 3, 3)),
+            Map.of(shardId, 3L),
             Collections.singleton(shardId)
         ) {
             @Override

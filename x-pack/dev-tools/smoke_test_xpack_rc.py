@@ -16,12 +16,12 @@ import tempfile
 import os
 import signal
 import shutil
-import urllib
-import urllib.request
+import subprocess  # nosec
+import urllib.parse
 import time
 import json
 import base64
-from http.client import HTTPConnection
+from http.client import HTTPConnection, HTTPSConnection
 
 # in case of debug, uncomment
 # HTTPConnection.debuglevel = 4
@@ -38,9 +38,11 @@ def java_exe():
   return 'export JAVA_HOME="%s" PATH="%s/bin:$PATH" JAVACMD="%s/bin/java"' % (path, path, path)
 
 def verify_java_version(version):
-  s = os.popen('%s; java -version 2>&1' % java_exe()).read()
-  if ' version "%s.' % version not in s:
-    raise RuntimeError('got wrong version for java %s:\n%s' % (version, s))
+  java_bin = os.path.join(JAVA_HOME, 'bin', 'java')
+  result = subprocess.run([java_bin, '-version'],
+                          stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True)
+  if ' version "%s.' % version not in result.stdout:
+    raise RuntimeError('got wrong version for java %s:\n%s' % (version, result.stdout))
 
 def read_fully(file):
   with open(file, encoding='utf-8') as f:
@@ -76,7 +78,15 @@ def download_release(version, release_hash, url):
     file = ('elasticsearch-%s.zip' % version)
     artifact_path = os.path.join(tmp_dir, file)
     downloaded_files.append(artifact_path)
-    urllib.request.urlretrieve(url, os.path.join(tmp_dir, file))
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme not in ('https', 'http'):
+      raise ValueError('URL must use http(s) scheme: %s' % url)
+    conn = HTTPSConnection(parsed.netloc) if parsed.scheme == 'https' else HTTPConnection(parsed.netloc)
+    conn.request('GET', parsed.path + ('?' + parsed.query if parsed.query else ''))
+    resp = conn.getresponse()
+    with open(artifact_path, 'wb') as f:
+      f.write(resp.read())
+    conn.close()
     print('  ' + '*' * 80)
     print()
     
@@ -173,7 +183,7 @@ def run(command, env_vars=None):
     for key, value in env_vars.items():
       os.putenv(key, value)
   print('*** Running: %s%s%s' % (COLOR_OK, command, COLOR_END))
-  if os.system(command):
+  if subprocess.call(command, shell=True):  # nosec B602
     raise RuntimeError('    FAILED: %s' % (command))
 
 if __name__ == "__main__":

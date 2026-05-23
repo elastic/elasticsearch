@@ -37,6 +37,7 @@ import java.util.function.Supplier;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEOUT;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COLUMN_METADATA_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
@@ -215,7 +216,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     }
 
     private void assertResultColumns(EsqlQueryResponse response) {
-        Map<String, Object> bucketMeta = COLUMN_METADATA_BUCKET.isEnabled()
+        Map<String, Object> bucketMeta = COLUMN_METADATA_BUCKET.isEnabled() && COLUMN_METADATA_SETTING.isEnabled()
             ? Map.of("bucket", Map.of("interval", 1L, "unit", "hour"))
             : null;
         var columns = response.columns();
@@ -233,7 +234,8 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     }
 
     private EsqlQueryResponse queryRate(String indexName) {
-        String command = "TS " + indexName + " | STATS rate=RATE(counter) BY time_bucket = TBUCKET(1 hour) | SORT time_bucket";
+        String setPrefix = COLUMN_METADATA_BUCKET.isEnabled() && COLUMN_METADATA_SETTING.isEnabled() ? "SET column_metadata=true; " : "";
+        String command = setPrefix + "TS " + indexName + " | STATS rate=RATE(counter) BY time_bucket = TBUCKET(1 hour) | SORT time_bucket";
         return client().execute(EsqlQueryAction.INSTANCE, new EsqlQueryRequest().query(command)).actionGet(30, TimeUnit.SECONDS);
     }
 

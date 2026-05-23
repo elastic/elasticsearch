@@ -41,6 +41,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.downsample.DownsampleDataStreamTests.TIMEOUT;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COLUMN_METADATA_BUCKET;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.COLUMN_METADATA_SETTING;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -550,15 +551,19 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
     }
 
     private void testEsqlMetrics(String dataStreamName, String nonDownsampledIndex) throws Exception {
-        Map<String, Object> bucketMeta = COLUMN_METADATA_BUCKET.isEnabled()
-            ? Map.of("bucket", Map.of("interval", 1L, "unit", "hour"))
-            : null;
+        boolean bucketMetaEnabled = COLUMN_METADATA_BUCKET.isEnabled() && COLUMN_METADATA_SETTING.isEnabled();
+        Map<String, Object> bucketMeta = bucketMetaEnabled ? Map.of("bucket", Map.of("interval", 1L, "unit", "hour")) : null;
+        String setPrefix = bucketMetaEnabled ? "SET column_metadata=true; " : "";
         // test _over_time commands with implicit casting of aggregate_metric_double
         for (String outerCommand : List.of("min", "max", "sum", "count")) {
             String expectedType = outerCommand.equals("count") ? "long" : "double";
             for (String innerCommand : List.of("min_over_time", "max_over_time", "avg_over_time", "count_over_time")) {
                 String command = outerCommand + " (" + innerCommand + "(cpu))";
-                try (var resp = esqlCommand("TS " + dataStreamName + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)")) {
+                try (
+                    var resp = esqlCommand(
+                        setPrefix + "TS " + dataStreamName + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)"
+                    )
+                ) {
                     var columns = resp.columns();
                     assertThat(columns, hasSize(3));
                     assertThat(
@@ -580,7 +585,9 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
             for (String innerCommand : List.of("first_over_time", "last_over_time")) {
                 String command = outerCommand + " (" + innerCommand + "(cpu))";
                 try (
-                    var resp = esqlCommand("TS " + nonDownsampledIndex + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)")
+                    var resp = esqlCommand(
+                        setPrefix + "TS " + nonDownsampledIndex + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)"
+                    )
                 ) {
                     var columns = resp.columns();
                     assertThat(columns, hasSize(3));
@@ -601,7 +608,7 @@ public class DownsampleIT extends DownsamplingIntegTestCase {
             // tests on counter types
             for (String innerCommand : List.of("rate")) {
                 String command = outerCommand + " (" + innerCommand + "(request))";
-                String esqlQuery = "TS " + dataStreamName + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)";
+                String esqlQuery = setPrefix + "TS " + dataStreamName + " | STATS " + command + " by cluster, bucket(@timestamp, 1 hour)";
                 try (
                     var resp = client().execute(EsqlQueryAction.INSTANCE, new EsqlQueryRequest().query(esqlQuery))
                         .actionGet(30, TimeUnit.SECONDS)

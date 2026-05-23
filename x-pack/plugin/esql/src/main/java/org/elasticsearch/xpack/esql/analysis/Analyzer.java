@@ -3524,8 +3524,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         return updated;
                     }
                 } else if (expr instanceof Alias alias && alias.child() instanceof Attribute child) {
-                    // check the alias that reference attributes, the aliases have different namedId than the attributes they reference,
-                    // their data types may also need to be updated.
+                    // Check aliases that reference attributes. Aliases have a different NameId from the attributes they
+                    // reference, so their data types may also need to be updated.
                     if (idToUpdatedAttr.containsKey(child.id())) {
                         Attribute aliasAttr = alias.toAttribute();
                         idToUpdatedAttr.putIfAbsent(aliasAttr.id(), aliasAttr);

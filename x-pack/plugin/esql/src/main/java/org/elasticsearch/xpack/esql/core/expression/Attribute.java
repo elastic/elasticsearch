@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -217,20 +216,10 @@ public abstract class Attribute extends NamedExpression {
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(qualifiedName()).append("{").append(label()).append(synthetic() ? "$" : "").append("}").append("#").append(id());
-    }
-
-    /**
-     * Anonymizes the attribute name (and qualifier when present) through the column-token map. The
-     * label / synthetic marker / NameId are structural and pass through unchanged so attribute
-     * identity within a query is still visible to triage.
-     */
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
         if (qualifier != null) {
-            sb.append('[').append(ctx.column(qualifier)).append("].");
+            sb.append(format.rewriter.column(qualifier)).append('.');
         }
-        sb.append(ctx.column(name())).append('{').append(label()).append(synthetic() ? "$" : "").append("}#").append(id());
+        sb.append(format.rewriter.column(name())).append('{').append(label()).append(synthetic() ? "$" : "").append("}#").append(id());
     }
 
     @Override

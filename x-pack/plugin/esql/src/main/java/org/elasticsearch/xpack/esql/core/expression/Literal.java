@@ -15,7 +15,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -181,12 +180,14 @@ public class Literal extends LeafExpression implements Accountable, EvaluatorMap
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(toString(format)).append("[").append(dataType).append("]");
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append(ctx.literal(value, dataType));
+        // Identity rewriter returns the raw value (with format-aware truncation via toString below);
+        // anonymizing rewriter returns an interned token. Caller appends the [type] suffix.
+        if (format.rewrites()) {
+            sb.append(format.rewriter.literal(value, dataType));
+        } else {
+            sb.append(toString(format));
+        }
+        sb.append('[').append(dataType).append(']');
     }
 
     @Override

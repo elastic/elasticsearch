@@ -55,10 +55,11 @@ public final class PlanAnonymizer {
      * carries no useful schema).
      */
     public AnonymizedPlans anonymize(LogicalPlan parsed, LogicalPlan analyzed, LogicalPlan optimized, PhysicalPlan physical) {
-        String parsedText = parsed == null ? "" : parsed.toAnonymizedString(ctx);
-        String analyzedText = analyzed == null ? "" : analyzed.toAnonymizedString(ctx);
-        String optimizedText = optimized == null ? "" : optimized.toAnonymizedString(ctx);
-        String physicalText = physical == null ? "" : physical.toAnonymizedString(ctx);
+        var format = org.elasticsearch.xpack.esql.core.tree.Node.NodeStringFormat.withRewriter(ctx);
+        String parsedText = parsed == null ? "" : parsed.toString(format);
+        String analyzedText = analyzed == null ? "" : analyzed.toString(format);
+        String optimizedText = optimized == null ? "" : optimized.toString(format);
+        String physicalText = physical == null ? "" : physical.toString(format);
 
         LogicalPlan schemaSource = analyzed != null ? analyzed : optimized;
         String schema = schemaSource == null ? "" : renderSchema(schemaSource);

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.core.anonymizer;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringRewriter;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.nio.charset.StandardCharsets;
@@ -40,7 +41,7 @@ import javax.crypto.spec.SecretKeySpec;
  * A fresh context is constructed per query submission via {@link #forSubmission(String)}; reusing
  * one across submissions would leak literal identity across queries.
  */
-public final class AnonymizationContext {
+public final class AnonymizationContext implements NodeStringRewriter {
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     /**
@@ -77,29 +78,34 @@ public final class AnonymizationContext {
     }
 
     /** Anonymizes a column / field / alias name. Per-cluster stable. */
+    @Override
     public String column(String name) {
         return columnTokens.computeIfAbsent(name, n -> "col_" + token(n));
     }
 
     /** Anonymizes an index name, datastream pattern, enrich-policy index, or view name. */
+    @Override
     public String index(String name) {
         return indexTokens.computeIfAbsent(name, n -> "idx_" + token(n));
     }
 
     /**
-     * Anonymizes a literal value of the given {@link DataType}, returning a typed placeholder.
-     * Identity within a submission is preserved — repeated literals with the same {(value, type)}
-     * key emit the same placeholder.
+     * Anonymizes a literal value of the given {@link DataType}, returning just the value portion
+     * of the typed placeholder. The {@code "[<type>]"} suffix is added by the caller so the
+     * rendered shape stays consistent between identity rendering ({@code "5"} + {@code "[LONG]"})
+     * and anonymized rendering ({@code "0"} + {@code "[LONG]"}). Identity within a submission is
+     * preserved — repeated literals with the same {(value, type)} key emit the same placeholder.
      */
+    @Override
     public String literal(Object value, DataType type) {
         if (value == null) {
-            return "null[" + type + "]";
+            return "null";
         }
         int id = literalIds.computeIfAbsent(LiteralKey.of(value, type), k -> literalIds.size());
         if (type == DataType.KEYWORD || type == DataType.TEXT || type == DataType.VERSION || type == DataType.IP) {
-            return "L" + id + "[" + type + "]";
+            return "L" + id;
         }
-        return id + "[" + type + "]";
+        return String.valueOf(id);
     }
 
     /**
@@ -108,6 +114,7 @@ public final class AnonymizationContext {
      * pattern's shape stays visible; each literal run between metacharacters routes through the
      * column-token map. A backslash escapes the next character, which is treated as literal.
      */
+    @Override
     public String wildcardPattern(String pattern) {
         if (pattern == null || pattern.isEmpty()) {
             return "";
@@ -137,6 +144,7 @@ public final class AnonymizationContext {
      * column-token map. Separator characters between captures pass through unchanged — they are
      * usually punctuation, not data.
      */
+    @Override
     public String dissectPattern(String pattern) {
         if (pattern == null) {
             return "";
@@ -150,6 +158,7 @@ public final class AnonymizationContext {
      * predefined library identifiers (IP, NUMBER, etc.), not customer data. The capture name (after
      * the first {@code :}) routes through the column-token map. Type coercion suffix passes through.
      */
+    @Override
     public String grokPattern(String pattern) {
         if (pattern == null) {
             return "";

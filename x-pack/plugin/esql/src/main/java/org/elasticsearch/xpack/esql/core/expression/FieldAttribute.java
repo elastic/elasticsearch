@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -346,38 +345,21 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
         return field;
     }
 
-    @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        switch (format) {
-            case FULL -> {
-                sb.append(qualifiedName()).append("{").append(label());
-                if (field.getNodeStringName().isEmpty() == false) {
-                    sb.append("(").append(field.getNodeStringName()).append(")");
-                }
-                if (synthetic()) {
-                    sb.append("$");
-                }
-                sb.append("}#").append(id());
-            }
-            case LIMITED -> super.nodeString(sb, format);
-        }
-    }
-
     /**
-     * Anonymizes the display name and the {@code parentName} prefix that flows through
-     * {@link #fieldName()} for synthetic union-type attributes. Surfaces the {@link EsField}
-     * subclass simple name so triage can distinguish plain fields from {@code InvalidMappedField}
-     * / {@code MultiTypeEsField} / {@code PotentiallyUnmappedKeywordEsField}.
+     * Renders the FieldAttribute as {@code [<qual>.]<name>{f[(SubclassName)][$]}#id}. Identifier
+     * mentions route through the format's
+     * {@link org.elasticsearch.xpack.esql.core.tree.NodeStringRewriter}; in LIMITED mode the
+     * EsField subclass marker is suppressed to keep the rendering compact.
      */
     @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        if (parentName != null) {
-            sb.append('[').append(ctx.column(parentName)).append("].");
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        var rewriter = format.rewriter;
+        if (qualifier() != null) {
+            sb.append(rewriter.column(qualifier())).append('.');
         }
-        sb.append(ctx.column(name())).append('{').append(label());
-        String subclass = field.getClass().getSimpleName();
-        if (subclass.equals("EsField") == false) {
-            sb.append('(').append(subclass).append(')');
+        sb.append(rewriter.column(name())).append('{').append(label());
+        if (format != NodeStringFormat.LIMITED && field.getNodeStringName().isEmpty() == false) {
+            sb.append('(').append(field.getNodeStringName()).append(')');
         }
         if (synthetic()) {
             sb.append('$');

@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -145,19 +144,7 @@ public final class Alias extends NamedExpression {
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
         child.nodeString(sb, format);
-        sb.append(" AS ").append(name()).append("#").append(id());
-    }
-
-    /**
-     * Anonymizes the alias name (user-defined identifier from {@code EVAL foo = ...} or
-     * {@code STATS foo = ...}) through the column-token map and emits the same {@code AS} suffix
-     * shape that {@link #nodeString} uses. The child expression is rendered as part of the
-     * children recursion.
-     */
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        child.anonymizedSelf(sb, ctx);
-        sb.append(" AS ").append(ctx.column(name())).append('#').append(id());
+        sb.append(" AS ").append(format.rewriter.column(name())).append('#').append(id());
     }
 
     /**

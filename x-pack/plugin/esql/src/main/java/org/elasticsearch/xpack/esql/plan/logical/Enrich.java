@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -186,14 +185,18 @@ public class Enrich extends UnaryPlan
     }
 
     /**
-     * The {@code concreteIndices} map exposes per-cluster enrich-index names; both keys (cluster
-     * aliases) and values (raw index names) route through the index-token map. The {@code mode}
-     * enum and the {@code matchField}, {@code enrichFields}, and {@code policyName} expressions
-     * render via the children recursion.
+     * The {@code concreteIndices} map ({@code cluster alias → enrich-index name}) renders only
+     * when the format is rewriting — under raw {@link NodeStringFormat#LIMITED} /
+     * {@link NodeStringFormat#FULL} the standard {@link NodeInfo} property walk already covers it.
+     * Identifier mentions route through {@link NodeStringFormat#rewriter}.
      */
     @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("Enrich[mode=").append(mode);
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        if (format.rewrites() == false) {
+            super.nodeString(sb, format);
+            return;
+        }
+        sb.append(nodeName()).append("[mode=").append(mode);
         if (concreteIndices != null && concreteIndices.isEmpty() == false) {
             sb.append(", concreteIndices={");
             boolean first = true;
@@ -202,7 +205,7 @@ public class Enrich extends UnaryPlan
                     sb.append(", ");
                 }
                 first = false;
-                sb.append(ctx.index(e.getKey())).append('=').append(ctx.index(e.getValue()));
+                sb.append(format.rewriter.index(e.getKey())).append('=').append(format.rewriter.index(e.getValue()));
             }
             sb.append('}');
         }

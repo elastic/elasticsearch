@@ -48,14 +48,14 @@ public class AnonymizationContextTests extends ESTestCase {
         String first = ctx.literal(5L, DataType.LONG);
         String second = ctx.literal(5L, DataType.LONG);
         assertEquals(first, second);
-        assertEquals("0[LONG]", first);
+        assertEquals("0", first);
     }
 
     public void testLiteralIdsAreMonotonicAcrossDistinctValues() {
         var ctx = AnonymizationContext.forSubmission(randomUUID());
-        assertEquals("0[LONG]", ctx.literal(5L, DataType.LONG));
-        assertEquals("1[INTEGER]", ctx.literal(42, DataType.INTEGER));
-        assertEquals("L2[KEYWORD]", ctx.literal(new BytesRef("alice"), DataType.KEYWORD));
+        assertEquals("0", ctx.literal(5L, DataType.LONG));
+        assertEquals("1", ctx.literal(42, DataType.INTEGER));
+        assertEquals("L2", ctx.literal(new BytesRef("alice"), DataType.KEYWORD));
     }
 
     public void testLiteralRegeneratesAcrossSubmissions() {
@@ -70,7 +70,7 @@ public class AnonymizationContextTests extends ESTestCase {
 
     public void testNullLiteralValueTaggedExplicitly() {
         var ctx = AnonymizationContext.forSubmission(randomUUID());
-        assertEquals("null[KEYWORD]", ctx.literal(null, DataType.KEYWORD));
+        assertEquals("null", ctx.literal(null, DataType.KEYWORD));
     }
 
     public void testStringLiteralKeyedByContentNotInstance() {

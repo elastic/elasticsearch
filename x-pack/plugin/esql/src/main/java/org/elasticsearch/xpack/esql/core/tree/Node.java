@@ -10,7 +10,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 
 import java.util.ArrayList;
@@ -451,22 +450,65 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     /**
-     * Configuration for rendering the string representation.
+     * Configuration for rendering the string representation. Three flavors:
+     * <ul>
+     *   <li>{@link #LIMITED} — bounded width / lines / property count for human-readable
+     *       debug toString. The default.</li>
+     *   <li>{@link #FULL} — no limits, prints everything raw.</li>
+     *   <li>{@link #withRewriter} — full-fidelity rendering with identifier / literal / pattern
+     *       strings routed through a {@link NodeStringRewriter} (e.g. an anonymizer). Used for the
+     *       failure-path telemetry log.</li>
+     * </ul>
+     * Was an enum previously; promoted to an abstract class so the rewriting variant can carry
+     * per-submission state. {@link #LIMITED} and {@link #FULL} remain static constants; existing
+     * call sites that say {@code NodeStringFormat.LIMITED} keep working.
      */
-    public enum NodeStringFormat {
-        /** No list truncation, no line breaks due to string width. */
-        FULL(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE),
-        /** List truncation, line breaks, and limited number of lines. */
-        LIMITED(TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH, TO_STRING_MAX_LINES);
+    public abstract static class NodeStringFormat {
+        /** Bounded width / lines / property count. */
+        public static final NodeStringFormat LIMITED = new Standard(TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH, TO_STRING_MAX_LINES);
+        /** No truncation; identity rewriter. */
+        public static final NodeStringFormat FULL = new Standard(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
+
+        /** Returns a format that routes identifier strings through the supplied rewriter. */
+        public static NodeStringFormat withRewriter(NodeStringRewriter rewriter) {
+            return new WithRewriter(rewriter);
+        }
 
         final int maxProperties;
         final int maxWidth;
         final int maxLines;
+        /**
+         * Plug-in that maps identifier / literal / pattern strings to their rendered form. Always
+         * non-null — {@link NodeStringRewriter#IDENTITY} is used for {@link #LIMITED} and
+         * {@link #FULL}, so {@code nodeString} implementations can call
+         * {@code format.rewriter.column(name)} without a null check.
+         */
+        public final NodeStringRewriter rewriter;
 
-        NodeStringFormat(int maxProperties, int maxWidth, int maxLines) {
+        NodeStringFormat(int maxProperties, int maxWidth, int maxLines, NodeStringRewriter rewriter) {
             this.maxProperties = maxProperties;
             this.maxWidth = maxWidth;
             this.maxLines = maxLines;
+            this.rewriter = rewriter;
+        }
+
+        /** True when this format is doing some kind of identifier rewriting. */
+        public boolean rewrites() {
+            return rewriter != NodeStringRewriter.IDENTITY;
+        }
+
+        /** Identity-rewriter format for {@link #LIMITED} and {@link #FULL}. */
+        private static final class Standard extends NodeStringFormat {
+            Standard(int maxProperties, int maxWidth, int maxLines) {
+                super(maxProperties, maxWidth, maxLines, NodeStringRewriter.IDENTITY);
+            }
+        }
+
+        /** Full-fidelity format wrapping a non-identity rewriter (e.g. anonymization). */
+        private static final class WithRewriter extends NodeStringFormat {
+            WithRewriter(NodeStringRewriter rewriter) {
+                super(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, rewriter);
+            }
         }
     }
 
@@ -501,79 +543,6 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
 
     public String toString(NodeStringFormat format) {
         return new NodeToString(format).treeString(this, 0).toString();
-    }
-
-    /**
-     * Appends an anonymized text rendering of this node and its subtree to {@code sb}, safe to
-     * ship to telemetry. Parallels {@link #nodeString(StringBuilder, NodeStringFormat)} — same
-     * shape, same recursion, same builder-passing convention so no per-child intermediate strings
-     * are allocated.
-     * <p>
-     * Calls {@link #anonymizedSelf} for this node, then recursively writes children separated by
-     * the {@code \\_} tree marker the existing pretty-printer uses, indented two spaces per level.
-     * Subclasses carrying customer-sensitive data (column / index / view / alias / pattern strings,
-     * literal values, etc.) override {@link #anonymizedSelf} and route every such piece through
-     * {@link AnonymizationContext#column}, {@link AnonymizationContext#index}, or
-     * {@link AnonymizationContext#literal}.
-     * <p>
-     * <strong>Default-safe.</strong> A new {@code Node} subclass that does not override
-     * {@link #anonymizedSelf} inherits a baseline that exposes the class name and structure but no
-     * field content. Authors adding sensitive fields are nudged to think about anonymization at
-     * the same time they think about {@code nodeString}.
-     */
-    public final void anonymizedString(StringBuilder sb, AnonymizationContext ctx) {
-        anonymizedSelf(sb, ctx);
-        if (children.isEmpty() == false) {
-            StringBuilder childBuf = new StringBuilder();
-            for (T child : children) {
-                childBuf.setLength(0);
-                child.anonymizedString(childBuf, ctx);
-                sb.append('\n').append("\\_").append(childBuf.toString().indent(2).stripTrailing().substring(2));
-            }
-        }
-    }
-
-    /** Convenience wrapper that allocates a builder and returns the resulting string. */
-    public final String toAnonymizedString(AnonymizationContext ctx) {
-        StringBuilder sb = new StringBuilder();
-        anonymizedString(sb, ctx);
-        return sb.toString();
-    }
-
-    /**
-     * Subclass extension point for {@link #anonymizedString(StringBuilder, AnonymizationContext)}.
-     * Every {@code Node} subclass must implement this — there is no inherited default at the base.
-     * That keeps the contract honest: any new node-class author is forced by the compiler to think
-     * about which of their fields can be safely exposed to telemetry, and how.
-     * <p>
-     * Common intermediate base classes provide concrete implementations that fit their shape:
-     * {@link org.elasticsearch.xpack.esql.core.expression.Expression} walks its children inline as
-     * {@code "<Name>(<child>, <child>)"}; logical and physical plan-node subclasses each have their
-     * own per-class override that surfaces their specific identifier / literal state via
-     * {@link AnonymizationContext#column}, {@link AnonymizationContext#index}, or
-     * {@link AnonymizationContext#literal}. Subclasses that have no safer way to render fall back
-     * to {@code sb.append("<SimpleName>[...]")} — that's a one-line explicit choice, not an
-     * inherited default.
-     * <p>
-     * Public (rather than protected) so a parent node can inline a child's self-text on the same
-     * line when the parent renders its children compactly (e.g. {@code EsRelation}'s attribute
-     * list). Mirrors {@link #nodeString(StringBuilder, NodeStringFormat)}, which is also public.
-     */
-    public abstract void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx);
-
-    /**
-     * Helper for {@link #anonymizedSelf} implementations that need to render a list of child nodes
-     * comma-separated on one line — projection lists, aggregate groupings, attribute lists, sort
-     * orders, etc. Each entry is rendered via its own {@code anonymizedSelf}, preserving the
-     * tokenized identity contract.
-     */
-    protected static void appendAnonymizedList(StringBuilder sb, AnonymizationContext ctx, List<? extends Node<?>> items) {
-        for (int i = 0; i < items.size(); i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            items.get(i).anonymizedSelf(sb, ctx);
-        }
     }
 
     protected void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format) {

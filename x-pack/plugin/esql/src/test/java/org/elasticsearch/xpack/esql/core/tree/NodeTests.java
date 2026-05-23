@@ -325,10 +325,6 @@ public class NodeTests extends ESTestCase {
             return Objects.hash(thing, children());
         }
 
-        @Override
-        public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
-            sb.append(getClass().getSimpleName()).append("[...]");
-        }
     }
 
     public static class ChildrenAreAProperty extends Dummy {

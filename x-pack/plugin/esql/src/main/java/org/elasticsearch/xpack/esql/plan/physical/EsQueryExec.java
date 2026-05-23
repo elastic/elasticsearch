@@ -15,7 +15,6 @@ import org.elasticsearch.search.sort.GeoDistanceSortBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.sort.SortOrder;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -350,39 +349,27 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append("[").append(indexPattern).append("], ").append("indexMode[").append(indexMode).append("], ");
-        NodeUtils.toString(sb, attrs, format);
-        sb.append(", limit[")
-            .append(limit != null ? limit.toString(format) : "")
-            .append("], sort[")
-            .append(sorts != null ? sorts.toString() : "")
-            .append("] estimatedRowSize[")
-            .append(estimatedRowSize)
-            .append("] queryBuilderAndTags [")
-            .append(queryBuilderAndTags != null ? queryBuilderAndTags.toString() : "")
-            .append("]");
-    }
-
-    /**
-     * Drops the {@code queryBuilderAndTags} list — that holds Lucene-pushdown DSL we cannot safely
-     * parse; sorts are dropped too for the same reason their text body can carry literal values.
-     * Limit is rendered as an anonymized {@link org.elasticsearch.xpack.esql.core.expression.Literal}
-     * via {@link #anonymizedSelf}; attributes are inlined on the same line.
-     */
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append(getClass().getSimpleName())
+        sb.append(nodeName())
             .append('[')
-            .append(ctx.index(indexPattern))
+            .append(format.rewriter.index(indexPattern))
             .append("], indexMode[")
             .append(indexMode)
-            .append("], [");
-        appendAnonymizedList(sb, ctx, attrs);
-        sb.append("], limit[");
-        if (limit != null) {
-            limit.anonymizedSelf(sb, ctx);
+            .append("], ");
+        NodeUtils.toString(sb, attrs, format);
+        sb.append(", limit[").append(limit != null ? limit.toString(format) : "").append("], ");
+        // Sorts and queryBuilderAndTags both carry raw user content (sort keys, Lucene-pushdown
+        // DSL); on a rewriting format we drop them rather than try to walk in.
+        if (format.rewrites()) {
+            sb.append("sort[<dropped>] estimatedRowSize[").append(estimatedRowSize).append("] queryBuilderAndTags[<dropped>]");
+        } else {
+            sb.append("sort[")
+                .append(sorts != null ? sorts.toString() : "")
+                .append("] estimatedRowSize[")
+                .append(estimatedRowSize)
+                .append("] queryBuilderAndTags [")
+                .append(queryBuilderAndTags != null ? queryBuilderAndTags.toString() : "")
+                .append(']');
         }
-        sb.append("], estimatedRowSize[").append(estimatedRowSize).append(']');
     }
 
     public enum Direction {

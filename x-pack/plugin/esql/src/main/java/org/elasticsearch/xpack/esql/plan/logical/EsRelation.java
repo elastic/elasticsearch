@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
@@ -168,25 +167,11 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append("[").append(indexPattern).append("]");
-        if (indexMode != IndexMode.STANDARD) {
-            sb.append("[").append(indexMode.name()).append("]");
-        }
-        NodeUtils.toString(sb, attrs, format);
-    }
-
-    /**
-     * Anonymizes the index pattern + the per-concrete-index {@code indexNameWithModes} keys so the
-     * lookup / time-series classification stays visible to triage. EsRelation is a logical leaf
-     * (no children), so attributes are inlined here as a single-line list.
-     */
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append(getClass().getSimpleName()).append('[').append(ctx.index(indexPattern)).append(']');
+        sb.append(nodeName()).append('[').append(format.rewriter.index(indexPattern)).append(']');
         if (indexMode != IndexMode.STANDARD) {
             sb.append('[').append(indexMode.name()).append(']');
         }
-        if (indexNameWithModes != null && indexNameWithModes.isEmpty() == false) {
+        if (format.rewrites() && indexNameWithModes != null && indexNameWithModes.isEmpty() == false) {
             sb.append('[');
             boolean first = true;
             for (var e : indexNameWithModes.entrySet()) {
@@ -194,13 +179,11 @@ public class EsRelation extends LeafPlan {
                     sb.append(", ");
                 }
                 first = false;
-                sb.append(ctx.index(e.getKey())).append('=').append(e.getValue().name());
+                sb.append(format.rewriter.index(e.getKey())).append('=').append(e.getValue().name());
             }
             sb.append(']');
         }
-        sb.append('[');
-        appendAnonymizedList(sb, ctx, attrs);
-        sb.append(']');
+        NodeUtils.toString(sb, attrs, format);
     }
 
     public EsRelation withAttributes(List<Attribute> newAttributes) {

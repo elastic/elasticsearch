@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -113,11 +112,6 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
         return indexPattern;
     }
 
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("UnresolvedRelation[").append(ctx.index(indexPattern.indexPattern())).append(']');
-    }
-
     public boolean frozen() {
         return frozen;
     }
@@ -209,5 +203,10 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
      */
     public boolean isTimeSeriesMode() {
         return indexMode == IndexMode.TIME_SERIES;
+    }
+
+    @Override
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append('[').append(format.rewriter.index(indexPattern.indexPattern())).append(']');
     }
 }

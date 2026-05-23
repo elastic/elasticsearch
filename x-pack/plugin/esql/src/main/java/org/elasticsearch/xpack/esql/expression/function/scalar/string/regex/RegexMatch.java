@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.AbstractStringPattern;
@@ -73,24 +72,9 @@ abstract class RegexMatch<P extends AbstractStringPattern> extends org.elasticse
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(name()).append("(");
+        sb.append(name()).append('(');
         field().nodeString(sb, format);
-        sb.append(", \"").append(pattern().pattern()).append("\", ").append(caseInsensitive()).append(")");
-    }
-
-    /**
-     * Preserves the wildcard structure of the pattern (e.g. {@code S*} stays {@code col_xxx*}) so
-     * triage sees the shape, not just an opaque placeholder. The field expression is rendered via
-     * the children recursion.
-     */
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append(name())
-            .append("(<field>, \"")
-            .append(ctx.wildcardPattern(pattern().pattern()))
-            .append("\", ")
-            .append(caseInsensitive())
-            .append(")");
+        sb.append(", \"").append(format.rewriter.wildcardPattern(pattern().pattern())).append("\", ").append(caseInsensitive()).append(')');
     }
 
     void serializeCaseInsensitivity(StreamOutput out) throws IOException {

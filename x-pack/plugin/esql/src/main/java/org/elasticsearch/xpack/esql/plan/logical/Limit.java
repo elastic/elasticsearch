@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -93,13 +92,6 @@ public class Limit extends UnaryPlan implements TelemetryAware, PipelineBreaker,
 
     public Expression limit() {
         return limit;
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("Limit[");
-        limit.anonymizedSelf(sb, ctx);
-        sb.append(',').append(duplicated).append(',').append(local).append(']');
     }
 
     public Limit withLimit(Expression limit) {

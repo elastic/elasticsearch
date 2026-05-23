@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -91,19 +90,14 @@ public class ViewUnionAll extends UnionAll {
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append("[").append(namedSubqueries.keySet()).append("]");
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("ViewUnionAll[[");
+        sb.append(nodeName()).append("[[");
         boolean first = true;
-        for (String name : namedSubqueries.keySet()) {
+        for (String key : namedSubqueries.keySet()) {
             if (first == false) {
                 sb.append(", ");
             }
             first = false;
-            sb.append(ctx.index(name));
+            sb.append(format.rewriter.index(key));
         }
         sb.append("]]");
     }

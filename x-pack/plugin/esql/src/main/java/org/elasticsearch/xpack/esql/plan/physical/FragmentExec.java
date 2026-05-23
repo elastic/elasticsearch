@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -131,26 +130,13 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
         sb.append(nodeName());
-        sb.append("[filter=");
-        sb.append(esFilter);
-        sb.append(", estimatedRowSize=");
-        sb.append(estimatedRowSize);
-        sb.append(", reducer=[");
-        sb.append("], fragment=[<>\n");
+        // esFilter is a raw QueryBuilder DSL from request.filter() — opaque content. On a rewriting
+        // format we drop it; raw modes print as before.
+        sb.append("[filter=").append(format.rewrites() ? "<dropped>" : String.valueOf(esFilter));
+        sb.append(", estimatedRowSize=").append(estimatedRowSize);
+        sb.append(", reducer=[], fragment=[<>\n");
         sb.append(fragment.toString(format));
         sb.append("<>]]");
     }
 
-    /**
-     * Drops {@code esFilter} (DSL passthrough from {@code request.filter()} — opaque content we
-     * can't safely parse). Recursively walks the wrapped logical {@code fragment} via its own
-     * anonymized renderer; the fragment is not a {@code children()} entry on the physical tree
-     * so the base recursion doesn't reach it.
-     */
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("FragmentExec[filter=null, estimatedRowSize=").append(estimatedRowSize).append(", fragment=[<>\n");
-        fragment.anonymizedString(sb, ctx);
-        sb.append("<>]]");
-    }
 }

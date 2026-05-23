@@ -3498,19 +3498,24 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * {@code updatedUnionAllOutput} — only the UnionAll column ids are — so the stale reference survives in a
          * downstream {@code Project}, producing an {@code "Output has changed"} verification failure.
          * <p>
-         * We walk the plan bottom-up exactly once with {@link LogicalPlan#transformUp(java.util.function.Function)}.
-         * At each node we:
+         * We walk the plan bottom-up exactly once with
+         * {@link org.elasticsearch.xpack.esql.plan.QueryPlan#transformExpressionsUp(Class, java.util.function.Function)},
+         * visiting every {@link NamedExpression} in the tree. For each expression we either:
          * <ol>
-         *   <li>rewrite that node's own expressions using the running id map; and</li>
-         *   <li>register any {@link Alias} whose direct child is an {@link Attribute} already present in the map.
-         *       Such an alias is precisely a {@code RENAME}-style alias whose underlying column was re-typed by the
-         *       UnionAll resolution, so its own {@link Alias#toAttribute()} now reports the updated data type and
-         *       downstream materialised references to it must be replaced.</li>
+         *   <li>replace it, when it is an {@link Attribute} whose id is in the running map and whose data type still
+         *       differs from the updated attribute's; or</li>
+         *   <li>extend the map, when it is an {@link Alias} whose direct child is an {@link Attribute} already present
+         *       in the map. Such an alias is precisely a {@code RENAME}-style alias whose underlying column was
+         *       re-typed by the UnionAll resolution, so its own {@link Alias#toAttribute()} now reports the updated
+         *       data type and downstream materialised references to it must also be replaced. We register the alias's
+         *       {@link Alias#toAttribute()} under its own {@link NameId} so later iterations of this same traversal
+         *       can rewrite stale references to it.</li>
          * </ol>
-         * Because {@code transformUp} guarantees children are visited before their parents, every relevant alias is
-         * registered before any downstream {@code Project} that materialised its attribute is visited. The traversal
-         * is O(plan size) and the alias-registration condition is narrowly scoped to "child is a re-typed attribute"
-         * so unrelated aliases (whose data type doesn't depend on a UnionAll-driven re-typing) are left alone.
+         * Because {@code transformExpressionsUp} traverses plan nodes — and the expression tree at each node — bottom
+         * up, every relevant alias is registered before any downstream {@code Project} that materialised its
+         * attribute is visited. The traversal is O(plan size) and the alias-registration condition is narrowly scoped
+         * to "child is a re-typed attribute" so unrelated aliases (whose data type doesn't depend on a UnionAll-driven
+         * re-typing) are left alone.
          */
         private static LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(
             LogicalPlan plan,
@@ -3524,8 +3529,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         return updated;
                     }
                 } else if (expr instanceof Alias alias && alias.child() instanceof Attribute child) {
-                    // Check aliases that reference attributes. Aliases have a different NameId from the attributes they
-                    // reference, so their data types may also need to be updated.
+                    // An alias whose child is a re-typed attribute carries the updated data type via toAttribute();
+                    // register it under its own NameId so any downstream materialised reference to this alias is
+                    // rewritten on a subsequent visit in this same bottom-up traversal.
                     if (idToUpdatedAttr.containsKey(child.id())) {
                         Attribute aliasAttr = alias.toAttribute();
                         idToUpdatedAttr.putIfAbsent(aliasAttr.id(), aliasAttr);

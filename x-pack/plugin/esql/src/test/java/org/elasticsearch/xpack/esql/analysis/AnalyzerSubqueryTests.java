@@ -1421,7 +1421,6 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *             \_EsRelation[sample_data][@timestamp{f}#875, client_ip{f}#876, event_duration..]
      */
     public void testUnionAllWithConflictingTypesFromSubqueries() {
-
         LogicalPlan plan = sampleData().query("""
             FROM (FROM sample_data), (FROM sample_data | EVAL client_ip = 1) | keep client_ip
             """);
@@ -1495,7 +1494,6 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *           \_EsRelation[sample_data][@timestamp{f}#2460, client_ip{f}#2461, event_durati..]
      */
     public void testUnionAllWithConflictingTypesFromSubqueriesWithoutUsageInMainQuery() {
-
         LogicalPlan plan = sampleData().query("""
             FROM (FROM sample_data), (FROM sample_data | EVAL client_ip = 1)
             """);
@@ -1548,7 +1546,6 @@ public class AnalyzerSubqueryTests extends ESTestCase {
      *             \_EsRelation[test_mixed_types][avg_worked_seconds{f}#727, birth_date{f}#715, emp_n..]
      */
     public void testUnionAllWithConflictingNumericTypesFromSubqueries() {
-
         LogicalPlan plan = defaultMapping().addDefaultIncompatible().query("""
             FROM test, (FROM test_mixed_types) | keep emp_no
             """);
@@ -3253,7 +3250,6 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     }
 
     public void testSubqueryRenameKeepStarOnMissingColumnPreservesType() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         LogicalPlan plan = basic().addLanguages().query("""
             FROM test, (FROM languages)
             | KEEP emp_no
@@ -3277,15 +3273,14 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         project = as(project.child(), Project.class);
         projections = project.projections();
         assertEquals(1, projections.size());
-        ReferenceAttribute total_bytes_in = as(projections.get(0), ReferenceAttribute.class);
-        assertEquals("emp_no", total_bytes_in.name());
-        assertEquals(INTEGER, total_bytes_in.dataType());
+        ReferenceAttribute emp_no = as(projections.get(0), ReferenceAttribute.class);
+        assertEquals("emp_no", emp_no.name());
+        assertEquals(INTEGER, emp_no.dataType());
         UnionAll unionAll = as(project.child(), UnionAll.class);
         assertTrue(unionAll.output().stream().anyMatch(a -> "emp_no".equals(a.name()) && INTEGER.equals(a.dataType())));
     }
 
     public void testSubqueryRenameKeepOnMissingCounterFields() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assumeTrue(
             "Require the fix to inconsistent counter type",
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
@@ -3322,9 +3317,9 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         ReferenceAttribute total_bytes_in = as(projections.get(0), ReferenceAttribute.class);
         assertEquals("network.total_bytes_in", total_bytes_in.name());
         assertEquals(LONG, total_bytes_in.dataType());
-        ReferenceAttribute total_bytes_out = as(projections.get(1), ReferenceAttribute.class);
-        assertEquals("network.eth0.tx", total_bytes_out.name());
-        assertEquals(AGGREGATE_METRIC_DOUBLE, total_bytes_out.dataType());
+        ReferenceAttribute network_eth0_tx = as(projections.get(1), ReferenceAttribute.class);
+        assertEquals("network.eth0.tx", network_eth0_tx.name());
+        assertEquals(AGGREGATE_METRIC_DOUBLE, network_eth0_tx.dataType());
         UnionAll unionAll = as(project.child(), UnionAll.class);
         assertTrue(unionAll.output().stream().anyMatch(a -> "network.total_bytes_in".equals(a.name()) && LONG.equals(a.dataType())));
         assertTrue(
@@ -3333,7 +3328,6 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     }
 
     public void testSubqueryRenameChainKeepStarOnMissingCounterField() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assumeTrue(
             "Require the fix to inconsistent counter type",
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
@@ -3369,7 +3363,6 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     }
 
     public void testSubqueryDoubleRenameKeepStarOnMissingCounterField() {
-        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
         assumeTrue(
             "Require the fix to inconsistent counter type",
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()

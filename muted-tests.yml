@@ -343,7 +343,7 @@ tests:
   method: testUpdateAndReadChangesConcurrently
   issue: https://github.com/elastic/elasticsearch/issues/148145
 - class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
-  method: testHKmeans
+  method: testHierarchicalKMeansConcurrency
   issue: https://github.com/elastic/elasticsearch/issues/147482
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
   method: testCleanUpMigratedSystemIndexAfterIndicesAreDeleted

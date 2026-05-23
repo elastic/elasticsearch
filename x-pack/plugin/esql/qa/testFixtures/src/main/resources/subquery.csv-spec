@@ -1528,16 +1528,16 @@ subqueryInFromWithRenameMissingCounterField
 required_capability: subquery_in_from_command
 required_capability: subquery_in_from_command_union_types_counter_type_inconsistent_after_rename
 
-FROM k8s, (from many_numbers)
-| KEEP network.total_bytes_in
-| RENAME network.total_bytes_in as x
+FROM k8s-downsampled, (from many_numbers)
+| KEEP network.total_bytes_in, network.eth0.tx
+| RENAME network.total_bytes_in as x, network.eth0.tx as y
 | KEEP *
 | SORT x
 | LIMIT 1
 ;
 
-x:long
-3
+x:long | y:aggregate_metric_double
+210    | {"min":201.0,"max":582.0,"sum":1794.0,"value_count":6}
 ;
 
 subqueryInFromWithRenameChainMissingCounterField

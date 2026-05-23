@@ -169,13 +169,9 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
                 "workload-identity issuer URL [" + issuerUrl + "] must not include a query string or fragment"
             );
         }
-        // Reassemble textually rather than via the 7-arg URI(scheme, userInfo, host, port, path,
-        // query, fragment) constructor. That constructor treats the path as a *decoded* string and
-        // re-encodes it, which would turn a literal "%" in the configured base path into "%25" —
-        // e.g. https://issuer.example.com/api%2Fv1 would silently become
-        // https://issuer.example.com/api%252Fv1/token. Using the parsed URI's own toString()
-        // preserves the raw encoding of every component end-to-end. We previously rejected query
-        // and fragment, so toString() is just scheme + authority + path.
+        // Append textually to preserve the raw encoding of the configured path. The 7-arg URI
+        // constructor would treat the path as decoded and double-encode any literal "%" (e.g.
+        // /api%2Fv1 -> /api%252Fv1). Query and fragment were rejected above.
         final String baseString = stripTrailingSlash(baseUri.toString());
         try {
             return new URI(baseString + TOKEN_PATH);

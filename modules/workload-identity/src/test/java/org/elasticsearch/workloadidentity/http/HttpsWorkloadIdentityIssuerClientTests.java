@@ -372,6 +372,31 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
     }
 
     /**
+     * The response parser is configured with {@code ignoreUnknownFields=true} so the issuer can
+     * introduce additive fields without breaking older clients. This test pins that contract by
+     * injecting a payload with an extra top-level field and asserting the known fields still parse
+     * cleanly.
+     */
+    public void testUnknownFieldsInSuccessResponseAreIgnored() throws Exception {
+        respondWith200JsonBody("""
+            {
+              "token": "header.payload.sig",
+              "issued_at_epoch_seconds": 1716000000,
+              "expires_at_epoch_seconds": 1716003600,
+              "future_field": "added by a newer issuer",
+              "nested_future_field": { "k": 1 }
+            }
+            """.getBytes(StandardCharsets.UTF_8));
+
+        try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
+            final IssueTokenResponse response = awaitToken(harness, new IssueTokenRequest("aud", "us-east-1"));
+            assertEquals("header.payload.sig", response.token());
+            assertEquals(1716000000L, response.issuedAt().getEpochSecond());
+            assertEquals(1716003600L, response.expiresAt().getEpochSecond());
+        }
+    }
+
+    /**
      * The mock server is configured with {@code needClientAuth=true} and {@code wantClientAuth=true};
      * a client missing key material must fail at the TLS handshake. The exact exception type is
      * sensitive to TLS stack + JDK version, so we assert via the {@link IOException} surface.

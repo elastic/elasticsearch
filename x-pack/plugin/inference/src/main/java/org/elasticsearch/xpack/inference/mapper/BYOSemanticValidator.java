@@ -156,8 +156,9 @@ public final class BYOSemanticValidator {
 
     /**
      * Validates that the embedding vector stored in {@code embeddings} has exactly
-     * {@code expectedDims} dimensions. The embeddings are expected to be a JSON object
-     * with a top-level {@code "values"} array (e.g. {@code {"values":[0.1,0.2,0.3]}}).
+     * {@code expectedDims} dimensions. The embeddings may be either a bare JSON array
+     * (e.g. {@code [0.1,0.2,0.3]}) or an object with a {@code "values"} array
+     * (e.g. {@code {"values":[0.1,0.2,0.3]}}).
      *
      * @param embeddings   raw embedding bytes in JSON format
      * @param expectedDims the number of dimensions the model produces
@@ -195,23 +196,33 @@ public final class BYOSemanticValidator {
                 XContentType.JSON
             )
         ) {
-            // Expect an object with a "values" array
-            parser.nextToken(); // START_OBJECT
-            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                String fieldName = parser.currentName();
-                parser.nextToken();
-                if ("values".equals(fieldName)) {
-                    // parser is now at START_ARRAY
-                    int count = 0;
-                    while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                        count++;
-                    }
-                    return count;
-                } else {
-                    parser.skipChildren();
+            XContentParser.Token token = parser.nextToken();
+            if (token == XContentParser.Token.START_ARRAY) {
+                // Bare array format [0.1, 0.2, ...] — matches the inference pipeline output
+                int count = 0;
+                while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                    count++;
                 }
+                return count;
+            } else if (token == XContentParser.Token.START_OBJECT) {
+                // Object format {"values": [0.1, 0.2, ...]}
+                while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                    String fieldName = parser.currentName();
+                    parser.nextToken();
+                    if ("values".equals(fieldName)) {
+                        int count = 0;
+                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+                            count++;
+                        }
+                        return count;
+                    } else {
+                        parser.skipChildren();
+                    }
+                }
+                throw new ElasticsearchStatusException("Embedding JSON does not contain a 'values' array", RestStatus.BAD_REQUEST);
+            } else {
+                throw new ElasticsearchStatusException("Unexpected embedding format", RestStatus.BAD_REQUEST);
             }
-            throw new ElasticsearchStatusException("Embedding JSON does not contain a 'values' array", RestStatus.BAD_REQUEST);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }

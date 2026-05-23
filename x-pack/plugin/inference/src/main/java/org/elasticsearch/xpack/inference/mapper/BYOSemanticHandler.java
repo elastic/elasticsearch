@@ -302,11 +302,13 @@ public final class BYOSemanticHandler {
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             if (embeddingsObj instanceof Map<?, ?>) {
                 builder.map((Map<String, Object>) embeddingsObj);
-            } else if (embeddingsObj instanceof List<?>) {
-                // Wrap bare array in {"values": [...]} format
-                builder.startObject();
-                builder.field("values", embeddingsObj);
-                builder.endObject();
+            } else if (embeddingsObj instanceof List<?> list) {
+                // Store as a bare array, matching the format used by the inference pipeline
+                builder.startArray();
+                for (Object item : list) {
+                    builder.value(item);
+                }
+                builder.endArray();
             } else {
                 throw new ElasticsearchStatusException(
                     "Unsupported embeddings type [{}]",

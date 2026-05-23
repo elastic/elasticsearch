@@ -310,12 +310,9 @@ public final class BulkByScrollWireSerializingTestUtils {
                     ESTestCase.randomValueOtherThan(originalRequest.getSearchRequest().source().size(), () -> ESTestCase.between(1, 2000))
                 );
             case 2 -> mutatedRequest.setAbortOnVersionConflict(originalRequest.isAbortOnVersionConflict() == false);
-            case 3 -> {
-                int minMaxDocs = Math.max(10, mutatedRequest.getSlices());
-                mutatedRequest.setMaxDocs(
-                    ESTestCase.randomValueOtherThan(originalRequest.getMaxDocs(), () -> ESTestCase.between(minMaxDocs, 50000))
-                );
-            }
+            case 3 -> mutatedRequest.setMaxDocs(
+                ESTestCase.randomValueOtherThan(originalRequest.getMaxDocs(), () -> ESTestCase.between(10, 50000))
+            );
             case 4 -> mutatedRequest.setRefresh(originalRequest.isRefresh() == false);
             case 5 -> mutatedRequest.setTimeout(ESTestCase.randomValueOtherThan(originalRequest.getTimeout(), ESTestCase::randomTimeValue));
             case 6 -> mutatedRequest.setWaitForActiveShards(

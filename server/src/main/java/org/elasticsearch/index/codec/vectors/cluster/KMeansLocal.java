@@ -196,6 +196,13 @@ abstract class KMeansLocal<V> {
 
     /**
      * Compute a clustering that is not neighbor aware.
+     * Different implementations of this abstract class may use different algorithm for clustering.
+     *
+     * @param vectors the vectors to cluster
+     * @param kMeansIntermediate the output object to populate which minimally includes centroids,
+     *                     but may include assignments and soar assignments as well; care should be taken in
+     *                     passing in a valid output object with a centroids array that is the size of centroids expected
+     * @throws IOException is thrown if vectors is inaccessible
      */
     final void cluster(ClusteringVectorValues<V> vectors, KMeansIntermediate<V> kMeansIntermediate) throws IOException {
         doCluster(vectors, kMeansIntermediate, -1, -1);
@@ -203,6 +210,18 @@ abstract class KMeansLocal<V> {
 
     /**
      * Compute a clustering that considers prior clustered neighborhoods when adjusting centroids.
+     * Different implementations of this abstract class may use different algorithm for clustering.
+     * This also is used to generate the neighborhood aware additional (SOAR) assignments
+     *
+     * @param vectors the vectors to cluster
+     * @param kMeansIntermediate the output object to populate which minimally includes centroids,
+     *                     the prior assignments of the given vectors; care should be taken in
+     *                     passing in a valid output object with a centroids array that is the size of centroids expected
+     *                     and assignments that are the same size as the vectors.  The SOAR assignments are overwritten by this operation.
+     * @param clustersPerNeighborhood number of nearby neighboring centroids to be used to update the centroid positions.
+     * @param soarLambda   lambda used for SOAR assignments
+     *
+     * @throws IOException is thrown if vectors is inaccessible or if the clustersPerNeighborhood is less than 2
      * This also is used to generate the neighborhood aware additional (SOAR) assignments.
      */
     final void cluster(
@@ -220,6 +239,16 @@ abstract class KMeansLocal<V> {
     /**
      * cluster using a Lloyd kmeans algorithm that also considers prior clustered neighborhoods when adjusting centroids
      * this also is used to generate the neighborhood aware additional (SOAR) assignments
+     *
+     * @param vectors the vectors to cluster
+     * @param kMeansIntermediate the output object to populate which minimally includes centroids, the prior assignments of the given
+     *                           vectors; care should be taken in passing in a valid output object with a centroids array that is the size
+     *                           of centroids expected and assignments that are the same size as the vectors.
+     *                           The SOAR assignments are overwritten by this operation.
+     * @param clustersPerNeighborhood number of nearby neighboring centroids to be used to update the centroid positions.
+     * @param soarLambda   lambda used for SOAR assignments
+     *
+     * @throws IOException is thrown if vectors is inaccessible or if the clustersPerNeighborhood is less than 2
      */
     protected void doCluster(
         ClusteringVectorValues<V> vectors,

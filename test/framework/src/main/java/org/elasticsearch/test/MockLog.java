@@ -453,7 +453,7 @@ public class MockLog implements Releasable {
     /**
      * Executes an action and verifies expectations against the provided logger
      */
-    public static void assertThatLogger(Runnable action, String loggerOwner, LoggingExpectation... expectations) {
+    public static void assertThatLogger(Runnable action, String loggerOwner, MockLog.LoggingExpectation... expectations) {
         try (var mockLog = MockLog.capture(loggerOwner)) {
             for (var expectation : expectations) {
                 mockLog.addExpectation(expectation);

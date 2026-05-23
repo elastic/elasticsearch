@@ -1301,6 +1301,12 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
 
         /**
+         * Fix for {@code PruneColumns} leaving an inconsistent plan when an {@code INLINE STATS} sits above a {@code UnionAll}
+         * (from a subquery in FROM) or a {@code Fork}.
+         */
+        SUBQUERY_IN_FROM_COMMAND_INLINE_STATS_PRUNING,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          * TODO: drop the {@code Build.current().isSnapshot()} gate (and the matching
          * {@code {this.isDevVersion()}?} predicates in InExpression.g4 / EsqlBaseParser.g4)

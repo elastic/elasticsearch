@@ -3489,55 +3489,36 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         /**
          * Update the attributes referencing the updated UnionAll output.
          * <p>
-         * The {@code updatedUnionAllOutput} list contains the {@link UnionAll} output attributes whose data type
-         * changed during implicit casting (e.g. a {@code counter_long} that was coerced to {@code long} because a
-         * sibling branch fills the column with a non-counter null). A single-pass id rewrite is not enough:
-         * downstream commands such as {@code RENAME} introduce {@link Alias} nodes whose {@link Alias#toAttribute()}
-         * is later snapshotted by {@code KEEP *} (or any other command that materialises a node's output) into a
-         * {@link ReferenceAttribute} with the alias's own {@link NameId}. That alias id is never registered in
-         * {@code updatedUnionAllOutput} — only the UnionAll column ids are — so the stale reference survives in a
-         * downstream {@code Project}, producing an {@code "Output has changed"} verification failure.
+         * Beyond updating direct attribute references (e.g. a {@code KEEP} projection that names a fork-output attribute),
+         * this also cascades the type change through {@link Alias} nodes whose child is a direct attribute reference.
          * <p>
-         * We walk the plan bottom-up exactly once with
-         * {@link org.elasticsearch.xpack.esql.plan.QueryPlan#transformExpressionsUp(Class, java.util.function.Function)},
-         * visiting every {@link NamedExpression} in the tree. For each expression we either:
-         * <ol>
-         *   <li>replace it, when it is an {@link Attribute} whose id is in the running map and whose data type still
-         *       differs from the updated attribute's; or</li>
-         *   <li>extend the map, when it is an {@link Alias} whose direct child is an {@link Attribute} already present
-         *       in the map. Such an alias is precisely a {@code RENAME}-style alias whose underlying column was
-         *       re-typed by the UnionAll resolution, so its own {@link Alias#toAttribute()} now reports the updated
-         *       data type and downstream materialised references to it must also be replaced. We register the alias's
-         *       {@link Alias#toAttribute()} under its own {@link NameId} so later iterations of this same traversal
-         *       can rewrite stale references to it.</li>
-         * </ol>
-         * Because {@code transformExpressionsUp} traverses plan nodes — and the expression tree at each node — bottom
-         * up, every relevant alias is registered before any downstream {@code Project} that materialised its
-         * attribute is visited. The traversal is O(plan size) and the alias-registration condition is narrowly scoped
-         * to "child is a re-typed attribute" so unrelated aliases (whose data type doesn't depend on a UnionAll-driven
-         * re-typing) are left alone.
+         * Before the expression walk, scan the plan for {@code Alias} nodes whose immediate child is an attribute that was just updated.
+         * For each such alias the cached output attribute has the old type, so add a {@code {alias.id → alias.withNewType}} entry to the
+         * update map. The subsequent {@code transformExpressionsUp} then repairs every consumer of the alias output in one pass.
          */
         private static LogicalPlan updateAttributesReferencingUpdatedUnionAllOutput(
             LogicalPlan plan,
             List<Attribute> updatedUnionAllOutput
         ) {
-            Map<NameId, Attribute> idToUpdatedAttr = updatedUnionAllOutput.stream().collect(Collectors.toMap(Attribute::id, attr -> attr));
-            return plan.transformExpressionsUp(NamedExpression.class, expr -> {
-                if (expr instanceof Attribute attr) {
-                    Attribute updated = idToUpdatedAttr.get(attr.id());
-                    if (updated != null && attr.dataType() != updated.dataType()) {
-                        return updated;
-                    }
-                } else if (expr instanceof Alias alias && alias.child() instanceof Attribute child) {
-                    // An alias whose child is a re-typed attribute carries the updated data type via toAttribute();
-                    // register it under its own NameId so any downstream materialised reference to this alias is
-                    // rewritten on a subsequent visit in this same bottom-up traversal.
-                    if (idToUpdatedAttr.containsKey(child.id())) {
-                        Attribute aliasAttr = alias.toAttribute();
-                        idToUpdatedAttr.putIfAbsent(aliasAttr.id(), aliasAttr);
+            Map<NameId, Attribute> idToUpdatedAttr = new HashMap<>();
+            updatedUnionAllOutput.forEach(attr -> idToUpdatedAttr.put(attr.id(), attr));
+
+            // Cascade: collect Alias nodes above the UnionAll whose child directly references a changed attribute.
+            plan.forEachExpressionUp(Alias.class, alias -> {
+                if (alias.child() instanceof Attribute childAttr) {
+                    Attribute updatedChild = idToUpdatedAttr.get(childAttr.id());
+                    if (updatedChild != null && childAttr.dataType() != updatedChild.dataType()) {
+                        Attribute aliasOutput = alias.toAttribute();
+                        if (aliasOutput.dataType() != updatedChild.dataType()) {
+                            idToUpdatedAttr.put(aliasOutput.id(), aliasOutput.withDataType(updatedChild.dataType()));
+                        }
                     }
                 }
-                return expr;
+            });
+
+            return plan.transformExpressionsUp(Attribute.class, expr -> {
+                Attribute updated = idToUpdatedAttr.get(expr.id());
+                return (updated != null && expr.dataType() != updated.dataType()) ? updated : expr;
             });
         }
     }

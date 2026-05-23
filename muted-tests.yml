@@ -606,3 +606,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessResizeIT
   method: testSplitIndex
   issue: https://github.com/elastic/elasticsearch/issues/149777
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionWithSecurityIT
+  method: testCanTransitionIndex
+  issue: https://github.com/elastic/elasticsearch/issues/149770

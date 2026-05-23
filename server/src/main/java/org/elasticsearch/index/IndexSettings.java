@@ -439,6 +439,16 @@ public final class IndexSettings {
         Property.IndexScope
     );
 
+    public static final TimeValue DEFAULT_SEMANTIC_TEXT_STAGED_TTL = TimeValue.timeValueHours(24);
+
+    public static final Setting<TimeValue> INDEX_SEMANTIC_TEXT_STAGED_TTL = Setting.timeSetting(
+        "index.semantic_text.staged_ttl",
+        DEFAULT_SEMANTIC_TEXT_STAGED_TTL,
+        new TimeValue(-1, TimeUnit.MILLISECONDS),
+        Property.Dynamic,
+        Property.IndexScope
+    );
+
     /**
      * Specifies if the index should use soft-delete instead of hard-delete for update/delete operations.
      * Soft-deletes is enabled by default for 7.0 indices and mandatory for 8.0 indices.
@@ -1294,6 +1304,7 @@ public final class IndexSettings {
     private final boolean useEs812PostingsFormat;
     private final boolean disableSequenceNumbers;
     private final boolean indexDisabledByDefault;
+    private volatile long semanticTextStagedTtlMillis;
 
     /**
      * The maximum number of refresh listeners allows on this shard.
@@ -1547,6 +1558,7 @@ public final class IndexSettings {
         }
         disableSequenceNumbers = DISABLE_SEQUENCE_NUMBERS.get(settings);
         dynamicStringsAutoText = DYNAMIC_STRINGS_AUTO_TEXT.get(settings);
+        semanticTextStagedTtlMillis = scopedSettings.get(INDEX_SEMANTIC_TEXT_STAGED_TTL).getMillis();
         scopedSettings.addSettingsUpdateConsumer(
             MergePolicyConfig.INDEX_COMPOUND_FORMAT_SETTING,
             mergePolicyConfig::setCompoundFormatThreshold
@@ -1643,6 +1655,7 @@ public final class IndexSettings {
         scopedSettings.addSettingsUpdateConsumer(DenseVectorFieldMapper.HNSW_EARLY_TERMINATION, this::setHnswEarlyTermination);
         scopedSettings.addSettingsUpdateConsumer(INTRA_MERGE_PARALLELISM_ENABLED_SETTING, this::setIntraMergeParallelismEnabled);
         scopedSettings.addSettingsUpdateConsumer(DYNAMIC_STRINGS_AUTO_TEXT, this::setDynamicStringsAutoText);
+        scopedSettings.addSettingsUpdateConsumer(INDEX_SEMANTIC_TEXT_STAGED_TTL, this::setSemanticTextStagedTtl);
     }
 
     private void setSearchIdleAfter(TimeValue searchIdleAfter) {
@@ -1671,6 +1684,14 @@ public final class IndexSettings {
 
     private void setRefreshInterval(TimeValue timeValue) {
         this.refreshInterval = timeValue;
+    }
+
+    public long getSemanticTextStagedTtlMillis() {
+        return semanticTextStagedTtlMillis;
+    }
+
+    private void setSemanticTextStagedTtl(TimeValue ttl) {
+        this.semanticTextStagedTtlMillis = ttl.getMillis();
     }
 
     /**

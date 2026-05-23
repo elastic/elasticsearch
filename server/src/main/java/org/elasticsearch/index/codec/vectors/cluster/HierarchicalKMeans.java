@@ -136,7 +136,7 @@ public class HierarchicalKMeans<V> {
             floatOps.divide(centroidF, vectors.size(), dimension);
             @SuppressWarnings("unchecked")
             V centroid = (V) centroidF;
-            V[] centroids = ops.newCentroidArray(1, 0);
+            V[] centroids = ops.newCentroidArrayShallow(1);
             centroids[0] = centroid;
             return new KMeansIntermediate<>(centroids, new int[vectors.size()]);
         }

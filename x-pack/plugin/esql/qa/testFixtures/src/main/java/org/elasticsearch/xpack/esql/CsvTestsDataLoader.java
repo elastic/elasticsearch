@@ -132,6 +132,9 @@ public class CsvTestsDataLoader {
             "partial_mapping_sample_data.csv"
         ),
         new TestDataset("mv_sample_data"),
+        new TestDataset("event_alerts"),
+        new TestDataset("event_logs"),
+        new TestDataset("event_empty").noData(),
         new TestDataset("alerts"),
         new TestDataset("sample_data").withIndex("sample_data_str").withTypeMapping(Map.of("client_ip", "keyword")),
         new TestDataset("sample_data").withIndex("sample_data_ts_long")

@@ -10517,6 +10517,30 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
      *           \_EsRelation[employees][_meta_field{f}#23, emp_no{f}#17, first_name{f}#18, ..]
      * }
      */
+    /**
+     * Mirrors the csv-spec approximation test "Fork with stats in just one branch" structurally:
+     * one Fork branch is a STATS, the other is a passthrough; the outer TopN sorts by _fork and
+     * another column. {@link org.elasticsearch.xpack.esql.optimizer.rules.logical.PruneConstantSortKeysFromTopN}
+     * must NOT fire here — its stop predicate stops at Fork boundaries, so {@code _fork} and
+     * {@code emp_no} should never be classified as foldable from the outer scope, and the
+     * TopN's two sort orders should survive into the optimized plan unchanged.
+     */
+    public void testTopNWithSortByForkAndColumnIsPreserved() {
+        var query = """
+            from employees
+             | fork (stats count = count())
+                    (keep emp_no)
+             | sort _fork, emp_no
+             | limit 5
+            """;
+        var plan = optimizedPlan(query);
+        var topN = as(plan, TopN.class);
+        assertThat(((Literal) topN.limit()).value(), equalTo(5));
+        assertThat(topN.order(), hasSize(2));
+        var fork = as(topN.child(), Fork.class);
+        assertThat(fork.children(), hasSize(2));
+    }
+
     public void testPushDownLimitInFork() {
         var query = """
             from employees

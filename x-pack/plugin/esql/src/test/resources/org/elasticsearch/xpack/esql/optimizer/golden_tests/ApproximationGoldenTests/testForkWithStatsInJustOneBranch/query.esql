@@ -1,0 +1,6 @@
+SET approximation={"rows":10000};
+FROM many_numbers
+  | FORK (STATS count = COUNT())
+         (KEEP sv)
+  | SORT _fork, sv
+  | LIMIT 5

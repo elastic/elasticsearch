@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -84,6 +85,12 @@ public final class PruneConstantSortKeysFromTopN extends ParameterizedRule<Logic
             p -> p instanceof Fork || p instanceof Aggregate
         );
         List<Order> nonConstant = topN.order().stream().filter(o -> {
+            // Never prune the Fork branch identifier. Within a per-branch fragment seen at the
+            // local stage, `_fork` is a literal (e.g. "fork2"), but the coordinator's k-way merge
+            // across branches depends on it remaining in the sort.
+            if (o.child() instanceof Attribute attr && Fork.FORK_FIELD.equals(attr.name())) {
+                return true;
+            }
             Expression key = foldables.resolve(o.child(), o.child());
             return key.foldable() == false && isMissingField(key) == false;
         }).toList();

@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.inference.mapper;
 
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.Map;
+
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class BYOSemanticHandlerTests extends ESTestCase {
 
@@ -44,5 +47,40 @@ public class BYOSemanticHandlerTests extends ESTestCase {
 
     public void testParseNullActionThrows() {
         expectThrows(NullPointerException.class, () -> BYOSemanticAction.fromString(null));
+    }
+
+    public void testDetectStringValueIsNotBYO() {
+        assertFalse(BYOSemanticHandler.isBYOValue("some text"));
+    }
+
+    public void testDetectNullValueIsNotBYO() {
+        assertFalse(BYOSemanticHandler.isBYOValue(null));
+    }
+
+    public void testDetectMapWithActionIsBYO() {
+        Map<String, Object> value = Map.of("_action", "stage_init", "text", "hello");
+        assertTrue(BYOSemanticHandler.isBYOValue(value));
+    }
+
+    public void testDetectMapWithTextAndChunksIsBYO() {
+        Map<String, Object> value = Map.of("text", "hello", "chunks", java.util.List.of());
+        assertTrue(BYOSemanticHandler.isBYOValue(value));
+    }
+
+    public void testDetectMapWithoutActionOrChunksIsNotBYO() {
+        Map<String, Object> value = Map.of("inference", Map.of("model_id", "my-model"));
+        assertFalse(BYOSemanticHandler.isBYOValue(value));
+    }
+
+    public void testDetectActionType() {
+        assertThat(BYOSemanticHandler.getAction(Map.of("_action", "stage_init")), equalTo(BYOSemanticAction.STAGE_INIT));
+        assertThat(BYOSemanticHandler.getAction(Map.of("_action", "stage")), equalTo(BYOSemanticAction.STAGE));
+        assertThat(BYOSemanticHandler.getAction(Map.of("_action", "commit")), equalTo(BYOSemanticAction.COMMIT));
+        assertThat(BYOSemanticHandler.getAction(Map.of("_action", "cancel")), equalTo(BYOSemanticAction.CANCEL));
+    }
+
+    public void testSingleShotBYOHasNoAction() {
+        Map<String, Object> value = Map.of("text", "hello", "chunks", java.util.List.of());
+        assertThat(BYOSemanticHandler.getAction(value), nullValue());
     }
 }

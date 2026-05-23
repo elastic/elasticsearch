@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -153,12 +154,12 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
         sb.append('!');
         if (qualifier() != null) {
-            sb.append(format.rewriter.column(qualifier())).append('.');
+            sb.append(mapper.column(qualifier())).append('.');
         }
-        sb.append(format.rewriter.column(name()));
+        sb.append(mapper.column(name()));
     }
 
     @Override

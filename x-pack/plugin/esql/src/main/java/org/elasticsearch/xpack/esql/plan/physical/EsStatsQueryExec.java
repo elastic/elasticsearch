@@ -14,6 +14,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -164,17 +165,17 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize, Data
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append('[').append(format.rewriter.index(indexPattern)).append("], stats[");
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+        sb.append(nodeName()).append('[').append(mapper.index(indexPattern)).append("], stats[");
         // The stats descriptor + raw query DSL both carry user content (field references inside
         // aggregations, predicate values inside the Lucene query) that we can't safely walk into.
-        // Suppress under a rewriting format; raw modes keep the original rendering.
-        if (format.rewrites()) {
+        // Suppress under a non-identity mapper; identity mapper keeps the original rendering.
+        if (mapper != IdentifierMapper.IDENTITY) {
             sb.append("<dropped>], query[<dropped>]");
         } else {
             sb.append(stat).append("], query[").append(query != null ? Strings.toString(query, false, true) : "").append(']');
         }
-        NodeUtils.toString(sb, attrs, format);
+        NodeUtils.toString(sb, attrs, format, mapper);
         sb.append(", limit[").append(limit != null ? limit.toString(format) : "").append("], ");
     }
 }

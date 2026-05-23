@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -80,7 +81,7 @@ public class UnresolvedMetadataAttributeExpression extends UnresolvedNamedExpres
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
         sb.append(UNRESOLVED_PREFIX);
         // Local wildcard parser — same shape as UnresolvedNamePattern.rewriteWildcardPattern but
         // duplicated here because this class lives in core.expression and can't reach into
@@ -88,7 +89,7 @@ public class UnresolvedMetadataAttributeExpression extends UnresolvedNamedExpres
         if (pattern == null || pattern.isEmpty()) {
             return;
         }
-        var rewriter = format.rewriter;
+        var rewriter = mapper;
         StringBuilder run = new StringBuilder();
         for (int i = 0; i < pattern.length(); i++) {
             char c = pattern.charAt(i);
@@ -98,7 +99,7 @@ public class UnresolvedMetadataAttributeExpression extends UnresolvedNamedExpres
             }
             if (c == '*' || c == '?' || c == '%' || c == '_') {
                 if (run.length() > 0) {
-                    sb.append(rewriter.column(run.toString()));
+                    sb.append(mapper.column(run.toString()));
                     run.setLength(0);
                 }
                 sb.append(c);
@@ -107,7 +108,7 @@ public class UnresolvedMetadataAttributeExpression extends UnresolvedNamedExpres
             }
         }
         if (run.length() > 0) {
-            sb.append(rewriter.column(run.toString()));
+            sb.append(mapper.column(run.toString()));
         }
     }
 }

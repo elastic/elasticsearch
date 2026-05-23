@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -353,7 +354,7 @@ public class PromqlCommand extends UnaryPlan
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
         sb.append(nodeName());
         sb.append(" start=[").append(start);
         sb.append("] end=[").append(end);
@@ -362,7 +363,7 @@ public class PromqlCommand extends UnaryPlan
         sb.append("] scrape_interval=[").append(scrapeInterval);
         sb.append("] valueColumnName=[").append(valueColumnName);
         sb.append("] promql=[<>\n");
-        sb.append(promqlPlan.toString(format));
+        sb.append(promqlPlan.toString(format, mapper));
         sb.append("\n<>]]");
     }
 

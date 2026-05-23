@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -242,9 +243,9 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
         sb.append(nodeName()).append("[").append(sourcePath).append("][").append(sourceType()).append("]");
-        NodeUtils.toString(sb, output, format);
+        NodeUtils.toString(sb, output, format, mapper);
     }
 
     public ExternalRelation withAttributes(List<Attribute> newAttributes) {

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -348,18 +349,13 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName())
-            .append('[')
-            .append(format.rewriter.index(indexPattern))
-            .append("], indexMode[")
-            .append(indexMode)
-            .append("], ");
-        NodeUtils.toString(sb, attrs, format);
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+        sb.append(nodeName()).append('[').append(mapper.index(indexPattern)).append("], indexMode[").append(indexMode).append("], ");
+        NodeUtils.toString(sb, attrs, format, mapper);
         sb.append(", limit[").append(limit != null ? limit.toString(format) : "").append("], ");
         // Sorts and queryBuilderAndTags both carry raw user content (sort keys, Lucene-pushdown
-        // DSL); on a rewriting format we drop them rather than try to walk in.
-        if (format.rewrites()) {
+        // DSL); under a non-identity mapper we drop them rather than try to walk in.
+        if (mapper != IdentifierMapper.IDENTITY) {
             sb.append("sort[<dropped>] estimatedRowSize[").append(estimatedRowSize).append("] queryBuilderAndTags[<dropped>]");
         } else {
             sb.append("sort[")

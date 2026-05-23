@@ -15,6 +15,7 @@ import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -663,7 +664,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
         sb.append(nodeName()).append("[").append(sourcePath).append("][").append(sourceType).append("]");
         if (pushedFilter != null) {
             sb.append("[filter=").append(pushedFilter).append("]");
@@ -685,6 +686,6 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         if (splits.isEmpty() == false) {
             sb.append("[splits=").append(splits.size()).append("]");
         }
-        NodeUtils.toString(sb, attributes, format);
+        NodeUtils.toString(sb, attributes, format, mapper);
     }
 }

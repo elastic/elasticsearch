@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.core.anonymizer;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.core.tree.NodeStringRewriter;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.nio.charset.StandardCharsets;
@@ -41,7 +41,7 @@ import javax.crypto.spec.SecretKeySpec;
  * A fresh context is constructed per query submission via {@link #forSubmission(String)}; reusing
  * one across submissions would leak literal identity across queries.
  */
-public final class AnonymizationContext implements NodeStringRewriter {
+public final class AnonymizationContext implements IdentifierMapper {
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     /**

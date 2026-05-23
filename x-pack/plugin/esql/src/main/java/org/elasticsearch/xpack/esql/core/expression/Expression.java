@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.core.expression;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -229,7 +230,7 @@ public abstract class Expression extends Node<Expression> implements Resolvable 
     }
 
     @Override
-    public void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format) {
-        super.propertiesToString(sb, false, format);
+    public void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format, IdentifierMapper mapper) {
+        super.propertiesToString(sb, false, format, mapper);
     }
 }

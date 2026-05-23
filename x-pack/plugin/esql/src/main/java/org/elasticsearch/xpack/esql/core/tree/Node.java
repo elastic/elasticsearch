@@ -450,111 +450,69 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
     }
 
     /**
-     * Configuration for rendering the string representation. Three flavors:
-     * <ul>
-     *   <li>{@link #LIMITED} — bounded width / lines / property count for human-readable
-     *       debug toString. The default.</li>
-     *   <li>{@link #FULL} — no limits, prints everything raw.</li>
-     *   <li>{@link #withRewriter} — full-fidelity rendering with identifier / literal / pattern
-     *       strings routed through a {@link NodeStringRewriter} (e.g. an anonymizer). Used for the
-     *       failure-path telemetry log.</li>
-     * </ul>
-     * Was an enum previously; promoted to an abstract class so the rewriting variant can carry
-     * per-submission state. {@link #LIMITED} and {@link #FULL} remain static constants; existing
-     * call sites that say {@code NodeStringFormat.LIMITED} keep working.
+     * Output-shape configuration for the {@code nodeString} render pipeline. Controls truncation,
+     * width, and property-count limits. Orthogonal to identifier mapping — anonymization or any
+     * other identifier-substitution variant flows through a separately-passed
+     * {@link IdentifierMapper}.
      */
-    public abstract static class NodeStringFormat {
-        /** Bounded width / lines / property count. */
-        public static final NodeStringFormat LIMITED = new Standard(TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH, TO_STRING_MAX_LINES);
-        /** No truncation; identity rewriter. */
-        public static final NodeStringFormat FULL = new Standard(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
-
-        /** Returns a format that routes identifier strings through the supplied rewriter. */
-        public static NodeStringFormat withRewriter(NodeStringRewriter rewriter) {
-            return new WithRewriter(rewriter);
-        }
+    public enum NodeStringFormat {
+        /** Bounded width / lines / property count for human-readable debug toString. The default. */
+        LIMITED(TO_STRING_MAX_PROP, TO_STRING_MAX_WIDTH, TO_STRING_MAX_LINES),
+        /** No truncation; renders everything. */
+        FULL(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE);
 
         final int maxProperties;
         final int maxWidth;
         final int maxLines;
-        /**
-         * Plug-in that maps identifier / literal / pattern strings to their rendered form. Always
-         * non-null — {@link NodeStringRewriter#IDENTITY} is used for {@link #LIMITED} and
-         * {@link #FULL}, so {@code nodeString} implementations can call
-         * {@code format.rewriter.column(name)} without a null check.
-         */
-        public final NodeStringRewriter rewriter;
 
-        NodeStringFormat(int maxProperties, int maxWidth, int maxLines, NodeStringRewriter rewriter) {
+        NodeStringFormat(int maxProperties, int maxWidth, int maxLines) {
             this.maxProperties = maxProperties;
             this.maxWidth = maxWidth;
             this.maxLines = maxLines;
-            this.rewriter = rewriter;
-        }
-
-        /** True when this format is doing some kind of identifier rewriting. */
-        public boolean rewrites() {
-            return rewriter != NodeStringRewriter.IDENTITY;
-        }
-
-        /**
-         * Identity-rewriter format for {@link #LIMITED} and {@link #FULL}. Note that
-         * {@code Literal.nodeString} takes a fast path under non-rewriting formats and uses
-         * {@code Literal.toString(format)} for the value portion (which honours LIMITED-format
-         * truncation); the rewriter's {@code literal} method is only consulted when
-         * {@link #rewrites()} is true. Hypothetical non-anonymizing rewriters wired via
-         * {@link #withRewriter(NodeStringRewriter)} therefore opt out of truncation; that's
-         * acceptable because the only rewriting variant today (anonymization) emits short tokens.
-         */
-        private static final class Standard extends NodeStringFormat {
-            Standard(int maxProperties, int maxWidth, int maxLines) {
-                super(maxProperties, maxWidth, maxLines, NodeStringRewriter.IDENTITY);
-            }
-        }
-
-        /** Full-fidelity format wrapping a non-identity rewriter (e.g. anonymization). */
-        private static final class WithRewriter extends NodeStringFormat {
-            WithRewriter(NodeStringRewriter rewriter) {
-                super(Integer.MAX_VALUE, Integer.MAX_VALUE, Integer.MAX_VALUE, rewriter);
-            }
         }
     }
 
     /**
      * Render this {@link Node} to a {@link String} with the
-     * {@link NodeStringFormat#LIMITED limited} format. This does not include
-     * this node's {@link #children()}.
+     * {@link NodeStringFormat#LIMITED limited} format and the identity mapper. This does not
+     * include this node's {@link #children()}.
      */
     public final String nodeString() {
         StringBuilder sb = new StringBuilder();
-        nodeString(sb, NodeStringFormat.LIMITED);
+        nodeString(sb, NodeStringFormat.LIMITED, IdentifierMapper.IDENTITY);
         return sb.toString();
     }
 
     /**
      * Append this {@link Node}'s string representation to {@code sb}. This
      * does not include this node's {@link #children()}.
-     * @param sb target for the string
-     * @param format configuration for rendering the string representation
+     * @param sb     target for the string
+     * @param format output-shape configuration (width / lines / property count)
+     * @param mapper identifier-mapping strategy (raw via {@link IdentifierMapper#IDENTITY},
+     *               anonymized via the failure-path anonymizer, etc.)
      */
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
         sb.append(nodeName());
         sb.append("[");
-        propertiesToString(sb, true, format);
+        propertiesToString(sb, true, format, mapper);
         sb.append("]");
     }
 
     @Override
     public String toString() {
-        return toString(NodeStringFormat.LIMITED);
+        return toString(NodeStringFormat.LIMITED, IdentifierMapper.IDENTITY);
     }
 
     public String toString(NodeStringFormat format) {
-        return new NodeToString(format).treeString(this, 0).toString();
+        return toString(format, IdentifierMapper.IDENTITY);
     }
 
-    protected void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format) {
-        new NodePropertiesToString(sb, format, this, skipIfChild).propertiesToString();
+    public String toString(NodeStringFormat format, IdentifierMapper mapper) {
+        return new NodeToString(format, mapper).treeString(this, 0).toString();
+    }
+
+    protected void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format, IdentifierMapper mapper) {
+        new NodePropertiesToString(sb, format, mapper, this, skipIfChild).propertiesToString();
     }
 
     private <U> boolean containsNull(List<U> us) {

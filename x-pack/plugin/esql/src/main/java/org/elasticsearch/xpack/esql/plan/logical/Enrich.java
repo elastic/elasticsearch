@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -185,15 +186,14 @@ public class Enrich extends UnaryPlan
     }
 
     /**
-     * The {@code concreteIndices} map ({@code cluster alias → enrich-index name}) renders only
-     * when the format is rewriting — under raw {@link NodeStringFormat#LIMITED} /
-     * {@link NodeStringFormat#FULL} the standard {@link NodeInfo} property walk already covers it.
-     * Identifier mentions route through {@link NodeStringFormat#rewriter}.
+     * Under the identity mapper the default {@link NodeInfo} property walk already covers the
+     * {@code concreteIndices} map. Under a non-identity mapper we emit our own rendering so the
+     * cluster-alias keys and concrete-index values route through {@code mapper.index}.
      */
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        if (format.rewrites() == false) {
-            super.nodeString(sb, format);
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+        if (mapper == IdentifierMapper.IDENTITY) {
+            super.nodeString(sb, format, mapper);
             return;
         }
         sb.append(nodeName()).append("[mode=").append(mode);
@@ -205,7 +205,7 @@ public class Enrich extends UnaryPlan
                     sb.append(", ");
                 }
                 first = false;
-                sb.append(format.rewriter.index(e.getKey())).append('=').append(format.rewriter.index(e.getValue()));
+                sb.append(mapper.index(e.getKey())).append('=').append(mapper.index(e.getValue()));
             }
             sb.append('}');
         }

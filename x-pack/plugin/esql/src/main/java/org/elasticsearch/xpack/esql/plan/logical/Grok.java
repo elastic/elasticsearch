@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -164,9 +165,9 @@ public class Grok extends RegexExtract implements TelemetryAware, SortPreserving
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
         sb.append(nodeName()).append("[pattern=\"");
-        rewriteGrokPattern(sb, parser.pattern(), format.rewriter);
+        rewriteGrokPattern(sb, parser.pattern(), mapper);
         sb.append("\"]");
     }
 
@@ -174,13 +175,13 @@ public class Grok extends RegexExtract implements TelemetryAware, SortPreserving
      * Renders a Grok pattern of shape {@code "%{IP:client_ip} %{NUMBER:bytes:int}"}. The Grok
      * library identifier (the part before the first {@code :}) is a predefined library name (IP,
      * NUMBER, DATA, ...), not customer data — passes through. The capture name routes through
-     * {@code rewriter.column}. The optional type-coercion suffix after the second colon passes
+     * {@code mapper.column}. The optional type-coercion suffix after the second colon passes
      * through.
      */
     public static void rewriteGrokPattern(
         StringBuilder sb,
         String pattern,
-        org.elasticsearch.xpack.esql.core.tree.NodeStringRewriter rewriter
+        org.elasticsearch.xpack.esql.core.tree.IdentifierMapper mapper
     ) {
         if (pattern == null || pattern.isEmpty()) {
             return;
@@ -209,7 +210,7 @@ public class Grok extends RegexExtract implements TelemetryAware, SortPreserving
                 int secondColon = rest.indexOf(':');
                 String captureName = secondColon < 0 ? rest : rest.substring(0, secondColon);
                 String suffix = secondColon < 0 ? "" : rest.substring(secondColon);
-                sb.append(libraryId).append(':').append(rewriter.column(captureName)).append(suffix);
+                sb.append(libraryId).append(':').append(mapper.column(captureName)).append(suffix);
             }
             sb.append('}');
             i = end + 1;

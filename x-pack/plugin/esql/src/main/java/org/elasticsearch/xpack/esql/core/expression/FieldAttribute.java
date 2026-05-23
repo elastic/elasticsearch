@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -347,17 +348,16 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
 
     /**
      * Renders the FieldAttribute as {@code [<qual>.]<name>{f[(SubclassName)][$]}#id}. Identifier
-     * mentions route through the format's
-     * {@link org.elasticsearch.xpack.esql.core.tree.NodeStringRewriter}; in LIMITED mode the
+     * mentions route through the supplied
+     * {@link org.elasticsearch.xpack.esql.core.tree.IdentifierMapper}; in LIMITED mode the
      * EsField subclass marker is suppressed to keep the rendering compact.
      */
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        var rewriter = format.rewriter;
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
         if (qualifier() != null) {
-            sb.append(rewriter.column(qualifier())).append('.');
+            sb.append(mapper.column(qualifier())).append('.');
         }
-        sb.append(rewriter.column(name())).append('{').append(label());
+        sb.append(mapper.column(name())).append('{').append(label());
         if (format != NodeStringFormat.LIMITED && field.getNodeStringName().isEmpty() == false) {
             sb.append('(').append(field.getNodeStringName()).append(')');
         }

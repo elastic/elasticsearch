@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -203,15 +204,15 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize, ExecutesO
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        // Under a rewriting format we route policyName + concreteIndices keys/values through the
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+        // Under a non-identity mapper we route policyName + concreteIndices keys/values through the
         // index-token map and skip the policyMatchField raw rendering (it surfaces in the
         // standard property walk for raw modes via its Attribute nodeString).
-        if (format.rewrites() == false) {
-            super.nodeString(sb, format);
+        if (mapper == IdentifierMapper.IDENTITY) {
+            super.nodeString(sb, format, mapper);
             return;
         }
-        sb.append(nodeName()).append("[mode=").append(mode).append(", policy=").append(format.rewriter.index(policyName));
+        sb.append(nodeName()).append("[mode=").append(mode).append(", policy=").append(mapper.index(policyName));
         if (concreteIndices != null && concreteIndices.isEmpty() == false) {
             sb.append(", concreteIndices={");
             boolean first = true;
@@ -220,7 +221,7 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize, ExecutesO
                     sb.append(", ");
                 }
                 first = false;
-                sb.append(format.rewriter.index(e.getKey())).append('=').append(format.rewriter.index(e.getValue()));
+                sb.append(mapper.index(e.getKey())).append('=').append(mapper.index(e.getValue()));
             }
             sb.append('}');
         }

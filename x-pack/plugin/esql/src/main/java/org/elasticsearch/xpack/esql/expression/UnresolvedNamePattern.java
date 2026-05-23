@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
@@ -112,21 +113,21 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
         sb.append(UNRESOLVED_PREFIX);
-        rewriteWildcardPattern(sb, pattern, format.rewriter);
+        rewriteWildcardPattern(sb, pattern, mapper);
     }
 
     /**
      * Renders a wildcard-style pattern (SQL {@code LIKE} / shell {@code KEEP *foo*}) preserving
      * the metacharacters {@code *}, {@code ?}, {@code %}, {@code _} verbatim; each literal run
-     * between metacharacters routes through {@code rewriter.column}. Backslash escapes the next
+     * between metacharacters routes through {@code mapper.column}. Backslash escapes the next
      * character (treated as literal).
      */
     public static void rewriteWildcardPattern(
         StringBuilder sb,
         String pattern,
-        org.elasticsearch.xpack.esql.core.tree.NodeStringRewriter rewriter
+        org.elasticsearch.xpack.esql.core.tree.IdentifierMapper mapper
     ) {
         if (pattern == null || pattern.isEmpty()) {
             return;
@@ -140,7 +141,7 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
             }
             if (c == '*' || c == '?' || c == '%' || c == '_') {
                 if (run.length() > 0) {
-                    sb.append(rewriter.column(run.toString()));
+                    sb.append(mapper.column(run.toString()));
                     run.setLength(0);
                 }
                 sb.append(c);
@@ -149,7 +150,7 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
             }
         }
         if (run.length() > 0) {
-            sb.append(rewriter.column(run.toString()));
+            sb.append(mapper.column(run.toString()));
         }
     }
 

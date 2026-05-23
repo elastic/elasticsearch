@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.plan.logical;
 
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -62,7 +63,7 @@ public class NamedSubquery extends Subquery {
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append('[').append(format.rewriter.index(name)).append(']');
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+        sb.append(nodeName()).append('[').append(mapper.index(name)).append(']');
     }
 }

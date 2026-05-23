@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -147,22 +148,22 @@ public class Dissect extends RegexExtract implements TelemetryAware, SortPreserv
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
         sb.append(nodeName()).append("[pattern=\"");
-        rewriteDissectPattern(sb, parser.pattern(), format.rewriter);
+        rewriteDissectPattern(sb, parser.pattern(), mapper);
         sb.append("\"]");
     }
 
     /**
      * Renders a Dissect pattern of shape {@code "%{cap1} sep %{cap2}"} routing each capture
-     * identifier through {@code rewriter.column}. Captures may carry a {@code ?} (skip) or
+     * identifier through {@code mapper.column}. Captures may carry a {@code ?} (skip) or
      * {@code +} (append) modifier right after the open brace — that's structural, preserved
      * verbatim. Separator characters between captures pass through.
      */
     public static void rewriteDissectPattern(
         StringBuilder sb,
         String pattern,
-        org.elasticsearch.xpack.esql.core.tree.NodeStringRewriter rewriter
+        org.elasticsearch.xpack.esql.core.tree.IdentifierMapper mapper
     ) {
         if (pattern == null || pattern.isEmpty()) {
             return;
@@ -187,7 +188,7 @@ public class Dissect extends RegexExtract implements TelemetryAware, SortPreserv
                 modifier = body.substring(0, 1);
                 captureName = body.substring(1);
             }
-            sb.append("%{").append(modifier).append(captureName.isEmpty() ? "" : rewriter.column(captureName)).append('}');
+            sb.append("%{").append(modifier).append(captureName.isEmpty() ? "" : mapper.column(captureName)).append('}');
             i = end + 1;
         }
     }

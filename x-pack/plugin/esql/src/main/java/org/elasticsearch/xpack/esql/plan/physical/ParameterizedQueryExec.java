@@ -12,6 +12,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
@@ -124,14 +125,14 @@ public class ParameterizedQueryExec extends LeafExec {
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        // query is a raw Lucene-pushdown QueryBuilder DSL; drop it under a rewriting format.
-        if (format.rewrites() == false) {
-            super.nodeString(sb, format);
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+        // query is a raw Lucene-pushdown QueryBuilder DSL; drop it under a non-identity mapper.
+        if (mapper == IdentifierMapper.IDENTITY) {
+            super.nodeString(sb, format, mapper);
             return;
         }
         sb.append(nodeName()).append("[output=");
-        org.elasticsearch.xpack.esql.core.tree.NodeUtils.toString(sb, output, format);
+        org.elasticsearch.xpack.esql.core.tree.NodeUtils.toString(sb, output, format, mapper);
         sb.append(", query=<dropped>, emptyResult=").append(emptyResult).append(']');
     }
 }

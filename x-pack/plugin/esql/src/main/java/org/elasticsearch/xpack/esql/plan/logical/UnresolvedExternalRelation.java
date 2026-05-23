@@ -12,6 +12,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -141,10 +142,10 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
         // tablePath.sourceText() exposes the raw query fragment under raw formats; the unresolvedMsg
-        // embeds it too. Under a rewriting format drop both and keep only the structural marker.
-        if (format.rewrites()) {
+        // embeds it too. Under a non-identity mapper drop both and keep only the structural marker.
+        if (mapper != IdentifierMapper.IDENTITY) {
             sb.append(UNRESOLVED_PREFIX).append("EXTERNAL[<dropped>]");
         } else {
             sb.append(toString());

@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -166,12 +167,12 @@ public class EsRelation extends LeafPlan {
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append('[').append(format.rewriter.index(indexPattern)).append(']');
+    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+        sb.append(nodeName()).append('[').append(mapper.index(indexPattern)).append(']');
         if (indexMode != IndexMode.STANDARD) {
             sb.append('[').append(indexMode.name()).append(']');
         }
-        if (format.rewrites() && indexNameWithModes != null && indexNameWithModes.isEmpty() == false) {
+        if (mapper != IdentifierMapper.IDENTITY && indexNameWithModes != null && indexNameWithModes.isEmpty() == false) {
             sb.append('[');
             boolean first = true;
             for (var e : indexNameWithModes.entrySet()) {
@@ -179,11 +180,11 @@ public class EsRelation extends LeafPlan {
                     sb.append(", ");
                 }
                 first = false;
-                sb.append(format.rewriter.index(e.getKey())).append('=').append(e.getValue().name());
+                sb.append(mapper.index(e.getKey())).append('=').append(e.getValue().name());
             }
             sb.append(']');
         }
-        NodeUtils.toString(sb, attrs, format);
+        NodeUtils.toString(sb, attrs, format, mapper);
     }
 
     public EsRelation withAttributes(List<Attribute> newAttributes) {

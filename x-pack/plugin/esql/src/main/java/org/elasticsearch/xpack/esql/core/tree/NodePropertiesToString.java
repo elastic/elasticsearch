@@ -28,15 +28,17 @@ class NodePropertiesToString {
     );
 
     private final Node.NodeStringFormat format;
+    private final IdentifierMapper mapper;
     private final Node<?> node;
     private final boolean skipIfChild;
     private final StringBuilder sb;
     private int charactersRemainingInLine;
     private int linesUsed = 0;
 
-    NodePropertiesToString(StringBuilder sb, Node.NodeStringFormat format, Node<?> node, boolean skipIfChild) {
+    NodePropertiesToString(StringBuilder sb, Node.NodeStringFormat format, IdentifierMapper mapper, Node<?> node, boolean skipIfChild) {
         this.sb = sb;
         this.format = format;
+        this.mapper = mapper;
         this.node = node;
         this.skipIfChild = skipIfChild;
         this.charactersRemainingInLine = format.maxWidth;
@@ -151,7 +153,7 @@ class NodePropertiesToString {
                  * and rendered as proper children, properly sharing the StringBuilder.
                  */
                 StringBuilder str = new StringBuilder();
-                n.nodeString(str, format);
+                n.nodeString(str, format, mapper);
                 yield str.toString();
             }
             case NameId nameId -> "#" + obj;

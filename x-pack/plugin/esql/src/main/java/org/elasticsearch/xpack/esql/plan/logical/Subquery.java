@@ -10,7 +10,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -88,10 +87,5 @@ public class Subquery extends UnaryPlan implements TelemetryAware, SortAgnostic 
 
     public LogicalPlan plan() {
         return child();
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("Subquery[...]");
     }
 }

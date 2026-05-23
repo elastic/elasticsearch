@@ -217,4 +217,22 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
             }
         }
     }
+
+    /**
+     * Default-safe baseline for {@code anonymizedSelf} across the logical and physical plan-node
+     * hierarchies — emits {@code "<SimpleClassName>[...]"} with no field content. Concrete
+     * subclasses that carry customer-data fields (Filter / Limit / Project / Eval / Aggregate /
+     * EsRelation / NamedSubquery / Enrich / Dissect / Grok / FragmentExec / etc.) override this
+     * and route their identifiers / literals / patterns through the supplied
+     * {@link org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext}.
+     * <p>
+     * Lives here rather than as 90+ one-line overrides on each concrete subclass because the
+     * baseline shape is identical across the plan tree. Authors of new plan nodes inherit the
+     * safe baseline and only need to override when they have something to expose — the contract
+     * is "default safe", not "default leak".
+     */
+    @Override
+    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
+        sb.append(getClass().getSimpleName()).append("[...]");
+    }
 }

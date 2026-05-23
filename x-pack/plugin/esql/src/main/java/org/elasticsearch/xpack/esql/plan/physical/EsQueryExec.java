@@ -371,13 +371,13 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
      */
     @Override
     public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("EsQueryExec[").append(ctx.index(indexPattern)).append("], indexMode[").append(indexMode).append("], [");
-        for (int i = 0; i < attrs.size(); i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            attrs.get(i).anonymizedSelf(sb, ctx);
-        }
+        sb.append(getClass().getSimpleName())
+            .append('[')
+            .append(ctx.index(indexPattern))
+            .append("], indexMode[")
+            .append(indexMode)
+            .append("], [");
+        appendAnonymizedList(sb, ctx, attrs);
         sb.append("], limit[");
         if (limit != null) {
             limit.anonymizedSelf(sb, ctx);

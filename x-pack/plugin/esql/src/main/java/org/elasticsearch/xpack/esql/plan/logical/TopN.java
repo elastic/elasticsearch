@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -94,14 +95,9 @@ public class TopN extends UnaryPlan implements PipelineBreaker, ExecutesOn {
     }
 
     @Override
-    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
-        sb.append("TopN[[");
-        for (int i = 0; i < order.size(); i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            order.get(i).anonymizedSelf(sb, ctx);
-        }
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append(getClass().getSimpleName()).append("[[");
+        appendAnonymizedList(sb, ctx, order);
         sb.append("],");
         limit.anonymizedSelf(sb, ctx);
         sb.append(']');

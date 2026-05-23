@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -206,10 +205,5 @@ public class MMR extends UnaryPlan
                 }
             }
         };
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("MMR[...]");
     }
 }

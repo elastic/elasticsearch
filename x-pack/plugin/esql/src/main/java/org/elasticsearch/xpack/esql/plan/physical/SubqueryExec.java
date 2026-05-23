@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -70,10 +69,5 @@ public class SubqueryExec extends UnaryExec {
     @Override
     public int hashCode() {
         return super.hashCode();
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("SubqueryExec[...]");
     }
 }

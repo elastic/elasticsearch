@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.physical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -91,10 +90,5 @@ public class ProjectExec extends UnaryExec {  // TODO implement EstimatesRowSize
         ProjectExec other = (ProjectExec) obj;
 
         return Objects.equals(projections, other.projections) && Objects.equals(child(), other.child());
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("ProjectExec[...]");
     }
 }

@@ -81,6 +81,83 @@ public class AnonymizationContextTests extends ESTestCase {
         assertEquals(first, second);
     }
 
+    public void testWildcardPatternKeepsStarsTokenizesRuns() {
+        var ctx = AnonymizationContext.forSubmission(randomUUID());
+        // The two literal runs ("foo" and "bar") tokenize through the column map; the three
+        // metacharacters survive verbatim. Same name → same token, so `foo` becoming X means both
+        // `foo` occurrences in `*foo*bar*foo*` would collapse — only one `foo` in this example.
+        String out = ctx.wildcardPattern("*foo*bar*");
+        // shape: *<col>*<col>*
+        assertTrue("wildcard stars dropped: " + out, out.matches("\\*col_[0-9a-f]+\\*col_[0-9a-f]+\\*"));
+        // foo and bar tokenize to different col_ tokens
+        assertNotEquals(ctx.column("foo"), ctx.column("bar"));
+    }
+
+    public void testWildcardPatternHandlesAllMetacharacters() {
+        var ctx = AnonymizationContext.forSubmission(randomUUID());
+        // ?, %, _, * all survive as structural metacharacters
+        String out = ctx.wildcardPattern("a?b%c_d*e");
+        assertTrue(
+            "expected ? % _ * preserved: " + out,
+            out.matches("col_[0-9a-f]+\\?col_[0-9a-f]+%col_[0-9a-f]+_col_[0-9a-f]+\\*col_[0-9a-f]+")
+        );
+    }
+
+    public void testWildcardPatternBackslashEscape() {
+        var ctx = AnonymizationContext.forSubmission(randomUUID());
+        // Escaped `\*` is treated as a literal char and folds into the literal run that wraps it,
+        // not as a wildcard metacharacter.
+        String out = ctx.wildcardPattern("foo\\*bar");
+        // Single tokenized run containing both halves — no `*` metacharacter survives.
+        assertTrue("escaped backslash should not surface as wildcard: " + out, out.matches("col_[0-9a-f]+"));
+    }
+
+    public void testWildcardPatternEmptyAndNullReturnEmpty() {
+        var ctx = AnonymizationContext.forSubmission(randomUUID());
+        assertEquals("", ctx.wildcardPattern(""));
+        assertEquals("", ctx.wildcardPattern(null));
+    }
+
+    public void testGrokPatternKeepsLibraryIdentifierTokenizesCaptureName() {
+        var ctx = AnonymizationContext.forSubmission(randomUUID());
+        // The Grok library identifier (IP) is not customer data — keep verbatim. The capture name
+        // (client_ip) is user-defined — tokenize via the column map.
+        String out = ctx.grokPattern("%{IP:client_ip}");
+        assertTrue("expected library id preserved + capture tokenized: " + out, out.matches("%\\{IP:col_[0-9a-f]+\\}"));
+    }
+
+    public void testGrokPatternKeepsTypeCoercionSuffix() {
+        var ctx = AnonymizationContext.forSubmission(randomUUID());
+        // `:int` is a type coercion suffix, not customer data; survives the rewrite.
+        String out = ctx.grokPattern("%{NUMBER:bytes:int}");
+        assertTrue("expected library id + tokenized capture + type suffix: " + out, out.matches("%\\{NUMBER:col_[0-9a-f]+:int\\}"));
+    }
+
+    public void testGrokPatternHandlesMultipleCapturesAndSeparators() {
+        var ctx = AnonymizationContext.forSubmission(randomUUID());
+        String out = ctx.grokPattern("%{IP:client_ip} - %{NUMBER:bytes} OK");
+        assertTrue("expected mixed structure preserved: " + out, out.matches("%\\{IP:col_[0-9a-f]+\\} - %\\{NUMBER:col_[0-9a-f]+\\} OK"));
+    }
+
+    public void testDissectPatternTokenizesCaptureNames() {
+        var ctx = AnonymizationContext.forSubmission(randomUUID());
+        // The %{...} braces survive; the capture names inside route through the column map; the
+        // separator characters between captures pass through unchanged.
+        String out = ctx.dissectPattern("%{ip} - %{date} %{message}");
+        assertTrue(
+            "expected braces preserved + capture names tokenized + separators kept: " + out,
+            out.matches("%\\{col_[0-9a-f]+\\} - %\\{col_[0-9a-f]+\\} %\\{col_[0-9a-f]+\\}")
+        );
+    }
+
+    public void testDissectPatternKeepsAppendAndGreedyModifiers() {
+        var ctx = AnonymizationContext.forSubmission(randomUUID());
+        // Dissect supports `+` (append) and `?` (skip) modifiers right after the open brace. These
+        // are structural, not data — preserve the modifier; tokenize the rest of the name.
+        String out = ctx.dissectPattern("%{?skip} %{+append}");
+        assertTrue("expected ? and + modifiers preserved: " + out, out.matches("%\\{\\?col_[0-9a-f]+\\} %\\{\\+col_[0-9a-f]+\\}"));
+    }
+
     public void testNullClusterUuidDoesNotNpe() {
         // Test fixtures sometimes pass a null cluster identifier — fall back to a deterministic key.
         var ctx = AnonymizationContext.forSubmission(null);

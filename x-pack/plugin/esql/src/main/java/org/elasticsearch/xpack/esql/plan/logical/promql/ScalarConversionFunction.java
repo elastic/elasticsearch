@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -45,10 +44,5 @@ public final class ScalarConversionFunction extends PromqlFunctionCall {
     @Override
     public List<Attribute> output() {
         return List.of();
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("ScalarConversionFunction[...]");
     }
 }

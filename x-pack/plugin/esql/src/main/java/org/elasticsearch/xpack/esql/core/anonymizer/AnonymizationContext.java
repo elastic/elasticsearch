@@ -43,15 +43,32 @@ import javax.crypto.spec.SecretKeySpec;
 public final class AnonymizationContext {
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
-    private static final int TOKEN_HEX_LEN = 8;
+    /**
+     * Widened from 8 to 12 hex chars (24-bit margin → ~16M unique identifier birthday-collision
+     * boundary instead of ~65k at 8 chars). Per-cluster-stable correlation breaks down silently
+     * when two distinct field names hash to the same {@code col_xxxxxxxx} on a wide schema, so the
+     * extra four chars buy real safety at no rendering-cost penalty.
+     */
+    private static final int TOKEN_HEX_LEN = 12;
 
     private final byte[] clusterKey;
+    private final Mac mac;
     private final Map<String, String> columnTokens = new HashMap<>();
     private final Map<String, String> indexTokens = new HashMap<>();
     private final Map<LiteralKey, Integer> literalIds = new HashMap<>();
 
     private AnonymizationContext(String clusterUuid) {
         this.clusterKey = (clusterUuid == null ? "" : clusterUuid).getBytes(StandardCharsets.UTF_8);
+        // One Mac instance per submission, reused across every token() call. Mac is not
+        // thread-safe but AnonymizationContext is constructed per submission and used single-
+        // threadedly, so caching saves the Mac.getInstance() + SecretKeySpec allocations per
+        // identifier render — non-trivial on wide schemas.
+        try {
+            this.mac = Mac.getInstance(HMAC_ALGORITHM);
+            mac.init(new SecretKeySpec(clusterKey.length == 0 ? new byte[] { 0 } : clusterKey, HMAC_ALGORITHM));
+        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
+            throw new IllegalStateException("HMAC-SHA256 unavailable", e);
+        }
     }
 
     /** One context per query submission so literal tokens don't carry across queries. */
@@ -93,7 +110,7 @@ public final class AnonymizationContext {
      */
     public String wildcardPattern(String pattern) {
         if (pattern == null || pattern.isEmpty()) {
-            return pattern == null ? "" : "";
+            return "";
         }
         StringBuilder out = new StringBuilder(pattern.length() + 16);
         StringBuilder run = new StringBuilder();
@@ -206,14 +223,8 @@ public final class AnonymizationContext {
     }
 
     private String token(String value) {
-        try {
-            Mac mac = Mac.getInstance(HMAC_ALGORITHM);
-            mac.init(new SecretKeySpec(clusterKey.length == 0 ? new byte[] { 0 } : clusterKey, HMAC_ALGORITHM));
-            byte[] out = mac.doFinal(value.getBytes(StandardCharsets.UTF_8));
-            return HexFormat.of().formatHex(out).substring(0, TOKEN_HEX_LEN);
-        } catch (NoSuchAlgorithmException | InvalidKeyException e) {
-            throw new IllegalStateException("HMAC-SHA256 unavailable", e);
-        }
+        byte[] out = mac.doFinal(value.getBytes(StandardCharsets.UTF_8));
+        return HexFormat.of().formatHex(out).substring(0, TOKEN_HEX_LEN);
     }
 
     private record LiteralKey(DataType type, Object value) {

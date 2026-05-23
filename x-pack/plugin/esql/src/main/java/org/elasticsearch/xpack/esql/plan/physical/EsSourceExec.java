@@ -134,17 +134,12 @@ public class EsSourceExec extends LeafExec implements DataSourceExec {
 
     @Override
     public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("EsSourceExec[").append(ctx.index(indexPattern)).append(']');
+        sb.append(getClass().getSimpleName()).append('[').append(ctx.index(indexPattern)).append(']');
         if (indexMode != null && indexMode != IndexMode.STANDARD) {
             sb.append('[').append(indexMode.name()).append(']');
         }
         sb.append('[');
-        for (int i = 0; i < attributes.size(); i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            attributes.get(i).anonymizedSelf(sb, ctx);
-        }
+        appendAnonymizedList(sb, ctx, attributes);
         sb.append(']');
     }
 }

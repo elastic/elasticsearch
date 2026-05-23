@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -60,10 +59,5 @@ public final class ValueTransformationFunction extends PromqlFunctionCall {
     @Override
     public FunctionType functionType() {
         return FunctionType.VALUE_TRANSFORMATION;
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("ValueTransformationFunction[...]");
     }
 }

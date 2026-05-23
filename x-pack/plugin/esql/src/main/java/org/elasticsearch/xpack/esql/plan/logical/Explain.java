@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -89,10 +88,5 @@ public class Explain extends LeafPlan implements TelemetryAware {
     @Override
     public int hashCode() {
         return Objects.hash(query);
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("Explain[...]");
     }
 }

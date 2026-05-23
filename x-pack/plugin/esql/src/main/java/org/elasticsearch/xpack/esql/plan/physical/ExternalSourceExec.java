@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -687,10 +686,5 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             sb.append("[splits=").append(splits.size()).append("]");
         }
         NodeUtils.toString(sb, attributes, format);
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("ExternalSourceExec[...]");
     }
 }

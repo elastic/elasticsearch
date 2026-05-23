@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.expression.promql.subquery;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -94,10 +93,5 @@ public class Subquery extends UnaryPlan implements PromqlPlan {
     @Override
     public PromqlDataType returnType() {
         return PromqlDataType.RANGE_VECTOR;
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("Subquery[...]");
     }
 }

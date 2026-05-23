@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql;
 
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -69,10 +68,5 @@ public final class WithinSeriesAggregate extends PromqlFunctionCall {
     @Override
     public FunctionType functionType() {
         return FunctionType.WITHIN_SERIES_AGGREGATION;
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("WithinSeriesAggregate[...]");
     }
 }

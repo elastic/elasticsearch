@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -186,10 +185,5 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
             && Objects.equals(intermediateAttributes, other.intermediateAttributes)
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
             && Objects.equals(child(), other.child());
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("AggregateExec[...]");
     }
 }

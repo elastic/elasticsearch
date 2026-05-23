@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationPlanVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -82,14 +83,9 @@ public class OrderBy extends UnaryPlan
     }
 
     @Override
-    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
-        sb.append("OrderBy[[");
-        for (int i = 0; i < order.size(); i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            order.get(i).anonymizedSelf(sb, ctx);
-        }
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append(getClass().getSimpleName()).append("[[");
+        appendAnonymizedList(sb, ctx, order);
         sb.append("]]");
     }
 

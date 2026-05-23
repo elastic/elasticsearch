@@ -561,6 +561,21 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
      */
     public abstract void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx);
 
+    /**
+     * Helper for {@link #anonymizedSelf} implementations that need to render a list of child nodes
+     * comma-separated on one line — projection lists, aggregate groupings, attribute lists, sort
+     * orders, etc. Each entry is rendered via its own {@code anonymizedSelf}, preserving the
+     * tokenized identity contract.
+     */
+    protected static void appendAnonymizedList(StringBuilder sb, AnonymizationContext ctx, List<? extends Node<?>> items) {
+        for (int i = 0; i < items.size(); i++) {
+            if (i > 0) {
+                sb.append(", ");
+            }
+            items.get(i).anonymizedSelf(sb, ctx);
+        }
+    }
+
     protected void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format) {
         new NodePropertiesToString(sb, format, this, skipIfChild).propertiesToString();
     }

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -103,10 +102,5 @@ public class RegisteredDomain extends CompoundOutputEval<RegisteredDomain> {
                 failures.add(fail(input, "Input for REGISTERED_DOMAIN must be of type [string] but is [{}]", type.typeName()));
             }
         }
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("RegisteredDomain[...]");
     }
 }

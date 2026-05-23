@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -70,10 +69,5 @@ public class MergeExec extends PhysicalPlan {
         if (o == null || getClass() != o.getClass()) return false;
         MergeExec other = (MergeExec) o;
         return Objects.equals(this.children(), other.children());
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("MergeExec[...]");
     }
 }

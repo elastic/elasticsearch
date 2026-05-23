@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -635,10 +634,5 @@ public class PromqlCommand extends UnaryPlan
         long roundedStart = rounding.round(rangeStart);
         long nextRoundedValue = rounding.nextRoundingValue(roundedStart);
         return Literal.timeDuration(source(), Duration.ofMillis(Math.max(1L, nextRoundedValue - roundedStart)));
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("PromqlCommand[...]");
     }
 }

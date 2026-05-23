@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failures;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -75,14 +76,9 @@ public class Eval extends UnaryPlan
     }
 
     @Override
-    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
-        sb.append("Eval[[");
-        for (int i = 0; i < fields.size(); i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            fields.get(i).anonymizedSelf(sb, ctx);
-        }
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append(getClass().getSimpleName()).append("[[");
+        appendAnonymizedList(sb, ctx, fields);
         sb.append("]]");
     }
 

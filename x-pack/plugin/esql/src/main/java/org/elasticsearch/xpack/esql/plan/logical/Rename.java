@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.plan.logical;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.analysis.Analyzer.ResolveRefs;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -90,10 +89,5 @@ public class Rename extends UnaryPlan implements TelemetryAware, Streaming, Sort
             return false;
         }
         return Objects.equals(renamings, ((Rename) obj).renamings);
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("Rename[...]");
     }
 }

@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.fuse.FuseConfig;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -64,10 +63,5 @@ public class FuseScoreEvalExec extends UnaryExec {
     @Override
     protected AttributeSet computeReferences() {
         return AttributeSet.of(scoreAttr, discriminatorAttr);
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("FuseScoreEvalExec[...]");
     }
 }

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.logical.promql.selector;
 
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -101,10 +100,5 @@ public final class InstantSelector extends Selector {
     @Override
     public PromqlDataType returnType() {
         return PromqlDataType.INSTANT_VECTOR;
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("InstantSelector[...]");
     }
 }

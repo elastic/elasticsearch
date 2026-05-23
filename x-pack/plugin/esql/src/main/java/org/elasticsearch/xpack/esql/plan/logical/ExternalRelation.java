@@ -10,7 +10,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -250,10 +249,5 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
 
     public ExternalRelation withAttributes(List<Attribute> newAttributes) {
         return new ExternalRelation(source(), sourcePath, metadata, newAttributes, fileList, schemaMap);
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("ExternalRelation[...]");
     }
 }

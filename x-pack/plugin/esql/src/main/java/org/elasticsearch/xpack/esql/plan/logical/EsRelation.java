@@ -182,7 +182,7 @@ public class EsRelation extends LeafPlan {
      */
     @Override
     public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("EsRelation[").append(ctx.index(indexPattern)).append("]");
+        sb.append(getClass().getSimpleName()).append('[').append(ctx.index(indexPattern)).append(']');
         if (indexMode != IndexMode.STANDARD) {
             sb.append('[').append(indexMode.name()).append(']');
         }
@@ -199,12 +199,7 @@ public class EsRelation extends LeafPlan {
             sb.append(']');
         }
         sb.append('[');
-        for (int i = 0; i < attrs.size(); i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            attrs.get(i).anonymizedSelf(sb, ctx);
-        }
+        appendAnonymizedList(sb, ctx, attrs);
         sb.append(']');
     }
 

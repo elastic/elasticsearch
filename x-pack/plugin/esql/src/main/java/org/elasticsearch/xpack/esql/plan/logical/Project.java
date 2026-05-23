@@ -10,6 +10,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.UpdateForV10;
+import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -122,14 +123,9 @@ public class Project extends UnaryPlan implements Streaming, SortAgnostic, SortP
     }
 
     @Override
-    public void anonymizedSelf(StringBuilder sb, org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext ctx) {
-        sb.append("Project[[");
-        for (int i = 0; i < projections.size(); i++) {
-            if (i > 0) {
-                sb.append(", ");
-            }
-            projections.get(i).anonymizedSelf(sb, ctx);
-        }
+    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
+        sb.append(getClass().getSimpleName()).append("[[");
+        appendAnonymizedList(sb, ctx, projections);
         sb.append("]]");
     }
 

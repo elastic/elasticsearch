@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -176,10 +175,5 @@ public class EsStatsQueryExec extends LeafExec implements EstimatesRowSize, Data
             .append("]");
         NodeUtils.toString(sb, attrs, format);
         sb.append(", limit[").append(limit != null ? limit.toString(format) : "").append("], ");
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("EsStatsQueryExec[...]");
     }
 }

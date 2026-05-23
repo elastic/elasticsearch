@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.plan.physical;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -78,10 +77,5 @@ public class UriPartsExec extends CompoundOutputEvalExec implements CompoundOutp
     @Override
     protected int innerHashCode() {
         return 0;
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("UriPartsExec[...]");
     }
 }

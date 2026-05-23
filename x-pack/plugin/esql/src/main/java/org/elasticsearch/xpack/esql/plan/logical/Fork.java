@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.capabilities.PostAnalysisPlanVerificationAwa
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -308,10 +307,5 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
                 }
             }
         });
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("Fork[...]");
     }
 }

@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.LicenseAware;
 import org.elasticsearch.xpack.esql.SupportsObservabilityTier;
 import org.elasticsearch.xpack.esql.capabilities.PostAnalysisVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
@@ -216,10 +215,5 @@ public class ChangePoint extends UnaryPlan
     @Override
     public boolean licenseCheck(XPackLicenseState state) {
         return MachineLearning.CHANGE_POINT_AGG_FEATURE.check(state);
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("ChangePoint[...]");
     }
 }

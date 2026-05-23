@@ -11,7 +11,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
-import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -124,10 +123,5 @@ public class MvExpand extends UnaryPlan implements TelemetryAware, SortAgnostic 
         }
         MvExpand other = ((MvExpand) obj);
         return Objects.equals(target, other.target) && Objects.equals(expanded, other.expanded);
-    }
-
-    @Override
-    public void anonymizedSelf(StringBuilder sb, AnonymizationContext ctx) {
-        sb.append("MvExpand[...]");
     }
 }

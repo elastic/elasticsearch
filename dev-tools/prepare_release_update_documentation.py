@@ -18,6 +18,7 @@
 #
 
 import fnmatch
+import shlex
 import subprocess
 import tempfile
 import re
@@ -25,7 +26,7 @@ import os
 import shutil
 
 def run(command):
-  if os.system('%s' % (command)):
+  if os.system(command):
     raise RuntimeError('    FAILED: %s' % (command))
 
 def ensure_checkout_is_clean():
@@ -89,11 +90,11 @@ def add_pending_files(*files):
   for file in files:
     if file:
       # print("Adding file: %s" % (file))
-      run('git add %s' % (file))
+      run('git add %s' % shlex.quote(file))
 
 # Updates documentation feature flags
 def commit_feature_flags(release):
-    run('git commit -m "Update Documentation Feature Flags [%s]"' % release)
+    run(['git', 'commit', '-m', 'Update Documentation Feature Flags [%s]' % release])
 
 # Walks the given directory path (defaults to 'docs')
 # and replaces all 'coming[$version]' tags with

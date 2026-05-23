@@ -38,6 +38,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -94,6 +96,8 @@ import java.util.concurrent.ExecutionException;
  * </ul>
  */
 public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatReader {
+
+    private static final Logger LOGGER = LogManager.getLogger(OrcFormatReader.class);
 
     private static final long MILLIS_PER_DAY = Duration.ofDays(1).toMillis();
 
@@ -225,50 +229,21 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         long rowCount = reader.getNumberOfRows();
         long sizeInBytes = reader.getContentLength();
         ColumnStatistics[] orcStats = reader.getStatistics();
-        List<String> fieldNames = schema.getFieldNames();
-        List<TypeDescription> children = schema.getChildren();
 
+        // Walk every dotted leaf the flattener emits, publishing stats at the same names the
+        // planner sees as ESQL attributes. Without this, only top-level entries land in the
+        // map and nested-leaf aggregate pushdown (e.g. MIN(event.id)) silently degrades.
+        // STRUCT intermediates are skipped by walkDottedLeaves — their ColumnStatistics carry
+        // no useful min/max (they aggregate child statistics into the parent's id) and they
+        // bind to no ESQL attribute. Truncated over-cap groups are also skipped: the flattener
+        // emits them as a single UNSUPPORTED attribute that the planner never reads stats for.
         Map<String, SourceStatistics.ColumnStatistics> columnStats = new HashMap<>();
-        for (int i = 0; i < fieldNames.size(); i++) {
-            String name = fieldNames.get(i);
-            int colId = children.get(i).getId();
-            if (colId >= orcStats.length) {
-                continue;
+        walkDottedLeaves(schema, (dottedPath, type, truncated) -> {
+            if (truncated) {
+                return;
             }
-            ColumnStatistics cs = orcStats[colId];
-            long totalValues = cs.getNumberOfValues();
-            long nullCount = rowCount - totalValues;
-            Object minVal = extractOrcMin(cs);
-            Object maxVal = extractOrcMax(cs);
-            long bytesOnDisk = cs.getBytesOnDisk();
-
-            columnStats.put(name, new SourceStatistics.ColumnStatistics() {
-                @Override
-                public OptionalLong nullCount() {
-                    return OptionalLong.of(nullCount);
-                }
-
-                @Override
-                public OptionalLong distinctCount() {
-                    return OptionalLong.empty();
-                }
-
-                @Override
-                public Optional<Object> minValue() {
-                    return Optional.ofNullable(minVal);
-                }
-
-                @Override
-                public Optional<Object> maxValue() {
-                    return Optional.ofNullable(maxVal);
-                }
-
-                @Override
-                public OptionalLong sizeInBytes() {
-                    return bytesOnDisk > 0 ? OptionalLong.of(bytesOnDisk) : OptionalLong.empty();
-                }
-            });
-        }
+            collectLeafStatistics(type, dottedPath, rowCount, orcStats, columnStats);
+        });
 
         return new SourceStatistics() {
             @Override
@@ -286,6 +261,61 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 return columnStats.isEmpty() ? Optional.empty() : Optional.of(columnStats);
             }
         };
+    }
+
+    /**
+     * Publishes ORC column statistics for a single non-STRUCT leaf at its dotted attribute name.
+     * Called from {@link #extractStatistics} via {@link #walkDottedLeaves}, so the keys match
+     * exactly what {@link #convertOrcSchemaToAttributes} produces and the planner looks up.
+     *
+     * <p>MAP/LIST&lt;STRUCT&gt;/UNION leaves are still emitted with whatever ColumnStatistics ORC
+     * computed for them — the planner sees those as UNSUPPORTED attributes and never reads the
+     * stats, but emitting them does no harm and keeps this helper unconditional.
+     */
+    private static void collectLeafStatistics(
+        TypeDescription type,
+        String dottedPath,
+        long rowCount,
+        ColumnStatistics[] orcStats,
+        Map<String, SourceStatistics.ColumnStatistics> out
+    ) {
+        int colId = type.getId();
+        if (colId >= orcStats.length) {
+            return;
+        }
+        ColumnStatistics cs = orcStats[colId];
+        long totalValues = cs.getNumberOfValues();
+        long nullCount = rowCount - totalValues;
+        Object minVal = extractOrcMin(cs);
+        Object maxVal = extractOrcMax(cs);
+        long bytesOnDisk = cs.getBytesOnDisk();
+
+        out.put(dottedPath, new SourceStatistics.ColumnStatistics() {
+            @Override
+            public OptionalLong nullCount() {
+                return OptionalLong.of(nullCount);
+            }
+
+            @Override
+            public OptionalLong distinctCount() {
+                return OptionalLong.empty();
+            }
+
+            @Override
+            public Optional<Object> minValue() {
+                return Optional.ofNullable(minVal);
+            }
+
+            @Override
+            public Optional<Object> maxValue() {
+                return Optional.ofNullable(maxVal);
+            }
+
+            @Override
+            public OptionalLong sizeInBytes() {
+                return bytesOnDisk > 0 ? OptionalLong.of(bytesOnDisk) : OptionalLong.empty();
+            }
+        });
     }
 
     private static Object extractOrcMin(ColumnStatistics cs) {
@@ -603,10 +633,12 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      * Maximum recursion depth for nested STRUCT flattening; mirrors
      * {@code ParquetFormatReader.MAX_STRUCT_FLATTENING_DEPTH}. Groups deeper than the cap
      * surface as a single UNSUPPORTED attribute and a DEBUG log line.
+     *
+     * <p>Depth counts from 1 at the schema's top-level children, so the deepest reachable
+     * group is at depth {@code MAX_STRUCT_FLATTENING_DEPTH}. The Parquet flattener uses the
+     * same convention so the two formats accept the same set of valid paths.
      */
     static final int MAX_STRUCT_FLATTENING_DEPTH = 64;
-
-    private static final org.elasticsearch.logging.Logger LOGGER = org.elasticsearch.logging.LogManager.getLogger(OrcFormatReader.class);
 
     /**
      * Recursively converts an ORC {@link TypeDescription} into ESQL {@link Attribute}s, flattening
@@ -850,13 +882,15 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                                     break;
                                 }
                             } else {
+                                // Reuse the shared boolean[]->BitSet helper plus BitSet.or so each
+                                // ancestor contributes via a single bulk operation rather than a
+                                // hand-rolled per-row loop; matches the pattern used elsewhere in
+                                // the reader for converting ORC's raw null arrays.
+                                BitSet svNulls = ColumnBlockConversions.toBitSet(sv.isNull, rowCount);
                                 if (ancestorNulls == null) {
-                                    ancestorNulls = new BitSet(rowCount);
-                                }
-                                for (int r = 0; r < rowCount; r++) {
-                                    if (sv.isNull[r]) {
-                                        ancestorNulls.set(r);
-                                    }
+                                    ancestorNulls = svNulls;
+                                } else if (svNulls != null) {
+                                    ancestorNulls.or(svNulls);
                                 }
                             }
                         }

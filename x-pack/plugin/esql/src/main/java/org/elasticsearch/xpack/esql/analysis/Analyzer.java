@@ -3498,7 +3498,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          * {@code updatedUnionAllOutput} — only the UnionAll column ids are — so the stale reference survives in a
          * downstream {@code Project}, producing an {@code "Output has changed"} verification failure.
          * <p>
-         * We walk the plan bottom-up exactly once with {@link LogicalPlan#transformUp(java.util.function.Function)}.
+         * We walk expressions bottom-up exactly once with {@link LogicalPlan#transformExpressionsUp(Class, java.util.function.Function)}.
          * At each node we:
          * <ol>
          *   <li>rewrite that node's own expressions using the running id map; and</li>
@@ -3507,7 +3507,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
          *       UnionAll resolution, so its own {@link Alias#toAttribute()} now reports the updated data type and
          *       downstream materialised references to it must be replaced.</li>
          * </ol>
-         * Because {@code transformUp} guarantees children are visited before their parents, every relevant alias is
+         * Because {@code transformExpressionsUp} guarantees children are visited before their parents, every relevant alias is
          * registered before any downstream {@code Project} that materialised its attribute is visited. The traversal
          * is O(plan size) and the alias-registration condition is narrowly scoped to "child is a re-typed attribute"
          * so unrelated aliases (whose data type doesn't depend on a UnionAll-driven re-typing) are left alone.

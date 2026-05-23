@@ -13,6 +13,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -210,13 +211,15 @@ public final class BYOSemanticHandler {
      * @param docSourceMap  the full document source map (will be modified)
      * @param inferenceId   the inference endpoint ID for this field
      * @param modelSettings the model settings for dimensional validation
+     * @param now           timestamp to record as the last modification time
      */
     public static void handleSingleShot(
         String fieldName,
         Map<String, Object> fieldValue,
         Map<String, Object> docSourceMap,
         String inferenceId,
-        MinimalServiceSettings modelSettings
+        MinimalServiceSettings modelSettings,
+        Instant now
     ) {
         String text = extractText(fieldName, fieldValue);
         int textLength = text.length();
@@ -237,7 +240,7 @@ public final class BYOSemanticHandler {
         BYOSemanticValidator.validateFullCoverage(chunks, textLength);
         validateDimensions(chunks, modelSettings, fieldName);
 
-        StagedSemanticField staged = new StagedSemanticField(text, textLength, Instant.now(), chunks);
+        StagedSemanticField staged = new StagedSemanticField(text, textLength, now, chunks);
         promoteToCommitted(fieldName, staged, inferenceId, modelSettings, docSourceMap);
     }
 
@@ -441,7 +444,7 @@ public final class BYOSemanticHandler {
 
         // Convert SemanticTextField to a map via XContent serialization
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {
-            committed.toXContent(builder, null);
+            committed.toXContent(builder, ToXContent.EMPTY_PARAMS);
             Map<String, Object> committedMap = org.elasticsearch.common.xcontent.XContentHelper.convertToMap(
                 BytesReference.bytes(builder),
                 false,

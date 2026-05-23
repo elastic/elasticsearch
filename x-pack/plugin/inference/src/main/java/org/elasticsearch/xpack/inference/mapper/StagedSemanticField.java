@@ -86,12 +86,15 @@ public record StagedSemanticField(String text, int textLength, Instant lastModif
             builder.startObject();
             builder.field(START_OFFSET_FIELD, chunk.startOffset());
             builder.field(END_OFFSET_FIELD, chunk.endOffset());
-            XContentParser embeddingParser = XContentHelper.createParserNotCompressed(
-                XContentParserConfiguration.EMPTY,
-                chunk.rawEmbeddings(),
-                XContentType.JSON
-            );
-            builder.field(EMBEDDINGS_FIELD).copyCurrentStructure(embeddingParser);
+            try (
+                XContentParser embeddingParser = XContentHelper.createParserNotCompressed(
+                    XContentParserConfiguration.EMPTY,
+                    chunk.rawEmbeddings(),
+                    XContentType.JSON
+                )
+            ) {
+                builder.field(EMBEDDINGS_FIELD).copyCurrentStructure(embeddingParser);
+            }
             builder.endObject();
         }
         builder.endArray();

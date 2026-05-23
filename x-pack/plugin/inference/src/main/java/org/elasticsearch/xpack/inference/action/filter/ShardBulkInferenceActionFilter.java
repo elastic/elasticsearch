@@ -675,7 +675,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                             if (action == null) {
                                 // Single-shot BYO
                                 MinimalServiceSettings byoSettings = modelRegistry.getMinimalServiceSettings(inferenceId);
-                                BYOSemanticHandler.handleSingleShot(field, byoValue, docMap, inferenceId, byoSettings);
+                                BYOSemanticHandler.handleSingleShot(field, byoValue, docMap, inferenceId, byoSettings, now);
                             } else {
                                 switch (action) {
                                     case STAGE_INIT -> BYOSemanticHandler.handleStageInit(field, byoValue, docMap, now);

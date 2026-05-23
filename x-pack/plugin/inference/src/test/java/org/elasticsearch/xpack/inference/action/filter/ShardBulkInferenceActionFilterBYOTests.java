@@ -263,6 +263,36 @@ public class ShardBulkInferenceActionFilterBYOTests extends ESTestCase {
         awaitLatch(latch, 10, TimeUnit.SECONDS);
     }
 
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testSingleShotBYODimensionMismatch() throws Exception {
+        String fieldName = "semantic_field";
+        String inferenceId = "my_inference";
+        // Model expects 768 dimensions
+        StaticModel model = createModel(inferenceId, 768);
+        ShardBulkInferenceActionFilter filter = createFilter(Map.of(inferenceId, model));
+
+        // Provide only 3-element embeddings
+        Map<String, Object> byoValue = new LinkedHashMap<>();
+        byoValue.put("text", "hello world");
+        byoValue.put("chunks", List.of(chunkMap(0, 11, List.of(0.1, 0.2, 0.3))));
+
+        CountDownLatch latch = new CountDownLatch(1);
+        ActionFilterChain chain = (task, action, request, listener) -> {
+            try {
+                BulkShardRequest bulkReq = (BulkShardRequest) request;
+                BulkItemRequest item = bulkReq.items()[0];
+                assertThat(item.getPrimaryResponse(), notNullValue());
+                assertTrue(item.getPrimaryResponse().isFailed());
+                assertThat(item.getPrimaryResponse().getFailure().getMessage(), containsString("768"));
+            } finally {
+                latch.countDown();
+            }
+        };
+
+        applyFilter(filter, fieldName, inferenceId, byoValue, chain);
+        awaitLatch(latch, 10, TimeUnit.SECONDS);
+    }
+
     // ---- Staging lifecycle tests ----
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
@@ -566,6 +596,31 @@ public class ShardBulkInferenceActionFilterBYOTests extends ESTestCase {
     }
 
     // ---- Error condition tests ----
+
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testCancelWithoutInitFails() throws Exception {
+        String fieldName = "semantic_field";
+        String inferenceId = "my_inference";
+        StaticModel model = createModel(inferenceId, 3);
+        ShardBulkInferenceActionFilter filter = createFilter(Map.of(inferenceId, model));
+
+        Map<String, Object> cancelValue = new LinkedHashMap<>();
+        cancelValue.put("_action", "cancel");
+
+        CountDownLatch latch = new CountDownLatch(1);
+        ActionFilterChain chain = (task, action, request, listener) -> {
+            try {
+                BulkItemRequest item = ((BulkShardRequest) request).items()[0];
+                assertThat(item.getPrimaryResponse(), notNullValue());
+                assertTrue(item.getPrimaryResponse().isFailed());
+                assertThat(item.getPrimaryResponse().getFailure().getMessage(), containsString("no staged data"));
+            } finally {
+                latch.countDown();
+            }
+        };
+        applyFilter(filter, fieldName, inferenceId, cancelValue, chain);
+        awaitLatch(latch, 10, TimeUnit.SECONDS);
+    }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
     public void testStageWithoutInitFails() throws Exception {

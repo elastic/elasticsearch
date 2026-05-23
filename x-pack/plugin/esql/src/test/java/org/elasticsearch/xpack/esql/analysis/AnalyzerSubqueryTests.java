@@ -54,6 +54,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
+import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
@@ -3289,10 +3290,10 @@ public class AnalyzerSubqueryTests extends ESTestCase {
             "Require the fix to inconsistent counter type",
             EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_COUNTER_TYPE_INCONSISTENT_AFTER_RENAME.isEnabled()
         );
-        LogicalPlan plan = analyzer().addK8s().addLanguages().query("""
+        LogicalPlan plan = analyzer().addK8sDownsampled().addLanguages().query("""
             FROM k8s, (FROM languages)
-            | KEEP network.total_bytes_in, network.total_bytes_out
-            | RENAME network.total_bytes_in AS x, network.total_bytes_out AS y
+            | KEEP network.total_bytes_in, network.eth0.tx
+            | RENAME network.total_bytes_in AS x, network.eth0.tx AS y
             | KEEP *
             """);
 
@@ -3305,7 +3306,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals("x", x.name());
         assertEquals(LONG, x.dataType());
         assertEquals("y", y.name());
-        assertEquals(LONG, y.dataType());
+        assertEquals(AGGREGATE_METRIC_DOUBLE, y.dataType());
         project = as(project.child(), Project.class);
         projections = project.projections();
         assertEquals(2, projections.size());
@@ -3314,7 +3315,7 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals(LONG, xAlias.dataType());
         Alias yAlias = as(projections.get(1), Alias.class);
         assertEquals("y", yAlias.name());
-        assertEquals(LONG, yAlias.dataType());
+        assertEquals(AGGREGATE_METRIC_DOUBLE, yAlias.dataType());
         project = as(project.child(), Project.class);
         projections = project.projections();
         assertEquals(2, projections.size());
@@ -3322,11 +3323,13 @@ public class AnalyzerSubqueryTests extends ESTestCase {
         assertEquals("network.total_bytes_in", total_bytes_in.name());
         assertEquals(LONG, total_bytes_in.dataType());
         ReferenceAttribute total_bytes_out = as(projections.get(1), ReferenceAttribute.class);
-        assertEquals("network.total_bytes_out", total_bytes_out.name());
-        assertEquals(LONG, total_bytes_out.dataType());
+        assertEquals("network.eth0.tx", total_bytes_out.name());
+        assertEquals(AGGREGATE_METRIC_DOUBLE, total_bytes_out.dataType());
         UnionAll unionAll = as(project.child(), UnionAll.class);
         assertTrue(unionAll.output().stream().anyMatch(a -> "network.total_bytes_in".equals(a.name()) && LONG.equals(a.dataType())));
-        assertTrue(unionAll.output().stream().anyMatch(a -> "network.total_bytes_out".equals(a.name()) && LONG.equals(a.dataType())));
+        assertTrue(
+            unionAll.output().stream().anyMatch(a -> "network.eth0.tx".equals(a.name()) && AGGREGATE_METRIC_DOUBLE.equals(a.dataType()))
+        );
     }
 
     public void testSubqueryRenameChainKeepStarOnMissingCounterField() {

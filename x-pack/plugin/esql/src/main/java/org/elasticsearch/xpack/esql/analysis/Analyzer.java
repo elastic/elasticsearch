@@ -3517,20 +3517,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             List<Attribute> updatedUnionAllOutput
         ) {
             Map<NameId, Attribute> idToUpdatedAttr = updatedUnionAllOutput.stream().collect(Collectors.toMap(Attribute::id, attr -> attr));
-            return plan.transformUp(node -> {
-                LogicalPlan rewritten = node.transformExpressionsOnly(Attribute.class, expr -> {
-                    Attribute updated = idToUpdatedAttr.get(expr.id());
-                    return (updated != null && expr.dataType() != updated.dataType()) ? updated : expr;
-                });
-                // check the alias that reference the attributes, the aliases have different namedId than the attributes,
-                // their data types may also need to be updated as well
-                rewritten.forEachExpression(Alias.class, alias -> {
-                    if (alias.child() instanceof Attribute child && idToUpdatedAttr.containsKey(child.id())) {
+            return plan.transformExpressionsUp(NamedExpression.class, expr -> {
+                if (expr instanceof Attribute attr) {
+                    Attribute updated = idToUpdatedAttr.get(attr.id());
+                    if (updated != null && attr.dataType() != updated.dataType()) {
+                        return updated;
+                    }
+                } else if (expr instanceof Alias alias && alias.child() instanceof Attribute child) {
+                    // check the alias that reference attributes, the aliases have different namedId than the attributes they reference,
+                    // their data types may also need to be updated.
+                    if (idToUpdatedAttr.containsKey(child.id())) {
                         Attribute aliasAttr = alias.toAttribute();
                         idToUpdatedAttr.putIfAbsent(aliasAttr.id(), aliasAttr);
                     }
-                });
-                return rewritten;
+                }
+                return expr;
             });
         }
     }

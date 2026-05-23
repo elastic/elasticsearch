@@ -81,6 +81,33 @@ public class UnresolvedMetadataAttributeExpression extends UnresolvedNamedExpres
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(UNRESOLVED_PREFIX).append(format.rewriter.wildcardPattern(pattern));
+        sb.append(UNRESOLVED_PREFIX);
+        // Local wildcard parser — same shape as UnresolvedNamePattern.rewriteWildcardPattern but
+        // duplicated here because this class lives in core.expression and can't reach into
+        // xpack.esql.expression without breaking the layering.
+        if (pattern == null || pattern.isEmpty()) {
+            return;
+        }
+        var rewriter = format.rewriter;
+        StringBuilder run = new StringBuilder();
+        for (int i = 0; i < pattern.length(); i++) {
+            char c = pattern.charAt(i);
+            if (c == '\\' && i + 1 < pattern.length()) {
+                run.append(pattern.charAt(++i));
+                continue;
+            }
+            if (c == '*' || c == '?' || c == '%' || c == '_') {
+                if (run.length() > 0) {
+                    sb.append(rewriter.column(run.toString()));
+                    run.setLength(0);
+                }
+                sb.append(c);
+            } else {
+                run.append(c);
+            }
+        }
+        if (run.length() > 0) {
+            sb.append(rewriter.column(run.toString()));
+        }
     }
 }

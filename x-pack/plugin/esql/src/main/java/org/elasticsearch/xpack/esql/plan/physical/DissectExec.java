@@ -95,6 +95,8 @@ public class DissectExec extends RegexExtractExec {
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append("[pattern=\"").append(format.rewriter.dissectPattern(parser.pattern())).append("\"]");
+        sb.append(nodeName()).append("[pattern=\"");
+        org.elasticsearch.xpack.esql.plan.logical.Dissect.rewriteDissectPattern(sb, parser.pattern(), format.rewriter);
+        sb.append("\"]");
     }
 }

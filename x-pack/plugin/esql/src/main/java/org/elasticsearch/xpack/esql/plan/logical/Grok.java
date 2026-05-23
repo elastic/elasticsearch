@@ -165,6 +165,54 @@ public class Grok extends RegexExtract implements TelemetryAware, SortPreserving
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append("[pattern=\"").append(format.rewriter.grokPattern(parser.pattern())).append("\"]");
+        sb.append(nodeName()).append("[pattern=\"");
+        rewriteGrokPattern(sb, parser.pattern(), format.rewriter);
+        sb.append("\"]");
+    }
+
+    /**
+     * Renders a Grok pattern of shape {@code "%{IP:client_ip} %{NUMBER:bytes:int}"}. The Grok
+     * library identifier (the part before the first {@code :}) is a predefined library name (IP,
+     * NUMBER, DATA, ...), not customer data — passes through. The capture name routes through
+     * {@code rewriter.column}. The optional type-coercion suffix after the second colon passes
+     * through.
+     */
+    public static void rewriteGrokPattern(
+        StringBuilder sb,
+        String pattern,
+        org.elasticsearch.xpack.esql.core.tree.NodeStringRewriter rewriter
+    ) {
+        if (pattern == null || pattern.isEmpty()) {
+            return;
+        }
+        int i = 0;
+        while (i < pattern.length()) {
+            int start = pattern.indexOf("%{", i);
+            if (start < 0) {
+                sb.append(pattern, i, pattern.length());
+                return;
+            }
+            sb.append(pattern, i, start);
+            int end = pattern.indexOf('}', start + 2);
+            if (end < 0) {
+                sb.append(pattern, start, pattern.length());
+                return;
+            }
+            String body = pattern.substring(start + 2, end);
+            int firstColon = body.indexOf(':');
+            sb.append("%{");
+            if (firstColon < 0) {
+                sb.append(body);
+            } else {
+                String libraryId = body.substring(0, firstColon);
+                String rest = body.substring(firstColon + 1);
+                int secondColon = rest.indexOf(':');
+                String captureName = secondColon < 0 ? rest : rest.substring(0, secondColon);
+                String suffix = secondColon < 0 ? "" : rest.substring(secondColon);
+                sb.append(libraryId).append(':').append(rewriter.column(captureName)).append(suffix);
+            }
+            sb.append('}');
+            i = end + 1;
+        }
     }
 }

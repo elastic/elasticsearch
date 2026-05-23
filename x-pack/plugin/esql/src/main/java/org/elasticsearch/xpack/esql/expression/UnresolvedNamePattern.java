@@ -113,7 +113,44 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(UNRESOLVED_PREFIX).append(format.rewriter.wildcardPattern(pattern));
+        sb.append(UNRESOLVED_PREFIX);
+        rewriteWildcardPattern(sb, pattern, format.rewriter);
+    }
+
+    /**
+     * Renders a wildcard-style pattern (SQL {@code LIKE} / shell {@code KEEP *foo*}) preserving
+     * the metacharacters {@code *}, {@code ?}, {@code %}, {@code _} verbatim; each literal run
+     * between metacharacters routes through {@code rewriter.column}. Backslash escapes the next
+     * character (treated as literal).
+     */
+    public static void rewriteWildcardPattern(
+        StringBuilder sb,
+        String pattern,
+        org.elasticsearch.xpack.esql.core.tree.NodeStringRewriter rewriter
+    ) {
+        if (pattern == null || pattern.isEmpty()) {
+            return;
+        }
+        StringBuilder run = new StringBuilder();
+        for (int i = 0; i < pattern.length(); i++) {
+            char c = pattern.charAt(i);
+            if (c == '\\' && i + 1 < pattern.length()) {
+                run.append(pattern.charAt(++i));
+                continue;
+            }
+            if (c == '*' || c == '?' || c == '%' || c == '_') {
+                if (run.length() > 0) {
+                    sb.append(rewriter.column(run.toString()));
+                    run.setLength(0);
+                }
+                sb.append(c);
+            } else {
+                run.append(c);
+            }
+        }
+        if (run.length() > 0) {
+            sb.append(rewriter.column(run.toString()));
+        }
     }
 
     @Override

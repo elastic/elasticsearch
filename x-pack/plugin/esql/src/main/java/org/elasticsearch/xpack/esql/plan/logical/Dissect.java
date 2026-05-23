@@ -148,6 +148,47 @@ public class Dissect extends RegexExtract implements TelemetryAware, SortPreserv
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append("[pattern=\"").append(format.rewriter.dissectPattern(parser.pattern())).append("\"]");
+        sb.append(nodeName()).append("[pattern=\"");
+        rewriteDissectPattern(sb, parser.pattern(), format.rewriter);
+        sb.append("\"]");
+    }
+
+    /**
+     * Renders a Dissect pattern of shape {@code "%{cap1} sep %{cap2}"} routing each capture
+     * identifier through {@code rewriter.column}. Captures may carry a {@code ?} (skip) or
+     * {@code +} (append) modifier right after the open brace — that's structural, preserved
+     * verbatim. Separator characters between captures pass through.
+     */
+    public static void rewriteDissectPattern(
+        StringBuilder sb,
+        String pattern,
+        org.elasticsearch.xpack.esql.core.tree.NodeStringRewriter rewriter
+    ) {
+        if (pattern == null || pattern.isEmpty()) {
+            return;
+        }
+        int i = 0;
+        while (i < pattern.length()) {
+            int start = pattern.indexOf("%{", i);
+            if (start < 0) {
+                sb.append(pattern, i, pattern.length());
+                return;
+            }
+            sb.append(pattern, i, start);
+            int end = pattern.indexOf('}', start + 2);
+            if (end < 0) {
+                sb.append(pattern, start, pattern.length());
+                return;
+            }
+            String body = pattern.substring(start + 2, end);
+            String modifier = "";
+            String captureName = body;
+            if (body.startsWith("?") || body.startsWith("+")) {
+                modifier = body.substring(0, 1);
+                captureName = body.substring(1);
+            }
+            sb.append("%{").append(modifier).append(captureName.isEmpty() ? "" : rewriter.column(captureName)).append('}');
+            i = end + 1;
+        }
     }
 }

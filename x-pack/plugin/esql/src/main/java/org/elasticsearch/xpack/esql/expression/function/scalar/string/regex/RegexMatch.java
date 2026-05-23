@@ -74,7 +74,9 @@ abstract class RegexMatch<P extends AbstractStringPattern> extends org.elasticse
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
         sb.append(name()).append('(');
         field().nodeString(sb, format);
-        sb.append(", \"").append(format.rewriter.wildcardPattern(pattern().pattern())).append("\", ").append(caseInsensitive()).append(')');
+        sb.append(", \"");
+        org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern.rewriteWildcardPattern(sb, pattern().pattern(), format.rewriter);
+        sb.append("\", ").append(caseInsensitive()).append(')');
     }
 
     void serializeCaseInsensitivity(StreamOutput out) throws IOException {

@@ -96,6 +96,8 @@ public class GrokExec extends RegexExtractExec {
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append(nodeName()).append("[pattern=\"").append(format.rewriter.grokPattern(parser.pattern())).append("\"]");
+        sb.append(nodeName()).append("[pattern=\"");
+        org.elasticsearch.xpack.esql.plan.logical.Grok.rewriteGrokPattern(sb, parser.pattern(), format.rewriter);
+        sb.append("\"]");
     }
 }

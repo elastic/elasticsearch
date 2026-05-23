@@ -552,16 +552,18 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .putList("index.analysis.filter.my_synonyms.synonyms_set", "set-a", "set-a")
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        MockLog.assertThatLogger(
-            () -> createTestAnalysis(idxSettings, settings, commonAnalysisPlugin),
-            SynonymTokenFilterFactory.class,
-            new MockLog.SeenEventExpectation(
-                "duplicate warning",
-                SynonymTokenFilterFactory.class.getName(),
-                Level.WARN,
-                "Duplicate synonym set names*"
-            )
-        );
+        try (var mockLog = MockLog.capture(SynonymTokenFilterFactory.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "duplicate warning",
+                    SynonymTokenFilterFactory.class.getName(),
+                    Level.WARN,
+                    "Duplicate synonym set names*"
+                )
+            );
+            createTestAnalysis(idxSettings, settings, commonAnalysisPlugin);
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     public void testTooManySynonymSetsRejected() {

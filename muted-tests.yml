@@ -588,3 +588,9 @@ tests:
 - class: org.elasticsearch.indices.recovery.IndexRecoveryIT
   method: testQueuedRecoveryCancelledWhenSourceShardClosed
   issue: https://github.com/elastic/elasticsearch/issues/149753
+- class: org.elasticsearch.reindex.management.ReindexRethrottleRelocationIT
+  method: testRethrottleByOriginalTaskIdAfterRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/149759
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:change_point.values int column with all nulls}
+  issue: https://github.com/elastic/elasticsearch/issues/149763

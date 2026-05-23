@@ -7,8 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.internal.AbstractDependenciesTask
-
 apply plugin: 'elasticsearch.build'
 
 dependencies {
@@ -22,6 +20,79 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-tasks.withType(AbstractDependenciesTask).configureEach {
+def dependencyMappings = {
   mapping from: /google-auth-.*/, to: 'google-auth'
+}
+tasks.named('dependencyLicenses').configure(dependencyMappings)
+tasks.named('dependenciesInfo').configure(dependencyMappings)
+
+tasks.named("thirdPartyAudit").configure {
+  // TODO: add the necessary dependencies while implementing the credentials provider
+  ignoreMissingClasses(
+    'com.google.api.client.http.GenericUrl',
+    'com.google.api.client.http.HttpBackOffUnsuccessfulResponseHandler',
+    'com.google.api.client.http.HttpBackOffUnsuccessfulResponseHandler$BackOffRequired',
+    'com.google.api.client.http.HttpContent',
+    'com.google.api.client.http.HttpHeaders',
+    'com.google.api.client.http.HttpRequest',
+    'com.google.api.client.http.HttpRequestFactory',
+    'com.google.api.client.http.HttpRequestInitializer',
+    'com.google.api.client.http.HttpResponse',
+    'com.google.api.client.http.HttpResponseException',
+    'com.google.api.client.http.HttpTransport',
+    'com.google.api.client.http.HttpUnsuccessfulResponseHandler',
+    'com.google.api.client.http.UrlEncodedContent',
+    'com.google.api.client.http.javanet.NetHttpTransport$Builder',
+    'com.google.api.client.http.json.JsonHttpContent',
+    'com.google.api.client.json.GenericJson',
+    'com.google.api.client.json.JsonFactory',
+    'com.google.api.client.json.JsonObjectParser',
+    'com.google.api.client.json.JsonParser',
+    'com.google.api.client.json.gson.GsonFactory',
+    'com.google.api.client.json.webtoken.JsonWebSignature',
+    'com.google.api.client.json.webtoken.JsonWebSignature$Header',
+    'com.google.api.client.json.webtoken.JsonWebToken$Payload',
+    'com.google.api.client.util.Base64',
+    'com.google.api.client.util.Clock',
+    'com.google.api.client.util.ExponentialBackOff$Builder',
+    'com.google.api.client.util.GenericData',
+    'com.google.api.client.util.Joiner',
+    'com.google.api.client.util.PemReader',
+    'com.google.api.client.util.PemReader$Section',
+    'com.google.api.client.util.Preconditions',
+    'com.google.api.client.util.SecurityUtils',
+    'com.google.common.base.Joiner',
+    'com.google.common.base.MoreObjects',
+    'com.google.common.base.MoreObjects$ToStringHelper',
+    'com.google.common.base.Preconditions',
+    'com.google.common.base.Splitter',
+    'com.google.common.base.Strings',
+    'com.google.common.base.Throwables',
+    'com.google.common.base.Ticker',
+    'com.google.common.cache.CacheBuilder',
+    'com.google.common.cache.CacheLoader',
+    'com.google.common.cache.LoadingCache',
+    'com.google.common.collect.ImmutableList',
+    'com.google.common.collect.ImmutableMap',
+    'com.google.common.collect.ImmutableMap$Builder',
+    'com.google.common.collect.ImmutableSet',
+    'com.google.common.collect.Iterables',
+    'com.google.common.io.BaseEncoding',
+    'com.google.common.io.ByteStreams',
+    'com.google.common.io.CharStreams',
+    'com.google.common.util.concurrent.AbstractFuture',
+    'com.google.common.util.concurrent.FutureCallback',
+    'com.google.common.util.concurrent.Futures',
+    'com.google.common.util.concurrent.ListenableFuture',
+    'com.google.common.util.concurrent.ListenableFutureTask',
+    'com.google.common.util.concurrent.MoreExecutors',
+    'com.google.gson.Gson',
+    'org.slf4j.ILoggerFactory',
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory',
+    'org.slf4j.MDC',
+    'org.slf4j.event.Level',
+    'org.slf4j.helpers.NOPLogger',
+    'org.slf4j.spi.LoggingEventBuilder',
+  )
 }

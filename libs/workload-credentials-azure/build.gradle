@@ -7,8 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.internal.AbstractDependenciesTask
-
 apply plugin: 'elasticsearch.build'
 
 dependencies {
@@ -28,8 +26,55 @@ tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
 
-tasks.withType(AbstractDependenciesTask).configureEach {
+def dependencyMappings = {
   mapping from: /azure-.*/, to: 'azure'
   mapping from: /jackson-.*/, to: 'jackson'
   mapping from: /reactive-streams.*/, to: 'reactive-streams'
+}
+tasks.named('dependencyLicenses').configure(dependencyMappings)
+tasks.named('dependenciesInfo').configure(dependencyMappings)
+
+tasks.named("thirdPartyAudit").configure {
+  // TODO: add the necessary dependencies while implementing the credentials provider
+  ignoreMissingClasses(
+    // optional reactor-netty metric collection (we don't use reactor-netty here)
+    'io.micrometer.core.instrument.Clock',
+    'io.micrometer.core.instrument.Counter',
+    'io.micrometer.core.instrument.Counter$Builder',
+    'io.micrometer.core.instrument.DistributionSummary',
+    'io.micrometer.core.instrument.DistributionSummary$Builder',
+    'io.micrometer.core.instrument.Meter',
+    'io.micrometer.core.instrument.MeterRegistry',
+    'io.micrometer.core.instrument.Metrics',
+    'io.micrometer.core.instrument.Tag',
+    'io.micrometer.core.instrument.Tags',
+    'io.micrometer.core.instrument.Timer',
+    'io.micrometer.core.instrument.Timer$Builder',
+    'io.micrometer.core.instrument.Timer$Sample',
+    'io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics',
+    'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
+    'io.micrometer.core.instrument.search.Search',
+
+    // optional reactor-core Kotlin extensions
+    'kotlin.collections.ArraysKt',
+    'kotlin.jvm.JvmClassMappingKt',
+    'kotlin.jvm.functions.Function0',
+    'kotlin.jvm.functions.Function1',
+    'kotlin.jvm.internal.FunctionReference',
+    'kotlin.jvm.internal.Intrinsics',
+    'kotlin.jvm.internal.Reflection',
+    'kotlin.jvm.internal.markers.KMappedMarker',
+    'kotlin.reflect.KClass',
+    'kotlin.reflect.KDeclarationContainer',
+    'kotlin.sequences.Sequence',
+
+    // optional reactor-core BlockHound integration
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration',
+  )
+
+  ignoreViolations(
+    // reactor-core uses sun.misc.SharedSecrets to capture call sites for debug stack traces
+    'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
+  )
 }

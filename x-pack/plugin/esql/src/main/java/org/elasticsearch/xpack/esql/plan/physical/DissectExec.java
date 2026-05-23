@@ -92,4 +92,9 @@ public class DissectExec extends RegexExtractExec {
     public Dissect.Parser parser() {
         return parser;
     }
+
+    @Override
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[pattern=\"").append(format.rewriter.dissectPattern(parser.pattern())).append("\"]");
+    }
 }

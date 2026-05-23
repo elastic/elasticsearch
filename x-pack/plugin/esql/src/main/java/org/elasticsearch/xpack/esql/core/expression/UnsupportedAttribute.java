@@ -154,7 +154,11 @@ public final class UnsupportedAttribute extends FieldAttribute implements Unreso
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format) {
-        sb.append("!").append(qualifiedName());
+        sb.append('!');
+        if (qualifier() != null) {
+            sb.append(format.rewriter.column(qualifier())).append('.');
+        }
+        sb.append(format.rewriter.column(name()));
     }
 
     @Override

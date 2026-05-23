@@ -122,4 +122,16 @@ public class ParameterizedQueryExec extends LeafExec {
     public int hashCode() {
         return Objects.hash(output, matchFields, joinOnConditions, query, emptyResult);
     }
+
+    @Override
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        // query is a raw Lucene-pushdown QueryBuilder DSL; drop it under a rewriting format.
+        if (format.rewrites() == false) {
+            super.nodeString(sb, format);
+            return;
+        }
+        sb.append(nodeName()).append("[output=");
+        org.elasticsearch.xpack.esql.core.tree.NodeUtils.toString(sb, output, format);
+        sb.append(", query=<dropped>, emptyResult=").append(emptyResult).append(']');
+    }
 }

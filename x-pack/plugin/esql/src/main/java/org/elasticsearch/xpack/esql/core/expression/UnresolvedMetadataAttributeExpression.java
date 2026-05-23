@@ -78,4 +78,9 @@ public class UnresolvedMetadataAttributeExpression extends UnresolvedNamedExpres
     public String toString() {
         return UNRESOLVED_PREFIX + pattern;
     }
+
+    @Override
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(UNRESOLVED_PREFIX).append(format.rewriter.wildcardPattern(pattern));
+    }
 }

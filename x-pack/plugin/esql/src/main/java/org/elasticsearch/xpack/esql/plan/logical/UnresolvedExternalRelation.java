@@ -139,4 +139,15 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
     public String toString() {
         return UNRESOLVED_PREFIX + "EXTERNAL[" + tablePath.sourceText() + "]";
     }
+
+    @Override
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        // tablePath.sourceText() exposes the raw query fragment under raw formats; the unresolvedMsg
+        // embeds it too. Under a rewriting format drop both and keep only the structural marker.
+        if (format.rewrites()) {
+            sb.append(UNRESOLVED_PREFIX).append("EXTERNAL[<dropped>]");
+        } else {
+            sb.append(toString());
+        }
+    }
 }

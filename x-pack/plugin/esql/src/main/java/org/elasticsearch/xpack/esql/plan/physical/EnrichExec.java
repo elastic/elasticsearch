@@ -201,4 +201,29 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize, ExecutesO
             default -> ExecuteLocation.ANY;
         };
     }
+
+    @Override
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        // Under a rewriting format we route policyName + concreteIndices keys/values through the
+        // index-token map and skip the policyMatchField raw rendering (it surfaces in the
+        // standard property walk for raw modes via its Attribute nodeString).
+        if (format.rewrites() == false) {
+            super.nodeString(sb, format);
+            return;
+        }
+        sb.append(nodeName()).append("[mode=").append(mode).append(", policy=").append(format.rewriter.index(policyName));
+        if (concreteIndices != null && concreteIndices.isEmpty() == false) {
+            sb.append(", concreteIndices={");
+            boolean first = true;
+            for (Map.Entry<String, String> e : concreteIndices.entrySet()) {
+                if (first == false) {
+                    sb.append(", ");
+                }
+                first = false;
+                sb.append(format.rewriter.index(e.getKey())).append('=').append(format.rewriter.index(e.getValue()));
+            }
+            sb.append('}');
+        }
+        sb.append(']');
+    }
 }

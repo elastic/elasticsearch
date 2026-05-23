@@ -93,4 +93,9 @@ public class GrokExec extends RegexExtractExec {
     public Grok.Parser pattern() {
         return parser;
     }
+
+    @Override
+    public void nodeString(StringBuilder sb, NodeStringFormat format) {
+        sb.append(nodeName()).append("[pattern=\"").append(format.rewriter.grokPattern(parser.pattern())).append("\"]");
+    }
 }

@@ -92,6 +92,11 @@ public class LocalStateInferencePlugin extends LocalStateCompositeXPackPlugin {
     }
 
     @Override
+    public List<SearchExtSpec<?>> getSearchExts() {
+        return inferencePlugin.getSearchExts();
+    }
+
+    @Override
     public Collection<MappedActionFilter> getMappedActionFilters() {
         return inferencePlugin.getMappedActionFilters();
     }

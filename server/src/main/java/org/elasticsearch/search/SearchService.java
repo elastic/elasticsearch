@@ -1851,8 +1851,18 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
             // Propagate search ext builders registered during query rewrite (e.g. chunk scoring config
             // from SemanticQueryBuilder that gets rewritten away before the fetch phase).
-            for (SearchExtBuilder ext : context.getRewriteSearchExts()) {
-                searchContext.addSearchExt(ext);
+            // We add them to both the search context (for immediate use) and the request source
+            // (so they survive across query and fetch phases, which may use separate contexts).
+            var rewriteExts = context.getRewriteSearchExts();
+            if (rewriteExts.isEmpty() == false) {
+                for (SearchExtBuilder ext : rewriteExts) {
+                    searchContext.addSearchExt(ext);
+                }
+                if (request.source() != null) {
+                    var sourceExts = new java.util.ArrayList<>(request.source().ext());
+                    sourceExts.addAll(rewriteExts);
+                    request.source().ext(sourceExts);
+                }
             }
 
             if (context.getTimeRangeFilterFromMillis() != null) {

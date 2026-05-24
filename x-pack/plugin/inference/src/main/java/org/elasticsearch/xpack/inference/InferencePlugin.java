@@ -116,6 +116,7 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceKnnVectorQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceMatchQueryBuilder;
 import org.elasticsearch.xpack.inference.queries.InterceptedInferenceSparseVectorQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.SemanticChunksExtBuilder;
 import org.elasticsearch.xpack.inference.queries.SemanticKnnVectorQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticMatchQueryRewriteInterceptor;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
@@ -831,6 +832,13 @@ public class InferencePlugin extends Plugin
                 EmbeddingQueryVectorBuilder::new,
                 EmbeddingQueryVectorBuilder.PARSER
             )
+        );
+    }
+
+    @Override
+    public List<SearchExtSpec<?>> getSearchExts() {
+        return List.of(
+            new SearchExtSpec<>(SemanticChunksExtBuilder.NAME, SemanticChunksExtBuilder::new, SemanticChunksExtBuilder::fromXContent)
         );
     }
 

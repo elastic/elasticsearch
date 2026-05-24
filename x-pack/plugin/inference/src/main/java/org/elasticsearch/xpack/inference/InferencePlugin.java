@@ -50,6 +50,7 @@ import org.elasticsearch.plugins.internal.InternalSearchPlugin;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.rest.RestHeaderDefinition;
+import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.subphase.highlight.Highlighter;
 import org.elasticsearch.search.rank.RankBuilder;
 import org.elasticsearch.search.rank.RankDoc;
@@ -139,6 +140,7 @@ import org.elasticsearch.xpack.inference.rest.RestPutCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestStreamInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestUpdateInferenceModelAction;
+import org.elasticsearch.xpack.inference.search.SemanticChunksFetchSubPhase;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ai21.Ai21Service;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService;
@@ -855,6 +857,11 @@ public class InferencePlugin extends Plugin
     @Override
     public Map<String, Highlighter> getHighlighters() {
         return Map.of(SemanticTextHighlighter.NAME, new SemanticTextHighlighter());
+    }
+
+    @Override
+    public List<FetchSubPhase> getFetchSubPhases(FetchPhaseConstructionContext context) {
+        return List.of(new SemanticChunksFetchSubPhase());
     }
 
     @Override

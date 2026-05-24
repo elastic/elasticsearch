@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.PutJobAction;
 import org.elasticsearch.xpack.core.ml.action.RevertModelSnapshotAction;
 import org.elasticsearch.xpack.core.ml.action.UpdateJobAction;
-import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisConfig;
 import org.elasticsearch.xpack.core.ml.job.config.AnalysisLimits;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
@@ -32,6 +31,7 @@ import org.elasticsearch.xpack.core.ml.job.config.DetectionRule;
 import org.elasticsearch.xpack.core.ml.job.config.Detector;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.ml.job.config.JobUpdate;
+import org.elasticsearch.xpack.core.ml.job.persistence.AnomalyDetectorsIndex;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSizeStats;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.ModelSnapshot;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.Quantiles;
@@ -165,10 +165,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
         client().admin().indices().prepareCreate(".ml-state-000001").get();
         client().admin().indices().prepareClose(".ml-state-000001").setWaitForActiveShards(0).get();
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, () -> createJob(jobId));
-        assertThat(
-            ex.getMessage(),
-            containsString("Cannot create job [job-with-closed-results-index] as it requires closed index [")
-        );
+        assertThat(ex.getMessage(), containsString("Cannot create job [job-with-closed-results-index] as it requires closed index ["));
         for (String stateIndexPattern : AnomalyDetectorsIndex.jobStateIndexPatterns()) {
             assertThat(ex.getMessage(), containsString(stateIndexPattern));
         }

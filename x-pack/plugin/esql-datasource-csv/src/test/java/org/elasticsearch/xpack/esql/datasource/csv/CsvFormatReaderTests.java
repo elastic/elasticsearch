@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -5618,5 +5619,82 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(1, page.getPositionCount());
             assertEquals(new BytesRef("hello\nworld"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
         }
+    }
+
+    // --- Stream drain prevention ---
+
+    /**
+     * Regression guard: {@code readSchema} must not drain the full stream body when closing
+     * after reading a typed header. Storage providers that drain on close (e.g. S3) would
+     * otherwise block the search thread for the full object transfer time.
+     * The fix must abort the stream before the drain can occur.
+     * <p>
+     * This test uses a mock stream that simulates the drain-on-close behaviour. The test
+     * fails against the unfixed code (because {@code close()} drains the entire body) and
+     * passes once the fix ensures the stream is aborted after the header is read.
+     */
+    public void testReadSchemaDoesNotDrainStream_typedHeader() throws IOException {
+        // Typed-header CSV: the schema is fully encoded in the header line so readSchema
+        // needs only that one line. The rest of the file should never be consumed.
+        StringBuilder csv = new StringBuilder("id:long,name:keyword,value:double\n");
+        for (int i = 0; i < 200_000; i++) {
+            csv.append(i).append(",name_").append(i).append(",").append(i * 1.5).append("\n");
+        }
+        byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
+        assertThat("test file must be >> reader buffer size to be meaningful", bytes.length, Matchers.greaterThan(1_000_000));
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(bytes, tracking);
+
+        new CsvFormatReader(blockFactory).schema(object);
+
+        // Only the header line was needed. The BufferedReader pre-fills up to 64 KB on
+        // the first readLine(), so allow 2x that as a generous upper bound — but the vast
+        // majority of the multi-MB file must not have been touched.
+        assertThat(
+            "readSchema must not drain the stream after reading a typed header; consumed "
+                + tracking.bytesConsumed.get()
+                + " of "
+                + bytes.length
+                + " bytes",
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan((long) bytes.length / 2)
+        );
+    }
+
+    /**
+     * Regression guard: for plain (untyped) headers, type inference reads a bounded sample
+     * of rows, but the remaining file body must not be drained on close.
+     * <p>
+     * This test uses a mock stream that simulates the drain-on-close behaviour. The test
+     * fails against the unfixed code and passes once the fix aborts the stream after the
+     * sample rows are consumed.
+     */
+    public void testReadSchemaDoesNotDrainStream_inferredSchema() throws IOException {
+        // Plain headers trigger type inference from a sample (default 20 000 rows).
+        // The file contains 200 000 rows so most of it should remain unread after schema().
+        StringBuilder csv = new StringBuilder("id,name,value\n");
+        for (int i = 0; i < 200_000; i++) {
+            csv.append(i).append(",name_").append(i).append(",").append(i * 1.5).append("\n");
+        }
+        byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
+        assertThat("test file must be significantly larger than the schema sample", bytes.length, Matchers.greaterThan(2_000_000));
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(bytes, tracking);
+
+        new CsvFormatReader(blockFactory).schema(object);
+
+        // The sample covers at most DEFAULT_SAMPLE_SIZE rows, which is a small fraction
+        // of the 200 000-row file. The remaining body must not be drained.
+        assertThat(
+            "readSchema must not drain beyond the schema sample; consumed "
+                + tracking.bytesConsumed.get()
+                + " of "
+                + bytes.length
+                + " bytes",
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan((long) bytes.length / 2)
+        );
     }
 }

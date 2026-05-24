@@ -195,6 +195,13 @@ public final class ColumnStatsAccumulator {
         }
 
         private void updateDouble(double val) {
+            // NaN comparisons always return false, so a leading NaN would wedge the tracker on NaN
+            // forever (no value compares < NaN or > NaN). Skip NaN entirely — it neither shrinks min
+            // nor extends max under standard SQL ordering. The non-null count still includes the cell
+            // because the outer block.isNull(p) check has already ruled out the SQL-null case.
+            if (Double.isNaN(val)) {
+                return;
+            }
             Double cur = (Double) min;
             if (cur == null || val < cur) {
                 min = val;

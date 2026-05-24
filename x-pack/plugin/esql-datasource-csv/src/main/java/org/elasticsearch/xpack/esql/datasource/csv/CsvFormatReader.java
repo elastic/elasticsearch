@@ -569,11 +569,32 @@ public class CsvFormatReader implements SegmentableFormatReader {
             cachedSize = OptionalLong.empty();
         }
         final OptionalLong sizeInBytes = cachedSize;
-        Optional<ExternalStatsCache.Stats> cachedStats = ExternalStatsCache.lookup(object);
+        String configFingerprint = computeConfigFingerprint(schema);
+        Optional<ExternalStatsCache.Stats> cachedStats = ExternalStatsCache.lookup(object, configFingerprint);
         SourceStatistics stats = TextFormatStats.build(cachedStats, sizeInBytes, schema);
-        Map<String, Object> baseSourceMetadata = Map.of(ExternalStatsCache.MTIME_MILLIS_KEY, mtimeMillis);
+        Map<String, Object> baseSourceMetadata = Map.of(
+            ExternalStatsCache.MTIME_MILLIS_KEY,
+            mtimeMillis,
+            ExternalStatsCache.CONFIG_FINGERPRINT_KEY,
+            configFingerprint
+        );
         Map<String, Object> sourceMetadata = SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats);
         return new SimpleSourceMetadata(schema, formatName(), location, stats, null, sourceMetadata, null);
+    }
+
+    /**
+     * Hash of the row-interpretation-affecting config: format name, format options (header / comment
+     * / delimiter / quote / null-value / multi-value-syntax / encoding), effective error-policy mode,
+     * and the resolved schema (name + type per attribute). Distinct hashes produce distinct cache
+     * entries — a same-file re-query under different {@code WITH} options never serves stale stats.
+     */
+    private String computeConfigFingerprint(List<Attribute> schema) {
+        StringBuilder sb = new StringBuilder(128);
+        sb.append(formatName()).append('|').append(options.hashCode()).append('|').append(effectivePolicy.mode());
+        for (Attribute a : schema) {
+            sb.append('|').append(a.name()).append(':').append(a.dataType());
+        }
+        return Integer.toUnsignedString(sb.toString().hashCode(), 36);
     }
 
     private List<Attribute> readSchema(StorageObject object) throws IOException {
@@ -945,8 +966,24 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // path always sets context.errorPolicy() explicitly.
         ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : effectivePolicy;
         // Whole-file read: first + last split, no parallel slicing. Only iterators that drain a
-        // file from offset 0 to natural EOF qualify to populate ExternalStatsCache.
+        // file from offset 0 to natural EOF qualify to populate ExternalStatsCache. mtime is pinned
+        // here at open-time so a mid-scan file replacement cannot pair a new mtime with old data.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
+        long pinnedMtimeMillis = -1L;
+        if (wholeFileRead) {
+            try {
+                Instant openMtime = object.lastModified();
+                if (openMtime != null) {
+                    pinnedMtimeMillis = openMtime.toEpochMilli();
+                } else {
+                    wholeFileRead = false;
+                }
+            } catch (IOException e) {
+                wholeFileRead = false;
+            }
+        }
+        // Fingerprint is computed lazily in CsvBatchIterator.close() once the schema is resolved
+        // (effectiveSchema is often null here for the firstSplit cold-resolve path).
         return new CsvBatchIterator(
             reader,
             stream,
@@ -956,7 +993,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             effective,
             object.path().toString(),
             wholeFileRead ? object : null,
-            wholeFileRead ? stream : null
+            wholeFileRead ? stream : null,
+            pinnedMtimeMillis
         );
     }
 
@@ -1661,6 +1699,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         /** Lazily built once the schema and projection are known. {@code null} until the first batch resolves them. */
         private org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator columnStats;
 
+        /** Pinned at iterator open; closes the open-vs-close mtime-race window for the cache key. */
+        private final long pinnedMtimeMillis;
+
         CsvBatchIterator(
             BufferedReader reader,
             InputStream stream,
@@ -1670,7 +1711,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             ErrorPolicy errorPolicy,
             String sourceLocation,
             StorageObject cacheableObject,
-            org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream byteCounter
+            org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream byteCounter,
+            long pinnedMtimeMillis
         ) {
             this.reader = reader;
             this.stream = stream;
@@ -1688,6 +1730,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.sourceLocation = sourceLocation;
             this.cacheableObject = cacheableObject;
             this.byteCounter = byteCounter;
+            this.pinnedMtimeMillis = pinnedMtimeMillis;
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
                 "CSV read from ["
@@ -1761,12 +1804,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 // Cache only on clean whole-file drain. Same gate handles FAIL_FAST and SKIP_ROW:
                 // any observed errors suppress the write, so we never cache a policy-dependent count.
-                if (cacheableObject != null && naturallyExhausted && errorCount == 0) {
+                if (cacheableObject != null && naturallyExhausted && errorCount == 0 && pinnedMtimeMillis >= 0 && schema != null) {
                     java.util.Map<String, ExternalStatsCache.ColumnStats> cols = columnStats == null
                         ? java.util.Map.of()
                         : columnStats.snapshot();
                     OptionalLong bytesRead = byteCounter == null ? OptionalLong.empty() : OptionalLong.of(byteCounter.getBytesRead());
-                    ExternalStatsCache.put(cacheableObject, new ExternalStatsCache.Stats(rowsEmittedForCache, bytesRead, cols));
+                    ExternalStatsCache.put(
+                        sourceLocation,
+                        pinnedMtimeMillis,
+                        computeConfigFingerprint(schema),
+                        new ExternalStatsCache.Stats(rowsEmittedForCache, bytesRead, cols)
+                    );
                 }
                 reader.close();
                 stream.close();

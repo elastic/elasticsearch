@@ -299,11 +299,31 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             cachedSize = OptionalLong.empty();
         }
         final OptionalLong sizeInBytes = cachedSize;
-        Optional<ExternalStatsCache.Stats> cachedStats = ExternalStatsCache.lookup(object);
+        String configFingerprint = computeConfigFingerprint(schema);
+        Optional<ExternalStatsCache.Stats> cachedStats = ExternalStatsCache.lookup(object, configFingerprint);
         SourceStatistics stats = TextFormatStats.build(cachedStats, sizeInBytes, schema);
-        Map<String, Object> baseSourceMetadata = Map.of(ExternalStatsCache.MTIME_MILLIS_KEY, mtimeMillis);
+        Map<String, Object> baseSourceMetadata = Map.of(
+            ExternalStatsCache.MTIME_MILLIS_KEY,
+            mtimeMillis,
+            ExternalStatsCache.CONFIG_FINGERPRINT_KEY,
+            configFingerprint
+        );
         Map<String, Object> sourceMetadata = SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats);
         return new SimpleSourceMetadata(schema, formatName(), location, stats, null, sourceMetadata, null);
+    }
+
+    /**
+     * Hash of the row-interpretation-affecting config: format name + resolved schema (name + type
+     * per attribute). NDJSON has less drift surface than CSV (no header / delimiter / quote toggles),
+     * but the schema can still be re-typed via {@code WITH} options.
+     */
+    private String computeConfigFingerprint(List<Attribute> schema) {
+        StringBuilder sb = new StringBuilder(64);
+        sb.append(formatName());
+        for (Attribute a : schema) {
+            sb.append('|').append(a.name()).append(':').append(a.dataType());
+        }
+        return Integer.toUnsignedString(sb.toString().hashCode(), 36);
     }
 
     /**
@@ -348,8 +368,25 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         List<Attribute> effectiveSchema = context.readSchema() == null
             ? inferSchemaIfNeeded(resolvedSchema, object, skipFirstLine)
             : mergeBoundWithProjection(context.readSchema(), resolvedSchema);
-        // Whole-file read: first + last split, no parallel slicing. See CsvFormatReader.read for the rationale.
+        // Whole-file read: first + last split, no parallel slicing. See CsvFormatReader.read for the
+        // rationale. mtime is pinned here at open-time so a mid-scan file replacement cannot pair a
+        // new mtime with old data.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
+        long pinnedMtimeMillis = -1L;
+        if (wholeFileRead) {
+            try {
+                Instant openMtime = object.lastModified();
+                if (openMtime != null) {
+                    pinnedMtimeMillis = openMtime.toEpochMilli();
+                } else {
+                    wholeFileRead = false;
+                }
+            } catch (IOException e) {
+                wholeFileRead = false;
+            }
+        }
+        // Fingerprint is computed lazily in the iterator's close hook once the decoder has resolved
+        // its projected attributes — schema resolution can lag past iterator construction.
         return new NdJsonPageIterator(
             object,
             context.projectedColumns(),
@@ -360,7 +397,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             trimLastPartialLine,
             effectiveSchema,
             errorPolicy,
-            wholeFileRead ? object : null
+            wholeFileRead ? object : null,
+            pinnedMtimeMillis,
+            wholeFileRead ? this::computeConfigFingerprint : null
         );
     }
 

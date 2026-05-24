@@ -63,6 +63,14 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
      */
     static final int BYTE_ARRAY_FAST_PATH_MAX_SIZE = 16 * 1024 * 1024;
 
+    /** Pinned at iterator open; closes the open-vs-close mtime-race window for the cache key. */
+    private final long pinnedMtimeMillis;
+    /** Computes the cache fingerprint from the FULL file schema at close time — must match {@code metadata()}'s input. */
+    private final java.util.function.Function<List<Attribute>, String> fingerprinter;
+    /** Full file schema as passed by the planner. Non-null on the wholeFileRead path; used for fingerprint at close. */
+    private final List<Attribute> fingerprintSchema;
+    private final String sourceLocation;
+
     NdJsonPageIterator(
         StorageObject object,
         List<String> projectedColumns,
@@ -73,17 +81,22 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         boolean trimLastPartialLine,
         List<Attribute> resolvedAttributes,
         ErrorPolicy errorPolicy,
-        StorageObject cacheableObject
+        StorageObject cacheableObject,
+        long pinnedMtimeMillis,
+        java.util.function.Function<List<Attribute>, String> fingerprinter
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.cacheableObject = cacheableObject;
-        String sourceLocation = object.path().toString();
+        this.pinnedMtimeMillis = pinnedMtimeMillis;
+        this.fingerprinter = fingerprinter;
+        this.fingerprintSchema = resolvedAttributes;
+        this.sourceLocation = object.path().toString();
         InputStream inputStream = object.newStream();
         if (skipFirstLine) {
             skipToNextLine(inputStream);
         }
         if (trimLastPartialLine) {
-            inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation);
+            inputStream = trimLastPartialLine(inputStream, errorPolicy, this.sourceLocation);
         }
         this.rowLimit = rowLimit;
         if (canUseByteArrayFastPath(object)) {
@@ -102,7 +115,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                 batchSize,
                 blockFactory,
                 errorPolicy,
-                sourceLocation
+                this.sourceLocation
             );
         } else {
             // Wrap on the streaming path so close-time bytesRead works for stream-only sources
@@ -118,7 +131,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                 batchSize,
                 blockFactory,
                 errorPolicy,
-                sourceLocation
+                this.sourceLocation
             );
         }
     }
@@ -225,12 +238,29 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     @Override
     public void close() throws IOException {
         // Cache only on clean whole-file drain. Runs before closing the decoder so its errorCount is still readable.
-        if (cacheableObject != null && naturallyExhausted && pageDecoder.errorCount() == 0) {
-            java.util.Map<String, ExternalStatsCache.ColumnStats> cols = columnStats == null ? java.util.Map.of() : columnStats.snapshot();
-            java.util.OptionalLong bytesRead = byteCounter != null
-                ? java.util.OptionalLong.of(byteCounter.getBytesRead())
-                : (byteArrayBytesRead >= 0 ? java.util.OptionalLong.of(byteArrayBytesRead) : java.util.OptionalLong.empty());
-            ExternalStatsCache.put(cacheableObject, new ExternalStatsCache.Stats(rowsEmitted, bytesRead, cols));
+        if (cacheableObject != null
+            && naturallyExhausted
+            && pageDecoder.errorCount() == 0
+            && pinnedMtimeMillis >= 0
+            && fingerprinter != null) {
+            // Fingerprint must use the FULL file schema for parity with NdJsonFormatReader.metadata().
+            // Prefer the planner-provided schema (resolvedAttributes), fall back to the decoder's
+            // projected attributes only when those equal the full schema (no projection pruning).
+            List<Attribute> fullSchema = fingerprintSchema != null ? fingerprintSchema : pageDecoder.projectedAttributes();
+            if (fullSchema != null && fullSchema.isEmpty() == false) {
+                java.util.Map<String, ExternalStatsCache.ColumnStats> cols = columnStats == null
+                    ? java.util.Map.of()
+                    : columnStats.snapshot();
+                java.util.OptionalLong bytesRead = byteCounter != null
+                    ? java.util.OptionalLong.of(byteCounter.getBytesRead())
+                    : (byteArrayBytesRead >= 0 ? java.util.OptionalLong.of(byteArrayBytesRead) : java.util.OptionalLong.empty());
+                ExternalStatsCache.put(
+                    sourceLocation,
+                    pinnedMtimeMillis,
+                    fingerprinter.apply(fullSchema),
+                    new ExternalStatsCache.Stats(rowsEmitted, bytesRead, cols)
+                );
+            }
         }
         IOUtils.close(pageDecoder);
     }

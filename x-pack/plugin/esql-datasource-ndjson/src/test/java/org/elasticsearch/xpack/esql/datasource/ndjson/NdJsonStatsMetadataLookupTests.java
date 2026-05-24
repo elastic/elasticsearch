@@ -49,10 +49,18 @@ public class NdJsonStatsMetadataLookupTests extends ESTestCase {
         assertTrue("sizeInBytes must be present on cache miss", md.statistics().get().sizeInBytes().isPresent());
     }
 
+    /** Probes the format reader to learn what cache-key fingerprint it uses, then seeds the cache. */
+    private void seedCache(StorageObject o, NdJsonFormatReader reader, ExternalStatsCache.Stats stats) throws Exception {
+        SourceMetadata probe = reader.metadata(o);
+        String fp = (String) probe.sourceMetadata().get(ExternalStatsCache.CONFIG_FINGERPRINT_KEY);
+        ExternalStatsCache.put(o.path().toString(), o.lastModified().toEpochMilli(), fp, stats);
+    }
+
     public void testCacheHitPublishesRowCount() throws Exception {
         StorageObject o = obj("{\"a\":1}\n{\"a\":2}\n{\"a\":3}\n");
-        ExternalStatsCache.put(o, 3L);
-        SourceMetadata md = new NdJsonFormatReader(null, blockFactory).metadata(o);
+        NdJsonFormatReader reader = new NdJsonFormatReader(null, blockFactory);
+        seedCache(o, reader, ExternalStatsCache.Stats.rowCountOnly(3L));
+        SourceMetadata md = reader.metadata(o);
         assertTrue(md.statistics().isPresent());
         OptionalLong rc = md.statistics().get().rowCount();
         assertTrue(rc.isPresent());
@@ -62,8 +70,9 @@ public class NdJsonStatsMetadataLookupTests extends ESTestCase {
     public void testCacheHitAlsoPublishesSizeInBytes() throws Exception {
         String content = "{\"a\":1}\n{\"a\":2}\n";
         StorageObject o = obj(content);
-        ExternalStatsCache.put(o, 2L);
-        SourceMetadata md = new NdJsonFormatReader(null, blockFactory).metadata(o);
+        NdJsonFormatReader reader = new NdJsonFormatReader(null, blockFactory);
+        seedCache(o, reader, ExternalStatsCache.Stats.rowCountOnly(2L));
+        SourceMetadata md = reader.metadata(o);
         assertTrue(md.statistics().isPresent());
         assertEquals(content.getBytes(StandardCharsets.UTF_8).length, md.statistics().get().sizeInBytes().getAsLong());
     }
@@ -80,8 +89,9 @@ public class NdJsonStatsMetadataLookupTests extends ESTestCase {
                 new org.apache.lucene.util.BytesRef("beta")
             )
         );
-        ExternalStatsCache.put(o, new ExternalStatsCache.Stats(2L, java.util.OptionalLong.empty(), cols));
-        SourceMetadata md = new NdJsonFormatReader(null, blockFactory).metadata(o);
+        NdJsonFormatReader reader = new NdJsonFormatReader(null, blockFactory);
+        seedCache(o, reader, new ExternalStatsCache.Stats(2L, java.util.OptionalLong.empty(), cols));
+        SourceMetadata md = reader.metadata(o);
         assertTrue(md.statistics().isPresent());
         java.util.Optional<java.util.Map<String, org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics.ColumnStatistics>> colStats =
             md.statistics().get().columnStatistics();
@@ -95,8 +105,9 @@ public class NdJsonStatsMetadataLookupTests extends ESTestCase {
 
     public void testCacheHitWithBytesReadPopulatesSizeInBytesWhenLengthUnknown() throws Exception {
         StorageObject streamOnly = streamOnlyObject("{\"a\":1}\n");
-        ExternalStatsCache.put(streamOnly, new ExternalStatsCache.Stats(1L, java.util.OptionalLong.of(8L), java.util.Map.of()));
-        SourceMetadata md = new NdJsonFormatReader(null, blockFactory).metadata(streamOnly);
+        NdJsonFormatReader reader = new NdJsonFormatReader(null, blockFactory);
+        seedCache(streamOnly, reader, new ExternalStatsCache.Stats(1L, java.util.OptionalLong.of(8L), java.util.Map.of()));
+        SourceMetadata md = reader.metadata(streamOnly);
         assertTrue(md.statistics().isPresent());
         assertTrue("stream-only sizeInBytes must be served from cache.bytesRead", md.statistics().get().sizeInBytes().isPresent());
         assertEquals(8L, md.statistics().get().sizeInBytes().getAsLong());

@@ -445,7 +445,14 @@ public class ExternalSourceResolver {
         if (effectiveMetadata.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false
             && effectiveMetadata.get(ExternalStatsCache.MTIME_MILLIS_KEY) instanceof Number mtimeMillis
             && entry.location() != null) {
-            java.util.Optional<ExternalStatsCache.Stats> cachedStats = ExternalStatsCache.lookup(entry.location(), mtimeMillis.longValue());
+            String configFingerprint = effectiveMetadata.get(ExternalStatsCache.CONFIG_FINGERPRINT_KEY) instanceof String fp
+                ? fp
+                : ExternalStatsCache.NO_FINGERPRINT;
+            java.util.Optional<ExternalStatsCache.Stats> cachedStats = ExternalStatsCache.lookup(
+                entry.location(),
+                mtimeMillis.longValue(),
+                configFingerprint
+            );
             if (cachedStats.isPresent()) {
                 long count = cachedStats.get().rowCount();
                 // Sanity bound when sizeInBytes is published: count must fit in the file. Stream-only sources skip this — gate is the mtime

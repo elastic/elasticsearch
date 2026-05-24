@@ -74,6 +74,19 @@ public class ExternalStatsCacheTests extends ESTestCase {
         assertTrue(ExternalStatsCache.lookup("memory://c.csv", mtimeMillis + 1).isEmpty());
     }
 
+    public void testDifferentConfigFingerprintsProduceDistinctEntries() {
+        String path = "memory://d.csv";
+        long mtime = Instant.now().toEpochMilli();
+        ExternalStatsCache.put(path, mtime, "headerOn", ExternalStatsCache.Stats.rowCountOnly(100L));
+        ExternalStatsCache.put(path, mtime, "headerOff", ExternalStatsCache.Stats.rowCountOnly(101L));
+        assertEquals("headerOn entry must hold its row count", 100L, ExternalStatsCache.lookup(path, mtime, "headerOn").get().rowCount());
+        assertEquals("headerOff entry must hold its row count", 101L, ExternalStatsCache.lookup(path, mtime, "headerOff").get().rowCount());
+        assertTrue(
+            "unfingerprinted lookup must not pick up a fingerprinted entry",
+            ExternalStatsCache.lookup(path, mtime, ExternalStatsCache.NO_FINGERPRINT).isEmpty()
+        );
+    }
+
     public void testStreamOnlySourceIsStillCacheable() {
         // Stream-only sources (bzip2, zstd-streamed) throw from length() but lastModified() works — cache key is mtime.
         StorageObject streamOnly = new StorageObject() {

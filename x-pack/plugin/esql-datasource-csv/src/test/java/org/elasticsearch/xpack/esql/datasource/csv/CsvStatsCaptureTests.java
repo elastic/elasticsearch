@@ -58,7 +58,9 @@ public class CsvStatsCaptureTests extends ESTestCase {
         try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, FormatReadContext.builder().batchSize(10).build())) {
             drain(it);
         }
-        OptionalLong cached = ExternalStatsCache.lookupRowCount(o);
+        OptionalLong cached = ExternalStatsCache.lookupAnyForTests(o)
+            .map(s -> java.util.OptionalLong.of(s.rowCount()))
+            .orElse(java.util.OptionalLong.empty());
         assertTrue("clean whole-file drain must populate cache", cached.isPresent());
         assertEquals(4L, cached.getAsLong());
     }
@@ -71,7 +73,7 @@ public class CsvStatsCaptureTests extends ESTestCase {
             }
             // Close without reaching natural EOF — must not cache.
         }
-        assertTrue("close-before-EOF must not populate cache", ExternalStatsCache.lookup(o).isEmpty());
+        assertTrue("close-before-EOF must not populate cache", ExternalStatsCache.lookupAnyForTests(o).isEmpty());
     }
 
     public void testNonFirstSplitDoesNotPopulateCache() throws Exception {
@@ -80,7 +82,7 @@ public class CsvStatsCaptureTests extends ESTestCase {
         try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)) {
             drain(it);
         }
-        assertTrue("non-first split read must not populate cache", ExternalStatsCache.lookup(o).isEmpty());
+        assertTrue("non-first split read must not populate cache", ExternalStatsCache.lookupAnyForTests(o).isEmpty());
     }
 
     public void testNonLastSplitDoesNotPopulateCache() throws Exception {
@@ -89,7 +91,7 @@ public class CsvStatsCaptureTests extends ESTestCase {
         try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)) {
             drain(it);
         }
-        assertTrue("non-last split read must not populate cache", ExternalStatsCache.lookup(o).isEmpty());
+        assertTrue("non-last split read must not populate cache", ExternalStatsCache.lookupAnyForTests(o).isEmpty());
     }
 
     public void testRecordAlignedDoesNotPopulateCache() throws Exception {
@@ -98,7 +100,7 @@ public class CsvStatsCaptureTests extends ESTestCase {
         try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)) {
             drain(it);
         }
-        assertTrue("record-aligned (parallel-sliced) read must not populate cache", ExternalStatsCache.lookup(o).isEmpty());
+        assertTrue("record-aligned (parallel-sliced) read must not populate cache", ExternalStatsCache.lookupAnyForTests(o).isEmpty());
     }
 
     /** SKIP_ROW with a malformed row → errorCount > 0 → gate suppresses the cache write. */
@@ -109,7 +111,10 @@ public class CsvStatsCaptureTests extends ESTestCase {
         try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)) {
             drain(it);
         }
-        assertTrue("SKIP_ROW with errors must not populate cache (count is policy-dependent)", ExternalStatsCache.lookup(o).isEmpty());
+        assertTrue(
+            "SKIP_ROW with errors must not populate cache (count is policy-dependent)",
+            ExternalStatsCache.lookupAnyForTests(o).isEmpty()
+        );
     }
 
     public void testWholeFileCleanDrainPopulatesColumnStats() throws Exception {
@@ -118,7 +123,7 @@ public class CsvStatsCaptureTests extends ESTestCase {
         try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)) {
             drain(it);
         }
-        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookup(o);
+        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookupAnyForTests(o);
         assertTrue("clean whole-file drain must populate cache", cached.isPresent());
         assertEquals(3L, cached.get().rowCount());
         java.util.Map<String, ExternalStatsCache.ColumnStats> cols = cached.get().columns();
@@ -142,7 +147,7 @@ public class CsvStatsCaptureTests extends ESTestCase {
         try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)) {
             drain(it);
         }
-        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookup(o);
+        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookupAnyForTests(o);
         assertTrue(cached.isPresent());
         assertEquals(3L, cached.get().rowCount());
         ExternalStatsCache.ColumnStats n = cached.get().columns().get("n");
@@ -162,7 +167,7 @@ public class CsvStatsCaptureTests extends ESTestCase {
         ) {
             drain(it);
         }
-        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookup(streamOnly);
+        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookupAnyForTests(streamOnly);
         assertTrue("stream-only whole-file drain must populate cache", cached.isPresent());
         assertTrue("bytesRead must be present for stream-only sources", cached.get().bytesRead().isPresent());
         assertEquals(body.getBytes(StandardCharsets.UTF_8).length, cached.get().bytesRead().getAsLong());

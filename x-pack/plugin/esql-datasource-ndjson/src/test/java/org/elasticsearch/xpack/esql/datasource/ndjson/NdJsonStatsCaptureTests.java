@@ -63,7 +63,9 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
         ) {
             drain(it);
         }
-        OptionalLong cached = ExternalStatsCache.lookupRowCount(o);
+        OptionalLong cached = ExternalStatsCache.lookupAnyForTests(o)
+            .map(s -> java.util.OptionalLong.of(s.rowCount()))
+            .orElse(java.util.OptionalLong.empty());
         assertTrue("clean whole-file drain must populate cache", cached.isPresent());
         assertEquals(3L, cached.getAsLong());
     }
@@ -80,7 +82,7 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
                 it.next().releaseBlocks();
             }
         }
-        assertTrue("close-before-EOF must not populate cache", ExternalStatsCache.lookup(o).isEmpty());
+        assertTrue("close-before-EOF must not populate cache", ExternalStatsCache.lookupAnyForTests(o).isEmpty());
     }
 
     public void testNonFirstSplitDoesNotPopulateCache() throws Exception {
@@ -89,7 +91,7 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
         try (CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)) {
             drain(it);
         }
-        assertTrue("non-first split read must not populate cache", ExternalStatsCache.lookup(o).isEmpty());
+        assertTrue("non-first split read must not populate cache", ExternalStatsCache.lookupAnyForTests(o).isEmpty());
     }
 
     public void testNonLastSplitDoesNotPopulateCache() throws Exception {
@@ -98,7 +100,7 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
         try (CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)) {
             drain(it);
         }
-        assertTrue("non-last split read must not populate cache", ExternalStatsCache.lookup(o).isEmpty());
+        assertTrue("non-last split read must not populate cache", ExternalStatsCache.lookupAnyForTests(o).isEmpty());
     }
 
     public void testRecordAlignedDoesNotPopulateCache() throws Exception {
@@ -107,7 +109,7 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
         try (CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)) {
             drain(it);
         }
-        assertTrue("record-aligned (parallel-sliced) read must not populate cache", ExternalStatsCache.lookup(o).isEmpty());
+        assertTrue("record-aligned (parallel-sliced) read must not populate cache", ExternalStatsCache.lookupAnyForTests(o).isEmpty());
     }
 
     /** SKIP_ROW with a malformed line → errorCount > 0 → gate suppresses the cache write. */
@@ -118,7 +120,10 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
         try (CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)) {
             drain(it);
         }
-        assertTrue("SKIP_ROW with errors must not populate cache (count is policy-dependent)", ExternalStatsCache.lookup(o).isEmpty());
+        assertTrue(
+            "SKIP_ROW with errors must not populate cache (count is policy-dependent)",
+            ExternalStatsCache.lookupAnyForTests(o).isEmpty()
+        );
     }
 
     /** rowLimit-cut iteration ends without natural EOF → cache write suppressed. */
@@ -128,7 +133,7 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
         try (CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)) {
             drain(it);
         }
-        assertTrue("rowLimit-truncated read must not populate cache", ExternalStatsCache.lookup(o).isEmpty());
+        assertTrue("rowLimit-truncated read must not populate cache", ExternalStatsCache.lookupAnyForTests(o).isEmpty());
     }
 
     public void testWholeFileCleanDrainPopulatesColumnStats() throws Exception {
@@ -141,7 +146,7 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
         ) {
             drain(it);
         }
-        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookup(o);
+        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookupAnyForTests(o);
         assertTrue("clean whole-file drain must populate cache", cached.isPresent());
         assertEquals(3L, cached.get().rowCount());
         java.util.Map<String, ExternalStatsCache.ColumnStats> cols = cached.get().columns();
@@ -168,7 +173,7 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
         ) {
             drain(it);
         }
-        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookup(o);
+        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookupAnyForTests(o);
         assertTrue(cached.isPresent());
         ExternalStatsCache.ColumnStats name = cached.get().columns().get("name");
         assertEquals("missing JSON key must increment nullCount", 1L, name.nullCount());
@@ -187,7 +192,7 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
         ) {
             drain(it);
         }
-        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookup(streamOnly);
+        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookupAnyForTests(streamOnly);
         assertTrue("stream-only whole-file drain must populate cache", cached.isPresent());
         assertTrue("bytesRead must be present for stream-only sources", cached.get().bytesRead().isPresent());
         assertEquals(body.getBytes(StandardCharsets.UTF_8).length, cached.get().bytesRead().getAsLong());

@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ConfigKeyValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSourceFactory;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
@@ -295,8 +296,30 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 // came from inline EXTERNAL (no dataset mapping), populated when it came from
                 // FROM <dataset>.
                 .datasetName(context.datasetName())
+                // Single-file producer paths (sync-wrapper, native-async) carry no per-file mtime
+                // carrier; without this wire-up _version would silently render as SQL NULL even
+                // on resolved single-file plans. The slice-queue / multi-file paths still source
+                // mtime from FileSplit.partitionValues / per-FileList entry respectively and
+                // ignore this builder value.
+                .lastModifiedMillis(firstFileMtime(context.fileList()))
                 .build();
         };
+    }
+
+    /**
+     * Returns the {@code lastModifiedMillis} of the first entry in {@code fileList}, or {@code null}
+     * when the list is absent / unresolved / empty. Threaded into
+     * {@link AsyncExternalSourceOperatorFactory.Builder#lastModifiedMillis(Long)} so that the
+     * single-file producer paths render {@code _version} from the file's mtime instead of SQL
+     * {@code NULL}. Returning a boxed {@code Long} lets the builder distinguish "no mtime available"
+     * from "mtime is zero (epoch)".
+     */
+    @Nullable
+    private static Long firstFileMtime(@Nullable FileList fileList) {
+        if (fileList == null || fileList.fileCount() == 0) {
+            return null;
+        }
+        return fileList.lastModifiedMillis(0);
     }
 
     /** Delegates to {@link ErrorPolicy#fromConfig(Map, ErrorPolicy)} with the format's default

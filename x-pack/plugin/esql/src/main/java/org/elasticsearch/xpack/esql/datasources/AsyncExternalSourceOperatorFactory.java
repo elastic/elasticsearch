@@ -363,6 +363,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             && this.partitionColumnNames.isEmpty();
     }
 
+    /**
+     * Test-only accessor for the {@code lastModifiedMillis} value wired in by the builder. Returned
+     * as-is ({@code null} when the caller did not supply an mtime) so regression tests can pin the
+     * single-file {@code _version} fallback wiring at the factory boundary without driving a full
+     * page-drain through the producer iterator stack.
+     */
+    @Nullable
+    Long lastModifiedMillis() {
+        return lastModifiedMillis;
+    }
+
     public static Builder builder(
         StorageProvider storageProvider,
         FormatReader formatReader,

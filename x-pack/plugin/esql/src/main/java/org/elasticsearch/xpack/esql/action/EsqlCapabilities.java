@@ -2466,6 +2466,18 @@ public class EsqlCapabilities {
         EXTERNAL_SOURCE_FILE_METADATA_COLUMNS(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * Standard ES metadata columns ({@code _id}, {@code _index}, {@code _version}, {@code _source}, ...)
+         * accepted in the {@code METADATA} clause of external-dataset {@code FROM}. Values are
+         * framework-synthesized: per-file constants (e.g. {@code _index}, {@code _version}) come from
+         * {@link org.elasticsearch.xpack.esql.datasources.VirtualColumnIterator}'s constant-block
+         * injection; {@code _id} is composed per row by {@code ExternalRowIdentity}; {@code _source} is
+         * built from the row's data columns by {@code SynthesizeExternalSource}. Pre-feature
+         * coordinators reject the METADATA names with {@code Unknown column}, so csv-spec tests that
+         * exercise these columns must gate on this capability.
+         */
+        EXTERNAL_SOURCE_STANDARD_METADATA_COLUMNS(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
          * Parquet (Java) and ORC external sources. Gated so format readers that do not yet
          * implement nested support (parquet-rs, csv, ndjson, etc.) skip the csv-spec tests

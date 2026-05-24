@@ -7,11 +7,16 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 
 import java.util.Collections;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -94,5 +99,60 @@ public final class ExternalMetadataColumns {
      */
     public static DataType dataType(String name) {
         return MetadataAttribute.dataType(name);
+    }
+
+    /**
+     * Build the per-file constant values for the standard metadata names listed in
+     * {@link #PER_FILE_CONSTANT_NAMES}. The map is suitable for merging into a partition-value map
+     * consumed by {@link VirtualColumnIterator}. Values are:
+     * <ul>
+     *     <li>{@code _index} — {@code datasetName} when known, otherwise {@code null}
+     *         (bare-glob {@code FROM} queries have no dataset identity).</li>
+     *     <li>{@code _version} — {@link FileList#lastModifiedMillis(int)} as a {@code Long};
+     *         {@code 0L} is treated as "unknown" and yields {@code null} per the precedent set
+     *         by {@link FileMetadataColumns#extractValues(FileList, int)}.</li>
+     *     <li>Every other standard name — {@code null}. They are not addressable on external
+     *         data (no relevance scoring, no per-row {@code _ignored} list, etc.).</li>
+     * </ul>
+     * Callers must call this once per file; the result is meant to overlay onto the
+     * partition-value map so {@link VirtualColumnIterator} renders constant blocks of the
+     * correct type ({@link DataType}) — null values are turned into
+     * {@code newConstantNullBlock} by the iterator's existing path.
+     */
+    public static Map<String, Object> extractPerFileConstants(@Nullable String datasetName, FileList fileList, int index) {
+        long modifiedMillis = fileList.lastModifiedMillis(index);
+        Long version = modifiedMillis == 0L ? null : Long.valueOf(modifiedMillis);
+        return buildPerFileConstants(datasetName, version);
+    }
+
+    /**
+     * Variant for callers that already hold the file's last-modified epoch-millis (e.g. the
+     * slice-queue path, which reuses {@link FileMetadataColumns#MODIFIED} previously stuffed
+     * into the {@code FileSplit}'s partition values). A {@code null} {@code lastModifiedMillis}
+     * yields a {@code null} {@code _version}; zero is treated as "unknown" per
+     * {@link FileMetadataColumns#extractValues(FileList, int)} precedent.
+     */
+    public static Map<String, Object> extractPerFileConstants(@Nullable String datasetName, @Nullable Long lastModifiedMillis) {
+        Long version = lastModifiedMillis == null || lastModifiedMillis == 0L ? null : lastModifiedMillis;
+        return buildPerFileConstants(datasetName, version);
+    }
+
+    private static Map<String, Object> buildPerFileConstants(@Nullable String datasetName, @Nullable Long version) {
+        var values = new LinkedHashMap<String, Object>(PER_FILE_CONSTANT_NAMES.size());
+        for (String name : PER_FILE_CONSTANT_NAMES) {
+            values.put(name, perFileValue(name, datasetName, version));
+        }
+        return Collections.unmodifiableMap(values);
+    }
+
+    private static Object perFileValue(String name, @Nullable String datasetName, @Nullable Long version) {
+        return switch (name) {
+            case INDEX -> datasetName != null ? new BytesRef(datasetName) : null;
+            case VERSION -> version;
+            case SCORE, IGNORED, INDEX_MODE, TSID, SIZE, DATA_TIER -> null;
+            // Names in PER_FILE_CONSTANT_NAMES enumerated above; ID and SOURCE are excluded
+            // because they require per-row composition and go through different operator steps.
+            default -> throw new AssertionError("Unhandled per-file constant name: " + name);
+        };
     }
 }

@@ -22,6 +22,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
@@ -49,8 +50,10 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -122,6 +125,26 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
     private final Set<String> partitionColumnNames;
     private final Map<String, Object> partitionValues;
+    /**
+     * Standard ES metadata column names ({@code _index}, {@code _version}, ...) present in
+     * {@link #attributes} that the producer pipeline must materialise as per-file constants.
+     * Derived once from {@link #attributes} at construction. Names whose values require per-row
+     * composition ({@code _id}, {@code _source}) are not included here — they are handled by
+     * separate operator steps.
+     */
+    private final Set<String> standardMetadataPerFileNames;
+    /**
+     * Dataset name passed through from the planner for {@code _index} resolution. {@code null}
+     * for bare-glob {@code FROM} queries (no dataset identity); the resulting {@code _index}
+     * column is rendered as SQL {@code NULL} by {@link VirtualColumnIterator}.
+     * <p>
+     * TODO: populated by the planner in a follow-up commit once
+     * {@code UnresolvedExternalRelation} / {@code ExternalRelation} / {@code ExternalSourceExec}
+     * carry the dataset name through to
+     * {@link org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext}.
+     */
+    @Nullable
+    private final String datasetName;
     /**
      * {@link BlockFactory} used by producer-thread iterator wrappers ({@link VirtualColumnIterator}
      * for {@code _file.*} / Hive-style partition columns, {@link SchemaAdaptingIterator} for
@@ -199,6 +222,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
+        @Nullable String datasetName,
         @Nullable BlockFactory producerBlockFactory,
         ExternalSliceQueue sliceQueue,
         ErrorPolicy errorPolicy,
@@ -243,8 +267,33 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.rowLimit = rowLimit;
         this.fileList = fileList;
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
-        this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
+        // Derive standard ES metadata column names ({@code _index}, {@code _version}, ...) from
+        // the bound attributes and merge them into the effective partition-column set so the
+        // existing VirtualColumnIterator path materialises them as per-file constants alongside
+        // {@code _file.*}. {@code _id} and {@code _source} are excluded — they are produced by
+        // separate operator steps and must reach the iterator through a different channel.
+        Set<String> stdMetaNames = new LinkedHashSet<>();
+        for (Attribute attr : attributes) {
+            if (attr instanceof ExternalMetadataAttribute && ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(attr.name())) {
+                stdMetaNames.add(attr.name());
+            }
+        }
+        this.standardMetadataPerFileNames = stdMetaNames.isEmpty() ? Set.of() : Set.copyOf(stdMetaNames);
+        if (stdMetaNames.isEmpty()) {
+            this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
+        } else {
+            // Union the standard metadata names into the effective partition-column set so
+            // VirtualColumnIterator routes them through its constant-block path. Hive partition
+            // columns and {@code _file.*} always take precedence on key collision (they overlay
+            // last in per-file merge).
+            Set<String> union = new LinkedHashSet<>(stdMetaNames);
+            if (partitionColumnNames != null) {
+                union.addAll(partitionColumnNames);
+            }
+            this.partitionColumnNames = Collections.unmodifiableSet(union);
+        }
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
+        this.datasetName = datasetName;
         this.producerBlockFactory = producerBlockFactory;
         this.sliceQueue = sliceQueue;
         this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
@@ -308,6 +357,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private Set<String> partitionColumnNames;
         private Map<String, Object> partitionValues;
         @Nullable
+        private String datasetName;
+        @Nullable
         private BlockFactory producerBlockFactory;
         private ExternalSliceQueue sliceQueue;
         private ErrorPolicy errorPolicy;
@@ -358,6 +409,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
 
         public Builder partitionValues(@Nullable Map<String, Object> partitionValues) {
             this.partitionValues = partitionValues;
+            return this;
+        }
+
+        /**
+         * Sets the dataset name surfaced to query rows via the {@code _index} metadata column.
+         * {@code null} when the {@code FROM} did not resolve to a single registered dataset (e.g.
+         * bare-glob {@code FROM "s3://bucket/*.parquet"}); the {@code _index} column then renders
+         * as SQL {@code NULL}. Only consulted when the bound attributes include an
+         * {@code ExternalMetadataAttribute} named {@code _index}.
+         */
+        public Builder datasetName(@Nullable String datasetName) {
+            this.datasetName = datasetName;
             return this;
         }
 
@@ -447,6 +510,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 schemaMap,
                 partitionColumnNames,
                 partitionValues,
+                datasetName,
                 producerBlockFactory,
                 sliceQueue,
                 errorPolicy,
@@ -589,9 +653,43 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             if (partitionColumnNames.contains(attr.name())) {
                 continue;
             }
+            // Standard ES metadata names ({@code _id}, {@code _index}, ...) are not file-resident
+            // columns; the producer injects them later. {@code _index}, {@code _version}, etc. enter
+            // {@link VirtualColumnIterator}'s per-file constant path via the {@code partitionColumnNames}
+            // union above. {@code _id} and {@code _source} are handled by separate operator wrappers.
+            if (attr instanceof ExternalMetadataAttribute) {
+                continue;
+            }
             cols.add(attr.name());
         }
         return cols;
+    }
+
+    /**
+     * Merge standard ES metadata per-file constants ({@code _index}, {@code _version}, ...) into
+     * {@code basePartitionValues}. Returns {@code basePartitionValues} unchanged when no standard
+     * metadata names are bound. The {@code _version} value is sourced from the {@code _file.modified}
+     * entry already populated in {@code basePartitionValues} (slice-queue path) or carried by the
+     * factory (single-file path where it is unavailable, then {@code null}).
+     * <p>
+     * Hive partition values and {@code _file.*} retain precedence on key collision because they
+     * overlay last in the per-file merge.
+     */
+    private Map<String, Object> mergeStandardMetadata(Map<String, Object> basePartitionValues) {
+        if (standardMetadataPerFileNames.isEmpty()) {
+            return basePartitionValues;
+        }
+        Long version = null;
+        Object modified = basePartitionValues == null ? null : basePartitionValues.get(FileMetadataColumns.MODIFIED);
+        if (modified instanceof Long longVersion) {
+            version = longVersion;
+        }
+        Map<String, Object> stdConstants = ExternalMetadataColumns.extractPerFileConstants(datasetName, version);
+        Map<String, Object> merged = new HashMap<>(stdConstants);
+        if (basePartitionValues != null) {
+            merged.putAll(basePartitionValues);
+        }
+        return merged;
     }
 
     /**
@@ -1219,7 +1317,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, cols, state.driverContext);
             // Per-split virtual-column iterator: each slice-queue leaf has its own _file.* values
             // (different path/name/dir/size/mtime), so the wrapper is bound to *this* iterator's pages.
-            state.pages = wrapWithVirtualColumns(withEncoder, fileSplit.partitionValues(), state.driverContext);
+            state.pages = wrapWithVirtualColumns(withEncoder, mergeStandardMetadata(fileSplit.partitionValues()), state.driverContext);
             return true;
         } catch (Exception e) {
             closeQuietly(pages);
@@ -1306,6 +1404,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Map<String, Object> perFileValues = partitionValues;
         if (partitionColumnNames.isEmpty() == false) {
             perFileValues = new HashMap<>(partitionValues);
+            // Standard metadata constants overlay first so the {@code _file.*} layer (whose
+            // values are derived from the same FileList entry, never user-supplied) takes
+            // precedence on key collisions — matching the same precedence the slice-queue
+            // FileSplit.partitionValues uses.
+            if (standardMetadataPerFileNames.isEmpty() == false) {
+                perFileValues.putAll(ExternalMetadataColumns.extractPerFileConstants(datasetName, files, fileIndex));
+            }
             perFileValues.putAll(FileMetadataColumns.extractValues(files, fileIndex));
         }
 
@@ -1403,7 +1508,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             final CloseableIterator<Page> finalPages;
             try {
                 CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
-                finalPages = wrapWithVirtualColumns(withEncoder, partitionValues, driverContext);
+                finalPages = wrapWithVirtualColumns(withEncoder, mergeStandardMetadata(partitionValues), driverContext);
             } catch (Exception e) {
                 closeQuietly(pages);
                 throw e;
@@ -1436,7 +1541,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         });
         executor.execute(ActionRunnable.run(failureListener, () -> {
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
-            CloseableIterator<Page> wrapped = wrapWithVirtualColumns(withEncoder, partitionValues, driverContext);
+            CloseableIterator<Page> wrapped = wrapWithVirtualColumns(withEncoder, mergeStandardMetadata(partitionValues), driverContext);
             drainPagesAsync(
                 wrapped,
                 buffer,

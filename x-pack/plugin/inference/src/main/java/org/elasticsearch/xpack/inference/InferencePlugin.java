@@ -25,10 +25,15 @@ import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexModule;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.indices.SystemIndexDescriptor;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.telemetry.InferenceStats;
@@ -79,6 +84,7 @@ import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsActi
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.inference.action.AsyncStagedSemanticCleanupTask;
 import org.elasticsearch.xpack.inference.action.StagedSemanticCleanupAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
@@ -198,6 +204,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
@@ -281,6 +288,7 @@ public class InferencePlugin extends Plugin
     private final SetOnce<CCMFeature> ccmFeature = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
     private final SetOnce<AuthorizationTaskExecutor> authorizationTaskExecutorRef = new SetOnce<>();
+    private final ConcurrentHashMap<Index, AsyncStagedSemanticCleanupTask> cleanupTasks = new ConcurrentHashMap<>();
 
     public InferencePlugin(Settings settings) {
         this.settings = settings;
@@ -869,6 +877,29 @@ public class InferencePlugin extends Plugin
         if (registry != null) {
             registry.onNodeStarted();
         }
+    }
+
+    @Override
+    public void onIndexModule(IndexModule indexModule) {
+        indexModule.addIndexEventListener(new IndexEventListener() {
+            @Override
+            public void afterIndexCreated(IndexService indexService) {
+                if (indexService.getIndexSettings().getSemanticTextStagedTtlMillis() > 0) {
+                    cleanupTasks.computeIfAbsent(
+                        indexService.getIndexSettings().getIndex(),
+                        idx -> new AsyncStagedSemanticCleanupTask(indexService.getIndexSettings(), indexService.getThreadPool())
+                    );
+                }
+            }
+
+            @Override
+            public void beforeIndexRemoved(IndexService indexService, IndexRemovalReason reason) {
+                AsyncStagedSemanticCleanupTask task = cleanupTasks.remove(indexService.getIndexSettings().getIndex());
+                if (task != null) {
+                    task.close();
+                }
+            }
+        });
     }
 
     @Override

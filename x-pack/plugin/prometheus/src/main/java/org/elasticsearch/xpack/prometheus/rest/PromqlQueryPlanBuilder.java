@@ -13,8 +13,6 @@ import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
-import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
-import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.PromqlParser;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
@@ -26,10 +24,6 @@ import org.elasticsearch.xpack.esql.plan.logical.SourceCommand;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlDataType;
-import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlPlan;
-import org.elasticsearch.xpack.esql.plan.logical.promql.UnresolvedPromqlFunction;
-import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryResponseListener.QueryMode;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -37,7 +31,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Builds an {@link PromqlStatement} containing a {@link PromqlCommand} logical plan
+ * Builds an {@link EsqlStatement} containing a {@link PromqlCommand} logical plan
  * directly from Prometheus query_range parameters, bypassing ES|QL string construction and parsing.
  */
 class PromqlQueryPlanBuilder {
@@ -45,28 +39,14 @@ class PromqlQueryPlanBuilder {
     private static final Duration DEFAULT_SCRAPE_INTERVAL = Duration.ofMinutes(1);
 
     /**
-     * Result of building a PromQL statement, containing both the ESQL statement and the
-     * Prometheus result type string ("vector", "matrix", or "scalar").
-     */
-    public record PromqlStatement(EsqlStatement esqlStatement, String resultType) {}
-
-    /**
      * Builds an {@link EsqlStatement} containing a {@link PromqlCommand} with an {@link Eval} node
      * for the {@code TO_LONG(step)} conversion used by the Prometheus response writer.
      */
-    static PromqlStatement buildStatement(String query, String index, String startStr, String endStr, String stepStr, QueryMode mode) {
-        return buildStatement(query, index, startStr, endStr, stepStr, 0, mode);
+    static EsqlStatement buildStatement(String query, String index, String startStr, String endStr, String stepStr) {
+        return buildStatement(query, index, startStr, endStr, stepStr, 0);
     }
 
-    static PromqlStatement buildStatement(
-        String query,
-        String index,
-        String startStr,
-        String endStr,
-        String stepStr,
-        int limit,
-        QueryMode mode
-    ) {
+    static EsqlStatement buildStatement(String query, String index, String startStr, String endStr, String stepStr, int limit) {
         Instant startInstant = PromqlParserUtils.parseDate(Source.EMPTY, startStr);
         Instant endInstant = PromqlParserUtils.parseDate(Source.EMPTY, endStr);
         Duration stepDuration = parseStep(Source.EMPTY, stepStr);
@@ -130,21 +110,7 @@ class PromqlQueryPlanBuilder {
             int sentinelLimit = limit == Integer.MAX_VALUE ? limit : limit + 1;
             plan = new Limit(Source.EMPTY, new Literal(Source.EMPTY, sentinelLimit, DataType.INTEGER), plan);
         }
-
-        var type = getReturnType(promqlPlan);
-
-        String resultType;
-        if (type == PromqlDataType.SCALAR) {
-            resultType = "scalar";
-        } else if (type == PromqlDataType.RANGE_VECTOR || mode == QueryMode.RANGE) {
-            resultType = "matrix";
-        } else if (mode == QueryMode.INSTANT) {
-            resultType = "vector";
-        } else {
-            throw new IllegalArgumentException("unsupported mode [" + mode + "]");
-        }
-
-        return new PromqlStatement(new EsqlStatement(plan, List.of()), resultType);
+        return new EsqlStatement(plan, List.of());
     }
 
     private static Duration parseStep(Source source, String value) {
@@ -153,19 +119,5 @@ class PromqlQueryPlanBuilder {
         } catch (NumberFormatException ignore) {
             return PromqlParserUtils.parseDuration(source, value);
         }
-    }
-
-    private static PromqlDataType getReturnType(LogicalPlan plan) {
-        if (plan instanceof UnresolvedPromqlFunction unresolved) {
-            PromqlFunctionDefinition def = PromqlFunctionRegistry.INSTANCE.functionMetadata(unresolved.functionName());
-
-            assert def != null;
-
-            return def.functionType().outputType();
-        }
-        if (plan instanceof PromqlPlan p) {
-            return p.returnType();
-        }
-        throw new IllegalArgumentException("expected PromqlPlan, got [" + plan.getClass().getSimpleName() + "]");
     }
 }

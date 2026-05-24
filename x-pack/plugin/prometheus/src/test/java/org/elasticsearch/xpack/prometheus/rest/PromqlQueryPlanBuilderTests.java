@@ -17,8 +17,6 @@ import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 import org.elasticsearch.xpack.esql.plan.logical.promql.selector.InstantSelector;
-import org.elasticsearch.xpack.prometheus.rest.PrometheusQueryResponseListener.QueryMode;
-import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatement;
 
 import java.time.Duration;
 
@@ -28,17 +26,8 @@ import static org.hamcrest.Matchers.instanceOf;
 public class PromqlQueryPlanBuilderTests extends ESTestCase {
 
     public void testBuildStatementPlanStructure() {
-        PromqlStatement result = PromqlQueryPlanBuilder.buildStatement(
-            "up",
-            "*",
-            "2025-01-01T00:00:00Z",
-            "2025-01-01T01:00:00Z",
-            "15s",
-            QueryMode.RANGE
-        );
-        assertThat(result.resultType(), equalTo("matrix"));
+        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement("up", "*", "2025-01-01T00:00:00Z", "2025-01-01T01:00:00Z", "15s");
         // Top-level plan is Eval (no OrderBy — timestamps are chronologically ordered by construction)
-        EsqlStatement statement = result.esqlStatement();
         assertThat(statement.plan(), instanceOf(Eval.class));
         Eval eval = (Eval) statement.plan();
         assertThat(eval.fields().size(), equalTo(1));
@@ -58,16 +47,13 @@ public class PromqlQueryPlanBuilderTests extends ESTestCase {
     }
 
     public void testBuildStatementWithCustomIndex() {
-        PromqlStatement result = PromqlQueryPlanBuilder.buildStatement(
+        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement(
             "up",
             "metrics-*",
             "2025-01-01T00:00:00Z",
             "2025-01-01T01:00:00Z",
-            "15s",
-            QueryMode.RANGE
+            "15s"
         );
-        assertThat(result.resultType(), equalTo("matrix"));
-        EsqlStatement statement = result.esqlStatement();
         assertThat(statement.plan(), instanceOf(Eval.class));
         Eval eval = (Eval) statement.plan();
         TimeSeriesCollapse collapse = (TimeSeriesCollapse) eval.child();
@@ -80,17 +66,13 @@ public class PromqlQueryPlanBuilderTests extends ESTestCase {
     }
 
     public void testBuildStatementWithGroupByAbsentLabel() {
-        PromqlStatement result = PromqlQueryPlanBuilder.buildStatement(
+        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement(
             "sum(rate(http_request_duration_microseconds_count[1m])) by (handler)",
             "*",
             "2025-01-01T00:00:00Z",
             "2025-01-01T01:00:00Z",
-            "15s",
-            QueryMode.RANGE
+            "15s"
         );
-        // Return type defaults to "matrix" for unresolved functions in range queries
-        assertThat(result.resultType(), equalTo("matrix"));
-        EsqlStatement statement = result.esqlStatement();
         assertThat(statement.plan(), instanceOf(Eval.class));
         Eval eval = (Eval) statement.plan();
         assertThat(eval.fields().size(), equalTo(1));
@@ -100,9 +82,7 @@ public class PromqlQueryPlanBuilderTests extends ESTestCase {
     }
 
     public void testBuildStatementWithNumericStep() {
-        PromqlStatement result = PromqlQueryPlanBuilder.buildStatement("up", "*", "1735689600", "1735693200", "60", QueryMode.INSTANT);
-        assertThat(result.resultType(), equalTo("vector"));
-        EsqlStatement statement = result.esqlStatement();
+        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement("up", "*", "1735689600", "1735693200", "60");
         assertThat(statement.plan(), instanceOf(Eval.class));
         Eval eval = (Eval) statement.plan();
         assertThat(eval.child(), instanceOf(TimeSeriesCollapse.class));
@@ -116,28 +96,11 @@ public class PromqlQueryPlanBuilderTests extends ESTestCase {
     }
 
     public void testBuildStatementWithLimitAddsSentinelLimit() {
-        PromqlStatement result = PromqlQueryPlanBuilder.buildStatement("up", "*", "1735689600", "1735693200", "60", 10, QueryMode.RANGE);
-        assertThat(result.resultType(), equalTo("matrix"));
-        EsqlStatement statement = result.esqlStatement();
+        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement("up", "*", "1735689600", "1735693200", "60", 10);
         assertThat(statement.plan(), instanceOf(Limit.class));
         Limit limit = (Limit) statement.plan();
         assertThat(((Literal) limit.limit()).value(), equalTo(11));
         assertThat(limit.child(), instanceOf(Eval.class));
         assertThat(((Eval) limit.child()).child(), instanceOf(TimeSeriesCollapse.class));
-    }
-
-    public void testBuildStatementScalarReturnsScalarType() {
-        PromqlStatement result = PromqlQueryPlanBuilder.buildStatement("42", "*", "1735689600", "1735693200", "60", QueryMode.INSTANT);
-        assertThat(result.resultType(), equalTo("scalar"));
-    }
-
-    public void testBuildStatementInstantVectorInRangeReturnsMatrix() {
-        PromqlStatement result = PromqlQueryPlanBuilder.buildStatement("up", "*", "1735689600", "1735693200", "60", QueryMode.RANGE);
-        assertThat(result.resultType(), equalTo("matrix"));
-    }
-
-    public void testBuildStatementInstantVectorInInstantReturnsVector() {
-        PromqlStatement result = PromqlQueryPlanBuilder.buildStatement("up", "*", "1735689600", "1735693200", "60", QueryMode.INSTANT);
-        assertThat(result.resultType(), equalTo("vector"));
     }
 }

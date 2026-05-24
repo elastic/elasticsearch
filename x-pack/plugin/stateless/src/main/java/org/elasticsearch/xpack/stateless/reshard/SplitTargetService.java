@@ -348,12 +348,17 @@ public class SplitTargetService {
         }
 
         private boolean handoffReceivedAfterFailure(State newstate) {
+<<<<<<< HEAD
             if (currentState.getClass() == State.FailedInRecovery.class &&
                 newstate.getClass() == State.HandoffReceived.class) {
+=======
+            if (newstate.getClass() == State.FailedInRecovery.class && currentState.getClass() == State.HandoffReceived.class) {
+>>>>>>> c925dea546c0fb3e4a1c2d566f7144e7b85468e5
                 return true;
             }
             return false;
         }
+
         private void validateStateTransition(State newState) {
             var validCurrentStates = newStateToValidCurrentStates.get(newState.getClass());
             if (validCurrentStates == null || validCurrentStates.contains(currentState.getClass()) == false) {

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.broadcast.BroadcastRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,6 +24,12 @@ import java.io.IOException;
  */
 public class StagedSemanticCleanupRequest extends BroadcastRequest<StagedSemanticCleanupRequest> {
 
+    /**
+     * Transport version that introduced the {@code field} and {@code maxAge} fields on this request,
+     * and the {@code cleared} and {@code failed} fields on the corresponding response.
+     */
+    static final TransportVersion STAGED_SEMANTIC_CLEANUP_FIELDS_ADDED = TransportVersion.fromName("staged_semantic_cleanup_fields_added");
+
     @Nullable
     private final String field;
 
@@ -37,15 +44,22 @@ public class StagedSemanticCleanupRequest extends BroadcastRequest<StagedSemanti
 
     public StagedSemanticCleanupRequest(StreamInput in) throws IOException {
         super(in);
-        this.field = in.readOptionalString();
-        this.maxAge = in.readOptionalTimeValue();
+        if (in.getTransportVersion().supports(STAGED_SEMANTIC_CLEANUP_FIELDS_ADDED)) {
+            this.field = in.readOptionalString();
+            this.maxAge = in.readOptionalTimeValue();
+        } else {
+            this.field = null;
+            this.maxAge = null;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeOptionalString(field);
-        out.writeOptionalTimeValue(maxAge);
+        if (out.getTransportVersion().supports(STAGED_SEMANTIC_CLEANUP_FIELDS_ADDED)) {
+            out.writeOptionalString(field);
+            out.writeOptionalTimeValue(maxAge);
+        }
     }
 
     /** Returns the optional field name to scope cleanup to, or {@code null} for all fields. */

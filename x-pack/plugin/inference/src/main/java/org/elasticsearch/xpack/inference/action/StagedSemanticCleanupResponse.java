@@ -43,15 +43,22 @@ public class StagedSemanticCleanupResponse extends BroadcastResponse {
 
     public StagedSemanticCleanupResponse(StreamInput in) throws IOException {
         super(in);
-        this.cleared = in.readVInt();
-        this.failed = in.readVInt();
+        if (in.getTransportVersion().supports(StagedSemanticCleanupRequest.STAGED_SEMANTIC_CLEANUP_FIELDS_ADDED)) {
+            this.cleared = in.readVInt();
+            this.failed = in.readVInt();
+        } else {
+            this.cleared = 0;
+            this.failed = 0;
+        }
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        out.writeVInt(cleared);
-        out.writeVInt(failed);
+        if (out.getTransportVersion().supports(StagedSemanticCleanupRequest.STAGED_SEMANTIC_CLEANUP_FIELDS_ADDED)) {
+            out.writeVInt(cleared);
+            out.writeVInt(failed);
+        }
     }
 
     /** Returns the number of staged fields cleared across all shards. */

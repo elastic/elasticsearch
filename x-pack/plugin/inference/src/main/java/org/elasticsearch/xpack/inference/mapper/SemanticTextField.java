@@ -293,13 +293,6 @@ public record SemanticTextField(
         new ConstructingObjectParser<>(SemanticTextFieldMapper.CONTENT_TYPE, true, (args, context) -> {
             List<String> originalValues = (List<String>) args[0];
             InferenceResult inferenceResult = (InferenceResult) args[1];
-            if (inferenceResult == null && context.useLegacyFormat() == false) {
-                // Staged-only BYO data: no inference results to index yet.
-                return null;
-            }
-            if (inferenceResult == null) {
-                throw new IllegalArgumentException("Required [" + INFERENCE_FIELD + "]");
-            }
             if (context.useLegacyFormat() == false) {
                 if (originalValues != null && originalValues.isEmpty() == false) {
                     throw new IllegalArgumentException("Unknown field [" + TEXT_FIELD + "]");
@@ -383,7 +376,7 @@ public record SemanticTextField(
 
     static {
         SEMANTIC_TEXT_FIELD_PARSER.declareStringArray(optionalConstructorArg(), new ParseField(TEXT_FIELD));
-        SEMANTIC_TEXT_FIELD_PARSER.declareObject(optionalConstructorArg(), INFERENCE_RESULT_PARSER, new ParseField(INFERENCE_FIELD));
+        SEMANTIC_TEXT_FIELD_PARSER.declareObject(constructorArg(), INFERENCE_RESULT_PARSER, new ParseField(INFERENCE_FIELD));
 
         INFERENCE_RESULT_PARSER.declareString(constructorArg(), new ParseField(INFERENCE_ID_FIELD));
         INFERENCE_RESULT_PARSER.declareObjectOrNull(

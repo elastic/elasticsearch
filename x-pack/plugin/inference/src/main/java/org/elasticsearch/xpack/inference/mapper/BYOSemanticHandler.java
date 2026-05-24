@@ -12,6 +12,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -45,6 +47,8 @@ import java.util.Map;
  * String values are <em>not</em> considered BYO values.
  */
 public final class BYOSemanticHandler {
+
+    private static final Logger logger = LogManager.getLogger(BYOSemanticHandler.class);
 
     static final String STAGED_KEY = "_staged";
 
@@ -94,6 +98,9 @@ public final class BYOSemanticHandler {
         return BYOSemanticAction.fromString(actionValue.toString());
     }
 
+    static final int MAX_TEXT_LENGTH = 1_000_000;
+    static final int MAX_CHUNK_COUNT = 10_000;
+
     /**
      * Handles the {@code stage_init} action: creates initial staged data for a field.
      *
@@ -114,9 +121,15 @@ public final class BYOSemanticHandler {
 
         String text = extractText(fieldName, fieldValue);
         int textLength = text.length();
+        if (textLength > MAX_TEXT_LENGTH) {
+            throw new IllegalArgumentException("text length [" + textLength + "] exceeds maximum allowed length [" + MAX_TEXT_LENGTH + "]");
+        }
 
         List<SemanticTextField.Chunk> chunks = parseChunksFromValue(fieldValue, textLength);
         if (chunks.isEmpty() == false) {
+            if (chunks.size() > MAX_CHUNK_COUNT) {
+                throw new IllegalArgumentException("total chunk count [" + chunks.size() + "] exceeds maximum [" + MAX_CHUNK_COUNT + "]");
+            }
             for (SemanticTextField.Chunk chunk : chunks) {
                 BYOSemanticValidator.validateChunk(chunk.startOffset(), chunk.endOffset(), chunk.rawEmbeddings(), textLength);
             }
@@ -142,6 +155,11 @@ public final class BYOSemanticHandler {
         List<SemanticTextField.Chunk> incomingChunks = parseChunksFromValue(fieldValue, textLength);
         if (incomingChunks.isEmpty()) {
             throw new ElasticsearchStatusException("No chunks provided in stage request for field [{}]", RestStatus.BAD_REQUEST, fieldName);
+        }
+
+        int totalChunks = staged.chunks().size() + incomingChunks.size();
+        if (totalChunks > MAX_CHUNK_COUNT) {
+            throw new IllegalArgumentException("total chunk count [" + totalChunks + "] exceeds maximum [" + MAX_CHUNK_COUNT + "]");
         }
 
         for (SemanticTextField.Chunk chunk : incomingChunks) {
@@ -459,17 +477,19 @@ public final class BYOSemanticHandler {
     }
 
     private static void validateDimensions(List<SemanticTextField.Chunk> chunks, MinimalServiceSettings modelSettings, String fieldName) {
-        if (modelSettings != null && modelSettings.dimensions() != null) {
-            int expectedDims = modelSettings.dimensions();
-            for (SemanticTextField.Chunk chunk : chunks) {
-                BYOSemanticValidator.validateEmbeddingDimensions(
-                    chunk.rawEmbeddings(),
-                    expectedDims,
-                    fieldName,
-                    chunk.startOffset(),
-                    chunk.endOffset()
-                );
-            }
+        if (modelSettings == null || modelSettings.dimensions() == null) {
+            logger.warn("Skipping dimension validation for field [{}] — model settings not available", fieldName);
+            return;
+        }
+        int expectedDims = modelSettings.dimensions();
+        for (SemanticTextField.Chunk chunk : chunks) {
+            BYOSemanticValidator.validateEmbeddingDimensions(
+                chunk.rawEmbeddings(),
+                expectedDims,
+                fieldName,
+                chunk.startOffset(),
+                chunk.endOffset()
+            );
         }
     }
 }

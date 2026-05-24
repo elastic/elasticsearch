@@ -95,6 +95,34 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
         assertThat(responsePath.evaluate("data.result"), empty());
     }
 
+    /**
+     * Verifies that time() function works in binary expressions.
+     * This is a regression test for a bug where binary operators failed when
+     * an operand was an unresolved function like time().
+     */
+    public void testInstantQueryWithTimeFunctionInBinaryExpression() throws Exception {
+        ingestTestData("test_gauge_iq");
+
+        // time() + 1 returns scalar (scalar + scalar = scalar per Prometheus semantics)
+        ObjectPath responsePath = executeInstantQueryRaw("time() + 1", "2026-01-01T00:05:00Z", null);
+        assertThat(responsePath.evaluate("status"), equalTo("success"));
+        assertThat(responsePath.evaluate("data.resultType"), equalTo("scalar"));
+    }
+
+    /**
+     * Verifies that aggregations work in binary expressions.
+     * This is a regression test for a bug where binary operators failed when
+     * an operand was an aggregation like sum().
+     */
+    public void testInstantQueryWithAggregationInBinaryExpression() throws Exception {
+        ingestTestData("test_gauge_iq");
+
+        // sum(metric) + 1 returns vector (vector + scalar = vector per Prometheus semantics)
+        ObjectPath responsePath = executeInstantQueryRaw("sum(test_gauge_iq) + 1", "2026-01-01T00:05:00Z", null);
+        assertThat(responsePath.evaluate("status"), equalTo("success"));
+        assertThat(responsePath.evaluate("data.resultType"), equalTo("vector"));
+    }
+
     private static void assertMetricResult(ObjectPath responsePath) throws IOException {
         assertThat(responsePath.evaluate("data.result"), hasSize(1));
         assertThat(responsePath.evaluate("data.result.0.metric.job"), equalTo("test_job"));
@@ -112,6 +140,12 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
     }
 
     private ObjectPath executeInstantQuery(String query, String time, String index) throws Exception {
+        ObjectPath responsePath = executeInstantQueryRaw(query, time, index);
+        assertThat(responsePath.evaluate("data.resultType"), equalTo("vector"));
+        return responsePath;
+    }
+
+    private ObjectPath executeInstantQueryRaw(String query, String time, String index) throws Exception {
         String path = index == null ? "/_prometheus/api/v1/query" : "/_prometheus/" + index + "/api/v1/query";
         Request request = prometheusReadRequest(
             path,
@@ -124,7 +158,6 @@ public class PrometheusInstantQueryRestIT extends AbstractPrometheusRestIT {
 
         ObjectPath responsePath = ObjectPath.createFromResponse(response);
         assertThat(responsePath.evaluate("status"), equalTo("success"));
-        assertThat(responsePath.evaluate("data.resultType"), equalTo("vector"));
         return responsePath;
     }
 

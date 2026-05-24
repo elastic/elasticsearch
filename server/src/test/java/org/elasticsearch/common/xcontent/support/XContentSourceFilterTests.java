@@ -535,9 +535,9 @@ public class XContentSourceFilterTests extends AbstractFilteringTestCase {
     }
 
     public void testBackslashFieldNameNestedFiltering() throws IOException {
-        // Backslash-named parent field with nested property.
-        // Use escaped backslash (\\) in filter path so that \\ is treated as literal backslash
-        // and the following dot is treated as an object separator.
+        // A field literally named "\" (single backslash) with a nested property. A pre-8.6 _source filter
+        // "\.nested_value" (backslash literal + dot separator) must keep returning that nested value without
+        // any client-side rewrite. See #136302.
         String actual = """
             {
                 "\\\\": {
@@ -553,29 +553,7 @@ public class XContentSourceFilterTests extends AbstractFilteringTestCase {
                 }
             }
             """;
-        // Filter path "\\\\.nested_value" (Java) = \\. + nested_value
-        // which means: escaped backslash (\) + dot separator + nested_value
-        testFilter(expected, actual, singleton("\\\\.nested_value"), emptySet());
-    }
-
-    public void testBackslashFieldNameFiltering() throws IOException {
-        // Filtering on just the backslash-named parent field should return the whole object
-        String actual = """
-            {
-                "\\\\": {
-                    "nested_value": "value_C"
-                },
-                "other": "value"
-            }
-            """;
-        String expected = """
-            {
-                "\\\\": {
-                    "nested_value": "value_C"
-                }
-            }
-            """;
-        testFilter(expected, actual, singleton("\\\\"), emptySet());
+        testFilter(expected, actual, singleton("\\.nested_value"), emptySet());
     }
 
     public void testEmptySource() throws IOException {

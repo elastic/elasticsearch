@@ -150,6 +150,13 @@ public class FilterPath {
 
         void insert(String filter) {
             insertNode(filter, root, 0);
+            // Backward compatibility (#136302): before 8.6 a backslash was an ordinary literal character and a dot
+            // was always a separator. The 8.6 escape semantics (\. == a literal dot inside a field name) silently
+            // changed how existing _source filters resolved. To keep pre-8.6 filters working without any client-side
+            // rewrite, additionally insert the legacy interpretation of any filter that contains a "\." sequence.
+            if (filter.contains("\\.")) {
+                insertLegacyNode(filter, root, 0);
+            }
         }
 
         FilterPath build() {
@@ -170,42 +177,46 @@ public class FilterPath {
                 if (c == '.') {
                     splitPosition = i;
                     break;
-                } else if (c == '\\' && i + 1 < end) {
-                    char next = filter.charAt(i + 1);
-                    if (next == '.' || next == '\\') {
-                        ++i;
-                        findEscapes = true;
-                    }
+                } else if ((c == '\\') && (i + 1 < end) && (filter.charAt(i + 1) == '.')) {
+                    ++i;
+                    findEscapes = true;
                 }
             }
 
             if (splitPosition > 0) {
-                String field = findEscapes ? unescape(filter.substring(0, splitPosition)) : filter.substring(0, splitPosition);
+                String field = findEscapes ? filter.substring(0, splitPosition).replace("\\.", ".") : filter.substring(0, splitPosition);
                 BuildNode child = node.children.computeIfAbsent(field, f -> new BuildNode(false));
                 if (false == child.isFinalNode) {
                     insertNode(filter.substring(splitPosition + 1), child, depth + 1);
                 }
             } else {
-                String field = findEscapes ? unescape(filter) : filter;
+                String field = findEscapes ? filter.replace("\\.", ".") : filter;
                 node.children.put(field, new BuildNode(true));
             }
         }
 
-        private static String unescape(String s) {
-            StringBuilder sb = new StringBuilder(s.length());
-            for (int i = 0; i < s.length(); i++) {
-                char c = s.charAt(i);
-                if (c == '\\' && i + 1 < s.length()) {
-                    char next = s.charAt(i + 1);
-                    if (next == '.' || next == '\\') {
-                        sb.append(next);
-                        i++;
-                        continue;
-                    }
-                }
-                sb.append(c);
+        /**
+         * Inserts the pre-8.6 interpretation of {@code filter}, treating every backslash as an ordinary literal
+         * character and every dot as a path separator. This restores resolution of filters that address fields whose
+         * names contain backslashes (for example {@code \.nested} meaning the {@code nested} child of a field named
+         * {@code \}), which the 8.6 escape handling silently broke. See #136302.
+         */
+        static void insertLegacyNode(String filter, BuildNode node, int depth) {
+            if (depth > MAX_TREE_DEPTH) {
+                throw new IllegalArgumentException(
+                    "Filter exceeds maximum depth at [" + (filter.length() > 100 ? filter.substring(0, 100) : filter) + "]"
+                );
             }
-            return sb.toString();
+            int splitPosition = filter.indexOf('.');
+            if (splitPosition > 0) {
+                String field = filter.substring(0, splitPosition);
+                BuildNode child = node.children.computeIfAbsent(field, f -> new BuildNode(false));
+                if (false == child.isFinalNode) {
+                    insertLegacyNode(filter.substring(splitPosition + 1), child, depth + 1);
+                }
+            } else {
+                node.children.put(filter, new BuildNode(true));
+            }
         }
 
         static FilterPath buildPath(String segment, BuildNode node) {

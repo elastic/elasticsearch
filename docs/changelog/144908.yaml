@@ -1,5 +1,5 @@
 pr: 144908
-summary: Add backslash escape support in FilterPath for source filtering
+summary: Fix source filtering for field names containing a backslash
 area: Search
 type: bug
 issues:

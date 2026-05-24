@@ -149,6 +149,10 @@ public class Dissect extends RegexExtract implements TelemetryAware, SortPreserv
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+        if (mapper == IdentifierMapper.IDENTITY) {
+            super.nodeString(sb, format, mapper);
+            return;
+        }
         sb.append(nodeName()).append("[pattern=\"");
         rewriteDissectPattern(sb, parser.pattern(), mapper);
         sb.append("\"]");

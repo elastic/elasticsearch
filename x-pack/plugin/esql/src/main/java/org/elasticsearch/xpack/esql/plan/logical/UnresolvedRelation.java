@@ -208,6 +208,10 @@ public class UnresolvedRelation extends LeafPlan implements Unresolvable, Teleme
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+        if (mapper == IdentifierMapper.IDENTITY) {
+            super.nodeString(sb, format, mapper);
+            return;
+        }
         sb.append(nodeName()).append('[').append(mapper.index(indexPattern.indexPattern())).append(']');
     }
 }

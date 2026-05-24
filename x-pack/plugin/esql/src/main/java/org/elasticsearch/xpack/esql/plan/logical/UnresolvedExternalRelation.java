@@ -143,12 +143,12 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+        if (mapper == IdentifierMapper.IDENTITY) {
+            super.nodeString(sb, format, mapper);
+            return;
+        }
         // tablePath.sourceText() exposes the raw query fragment under raw formats; the unresolvedMsg
         // embeds it too. Under a non-identity mapper drop both and keep only the structural marker.
-        if (mapper != IdentifierMapper.IDENTITY) {
-            sb.append(UNRESOLVED_PREFIX).append("EXTERNAL[<dropped>]");
-        } else {
-            sb.append(toString());
-        }
+        sb.append(UNRESOLVED_PREFIX).append("EXTERNAL[<dropped>]");
     }
 }

@@ -164,6 +164,10 @@ public class ViewShadowRelation extends LeafPlan implements Unresolvable {
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+        if (mapper == IdentifierMapper.IDENTITY) {
+            super.nodeString(sb, format, mapper);
+            return;
+        }
         sb.append("?shadow[").append(mapper.index(viewName));
         if (exclusions != null && exclusions.isEmpty() == false) {
             for (String exc : exclusions) {

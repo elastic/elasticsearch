@@ -82,6 +82,10 @@ public class UnresolvedMetadataAttributeExpression extends UnresolvedNamedExpres
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+        if (mapper == IdentifierMapper.IDENTITY) {
+            super.nodeString(sb, format, mapper);
+            return;
+        }
         sb.append(UNRESOLVED_PREFIX);
         // Local wildcard parser — same shape as UnresolvedNamePattern.rewriteWildcardPattern but
         // duplicated here because this class lives in core.expression and can't reach into

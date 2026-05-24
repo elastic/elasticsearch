@@ -12,6 +12,7 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -38,19 +39,43 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
 
     private final Expression tablePath;
     private final Map<String, Object> config;
+    private final List<NamedExpression> metadataFields;
     private final String unresolvedMsg;
 
     /**
+     * Creates an unresolved external relation with no METADATA fields. Convenience overload for
+     * callers that don't carry standard metadata names (the inline {@code EXTERNAL} command path,
+     * tests).
+     */
+    public UnresolvedExternalRelation(Source source, Expression tablePath, Map<String, Object> config) {
+        this(source, tablePath, config, List.of());
+    }
+
+    /**
      * Creates an unresolved external relation.
+     * <p>
+     * The {@code metadataFields} list carries the names from the user's {@code METADATA ...} clause
+     * verbatim. The analyzer (specifically {@code ResolveExternalRelations}) is the binding site:
+     * it resolves each name against {@link org.elasticsearch.xpack.esql.core.expression.MetadataAttribute#ATTRIBUTES_MAP}
+     * and appends an {@link org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute}
+     * per resolved name to the leaf's output. This constructor does not validate the names — invalid
+     * names surface as unresolved attributes downstream with the existing "Unknown column" diagnostic.
      *
      * @param source the source location in the query
      * @param tablePath the resource path or external table identifier (a {@code Literal} or parameter reference)
      * @param config plain-valued configuration (e.g., credentials, format options) — not wrapped in {@code Literal}
+     * @param metadataFields names requested in the {@code METADATA} clause, in declaration order; never {@code null}
      */
-    public UnresolvedExternalRelation(Source source, Expression tablePath, Map<String, Object> config) {
+    public UnresolvedExternalRelation(
+        Source source,
+        Expression tablePath,
+        Map<String, Object> config,
+        List<NamedExpression> metadataFields
+    ) {
         super(source);
         this.tablePath = tablePath;
         this.config = config;
+        this.metadataFields = Objects.requireNonNull(metadataFields, "metadataFields");
         this.unresolvedMsg = "Unknown external table or Parquet file [" + extractTablePathValue(tablePath) + "]";
     }
 
@@ -77,7 +102,7 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
 
     @Override
     protected NodeInfo<UnresolvedExternalRelation> info() {
-        return NodeInfo.create(this, UnresolvedExternalRelation::new, tablePath, config);
+        return NodeInfo.create(this, UnresolvedExternalRelation::new, tablePath, config, metadataFields);
     }
 
     public Expression tablePath() {
@@ -86,6 +111,10 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
 
     public Map<String, Object> config() {
         return config;
+    }
+
+    public List<NamedExpression> metadataFields() {
+        return metadataFields;
     }
 
     @Override
@@ -110,7 +139,7 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
 
     @Override
     public int hashCode() {
-        return Objects.hash(source(), tablePath, config, unresolvedMsg);
+        return Objects.hash(source(), tablePath, config, metadataFields, unresolvedMsg);
     }
 
     @Override
@@ -126,6 +155,7 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
         UnresolvedExternalRelation other = (UnresolvedExternalRelation) obj;
         return Objects.equals(tablePath, other.tablePath)
             && Objects.equals(config, other.config)
+            && Objects.equals(metadataFields, other.metadataFields)
             && Objects.equals(unresolvedMsg, other.unresolvedMsg);
     }
 
@@ -137,6 +167,7 @@ public class UnresolvedExternalRelation extends LeafPlan implements Unresolvable
 
     @Override
     public String toString() {
-        return UNRESOLVED_PREFIX + "EXTERNAL[" + tablePath.sourceText() + "]";
+        String metadataSuffix = metadataFields.isEmpty() ? "" : " METADATA " + metadataFields;
+        return UNRESOLVED_PREFIX + "EXTERNAL[" + tablePath.sourceText() + "]" + metadataSuffix;
     }
 }

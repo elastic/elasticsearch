@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -65,6 +66,7 @@ import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.expression.NamedExpressions;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.UnresolvedNamePattern;
@@ -182,6 +184,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -533,6 +536,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * <p>
      * This rule creates {@link ExternalRelation} nodes from any SourceMetadata,
      * avoiding the need for source-specific logical plan nodes in core ESQL code.
+     * <p>
+     * Binds the user's {@code METADATA ...} clause. Every name in
+     * {@link MetadataAttribute#ATTRIBUTES_MAP} (standard names like {@code _id}/{@code _index}/...)
+     * and every name in {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS}
+     * ({@code _file.path}, {@code _file.name}, ...) becomes an {@link ExternalMetadataAttribute} of
+     * the registered type. Unknown names propagate as-is for the verifier to flag with the existing
+     * "Unknown column" diagnostic. Names already present in the source's natural schema are skipped
+     * — the source's own column wins.
      */
     private static class ResolveExternalRelations extends ParameterizedAnalyzerRule<UnresolvedExternalRelation, AnalyzerContext> {
 
@@ -554,14 +565,47 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             }
 
             var metadata = resolvedSource.metadata();
-            return new ExternalRelation(
-                plan.source(),
-                tablePath,
-                metadata,
-                metadata.schema(),
-                resolvedSource.fileList(),
-                resolvedSource.schemaMap()
-            );
+            List<Attribute> schema = bindMetadataFields(plan, metadata.schema());
+            return new ExternalRelation(plan.source(), tablePath, metadata, schema, resolvedSource.fileList(), resolvedSource.schemaMap());
+        }
+
+        /**
+         * Walks the user's METADATA clause and appends one {@link ExternalMetadataAttribute} per
+         * requested name to the source's natural schema. Names absent from
+         * {@link MetadataAttribute#ATTRIBUTES_MAP} AND from
+         * {@link org.elasticsearch.xpack.esql.datasources.FileMetadataColumns#COLUMNS} pass through
+         * — the verifier flags them as "Unknown column" downstream. Names already present in the
+         * source's natural schema are skipped (the source's own column takes precedence).
+         */
+        private static List<Attribute> bindMetadataFields(UnresolvedExternalRelation plan, List<Attribute> baseSchema) {
+            if (plan.metadataFields().isEmpty()) {
+                return baseSchema;
+            }
+            Set<String> existing = new LinkedHashSet<>();
+            for (Attribute a : baseSchema) {
+                existing.add(a.name());
+            }
+            List<Attribute> enriched = null;
+            for (NamedExpression requested : plan.metadataFields()) {
+                String name = requested.name();
+                if (existing.contains(name)) {
+                    continue;
+                }
+                DataType type = MetadataAttribute.dataType(name);
+                if (type == null) {
+                    type = FileMetadataColumns.COLUMNS.get(name);
+                }
+                if (type == null) {
+                    // Unknown name — leave it to the verifier's "Unknown column" diagnostic.
+                    continue;
+                }
+                if (enriched == null) {
+                    enriched = new ArrayList<>(baseSchema);
+                }
+                enriched.add(new ExternalMetadataAttribute(plan.source(), name, type));
+                existing.add(name);
+            }
+            return enriched == null ? baseSchema : List.copyOf(enriched);
         }
 
         private String extractTablePath(Expression tablePath) {

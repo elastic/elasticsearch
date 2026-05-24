@@ -152,11 +152,6 @@ public final class DatasetRewriter {
             };
             throw new VerificationException(message);
         }
-        if (relation.metadataFields().isEmpty() == false) {
-            // Reject rather than silently drop. _index synthesis on datasets is tracked separately
-            // (proposed: dataset name as _index); _id/_source/_score have no agreed semantics yet.
-            throw new VerificationException("METADATA fields are not supported on datasets; dataset(s) requested: " + datasetNames);
-        }
         if (nonDatasetNames.isEmpty() == false) {
             // Counts only in the user-facing message (names may be unreadable to the caller); full
             // names go to DEBUG for operator triage. Rejection removed by heterogeneous FROM.
@@ -187,7 +182,12 @@ public final class DatasetRewriter {
             }
             Map<String, Object> merged = mergeSettings(parent, dataset);
             Literal path = Literal.keyword(relation.source(), dataset.resource());
-            children.add(new UnresolvedExternalRelation(relation.source(), path, merged));
+            // Thread the user's METADATA clause through to the external leaf so the analyzer's
+            // ResolveExternalRelations binds each requested name to an ExternalMetadataAttribute of
+            // the type registered in MetadataAttribute.ATTRIBUTES_MAP. Per the universal rule
+            // (esql-planning#813), every standard metadata name accepts on external datasets;
+            // values are framework-synthesized by the COMPOSED path.
+            children.add(new UnresolvedExternalRelation(relation.source(), path, merged, relation.metadataFields()));
         }
         if (children.size() == 1) {
             return children.get(0);

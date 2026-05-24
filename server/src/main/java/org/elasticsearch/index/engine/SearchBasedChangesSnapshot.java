@@ -31,6 +31,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SyntheticIdField;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.search.lookup.Source;
@@ -135,7 +136,13 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
             // noop tombstone documents don't have an _id field.
             return mapperService.isUseColumnarId();
         }
-        return idFieldInfo.getDocValuesType() == DocValuesType.BINARY;
+        if (idFieldInfo.getDocValuesType() == DocValuesType.BINARY) {
+            // SyntheticIdField (TSDB) also stores _id as BINARY doc values, but its id is materialized at read time via
+            // TSDBSyntheticIdStoredFieldsReader. In that case the id mode isn't columnar, and we can determine this from the attributes:
+            return SyntheticIdField.hasSyntheticIdAttributes(idFieldInfo.attributes()) == false;
+        } else {
+            return false;
+        }
     }
 
     private ValueFetcher createSourceMetadataValueFetcher(MapperService mapperService, IndexSearcher searcher) {

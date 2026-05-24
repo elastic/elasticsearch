@@ -54,18 +54,18 @@ public class UnresolvedNamePatternTests extends AbstractNamedExpressionSerializa
         // The two literal runs ("foo" and "bar") tokenize through the column map; the metacharacters
         // survive verbatim. Same name → same token within a context.
         StringBuilder sb = new StringBuilder();
-        UnresolvedNamePattern.rewriteWildcardPattern(sb, "*foo*bar*", ctx);
+        UnresolvedNamePattern.rewriteWildcardPattern(sb, "*foo*bar*", ctx.mapper());
         String out = sb.toString();
         assertTrue("wildcard stars dropped: " + out, out.matches("\\*col_[0-9a-f]+\\*col_[0-9a-f]+\\*"));
         // foo and bar tokenize to different col_ tokens
-        assertNotEquals(ctx.column("foo"), ctx.column("bar"));
+        assertNotEquals(ctx.mapper().column("foo"), ctx.mapper().column("bar"));
     }
 
     public void testRewriteWildcardPatternHandlesAllMetacharacters() {
         var ctx = AnonymizationContext.forSubmission(randomUUID());
         // ?, %, _, * all survive as structural metacharacters
         StringBuilder sb = new StringBuilder();
-        UnresolvedNamePattern.rewriteWildcardPattern(sb, "a?b%c_d*e", ctx);
+        UnresolvedNamePattern.rewriteWildcardPattern(sb, "a?b%c_d*e", ctx.mapper());
         String out = sb.toString();
         assertTrue(
             "expected ? % _ * preserved: " + out,
@@ -78,7 +78,7 @@ public class UnresolvedNamePatternTests extends AbstractNamedExpressionSerializa
         // Escaped `\*` is treated as a literal char and folds into the literal run that wraps it,
         // not as a wildcard metacharacter.
         StringBuilder sb = new StringBuilder();
-        UnresolvedNamePattern.rewriteWildcardPattern(sb, "foo\\*bar", ctx);
+        UnresolvedNamePattern.rewriteWildcardPattern(sb, "foo\\*bar", ctx.mapper());
         String out = sb.toString();
         assertTrue("escaped backslash should not surface as wildcard: " + out, out.matches("col_[0-9a-f]+"));
     }
@@ -86,9 +86,9 @@ public class UnresolvedNamePatternTests extends AbstractNamedExpressionSerializa
     public void testRewriteWildcardPatternNullAndEmptyAreNoop() {
         var ctx = AnonymizationContext.forSubmission(randomUUID());
         StringBuilder sb = new StringBuilder();
-        UnresolvedNamePattern.rewriteWildcardPattern(sb, null, ctx);
+        UnresolvedNamePattern.rewriteWildcardPattern(sb, null, ctx.mapper());
         assertEquals("", sb.toString());
-        UnresolvedNamePattern.rewriteWildcardPattern(sb, "", ctx);
+        UnresolvedNamePattern.rewriteWildcardPattern(sb, "", ctx.mapper());
         assertEquals("", sb.toString());
     }
 }

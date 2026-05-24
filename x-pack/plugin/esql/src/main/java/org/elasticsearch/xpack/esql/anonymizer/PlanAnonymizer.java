@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.anonymizer;
 import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
@@ -37,9 +38,11 @@ public final class PlanAnonymizer {
     public record AnonymizedPlans(String schema, String parsed, String analyzed, String optimized, String physical) {}
 
     private final AnonymizationContext ctx;
+    private final IdentifierMapper mapper;
 
     private PlanAnonymizer(String clusterUuid) {
         this.ctx = AnonymizationContext.forSubmission(clusterUuid);
+        this.mapper = ctx.mapper();
     }
 
     /** One anonymizer per query submission so literal tokens don't carry across queries. */
@@ -56,10 +59,10 @@ public final class PlanAnonymizer {
      */
     public AnonymizedPlans anonymize(LogicalPlan parsed, LogicalPlan analyzed, LogicalPlan optimized, PhysicalPlan physical) {
         var format = org.elasticsearch.xpack.esql.core.tree.Node.NodeStringFormat.FULL;
-        String parsedText = parsed == null ? "" : parsed.toString(format, ctx);
-        String analyzedText = analyzed == null ? "" : analyzed.toString(format, ctx);
-        String optimizedText = optimized == null ? "" : optimized.toString(format, ctx);
-        String physicalText = physical == null ? "" : physical.toString(format, ctx);
+        String parsedText = parsed == null ? "" : parsed.toString(format, mapper);
+        String analyzedText = analyzed == null ? "" : analyzed.toString(format, mapper);
+        String optimizedText = optimized == null ? "" : optimized.toString(format, mapper);
+        String physicalText = physical == null ? "" : physical.toString(format, mapper);
 
         LogicalPlan schemaSource = analyzed != null ? analyzed : optimized;
         String schema = schemaSource == null ? "" : renderSchema(schemaSource);
@@ -81,7 +84,7 @@ public final class PlanAnonymizer {
     }
 
     private void renderRelation(EsRelation r, StringBuilder sb) {
-        sb.append(ctx.index(r.indexPattern())).append(" (mode=").append(r.indexMode().getName());
+        sb.append(mapper.index(r.indexPattern())).append(" (mode=").append(r.indexMode().getName());
         if (r.concreteQualifiedIndices().isEmpty() == false) {
             sb.append(", concrete=[");
             boolean first = true;
@@ -90,7 +93,7 @@ public final class PlanAnonymizer {
                     sb.append(", ");
                 }
                 first = false;
-                sb.append(ctx.index(concrete));
+                sb.append(mapper.index(concrete));
             }
             sb.append(']');
         }
@@ -114,7 +117,7 @@ public final class PlanAnonymizer {
         if (a instanceof FieldAttribute fa) {
             renderField(a.name(), fa.field(), indent, sb);
         } else {
-            sb.append(indent).append(ctx.column(a.name())).append(": ").append(a.dataType().typeName());
+            sb.append(indent).append(mapper.column(a.name())).append(": ").append(a.dataType().typeName());
             if (a.dataType().hasDocValues()) {
                 sb.append(" doc_values");
             }
@@ -123,7 +126,7 @@ public final class PlanAnonymizer {
     }
 
     private void renderField(String fullName, EsField f, String indent, StringBuilder sb) {
-        sb.append(indent).append(ctx.column(fullName)).append(": ").append(f.getDataType().typeName());
+        sb.append(indent).append(mapper.column(fullName)).append(": ").append(f.getDataType().typeName());
         if (f.getDataType().hasDocValues()) {
             sb.append(" doc_values");
         }
@@ -172,7 +175,7 @@ public final class PlanAnonymizer {
                     .append(']');
             }
             if (u.hasInherited()) {
-                sb.append(" inherited_from=").append(ctx.column(u.getInherited()));
+                sb.append(" inherited_from=").append(mapper.column(u.getInherited()));
             }
         } else if (f instanceof InvalidMappedField imf) {
             Set<DataType> conflictingTypes = imf.types();

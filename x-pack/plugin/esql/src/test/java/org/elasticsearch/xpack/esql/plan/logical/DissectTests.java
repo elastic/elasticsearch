@@ -17,7 +17,7 @@ public class DissectTests extends ESTestCase {
         // The %{...} braces survive; the capture names inside route through the column map; the
         // separator characters between captures pass through unchanged.
         StringBuilder sb = new StringBuilder();
-        Dissect.rewriteDissectPattern(sb, "%{ip} - %{date} %{message}", ctx);
+        Dissect.rewriteDissectPattern(sb, "%{ip} - %{date} %{message}", ctx.mapper());
         String out = sb.toString();
         assertTrue(
             "expected braces preserved + capture names tokenized + separators kept: " + out,
@@ -30,7 +30,7 @@ public class DissectTests extends ESTestCase {
         // Dissect supports `+` (append) and `?` (skip) modifiers right after the open brace. These
         // are structural, not data — preserve the modifier; tokenize the rest of the name.
         StringBuilder sb = new StringBuilder();
-        Dissect.rewriteDissectPattern(sb, "%{?skip} %{+append}", ctx);
+        Dissect.rewriteDissectPattern(sb, "%{?skip} %{+append}", ctx.mapper());
         String out = sb.toString();
         assertTrue("expected ? and + modifiers preserved: " + out, out.matches("%\\{\\?col_[0-9a-f]+\\} %\\{\\+col_[0-9a-f]+\\}"));
     }
@@ -38,9 +38,9 @@ public class DissectTests extends ESTestCase {
     public void testRewriteDissectPatternNullAndEmptyAreNoop() {
         var ctx = AnonymizationContext.forSubmission(randomUUID());
         StringBuilder sb = new StringBuilder();
-        Dissect.rewriteDissectPattern(sb, null, ctx);
+        Dissect.rewriteDissectPattern(sb, null, ctx.mapper());
         assertEquals("", sb.toString());
-        Dissect.rewriteDissectPattern(sb, "", ctx);
+        Dissect.rewriteDissectPattern(sb, "", ctx.mapper());
         assertEquals("", sb.toString());
     }
 }

@@ -17,7 +17,7 @@ public class GrokTests extends ESTestCase {
         // The Grok library identifier (IP) is not customer data — keep verbatim. The capture name
         // (client_ip) is user-defined — tokenize via the column map.
         StringBuilder sb = new StringBuilder();
-        Grok.rewriteGrokPattern(sb, "%{IP:client_ip}", ctx);
+        Grok.rewriteGrokPattern(sb, "%{IP:client_ip}", ctx.mapper());
         String out = sb.toString();
         assertTrue("expected library id preserved + capture tokenized: " + out, out.matches("%\\{IP:col_[0-9a-f]+\\}"));
     }
@@ -26,7 +26,7 @@ public class GrokTests extends ESTestCase {
         var ctx = AnonymizationContext.forSubmission(randomUUID());
         // `:int` is a type coercion suffix, not customer data; survives the rewrite.
         StringBuilder sb = new StringBuilder();
-        Grok.rewriteGrokPattern(sb, "%{NUMBER:bytes:int}", ctx);
+        Grok.rewriteGrokPattern(sb, "%{NUMBER:bytes:int}", ctx.mapper());
         String out = sb.toString();
         assertTrue("expected library id + tokenized capture + type suffix: " + out, out.matches("%\\{NUMBER:col_[0-9a-f]+:int\\}"));
     }
@@ -34,7 +34,7 @@ public class GrokTests extends ESTestCase {
     public void testRewriteGrokPatternHandlesMultipleCapturesAndSeparators() {
         var ctx = AnonymizationContext.forSubmission(randomUUID());
         StringBuilder sb = new StringBuilder();
-        Grok.rewriteGrokPattern(sb, "%{IP:client_ip} - %{NUMBER:bytes} OK", ctx);
+        Grok.rewriteGrokPattern(sb, "%{IP:client_ip} - %{NUMBER:bytes} OK", ctx.mapper());
         String out = sb.toString();
         assertTrue("expected mixed structure preserved: " + out, out.matches("%\\{IP:col_[0-9a-f]+\\} - %\\{NUMBER:col_[0-9a-f]+\\} OK"));
     }
@@ -42,9 +42,9 @@ public class GrokTests extends ESTestCase {
     public void testRewriteGrokPatternNullAndEmptyAreNoop() {
         var ctx = AnonymizationContext.forSubmission(randomUUID());
         StringBuilder sb = new StringBuilder();
-        Grok.rewriteGrokPattern(sb, null, ctx);
+        Grok.rewriteGrokPattern(sb, null, ctx.mapper());
         assertEquals("", sb.toString());
-        Grok.rewriteGrokPattern(sb, "", ctx);
+        Grok.rewriteGrokPattern(sb, "", ctx.mapper());
         assertEquals("", sb.toString());
     }
 }

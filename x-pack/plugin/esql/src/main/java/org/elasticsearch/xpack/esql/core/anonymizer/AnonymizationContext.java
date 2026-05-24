@@ -41,7 +41,7 @@ import javax.crypto.spec.SecretKeySpec;
  * A fresh context is constructed per query submission via {@link #forSubmission(String)}; reusing
  * one across submissions would leak literal identity across queries.
  */
-public final class AnonymizationContext implements IdentifierMapper {
+public final class AnonymizationContext {
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     /**
@@ -57,6 +57,29 @@ public final class AnonymizationContext implements IdentifierMapper {
     private final Map<String, String> columnTokens = new HashMap<>();
     private final Map<String, String> indexTokens = new HashMap<>();
     private final Map<LiteralKey, Integer> literalIds = new HashMap<>();
+    private final IdentifierMapper mapper = new IdentifierMapper() {
+        @Override
+        public String column(String name) {
+            return columnTokens.computeIfAbsent(name, n -> "col_" + token(n));
+        }
+
+        @Override
+        public String index(String name) {
+            return indexTokens.computeIfAbsent(name, n -> "idx_" + token(n));
+        }
+
+        @Override
+        public String literal(Object value, DataType type) {
+            if (value == null) {
+                return "null";
+            }
+            int id = literalIds.computeIfAbsent(LiteralKey.of(value, type), k -> literalIds.size());
+            if (type == DataType.KEYWORD || type == DataType.TEXT || type == DataType.VERSION || type == DataType.IP) {
+                return "L" + id;
+            }
+            return String.valueOf(id);
+        }
+    };
 
     private AnonymizationContext(String clusterUuid) {
         this.clusterKey = (clusterUuid == null ? "" : clusterUuid).getBytes(StandardCharsets.UTF_8);
@@ -77,35 +100,13 @@ public final class AnonymizationContext implements IdentifierMapper {
         return new AnonymizationContext(clusterUuid);
     }
 
-    /** Anonymizes a column / field / alias name. Per-cluster stable. */
-    @Override
-    public String column(String name) {
-        return columnTokens.computeIfAbsent(name, n -> "col_" + token(n));
-    }
-
-    /** Anonymizes an index name, datastream pattern, enrich-policy index, or view name. */
-    @Override
-    public String index(String name) {
-        return indexTokens.computeIfAbsent(name, n -> "idx_" + token(n));
-    }
-
     /**
-     * Anonymizes a literal value of the given {@link DataType}, returning just the value portion
-     * of the typed placeholder. The {@code "[<type>]"} suffix is added by the caller so the
-     * rendered shape stays consistent between identity rendering ({@code "5"} + {@code "[LONG]"})
-     * and anonymized rendering ({@code "0"} + {@code "[LONG]"}). Identity within a submission is
-     * preserved — repeated literals with the same {(value, type)} key emit the same placeholder.
+     * Returns the {@link IdentifierMapper} view backed by this context's state. The mapper is a
+     * function — pass it to {@code nodeString} / {@code toString}. The context holds the lifecycle;
+     * the mapper exposes the pure-function surface call sites consume.
      */
-    @Override
-    public String literal(Object value, DataType type) {
-        if (value == null) {
-            return "null";
-        }
-        int id = literalIds.computeIfAbsent(LiteralKey.of(value, type), k -> literalIds.size());
-        if (type == DataType.KEYWORD || type == DataType.TEXT || type == DataType.VERSION || type == DataType.IP) {
-            return "L" + id;
-        }
-        return String.valueOf(id);
+    public IdentifierMapper mapper() {
+        return mapper;
     }
 
     private String token(String value) {

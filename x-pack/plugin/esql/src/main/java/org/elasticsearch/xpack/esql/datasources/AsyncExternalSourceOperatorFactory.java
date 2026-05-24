@@ -1444,21 +1444,25 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         List<String> cols = state.projectedColumns;
 
         // Per-file partition values so {@code _file.path/name/directory/size/modified} reflect
-        // *this* file rather than the factory's pre-resolution values. Hive-style partition values
-        // (carried in {@code partitionValues}) overlay on top — they are constant across all files
-        // in this unit-of-resolution; per-file metadata values from
-        // {@code FileMetadataColumns.extractValues} override on key collision so a hand-rolled
-        // "_file.size" column never leaks the factory value.
+        // *this* file rather than the factory's pre-resolution values. The merge order is:
+        // <ol>
+        // <li>Standard ES metadata constants ({@code _index}, {@code _version}, ...) — base layer.</li>
+        // <li>Hive-style partition values (carried in {@code partitionValues}) — overlay; a Hive
+        // partition column literally named {@code _index} therefore wins over the synthesized
+        // constant, matching what the user explicitly authored in the partition layout.</li>
+        // <li>{@code _file.*} values from {@link FileMetadataColumns#extractValues} — top layer;
+        // a hand-rolled {@code _file.size} column never leaks the factory value.</li>
+        // </ol>
+        // This matches the precedence implemented by {@link #mergeStandardMetadata} on the
+        // slice-queue and single-file paths (standard constants are base; Hive partitions then
+        // {@code _file.*} overlay).
         Map<String, Object> perFileValues = partitionValues;
         if (partitionColumnNames.isEmpty() == false) {
-            perFileValues = new HashMap<>(partitionValues);
-            // Standard metadata constants overlay first so the {@code _file.*} layer (whose
-            // values are derived from the same FileList entry, never user-supplied) takes
-            // precedence on key collisions — matching the same precedence the slice-queue
-            // FileSplit.partitionValues uses.
+            perFileValues = new HashMap<>();
             if (standardMetadataPerFileNames.isEmpty() == false) {
                 perFileValues.putAll(ExternalMetadataColumns.extractPerFileConstants(datasetName, files, fileIndex));
             }
+            perFileValues.putAll(partitionValues);
             perFileValues.putAll(FileMetadataColumns.extractValues(files, fileIndex));
         }
 

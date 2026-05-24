@@ -16,7 +16,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlParserUtils;
-import org.elasticsearch.xpack.esql.plan.EsqlStatement;
+import org.elasticsearch.xpack.prometheus.rest.PromqlQueryPlanBuilder.PromqlStatementResult;
 
 import java.time.Instant;
 import java.util.List;
@@ -72,14 +72,20 @@ public class PrometheusInstantQueryRestAction extends BaseRestHandler {
             ? PromqlParserUtils.parseDate(Source.EMPTY, timeStr)
             : Instant.now();
 
-        EsqlStatement statement = PromqlQueryPlanBuilder.buildInstantStatement(query, index, evaluationTime);
-        var esqlRequest = PreparedEsqlQueryRequest.sync(statement, query);
+        PromqlStatementResult result = PromqlQueryPlanBuilder.buildStatement(
+            query,
+            index,
+            evaluationTime,
+            PrometheusQueryResponseListener.QueryMode.INSTANT
+        );
+        var esqlRequest = PreparedEsqlQueryRequest.sync(result.esqlStatement(), query);
 
         return channel -> client.execute(
             EsqlQueryAction.INSTANCE,
             esqlRequest,
             new PrometheusQueryResponseListener(
                 channel,
+                result.resultType(),
                 PrometheusQueryResponseListener.QueryMode.INSTANT,
                 limit == 0 ? Integer.MAX_VALUE : limit
             )

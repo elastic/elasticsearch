@@ -11,6 +11,7 @@ package org.elasticsearch.action.support;
 
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.common.ParsingException;
@@ -36,12 +37,18 @@ public class TransportActionsTests extends ESTestCase {
         assertTrue(TransportActions.isRetriableShardLevelException(new AlreadyClosedException("already closed")));
     }
 
-    public void testBadRequestExceptionsAreNotRetriable() {
+    public void test4xxExceptionsAreNotRetriable() {
+        // 400 BAD_REQUEST
         assertFalse(
             TransportActions.isRetriableShardLevelException(new QueryShardException(SHARD_ID.getIndex(), "unsupported query", null))
         );
         assertFalse(TransportActions.isRetriableShardLevelException(new ParsingException(0, 0, "parse error", null)));
         assertFalse(TransportActions.isRetriableShardLevelException(new AggregationExecutionException.InvalidPath("bad agg path")));
+    }
+
+    public void testTimeoutExceptionsAreRetriable() {
+        // 429 TOO_MANY_REQUESTS — transient, a different replica may not share the condition
+        assertTrue(TransportActions.isRetriableShardLevelException(new ElasticsearchTimeoutException("timed out")));
     }
 
     public void testWrappedBadRequestIsNotRetriable() {

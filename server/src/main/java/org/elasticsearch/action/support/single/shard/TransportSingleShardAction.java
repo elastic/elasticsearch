@@ -53,7 +53,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.concurrent.Executor;
 
-import static org.elasticsearch.action.support.TransportActions.isRetriableShardLevelException;
 import static org.elasticsearch.action.support.TransportActions.isShardNotAvailableException;
 import static org.elasticsearch.core.Strings.format;
 
@@ -231,10 +230,6 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
             }
             if (ExceptionsHelper.unwrapCause(currentFailure) instanceof StaleRequestException staleRequestException) {
                 waitForRoutingUpdateAndRestart(staleRequestException);
-                return;
-            }
-            if (currentFailure != null && isRetriableShardLevelException(currentFailure) == false) {
-                listener.onFailure(currentFailure);
                 return;
             }
             final ShardRouting shardRouting = shardIt.nextOrNull();

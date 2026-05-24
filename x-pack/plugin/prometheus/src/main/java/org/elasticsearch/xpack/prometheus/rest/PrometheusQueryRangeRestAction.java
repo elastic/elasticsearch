@@ -14,7 +14,6 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
-import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 
 import java.util.List;
 
@@ -60,8 +59,16 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
         String index = request.param(INDEX_PARAM, DEFAULT_PROMQL_INDEX_PATTERN);
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
 
-        EsqlStatement statement = PromqlQueryPlanBuilder.buildStatement(query, index, start, end, step, limit);
-        var esqlRequest = PreparedEsqlQueryRequest.sync(statement, query);
+        var result = PromqlQueryPlanBuilder.buildStatement(
+            query,
+            index,
+            start,
+            end,
+            step,
+            limit,
+            PrometheusQueryResponseListener.QueryMode.RANGE
+        );
+        var esqlRequest = PreparedEsqlQueryRequest.sync(result.esqlStatement(), query);
 
         return channel -> client.execute(
             EsqlQueryAction.INSTANCE,
@@ -69,6 +76,7 @@ public class PrometheusQueryRangeRestAction extends BaseRestHandler {
             new PrometheusQueryResponseListener(
                 channel,
                 PrometheusQueryResponseListener.QueryMode.RANGE,
+                result.resultType(),
                 limit == 0 ? Integer.MAX_VALUE : limit
             )
         );

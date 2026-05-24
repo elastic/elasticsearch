@@ -187,7 +187,10 @@ public final class DatasetRewriter {
             // the type registered in MetadataAttribute.ATTRIBUTES_MAP. Per the universal rule
             // (esql-planning#813), every standard metadata name accepts on external datasets;
             // values are framework-synthesized by the COMPOSED path.
-            children.add(new UnresolvedExternalRelation(relation.source(), path, merged, relation.metadataFields()));
+            // Carry the registered dataset name through to the operator factory so the per-file
+            // _index synthesizer can populate that column with the user-facing identifier (e.g.
+            // "my_dataset") rather than the underlying resource path (e.g. "s3://bucket/...").
+            children.add(new UnresolvedExternalRelation(relation.source(), path, merged, relation.metadataFields(), name));
         }
         if (children.size() == 1) {
             return children.get(0);

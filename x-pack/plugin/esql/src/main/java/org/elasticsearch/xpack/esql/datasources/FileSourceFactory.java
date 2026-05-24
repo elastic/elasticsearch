@@ -290,6 +290,11 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .pushdownSupport(pushdownSupport)
                 .onClose(onClose)
                 .deferredExtraction(deferredExtraction)
+                // datasetName drives the per-file _index synthesizer in
+                // {@link ExternalMetadataColumns#extractPerFileConstants}; null when the query
+                // came from inline EXTERNAL (no dataset mapping), populated when it came from
+                // FROM <dataset>.
+                .datasetName(context.datasetName())
                 .build();
         };
     }

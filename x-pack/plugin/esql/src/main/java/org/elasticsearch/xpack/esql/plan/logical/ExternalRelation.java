@@ -10,6 +10,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -61,6 +62,7 @@ import java.util.Set;
 public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator {
 
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_READ_SCHEMA = TransportVersion.fromName("esql_external_source_read_schema");
+    private static final TransportVersion ESQL_EXTERNAL_DATASET_NAME = TransportVersion.fromName("esql_external_dataset_name");
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
@@ -74,6 +76,10 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     private final FileList fileList;
     // Coordinator-only — not serialized. Drives FileSplit.readSchema + UBN SchemaAdaptingIterator.
     private final Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
+    // Registered dataset identifier (from FROM <dataset>), or null for inline EXTERNAL. Threaded
+    // to the operator factory so the per-file _index synthesizer can emit the user-facing name.
+    @Nullable
+    private final String datasetName;
 
     public ExternalRelation(
         Source source,
@@ -82,6 +88,18 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         List<Attribute> output,
         FileList fileList,
         Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap
+    ) {
+        this(source, sourcePath, metadata, output, fileList, schemaMap, null);
+    }
+
+    public ExternalRelation(
+        Source source,
+        String sourcePath,
+        SourceMetadata metadata,
+        List<Attribute> output,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        @Nullable String datasetName
     ) {
         super(source);
         if (sourcePath == null) {
@@ -98,6 +116,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         this.output = output;
         this.fileList = fileList;
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
+        this.datasetName = datasetName;
     }
 
     private static ExternalRelation readFrom(StreamInput in) throws IOException {
@@ -118,8 +137,9 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         List<Attribute> sourceSchema = in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)
             ? in.readNamedWriteableCollectionAsList(Attribute.class)
             : output;
+        String datasetName = in.getTransportVersion().supports(ESQL_EXTERNAL_DATASET_NAME) ? in.readOptionalString() : null;
         var metadata = new SimpleSourceMetadata(sourceSchema, sourceType, sourcePath, null, null, sourceMetadata, config);
-        return new ExternalRelation(source, sourcePath, metadata, output, FileList.UNRESOLVED, Map.of());
+        return new ExternalRelation(source, sourcePath, metadata, output, FileList.UNRESOLVED, Map.of(), datasetName);
     }
 
     @Override
@@ -134,6 +154,9 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_READ_SCHEMA)) {
             out.writeNamedWriteableCollection(metadata.schema());
         }
+        if (out.getTransportVersion().supports(ESQL_EXTERNAL_DATASET_NAME)) {
+            out.writeOptionalString(datasetName);
+        }
     }
 
     @Override
@@ -143,7 +166,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
 
     @Override
     protected NodeInfo<ExternalRelation> info() {
-        return NodeInfo.create(this, ExternalRelation::new, sourcePath, metadata, output, fileList, schemaMap);
+        return NodeInfo.create(this, ExternalRelation::new, sourcePath, metadata, output, fileList, schemaMap, datasetName);
     }
 
     public String sourcePath() {
@@ -160,6 +183,15 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
 
     public Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap() {
         return schemaMap;
+    }
+
+    /**
+     * Registered dataset identifier, or {@code null} when this relation was produced by the inline
+     * {@code EXTERNAL} command path. Carried to {@link ExternalSourceExec} via {@link #toPhysicalExec}.
+     */
+    @Nullable
+    public String datasetName() {
+        return datasetName;
     }
 
     @Override
@@ -194,7 +226,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             fileList,
             schemaMap,
             List.of()
-        ).withUnifiedSchema(new ExternalSchema(dataOnlyUnifiedSchema()));
+        ).withUnifiedSchema(new ExternalSchema(dataOnlyUnifiedSchema())).withDatasetName(datasetName);
     }
 
     /**
@@ -220,7 +252,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
 
     @Override
     public int hashCode() {
-        return Objects.hash(sourcePath, metadata, output, fileList, schemaMap);
+        return Objects.hash(sourcePath, metadata, output, fileList, schemaMap, datasetName);
     }
 
     @Override
@@ -238,7 +270,8 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
             && Objects.equals(metadata, other.metadata)
             && Objects.equals(output, other.output)
             && Objects.equals(fileList, other.fileList)
-            && Objects.equals(schemaMap, other.schemaMap);
+            && Objects.equals(schemaMap, other.schemaMap)
+            && Objects.equals(datasetName, other.datasetName);
     }
 
     @Override
@@ -248,6 +281,6 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
     }
 
     public ExternalRelation withAttributes(List<Attribute> newAttributes) {
-        return new ExternalRelation(source(), sourcePath, metadata, newAttributes, fileList, schemaMap);
+        return new ExternalRelation(source(), sourcePath, metadata, newAttributes, fileList, schemaMap, datasetName);
     }
 }

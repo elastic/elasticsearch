@@ -59,7 +59,8 @@ public record SourceOperatorContext(
     Set<String> partitionColumnNames,
     @Nullable ExternalSliceQueue sliceQueue,
     int parsingParallelism,
-    int parallelism
+    int parallelism,
+    @Nullable String datasetName
 ) {
     public SourceOperatorContext {
         Check.notNull(path, "path cannot be null");
@@ -122,7 +123,8 @@ public record SourceOperatorContext(
             null,
             null,
             1,
-            1
+            1,
+            null
         );
     }
 
@@ -159,7 +161,8 @@ public record SourceOperatorContext(
             null,
             null,
             1,
-            1
+            1,
+            null
         );
     }
 
@@ -195,7 +198,8 @@ public record SourceOperatorContext(
             null,
             null,
             1,
-            1
+            1,
+            null
         );
     }
 
@@ -229,7 +233,8 @@ public record SourceOperatorContext(
             null,
             null,
             1,
-            1
+            1,
+            null
         );
     }
 
@@ -259,6 +264,8 @@ public record SourceOperatorContext(
         private ExternalSliceQueue sliceQueue;
         private int parsingParallelism = 1;
         private int parallelism = 1;
+        @Nullable
+        private String datasetName;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -371,6 +378,16 @@ public record SourceOperatorContext(
             return this;
         }
 
+        /**
+         * Registered dataset identifier (from {@code FROM <dataset>}), or {@code null} for inline
+         * {@code EXTERNAL}. Consumed by the operator factory's per-file {@code _index} synthesizer
+         * so the column carries the user-facing dataset name rather than the resource path.
+         */
+        public Builder datasetName(@Nullable String datasetName) {
+            this.datasetName = datasetName;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -392,7 +409,8 @@ public record SourceOperatorContext(
                 partitionColumnNames,
                 sliceQueue,
                 parsingParallelism,
-                parallelism
+                parallelism,
+                datasetName
             );
         }
     }

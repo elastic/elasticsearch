@@ -60,6 +60,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     );
 
     private static final TransportVersion ESQL_EXTERNAL_SOURCE_SPLITS = TransportVersion.fromName("esql_external_source_splits");
+    private static final TransportVersion ESQL_EXTERNAL_DATASET_NAME = TransportVersion.fromName("esql_external_dataset_name");
 
     private final String sourcePath;
     private final String sourceType;
@@ -86,6 +87,11 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
     @Nullable
     private final ExternalSchema unifiedSchema;
     private final List<ExternalSplit> splits;
+    // Registered dataset identifier when this exec came from FROM <dataset>, null for inline
+    // EXTERNAL. Serialized so the data-node operator factory can populate _index with the
+    // user-facing dataset name without having to re-derive it from cluster state.
+    @Nullable
+    private final String datasetName;
 
     public ExternalSourceExec(
         Source source,
@@ -208,6 +214,44 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         @Nullable ExternalSchema unifiedSchema,
         List<ExternalSplit> splits
     ) {
+        this(
+            source,
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            unifiedSchema,
+            splits,
+            null
+        );
+    }
+
+    ExternalSourceExec(
+        Source source,
+        String sourcePath,
+        String sourceType,
+        List<Attribute> attributes,
+        Map<String, Object> config,
+        Map<String, Object> sourceMetadata,
+        Object pushedFilter,
+        List<Expression> pushedExpressions,
+        int pushedLimit,
+        @Nullable BlockHash.TopNDef pushedTopN,
+        Integer estimatedRowSize,
+        FileList fileList,
+        Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
+        @Nullable ExternalSchema unifiedSchema,
+        List<ExternalSplit> splits,
+        @Nullable String datasetName
+    ) {
         super(source);
         if (sourcePath == null) {
             throw new IllegalArgumentException("sourcePath must not be null");
@@ -232,6 +276,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
         this.unifiedSchema = unifiedSchema;
         this.splits = splits != null ? List.copyOf(splits) : List.of();
+        this.datasetName = datasetName;
     }
 
     public ExternalSourceExec(
@@ -300,6 +345,7 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         List<ExternalSplit> splits = in.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_SPLITS)
             ? in.readNamedWriteableCollectionAsList(ExternalSplit.class)
             : List.of();
+        String datasetName = in.getTransportVersion().supports(ESQL_EXTERNAL_DATASET_NAME) ? in.readOptionalString() : null;
 
         return new ExternalSourceExec(
             source,
@@ -311,10 +357,13 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             null,
             List.of(),
             FormatReader.NO_LIMIT,
+            null,
             estimatedRowSize,
             null,
             Map.of(),
-            splits
+            null,
+            splits,
+            datasetName
         );
     }
 
@@ -329,6 +378,9 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         out.writeOptionalVInt(estimatedRowSize);
         if (out.getTransportVersion().supports(ESQL_EXTERNAL_SOURCE_SPLITS)) {
             out.writeNamedWriteableCollection(splits);
+        }
+        if (out.getTransportVersion().supports(ESQL_EXTERNAL_DATASET_NAME)) {
+            out.writeOptionalString(datasetName);
         }
     }
 
@@ -407,7 +459,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             fileList,
             schemaMap,
             unifiedSchema,
-            newSplits
+            newSplits,
+            datasetName
         );
     }
 
@@ -427,7 +480,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             fileList,
             schemaMap,
             unifiedSchema,
-            splits
+            splits,
+            datasetName
         );
     }
 
@@ -447,7 +501,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             fileList,
             schemaMap,
             unifiedSchema,
-            splits
+            splits,
+            datasetName
         );
     }
 
@@ -467,7 +522,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             fileList,
             schemaMap,
             unifiedSchema,
-            splits
+            splits,
+            datasetName
         );
     }
 
@@ -499,7 +555,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             fileList,
             schemaMap,
             unifiedSchema,
-            splits
+            splits,
+            datasetName
         );
     }
 
@@ -522,7 +579,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             fileList,
             schemaMap,
             unifiedSchema,
-            splits
+            splits,
+            datasetName
         );
     }
 
@@ -558,7 +616,45 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             fileList,
             schemaMap,
             newUnifiedSchema,
-            splits
+            splits,
+            datasetName
+        );
+    }
+
+    /**
+     * Registered dataset identifier carried from {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation},
+     * or {@code null} if this exec came from inline {@code EXTERNAL}. See
+     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#datasetName()}.
+     */
+    @Nullable
+    public String datasetName() {
+        return datasetName;
+    }
+
+    /**
+     * Returns a copy of this source carrying the given dataset name. Applied by
+     * {@link org.elasticsearch.xpack.esql.plan.logical.ExternalRelation#toPhysicalExec()} after
+     * construction so {@code datasetName} does not appear in {@link #info()} (which would let the
+     * optimizer's attribute-rewriting rules walk through it as a child node).
+     */
+    public ExternalSourceExec withDatasetName(@Nullable String newDatasetName) {
+        return new ExternalSourceExec(
+            source(),
+            sourcePath,
+            sourceType,
+            attributes,
+            config,
+            sourceMetadata,
+            pushedFilter,
+            pushedExpressions,
+            pushedLimit,
+            pushedTopN,
+            estimatedRowSize,
+            fileList,
+            schemaMap,
+            unifiedSchema,
+            splits,
+            newDatasetName
         );
     }
 
@@ -585,7 +681,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             fileList,
             schemaMap,
             unifiedSchema,
-            splits
+            splits,
+            datasetName
         );
     }
 
@@ -597,6 +694,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         // unifiedSchema: also excluded — the optimizer's attribute-rewriting rules walk every arg
         // in info() and would prune the Unified schema along with `attributes`, defeating its
         // whole purpose. Preserved through with* methods which carry it explicitly.
+        // datasetName: also excluded — like unifiedSchema, it is a scalar that with* methods carry
+        // forward independently of node-reflection rewriting.
         return NodeInfo.create(
             this,
             ExternalSourceExec::new,
@@ -631,7 +730,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             fileList,
             schemaMap,
             unifiedSchema,
-            splits
+            splits,
+            datasetName
         );
     }
 
@@ -659,7 +759,8 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
             && Objects.equals(fileList, other.fileList)
             && Objects.equals(schemaMap, other.schemaMap)
             && Objects.equals(unifiedSchema, other.unifiedSchema)
-            && Objects.equals(splits, other.splits);
+            && Objects.equals(splits, other.splits)
+            && Objects.equals(datasetName, other.datasetName);
     }
 
     @Override
@@ -684,6 +785,9 @@ public class ExternalSourceExec extends LeafExec implements EstimatesRowSize, Da
         }
         if (splits.isEmpty() == false) {
             sb.append("[splits=").append(splits.size()).append("]");
+        }
+        if (datasetName != null) {
+            sb.append("[dataset=").append(datasetName).append("]");
         }
         NodeUtils.toString(sb, attributes, format);
     }

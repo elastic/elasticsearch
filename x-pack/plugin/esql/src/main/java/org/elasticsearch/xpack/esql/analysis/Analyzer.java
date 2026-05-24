@@ -566,7 +566,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
             var metadata = resolvedSource.metadata();
             List<Attribute> schema = bindMetadataFields(plan, metadata.schema());
-            return new ExternalRelation(plan.source(), tablePath, metadata, schema, resolvedSource.fileList(), resolvedSource.schemaMap());
+            return new ExternalRelation(
+                plan.source(),
+                tablePath,
+                metadata,
+                schema,
+                resolvedSource.fileList(),
+                resolvedSource.schemaMap(),
+                plan.datasetName()
+            );
         }
 
         /**

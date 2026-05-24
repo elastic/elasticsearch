@@ -481,6 +481,11 @@ public final class ParallelParsingCoordinator {
             if (closed) {
                 return;
             }
+            // Decide whether to publish a finalize marker before flipping closed=true: the marker
+            // means "every segment thread finished cleanly and the per-chunk partials shipped to
+            // ExternalStatsCapture represent the complete file." closing=true short-circuits the
+            // segment threads' enqueue loops, which we only want AFTER they've drained naturally.
+            boolean cleanCompletion = firstError.get() == null && currentSegment >= segmentQueues.size();
             closed = true;
             drainAllQueues();
             try {
@@ -491,6 +496,34 @@ public final class ParallelParsingCoordinator {
                 Thread.currentThread().interrupt();
             }
             drainAllQueues();
+            if (cleanCompletion && firstError.get() == null) {
+                publishFinalizeMarker();
+            }
+        }
+
+        /**
+         * Signals the coordinator-side reconciler that the per-chunk partials shipped via
+         * {@link org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture#record} cover
+         * the entire file cleanly. Without this marker, partial contributions are discarded.
+         */
+        private void publishFinalizeMarker() {
+            try {
+                long mtimeMillis = storageObject.lastModified() != null ? storageObject.lastModified().toEpochMilli() : -1L;
+                if (mtimeMillis < 0) {
+                    return;
+                }
+                java.util.Map<String, Object> marker = new java.util.HashMap<>();
+                marker.put(org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache.MTIME_MILLIS_KEY, mtimeMillis);
+                marker.put(org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache.FINALIZE_CHUNKS_KEY, Boolean.TRUE);
+                org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.record(storageObject.path().toString(), marker);
+            } catch (java.io.IOException e) {
+                logger.debug(
+                    () -> "ParallelParsingCoordinator: skipping finalize marker for ["
+                        + storageObject.path()
+                        + "] — lastModified() unavailable",
+                    e
+                );
+            }
         }
 
         private void drainAllQueues() {

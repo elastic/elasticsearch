@@ -965,21 +965,32 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // upstream caller has built a FormatReadContext with an explicit policy. The planner
         // path always sets context.errorPolicy() explicitly.
         ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : effectivePolicy;
-        // Whole-file read: first + last split, no parallel slicing. Only iterators that drain a
-        // file from offset 0 to natural EOF qualify to populate ExternalStatsCache. mtime is pinned
-        // here at open-time so a mid-scan file replacement cannot pair a new mtime with old data.
+        // mtime is pinned here at open-time so a mid-scan file replacement cannot pair a new
+        // mtime with old data. Two cacheable shapes:
+        // - wholeFileRead: first + last split, no parallel slicing — iterator publishes a full
+        // SourceStatistics for the file.
+        // - parallel-parsing chunk (recordAligned=true): iterator publishes a partial keyed by
+        // the file path; the ParallelParsingCoordinator publishes a finalize marker at clean
+        // whole-file completion. Coordinator-side reconciliation only commits the merge when
+        // the finalize marker is present.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
+        boolean chunkMode = context.recordAligned();
+        boolean cacheable = wholeFileRead || chunkMode;
         long pinnedMtimeMillis = -1L;
-        if (wholeFileRead) {
+        if (cacheable) {
             try {
                 Instant openMtime = object.lastModified();
                 if (openMtime != null) {
                     pinnedMtimeMillis = openMtime.toEpochMilli();
                 } else {
+                    cacheable = false;
                     wholeFileRead = false;
+                    chunkMode = false;
                 }
             } catch (IOException e) {
+                cacheable = false;
                 wholeFileRead = false;
+                chunkMode = false;
             }
         }
         // Fingerprint is computed lazily in CsvBatchIterator.close() once the schema is resolved
@@ -992,9 +1003,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             effectiveSchema,
             effective,
             object.path().toString(),
-            wholeFileRead ? object : null,
-            wholeFileRead ? stream : null,
-            pinnedMtimeMillis
+            cacheable ? object : null,
+            cacheable ? stream : null,
+            pinnedMtimeMillis,
+            chunkMode
         );
     }
 
@@ -1701,6 +1713,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         /** Pinned at iterator open; closes the open-vs-close mtime-race window for the cache key. */
         private final long pinnedMtimeMillis;
+        /** True for parallel-parsing chunks — close-time publish carries the partial-chunk marker. */
+        private final boolean chunkMode;
 
         CsvBatchIterator(
             BufferedReader reader,
@@ -1712,7 +1726,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             String sourceLocation,
             StorageObject cacheableObject,
             org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream byteCounter,
-            long pinnedMtimeMillis
+            long pinnedMtimeMillis,
+            boolean chunkMode
         ) {
             this.reader = reader;
             this.stream = stream;
@@ -1731,6 +1746,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.cacheableObject = cacheableObject;
             this.byteCounter = byteCounter;
             this.pinnedMtimeMillis = pinnedMtimeMillis;
+            this.chunkMode = chunkMode;
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
                 "CSV read from ["
@@ -1811,10 +1827,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     OptionalLong bytesRead = byteCounter == null ? OptionalLong.empty() : OptionalLong.of(byteCounter.getBytesRead());
                     String fingerprint = computeConfigFingerprint(schema);
                     ExternalStatsCache.Stats statsRecord = new ExternalStatsCache.Stats(rowsEmittedForCache, bytesRead, cols);
-                    ExternalStatsCache.put(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord);
-                    // Also surface to whatever thread-bound capture sink the driving operator set up,
-                    // so the contribution rides back to the coordinator via DriverCompletionInfo and
-                    // can land in SchemaCacheEntry for multi-JVM warm-path consumption.
+                    // Legacy single-JVM ExternalStatsCache only holds whole-file rows; never write
+                    // chunk partials here (they would serve under-counted COUNT(*) on warm queries).
+                    if (chunkMode == false) {
+                        ExternalStatsCache.put(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord);
+                    }
+                    // The capture sink handles chunks correctly: per-chunk publishes carry the partial
+                    // marker, and the ParallelParsingCoordinator publishes a finalize marker at clean
+                    // whole-file completion so the coordinator's reconciler only commits the merge then.
                     publishToCaptureSink(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord, schema, sizeInBytesFromLength());
                 }
                 reader.close();
@@ -1851,6 +1871,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             java.util.Map<String, Object> base = new java.util.HashMap<>();
             base.put(ExternalStatsCache.MTIME_MILLIS_KEY, mtimeMillis);
             base.put(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, fingerprint);
+            if (chunkMode) {
+                base.put(ExternalStatsCache.PARTIAL_CHUNK_KEY, Boolean.TRUE);
+            }
             java.util.Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(base, sourceStats);
             org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.record(filePath, flat);
         }

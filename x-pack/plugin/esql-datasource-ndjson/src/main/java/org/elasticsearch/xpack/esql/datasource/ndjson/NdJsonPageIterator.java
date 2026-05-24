@@ -70,6 +70,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     /** Full file schema as passed by the planner. Non-null on the wholeFileRead path; used for fingerprint at close. */
     private final List<Attribute> fingerprintSchema;
     private final String sourceLocation;
+    /** True for parallel-parsing chunks — close-time publish carries the partial-chunk marker. */
+    private final boolean chunkMode;
 
     NdJsonPageIterator(
         StorageObject object,
@@ -83,7 +85,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         ErrorPolicy errorPolicy,
         StorageObject cacheableObject,
         long pinnedMtimeMillis,
-        java.util.function.Function<List<Attribute>, String> fingerprinter
+        java.util.function.Function<List<Attribute>, String> fingerprinter,
+        boolean chunkMode
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         this.cacheableObject = cacheableObject;
@@ -91,6 +94,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         this.fingerprinter = fingerprinter;
         this.fingerprintSchema = resolvedAttributes;
         this.sourceLocation = object.path().toString();
+        this.chunkMode = chunkMode;
         InputStream inputStream = object.newStream();
         if (skipFirstLine) {
             skipToNextLine(inputStream);
@@ -256,7 +260,10 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                     : (byteArrayBytesRead >= 0 ? java.util.OptionalLong.of(byteArrayBytesRead) : java.util.OptionalLong.empty());
                 String fingerprint = fingerprinter.apply(fullSchema);
                 ExternalStatsCache.Stats statsRecord = new ExternalStatsCache.Stats(rowsEmitted, bytesRead, cols);
-                ExternalStatsCache.put(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord);
+                // Legacy single-JVM cache only holds whole-file rows; never write chunk partials.
+                if (chunkMode == false) {
+                    ExternalStatsCache.put(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord);
+                }
                 // Surface to thread-bound capture sink so the contribution rides back to the
                 // coordinator via DriverCompletionInfo for multi-JVM warm-path consumption.
                 org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics sourceStats =
@@ -268,6 +275,9 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                 java.util.Map<String, Object> base = new java.util.HashMap<>();
                 base.put(ExternalStatsCache.MTIME_MILLIS_KEY, pinnedMtimeMillis);
                 base.put(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, fingerprint);
+                if (chunkMode) {
+                    base.put(ExternalStatsCache.PARTIAL_CHUNK_KEY, Boolean.TRUE);
+                }
                 java.util.Map<String, Object> flat = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.embedStatistics(
                     base,
                     sourceStats

@@ -41,6 +41,20 @@ public final class ExternalStatsCache {
     /** Used in lookup / put when a caller cannot compute a fingerprint; treats the entry as "unscoped". */
     public static final String NO_FINGERPRINT = "";
 
+    /**
+     * Set on per-chunk contributions to signal "this is a partial — sum to a whole only if
+     * accompanied by a {@link #FINALIZE_CHUNKS_KEY} marker for the same file". Coordinator-side
+     * reconciliation enforces the gate.
+     */
+    public static final String PARTIAL_CHUNK_KEY = "_stats.partial_chunk";
+
+    /**
+     * Published by {@code ParallelParsingCoordinator}'s outer iterator at clean whole-file
+     * completion to signal "the per-chunk contributions for this file constitute the entire
+     * file." Without this marker, partial contributions are discarded.
+     */
+    public static final String FINALIZE_CHUNKS_KEY = "_stats.finalize_chunks";
+
     private static final int MAX_ENTRIES = 10_000;
 
     private record Key(String path, long mtimeMillis, String configFingerprint) {}

@@ -372,17 +372,21 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         // rationale. mtime is pinned here at open-time so a mid-scan file replacement cannot pair a
         // new mtime with old data.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
+        boolean chunkMode = context.recordAligned();
+        boolean cacheable = wholeFileRead || chunkMode;
         long pinnedMtimeMillis = -1L;
-        if (wholeFileRead) {
+        if (cacheable) {
             try {
                 Instant openMtime = object.lastModified();
                 if (openMtime != null) {
                     pinnedMtimeMillis = openMtime.toEpochMilli();
                 } else {
-                    wholeFileRead = false;
+                    cacheable = false;
+                    chunkMode = false;
                 }
             } catch (IOException e) {
-                wholeFileRead = false;
+                cacheable = false;
+                chunkMode = false;
             }
         }
         // Fingerprint is computed lazily in the iterator's close hook once the decoder has resolved
@@ -397,9 +401,10 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             trimLastPartialLine,
             effectiveSchema,
             errorPolicy,
-            wholeFileRead ? object : null,
+            cacheable ? object : null,
             pinnedMtimeMillis,
-            wholeFileRead ? this::computeConfigFingerprint : null
+            cacheable ? this::computeConfigFingerprint : null,
+            chunkMode
         );
     }
 

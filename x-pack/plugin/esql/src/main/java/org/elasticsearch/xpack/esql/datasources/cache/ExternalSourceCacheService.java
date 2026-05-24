@@ -113,9 +113,49 @@ public class ExternalSourceCacheService implements Closeable {
             if (contributions == null || contributions.isEmpty()) {
                 continue;
             }
-            Map<String, Object> mergedForFile = contributions.size() == 1
-                ? contributions.get(0)
-                : org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.mergeStatistics(contributions);
+            // Per-chunk safety: if any contribution is marked partial, only accept the merge when
+            // the file also has a finalize marker. Otherwise drop the file's contributions — the
+            // partial-only set risks under-counting rowCount and serving a wrong COUNT(*).
+            boolean anyPartial = false;
+            boolean anyFinalize = false;
+            for (Map<String, Object> contribution : contributions) {
+                if (Boolean.TRUE.equals(contribution.get(ExternalStatsCache.PARTIAL_CHUNK_KEY))) {
+                    anyPartial = true;
+                }
+                if (Boolean.TRUE.equals(contribution.get(ExternalStatsCache.FINALIZE_CHUNKS_KEY))) {
+                    anyFinalize = true;
+                }
+            }
+            if (anyPartial && anyFinalize == false) {
+                continue;
+            }
+            // Strip the gate markers before merging so the well-known _stats.* keys are clean for
+            // SourceStatisticsSerializer.mergeStatistics, AND drop the finalize-marker-only entry
+            // (it carries no per-file stats of its own — just the completion signal).
+            java.util.List<Map<String, Object>> cleaned = new java.util.ArrayList<>(contributions.size());
+            for (Map<String, Object> contribution : contributions) {
+                if (Boolean.TRUE.equals(contribution.get(ExternalStatsCache.FINALIZE_CHUNKS_KEY))
+                    && contribution.containsKey(
+                        org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.STATS_ROW_COUNT
+                    ) == false) {
+                    continue;
+                }
+                if (contribution.containsKey(ExternalStatsCache.PARTIAL_CHUNK_KEY)
+                    || contribution.containsKey(ExternalStatsCache.FINALIZE_CHUNKS_KEY)) {
+                    Map<String, Object> stripped = new HashMap<>(contribution);
+                    stripped.remove(ExternalStatsCache.PARTIAL_CHUNK_KEY);
+                    stripped.remove(ExternalStatsCache.FINALIZE_CHUNKS_KEY);
+                    cleaned.add(stripped);
+                } else {
+                    cleaned.add(contribution);
+                }
+            }
+            if (cleaned.isEmpty()) {
+                continue;
+            }
+            Map<String, Object> mergedForFile = cleaned.size() == 1
+                ? cleaned.get(0)
+                : org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.mergeStatistics(cleaned);
             if (mergedForFile != null && mergedForFile.isEmpty() == false) {
                 merged.put(e.getKey(), mergedForFile);
             }

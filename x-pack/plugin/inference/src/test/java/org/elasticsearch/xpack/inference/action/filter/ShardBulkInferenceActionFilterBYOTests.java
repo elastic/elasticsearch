@@ -293,6 +293,59 @@ public class ShardBulkInferenceActionFilterBYOTests extends ESTestCase {
         awaitLatch(latch, 10, TimeUnit.SECONDS);
     }
 
+    @SuppressWarnings({ "unchecked", "rawtypes" })
+    public void testSingleShotBYONestedField() throws Exception {
+        // The semantic field lives at "obj.semantic_field" — a dot-separated path.
+        // After BYO processing the raw BYO value must be removed from the nested map,
+        // not left behind as a stale key.
+        String fieldName = "obj.semantic_field";
+        String inferenceId = "my_inference";
+        int dims = 3;
+        StaticModel model = createModel(inferenceId, dims);
+        ShardBulkInferenceActionFilter filter = createFilter(Map.of(inferenceId, model));
+
+        Map<String, Object> byoValue = new LinkedHashMap<>();
+        byoValue.put("text", "hello nested");
+        byoValue.put("chunks", List.of(chunkMap(0, 12, List.of(0.1, 0.2, 0.3))));
+
+        // Build the document with the BYO value nested under "obj"
+        Map<String, Object> innerObj = new LinkedHashMap<>();
+        innerObj.put("semantic_field", byoValue);
+        Map<String, Object> docSource = new LinkedHashMap<>();
+        docSource.put("obj", innerObj);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        ActionFilterChain chain = (task, action, request, listener) -> {
+            try {
+                BulkShardRequest bulkReq = (BulkShardRequest) request;
+                BulkItemRequest item = bulkReq.items()[0];
+                // BYO should not set a failure
+                assertNull(item.getPrimaryResponse());
+                IndexRequest indexReq = getIndexRequestOrNull(item.request());
+                Map<String, Object> source = indexReq.sourceAsMap();
+
+                // The raw BYO value must have been removed from the nested map
+                Map<String, Object> obj = (Map<String, Object>) source.get("obj");
+                assertThat(obj, notNullValue());
+                assertNull("raw BYO value should be removed from nested map", obj.get("semantic_field"));
+
+                // Inference metadata should be present and correctly keyed by the full dot-path field name
+                Map<String, Object> inferenceMetadata = (Map<String, Object>) source.get(InferenceMetadataFieldsMapper.NAME);
+                assertThat(inferenceMetadata, notNullValue());
+                Map<String, Object> fieldMeta = (Map<String, Object>) inferenceMetadata.get(fieldName);
+                assertThat(fieldMeta, notNullValue());
+                Map<String, Object> inference = (Map<String, Object>) fieldMeta.get("inference");
+                assertThat(inference, notNullValue());
+                assertThat(inference.get("inference_id"), equalTo(inferenceId));
+            } finally {
+                latch.countDown();
+            }
+        };
+
+        applyFilterWithSource(filter, fieldName, inferenceId, docSource, chain);
+        awaitLatch(latch, 10, TimeUnit.SECONDS);
+    }
+
     // ---- Staging lifecycle tests ----
 
     @SuppressWarnings({ "unchecked", "rawtypes" })

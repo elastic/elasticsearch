@@ -688,8 +688,10 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                                 }
                             }
 
-                            // Remove the BYO value from the source field and update the source
-                            docMap.remove(sourceField);
+                            // Remove the BYO value from the source field and update the source.
+                            // sourceField may be a dot-separated path (e.g. "obj.field"), so we must
+                            // traverse the map hierarchy rather than doing a flat key remove.
+                            removeNestedValue(sourceField, docMap);
                             indexRequest.getIndexRequest().source(docMap, XContentType.JSON);
                         } catch (Exception e) {
                             setInferenceResponseFailure(itemIndex, e);
@@ -1066,6 +1068,29 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         }
 
         builder.endObject();
+    }
+
+    /**
+     * Removes a (possibly dot-separated) path from a nested map structure.
+     * For a flat key like {@code "field"} this is equivalent to {@code map.remove("field")}.
+     * For a dot-separated path like {@code "obj.field"} the method traverses each segment as a
+     * sub-map key and removes only the leaf entry, leaving sibling keys in the sub-map intact.
+     * If any intermediate segment is missing or is not a {@link Map} the call is a no-op.
+     */
+    @SuppressWarnings("unchecked")
+    static void removeNestedValue(String dotPath, Map<String, Object> map) {
+        int dotIndex = dotPath.indexOf('.');
+        if (dotIndex < 0) {
+            map.remove(dotPath);
+            return;
+        }
+        String head = dotPath.substring(0, dotIndex);
+        String tail = dotPath.substring(dotIndex + 1);
+        Object child = map.get(head);
+        if (child instanceof Map) {
+            removeNestedValue(tail, (Map<String, Object>) child);
+        }
+        // if child is absent or not a Map, the key doesn't exist — nothing to remove
     }
 
     static IndexRequest getIndexRequestOrNull(DocWriteRequest<?> docWriteRequest) {

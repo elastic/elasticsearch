@@ -181,8 +181,10 @@ public class Literal extends LeafExpression implements Accountable, EvaluatorMap
 
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
-        // Identity mapper renders the raw value (with format-aware truncation via toString below);
-        // non-identity mapper returns an interned token. Caller appends the [type] suffix.
+        // Identity mapper renders the raw value with format-aware 500-char LIMITED truncation via
+        // toString(format). Non-identity mapper returns an already-interned anonymization token
+        // and bypasses truncation — token strings are bounded by the mapper, not by the format.
+        // Caller appends the [type] suffix.
         if (mapper != IdentifierMapper.IDENTITY) {
             sb.append(mapper.literal(value, dataType));
         } else {

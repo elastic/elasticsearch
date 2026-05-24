@@ -11,8 +11,15 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ExternalMetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.VirtualAttribute;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
@@ -20,6 +27,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 
 import java.time.Instant;
 import java.util.ArrayList;
@@ -270,6 +278,137 @@ public class AnalyzerExternalTests extends ESTestCase {
             }
         }
         assertTrue("No Project node found with all 5 _file.* columns", foundFileMetadataProject);
+    }
+
+    /**
+     * Universal-rule binding: every standard metadata name in
+     * {@link MetadataAttribute#ATTRIBUTES_MAP} resolves to an {@link ExternalMetadataAttribute} of
+     * the registered type when listed in METADATA on an external dataset. Exercised by feeding a
+     * pre-constructed {@link UnresolvedExternalRelation} into the analyzer because the EXTERNAL
+     * command grammar does not carry a METADATA clause yet — the analyzer's
+     * {@code ResolveExternalRelations} rule is the binding site under test, and accepts either
+     * source the same way.
+     */
+    public void testStandardMetadataBindsOnExternalDataset() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+
+        // Names taken from MetadataAttribute.ATTRIBUTES_MAP — kept literal so the test fails noisily
+        // if a name is renamed in the registry (and the registry is the contract under test).
+        List<String> names = List.of(
+            "_id",
+            MetadataAttribute.INDEX,
+            "_version",
+            MetadataAttribute.SCORE,
+            "_source",
+            "_ignored",
+            "_index_mode",
+            MetadataAttribute.TSID_FIELD,
+            MetadataAttribute.SIZE
+        );
+
+        var leafOutput = externalLeafOutput(analyzeExternalWithMetadata(S3_PATH, employeesSchema(), names, "my_dataset"));
+
+        for (String name : names) {
+            Attribute attr = leafOutput.stream().filter(a -> a.name().equals(name)).findFirst().orElse(null);
+            assertNotNull("metadata column [" + name + "] should bind on the ExternalRelation leaf", attr);
+            assertThat("[" + name + "] binds to ExternalMetadataAttribute", attr, instanceOf(ExternalMetadataAttribute.class));
+            DataType expected = MetadataAttribute.dataType(name);
+            assertEquals("[" + name + "] type matches MetadataAttribute.ATTRIBUTES_MAP", expected, attr.dataType());
+        }
+    }
+
+    /**
+     * {@code _data_tier} is snapshot-only in the standard metadata registry. The binding rule must
+     * mirror that: in non-snapshot builds, the name is unknown and skipped (the verifier later
+     * surfaces "Unknown column" if the user references it downstream).
+     */
+    public void testStandardMetadataDataTierSnapshotOnly() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+
+        DataType registered = MetadataAttribute.dataType("_data_tier");
+        boolean snapshotOnly = registered == null;
+
+        var leafOutput = externalLeafOutput(analyzeExternalWithMetadata(S3_PATH, employeesSchema(), List.of("_data_tier"), "my_dataset"));
+
+        boolean bound = leafOutput.stream().anyMatch(a -> a.name().equals("_data_tier"));
+        if (snapshotOnly) {
+            assertFalse("_data_tier must not bind outside snapshot builds", bound);
+        } else {
+            assertTrue("_data_tier must bind in snapshot builds", bound);
+        }
+    }
+
+    /**
+     * {@code _file.*} names continue to bind when requested via METADATA — the registry fallback
+     * in {@code ResolveExternalRelations} looks up {@link FileMetadataColumns#COLUMNS} after the
+     * standard-metadata map miss. Regression test for opt-in semantics.
+     */
+    public void testFileMetadataStillBindsViaMetadataClause() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+
+        var leafOutput = externalLeafOutput(
+            analyzeExternalWithMetadata(S3_PATH, employeesSchema(), List.of("_file.name", "_file.path"), "my_dataset")
+        );
+
+        Attribute nameAttr = leafOutput.stream().filter(a -> a.name().equals("_file.name")).findFirst().orElseThrow();
+        Attribute pathAttr = leafOutput.stream().filter(a -> a.name().equals("_file.path")).findFirst().orElseThrow();
+
+        assertThat(nameAttr, instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, nameAttr.dataType());
+        assertThat(pathAttr, instanceOf(ExternalMetadataAttribute.class));
+        assertEquals(KEYWORD, pathAttr.dataType());
+    }
+
+    /**
+     * Unknown METADATA names are not bound by the analyzer — they fall through to the verifier's
+     * "Unknown column" diagnostic on the downstream attribute reference.
+     */
+    public void testUnknownMetadataNameFailsVerification() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+
+        var leafOutput = externalLeafOutput(analyzeExternalWithMetadata(S3_PATH, employeesSchema(), List.of("_bogus"), "my_dataset"));
+
+        boolean bound = leafOutput.stream().anyMatch(a -> a.name().equals("_bogus"));
+        assertFalse("Unknown metadata name [_bogus] must not bind", bound);
+    }
+
+    /**
+     * Returns the {@link ExternalRelation} leaf's output from an analyzed plan. The leaf's output
+     * carries every name bound by {@code ResolveExternalRelations}, which is the binding contract
+     * under test — the plan's top-level output may strip virtual attributes by design.
+     */
+    private static List<Attribute> externalLeafOutput(org.elasticsearch.xpack.esql.plan.logical.LogicalPlan analyzed) {
+        var leaves = new ArrayList<ExternalRelation>();
+        analyzed.forEachDown(ExternalRelation.class, leaves::add);
+        assertThat("analyzed plan must contain exactly one ExternalRelation", leaves, hasSize(1));
+        return leaves.get(0).output();
+    }
+
+    /**
+     * Analyzes a dataset-style external relation built directly from the inputs, bypassing the
+     * EXTERNAL command grammar (which has no METADATA clause). Returns the analyzed leaf so the
+     * caller can inspect its output. Threading the {@code datasetName} mirrors what
+     * {@code DatasetRewriter} produces on the {@code FROM <dataset>} path.
+     */
+    private static org.elasticsearch.xpack.esql.plan.logical.LogicalPlan analyzeExternalWithMetadata(
+        String path,
+        List<Attribute> schema,
+        List<String> metadataNames,
+        String datasetName
+    ) {
+        Expression tablePath = Literal.keyword(Source.EMPTY, path);
+        List<NamedExpression> metadataFields = metadataNames.stream()
+            .map(name -> (NamedExpression) new UnresolvedAttribute(Source.EMPTY, name))
+            .toList();
+        UnresolvedExternalRelation unresolved = new UnresolvedExternalRelation(
+            Source.EMPTY,
+            tablePath,
+            java.util.Map.of(),
+            metadataFields,
+            datasetName
+        );
+        var analyzer = analyzer().externalSourceUnresolved(path, schema);
+        return analyzer.buildAnalyzer().analyze(unresolved);
     }
 
     public static TestAnalyzer external() {

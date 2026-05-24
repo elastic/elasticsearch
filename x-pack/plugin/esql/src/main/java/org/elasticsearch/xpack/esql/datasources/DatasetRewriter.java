@@ -69,7 +69,7 @@ public final class DatasetRewriter {
      * that puts datasets into cluster state, the no-datasets check is the natural off-switch.
      *
      * <p>Throws {@link VerificationException} for: heterogeneous FROM (datasets + non-datasets),
-     * non-{@code STANDARD} {@link IndexMode} on a dataset, METADATA fields on a dataset, or
+     * non-{@code STANDARD} {@link IndexMode} on a dataset, or
      * {@code UnionAll} branch-cap exceeded. Designed to run once on the parsed plan before
      * pre-analysis (so the analyzer sees a uniform {@code UnresolvedExternalRelation} tree
      * regardless of whether the user wrote {@code FROM <dataset>} or inline {@code EXTERNAL}).

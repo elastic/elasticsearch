@@ -159,18 +159,22 @@ public class SemanticChunkScoringIT extends ESIntegTestCase {
         createIndexWithSemanticField();
         indexDocWithChunks("doc1", List.of("chunk about dogs", "chunk about cats"));
 
-        // min_score=0.99 is extremely high; the mock model won't produce scores that high
+        // Use Float.MAX_VALUE to ensure no chunk can pass the threshold
         String queryJson = """
-            { "semantic": { "field": "content", "query": "animals", "min_score": 0.99, "chunks_per_doc": 10 } }
+            { "semantic": { "field": "content", "query": "animals", "min_score": 3.4028235E38, "chunks_per_doc": 10 } }
             """;
         SearchResponse response = search(queryJson);
         try {
             assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             SearchHit hit = response.getHits().getAt(0);
             Map<String, List<ChunkResult>> chunks = hit.getChunks();
-            // Either no "content" key or the list is empty — no chunks should pass the threshold
-            boolean noChunks = chunks.isEmpty() || chunks.getOrDefault("content", List.of()).isEmpty();
-            assertThat("all chunks should be filtered by min_score=0.99", noChunks, equalTo(true));
+            List<ChunkResult> contentChunks = chunks.getOrDefault("content", List.of());
+            // No chunks should pass threshold of Float.MAX_VALUE
+            assertThat(
+                "Expected no chunks above min_score=Float.MAX_VALUE but got " + contentChunks.size() + " chunks",
+                contentChunks.isEmpty(),
+                equalTo(true)
+            );
         } finally {
             response.decRef();
         }

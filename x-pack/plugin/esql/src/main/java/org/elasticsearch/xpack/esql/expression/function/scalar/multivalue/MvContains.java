@@ -71,6 +71,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvContains.class)
         .binary(MvContains::new)
+        .capabilities("flattened")
         .name("mv_contains");
 
     @FunctionInfo(
@@ -94,6 +95,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",
@@ -117,6 +119,7 @@ public class MvContains extends BinaryScalarFunction implements EvaluatorMapper 
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
                 "geohash",

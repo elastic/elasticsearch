@@ -79,7 +79,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.type.UnsupportedEsFieldTests;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.After;
 import org.junit.Before;
@@ -106,6 +105,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createE
 import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
+import static org.elasticsearch.xpack.esql.type.EsFieldTestUtils.randomOriginalTypes;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateNanosToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateTimeToLong;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.longToUnsignedLong;
@@ -236,7 +236,7 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
 
     @Nullable
     public static List<String> randomOriginalTypes() {
-        return randomBoolean() ? null : UnsupportedEsFieldTests.randomOriginalTypes();
+        return randomBoolean() ? null : randomOriginalTypes();
     }
 
     private EsqlQueryResponse.Profile randomProfile() {

@@ -19,6 +19,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDataSourceActionNames;
 
 import java.io.IOException;
@@ -38,7 +39,7 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> {
+    public static class Request extends AcknowledgedRequest<Request> implements DataSourceRequestInfo {
         private static final ParseField TYPE = new ParseField("type");
         private static final ParseField DESCRIPTION = new ParseField("description");
         private static final ParseField SETTINGS = new ParseField("settings");
@@ -140,6 +141,16 @@ public class PutDataSourceAction extends ActionType<AcknowledgedResponse> {
 
         public String name() {
             return name;
+        }
+
+        @Override
+        public String[] dataSourceNames() {
+            return new String[] { name };
+        }
+
+        @Override
+        public String dataSourceClusterActionName() {
+            return NAME;
         }
 
         public String type() {

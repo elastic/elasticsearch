@@ -43,7 +43,13 @@ final class DataNodeComputeResponse extends TransportResponse {
             return;
         }
         if (DataNodeComputeHandler.supportShardLevelRetryFailure(in.getTransportVersion())) {
-            this.completionInfo = new DriverCompletionInfo(0, 0, in.readCollectionAsImmutableList(DriverProfile::readFrom), List.of(), java.util.Map.of());
+            this.completionInfo = new DriverCompletionInfo(
+                0,
+                0,
+                in.readCollectionAsImmutableList(DriverProfile::readFrom),
+                List.of(),
+                java.util.Map.of()
+            );
             this.shardLevelFailures = in.readMap(ShardId::new, StreamInput::readException);
             return;
         }

@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `BUCKET` function [esql-bucket]
 
-:::{include} ../../_snippets/functions/layout/bucket.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/bucket.md
 :::

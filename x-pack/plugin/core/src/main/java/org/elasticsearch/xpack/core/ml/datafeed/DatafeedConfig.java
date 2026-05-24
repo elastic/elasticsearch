@@ -338,8 +338,26 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
     }
 
     public static DatafeedConfig withCrossProjectModeIfEnabled(DatafeedConfig datafeed, CrossProjectModeDecider crossProjectModeDecider) {
+        return withCrossProjectModeIfEnabled(datafeed, crossProjectModeDecider, DATAFEED_CROSS_PROJECT.isEnabled());
+    }
+
+    // visible for testing
+    // remove the featureEnabled parameter and inline DATAFEED_CROSS_PROJECT.isEnabled() when the feature is launched
+    static DatafeedConfig withCrossProjectModeIfEnabled(
+        DatafeedConfig datafeed,
+        CrossProjectModeDecider crossProjectModeDecider,
+        boolean featureEnabled
+    ) {
         Objects.requireNonNull(datafeed, "datafeed must not be null");
         Objects.requireNonNull(crossProjectModeDecider, "crossProjectModeDecider must not be null");
+
+        // The ML CPS feature flag gates the runtime IndicesOptions flip in addition to the cluster-level
+        // serverless.cross_project.enabled setting. Without this guard, every datafeed start on a CPS-enabled
+        // cluster — including ones targeting only local indices — would be promoted to cross-project mode,
+        // which violates the "off by default on main" contract of the ML CPS scaffolding.
+        if (featureEnabled == false) {
+            return datafeed;
+        }
 
         if (crossProjectModeDecider.crossProjectEnabled()) {
             IndicesOptions baseOptions = datafeed.getIndicesOptions();

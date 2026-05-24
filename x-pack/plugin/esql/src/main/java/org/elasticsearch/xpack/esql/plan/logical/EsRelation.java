@@ -12,8 +12,8 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
-import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -167,12 +167,12 @@ public class EsRelation extends LeafPlan {
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(nodeName()).append('[').append(mapper.index(indexPattern)).append(']');
         if (indexMode != IndexMode.STANDARD) {
             sb.append('[').append(indexMode.name()).append(']');
         }
-        if (mapper != IdentifierMapper.IDENTITY && indexNameWithModes != null && indexNameWithModes.isEmpty() == false) {
+        if (mapper != NodeStringMapper.IDENTITY && indexNameWithModes != null && indexNameWithModes.isEmpty() == false) {
             sb.append('[');
             boolean first = true;
             for (var e : indexNameWithModes.entrySet()) {

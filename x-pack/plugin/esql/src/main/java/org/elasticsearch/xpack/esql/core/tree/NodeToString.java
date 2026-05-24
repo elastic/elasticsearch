@@ -16,9 +16,9 @@ class NodeToString {
     private final StringBuilder sb = new StringBuilder();
     private final BitSet hasParentPerDepth = new BitSet();
     private final Node.NodeStringFormat format;
-    private final IdentifierMapper mapper;
+    private final NodeStringMapper mapper;
 
-    NodeToString(Node.NodeStringFormat format, IdentifierMapper mapper) {
+    NodeToString(Node.NodeStringFormat format, NodeStringMapper mapper) {
         this.format = format;
         this.mapper = mapper;
     }

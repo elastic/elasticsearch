@@ -359,7 +359,7 @@ public class NodeTests extends ESTestCase {
         }
 
         @Override
-        public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+        public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
             sb.append(nodeName()).append("(");
             List<Dummy> kids = children();
             for (int i = 0; i < kids.size(); i++) {

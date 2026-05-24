@@ -16,8 +16,8 @@ import org.elasticsearch.xpack.esql.capabilities.TelemetryAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -148,8 +148,8 @@ public class Dissect extends RegexExtract implements TelemetryAware, SortPreserv
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
-        if (mapper == IdentifierMapper.IDENTITY) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        if (mapper == NodeStringMapper.IDENTITY) {
             super.nodeString(sb, format, mapper);
             return;
         }
@@ -167,7 +167,7 @@ public class Dissect extends RegexExtract implements TelemetryAware, SortPreserv
     public static void rewriteDissectPattern(
         StringBuilder sb,
         String pattern,
-        org.elasticsearch.xpack.esql.core.tree.IdentifierMapper mapper
+        org.elasticsearch.xpack.esql.core.tree.NodeStringMapper mapper
     ) {
         if (pattern == null || pattern.isEmpty()) {
             return;

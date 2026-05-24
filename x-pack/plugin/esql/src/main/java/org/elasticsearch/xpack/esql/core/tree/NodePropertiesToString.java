@@ -28,14 +28,14 @@ class NodePropertiesToString {
     );
 
     private final Node.NodeStringFormat format;
-    private final IdentifierMapper mapper;
+    private final NodeStringMapper mapper;
     private final Node<?> node;
     private final boolean skipIfChild;
     private final StringBuilder sb;
     private int charactersRemainingInLine;
     private int linesUsed = 0;
 
-    NodePropertiesToString(StringBuilder sb, Node.NodeStringFormat format, IdentifierMapper mapper, Node<?> node, boolean skipIfChild) {
+    NodePropertiesToString(StringBuilder sb, Node.NodeStringFormat format, NodeStringMapper mapper, Node<?> node, boolean skipIfChild) {
         this.sb = sb;
         this.format = format;
         this.mapper = mapper;

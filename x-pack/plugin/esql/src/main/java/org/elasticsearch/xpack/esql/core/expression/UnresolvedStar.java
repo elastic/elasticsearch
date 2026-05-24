@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
-import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.io.IOException;
@@ -78,7 +78,7 @@ public class UnresolvedStar extends UnresolvedNamedExpression {
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(toString());
     }
 

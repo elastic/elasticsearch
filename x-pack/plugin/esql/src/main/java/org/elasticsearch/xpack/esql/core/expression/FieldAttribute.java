@@ -12,8 +12,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
@@ -349,11 +349,11 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
     /**
      * Renders the FieldAttribute as {@code [<qual>.]<name>{f[(SubclassName)][$]}#id}. Identifier
      * mentions route through the supplied
-     * {@link org.elasticsearch.xpack.esql.core.tree.IdentifierMapper}; in LIMITED mode the
+     * {@link org.elasticsearch.xpack.esql.core.tree.NodeStringMapper}; in LIMITED mode the
      * EsField subclass marker is suppressed to keep the rendering compact.
      */
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         if (qualifier() != null) {
             sb.append(mapper.column(qualifier())).append('.');
         }

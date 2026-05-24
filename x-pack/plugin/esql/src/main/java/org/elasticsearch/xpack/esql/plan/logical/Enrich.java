@@ -26,8 +26,8 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
-import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
@@ -191,8 +191,8 @@ public class Enrich extends UnaryPlan
      * cluster-alias keys and concrete-index values route through {@code mapper.index}.
      */
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
-        if (mapper == IdentifierMapper.IDENTITY) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
+        if (mapper == NodeStringMapper.IDENTITY) {
             super.nodeString(sb, format, mapper);
             return;
         }

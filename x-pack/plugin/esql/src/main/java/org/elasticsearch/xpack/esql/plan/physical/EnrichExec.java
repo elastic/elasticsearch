@@ -12,8 +12,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -204,11 +204,11 @@ public class EnrichExec extends UnaryExec implements EstimatesRowSize, ExecutesO
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         // Under a non-identity mapper we route policyName + concreteIndices keys/values through the
         // index-token map and skip the policyMatchField raw rendering (it surfaces in the
         // standard property walk for raw modes via its Attribute nodeString).
-        if (mapper == IdentifierMapper.IDENTITY) {
+        if (mapper == NodeStringMapper.IDENTITY) {
             super.nodeString(sb, format, mapper);
             return;
         }

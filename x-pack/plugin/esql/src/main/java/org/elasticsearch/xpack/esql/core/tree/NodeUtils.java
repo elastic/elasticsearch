@@ -64,7 +64,7 @@ public abstract class NodeUtils {
         StringBuilder sb,
         Collection<? extends Attribute> c,
         Node.NodeStringFormat format,
-        IdentifierMapper mapper
+        NodeStringMapper mapper
     ) {
         // LIMITED truncates to keep human-readable toString bounded; FULL prints the whole list.
         // Both routes render each attribute through nodeString with the supplied format + mapper so
@@ -80,7 +80,7 @@ public abstract class NodeUtils {
         StringBuilder sb,
         Collection<? extends Attribute> c,
         Node.NodeStringFormat format,
-        IdentifierMapper mapper
+        NodeStringMapper mapper
     ) {
         Iterator<? extends Attribute> it = c.iterator();
         if (it.hasNext() == false) {
@@ -120,7 +120,7 @@ public abstract class NodeUtils {
         StringBuilder sb,
         Collection<? extends Attribute> c,
         Node.NodeStringFormat format,
-        IdentifierMapper mapper
+        NodeStringMapper mapper
     ) {
         sb.append('[');
         boolean first = true;

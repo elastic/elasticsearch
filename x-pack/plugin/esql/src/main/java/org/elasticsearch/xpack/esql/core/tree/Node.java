@@ -453,7 +453,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
      * Output-shape configuration for the {@code nodeString} render pipeline. Controls truncation,
      * width, and property-count limits. Orthogonal to identifier mapping — anonymization or any
      * other identifier-substitution variant flows through a separately-passed
-     * {@link IdentifierMapper}.
+     * {@link NodeStringMapper}.
      */
     public enum NodeStringFormat {
         /** Bounded width / lines / property count for human-readable debug toString. The default. */
@@ -479,7 +479,7 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
      */
     public final String nodeString() {
         StringBuilder sb = new StringBuilder();
-        nodeString(sb, NodeStringFormat.LIMITED, IdentifierMapper.IDENTITY);
+        nodeString(sb, NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
         return sb.toString();
     }
 
@@ -488,10 +488,10 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
      * does not include this node's {@link #children()}.
      * @param sb     target for the string
      * @param format output-shape configuration (width / lines / property count)
-     * @param mapper identifier-mapping strategy (raw via {@link IdentifierMapper#IDENTITY},
+     * @param mapper identifier-mapping strategy (raw via {@link NodeStringMapper#IDENTITY},
      *               anonymized via the failure-path anonymizer, etc.)
      */
-    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(nodeName());
         sb.append("[");
         propertiesToString(sb, true, format, mapper);
@@ -500,18 +500,18 @@ public abstract class Node<T extends Node<T>> implements NamedWriteable {
 
     @Override
     public String toString() {
-        return toString(NodeStringFormat.LIMITED, IdentifierMapper.IDENTITY);
+        return toString(NodeStringFormat.LIMITED, NodeStringMapper.IDENTITY);
     }
 
     public String toString(NodeStringFormat format) {
-        return toString(format, IdentifierMapper.IDENTITY);
+        return toString(format, NodeStringMapper.IDENTITY);
     }
 
-    public String toString(NodeStringFormat format, IdentifierMapper mapper) {
+    public String toString(NodeStringFormat format, NodeStringMapper mapper) {
         return new NodeToString(format, mapper).treeString(this, 0).toString();
     }
 
-    protected void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format, IdentifierMapper mapper) {
+    protected void propertiesToString(StringBuilder sb, boolean skipIfChild, NodeStringFormat format, NodeStringMapper mapper) {
         new NodePropertiesToString(sb, format, mapper, this, skipIfChild).propertiesToString();
     }
 

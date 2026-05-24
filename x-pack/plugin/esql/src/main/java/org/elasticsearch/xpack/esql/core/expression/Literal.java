@@ -15,8 +15,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
@@ -180,12 +180,12 @@ public class Literal extends LeafExpression implements Accountable, EvaluatorMap
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         // Identity mapper renders the raw value with format-aware 500-char LIMITED truncation via
         // toString(format). Non-identity mapper returns an already-interned anonymization token
         // and bypasses truncation — token strings are bounded by the mapper, not by the format.
         // Caller appends the [type] suffix.
-        if (mapper != IdentifierMapper.IDENTITY) {
+        if (mapper != NodeStringMapper.IDENTITY) {
             sb.append(mapper.literal(value, dataType));
         } else {
             sb.append(toString(format));

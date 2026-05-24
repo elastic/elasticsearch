@@ -10,7 +10,7 @@ package org.elasticsearch.xpack.esql.anonymizer;
 import org.elasticsearch.xpack.esql.core.anonymizer.AnonymizationContext;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
@@ -38,7 +38,7 @@ public final class PlanAnonymizer {
     public record AnonymizedPlans(String schema, String parsed, String analyzed, String optimized, String physical) {}
 
     private final AnonymizationContext ctx;
-    private final IdentifierMapper mapper;
+    private final NodeStringMapper mapper;
 
     private PlanAnonymizer(String clusterUuid) {
         this.ctx = AnonymizationContext.forSubmission(clusterUuid);

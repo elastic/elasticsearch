@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.core.anonymizer;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 import java.nio.charset.StandardCharsets;
@@ -57,7 +57,7 @@ public final class AnonymizationContext {
     private final Map<String, String> columnTokens = new HashMap<>();
     private final Map<String, String> indexTokens = new HashMap<>();
     private final Map<LiteralKey, Integer> literalIds = new HashMap<>();
-    private final IdentifierMapper mapper = new IdentifierMapper() {
+    private final NodeStringMapper mapper = new NodeStringMapper() {
         @Override
         public String column(String name) {
             return columnTokens.computeIfAbsent(name, n -> "col_" + token(n));
@@ -101,11 +101,11 @@ public final class AnonymizationContext {
     }
 
     /**
-     * Returns the {@link IdentifierMapper} view backed by this context's state. The mapper is a
+     * Returns the {@link NodeStringMapper} view backed by this context's state. The mapper is a
      * function — pass it to {@code nodeString} / {@code toString}. The context holds the lifecycle;
      * the mapper exposes the pure-function surface call sites consume.
      */
-    public IdentifierMapper mapper() {
+    public NodeStringMapper mapper() {
         return mapper;
     }
 

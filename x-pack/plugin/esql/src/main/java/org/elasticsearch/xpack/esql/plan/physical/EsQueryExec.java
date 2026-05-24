@@ -19,8 +19,8 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -349,13 +349,13 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize, DataSourc
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         sb.append(nodeName()).append('[').append(mapper.index(indexPattern)).append("], indexMode[").append(indexMode).append("], ");
         NodeUtils.toString(sb, attrs, format, mapper);
         sb.append(", limit[").append(limit != null ? limit.toString(format) : "").append("], ");
         // Sorts and queryBuilderAndTags both carry raw user content (sort keys, Lucene-pushdown
         // DSL); under a non-identity mapper we drop them rather than try to walk in.
-        if (mapper != IdentifierMapper.IDENTITY) {
+        if (mapper != NodeStringMapper.IDENTITY) {
             sb.append("sort[<dropped>] estimatedRowSize[").append(estimatedRowSize).append("] queryBuilderAndTags[<dropped>]");
         } else {
             sb.append("sort[")

@@ -12,8 +12,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.tree.IdentifierMapper;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.NodeStringMapper;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.enrich.MatchConfig;
 
@@ -125,9 +125,9 @@ public class ParameterizedQueryExec extends LeafExec {
     }
 
     @Override
-    public void nodeString(StringBuilder sb, NodeStringFormat format, IdentifierMapper mapper) {
+    public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {
         // query is a raw Lucene-pushdown QueryBuilder DSL; drop it under a non-identity mapper.
-        if (mapper == IdentifierMapper.IDENTITY) {
+        if (mapper == NodeStringMapper.IDENTITY) {
             super.nodeString(sb, format, mapper);
             return;
         }

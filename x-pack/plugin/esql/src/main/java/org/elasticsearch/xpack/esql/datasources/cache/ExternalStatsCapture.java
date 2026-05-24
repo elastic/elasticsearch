@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Thread-bound sink for captured per-file source statistics. The text-format iterators' close
@@ -24,21 +26,24 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class ExternalStatsCapture {
 
-    private static final ThreadLocal<Map<String, Map<String, Object>>> ACTIVE = new ThreadLocal<>();
+    private static final ThreadLocal<Map<String, List<Map<String, Object>>>> ACTIVE = new ThreadLocal<>();
 
     private ExternalStatsCapture() {}
 
     /**
-     * Records a flat {@code _stats.*} contribution for {@code filePath}. No-op if no sink is bound
-     * on the current thread, if the path is {@code null}, or if the map is {@code null}/empty.
+     * Appends a flat {@code _stats.*} contribution for {@code filePath}. Multiple contributions
+     * per path accumulate (one per parallel-parsing chunk, one per macro-split, one per whole-file
+     * read); the coordinator-side merger combines them via {@code SourceStatisticsSerializer
+     * .mergeStatistics}. No-op if no sink is bound on the current thread, if the path is
+     * {@code null}, or if the map is {@code null}/empty.
      */
     public static void record(String filePath, Map<String, Object> stats) {
         if (filePath == null || stats == null || stats.isEmpty()) {
             return;
         }
-        Map<String, Map<String, Object>> sink = ACTIVE.get();
+        Map<String, List<Map<String, Object>>> sink = ACTIVE.get();
         if (sink != null) {
-            sink.put(filePath, Map.copyOf(stats));
+            sink.computeIfAbsent(filePath, k -> new CopyOnWriteArrayList<>()).add(Map.copyOf(stats));
         }
     }
 
@@ -48,8 +53,8 @@ public final class ExternalStatsCapture {
      * can also be polled directly by the binding owner — {@link #record} only writes; the snapshot
      * is the sink's own responsibility.
      */
-    public static Handle bind(Map<String, Map<String, Object>> sink) {
-        Map<String, Map<String, Object>> previous = ACTIVE.get();
+    public static Handle bind(Map<String, List<Map<String, Object>>> sink) {
+        Map<String, List<Map<String, Object>>> previous = ACTIVE.get();
         ACTIVE.set(sink);
         return () -> {
             if (previous == null) {
@@ -61,7 +66,7 @@ public final class ExternalStatsCapture {
     }
 
     /** Convenience factory for a fresh thread-safe sink. */
-    public static Map<String, Map<String, Object>> newSink() {
+    public static Map<String, List<Map<String, Object>>> newSink() {
         return new ConcurrentHashMap<>();
     }
 

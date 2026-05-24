@@ -128,7 +128,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         private final long rowsEmitted;
         private final long bytesBuffered;
         private final Throwable failure;
-        private final java.util.Map<String, java.util.Map<String, Object>> capturedSourceMetadata;
+        private final java.util.Map<String, java.util.List<java.util.Map<String, Object>>> capturedSourceMetadata;
 
         Status(int pagesWaiting, int pagesEmitted, long rowsEmitted, long bytesBuffered, Throwable failure) {
             this(pagesWaiting, pagesEmitted, rowsEmitted, bytesBuffered, failure, java.util.Map.of());
@@ -140,7 +140,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             long rowsEmitted,
             long bytesBuffered,
             Throwable failure,
-            java.util.Map<String, java.util.Map<String, Object>> capturedSourceMetadata
+            java.util.Map<String, java.util.List<java.util.Map<String, Object>>> capturedSourceMetadata
         ) {
             this.pagesWaiting = pagesWaiting;
             this.pagesEmitted = pagesEmitted;
@@ -161,10 +161,15 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 if (n == 0) {
                     capturedSourceMetadata = java.util.Map.of();
                 } else {
-                    java.util.Map<String, java.util.Map<String, Object>> tmp = new java.util.HashMap<>(n);
+                    java.util.Map<String, java.util.List<java.util.Map<String, Object>>> tmp = new java.util.HashMap<>(n);
                     for (int i = 0; i < n; i++) {
                         String path = in.readString();
-                        tmp.put(path, in.readGenericMap());
+                        int contributionCount = in.readVInt();
+                        java.util.List<java.util.Map<String, Object>> contributions = new java.util.ArrayList<>(contributionCount);
+                        for (int j = 0; j < contributionCount; j++) {
+                            contributions.add(in.readGenericMap());
+                        }
+                        tmp.put(path, contributions);
                     }
                     capturedSourceMetadata = tmp;
                 }
@@ -184,15 +189,19 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             out.writeException(failure);
             if (out.getTransportVersion().supports(ESQL_CAPTURED_SOURCE_METADATA)) {
                 out.writeVInt(capturedSourceMetadata.size());
-                for (java.util.Map.Entry<String, java.util.Map<String, Object>> e : capturedSourceMetadata.entrySet()) {
+                for (java.util.Map.Entry<String, java.util.List<java.util.Map<String, Object>>> e : capturedSourceMetadata.entrySet()) {
                     out.writeString(e.getKey());
-                    out.writeGenericMap(e.getValue());
+                    java.util.List<java.util.Map<String, Object>> contributions = e.getValue();
+                    out.writeVInt(contributions.size());
+                    for (java.util.Map<String, Object> contribution : contributions) {
+                        out.writeGenericMap(contribution);
+                    }
                 }
             }
         }
 
         @Override
-        public java.util.Map<String, java.util.Map<String, Object>> capturedSourceMetadata() {
+        public java.util.Map<String, java.util.List<java.util.Map<String, Object>>> capturedSourceMetadata() {
             return capturedSourceMetadata;
         }
 

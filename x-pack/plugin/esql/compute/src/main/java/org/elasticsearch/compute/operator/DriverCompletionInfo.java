@@ -120,15 +120,15 @@ public record DriverCompletionInfo(
             for (OperatorStatus o : s.completedOperators()) {
                 Operator.Status status = o.status();
                 if (status instanceof CapturingExternalSourceStatus capturing) {
-                    Map<String, Map<String, Object>> contribution = capturing.capturedSourceMetadata();
+                    Map<String, List<Map<String, Object>>> contribution = capturing.capturedSourceMetadata();
                     if (contribution == null || contribution.isEmpty()) {
                         continue;
                     }
                     if (perFile == null) {
                         perFile = new HashMap<>();
                     }
-                    for (Map.Entry<String, Map<String, Object>> e : contribution.entrySet()) {
-                        perFile.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).add(e.getValue());
+                    for (Map.Entry<String, List<Map<String, Object>>> e : contribution.entrySet()) {
+                        perFile.computeIfAbsent(e.getKey(), k -> new ArrayList<>()).addAll(e.getValue());
                     }
                 }
             }

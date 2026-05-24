@@ -28,7 +28,7 @@ public final class StatsCapturingIterator {
 
     private StatsCapturingIterator() {}
 
-    public static CloseableIterator<Page> wrap(CloseableIterator<Page> delegate, Map<String, Map<String, Object>> sink) {
+    public static CloseableIterator<Page> wrap(CloseableIterator<Page> delegate, Map<String, java.util.List<Map<String, Object>>> sink) {
         if (delegate == null || sink == null) {
             return delegate;
         }

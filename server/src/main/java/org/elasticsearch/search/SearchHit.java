@@ -32,6 +32,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.rest.action.search.RestSearchAction;
+import org.elasticsearch.search.fetch.subphase.ChunkResult;
 import org.elasticsearch.search.fetch.subphase.LookupField;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.Source;
@@ -65,6 +66,7 @@ import static org.elasticsearch.common.lucene.Lucene.writeExplanation;
 public final class SearchHit implements Writeable, ToXContentObject, RefCounted {
 
     private static final TransportVersion DOC_FIELDS_AS_LIST = TransportVersion.fromName("doc_fields_as_list");
+    private static final TransportVersion SEMANTIC_CHUNK_SCORING = TransportVersion.fromName("semantic_chunk_scoring");
 
     private final transient int docId;
 
@@ -94,6 +96,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
     private final Map<String, DocumentField> metaFields;
 
     private Map<String, HighlightField> highlightFields;
+
+    private Map<String, List<ChunkResult>> chunks;
 
     private SearchSortValues sortValues;
 
@@ -227,6 +231,19 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         Map<String, HighlightField> highlightFields = in.readMapValues(HighlightField::new, HighlightField::name);
         highlightFields = highlightFields.isEmpty() ? null : unmodifiableMap(highlightFields);
 
+        Map<String, List<ChunkResult>> chunks = null;
+        if (in.getTransportVersion().supports(SEMANTIC_CHUNK_SCORING)) {
+            int chunksSize = in.readVInt();
+            if (chunksSize > 0) {
+                chunks = Maps.newMapWithExpectedSize(chunksSize);
+                for (int i = 0; i < chunksSize; i++) {
+                    String key = in.readString();
+                    List<ChunkResult> chunkList = in.readCollectionAsList(ChunkResult::new);
+                    chunks.put(key, chunkList);
+                }
+            }
+        }
+
         final SearchSortValues sortValues = SearchSortValues.readFrom(in);
 
         final Map<String, Float> matchedQueries;
@@ -257,7 +274,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         } else {
             innerHits = null;
         }
-        return new SearchHit(
+        SearchHit hit = new SearchHit(
             -1,
             score,
             rank,
@@ -279,6 +296,8 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             metaFields,
             isPooled ? null : ALWAYS_REFERENCED
         );
+        hit.chunks = chunks;
+        return hit;
     }
 
     public static SearchHit unpooled(int docId) {
@@ -324,6 +343,17 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             out.writeVInt(0);
         } else {
             out.writeCollection(highlightFields.values());
+        }
+        if (out.getTransportVersion().supports(SEMANTIC_CHUNK_SCORING)) {
+            if (chunks == null) {
+                out.writeVInt(0);
+            } else {
+                out.writeVInt(chunks.size());
+                for (Map.Entry<String, List<ChunkResult>> entry : chunks.entrySet()) {
+                    out.writeString(entry.getKey());
+                    out.writeCollection(entry.getValue());
+                }
+            }
         }
         sortValues.writeTo(out);
 
@@ -589,6 +619,17 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         this.highlightFields = highlightFields;
     }
 
+    /**
+     * Returns scored chunks for semantic text fields, keyed by field name.
+     */
+    public Map<String, List<ChunkResult>> getChunks() {
+        return chunks == null ? Map.of() : chunks;
+    }
+
+    public void setChunks(Map<String, List<ChunkResult>> chunks) {
+        this.chunks = chunks;
+    }
+
     public void sortValues(Object[] sortValues, DocValueFormat[] sortValueFormats) {
         sortValues(new SearchSortValues(sortValues, sortValueFormats));
     }
@@ -744,6 +785,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         clearIfMutable(documentFields);
         clearIfMutable(metaFields);
         this.highlightFields = null;
+        this.chunks = null;
     }
 
     private static void clearIfMutable(Map<String, DocumentField> fields) {
@@ -823,6 +865,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
         static final String FIELDS = "fields";
         static final String IGNORED_FIELD_VALUES = "ignored_field_values";
         static final String HIGHLIGHT = "highlight";
+        static final String CHUNKS = "_chunks";
         static final String SORT = "sort";
         static final String MATCHED_QUERIES = "matched_queries";
         static final String _EXPLANATION = "_explanation";
@@ -931,6 +974,17 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             }
             builder.endObject();
         }
+        if (chunks != null && chunks.isEmpty() == false) {
+            builder.startObject(Fields.CHUNKS);
+            for (Map.Entry<String, List<ChunkResult>> entry : chunks.entrySet()) {
+                builder.startArray(entry.getKey());
+                for (ChunkResult chunk : entry.getValue()) {
+                    chunk.toXContent(builder, params);
+                }
+                builder.endArray();
+            }
+            builder.endObject();
+        }
         sortValues.toXContent(builder, params);
         if (matchedQueries != null && matchedQueries.size() > 0) {
             boolean includeMatchedQueriesScore = params.paramAsBoolean(RestSearchAction.INCLUDE_NAMED_QUERIES_SCORE_PARAM, false);
@@ -994,6 +1048,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             && Objects.equals(documentFields, other.documentFields)
             && Objects.equals(metaFields, other.metaFields)
             && Objects.equals(getHighlightFields(), other.getHighlightFields())
+            && Objects.equals(getChunks(), other.getChunks())
             && Objects.equals(getMatchedQueriesAndScores(), other.getMatchedQueriesAndScores())
             && Objects.equals(explanation, other.explanation)
             && Objects.equals(shard, other.shard)
@@ -1014,6 +1069,7 @@ public final class SearchHit implements Writeable, ToXContentObject, RefCounted 
             documentFields,
             metaFields,
             getHighlightFields(),
+            getChunks(),
             getMatchedQueriesAndScores(),
             explanation,
             shard,

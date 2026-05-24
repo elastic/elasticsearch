@@ -42,6 +42,7 @@ import java.util.Objects;
 public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public static final ParseField EXCLUDE_VECTORS_FIELD = new ParseField("exclude_vectors");
+    public static final ParseField INCLUDE_SEMANTICS_FIELD = new ParseField("include_semantic_fields_base64");
     public static final ParseField INCLUDES_FIELD = new ParseField("includes", "include");
     public static final ParseField EXCLUDES_FIELD = new ParseField("excludes", "exclude");
 
@@ -51,9 +52,13 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     private static final TransportVersion SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM = TransportVersion.fromName(
         "search_source_exclude_inference_fields_param"
     );
+    private static final TransportVersion SEARCH_SOURCE_INCLUDE_SEMANTIC_FIELDS_PARAM = TransportVersion.fromName(
+        "search_source_exclude_inference_fields_param"
+    );
 
     public static final FetchSourceContext FETCH_SOURCE = new FetchSourceContext(
         true,
+        null,
         null,
         null,
         Strings.EMPTY_ARRAY,
@@ -63,6 +68,15 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         true,
         false,
         false,
+        true,
+        Strings.EMPTY_ARRAY,
+        Strings.EMPTY_ARRAY
+    );
+    public static final FetchSourceContext FETCH_SOURCE_WITH_VECTORS = new FetchSourceContext(
+        true,
+        false,
+        true,
+        false,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY
     );
@@ -70,12 +84,14 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         true,
         false,
         true,
+        true,
         Strings.EMPTY_ARRAY,
         Strings.EMPTY_ARRAY
     );
 
     public static final FetchSourceContext DO_NOT_FETCH_SOURCE = new FetchSourceContext(
         false,
+        null,
         null,
         null,
         Strings.EMPTY_ARRAY,
@@ -86,6 +102,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
     private final String[] excludes;
     private final Boolean excludeVectors;
     private final Boolean excludeInferenceFields;
+    private final boolean includeSemanticFields;
 
     public static FetchSourceContext of(boolean fetchSource) {
         return fetchSource ? FETCH_SOURCE : DO_NOT_FETCH_SOURCE;
@@ -111,25 +128,39 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         @Nullable String[] includes,
         @Nullable String[] excludes
     ) {
+        return of(fetchSource, excludeVectors, excludeInferenceFields, null, includes, excludes);
+    }
+
+    public static FetchSourceContext of(
+        boolean fetchSource,
+        Boolean excludeVectors,
+        Boolean excludeInferenceFields,
+        Boolean includeSemanticFields,
+        @Nullable String[] includes,
+        @Nullable String[] excludes
+    ) {
         if (excludeVectors == null
             && excludeInferenceFields == null
+            && includeSemanticFields == null
             && (includes == null || includes.length == 0)
             && (excludes == null || excludes.length == 0)) {
             return of(fetchSource);
         }
-        return new FetchSourceContext(fetchSource, excludeVectors, excludeInferenceFields, includes, excludes);
+        return new FetchSourceContext(fetchSource, excludeVectors, excludeInferenceFields, includeSemanticFields, includes, excludes);
     }
 
     private FetchSourceContext(
         boolean fetchSource,
         @Nullable Boolean excludeVectors,
         @Nullable Boolean excludeInferenceFields,
+        @Nullable Boolean includeSemanticFields,
         @Nullable String[] includes,
         @Nullable String[] excludes
     ) {
         this.fetchSource = fetchSource;
         this.excludeVectors = excludeVectors;
         this.excludeInferenceFields = excludeInferenceFields;
+        this.includeSemanticFields = includeSemanticFields != null && includeSemanticFields;
         this.includes = includes == null ? Strings.EMPTY_ARRAY : includes;
         this.excludes = excludes == null ? Strings.EMPTY_ARRAY : excludes;
     }
@@ -140,9 +171,12 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         final Boolean excludeInferenceFields = in.getTransportVersion().supports(SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM)
             ? in.readOptionalBoolean()
             : null;
+        final Boolean includeSemanticFields = in.getTransportVersion().supports(SEARCH_SOURCE_INCLUDE_SEMANTIC_FIELDS_PARAM)
+            ? in.readOptionalBoolean()
+            : null;
         final String[] includes = in.readStringArray();
         final String[] excludes = in.readStringArray();
-        return of(fetchSource, excludeVectors, excludeInferenceFields, includes, excludes);
+        return of(fetchSource, excludeVectors, excludeInferenceFields, includeSemanticFields, includes, excludes);
     }
 
     @Override
@@ -153,6 +187,9 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         }
         if (out.getTransportVersion().supports(SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM)) {
             out.writeOptionalBoolean(excludeInferenceFields);
+        }
+        if (out.getTransportVersion().supports(SEARCH_SOURCE_EXCLUDE_INFERENCE_FIELDS_PARAM)) {
+            out.writeOptionalBoolean(includeSemanticFields);
         }
         out.writeStringArray(includes);
         out.writeStringArray(excludes);
@@ -172,6 +209,10 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     public Boolean excludeInferenceFields() {
         return this.excludeInferenceFields;
+    }
+
+    public Boolean includeSemanticFields() {
+        return this.includeSemanticFields;
     }
 
     public String[] includes() {
@@ -220,13 +261,14 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         }
 
         Boolean excludeVectors = request.paramAsBoolean("_source_exclude_vectors", null);
-
+        Boolean includeSemanticFields = request.paramAsBoolean("_source_include_semantic_fields_base64", null);
         if (excludeVectors != null || fetchSource != null || sourceIncludes != null || sourceExcludes != null) {
             // Match fromXContent: exclude_inference_fields is not exposed at the REST layer and defaults to exclude_vectors.
             return FetchSourceContext.of(
                 fetchSource == null || fetchSource,
                 excludeVectors,
                 excludeVectors,
+                includeSemanticFields,
                 sourceIncludes,
                 sourceExcludes
             );
@@ -242,6 +284,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         XContentParser.Token token = parser.currentToken();
         boolean fetchSource = true;
         Boolean excludeVectors = null;
+        Boolean includeSemanticFields = null;
         String[] includes = Strings.EMPTY_ARRAY;
         String[] excludes = Strings.EMPTY_ARRAY;
         if (token == XContentParser.Token.VALUE_BOOLEAN) {
@@ -278,6 +321,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                         excludes = new String[] { parser.text() };
                     } else if (EXCLUDE_VECTORS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         excludeVectors = parser.booleanValue();
+                    } else if (INCLUDE_SEMANTICS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        includeSemanticFields = parser.booleanValue();
                     } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
@@ -288,6 +333,8 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
                 } else if (token == XContentParser.Token.VALUE_BOOLEAN) {
                     if (EXCLUDE_VECTORS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         excludeVectors = parser.booleanValue();
+                    } else if (INCLUDE_SEMANTICS_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
+                        includeSemanticFields = parser.booleanValue();
                     } else {
                         throw new ParsingException(
                             parser.getTokenLocation(),
@@ -321,7 +368,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             );
         }
         // The exclude_inference_fields option is not exposed at the REST layer and defaults to the exclude_vectors value.
-        return FetchSourceContext.of(fetchSource, excludeVectors, excludeVectors, includes, excludes);
+        return FetchSourceContext.of(fetchSource, excludeVectors, excludeVectors, includeSemanticFields, includes, excludes);
     }
 
     private static String[] parseStringArray(XContentParser parser, String currentFieldName) throws IOException {
@@ -350,6 +397,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
             if (excludeVectors != null) {
                 builder.field(EXCLUDE_VECTORS_FIELD.getPreferredName(), excludeVectors);
             }
+            builder.field(INCLUDE_SEMANTICS_FIELD.getPreferredName(), includeSemanticFields);
             builder.array(INCLUDES_FIELD.getPreferredName(), includes);
             builder.array(EXCLUDES_FIELD.getPreferredName(), excludes);
             builder.endObject();
@@ -369,6 +417,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
         if (fetchSource != that.fetchSource) return false;
         if (excludeVectors != that.excludeVectors) return false;
         if (excludeInferenceFields != that.excludeInferenceFields) return false;
+        if (includeSemanticFields != that.includeSemanticFields) return false;
         if (Arrays.equals(excludes, that.excludes) == false) return false;
         if (Arrays.equals(includes, that.includes) == false) return false;
 
@@ -377,7 +426,7 @@ public class FetchSourceContext implements Writeable, ToXContentObject {
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(fetchSource, excludeVectors, excludeInferenceFields);
+        int result = Objects.hash(fetchSource, excludeVectors, excludeInferenceFields, includeSemanticFields);
         result = 31 * result + Arrays.hashCode(includes);
         result = 31 * result + Arrays.hashCode(excludes);
         return result;

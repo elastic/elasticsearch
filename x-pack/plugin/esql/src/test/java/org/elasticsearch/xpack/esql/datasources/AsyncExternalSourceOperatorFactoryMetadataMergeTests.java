@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -76,6 +77,63 @@ public class AsyncExternalSourceOperatorFactoryMetadataMergeTests extends ESTest
         } finally {
             page.releaseBlocks();
         }
+    }
+
+    /**
+     * Regression for {@code _version} being null on the single-file producer path: the factory
+     * accepts a {@code lastModifiedMillis} which {@link
+     * AsyncExternalSourceOperatorFactory.Builder#lastModifiedMillis} threads into
+     * {@code mergeStandardMetadata} so the synthesized {@code _version} constant is non-null on
+     * the sync-wrapper / native-async single-file paths (which have no per-file mtime carrier
+     * like the slice-queue's {@code FileSplit.partitionValues} or the multi-file path's
+     * {@code FileList} entry).
+     */
+    public void testSingleFileVersionPopulatedFromLastModifiedMillis() throws Exception {
+        long mtimeMillis = 1_700_000_000_000L;
+        Page page = runSyncWrapperSingleFileWithVersion(mtimeMillis);
+        try {
+            int versionBlockChannel = 1; // attributes order: value(data), _version(metadata)
+            LongBlock versionBlock = page.getBlock(versionBlockChannel);
+            assertFalse("single-file _version must not be null when lastModifiedMillis is set", versionBlock.isNull(0));
+            assertEquals(mtimeMillis, versionBlock.getLong(versionBlock.getFirstValueIndex(0)));
+        } finally {
+            page.releaseBlocks();
+        }
+    }
+
+    private Page runSyncWrapperSingleFileWithVersion(long mtimeMillis) throws Exception {
+        StoragePath filePath = StoragePath.of("s3://bucket/data/single.parquet");
+
+        FormatReader formatReader = new SingleIntPageFormatReader();
+        StorageProvider storageProvider = new StubStorageProvider();
+
+        List<Attribute> attributes = List.of(
+            new FieldAttribute(
+                Source.EMPTY,
+                "value",
+                new EsField("value", DataType.INTEGER, Map.of(), false, EsField.TimeSeriesFieldType.NONE)
+            ),
+            new ExternalMetadataAttribute(Source.EMPTY, "_version", DataType.LONG)
+        );
+
+        Executor sameThread = Runnable::run;
+        DriverContext driverContext = newDriverContext();
+
+        AsyncExternalSourceOperatorFactory factory = AsyncExternalSourceOperatorFactory.builder(
+            storageProvider,
+            formatReader,
+            filePath,
+            attributes,
+            100,
+            10,
+            sameThread
+        )
+            // No fileList → sync-wrapper single-file path.
+            .lastModifiedMillis(mtimeMillis)
+            .producerBlockFactory(TEST_BLOCK_FACTORY)
+            .build();
+
+        return drainSinglePage(factory, driverContext);
     }
 
     private Page runMultiFilePathWithIndex(BytesRef hivePartitionValue) throws Exception {

@@ -155,6 +155,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     @Nullable
     private final String datasetName;
     /**
+     * File last-modified epoch-millis used to materialise {@code _version} on the single-file
+     * producer paths ({@link #startSyncWrapperRead} / {@link #startNativeAsyncRead} /
+     * {@link #consumePagesInBackground}). {@code null} when the caller did not supply an mtime
+     * (test harnesses, paths whose backing storage has no mtime concept); {@code _version} then
+     * renders as SQL {@code NULL} per {@link ExternalMetadataColumns#extractPerFileConstants}.
+     * Not consulted on the slice-queue / multi-file paths — those carry per-file mtime via the
+     * {@code FileSplit} / {@code FileList} entries respectively.
+     */
+    @Nullable
+    private final Long lastModifiedMillis;
+    /**
      * {@link BlockFactory} used by producer-thread iterator wrappers ({@link VirtualColumnIterator}
      * for {@code _file.*} / Hive-style partition columns, {@link SchemaAdaptingIterator} for
      * null-fill and type-casting under UBN). When {@code null}, the per-driver factory from
@@ -232,6 +243,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
         @Nullable String datasetName,
+        @Nullable Long lastModifiedMillis,
         @Nullable BlockFactory producerBlockFactory,
         ExternalSliceQueue sliceQueue,
         ErrorPolicy errorPolicy,
@@ -321,6 +333,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         }
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
         this.datasetName = datasetName;
+        this.lastModifiedMillis = lastModifiedMillis;
         this.producerBlockFactory = producerBlockFactory;
         this.sliceQueue = sliceQueue;
         this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
@@ -386,6 +399,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable
         private String datasetName;
         @Nullable
+        private Long lastModifiedMillis;
+        @Nullable
         private BlockFactory producerBlockFactory;
         private ExternalSliceQueue sliceQueue;
         private ErrorPolicy errorPolicy;
@@ -448,6 +463,19 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
          */
         public Builder datasetName(@Nullable String datasetName) {
             this.datasetName = datasetName;
+            return this;
+        }
+
+        /**
+         * Sets the file last-modified epoch-millis used to materialise {@code _version} on the
+         * single-file producer paths. {@code null} (the default) leaves {@code _version} as SQL
+         * {@code NULL} on those paths. Only consulted when the source has no per-file mtime
+         * source — the slice-queue path reads {@code _file.modified} out of the
+         * {@code FileSplit}'s partition values, and the multi-file path reads it off the
+         * {@code FileList} entry; both ignore this builder value.
+         */
+        public Builder lastModifiedMillis(@Nullable Long lastModifiedMillis) {
+            this.lastModifiedMillis = lastModifiedMillis;
             return this;
         }
 
@@ -538,6 +566,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 partitionColumnNames,
                 partitionValues,
                 datasetName,
+                lastModifiedMillis,
                 producerBlockFactory,
                 sliceQueue,
                 errorPolicy,
@@ -696,8 +725,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * Merge standard ES metadata per-file constants ({@code _index}, {@code _version}, ...) into
      * {@code basePartitionValues}. Returns {@code basePartitionValues} unchanged when no standard
      * metadata names are bound. The {@code _version} value is sourced from the {@code _file.modified}
-     * entry already populated in {@code basePartitionValues} (slice-queue path) or carried by the
-     * factory (single-file path where it is unavailable, then {@code null}).
+     * entry already populated in {@code basePartitionValues} (slice-queue path); when absent
+     * (single-file paths) the factory's {@link #lastModifiedMillis} is used as a fallback. When
+     * neither is available {@code _version} renders as SQL {@code NULL}.
      * <p>
      * Hive partition values and {@code _file.*} retain precedence on key collision because they
      * overlay last in the per-file merge.
@@ -706,7 +736,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         if (standardMetadataPerFileNames.isEmpty()) {
             return basePartitionValues;
         }
-        Long version = null;
+        Long version = lastModifiedMillis;
         Object modified = basePartitionValues == null ? null : basePartitionValues.get(FileMetadataColumns.MODIFIED);
         if (modified instanceof Long longVersion) {
             version = longVersion;

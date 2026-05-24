@@ -284,6 +284,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // out of scope for this constant-block path — handled by a separate operator wrapper.
         Set<String> stdMetaNames = new LinkedHashSet<>();
         boolean idRequested = false;
+        boolean sourceRequested = false;
         for (Attribute attr : attributes) {
             if (attr instanceof ExternalMetadataAttribute) {
                 String n = attr.name();
@@ -291,21 +292,27 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     stdMetaNames.add(n);
                 } else if (ExternalMetadataColumns.ID.equals(n)) {
                     idRequested = true;
+                } else if (ExternalMetadataColumns.SOURCE.equals(n)) {
+                    sourceRequested = true;
                 }
             }
         }
         this.idColumnRequested = idRequested;
         this.standardMetadataPerFileNames = stdMetaNames.isEmpty() ? Set.of() : Set.copyOf(stdMetaNames);
-        if (stdMetaNames.isEmpty() && idRequested == false) {
+        if (stdMetaNames.isEmpty() && idRequested == false && sourceRequested == false) {
             this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
         } else {
-            // Union the standard metadata names (plus {@code _id} when projected) into the
-            // effective partition-column set so VirtualColumnIterator routes them through its
-            // constant-block / id-composition path. Hive partition columns and {@code _file.*}
-            // always take precedence on key collision (they overlay last in per-file merge).
+            // Union the standard metadata names (plus {@code _id} / {@code _source} when projected)
+            // into the effective partition-column set so VirtualColumnIterator routes them through
+            // its constant-block / id-composition / source-synthesis path. Hive partition columns
+            // and {@code _file.*} always take precedence on key collision (they overlay last in
+            // the per-file merge).
             Set<String> union = new LinkedHashSet<>(stdMetaNames);
             if (idRequested) {
                 union.add(ExternalMetadataColumns.ID);
+            }
+            if (sourceRequested) {
+                union.add(ExternalMetadataColumns.SOURCE);
             }
             if (partitionColumnNames != null) {
                 union.addAll(partitionColumnNames);

@@ -62,6 +62,18 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
     private final int rowPositionDataChannel;
     /** Index of {@code _id} within {@link #fullOutput}, or {@code -1} when not present. */
     private final int idOutputIndex;
+    /**
+     * Index of {@code _source} within {@link #fullOutput}, or {@code -1} when not present. When
+     * non-negative the iterator builds the per-row JSON for that slot via
+     * {@link SynthesizeExternalSource#composePage}.
+     */
+    private final int sourceOutputIndex;
+    /**
+     * Names of the data columns paired positionally with the incoming data page's blocks. Cached
+     * at construction so the per-page {@code _source} synthesis does not re-walk
+     * {@link #fullOutput} on every row.
+     */
+    private final String[] dataColumnNames;
 
     VirtualColumnIterator(
         CloseableIterator<Page> delegate,
@@ -101,7 +113,9 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
 
         List<Integer> dataIdxList = new ArrayList<>();
         List<Integer> partIdxList = new ArrayList<>();
+        List<String> dataNames = new ArrayList<>();
         int idIdx = -1;
+        int sourceIdx = -1;
         int rowPosChannelInData = -1;
         int nextDataChannel = 0;
         for (int i = 0; i < fullOutput.size(); i++) {
@@ -110,9 +124,12 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
                 partIdxList.add(i);
                 if (ExternalMetadataColumns.ID.equals(name)) {
                     idIdx = i;
+                } else if (ExternalMetadataColumns.SOURCE.equals(name)) {
+                    sourceIdx = i;
                 }
             } else {
                 dataIdxList.add(i);
+                dataNames.add(name);
                 if (ColumnExtractor.ROW_POSITION_COLUMN.equals(name)) {
                     rowPosChannelInData = nextDataChannel;
                 }
@@ -122,7 +139,9 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         this.dataColumnIndices = toIntArray(dataIdxList);
         this.partitionColumnIndices = toIntArray(partIdxList);
         this.idOutputIndex = idIdx;
+        this.sourceOutputIndex = sourceIdx;
         this.rowPositionDataChannel = rowPosChannelInData;
+        this.dataColumnNames = dataNames.toArray(new String[0]);
         Check.isTrue(
             idPrefix == null || (idIdx >= 0 && rowPosChannelInData >= 0),
             "idPrefix supplied but _id slot or _rowPosition data channel missing from fullOutput"
@@ -200,6 +219,15 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
                     // Compose <prefix>:<rowPosition> per row from the data page's _rowPosition block.
                     Block rowPosBlock = dataPage.getBlock(rowPositionDataChannel);
                     blocks[idx] = ExternalRowIdentity.composePage(idPrefix, (LongBlock) rowPosBlock, blockFactory);
+                } else if (idx == sourceOutputIndex) {
+                    // Materialize _source from this row's data column values: project the data
+                    // blocks already pulled off the page above into a (names, blocks) pair and
+                    // hand to the shared serializer.
+                    Block[] dataBlocksByOrder = new Block[dataColumnIndices.length];
+                    for (int d = 0; d < dataColumnIndices.length; d++) {
+                        dataBlocksByOrder[d] = blocks[dataColumnIndices[d]];
+                    }
+                    blocks[idx] = SynthesizeExternalSource.composePage(dataColumnNames, dataBlocksByOrder, positions, blockFactory);
                 } else {
                     Object value = partitionValues.get(attr.name());
                     blocks[idx] = createConstantBlock(attr, value, positions);

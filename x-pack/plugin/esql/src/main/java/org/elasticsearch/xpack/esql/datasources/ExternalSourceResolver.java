@@ -84,6 +84,11 @@ public class ExternalSourceResolver {
     private final Settings settings;
     private final ExternalSourceCacheService cacheService;
 
+    /** Coordinator-side accessor used by EsqlSession to reconcile data-node-captured source stats post-query. */
+    public ExternalSourceCacheService cacheService() {
+        return cacheService;
+    }
+
     public ExternalSourceResolver(Executor executor, DataSourceModule dataSourceModule) {
         this(executor, dataSourceModule, Settings.EMPTY, null);
     }

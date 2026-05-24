@@ -1809,16 +1809,50 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         ? java.util.Map.of()
                         : columnStats.snapshot();
                     OptionalLong bytesRead = byteCounter == null ? OptionalLong.empty() : OptionalLong.of(byteCounter.getBytesRead());
-                    ExternalStatsCache.put(
-                        sourceLocation,
-                        pinnedMtimeMillis,
-                        computeConfigFingerprint(schema),
-                        new ExternalStatsCache.Stats(rowsEmittedForCache, bytesRead, cols)
-                    );
+                    String fingerprint = computeConfigFingerprint(schema);
+                    ExternalStatsCache.Stats statsRecord = new ExternalStatsCache.Stats(rowsEmittedForCache, bytesRead, cols);
+                    ExternalStatsCache.put(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord);
+                    // Also surface to whatever thread-bound capture sink the driving operator set up,
+                    // so the contribution rides back to the coordinator via DriverCompletionInfo and
+                    // can land in SchemaCacheEntry for multi-JVM warm-path consumption.
+                    publishToCaptureSink(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord, schema, sizeInBytesFromLength());
                 }
                 reader.close();
                 stream.close();
             }
+        }
+
+        /** Returns the file's length-derived size when known by the cacheable storage object, else empty. */
+        private OptionalLong sizeInBytesFromLength() {
+            if (cacheableObject == null) {
+                return OptionalLong.empty();
+            }
+            try {
+                return OptionalLong.of(cacheableObject.length());
+            } catch (IOException | UnsupportedOperationException e) {
+                return OptionalLong.empty();
+            }
+        }
+
+        private void publishToCaptureSink(
+            String filePath,
+            long mtimeMillis,
+            String fingerprint,
+            ExternalStatsCache.Stats stats,
+            List<Attribute> resolvedSchema,
+            OptionalLong lengthSize
+        ) {
+            org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics sourceStats =
+                org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats.build(
+                    java.util.Optional.of(stats),
+                    lengthSize,
+                    resolvedSchema
+                );
+            java.util.Map<String, Object> base = new java.util.HashMap<>();
+            base.put(ExternalStatsCache.MTIME_MILLIS_KEY, mtimeMillis);
+            base.put(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, fingerprint);
+            java.util.Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(base, sourceStats);
+            org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.record(filePath, flat);
         }
 
         private Page readNextBatch() throws IOException {

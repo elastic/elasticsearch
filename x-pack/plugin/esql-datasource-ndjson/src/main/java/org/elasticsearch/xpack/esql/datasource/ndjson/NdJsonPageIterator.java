@@ -254,15 +254,39 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                 java.util.OptionalLong bytesRead = byteCounter != null
                     ? java.util.OptionalLong.of(byteCounter.getBytesRead())
                     : (byteArrayBytesRead >= 0 ? java.util.OptionalLong.of(byteArrayBytesRead) : java.util.OptionalLong.empty());
-                ExternalStatsCache.put(
-                    sourceLocation,
-                    pinnedMtimeMillis,
-                    fingerprinter.apply(fullSchema),
-                    new ExternalStatsCache.Stats(rowsEmitted, bytesRead, cols)
+                String fingerprint = fingerprinter.apply(fullSchema);
+                ExternalStatsCache.Stats statsRecord = new ExternalStatsCache.Stats(rowsEmitted, bytesRead, cols);
+                ExternalStatsCache.put(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord);
+                // Surface to thread-bound capture sink so the contribution rides back to the
+                // coordinator via DriverCompletionInfo for multi-JVM warm-path consumption.
+                org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics sourceStats =
+                    org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats.build(
+                        java.util.Optional.of(statsRecord),
+                        sizeInBytesFromLength(),
+                        fullSchema
+                    );
+                java.util.Map<String, Object> base = new java.util.HashMap<>();
+                base.put(ExternalStatsCache.MTIME_MILLIS_KEY, pinnedMtimeMillis);
+                base.put(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, fingerprint);
+                java.util.Map<String, Object> flat = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.embedStatistics(
+                    base,
+                    sourceStats
                 );
+                org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.record(sourceLocation, flat);
             }
         }
         IOUtils.close(pageDecoder);
+    }
+
+    private java.util.OptionalLong sizeInBytesFromLength() {
+        if (cacheableObject == null) {
+            return java.util.OptionalLong.empty();
+        }
+        try {
+            return java.util.OptionalLong.of(cacheableObject.length());
+        } catch (IOException | UnsupportedOperationException e) {
+            return java.util.OptionalLong.empty();
+        }
     }
 
     /**

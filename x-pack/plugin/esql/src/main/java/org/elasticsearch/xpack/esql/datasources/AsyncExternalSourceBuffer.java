@@ -52,11 +52,31 @@ public final class AsyncExternalSourceBuffer {
     private volatile boolean noMoreInputs = false;
     private volatile Throwable failure = null;
 
+    /**
+     * Per-file captured source metadata contributions, set by the background reader thread when an
+     * iterator completes a clean whole-file scan. Each entry's value is the flat {@code _stats.*}
+     * map for that file. Read by {@link AsyncExternalSourceOperator#status()} on the driver thread
+     * and surfaced via {@link org.elasticsearch.compute.operator.CapturingExternalSourceStatus} so
+     * the coordinator can reconcile the contribution into its {@code SchemaCacheEntry}.
+     */
+    private final java.util.Map<String, java.util.Map<String, Object>> capturedSourceMetadata =
+        new java.util.concurrent.ConcurrentHashMap<>();
+
     public AsyncExternalSourceBuffer(long maxBufferBytes) {
         if (maxBufferBytes < 1) {
             throw new IllegalArgumentException("max_buffer_bytes must be at least one; got=" + maxBufferBytes);
         }
         this.maxBufferBytes = maxBufferBytes;
+    }
+
+    /** The mutable per-file capture sink shared with the iterator wrapping. */
+    public java.util.Map<String, java.util.Map<String, Object>> capturedSourceMetadataSink() {
+        return capturedSourceMetadata;
+    }
+
+    /** Read by the driver thread via {@link AsyncExternalSourceOperator#status()}. */
+    java.util.Map<String, java.util.Map<String, Object>> capturedSourceMetadataSnapshot() {
+        return capturedSourceMetadata.isEmpty() ? java.util.Map.of() : java.util.Map.copyOf(capturedSourceMetadata);
     }
 
     /**

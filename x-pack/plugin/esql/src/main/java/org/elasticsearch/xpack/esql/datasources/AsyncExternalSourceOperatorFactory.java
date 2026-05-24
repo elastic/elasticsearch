@@ -1197,6 +1197,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
+                pages = org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator.wrap(
+                    pages,
+                    state.buffer.capturedSourceMetadataSink()
+                );
             }
             // Resolve the file's read schema and the reader's projected column order so the
             // adapter can disambiguate LongBlock sources when stringifying under UBN. Pulled
@@ -1336,6 +1340,10 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .build();
                 pages = formatReader.read(obj, ctx);
             }
+            pages = org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator.wrap(
+                pages,
+                state.buffer.capturedSourceMetadataSink()
+            );
             CloseableIterator<Page> adapted = adaptSchema(pages, mapping, state.driverContext, perFileReadSchema, perFileCols);
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for
@@ -1397,6 +1405,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     .build();
                 pages = formatReader.read(storageObject, ctx);
             }
+            pages = org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator.wrap(pages, buffer.capturedSourceMetadataSink());
             // Wrap with the deferred-extraction encoder (no-op when not enabled), then with the
             // virtual-column iterator so {@code _file.*} columns flow through the producer pipeline
             // alongside the data columns.
@@ -1428,14 +1437,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         StorageObject storageObject,
         List<String> projectedColumns
     ) {
+        final CloseableIterator<Page> capturing = org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator.wrap(
+            pages,
+            buffer.capturedSourceMetadataSink()
+        );
         ActionListener<Void> failureListener = ActionListener.wrap(v -> {}, e -> {
-            closeQuietly(pages);
+            closeQuietly(capturing);
             buffer.onFailure(e);
             driverContext.removeAsyncAction();
             releaseOperator();
         });
         executor.execute(ActionRunnable.run(failureListener, () -> {
-            CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(pages, projectedColumns, driverContext);
+            CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(capturing, projectedColumns, driverContext);
             CloseableIterator<Page> wrapped = wrapWithVirtualColumns(withEncoder, partitionValues, driverContext);
             drainPagesAsync(
                 wrapped,

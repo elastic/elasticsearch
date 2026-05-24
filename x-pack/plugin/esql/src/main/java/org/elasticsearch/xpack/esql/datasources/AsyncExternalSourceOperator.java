@@ -32,6 +32,8 @@ import java.util.Objects;
  */
 public class AsyncExternalSourceOperator extends SourceOperator {
 
+    private static final TransportVersion ESQL_CAPTURED_SOURCE_METADATA = TransportVersion.fromName("esql_captured_source_metadata");
+
     private final AsyncExternalSourceBuffer buffer;
     private IsBlockedResult isBlocked = NOT_BLOCKED;
     private int pagesEmitted;
@@ -100,10 +102,17 @@ public class AsyncExternalSourceOperator extends SourceOperator {
 
     @Override
     public Status status() {
-        return new Status(buffer.size(), pagesEmitted, rowsEmitted, buffer.bytesInBuffer(), buffer.failure());
+        return new Status(
+            buffer.size(),
+            pagesEmitted,
+            rowsEmitted,
+            buffer.bytesInBuffer(),
+            buffer.failure(),
+            buffer.capturedSourceMetadataSnapshot()
+        );
     }
 
-    public static class Status implements Operator.Status {
+    public static class Status implements Operator.Status, org.elasticsearch.compute.operator.CapturingExternalSourceStatus {
         public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
             Operator.Status.class,
             "async_external_source",
@@ -119,13 +128,26 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         private final long rowsEmitted;
         private final long bytesBuffered;
         private final Throwable failure;
+        private final java.util.Map<String, java.util.Map<String, Object>> capturedSourceMetadata;
 
         Status(int pagesWaiting, int pagesEmitted, long rowsEmitted, long bytesBuffered, Throwable failure) {
+            this(pagesWaiting, pagesEmitted, rowsEmitted, bytesBuffered, failure, java.util.Map.of());
+        }
+
+        Status(
+            int pagesWaiting,
+            int pagesEmitted,
+            long rowsEmitted,
+            long bytesBuffered,
+            Throwable failure,
+            java.util.Map<String, java.util.Map<String, Object>> capturedSourceMetadata
+        ) {
             this.pagesWaiting = pagesWaiting;
             this.pagesEmitted = pagesEmitted;
             this.rowsEmitted = rowsEmitted;
             this.bytesBuffered = bytesBuffered;
             this.failure = failure;
+            this.capturedSourceMetadata = capturedSourceMetadata == null ? java.util.Map.of() : capturedSourceMetadata;
         }
 
         Status(StreamInput in) throws IOException {
@@ -134,6 +156,21 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             rowsEmitted = in.readVLong();
             bytesBuffered = in.getTransportVersion().supports(ESQL_ASYNC_SOURCE_BYTES_BUFFERED) ? in.readVLong() : 0;
             failure = in.readException();
+            if (in.getTransportVersion().supports(ESQL_CAPTURED_SOURCE_METADATA)) {
+                int n = in.readVInt();
+                if (n == 0) {
+                    capturedSourceMetadata = java.util.Map.of();
+                } else {
+                    java.util.Map<String, java.util.Map<String, Object>> tmp = new java.util.HashMap<>(n);
+                    for (int i = 0; i < n; i++) {
+                        String path = in.readString();
+                        tmp.put(path, in.readGenericMap());
+                    }
+                    capturedSourceMetadata = tmp;
+                }
+            } else {
+                capturedSourceMetadata = java.util.Map.of();
+            }
         }
 
         @Override
@@ -145,6 +182,18 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 out.writeVLong(bytesBuffered);
             }
             out.writeException(failure);
+            if (out.getTransportVersion().supports(ESQL_CAPTURED_SOURCE_METADATA)) {
+                out.writeVInt(capturedSourceMetadata.size());
+                for (java.util.Map.Entry<String, java.util.Map<String, Object>> e : capturedSourceMetadata.entrySet()) {
+                    out.writeString(e.getKey());
+                    out.writeGenericMap(e.getValue());
+                }
+            }
+        }
+
+        @Override
+        public java.util.Map<String, java.util.Map<String, Object>> capturedSourceMetadata() {
+            return capturedSourceMetadata;
         }
 
         @Override
@@ -211,12 +260,20 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                 && pagesEmitted == status.pagesEmitted
                 && rowsEmitted == status.rowsEmitted
                 && bytesBuffered == status.bytesBuffered
-                && Objects.equals(thisFailureMsg, otherFailureMsg);
+                && Objects.equals(thisFailureMsg, otherFailureMsg)
+                && Objects.equals(capturedSourceMetadata, status.capturedSourceMetadata);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(pagesWaiting, pagesEmitted, rowsEmitted, bytesBuffered, failure != null ? failure.getMessage() : null);
+            return Objects.hash(
+                pagesWaiting,
+                pagesEmitted,
+                rowsEmitted,
+                bytesBuffered,
+                failure != null ? failure.getMessage() : null,
+                capturedSourceMetadata
+            );
         }
 
         @Override

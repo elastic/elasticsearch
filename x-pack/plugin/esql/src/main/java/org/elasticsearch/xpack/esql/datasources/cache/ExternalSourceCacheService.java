@@ -18,6 +18,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 
 import java.io.Closeable;
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -93,6 +94,80 @@ public class ExternalSourceCacheService implements Closeable {
             return loader.load(key);
         }
         return listingCache.computeIfAbsent(key, loader);
+    }
+
+    /**
+     * Coordinator-side entry point. Takes the {@code DriverCompletionInfo.capturedSourceMetadata}
+     * payload — raw per-file contribution lists shipped back from every data node — merges each
+     * list via {@code SourceStatisticsSerializer.mergeStatistics} (Parquet's existing multi-row-
+     * group merge algorithm), then enriches the matching {@link SchemaCacheEntry} so the next
+     * query's planning-time lookup short-circuits on the merged stats.
+     */
+    public void reconcileSourceStatsFromContributions(Map<String, java.util.List<Map<String, Object>>> contributionsPerFile) {
+        if (enabled == false || contributionsPerFile == null || contributionsPerFile.isEmpty()) {
+            return;
+        }
+        Map<String, Map<String, Object>> merged = new HashMap<>(contributionsPerFile.size());
+        for (Map.Entry<String, java.util.List<Map<String, Object>>> e : contributionsPerFile.entrySet()) {
+            java.util.List<Map<String, Object>> contributions = e.getValue();
+            if (contributions == null || contributions.isEmpty()) {
+                continue;
+            }
+            Map<String, Object> mergedForFile = contributions.size() == 1
+                ? contributions.get(0)
+                : org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.mergeStatistics(contributions);
+            if (mergedForFile != null && mergedForFile.isEmpty() == false) {
+                merged.put(e.getKey(), mergedForFile);
+            }
+        }
+        reconcileSourceStats(merged);
+    }
+
+    /**
+     * Reconciles already-merged data-node-captured source stats into the schema cache. For each
+     * {@code (path, mergedStats)} entry, finds the cached {@link SchemaCacheEntry} whose location
+     * and mtime match and replaces it with a new entry whose {@code safeMetadata} folds in the
+     * merged {@code _stats.*} keys. Entries with no cache match are ignored (the warm path will
+     * just trigger a fresh metadata() call on the next query).
+     */
+    public void reconcileSourceStats(Map<String, Map<String, Object>> mergedStatsPerFile) {
+        if (enabled == false || mergedStatsPerFile == null || mergedStatsPerFile.isEmpty()) {
+            return;
+        }
+        for (Map.Entry<String, Map<String, Object>> entry : mergedStatsPerFile.entrySet()) {
+            String path = entry.getKey();
+            Map<String, Object> mergedStats = entry.getValue();
+            if (path == null || mergedStats == null || mergedStats.isEmpty()) {
+                continue;
+            }
+            Object mtimeObj = mergedStats.get(ExternalStatsCache.MTIME_MILLIS_KEY);
+            if (mtimeObj instanceof Number == false) {
+                continue;
+            }
+            long mtimeMillis = ((Number) mtimeObj).longValue();
+            for (SchemaCacheKey key : schemaCache.keys()) {
+                if (path.equals(key.canonicalPath()) && key.lastModifiedEpochMillis() == mtimeMillis) {
+                    SchemaCacheEntry existing = schemaCache.get(key);
+                    if (existing == null) {
+                        continue;
+                    }
+                    Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
+                    enriched.putAll(mergedStats);
+                    SchemaCacheEntry replaced = new SchemaCacheEntry(
+                        existing.columnNames(),
+                        existing.columnTypes(),
+                        existing.columnNullabilities(),
+                        existing.columnSynthetics(),
+                        existing.sourceType(),
+                        existing.location(),
+                        enriched,
+                        existing.connectorConfig(),
+                        existing.cachedAtMillis()
+                    );
+                    schemaCache.put(key, replaced);
+                }
+            }
+        }
     }
 
     public void setEnabled(boolean enabled) {

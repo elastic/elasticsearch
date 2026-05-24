@@ -45,10 +45,7 @@ public class NdJsonRowCountCaptureTests extends ESTestCase {
         super.tearDown();
     }
 
-    /**
-     * SKIP_ROW paths emit response-header warnings via {@code HeaderWarning}. Drop the accumulated
-     * thread context here so the inherited {@code ensureNoWarnings} post-check sees an empty list.
-     */
+    /** SKIP_ROW emits HeaderWarning; drop the context so ensureNoWarnings sees an empty list. */
     @After
     public void clearWarningHeaders() {
         if (threadContext != null) {
@@ -113,31 +110,20 @@ public class NdJsonRowCountCaptureTests extends ESTestCase {
         assertTrue("record-aligned (parallel-sliced) read must not populate cache", ExternalRowCountCache.lookup(o).isEmpty());
     }
 
-    /**
-     * Defense-in-depth: under {@code SKIP_ROW}, an NDJSON file with one malformed line drains
-     * naturally but {@code errorCount > 0}, so the data-driven gate suppresses the cache write.
-     * Mirrors the CSV reader's counterpart.
-     */
+    /** SKIP_ROW with a malformed line → errorCount > 0 → gate suppresses the cache write. */
     public void testSkipRowWithErrorsDoesNotPopulateCache() throws Exception {
-        // logErrors=false keeps warning-header emission out of the test runner's expected set.
         ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
         StorageObject o = obj("{\"a\":1}\nnot-a-json-object\n{\"a\":3}\n");
         FormatReadContext ctx = FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).build();
         try (CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)) {
             drain(it);
         }
-        // Cache stayed empty is the real invariant — the gate suppressed the write because the
-        // decoder's internal errorCount was non-zero after a SKIP_ROW drop.
         assertTrue("SKIP_ROW with errors must not populate cache (count is policy-dependent)", ExternalRowCountCache.lookup(o).isEmpty());
     }
 
-    /**
-     * Defense-in-depth: a {@code LIMIT}-cut iteration sets {@code endOfFile} but not the natural-EOF
-     * flag (the decoder still has bytes), so the cache write is suppressed.
-     */
+    /** rowLimit-cut iteration ends without natural EOF → cache write suppressed. */
     public void testRowLimitTruncatedReadDoesNotPopulateCache() throws Exception {
         StorageObject o = obj("{\"a\":1}\n{\"a\":2}\n{\"a\":3}\n{\"a\":4}\n{\"a\":5}\n");
-        // rowLimit smaller than the file's row count forces a truncated read.
         FormatReadContext ctx = FormatReadContext.builder().batchSize(2).rowLimit(2).build();
         try (CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)) {
             drain(it);

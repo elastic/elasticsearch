@@ -15,12 +15,7 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.OptionalLong;
 
-/**
- * Directly exercises {@link ExternalRowCountCache} key semantics. The cache keys files by
- * {@code (path, mtimeMillis)}; same-path-different-mtime resolves to distinct entries (any
- * write changes mtime), and stream-only sources whose {@code length()} throws are still
- * cacheable as long as {@code lastModified()} is known.
- */
+/** Key semantics for {@link ExternalRowCountCache}: (path, mtime) — fresh mtime ⇒ fresh key. */
 public class ExternalRowCountCacheTests extends ESTestCase {
 
     @Override
@@ -57,9 +52,7 @@ public class ExternalRowCountCacheTests extends ESTestCase {
     }
 
     public void testSamePathDifferentMtimesAreDistinct() {
-        // Any file mutation advances mtime, producing a fresh cache key and forcing a cold scan.
-        // This is the cache's correctness story for same-length mutations and for any other write
-        // that doesn't change byte length.
+        // File mutation advances mtime → fresh key → no stale serve across mutation.
         Instant tNow = Instant.now();
         Instant tLater = tNow.plusMillis(1);
         StorageObject before = objWithMtime("memory://mutated.csv", tNow);
@@ -81,15 +74,11 @@ public class ExternalRowCountCacheTests extends ESTestCase {
         assertTrue(viaObject.isPresent());
         assertTrue(viaPair.isPresent());
         assertEquals(viaObject.getAsLong(), viaPair.getAsLong());
-        // Lookup with the wrong mtime is a miss — same-path file mutation produces a fresh mtime,
-        // which is exactly what makes that case automatically invalidate.
         assertTrue(ExternalRowCountCache.lookup("memory://c.csv", mtimeMillis + 1).isEmpty());
     }
 
     public void testStreamOnlySourceIsStillCacheable() {
-        // Stream-only compression (bzip2, zstd-streamed) throws UnsupportedOperationException
-        // from length() because the decompressed length is unknown. mtime is independent and
-        // works for these sources, so the cache remains usable.
+        // Stream-only sources (bzip2, zstd-streamed) throw from length() but lastModified() works — cache key is mtime.
         StorageObject streamOnly = new StorageObject() {
             private final Instant mtime = Instant.now();
 
@@ -130,8 +119,7 @@ public class ExternalRowCountCacheTests extends ESTestCase {
     }
 
     public void testNullMtimeIsNotCacheable() {
-        // Sources without a discoverable mtime (e.g. HTTP without Last-Modified) have no
-        // trustworthy identity, so the cache deliberately drops both put and lookup.
+        // Null mtime ⇒ no trusted identity ⇒ cache drops both put and lookup.
         StorageObject noMtime = new StorageObject() {
             @Override
             public InputStream newStream() {

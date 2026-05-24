@@ -16,24 +16,13 @@ import java.time.Instant;
 import java.util.OptionalLong;
 
 /**
- * Per-file row-count cache for line-oriented external text formats (CSV, TSV, NDJSON). Lets
- * {@code PushStatsToExternalSource} short-circuit {@code COUNT(*)} to a {@code LocalSourceExec}
- * once a file has been drained at least once.
- * <p>
- * Key is {@code (path, mtimeMillis)}. mtime is the canonical "file version" discriminator on every
- * production filesystem and object store — it advances on every write, no extra storage round-trip,
- * works for stream-only compression formats (bzip2, zstd-streamed) where decompressed length is
- * unknown. {@link FooterByteCache#EXPIRE_AFTER_ACCESS_SECONDS} bounds residual staleness on the
- * coarsest filesystems (1-2s mtime resolution) where two writes inside the same second could share
- * an mtime value.
+ * Per-file row-count cache for line-oriented external text formats. Key is {@code (path, mtime)};
+ * value is the row count. Lets {@code PushStatsToExternalSource} short-circuit {@code COUNT(*)}.
+ * Coarse-resolution mtime collisions are bounded by {@link FooterByteCache#EXPIRE_AFTER_ACCESS_SECONDS}.
  */
 public final class ExternalRowCountCache {
 
-    /**
-     * Well-known key under which line-oriented text readers publish file mtime (epoch millis) into
-     * {@code SourceMetadata.sourceMetadata()}, so {@code ExternalSourceResolver.buildMetadataFromCache}
-     * can reconstruct the cache key on warm queries without a fresh storage call.
-     */
+    /** mtime (epoch millis) published into {@code SourceMetadata.sourceMetadata()} so the warm-path cache lookup can avoid a storage round-trip. */
     public static final String MTIME_MILLIS_KEY = "_stats.file_mtime_millis";
 
     private static final int MAX_ENTRIES = 10_000;
@@ -70,12 +59,7 @@ public final class ExternalRowCountCache {
         }
     }
 
-    /**
-     * Write the row count. The gate (whole-file context, natural EOF, zero observed parse errors)
-     * lives at the caller — see the iterator {@code close()} paths. A {@code null} mtime (e.g.
-     * an HTTP source without a {@code Last-Modified} header) drops the write — no identity we
-     * can trust, so we never serve a count keyed on it.
-     */
+    /** The gate (whole-file, natural EOF, zero errors) is the caller's. Null mtime drops the write — no trusted identity. */
     public static void put(StorageObject object, long rowCount) {
         try {
             Instant mtime = object.lastModified();

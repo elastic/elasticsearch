@@ -30,13 +30,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
-/**
- * End-to-end test that {@code EXTERNAL "<csv>" | STATS COUNT(*)} short-circuits to a
- * {@code LocalSourceExec} on the second invocation: first execution populates
- * {@code ExternalRowCountCache} via the iterator's capture hook; second sees the cache hit and
- * the optimizer rewrites the aggregate subtree. Mirrors {@link ExternalParquetCountPushdownIT}
- * for the text-format reader chain.
- */
+/** Cold-then-warm: first run populates the cache; second run is rewritten to LocalSourceExec. Mirrors {@link ExternalParquetCountPushdownIT}. */
 public class ExternalCsvCountPushdownIT extends AbstractEsqlIntegTestCase {
 
     public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
@@ -58,9 +52,7 @@ public class ExternalCsvCountPushdownIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected QueryPragmas getPragmas() {
-        // parsing_parallelism=1 keeps the file on the single-thread path so the iterator sees the
-        // whole-file FormatReadContext the capture hook gates on. Parallel-parsed (record-aligned)
-        // chunks are deliberately excluded — covering them needs per-chunk aggregation, out of scope.
+        // parsing_parallelism=1 keeps the file on the single-thread path; record-aligned chunks bypass the capture-hook gate.
         return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
     }
 
@@ -129,10 +121,7 @@ public class ExternalCsvCountPushdownIT extends AbstractEsqlIntegTestCase {
         assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(expected));
     }
 
-    /**
-     * Asserts that no Async* operator appears in any driver profile — i.e. PushStatsToExternalSource
-     * fired and the plan is a LocalSourceExec, not an Async-source scan.
-     */
+    /** No Async* operators ⇒ PushStatsToExternalSource fired ⇒ LocalSourceExec. */
     private static void assertNoPushdownBypass(EsqlQueryResponse response) {
         var profile = response.profile();
         assertNotNull("profile must be present (request had profile=true)", profile);

@@ -23,10 +23,7 @@ import java.time.Instant;
 import java.util.OptionalLong;
 import java.util.UUID;
 
-/**
- * NDJSON counterpart of {@code CsvRowCountMetadataLookupTests}: the cache-lookup side of
- * {@code metadata()}. The capture-on-close counterpart is covered by {@code NdJsonRowCountCaptureTests}.
- */
+/** Lookup-side gate for NDJSON. Capture side is in {@code NdJsonRowCountCaptureTests}. */
 public class NdJsonRowCountMetadataLookupTests extends ESTestCase {
 
     private BlockFactory blockFactory;
@@ -47,8 +44,6 @@ public class NdJsonRowCountMetadataLookupTests extends ESTestCase {
     public void testCacheMissPublishesSizeButNoRowCount() throws Exception {
         StorageObject o = obj("{\"a\":1}\n{\"a\":2}\n");
         SourceMetadata md = new NdJsonFormatReader(null, blockFactory).metadata(o);
-        // sizeInBytes is always published when length is resolvable; warm queries re-key the
-        // row-count cache off the cached length without re-fetching from storage.
         assertTrue("statistics must be present (sizeInBytes is always known)", md.statistics().isPresent());
         assertFalse("rowCount must be absent on cache miss", md.statistics().get().rowCount().isPresent());
         assertTrue("sizeInBytes must be present on cache miss", md.statistics().get().sizeInBytes().isPresent());
@@ -73,11 +68,7 @@ public class NdJsonRowCountMetadataLookupTests extends ESTestCase {
         assertEquals(content.getBytes(StandardCharsets.UTF_8).length, md.statistics().get().sizeInBytes().getAsLong());
     }
 
-    /**
-     * Stream-only compression (bzip2, zstd-streamed) throws {@code UnsupportedOperationException}
-     * from {@code length()}; {@code metadata()} must not propagate and must still produce stats
-     * (without sizeInBytes) so the cache key — keyed on mtime alone — still participates.
-     */
+    /** Stream-only sources throw from length() — metadata() still flows mtime so the cache participates. */
     public void testLengthUnsupportedStillProducesStats() throws Exception {
         StorageObject streamOnly = streamOnlyObject("{\"a\":1}\n{\"a\":2}\n");
         SourceMetadata md = new NdJsonFormatReader(null, blockFactory).metadata(streamOnly);

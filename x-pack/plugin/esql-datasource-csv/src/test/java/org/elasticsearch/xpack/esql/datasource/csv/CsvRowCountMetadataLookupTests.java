@@ -13,7 +13,6 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalRowCountCache;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
-import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
@@ -24,11 +23,7 @@ import java.time.Instant;
 import java.util.OptionalLong;
 import java.util.UUID;
 
-/**
- * Verifies {@code CsvFormatReader.metadata()} publishes {@link SourceStatistics#rowCount()} when —
- * and only when — {@link ExternalRowCountCache} has an entry for the file. The capture-on-close
- * counterpart is covered by {@code CsvRowCountCaptureTests}.
- */
+/** Lookup-side gate for CSV. Capture side is in {@code CsvRowCountCaptureTests}. */
 public class CsvRowCountMetadataLookupTests extends ESTestCase {
 
     private BlockFactory blockFactory;
@@ -49,9 +44,6 @@ public class CsvRowCountMetadataLookupTests extends ESTestCase {
     public void testCacheMissPublishesSizeButNoRowCount() throws Exception {
         StorageObject o = obj("id:integer,n:integer\n1,10\n2,20\n");
         SourceMetadata md = new CsvFormatReader(blockFactory).metadata(o);
-        // sizeInBytes is always published when length is resolvable, even on row-count miss —
-        // ExternalSourceResolver.buildMetadataFromCache reads it to re-key the warm-path
-        // row-count cache lookup once the iterator's capture hook fires.
         assertTrue("statistics must be present (sizeInBytes is always known)", md.statistics().isPresent());
         assertFalse("rowCount must be absent on cache miss", md.statistics().get().rowCount().isPresent());
         assertTrue("sizeInBytes must be present on cache miss", md.statistics().get().sizeInBytes().isPresent());
@@ -76,12 +68,7 @@ public class CsvRowCountMetadataLookupTests extends ESTestCase {
         assertEquals(content.getBytes(StandardCharsets.UTF_8).length, md.statistics().get().sizeInBytes().getAsLong());
     }
 
-    /**
-     * Stream-only compression wrappers (bzip2, zstd-indexed) throw {@code UnsupportedOperationException}
-     * from {@code length()}. {@code metadata()} must NOT propagate — sizeInBytes simply isn't
-     * published, but the rest of the stats block (mtime in sourceMetadata + the rowCount the
-     * cache may serve) still flows so the cache participates and warm short-circuit applies.
-     */
+    /** Stream-only sources throw from length() — metadata() still flows mtime + cache-served rowCount. */
     public void testLengthUnsupportedStillProducesStats() throws Exception {
         StorageObject streamOnly = streamOnlyObject("id:integer,n:integer\n1,10\n2,20\n");
         SourceMetadata md = new CsvFormatReader(blockFactory).metadata(streamOnly);
@@ -127,7 +114,7 @@ public class CsvRowCountMetadataLookupTests extends ESTestCase {
         };
     }
 
-    /** Unique path + stable mtime per object — the cache only keys on (path, length), but matching real-file shape. */
+    /** Unique path + stable mtime per object — matches the cache key shape (path, mtime). */
     private StorageObject obj(String csvContent) {
         byte[] bytes = csvContent.getBytes(StandardCharsets.UTF_8);
         String uniquePath = "memory://" + UUID.randomUUID() + ".csv";

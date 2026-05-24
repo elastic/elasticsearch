@@ -548,11 +548,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
     public SourceMetadata metadata(StorageObject object) throws IOException {
         List<Attribute> schema = readSchema(object);
         String location = object.path().toString();
-        // mtime is the cache-key discriminator and must be readable for any cache participation;
-        // if it isn't (e.g. an HTTP source missing Last-Modified), publish no stats and let the
-        // file run cold every time. sizeInBytes is best-effort — published as a stat when length()
-        // is computable, omitted otherwise (stream-only compression formats like bzip2 throw
-        // UnsupportedOperationException here; that's expected and doesn't disqualify caching).
+        // mtime required for cache participation; sizeInBytes best-effort (stream-only sources throw from length()).
         long mtimeMillis;
         try {
             Instant mtime = object.lastModified();

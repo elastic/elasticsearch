@@ -439,10 +439,8 @@ public class ExternalSourceResolver {
             mergedConfig = queryConfig != null ? queryConfig : Map.of();
         }
 
-        // Warm-path row-count augmentation. The schema cache short-circuits metadata() on every
-        // hit, so the cached safeMetadata only has rowCount once the iterator's capture hook has
-        // populated ExternalRowCountCache (which happens after the schema cache entry is written).
-        // Re-check the row-count cache here and inject STATS_ROW_COUNT if it has since landed.
+        // Schema cache short-circuits metadata() on hits; re-check the row-count cache here, since
+        // the iterator's capture hook populates it after the schema entry was written.
         Map<String, Object> effectiveMetadata = entry.safeMetadata();
         if (effectiveMetadata.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false
             && effectiveMetadata.get(ExternalRowCountCache.MTIME_MILLIS_KEY) instanceof Number mtimeMillis
@@ -450,12 +448,8 @@ public class ExternalSourceResolver {
             OptionalLong cachedRowCount = ExternalRowCountCache.lookup(entry.location(), mtimeMillis.longValue());
             if (cachedRowCount.isPresent()) {
                 long count = cachedRowCount.getAsLong();
-                // Sanity bound: when sizeInBytes is also published (CSV/TSV/NDJSON over a backend
-                // that knows the file's byte length), the cached count must be physically
-                // realisable inside the file size — minimum row encoding is one byte (record
-                // terminator alone). Out-of-bounds indicates cache poisoning or a serialization
-                // bug. Stream-only compression sources don't publish sizeInBytes; skip the check
-                // for them (the gate is the cache key's mtime discriminator, not byte budget).
+                // Sanity bound when sizeInBytes is published: count must fit in the file. Stream-only sources skip this — gate is the mtime
+                // key, not byte budget.
                 boolean plausible = true;
                 if (effectiveMetadata.get(SourceStatisticsSerializer.STATS_SIZE_BYTES) instanceof Number sizeBytes) {
                     long size = sizeBytes.longValue();

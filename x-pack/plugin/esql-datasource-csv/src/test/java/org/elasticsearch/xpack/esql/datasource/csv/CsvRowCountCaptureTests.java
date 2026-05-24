@@ -27,12 +27,7 @@ import java.time.Instant;
 import java.util.OptionalLong;
 import java.util.UUID;
 
-/**
- * Verifies that {@code CsvFormatReader.read(...)} populates {@link ExternalRowCountCache} on
- * iterator close when (and only when) the iterator was constructed for a whole-file read, drained
- * naturally to EOF, and observed zero parse errors. Lookup side is covered by
- * {@code CsvRowCountMetadataLookupTests}.
- */
+/** Capture-on-close gate for CSV. Lookup side is in {@code CsvRowCountMetadataLookupTests}. */
 public class CsvRowCountCaptureTests extends ESTestCase {
 
     private BlockFactory blockFactory;
@@ -50,11 +45,7 @@ public class CsvRowCountCaptureTests extends ESTestCase {
         super.tearDown();
     }
 
-    /**
-     * SKIP_ROW paths emit response-header warnings via {@code HeaderWarning}. Drop the accumulated
-     * thread context here so the inherited {@code ensureNoWarnings} post-check sees an empty list;
-     * tests don't care about the warning contents, only the cache effect.
-     */
+    /** SKIP_ROW emits HeaderWarning; drop the context so ensureNoWarnings sees an empty list. */
     @After
     public void clearWarningHeaders() {
         if (threadContext != null) {
@@ -110,23 +101,14 @@ public class CsvRowCountCaptureTests extends ESTestCase {
         assertTrue("record-aligned (parallel-sliced) read must not populate cache", ExternalRowCountCache.lookup(o).isEmpty());
     }
 
-    /**
-     * Defense-in-depth: under {@code SKIP_ROW}, a CSV with at least one malformed row drains
-     * naturally to EOF but {@code errorCount > 0}, so the data-driven gate suppresses the cache
-     * write. Caching the post-skip count would mix policy-dependent values into the per-file
-     * cache and break the warm-path contract.
-     */
+    /** SKIP_ROW with a malformed row → errorCount > 0 → gate suppresses the cache write. */
     public void testSkipRowWithErrorsDoesNotPopulateCache() throws Exception {
-        // Middle row is unparseable as integer; SKIP_ROW drops it and continues.
-        // logErrors=false to keep warning-header emission out of the test-runner's expectation set.
         ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
         StorageObject o = obj("id:integer,n:integer\n1,10\nnot-an-integer,20\n3,30\n");
         FormatReadContext ctx = FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).build();
         try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)) {
             drain(it);
         }
-        // Cache stayed empty is the real invariant — the gate suppressed the write because the
-        // iterator's internal errorCount was non-zero after draining a row that SKIP_ROW dropped.
         assertTrue("SKIP_ROW with errors must not populate cache (count is policy-dependent)", ExternalRowCountCache.lookup(o).isEmpty());
     }
 

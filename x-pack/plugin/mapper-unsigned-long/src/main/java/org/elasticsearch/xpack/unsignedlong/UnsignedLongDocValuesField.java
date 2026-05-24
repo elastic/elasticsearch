@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.unsignedlong;
 
-import org.apache.lucene.index.SortedNumericDocValues;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.fielddata.SortedNumericLongValues;
 import org.elasticsearch.script.field.AbstractLongDocValuesField;
 
 import java.math.BigInteger;
@@ -21,7 +21,7 @@ import static org.elasticsearch.xpack.unsignedlong.UnsignedLongFieldMapper.BIGIN
 
 public class UnsignedLongDocValuesField extends AbstractLongDocValuesField {
 
-    public UnsignedLongDocValuesField(SortedNumericDocValues input, String name) {
+    public UnsignedLongDocValuesField(SortedNumericLongValues input, String name) {
         super(input, name);
     }
 

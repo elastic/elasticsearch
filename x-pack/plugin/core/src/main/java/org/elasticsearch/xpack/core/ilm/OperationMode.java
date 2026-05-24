@@ -22,7 +22,7 @@ public enum OperationMode {
     },
 
     /**
-     * this represents a state where only sensitive actions (like {@link ShrinkStep}) will be executed
+     * this represents a state where only sensitive actions (like {@link ResizeIndexStep}) will be executed
      * until they finish, at which point the operation mode will move to <code>STOPPED</code>.
      */
     STOPPING {

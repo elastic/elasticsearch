@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexAliasesService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.RerouteBehavior;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -50,7 +51,7 @@ import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.snapshots.SnapshotInProgressException;
-import org.elasticsearch.snapshots.SnapshotsService;
+import org.elasticsearch.snapshots.SnapshotsServiceUtils;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -66,7 +67,6 @@ import java.util.regex.Pattern;
 
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.ALIAS;
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.DATA_STREAM;
-import static org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.lookupTemplateForDataStream;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV1Templates;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.findV2Template;
 import static org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionListener.rerouteCompletionIsNotRequired;
@@ -266,12 +266,11 @@ public class MetadataRolloverService {
             rolloverIndexName,
             createIndexRequest
         );
-        assert createIndexClusterStateRequest.performReroute() == false
-            : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
         ClusterState newState = createIndexService.applyCreateIndexRequest(
             projectState.cluster(),
             createIndexClusterStateRequest,
             silent,
+            RerouteBehavior.SKIP_REROUTE,
             rerouteCompletionIsNotRequired()
         );
 
@@ -306,7 +305,7 @@ public class MetadataRolloverService {
         boolean isFailureStoreRollover
     ) throws Exception {
         final ProjectMetadata metadata = projectState.metadata();
-        Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(
+        Set<String> snapshottingDataStreams = SnapshotsServiceUtils.snapshottingDataStreams(
             projectState,
             Collections.singleton(dataStream.getName())
         );
@@ -325,7 +324,7 @@ public class MetadataRolloverService {
         final SystemDataStreamDescriptor systemDataStreamDescriptor;
         if (dataStream.isSystem() == false) {
             systemDataStreamDescriptor = null;
-            templateV2 = lookupTemplateForDataStream(dataStreamName, metadata);
+            templateV2 = dataStream.getEffectiveIndexTemplate(projectState.metadata());
         } else {
             systemDataStreamDescriptor = systemIndices.findMatchingDataStreamDescriptor(dataStreamName);
             if (systemDataStreamDescriptor == null) {
@@ -361,6 +360,7 @@ public class MetadataRolloverService {
                 now.toEpochMilli(),
                 dataStreamName,
                 templateV2,
+                systemDataStreamDescriptor,
                 newWriteIndexName,
                 (builder, indexMetadata) -> builder.put(dataStream.rolloverFailureStore(indexMetadata.getIndex(), newGeneration))
             );
@@ -419,9 +419,6 @@ public class MetadataRolloverService {
                 now
             );
             createIndexClusterStateRequest.setMatchingTemplate(templateV2);
-            assert createIndexClusterStateRequest.performReroute() == false
-                : "rerouteCompletionIsNotRequired() assumes reroute is not called by underlying service";
-
             newState = createIndexService.applyCreateIndexRequest(
                 projectState.cluster(),
                 createIndexClusterStateRequest,
@@ -437,6 +434,7 @@ public class MetadataRolloverService {
                         )
                     );
                 },
+                RerouteBehavior.SKIP_REROUTE,
                 rerouteCompletionIsNotRequired()
             );
         }
@@ -481,9 +479,10 @@ public class MetadataRolloverService {
                 && index.getIndexMode() == IndexMode.TIME_SERIES
                 && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_START_TIME.getKey()) == false
                 && originalSettings.keySet().contains(IndexSettings.TIME_SERIES_END_TIME.getKey()) == false) {
-                final Settings.Builder settingsBuilder = Settings.builder().put(originalSettings);
-                settingsBuilder.remove(IndexSettings.MODE.getKey());
-                settingsBuilder.remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+                final Settings.Builder settingsBuilder = Settings.builder()
+                    .put(originalSettings)
+                    .remove(IndexSettings.MODE.getKey())
+                    .remove(IndexMetadata.INDEX_ROUTING_PATH.getKey());
                 long newVersion = index.getSettingsVersion() + 1;
                 projectBuilder.put(IndexMetadata.builder(index).settings(settingsBuilder.build()).settingsVersion(newVersion));
             }
@@ -581,8 +580,7 @@ public class MetadataRolloverService {
         return new CreateIndexClusterStateUpdateRequest(cause, projectId, targetIndexName, providedIndexName).settings(b.build())
             .aliases(createIndexRequest.aliases())
             .waitForActiveShards(ActiveShardCount.NONE) // not waiting for shards here, will wait on the alias switch operation
-            .mappings(createIndexRequest.mappings())
-            .performReroute(false);
+            .mappings(createIndexRequest.mappings());
     }
 
     /**

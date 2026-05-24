@@ -26,7 +26,7 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.transport.TransportRequest;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -76,7 +76,7 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
 
         public Map<IndexMode, IndexStats> stats() {
             final Map<IndexMode, IndexStats> stats = new EnumMap<>(IndexMode.class);
-            for (IndexMode mode : IndexMode.values()) {
+            for (IndexMode mode : IndexMode.availableModes()) {
                 stats.put(mode, new IndexStats());
             }
             for (NodeResponse node : getNodes()) {
@@ -88,7 +88,7 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
         }
     }
 
-    public static final class NodeRequest extends TransportRequest {
+    public static final class NodeRequest extends AbstractTransportRequest {
         NodeRequest() {
 
         }

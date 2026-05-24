@@ -125,6 +125,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
 
     public void testMigrationSuccessful() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode();
         ensureGreen();
         final String masterNode = internalCluster().getMasterName();
 
@@ -158,6 +159,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
 
     public void testMigrationSuccessfulNoOverlap() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode();
         ensureGreen();
         final String masterNode = internalCluster().getMasterName();
 
@@ -191,6 +193,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
 
     public void testMigrationSuccessfulNoNative() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode();
         ensureGreen();
         final String masterNode = internalCluster().getMasterName();
 
@@ -221,6 +224,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
 
     public void testMigrationFallbackNamePreCondition() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode();
         ensureGreen();
         final String masterNode = internalCluster().getMasterName();
         // Wait for file watcher to start
@@ -237,8 +241,6 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
         // First migration is on a new index, so should skip all migrations. If we reset, it should re-trigger and run all migrations
         resetMigration();
-        // Wait for the first migration to finish
-        waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION - 1);
 
         // Make sure migration didn't run yet (blocked by the fallback name)
         assertMigrationLessThan(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
@@ -256,6 +258,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
 
     public void testSkipMigrationNoFileBasedMappings() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode();
         ensureGreen();
         // Create a native role mapping to create security index and trigger migration (skipped initially)
         createNativeRoleMapping("everyone_kibana_alone");
@@ -275,6 +278,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
 
     public void testSkipMigrationEmptyFileBasedMappings() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode();
         ensureGreen();
         final String masterNode = internalCluster().getMasterName();
 
@@ -304,14 +308,12 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
 
     public void testNewIndexSkipMigration() {
         internalCluster().setBootstrapMasterNodeIndex(0);
+        internalCluster().startNode();
         final String masterNode = internalCluster().getMasterName();
         ensureGreen();
         deleteSecurityIndex(); // hack to force a new security index to be created
         ensureGreen();
-        CountDownLatch awaitMigrations = awaitMigrationVersionUpdates(
-            masterNode,
-            SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION
-        );
+        CountDownLatch awaitMigrations = awaitMigrationVersionUpdates(masterNode, SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey());
         // Create a native role mapping to create security index and trigger migration
         createNativeRoleMapping("everyone_kibana_alone");
         // Make sure no migration ran (set to current version without applying prior migrations)

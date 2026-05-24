@@ -6,11 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
@@ -48,7 +47,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         super(name);
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         public static final ParseField ID = new ParseField("id");
         public static final ParseField DEPLOYMENT_ID = new ParseField("deployment_id");
@@ -57,6 +56,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public static final ParseField INFERENCE_CONFIG = new ParseField("inference_config");
 
         static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(NAME, Builder::new);
+
         static {
             PARSER.declareString(Builder::setId, ID);
             PARSER.declareObjectArray(Builder::setDocs, (p, c) -> p.mapOrdered(), DOCS);
@@ -77,7 +77,12 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         }
 
         public static final TimeValue DEFAULT_TIMEOUT_FOR_API = TimeValue.timeValueSeconds(10);
-        public static final TimeValue DEFAULT_TIMEOUT_FOR_INGEST = TimeValue.MAX_VALUE;
+        /**
+         * Ingest processors wait for an available inference slot. Two hours is intentionally
+         * generous to avoid spurious timeouts under load, while preventing indefinite hangs
+         * caused by inference errors that require node restart to recover.
+         */
+        public static final TimeValue DEFAULT_TIMEOUT_FOR_INGEST = TimeValue.timeValueHours(2);
 
         private final String id;
         private final List<Map<String, Object>> objectsToInfer;
@@ -94,21 +99,14 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
 
         /**
          * Build a request from a list of documents as maps.
-         * The inference timeout (how long the request waits in
-         * the inference queue for) is set to a high value {@code #DEFAULT_TIMEOUT_FOR_INGEST}
-         * to prefer slow ingest over dropping documents.
-         */
-
-        /**
-         * Build a request from a list of documents as maps.
          *
-         * @param id The model Id
-         * @param docs List of document maps
-         * @param update Inference config update
+         * @param id                 The model Id
+         * @param docs               List of document maps
+         * @param update             Inference config update
          * @param previouslyLicensed License has been checked previously
          *                           and can now be skipped
-         * @param inferenceTimeout The inference timeout (how long the
-         *                         request waits in the inference queue for)
+         * @param inferenceTimeout   The inference timeout (how long the
+         *                           request waits in the inference queue for)
          * @return the new Request
          */
         public static Request forIngestDocs(
@@ -119,7 +117,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             TimeValue inferenceTimeout
         ) {
             return new Request(
-                ExceptionsHelper.requireNonNull(id, InferModelAction.Request.ID),
+                ExceptionsHelper.requireNonNull(id, Request.ID),
                 update,
                 ExceptionsHelper.requireNonNull(Collections.unmodifiableList(docs), DOCS),
                 null,
@@ -132,13 +130,13 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
          * Build a request from a list of strings, each string
          * is one evaluation of the model.
          *
-         * @param id The model Id
-         * @param update Inference config update
-         * @param textInput Inference input
+         * @param id                 The model Id
+         * @param update             Inference config update
+         * @param textInput          Inference input
          * @param previouslyLicensed License has been checked previously
          *                           and can now be skipped
-         * @param inferenceTimeout The inference timeout (how long the
-         *                         request waits in the inference queue for)
+         * @param inferenceTimeout   The inference timeout (how long the
+         *                           request waits in the inference queue for)
          * @return the new Request
          */
         public static Request forTextInput(
@@ -180,29 +178,11 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             this.objectsToInfer = in.readCollectionAsImmutableList(StreamInput::readGenericMap);
             this.update = in.readNamedWriteable(InferenceConfigUpdate.class);
             this.previouslyLicensed = in.readBoolean();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-                this.inferenceTimeout = in.readTimeValue();
-            } else {
-                this.inferenceTimeout = TimeValue.MAX_VALUE;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-                textInput = in.readOptionalStringCollectionAsList();
-            } else {
-                textInput = null;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                highPriority = in.readBoolean();
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
-            } else {
-                prefixType = TrainedModelPrefixStrings.PrefixType.NONE;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                chunked = in.readBoolean();
-            } else {
-                chunked = false;
-            }
+            this.inferenceTimeout = in.readTimeValue();
+            this.textInput = in.readOptionalStringCollectionAsList();
+            this.highPriority = in.readBoolean();
+            prefixType = in.readEnum(TrainedModelPrefixStrings.PrefixType.class);
+            chunked = in.readBoolean();
         }
 
         public int numberOfDocuments() {
@@ -273,28 +253,18 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
             out.writeCollection(objectsToInfer, StreamOutput::writeGenericMap);
             out.writeNamedWriteable(update);
             out.writeBoolean(previouslyLicensed);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_3_0)) {
-                out.writeTimeValue(inferenceTimeout);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_7_0)) {
-                out.writeOptionalStringCollection(textInput);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                out.writeBoolean(highPriority);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeEnum(prefixType);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
-                out.writeBoolean(chunked);
-            }
+            out.writeTimeValue(inferenceTimeout);
+            out.writeOptionalStringCollection(textInput);
+            out.writeBoolean(highPriority);
+            out.writeEnum(prefixType);
+            out.writeBoolean(chunked);
         }
 
         @Override
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            InferModelAction.Request that = (InferModelAction.Request) o;
+            Request that = (Request) o;
             return Objects.equals(id, that.id)
                 && Objects.equals(update, that.update)
                 && Objects.equals(previouslyLicensed, that.previouslyLicensed)
@@ -412,7 +382,7 @@ public class InferModelAction extends ActionType<InferModelAction.Response> {
         public boolean equals(Object o) {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
-            InferModelAction.Response that = (InferModelAction.Response) o;
+            Response that = (Response) o;
             return isLicensed == that.isLicensed && Objects.equals(inferenceResults, that.inferenceResults) && Objects.equals(id, that.id);
         }
 

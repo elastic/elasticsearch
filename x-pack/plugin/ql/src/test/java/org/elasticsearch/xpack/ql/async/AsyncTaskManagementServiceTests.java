@@ -7,9 +7,9 @@
 package org.elasticsearch.xpack.ql.async;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -50,7 +50,7 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
 
     private final ExecutorService executorService = Executors.newFixedThreadPool(1);
 
-    public static class TestRequest extends ActionRequest {
+    public static class TestRequest extends LegacyActionRequest {
         private final String string;
 
         public TestRequest(String string) {
@@ -174,7 +174,13 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             store,
             true,
             TestTask.class,
-            (task, listener, timeout) -> addCompletionListener(transportService.getThreadPool(), task, listener, timeout),
+            (task, listener, timeout, returnIntermediateResults) -> addCompletionListener(
+                transportService.getThreadPool(),
+                task,
+                listener,
+                timeout,
+                returnIntermediateResults
+            ),
             transportService.getTaskManager(),
             clusterService
         );
@@ -282,13 +288,14 @@ public class AsyncTaskManagementServiceTests extends ESSingleNodeTestCase {
             // now we are waiting for the task to finish
             logger.trace("Waiting for response to complete");
             AtomicReference<StoredAsyncResponse<TestResponse>> responseRef = new AtomicReference<>();
+            // Unblock execute before wait-for-completion so the listener timeout measures task completion, not time blocked on
+            // executionLatch.
+            executionLatch.countDown();
             CountDownLatch getResponseCountDown = getResponse(
                 responseHolder.get().id,
                 TimeValue.timeValueSeconds(5),
                 ActionTestUtils.assertNoFailureListener(responseRef::set)
             );
-
-            executionLatch.countDown();
             assertThat(getResponseCountDown.await(10, TimeUnit.SECONDS), equalTo(true));
 
             StoredAsyncResponse<TestResponse> response = responseRef.get();

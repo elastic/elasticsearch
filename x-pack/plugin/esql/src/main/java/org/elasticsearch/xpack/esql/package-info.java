@@ -12,13 +12,13 @@
  * ES|QL is a typed query language which consists of many small languages separated by the {@code |}
  * character. Like this:
  *
- * <pre>{@code
+ * {@snippet lang="esql" :
  *   FROM foo
  * | WHERE a > 1
  * | STATS m=MAX(j)
  * | SORT m ASC
  * | LIMIT 10
- * }</pre>
+ * }
  *
  * <p>
  *    Here the {@code FROM}, {@code WHERE}, {@code STATS}, {@code SORT}, and {@code LIMIT} keywords
@@ -93,9 +93,9 @@
  *     <li><a href="https://docs.oracle.com/cd/E17952_01/mysql-5.7-en/date-and-time-functions.html">Oracle</a>
  *         is pretty good about dates. It's fine about a lot of things but PostgreSQL is better.</li>
  *     <li>MS <a href="https://learn.microsoft.com/en-us/sql/sql-server/?view=sql-server-ver16">SQL Server</a>
- *         has a silly name but it's documentation is <strong>wonderful</strong>.</li>
+ *         has a silly name but its documentation is <strong>wonderful</strong>.</li>
  *     <li><a href="https://docs.splunk.com/Documentation/SCS/current/SearchReference/UnderstandingSPLSyntax">SPL</a>
- *         is super familiar to our users and it's a piped query language.</li>
+ *         is super familiar to our users, and is a piped query language.</li>
  * </ul>
  *
  * <h2>Major Components</h2>
@@ -176,7 +176,7 @@
  *     <li>When that doesn't work, we use
  *         <a href="https://docs.oracle.com/en/java/javase/17/docs/api/java.compiler/javax/annotation/processing/package-summary.html">
  *         Annotation processing</a> and <a href="https://github.com/square/javapoet">JavaPoet</a> to build the Java files.
- *         These files are typically the inner loops for {@link org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator}
+ *         These files are typically the inner loops for {@link org.elasticsearch.compute.expression.ExpressionEvaluator}
  *         or {@link org.elasticsearch.compute.aggregation.AggregatorFunction}. The code generation is much more difficult
  *         to write and debug but much, much, much, much more flexible. The degree of control we have during this
  *         code generation is amazing but it is much harder to debug failures. See files in

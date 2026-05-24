@@ -12,11 +12,14 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,6 +33,10 @@ import java.util.List;
 import java.util.function.Supplier;
 
 public abstract class AbstractChallengeRestTest extends ESRestTestCase {
+
+    private static final String USER = "test_admin";
+    private static final String PASS = "x-pack-test-password";
+
     private final String baselineDataStreamName;
     private final String contenderDataStreamName;
     private final String baselineTemplateName;
@@ -48,14 +55,22 @@ public abstract class AbstractChallengeRestTest extends ESRestTestCase {
         .distribution(DistributionType.DEFAULT)
         .module("data-streams")
         .module("x-pack-stack")
-        .setting("xpack.security.enabled", "false")
+        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
+        .user(USER, PASS)
+        .setting("xpack.security.autoconfiguration.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("cluster.logsdb.enabled", "true")
+        .setting("xpack.ml.enabled", "false")
         .build();
 
     @Override
     protected String getTestRestCluster() {
         return cluster.getHttpAddresses();
+    }
+
+    protected Settings restClientSettings() {
+        String token = basicAuthHeaderValue(USER, new SecureString(PASS.toCharArray()));
+        return Settings.builder().put(super.restClientSettings()).put(ThreadContext.PREFIX + ".Authorization", token).build();
     }
 
     public AbstractChallengeRestTest(

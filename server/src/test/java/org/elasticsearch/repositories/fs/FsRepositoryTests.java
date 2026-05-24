@@ -26,6 +26,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -55,10 +56,10 @@ import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.repositories.IndexId;
+import org.elasticsearch.repositories.LocalPrimarySnapshotShardContext;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.repositories.SnapshotIndexCommit;
-import org.elasticsearch.repositories.SnapshotShardContext;
 import org.elasticsearch.repositories.blobstore.BlobStoreTestUtil;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
@@ -101,7 +102,9 @@ public class FsRepositoryTests extends ESTestCase {
 
             int numDocs = indexDocs(directory);
             RepositoryMetadata metadata = new RepositoryMetadata("test", "fs", settings);
+            final ProjectId projectId = randomProjectIdOrDefault();
             FsRepository repository = new FsRepository(
+                projectId,
                 metadata,
                 new Environment(settings, null),
                 NamedXContentRegistry.EMPTY,
@@ -109,6 +112,7 @@ public class FsRepositoryTests extends ESTestCase {
                 MockBigArrays.NON_RECYCLING_INSTANCE,
                 new RecoverySettings(settings, new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
             );
+            assertThat(repository.getProjectId(), equalTo(projectId));
             repository.start();
             final Settings indexSettings = Settings.builder().put(IndexMetadata.SETTING_INDEX_UUID, "myindexUUID").build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("myindex", indexSettings);
@@ -119,9 +123,9 @@ public class FsRepositoryTests extends ESTestCase {
 
             IndexCommit indexCommit = Lucene.getIndexCommit(Lucene.readSegmentInfos(store.directory()), store.directory());
             final PlainActionFuture<ShardSnapshotResult> snapshot1Future = new PlainActionFuture<>();
-            IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null);
+            IndexShardSnapshotStatus snapshotStatus = IndexShardSnapshotStatus.newInitializing(null, randomLongBetween(1, Long.MAX_VALUE));
             repository.snapshotShard(
-                new SnapshotShardContext(
+                new LocalPrimarySnapshotShardContext(
                     store,
                     null,
                     snapshotId,
@@ -162,9 +166,12 @@ public class FsRepositoryTests extends ESTestCase {
             IndexCommit incIndexCommit = Lucene.getIndexCommit(Lucene.readSegmentInfos(store.directory()), store.directory());
             Collection<String> commitFileNames = incIndexCommit.getFileNames();
             final PlainActionFuture<ShardSnapshotResult> snapshot2future = new PlainActionFuture<>();
-            IndexShardSnapshotStatus snapshotStatus2 = IndexShardSnapshotStatus.newInitializing(shardGeneration);
+            IndexShardSnapshotStatus snapshotStatus2 = IndexShardSnapshotStatus.newInitializing(
+                shardGeneration,
+                randomLongBetween(1, Long.MAX_VALUE)
+            );
             repository.snapshotShard(
-                new SnapshotShardContext(
+                new LocalPrimarySnapshotShardContext(
                     store,
                     null,
                     incSnapshotId,
@@ -227,7 +234,9 @@ public class FsRepositoryTests extends ESTestCase {
             final AtomicBoolean canErrorForWriteBlob = new AtomicBoolean();
             final AtomicBoolean shouldErrorForWriteMetadataBlob = new AtomicBoolean();
             final AtomicBoolean writeBlobErrored = new AtomicBoolean(false);
+            final ProjectId projectId = randomProjectIdOrDefault();
             final var repository = new FsRepository(
+                projectId,
                 metadata,
                 new Environment(settings, null),
                 NamedXContentRegistry.EMPTY,
@@ -284,6 +293,7 @@ public class FsRepositoryTests extends ESTestCase {
                     };
                 }
             };
+            assertThat(repository.getProjectId(), equalTo(projectId));
             repository.start();
 
             final IndexSettings idxSettings = IndexSettingsModule.newIndexSettings(
@@ -296,13 +306,13 @@ public class FsRepositoryTests extends ESTestCase {
             final IndexId indexId = new IndexId(idxSettings.getIndex().getName(), idxSettings.getUUID());
             IndexCommit indexCommit1 = Lucene.getIndexCommit(Lucene.readSegmentInfos(store1.directory()), store1.directory());
             final PlainActionFuture<ShardSnapshotResult> snapshot1Future = new PlainActionFuture<>();
-            IndexShardSnapshotStatus snapshotStatus1 = IndexShardSnapshotStatus.newInitializing(null);
+            IndexShardSnapshotStatus snapshotStatus1 = IndexShardSnapshotStatus.newInitializing(null, randomLongBetween(1, Long.MAX_VALUE));
 
             // Scenario 1 - Shard data files will be cleaned up if they fail to write
             canErrorForWriteBlob.set(true);
             shouldErrorForWriteMetadataBlob.set(false);
             repository.snapshotShard(
-                new SnapshotShardContext(
+                new LocalPrimarySnapshotShardContext(
                     store1,
                     null,
                     snapshotId,
@@ -337,14 +347,14 @@ public class FsRepositoryTests extends ESTestCase {
             canErrorForWriteBlob.set(false);
             shouldErrorForWriteMetadataBlob.set(true);
             repository.snapshotShard(
-                new SnapshotShardContext(
+                new LocalPrimarySnapshotShardContext(
                     store2,
                     null,
                     snapshotId,
                     indexId,
                     new SnapshotIndexCommit(new Engine.IndexCommitRef(indexCommit2, () -> {})),
                     null,
-                    IndexShardSnapshotStatus.newInitializing(null),
+                    IndexShardSnapshotStatus.newInitializing(null, randomLongBetween(1, Long.MAX_VALUE)),
                     IndexVersion.current(),
                     randomMillisUpToYear9999(),
                     snapshot2Future

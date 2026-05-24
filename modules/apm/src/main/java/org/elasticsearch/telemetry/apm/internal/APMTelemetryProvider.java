@@ -36,4 +36,14 @@ public class APMTelemetryProvider implements TelemetryProvider {
     public APMMeterRegistry getMeterRegistry() {
         return apmMeterService.getMeterRegistry();
     }
+
+    @Override
+    public void attemptFlushMetrics() {
+        apmMeterService.attemptFlushMetrics();
+    }
+
+    @Override
+    public void attemptFlushTraces() {
+        apmTracer.attemptFlushTraces();
+    }
 }

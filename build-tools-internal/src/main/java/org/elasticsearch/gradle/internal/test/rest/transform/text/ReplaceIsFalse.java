@@ -11,12 +11,14 @@ package org.elasticsearch.gradle.internal.test.rest.transform.text;
 
 import com.fasterxml.jackson.databind.node.TextNode;
 
+import org.elasticsearch.gradle.internal.test.rest.transform.SerializableJsonNode;
+
 public class ReplaceIsFalse extends ReplaceTextual {
-    public ReplaceIsFalse(String valueToBeReplaced, TextNode replacementNode) {
+    public ReplaceIsFalse(String valueToBeReplaced, SerializableJsonNode<TextNode> replacementNode) {
         super("is_false", valueToBeReplaced, replacementNode);
     }
 
-    public ReplaceIsFalse(String valueToBeReplaced, TextNode replacementNode, String testName) {
+    public ReplaceIsFalse(String valueToBeReplaced, SerializableJsonNode<TextNode> replacementNode, String testName) {
         super("is_false", valueToBeReplaced, replacementNode, testName);
     }
 }

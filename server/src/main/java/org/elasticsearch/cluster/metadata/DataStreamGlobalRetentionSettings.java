@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 
@@ -24,8 +25,10 @@ import java.util.Map;
  * This class holds the data stream global retention settings. It defines, validates and monitors the settings.
  * <p>
  * The global retention settings apply to non-system data streams that are managed by the data stream lifecycle. They consist of:
- * - The default retention which applies to data streams that do not have a retention defined.
- * - The max retention which applies to all data streams that do not have retention or their retention has exceeded this value.
+ * - The default retention which applies to the backing indices of data streams that do not have a retention defined.
+ * - The max retention which applies to backing and failure indices of data streams that do not have retention or their
+ * retention has exceeded this value.
+ * - The failures default retention which applied to the failure indices of data streams that do not have retention defined.
  */
 public class DataStreamGlobalRetentionSettings {
 
@@ -82,27 +85,66 @@ public class DataStreamGlobalRetentionSettings {
         Setting.Property.Dynamic
     );
 
+    static final TimeValue FAILURES_DEFAULT_RETENTION = TimeValue.timeValueDays(30);
+    public static final Setting<TimeValue> FAILURE_STORE_DEFAULT_RETENTION_SETTING = Setting.timeSetting(
+        "data_streams.lifecycle.retention.failures_default",
+        FAILURES_DEFAULT_RETENTION,
+        new Setting.Validator<>() {
+            @Override
+            public void validate(TimeValue value) {}
+
+            @Override
+            public void validate(final TimeValue settingValue, final Map<Setting<?>, Object> settings) {
+                TimeValue defaultRetention = getSettingValueOrNull(settingValue);
+                // Currently, we do not validate the default for the failure store against the max because
+                // we start with a default value that might conflict the max retention.
+                validateIsolatedRetentionValue(defaultRetention, FAILURE_STORE_DEFAULT_RETENTION_SETTING.getKey());
+            }
+        },
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
     @Nullable
     private volatile TimeValue defaultRetention;
     @Nullable
     private volatile TimeValue maxRetention;
+    @Nullable
+    private volatile TimeValue failuresDefaultRetention;
+    /** We cache the global retention objects, volatile is sufficient we only "write" this values in the settings appliers which
+     * are executed by {@link org.elasticsearch.common.settings.AbstractScopedSettings#applySettings(Settings)} which is synchronised.
+     */
+    @Nullable
+    private volatile DataStreamGlobalRetention dataGlobalRetention;
+    @Nullable
+    private volatile DataStreamGlobalRetention failuresGlobalRetention;
 
     private DataStreamGlobalRetentionSettings() {
 
     }
 
+    /**
+     * @return the max retention that applies to all data stream data
+     */
     @Nullable
     public TimeValue getMaxRetention() {
         return maxRetention;
     }
 
+    /**
+     * @return the default retention that applies either to the data component
+     */
     @Nullable
     public TimeValue getDefaultRetention() {
         return defaultRetention;
     }
 
-    public boolean areDefined() {
-        return getDefaultRetention() != null || getMaxRetention() != null;
+    /**
+     * @return the default retention that applies either to the data or the failures component
+     */
+    @Nullable
+    public TimeValue getDefaultRetention(boolean failureStore) {
+        return failureStore ? failuresDefaultRetention : defaultRetention;
     }
 
     /**
@@ -113,17 +155,33 @@ public class DataStreamGlobalRetentionSettings {
         DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = new DataStreamGlobalRetentionSettings();
         clusterSettings.initializeAndWatch(DATA_STREAMS_DEFAULT_RETENTION_SETTING, dataStreamGlobalRetentionSettings::setDefaultRetention);
         clusterSettings.initializeAndWatch(DATA_STREAMS_MAX_RETENTION_SETTING, dataStreamGlobalRetentionSettings::setMaxRetention);
+        clusterSettings.initializeAndWatch(
+            FAILURE_STORE_DEFAULT_RETENTION_SETTING,
+            dataStreamGlobalRetentionSettings::setFailuresDefaultRetention
+        );
         return dataStreamGlobalRetentionSettings;
     }
 
     private void setMaxRetention(TimeValue maxRetention) {
         this.maxRetention = getSettingValueOrNull(maxRetention);
-        logger.info("Updated max factory retention to [{}]", this.maxRetention == null ? null : maxRetention.getStringRep());
+        this.dataGlobalRetention = createDataStreamGlobalRetention(false);
+        this.failuresGlobalRetention = createDataStreamGlobalRetention(true);
+        logger.info("Updated global max retention to [{}]", this.maxRetention == null ? null : maxRetention.getStringRep());
     }
 
     private void setDefaultRetention(TimeValue defaultRetention) {
         this.defaultRetention = getSettingValueOrNull(defaultRetention);
-        logger.info("Updated default factory retention to [{}]", this.defaultRetention == null ? null : defaultRetention.getStringRep());
+        this.dataGlobalRetention = createDataStreamGlobalRetention(false);
+        logger.info("Updated global default retention to [{}]", this.defaultRetention == null ? null : defaultRetention.getStringRep());
+    }
+
+    private void setFailuresDefaultRetention(TimeValue failuresDefaultRetention) {
+        this.failuresDefaultRetention = getSettingValueOrNull(failuresDefaultRetention);
+        this.failuresGlobalRetention = createDataStreamGlobalRetention(true);
+        logger.info(
+            "Updated failures default retention to [{}]",
+            this.failuresDefaultRetention == null ? null : failuresDefaultRetention.getStringRep()
+        );
     }
 
     private static void validateIsolatedRetentionValue(@Nullable TimeValue retention, String settingName) {
@@ -150,12 +208,36 @@ public class DataStreamGlobalRetentionSettings {
         }
     }
 
+    /**
+     * @return the global retention of backing indices
+     */
     @Nullable
     public DataStreamGlobalRetention get() {
-        if (areDefined() == false) {
+        return get(false);
+    }
+
+    /**
+     * Returns the global retention that applies to the data or failures of a data stream
+     * @param failureStore, true if we are retrieving the global retention that applies to failure store, false otherwise.
+     */
+    @Nullable
+    public DataStreamGlobalRetention get(boolean failureStore) {
+        return failureStore ? failuresGlobalRetention : dataGlobalRetention;
+    }
+
+    @Nullable
+    private DataStreamGlobalRetention createDataStreamGlobalRetention(boolean failureStore) {
+        if (areDefined(failureStore) == false) {
             return null;
         }
-        return new DataStreamGlobalRetention(getDefaultRetention(), getMaxRetention());
+        TimeValue defaultRetention = getDefaultRetention(failureStore);
+        TimeValue maxRetention = getMaxRetention();
+        // We ensure that we create valid DataStreamGlobalRetention where default is less or equal to max.
+        // If it's not we set it to null.
+        if (defaultRetention != null && maxRetention != null && defaultRetention.getMillis() > maxRetention.getMillis()) {
+            return new DataStreamGlobalRetention(null, getMaxRetention());
+        }
+        return new DataStreamGlobalRetention(defaultRetention, maxRetention);
     }
 
     /**
@@ -168,5 +250,9 @@ public class DataStreamGlobalRetentionSettings {
     @Nullable
     private static TimeValue getSettingValueOrNull(TimeValue value) {
         return value == null || value.equals(TimeValue.MINUS_ONE) ? null : value;
+    }
+
+    private boolean areDefined(boolean failureStore) {
+        return getDefaultRetention(failureStore) != null || getMaxRetention() != null;
     }
 }

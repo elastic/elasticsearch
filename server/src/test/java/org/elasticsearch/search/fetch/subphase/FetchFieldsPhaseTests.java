@@ -18,6 +18,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.mapper.DocValueFetcher;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.StoredValueFetcher;
@@ -71,7 +72,13 @@ public class FetchFieldsPhaseTests extends ESTestCase {
         when(fieldType.valueFetcher(any(), any())).thenReturn(
             new DocValueFetcher(
                 DocValueFormat.RAW,
-                new SortedNumericIndexFieldData("field", IndexNumericFieldData.NumericType.LONG, CoreValuesSourceType.NUMERIC, null, false)
+                new SortedNumericIndexFieldData(
+                    "field",
+                    IndexNumericFieldData.NumericType.LONG,
+                    CoreValuesSourceType.NUMERIC,
+                    null,
+                    IndexType.NONE
+                )
             )
         );
         when(sec.getFieldType(any())).thenReturn(fieldType);
@@ -88,9 +95,13 @@ public class FetchFieldsPhaseTests extends ESTestCase {
         for (LeafReaderContext context : reader.leaves()) {
             processor.setNextReader(context);
             for (int doc = 0; doc < context.reader().maxDoc(); doc++) {
-                SearchHit searchHit = SearchHit.unpooled(doc + context.docBase);
-                processor.process(new FetchSubPhase.HitContext(searchHit, context, doc, Map.of(), Source.empty(null), null));
-                assertNotNull(searchHit.getFields().get("field"));
+                SearchHit searchHit = new SearchHit(doc + context.docBase);
+                try {
+                    processor.process(new FetchSubPhase.HitContext(searchHit, context, doc, Map.of(), Source.empty(null), null));
+                    assertNotNull(searchHit.getFields().get("field"));
+                } finally {
+                    searchHit.decRef();
+                }
             }
         }
 
@@ -131,7 +142,13 @@ public class FetchFieldsPhaseTests extends ESTestCase {
         when(fieldType.valueFetcher(any(), any())).thenReturn(
             new DocValueFetcher(
                 DocValueFormat.RAW,
-                new SortedNumericIndexFieldData("field", IndexNumericFieldData.NumericType.LONG, CoreValuesSourceType.NUMERIC, null, false)
+                new SortedNumericIndexFieldData(
+                    "field",
+                    IndexNumericFieldData.NumericType.LONG,
+                    CoreValuesSourceType.NUMERIC,
+                    null,
+                    IndexType.NONE
+                )
             )
         );
         when(sec.getFieldType(eq("field"))).thenReturn(fieldType);

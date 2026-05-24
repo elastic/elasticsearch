@@ -12,8 +12,9 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.PointValues;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateAction;
 import org.elasticsearch.action.admin.cluster.snapshots.features.ResetFeatureStateRequest;
+import org.elasticsearch.action.admin.cluster.snapshots.features.TransportResetFeatureStateAction;
+import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -37,6 +38,7 @@ import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.node.NodeRoleSettings;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -52,14 +54,19 @@ import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.transform.MockDeprecatedAggregationBuilder;
 import org.elasticsearch.xpack.core.transform.MockDeprecatedQueryBuilder;
 import org.elasticsearch.xpack.core.transform.TransformNamedXContentProvider;
+import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
 import org.elasticsearch.xpack.core.transform.action.StartTransformAction;
+import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
+import org.elasticsearch.xpack.core.transform.action.UpdateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.DestConfig;
 import org.elasticsearch.xpack.core.transform.transforms.QueryConfig;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TimeSyncConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformConfigUpdate;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStats;
 import org.elasticsearch.xpack.core.transform.transforms.latest.LatestConfig;
 import org.elasticsearch.xpack.transform.LocalStateTransform;
@@ -84,6 +91,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.TRANSFORM_ORIGIN;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
@@ -141,7 +149,7 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
 
     @After
     public void cleanup() {
-        client().execute(ResetFeatureStateAction.INSTANCE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
+        client().execute(TransportResetFeatureStateAction.TYPE, new ResetFeatureStateRequest(TEST_REQUEST_TIMEOUT)).actionGet();
     }
 
     private int createIndexAndIndexDocs(String cluster, String index, int numberOfShards, long timestamp, boolean exposeTimestamp)
@@ -357,7 +365,19 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         testTransformLifecycle(QueryBuilders.rangeQuery("@timestamp").from(100_000_000), 0);
     }
 
+    public void testTransformLifecycle_WithExcludedRemoteCluster() throws Exception {
+        testTransformLifecycle(
+            new String[] { "local_*", "*:remote_*", "-" + REMOTE_CLUSTER + ":*" },
+            QueryBuilders.matchAllQuery(),
+            localOldDocs + localNewDocs
+        );
+    }
+
     private void testTransformLifecycle(QueryBuilder query, long expectedHitCount) throws Exception {
+        testTransformLifecycle(new String[] { "local_*", "*:remote_*" }, query, expectedHitCount);
+    }
+
+    private void testTransformLifecycle(String[] sourceIndices, QueryBuilder query, long expectedHitCount) throws Exception {
         String transformId = "test-transform-lifecycle";
         {
             QueryConfig queryConfig;
@@ -367,7 +387,7 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
             }
             TransformConfig transformConfig = TransformConfig.builder()
                 .setId(transformId)
-                .setSource(new SourceConfig(new String[] { "local_*", "*:remote_*" }, queryConfig, Map.of()))
+                .setSource(new SourceConfig(sourceIndices, queryConfig, Map.of(), null))
                 .setDest(new DestConfig(transformId + "-dest", null, null))
                 .setLatestConfig(new LatestConfig(List.of("position"), "@timestamp"))
                 .build();
@@ -392,6 +412,72 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         });
     }
 
+    public void testUpdateTransformCreatesDestIndexWhenRunningAndDestMissingWithRemoteSource() throws Exception {
+        String transformId = "test-ccs-transform-update-dest";
+        String destIndex = transformId + "-dest";
+
+        // Create a continuous transform sourced from both local and remote indices (CCS).
+        // ZERO delay ensures the already-indexed documents are included in the first checkpoint.
+        TransformConfig transformConfig = TransformConfig.builder()
+            .setId(transformId)
+            .setSource(new SourceConfig(new String[] { "local_*", "*:remote_*" }, QueryConfig.matchAll(), Map.of(), null))
+            .setDest(new DestConfig(destIndex, null, null))
+            .setFrequency(TimeValue.timeValueMinutes(1))
+            .setSyncConfig(new TimeSyncConfig("@timestamp", TimeValue.ZERO))
+            .setLatestConfig(new LatestConfig(List.of("position"), "@timestamp"))
+            .build();
+
+        client().execute(PutTransformAction.INSTANCE, new PutTransformAction.Request(transformConfig, false, TIMEOUT)).actionGet(TIMEOUT);
+        client().execute(StartTransformAction.INSTANCE, new StartTransformAction.Request(transformId, null, TIMEOUT)).actionGet(TIMEOUT);
+
+        // Wait for the first checkpoint to create the destination index.
+        assertBusy(
+            () -> assertThat(
+                "dest index should be created after the first checkpoint",
+                cluster(LOCAL_CLUSTER).clusterService().state().metadata().getProject().index(destIndex),
+                is(notNullValue())
+            )
+        );
+
+        // Delete the destination index to simulate it going missing while the transform is still running.
+        client(LOCAL_CLUSTER).admin().indices().delete(new DeleteIndexRequest(destIndex)).actionGet(TIMEOUT);
+        assertThat(cluster(LOCAL_CLUSTER).clusterService().state().metadata().getProject().index(destIndex), is(nullValue()));
+
+        // Update the transform. A description change ensures we go through updateTransformConfiguration
+        // (an EMPTY update against a current-version config returns NONE early without touching the dest index).
+        client().execute(
+            UpdateTransformAction.INSTANCE,
+            new UpdateTransformAction.Request(
+                new TransformConfigUpdate(null, null, null, null, "post-delete-update", null, null, null),
+                transformId,
+                false,
+                TIMEOUT
+            )
+        ).actionGet(TIMEOUT);
+
+        // The update should have invoked resolveSourceIndicesAndCreateDestIfNeeded, which calls ResolveIndexAction
+        // to resolve the remote CCS source indices and then recreates the destination index.
+        assertThat(
+            "update should have recreated the destination index using ResolveIndexAction for CCS source resolution",
+            cluster(LOCAL_CLUSTER).clusterService().state().metadata().getProject().index(destIndex),
+            is(notNullValue())
+        );
+
+        // Cleanup
+        stopTransform(transformId);
+        deleteTransform(transformId);
+    }
+
+    private void stopTransform(String transformId) {
+        client().execute(StopTransformAction.INSTANCE, new StopTransformAction.Request(transformId, true, true, TIMEOUT, false, false))
+            .actionGet(TIMEOUT);
+    }
+
+    private void deleteTransform(String transformId) {
+        client().execute(DeleteTransformAction.INSTANCE, new DeleteTransformAction.Request(transformId, true, false, TIMEOUT))
+            .actionGet(TIMEOUT);
+    }
+
     @Override
     protected NamedXContentRegistry xContentRegistry() {
         return namedXContentRegistry;
@@ -405,7 +491,10 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         return CollectionUtils.appendToCopy(
-            CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), LocalStateTransform.class),
+            CollectionUtils.appendToCopy(
+                CollectionUtils.appendToCopy(super.nodePlugins(clusterAlias), LocalStateTransform.class),
+                ReindexPlugin.class
+            ),
             ExposingTimestampEnginePlugin.class
         );
     }

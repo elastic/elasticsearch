@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.ReleasableIterator;
@@ -54,11 +55,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
      * Returns true if this ordinal block is dense enough to enable optimizations using its ordinals
      */
     public boolean isDense() {
-        return isDense(bytes.getPositionCount(), ordinals.getTotalValueCount());
+        return isDense(ordinals.getTotalValueCount(), bytes.getPositionCount());
     }
 
-    public static boolean isDense(int totalPositions, int numOrdinals) {
-        return numOrdinals * 2L / 3L >= totalPositions;
+    public static boolean isDense(long totalPositions, long dictionarySize) {
+        return totalPositions >= 10 && totalPositions >= dictionarySize * 2L;
     }
 
     public IntBlock getOrdinalsBlock() {
@@ -75,7 +76,12 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
-    public BytesRefVector asVector() {
+    public PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch) {
+        return bytes.get(ordinals.getInt(valueIndex), scratch);
+    }
+
+    @Override
+    public OrdinalBytesRefVector asVector() {
         IntVector vector = ordinals.asVector();
         if (vector != null) {
             return new OrdinalBytesRefVector(vector, bytes);
@@ -90,42 +96,45 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
-    public BytesRefBlock filter(int... positions) {
-        if (positions.length * ordinals.getTotalValueCount() >= bytes.getPositionCount() * ordinals.getPositionCount()) {
-            OrdinalBytesRefBlock result = null;
-            IntBlock filteredOrdinals = ordinals.filter(positions);
-            try {
-                result = new OrdinalBytesRefBlock(filteredOrdinals, bytes);
-                bytes.incRef();
-            } finally {
-                if (result == null) {
-                    filteredOrdinals.close();
+    public BytesRefBlock slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        IntBlock slicedOrdinals = ordinals.slice(beginInclusive, endExclusive);
+        bytes.incRef();
+        return new OrdinalBytesRefBlock(slicedOrdinals, bytes);
+    }
+
+    @Override
+    public BytesRefBlock filter(boolean mayContainDuplicates, int... positions) {
+        // Do not build a filtered block using the same dictionary, because dictionary entries that are not referenced
+        // may reappear when hashing the dictionary in BlockHash.
+        // TODO: merge this BytesRefArrayBlock#filter
+        final OrdinalBytesRefVector vector = asVector();
+        if (vector != null) {
+            return vector.filter(mayContainDuplicates, positions).asBlock();
+        }
+        BytesRef scratch = new BytesRef();
+        try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(positions.length)) {
+            for (int pos : positions) {
+                if (isNull(pos)) {
+                    builder.appendNull();
+                    continue;
+                }
+                int valueCount = getValueCount(pos);
+                int first = getFirstValueIndex(pos);
+                if (valueCount == 1) {
+                    builder.appendBytesRef(getBytesRef(getFirstValueIndex(pos), scratch));
+                } else {
+                    builder.beginPositionEntry();
+                    for (int c = 0; c < valueCount; c++) {
+                        builder.appendBytesRef(getBytesRef(first + c, scratch));
+                    }
+                    builder.endPositionEntry();
                 }
             }
-            return result;
-        } else {
-            // TODO: merge this BytesRefArrayBlock#filter
-            BytesRef scratch = new BytesRef();
-            try (BytesRefBlock.Builder builder = blockFactory().newBytesRefBlockBuilder(positions.length)) {
-                for (int pos : positions) {
-                    if (isNull(pos)) {
-                        builder.appendNull();
-                        continue;
-                    }
-                    int valueCount = getValueCount(pos);
-                    int first = getFirstValueIndex(pos);
-                    if (valueCount == 1) {
-                        builder.appendBytesRef(getBytesRef(getFirstValueIndex(pos), scratch));
-                    } else {
-                        builder.beginPositionEntry();
-                        for (int c = 0; c < valueCount; c++) {
-                            builder.appendBytesRef(getBytesRef(first + c, scratch));
-                        }
-                        builder.endPositionEntry();
-                    }
-                }
-                return builder.mvOrdering(mvOrdering()).build();
-            }
+            return builder.mvOrdering(mvOrdering()).build();
         }
     }
 
@@ -161,6 +170,22 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     }
 
     @Override
+    public OrdinalBytesRefBlock deepCopy(BlockFactory blockFactory) {
+        IntBlock copiedOrdinals = null;
+        BytesRefVector copiedBytes = null;
+        try {
+            copiedOrdinals = ordinals.deepCopy(blockFactory);
+            copiedBytes = bytes.deepCopy(blockFactory);
+            OrdinalBytesRefBlock result = new OrdinalBytesRefBlock(copiedOrdinals, copiedBytes);
+            copiedOrdinals = null;
+            copiedBytes = null;
+            return result;
+        } finally {
+            Releasables.closeExpectNoException(copiedOrdinals, copiedBytes);
+        }
+    }
+
+    @Override
     protected void closeInternal() {
         Releasables.close(ordinals, bytes);
     }
@@ -188,6 +213,11 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     @Override
     public ElementType elementType() {
         return bytes.elementType();
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return bytes.valueMaxByteSize();
     }
 
     @Override
@@ -249,6 +279,20 @@ public final class OrdinalBytesRefBlock extends AbstractNonThreadSafeRefCounted 
     @Override
     public long ramBytesUsed() {
         return ordinals.ramBytesUsed() + bytes.ramBytesUsed();
+    }
+
+    @Override
+    public boolean equals(Object o) {
+        if (o instanceof BytesRefBlock b) {
+            return BytesRefBlock.equals(this, b);
+        } else {
+            return false;
+        }
+    }
+
+    @Override
+    public int hashCode() {
+        return BytesRefBlock.hash(this);
     }
 
     @Override

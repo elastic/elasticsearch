@@ -47,10 +47,13 @@ import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.Grant;
 import org.elasticsearch.xpack.core.security.action.apikey.AbstractCreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyCredentials;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseSingleUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BaseUpdateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
@@ -97,6 +100,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine.AuthorizationInfo;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
@@ -110,7 +114,6 @@ import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.transport.filter.IPFilter;
 import org.elasticsearch.xpack.security.transport.filter.SecurityIpFilterRule;
@@ -295,6 +298,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         TransportSetEnabledAction.TYPE.name(),
         TransportChangePasswordAction.TYPE.name(),
         CreateApiKeyAction.NAME,
+        CloneApiKeyAction.NAME,
         GrantApiKeyAction.NAME,
         PutPrivilegesAction.NAME,
         DeleteUserAction.NAME,
@@ -350,7 +354,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
     // package for testing
     volatile EnumSet<AuditLevel> events;
-    boolean includeRequestBody;
+    volatile boolean includeRequestBody;
     // fields that all entries have in common
     EntryCommonFields entryCommonFields;
 
@@ -717,6 +721,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 } else if (msg instanceof GrantApiKeyRequest) {
                     assert GrantApiKeyAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((GrantApiKeyRequest) msg).build();
+                } else if (msg instanceof CloneApiKeyRequest cloneApiKeyRequest) {
+                    assert CloneApiKeyAction.NAME.equals(action);
+                    securityChangeLogEntryBuilder(requestId).withRequestBody(cloneApiKeyRequest).build();
                 } else if (msg instanceof PutPrivilegesRequest) {
                     assert PutPrivilegesAction.NAME.equals(action);
                     securityChangeLogEntryBuilder(requestId).withRequestBody((PutPrivilegesRequest) msg).build();
@@ -1072,6 +1079,10 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         // not implemented yet
     }
 
+    public boolean includeRequestBody() {
+        return includeRequestBody;
+    }
+
     private LogEntryBuilder securityChangeLogEntryBuilder(String requestId) {
         return new LogEntryBuilder(false).with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE).withRequestId(requestId);
     }
@@ -1236,6 +1247,16 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
+        LogEntryBuilder withRequestBody(CloneApiKeyRequest cloneApiKeyRequest) throws IOException {
+            logEntry.with(EVENT_ACTION_FIELD_NAME, "create_apikey");
+            XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
+            builder.startObject();
+            withRequestBody(builder, cloneApiKeyRequest);
+            builder.endObject();
+            logEntry.with(CREATE_CONFIG_FIELD_NAME, Strings.toString(builder));
+            return this;
+        }
+
         LogEntryBuilder withRequestBody(final BaseSingleUpdateApiKeyRequest baseSingleUpdateApiKeyRequest) throws IOException {
             logEntry.with(EVENT_ACTION_FIELD_NAME, "change_apikey");
             XContentBuilder builder = JsonXContent.contentBuilder().humanReadable(true);
@@ -1273,6 +1294,26 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                 builder.field("metadata", abstractCreateApiKeyRequest.getMetadata());
             }
             builder.endObject(); // apikey
+        }
+
+        private static void withRequestBody(XContentBuilder builder, CloneApiKeyRequest cloneApiKeyRequest) throws IOException {
+            TimeValue expiration = cloneApiKeyRequest.getExpiration();
+            builder.startObject("apikey")
+                .field("id", cloneApiKeyRequest.getId())
+                .field("name", cloneApiKeyRequest.getName())
+                .field("type", "rest")
+                .field("expiration", expiration != null ? expiration.toString() : null);
+            try (ApiKeyCredentials source = cloneApiKeyRequest.getSourceApiKey()) {
+                if (source != null) {
+                    builder.startObject("source").field("id", source.getId()).endObject();
+                }
+            } catch (IllegalArgumentException e) {
+                // omit source when credential cannot be parsed
+            }
+            if (cloneApiKeyRequest.getMetadata() != null) {
+                builder.field("metadata", cloneApiKeyRequest.getMetadata());
+            }
+            builder.endObject();
         }
 
         private static void withRequestBody(
@@ -1633,6 +1674,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         static void addAuthenticationFieldsToLogEntry(StringMapMessage logEntry, Authentication authentication) {
+            assert false == authentication.isCloudApiKey() : "audit logging for Cloud API keys is not supported";
             logEntry.with(PRINCIPAL_FIELD_NAME, authentication.getEffectiveSubject().getUser().principal());
             logEntry.with(AUTHENTICATION_TYPE_FIELD_NAME, authentication.getAuthenticationType().toString());
             if (authentication.isApiKey() || authentication.isCrossClusterAccess()) {
@@ -2013,7 +2055,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     commonFields.put(HOST_ADDRESS_FIELD_NAME, newLocalNode.getAddress().getAddress());
                 }
                 if (EMIT_HOST_NAME_SETTING.get(settings)) {
-                    commonFields.put(HOST_NAME_FIELD_NAME, newLocalNode.getAddress().address().getHostString());
+                    // Use getAddress() which uses NetworkAddress.format() for consistent IPv6 formatting
+                    commonFields.put(HOST_NAME_FIELD_NAME, newLocalNode.getAddress().getAddress());
                 }
                 if (EMIT_NODE_ID_SETTING.get(settings)) {
                     commonFields.put(NODE_ID_FIELD_NAME, newLocalNode.getId());

@@ -1,0 +1,2521 @@
+version: 9.0.0
+released: true
+generated: 2025-04-14T18:16:08.465456Z
+changelogs:
+  - pr: 90529
+    summary: Output a consistent format when generating error json
+    area: Infra/REST API
+    type: breaking
+    issues:
+      - 89387
+    breaking:
+      area: REST API
+      title: Error JSON structure has changed when detailed errors are disabled
+      details: |-
+        This change modifies the JSON format of error messages returned to REST clients
+        when detailed messages are turned off.
+        Previously, JSON returned when an exception occurred, and `http.detailed_errors.enabled: false` was set,
+        just consisted of a single `"error"` text field with some basic information.
+        Setting `http.detailed_errors.enabled: true` (the default) changed this field
+        to an object with more detailed information.
+        With this change, non-detailed errors now have the same structure as detailed errors. `"error"` will now always
+        be an object with, at a minimum, a `"type"` and `"reason"` field. Additional fields are included when detailed
+        errors are enabled.
+        To use the previous structure for non-detailed errors, use the v8 REST API.
+      impact: |-
+        If you have set `http.detailed_errors.enabled: false` (the default is `true`)
+        the structure of JSON when any exceptions occur now matches the structure when
+        detailed errors are enabled.
+        To use the previous structure for non-detailed errors, use the v8 REST API.
+      notable: false
+      essSettingChange: false
+  - pr: 104125
+    summary: Disable machine learning on macOS x86_64
+    area: Machine Learning
+    type: breaking
+    issues: []
+    breaking:
+      area: Packaging
+      title: Disable machine learning on macOS x86_64
+      details: "The machine learning plugin is permanently disabled on macOS x86_64. For the last three years Apple has been selling hardware based on the arm64 architecture, and support will increasingly focus on this architecture in the future. Changes to upstream dependencies of Elastic's machine learning functionality have made it unviable for Elastic to continue to build machine learning on macOS x86_64."
+      impact: "To continue to use machine learning functionality on macOS please switch to an arm64 machine (Apple silicon). Alternatively, it will still be possible to run Elasticsearch with machine learning enabled in a Docker container on macOS x86_64."
+      notable: false
+      essSettingChange: false
+  - pr: 111104
+    summary: "ESQL: Enable async get to support formatting"
+    area: ES|QL
+    type: feature
+    issues:
+      - 110926
+  - pr: 111494
+    summary: Extensible Completion Postings Formats
+    area: Suggesters
+    type: enhancement
+    issues: []
+  - pr: 111852
+    summary: Add DeBERTa-V2/V3 tokenizer
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 112258
+    summary: Updated Date Range to Follow Documentation When Assuming Missing Values
+    area: Search
+    type: bug
+    issues:
+      - 111484
+  - pr: 112567
+    summary: Track shard snapshot progress during node shutdown
+    area: Snapshot/Restore
+    type: enhancement
+    issues: []
+  - pr: 112834
+    summary: Increase `replica_unassigned_buffer_time` default from 3s to 5s
+    area: Health
+    type: enhancement
+    issues: []
+  - pr: 112903
+    summary: Remove unsupported legacy value for `discovery.type`
+    area: Cluster Coordination
+    type: breaking
+    issues: []
+    breaking:
+      area: Cluster and node setting
+      title: Remove unsupported legacy value for `discovery.type`
+      details: "Earlier versions of {es} had a `discovery.type` setting which permitted values that referred to legacy discovery types. From v9.0.0 onwards, the only supported values for this setting are `multi-node` (the default) and `single-node`."
+      impact: Remove any value for `discovery.type` from your `elasticsearch.yml` configuration file except for `multi-node` and `single-node`.
+      notable: false
+      essSettingChange: false
+  - pr: 113102
+    summary: Trigger merges after recovery
+    area: Recovery
+    type: enhancement
+    issues: []
+  - pr: 113120
+    summary: ESQL - enabling scoring with METADATA `_score`
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 113131
+    summary: Emit deprecation warning when executing one of the rollup APIs
+    area: Rollup
+    type: deprecation
+    issues: []
+    deprecation:
+      area: Rollup
+      title: Emit deprecation warning when executing one of the rollup APIs
+      details: Rollup is already deprecated since 8.11.0 via documentation and since 8.15.0 it is no longer possible to create new rollup jobs in clusters without rollup usage. This change updates the rollup APIs to emit a deprecation warning.
+      impact: Returning a deprecation warning when using one of the rollup APIs.
+      notable: false
+      essSettingChange: false
+  - pr: 113216
+    summary: "[Inference API] Deprecate elser service"
+    area: Machine Learning
+    type: deprecation
+    issues: []
+    deprecation:
+      area: REST API
+      title: "[Inference API] Deprecate elser service"
+      details: The `elser` service of the inference API will be removed in an upcoming release. Please use the elasticsearch service instead.
+      impact: "In the current version there is no impact. In a future version, users of the `elser` service will no longer be able to use it, and will be required to use the `elasticsearch` service to access elser through the inference API."
+      notable: false
+      essSettingChange: false
+  - pr: 113237
+    summary: Retry throttled snapshot deletions
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 113413
+    summary: Fixed a `NullPointerException` in `_capabilities` API when the `path` parameter is null.
+    area: Infra/REST API
+    type: bug
+    issues:
+      - 113413
+  - pr: 113425
+    summary: Add `ensureGreen` test method for use with `adminClient`
+    area: Infra/Metrics
+    type: enhancement
+    issues: []
+  - pr: 113462
+    summary: Suppress merge-on-recovery for older indices
+    area: CRUD
+    type: enhancement
+    issues: []
+  - pr: 113482
+    summary: The 'persian' analyzer has stemmer by default
+    area: Analysis
+    type: breaking
+    issues:
+      - 113050
+    breaking:
+      area: Analysis
+      title: The 'persian' analyzer has stemmer by default
+      details: Lucene 10 has added a final stemming step to its PersianAnalyzer that Elasticsearch exposes as 'persian' analyzer. Existing indices will keep the old non-stemming behaviour while new indices will see the updated behaviour with added stemming. Users that wish to maintain the non-stemming behaviour need to define their own analyzer as outlined in https://www.elastic.co/guide/en/elasticsearch/reference/8.15/analysis-lang-analyzer.html#persian-analyzer. Users that wish to use the new stemming behaviour for existing indices will have to reindex their data.
+      impact: Indexing with the 'persian' analyzer will produce slightly different tokens. Users should check if this impacts their search results. If they wish to maintain the legacy non-stemming behaviour they can define their own analyzer equivalent as explained in https://www.elastic.co/guide/en/elasticsearch/reference/8.15/analysis-lang-analyzer.html#persian-analyzer.
+      notable: false
+      essSettingChange: false
+  - pr: 113561
+    summary: Add link to Circuit Breaker "Data too large" exception message
+    area: Infra/Circuit Breakers
+    type: enhancement
+    issues: []
+  - pr: 113614
+    summary: The 'german2' stemmer is now an alias for the 'german' snowball stemmer
+    area: Analysis
+    type: breaking
+    issues: []
+    breaking:
+      area: Analysis
+      title: The "german2" snowball stemmer is now an alias for the "german" stemmer
+      details: 'Lucene 10 has merged the improved "german2" snowball language stemmer with the "german" stemmer. For Elasticsearch, "german2" is now a deprecated alias for "german". This may results in slightly different tokens being generated for terms with umlaut substitution (like "ue" for "ü" etc...)'
+      impact: Replace usages of "german2" with "german" in analysis configuration. Old indices that use the "german" stemmer should be reindexed if possible.
+      notable: false
+      essSettingChange: false
+  - pr: 113827
+    summary: Add Optional Source Filtering to Source Loaders
+    area: Mapping
+    type: enhancement
+    issues: []
+  - pr: 114002
+    summary: Add a `mustache.max_output_size_bytes` setting to limit the length of results from mustache scripts
+    area: Infra/Scripting
+    type: enhancement
+    issues: []
+  - pr: 114124
+    summary: The Korean dictionary for Nori has been updated
+    area: Analysis
+    type: breaking
+    issues: []
+    breaking:
+      area: Analysis
+      title: The Korean dictionary for Nori has been updated
+      details: Lucene 10 ships with an updated Korean dictionary (mecab-ko-dic-2.1.1).  For details see https://github.com/apache/lucene/issues/11452. Users experiencing changes in search behaviour on existing data are advised to reindex.
+      impact: The change is small and should generally provide better analysis results. Existing indices for full-text use cases should be reindexed though.
+      notable: false
+      essSettingChange: false
+  - pr: 114146
+    summary: Snowball stemmers have been upgraded
+    area: Analysis
+    type: breaking
+    issues: []
+    breaking:
+      area: Analysis
+      title: Snowball stemmers have been upgraded
+      details: Lucene 10 ships with an upgrade of its Snowball stemmers.  For details see https://github.com/apache/lucene/issues/13209. Users using Snowball stemmers that are experiencing changes in search behaviour on  existing data are advised to reindex.
+      impact: "The upgrade should generally provide improved stemming results. Small changes in token analysis can lead to mismatches with previously index data, so existing indices using Snowball stemmers as part of their analysis chain should be reindexed."
+      notable: false
+      essSettingChange: false
+  - pr: 114177
+    summary: "Make `randomInstantBetween` always return value in range [minInstant, `maxInstant]`"
+    area: Infra/Metrics
+    type: bug
+    issues: []
+  - pr: 114202
+    summary: Remove deprecated `xpack.searchable.snapshot.allocate_on_rolling_restart` setting
+    area: Snapshot/Restore
+    type: breaking
+    issues: []
+    breaking:
+      area: Cluster and node setting
+      title: Remove deprecated `xpack.searchable.snapshot.allocate_on_rolling_restart` setting
+      details: The `xpack.searchable.snapshot.allocate_on_rolling_restart` setting was created as an escape-hatch just in case relying on the `cluster.routing.allocation.enable=primaries` setting for allocating searchable snapshots during rolling restarts had some unintended side-effects. It has been deprecated since 8.2.0.
+      impact: Remove `xpack.searchable.snapshot.allocate_on_rolling_restart` from your settings if present.
+      notable: false
+      essSettingChange: false
+  - pr: 114207
+    summary: Remove `cluster.routing.allocation.disk.watermark.enable_for_single_data_node` setting
+    area: Allocation
+    type: breaking
+    issues: []
+    breaking:
+      area: Cluster and node setting
+      title: Remove `cluster.routing.allocation.disk.watermark.enable_for_single_data_node` setting
+      details: "Prior to 7.8, whenever a cluster had only a single data node, the watermarks would not be respected. In order to change this in 7.8+ in a backwards compatible way, we introduced the  `cluster.routing.allocation.disk.watermark.enable_for_single_data_node` node setting. The setting was deprecated in 7.14 and was made to accept only true in 8.0"
+      impact: No known end user impact
+      notable: false
+      essSettingChange: false
+  - pr: 114231
+    summary: Remove cluster state from `/_cluster/reroute` response
+    area: Allocation
+    type: breaking
+    issues:
+      - 88978
+    breaking:
+      area: REST API
+      title: Remove cluster state from `/_cluster/reroute` response
+      details: The `POST /_cluster/reroute` API no longer returns the cluster state in its response. The `?metric` query parameter to this API now has no effect and its use will be forbidden in a future version.
+      impact: Cease usage of the `?metric` query parameter when calling the `POST /_cluster/reroute` API.
+      notable: false
+      essSettingChange: false
+  - pr: 114303
+    summary: Fix TDigestState.read CB leaks
+    area: ES|QL
+    type: bug
+    issues:
+      - 114194
+  - pr: 114317
+    summary: "ESQL: CATEGORIZE as a `BlockHash`"
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 114445
+    summary: Wrap jackson exception on malformed json string
+    area: Infra/Core
+    type: bug
+    issues:
+      - 114142
+  - pr: 114566
+    summary: Use Azure blob batch API to delete blobs in batches
+    area: Distributed
+    type: enhancement
+    issues: []
+  - pr: 114618
+    summary: Add a new index setting to skip recovery source when synthetic source is enabled
+    area: Logs
+    type: enhancement
+    issues: []
+  - pr: 114623
+    summary: Preserve thread context when waiting for segment generation in RTG
+    area: CRUD
+    type: bug
+    issues: []
+  - pr: 114741
+    summary: Upgrade to Lucene 10
+    area: Search
+    type: upgrade
+    issues: []
+  - pr: 114813
+    summary: Retry `S3BlobContainer#getRegister` on all exceptions
+    area: Snapshot/Restore
+    type: enhancement
+    issues: []
+  - pr: 114837
+    summary: Add warning headers for ingest pipelines containing special characters
+    area: Ingest Node
+    type: bug
+    issues:
+      - 104411
+  - pr: 114879
+    summary: Add refresh `.security` index call between security migrations
+    area: Security
+    type: enhancement
+    issues: []
+  - pr: 114914
+    summary: Adding chunking settings to `IbmWatsonxService`
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 115020
+    summary: Adding endpoint creation validation for all task types to remaining services
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 115241
+    summary: "[Security Solution] Add `create_index` to `kibana_system` role for index/DS `.logs-endpoint.action.responses-*`"
+    area: Authorization
+    type: enhancement
+    issues: []
+  - pr: 115314
+    summary: Only aggregations require at least one shard request
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 115383
+    summary: Only publish desired balance gauges on master
+    area: Allocation
+    type: enhancement
+    issues: []
+  - pr: 115393
+    summary: Remove deprecated local attribute from alias APIs
+    area: Indices APIs
+    type: breaking
+    issues: []
+    breaking:
+      area: REST API
+      title: Remove deprecated local attribute from alias APIs
+      details: "The following APIs no longer accept the `?local` query parameter: `GET /_alias`, `GET /_aliases`, `GET /_alias/{name}`, `HEAD /_alias/{name}`, `GET /{index}/_alias`, `HEAD /{index}/_alias`, `GET /{index}/_alias/{name}`, `HEAD /{index}/_alias/{name}`, `GET /_cat/aliases`, and `GET /_cat/aliases/{alias}`. This parameter has been deprecated and ignored since version 8.12."
+      impact: Cease usage of the `?local` query parameter when calling the listed APIs.
+      notable: false
+      essSettingChange: false
+  - pr: 115616
+    summary: Fix double lookup failure on ESQL
+    area: ES|QL
+    type: bug
+    issues:
+      - 111398
+  - pr: 115721
+    summary: Change Reindexing metrics unit from millis to seconds
+    area: Reindex
+    type: enhancement
+    issues: []
+  - pr: 115779
+    summary: Don't allow secure settings in YML config (109115)
+    area: Infra/Settings
+    type: bug
+    issues:
+      - 109115
+  - pr: 115831
+    summary: Increase minimum threshold in shard balancer
+    area: Allocation
+    type: breaking
+    issues: []
+    breaking:
+      area: Cluster and node setting
+      title: Minimum shard balancer threshold is now 1.0
+      details: "Earlier versions of {es} accepted any non-negative value for `cluster.routing.allocation.balance.threshold`, but values smaller than `1.0` do not make sense and have been ignored since version 8.6.1. From 9.0.0 these nonsensical values are now forbidden."
+      impact: Do not set `cluster.routing.allocation.balance.threshold` to a value less than `1.0`.
+      notable: false
+      essSettingChange: false
+  - pr: 115836
+    summary: Catch and handle disconnect exceptions in search
+    area: Search
+    type: bug
+    issues: []
+  - pr: 115876
+    summary: Inference duration and error metrics
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 115923
+    summary: Apply more strict parsing of actions in bulk API
+    area: Indices APIs
+    type: breaking
+    issues: []
+    breaking:
+      area: REST API
+      title: Apply more strict parsing of actions in bulk API
+      details: "Previously, the following classes of malformed input were deprecated but not rejected in the action lines of the a bulk request: missing closing brace; additional keys after the action (which were ignored); additional data after the closing brace (which was ignored). They will now be considered errors and rejected."
+      impact: Users must provide well-formed input when using the bulk API. (They can request REST API compatibility with v8 to get the previous behaviour back as an interim measure.)
+      notable: false
+      essSettingChange: false
+  - pr: 115930
+    summary: Inconsistency in the _analyzer api when the index is not included
+    area: Search
+    type: bug
+    issues: []
+  - pr: 115938
+    summary: Wait for up to 2 seconds for yellow status before starting search
+    area: Machine Learning
+    type: bug
+    issues:
+      - 107777
+      - 105955
+      - 107815
+      - 112191
+  - pr: 116026
+    summary: Change Elasticsearch timeouts to 429 response instead of 5xx
+    area: Infra/Core
+    type: breaking
+    issues: []
+    breaking:
+      area: REST API
+      title: Change most Elasticsearch timeouts to 429 response instead of 5xx
+      details: "When a timeout occurs in most REST requests, whether via a per-request timeout, or a system default, the request would return a 5xx response code. The response code from those APIs when a timeout occurs is now 429."
+      impact: Adjust any code relying on retrying on 5xx responses for timeouts to look for a 429 response code and inspect the response to determine whether a timeout occured.
+      notable: false
+      essSettingChange: false
+  - pr: 116043
+    summary: Support partial sort fields in TopN pushdown
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 114515
+  - pr: 116060
+    summary: Fix leak in `DfsQueryPhase` and introduce search disconnect stress test
+    area: Search
+    type: bug
+    issues:
+      - 115056
+  - pr: 116077
+    summary: Remove `ecs` option on `user_agent` processor
+    area: Ingest Node
+    type: breaking
+    issues: []
+    breaking:
+      area: Ingest
+      title: Remove `ecs` option on `user_agent` processor
+      details: The `user_agent` ingest processor no longer accepts the `ecs` option. (It was previously deprecated and ignored.)
+      impact: Users should stop using the `ecs` option when creating instances of the `user_agent` ingest processor. The option will be removed from existing processors stored in the cluster state on upgrade.
+      notable: false
+      essSettingChange: false
+  - pr: 116112
+    summary: Remove ignored fallback option on GeoIP processor
+    area: Ingest Node
+    type: breaking
+    issues: []
+    breaking:
+      area: Ingest
+      title: Remove ignored fallback option on GeoIP processor
+      details: The option fallback_to_default_databases on the geoip ingest processor has been removed. (It was deprecated and ignored since 8.0.0.)
+      impact: Customers should stop remove the noop fallback_to_default_databases option on any geoip ingest processors.
+      notable: false
+      essSettingChange: false
+  - pr: 116115
+    summary: Allow http unsafe buffers by default
+    area: Network
+    type: enhancement
+    issues: []
+  - pr: 116174
+    summary: Handle with `illegalArgumentExceptions` negative values in HDR percentile aggregations
+    area: Aggregations
+    type: bug
+    issues:
+      - 115777
+  - pr: 116259
+    summary: Fix `_type` deprecation on simulate pipeline API
+    area: Ingest Node
+    type: deprecation
+    issues: []
+    deprecation:
+      area: REST API
+      title: Document `_type` deprecated on simulate pipeline API
+      details: "Passing a document with a `_type` property is deprecated in the `/_ingest/pipeline/{id}/_simulate` and `/_ingest/pipeline/_simulate` APIs."
+      impact: "Users should already have stopped using mapping types, which were deprecated in {es} 7. This deprecation warning will fire if they specify mapping types on documents pass to the simulate pipeline API."
+      notable: false
+      essSettingChange: false
+  - pr: 116388
+    summary: Add support for partial shard results
+    area: EQL
+    type: enhancement
+    issues: []
+  - pr: 116531
+    summary: "Add a standard deviation aggregating function: STD_DEV"
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 116663
+    summary: KNN vector rescoring for quantized vectors
+    area: Vector Search
+    type: feature
+    issues: []
+  - pr: 116687
+    summary: Add LogsDB option to route on sort fields
+    area: Logs
+    type: enhancement
+    issues: []
+  - pr: 116692
+    summary: Remove all mentions of eis and gateway and deprecate flags that do
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 116739
+    summary: Change default Docker image to be based on UBI minimal instead of Ubuntu
+    area: Infra/Core
+    type: enhancement
+    issues: []
+  - pr: 116755
+    summary: Smarter field caps with subscribable listener
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 116765
+    summary: Metrics for incremental bulk splits
+    area: Distributed
+    type: enhancement
+    issues: []
+  - pr: 116868
+    summary: Run `TransportGetComponentTemplateAction` on local node
+    area: Indices APIs
+    type: enhancement
+    issues: []
+  - pr: 116904
+    summary: Add a not-master state for desired balance
+    area: Allocation
+    type: enhancement
+    issues: []
+  - pr: 116922
+    summary: Always check if index mode is logsdb
+    area: Logs
+    type: bug
+    issues: []
+  - pr: 116943
+    summary: Remove support for deprecated `force_source` highlighting parameter
+    area: Highlighting
+    type: breaking
+    issues: []
+    breaking:
+      area: REST API
+      title: Remove support for deprecated `force_source` highlighting parameter
+      details: The deprecated highlighting `force_source` parameter is no longer supported.
+      impact: Users should remove usages of the `force_source` parameter from their search requests.
+      notable: false
+      essSettingChange: false
+  - pr: 116964
+    summary: "Support ST_ENVELOPE and related (ST_XMIN, ST_XMAX, ST_YMIN, ST_YMAX) functions"
+    area: ES|QL
+    type: feature
+    issues:
+      - 104875
+  - pr: 116970
+    summary: Remove legacy params from range query
+    area: Search
+    type: breaking
+    issues: []
+    breaking:
+      area: REST API
+      title: Remove legacy params from range query
+      details: "The deprecated range query parameters `to`, `from`, `include_lower`, and `include_upper` are no longer supported."
+      impact: "Users should use `lt`, `lte`, `gt`, and `gte` query parameters instead."
+      notable: false
+      essSettingChange: false
+  - pr: 116996
+    summary: Initial work on `ReindexDatastreamIndexAction`
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 117095
+    summary: Add version prefix to Inference Service API path
+    area: Inference
+    type: enhancement
+    issues: []
+  - pr: 117148
+    summary: Preserve thread context when waiting for segment generation in RTG
+    area: CRUD
+    type: bug
+    issues: []
+  - pr: 117176
+    summary: Integrate IBM watsonx to Inference API for re-ranking task
+    area: Experiences
+    type: enhancement
+    issues: []
+  - pr: 117199
+    summary: Speed up bit compared with floats or bytes script operations
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 117214
+    summary: Returning ignored fields in the simulate ingest API
+    area: Ingest Node
+    type: enhancement
+    issues: []
+  - pr: 117229
+    summary: "In this pr, a 400 error is returned when _source / _seq_no / _feature / _nested_path / _field_names is requested, rather a 5xx"
+    area: Search
+    type: bug
+    issues: []
+  - pr: 117230
+    summary: Make various alias retrieval APIs wait for cluster to unblock
+    area: Distributed
+    type: enhancement
+    issues: []
+  - pr: 117243
+    summary: Bump major version for feature migration system indices
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 117246
+    summary: LOOKUP JOIN using field-caps for field mapping
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 117265
+    summary: Async search responses have CCS metadata while searches are running
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 117287
+    summary: Fixing bug setting index when parsing Google Vertex AI results
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 117303
+    summary: Remove HTTP content copies
+    area: Network
+    type: enhancement
+    issues: []
+  - pr: 117359
+    summary: Term query for ES|QL
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 117451
+    summary: ST_EXTENT aggregation
+    area: ES|QL
+    type: feature
+    issues:
+      - 104659
+  - pr: 117519
+    summary: Remove `data_frame_transforms` roles
+    area: Transform
+    type: breaking
+    issues: []
+    breaking:
+      area: Transform
+      title: Remove `data_frame_transforms` roles
+      details: "`data_frame_transforms_admin` and `data_frame_transforms_user` were deprecated in Elasticsearch 7 and are being removed in Elasticsearch 9. `data_frame_transforms_admin` is now `transform_admin`. `data_frame_transforms_user` is now `transform_user`. Users must call the `_update` API to replace the permissions on the Transform before the Transform can be started."
+      impact: "Transforms created with either the `data_frame_transforms_admin` or the `data_frame_transforms_user` role will fail to start. The Transform will remain in a `stopped` state, and its health will be red while displaying permission failures."
+      notable: false
+      essSettingChange: false
+  - pr: 117530
+    summary: Expose operation and request counts separately in repository stats
+    area: Snapshot/Restore
+    type: enhancement
+    issues:
+      - 104443
+  - pr: 117555
+    summary: Expand type compatibility for match function and operator
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 117572
+    summary: Address and remove any references of RestApiVersion version 7
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 117581
+    summary: Make reserved built-in roles queryable
+    area: Authorization
+    type: enhancement
+    issues: []
+  - pr: 117583
+    summary: Removing index alias creation for deprecated transforms notification index
+    area: Machine Learning
+    type: deprecation
+    issues: []
+    deprecation:
+      area: Transform
+      title: Removing index alias creation for deprecated transforms notification index
+      details: "As part of the migration from 7.x to 8.x, the `.data-frame-notifications-1` index was deprecated and replaced with the `.transform-notifications-000002` index. The index is no longer created by default, all writes are directed to the new index, and any clusters with the deprecated index will have an alias created to ensure that reads are still retrieving data that was written to the index before the migration to 8.x. This change removes the alias from the deprecated index in 9.x. Any clusters with the alias present will retain it, but it will not be created on new clusters."
+      impact: No known end user impact.
+      notable: false
+      essSettingChange: false
+  - pr: 117589
+    summary: Add Inference Unified API for chat completions for OpenAI
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 117606
+    summary: Remove deprecated sort from reindex operation within dataframe analytics procedure
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 117618
+    summary: SearchStatesIt failures reported by CI
+    area: Search
+    type: bug
+    issues:
+      - 116617
+      - 116618
+  - pr: 117643
+    summary: Drop null columns in text formats
+    area: ES|QL
+    type: bug
+    issues:
+      - 116848
+  - pr: 117655
+    summary: Add nulls support to Categorize
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 117701
+    summary: Watcher history index has too many indexed fields -
+    area: Watcher
+    type: bug
+    issues:
+      - 71479
+  - pr: 117731
+    summary: Add cluster level reduction
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 117748
+    summary: Add IMDSv2 support to `repository-s3`
+    area: Snapshot/Restore
+    type: enhancement
+    issues:
+      - 105135
+  - pr: 117750
+    summary: "`CrossClusterIT` `testCancel` failure"
+    area: Search
+    type: bug
+    issues:
+      - 108061
+  - pr: 117778
+    summary: "[Connector APIs] Enforce index prefix for managed connectors"
+    area: Extract&Transform
+    type: feature
+    issues: []
+  - pr: 117831
+    summary: Fix/QueryBuilderBWCIT_muted_test
+    area: Search
+    type: bug
+    issues: []
+  - pr: 117839
+    summary: Add match support for `semantic_text` fields
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 117858
+    summary: Create upgrade mode
+    area: Transform
+    type: enhancement
+    issues: []
+  - pr: 117898
+    summary: Limit size of query
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 117917
+    summary: Add option to store `sparse_vector` outside `_source`
+    area: Mapping
+    type: feature
+    issues: []
+  - pr: 117933
+    summary: Change `deprecation.elasticsearch` keyword to `elasticsearch.deprecation`
+    area: Infra/Logging
+    type: bug
+    issues:
+      - 83251
+    breaking:
+      area: Logging
+      title: Deprecation logging value change for "data_stream.dataset" and "event.dataset"
+      details: |-
+        This change modifies the "data_stream.dataset" and "event.dataset" value for deprecation logging
+        to use the value `elasticsearch.deprecation` instead of `deprecation.elasticsearch`. This is now
+        consistent with other values where the name of the service is the first part of the key.
+      impact: |-
+        If you are directly consuming deprecation logs for "data_stream.dataset" and "event.dataset" and filtering on
+        this value, you will need to update your filters to use `elasticsearch.deprecation` instead of
+        `deprecation.elasticsearch`.
+      notable: false
+      essSettingChange: false
+  - pr: 117939
+    summary: Adding default endpoint for Elastic Rerank
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 117949
+    summary: Move `SlowLogFieldProvider` instantiation to node construction
+    area: Infra/Logging
+    type: bug
+    issues: []
+  - pr: 117963
+    summary: "`SearchServiceTests.testParseSourceValidation` failure"
+    area: Search
+    type: bug
+    issues: []
+  - pr: 117989
+    summary: ESQL Add esql hash function
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 117994
+    summary: Even better(er) binary quantization
+    area: Vector Search
+    type: enhancement
+    issues: []
+  - pr: 118016
+    summary: Propagate status codes from shard failures appropriately
+    area: Search
+    type: enhancement
+    issues:
+      - 118482
+  - pr: 118025
+    summary: Update sparse text embeddings API route for Inference Service
+    area: Inference
+    type: enhancement
+    issues: []
+  - pr: 118027
+    summary: Esql compare nanos and millis
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 116281
+  - pr: 118035
+    summary: Include hidden indices in `DeprecationInfoAction`
+    area: Indices APIs
+    type: bug
+    issues:
+      - 118020
+  - pr: 118058
+    summary: Grant necessary Kibana application privileges to `reporting_user` role
+    area: Authorization
+    type: enhancement
+    issues: []
+  - pr: 118064
+    summary: Add Highlighter for Semantic Text Fields
+    area: Highlighting
+    type: feature
+    issues: []
+  - pr: 118094
+    summary: Update ASM 9.7 -> 9.7.1 to support JDK 24
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 118102
+    summary: "ESQL: Enterprise license enforcement for CCS"
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 118103
+    summary: Remove any references to org.elasticsearch.core.RestApiVersion#V_7
+    area: Infra/Core
+    type: breaking
+    issues: []
+    breaking:
+      area: REST API
+      title: Remove any references to org.elasticsearch.core.RestApiVersion#V_7
+      details: This PR removes all references to V_7 in the Rest API. V7 features marked for deprecation have been removed.
+      impact: This change is breaking for any external plugins/clients that rely on the V_7 enum or deprecated version 7 functionality
+      notable: false
+      essSettingChange: false
+  - pr: 118104
+    summary: Remove old `_knn_search` tech preview API in v9
+    area: Vector Search
+    type: breaking
+    issues: []
+    breaking:
+      area: REST API
+      title: Remove old `_knn_search` tech preview API in v9
+      details: "The original, tech-preview api for vector search, `_knn_search`, has been removed in v9. For all vector search operations, you should utilize the `_search` endpoint."
+      impact: The `_knn_search` API is now inaccessible without providing a compatible-with flag for v8.
+      notable: false
+      essSettingChange: false
+  - pr: 118114
+    summary: Enable physical plan verification
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 118122
+    summary: "ES|QL: Partial result on demand for async queries"
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 118143
+    summary: Infrastructure for assuming cluster features in the next major version
+    area: Infra/Core
+    type: feature
+    issues: []
+  - pr: 118173
+    summary: ES|QL categorize with multiple groupings
+    area: Machine Learning
+    type: feature
+    issues: []
+  - pr: 118177
+    summary: Fixing bedrock event executor terminated cache issue
+    area: Machine Learning
+    type: bug
+    issues:
+      - 117916
+  - pr: 118188
+    summary: Check for early termination in Driver
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 118192
+    summary: Remove `client.type` setting
+    area: Infra/Core
+    type: breaking
+    issues:
+      - 104574
+    breaking:
+      area: Cluster and node setting
+      title: Remove `client.type` setting
+      details: The node setting `client.type` has been ignored since the node client was removed in 8.0. The setting is now removed.
+      impact: Remove the `client.type` setting from `elasticsearch.yml`
+      notable: false
+      essSettingChange: false
+  - pr: 118194
+    summary: Retry on `ClusterBlockException` on transform destination index
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 118266
+    summary: Prevent data nodes from sending stack traces to coordinator when `error_trace=false`
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 118267
+    summary: Adding get migration reindex status
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 118291
+    summary: Adding a migration reindex cancel API
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 118324
+    summary: Allow the data type of `null` in filters
+    area: ES|QL
+    type: bug
+    issues:
+      - 116351
+  - pr: 118353
+    summary: Epoch Millis Rounding Down and Not Up 2
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 118366
+    summary: |-
+      Configuring a bind DN in an LDAP or Active Directory (AD) realm without a corresponding bind password
+      will prevent node from starting
+    area: Authentication
+    type: breaking
+    issues: []
+    breaking:
+      area: Cluster and node setting
+      title: -| Configuring a bind DN in an LDAP or Active Directory (AD) realm without a corresponding bind password will prevent node from starting
+      details: "-| For LDAP or AD authentication realms, setting a bind DN (via the `xpack.security.authc.realms.ldap.*.bind_dn` or `xpack.security.authc.realms.active_directory.*.bind_dn` realm settings) without a bind password is a misconfiguration that may prevent successful authentication to the node. Nodes will fail to start if a bind DN is specified without a password."
+      impact: "-| If you have a bind DN configured for an LDAP or AD authentication realm, set a bind password for {ref}/ldap-realm.html#ldap-realm-configuration[LDAP] or {ref}/active-directory-realm.html#ad-realm-configuration[Active Directory]. Configuring a bind DN without a password prevents the misconfigured node from starting."
+      notable: false
+      essSettingChange: false
+  - pr: 118375
+    summary: Check for presence of error object when validating streaming responses from integrations in the inference API
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 118410
+    summary: Push down filter passed lookup join
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 118435
+    summary: "`_score` should not be a reserved attribute in ES|QL"
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 118460
+  - pr: 118474
+    summary: Esql bucket function for date nanos
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 118031
+  - pr: 118484
+    summary: Remove date histogram boolean support
+    area: Aggregations
+    type: breaking
+    issues: []
+    breaking:
+      area: Aggregations
+      title: Remove date histogram boolean support
+      details: "Elasticsearch no longer allows running Date Histogram aggregations over boolean fields. Instead, use Terms aggregation for boolean fields."
+      impact: "We expect the impact to be minimal, as this never produced good results, and has been deprecated for years."
+      notable: false
+      essSettingChange: false
+  - pr: 118544
+    summary: ESQL - Remove restrictions for disjunctions in full text functions
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 118562
+    summary: Update data stream deprecations warnings to new format and filter searchable snapshots from response
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 118585
+    summary: Add a generic `rescorer` retriever based on the search request's rescore functionality
+    area: Ranking
+    type: feature
+    issues:
+      - 118327
+  - pr: 118602
+    summary: Limit memory usage of `fold`
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 118617
+    summary: Add support for `sparse_vector` queries against `semantic_text` fields
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 118619
+    summary: Optional named arguments for function in map
+    area: EQL
+    type: enhancement
+    issues: []
+  - pr: 118634
+    summary: "Add undeclared Azure settings, modify test to exercise them"
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 118652
+    summary: Add Jina AI API to do inference for Embedding and Rerank models
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 118669
+    summary: "[Connector API] Support soft-deletes of connectors"
+    area: Extract&Transform
+    type: feature
+    issues: []
+  - pr: 118671
+    summary: Adjust `random_score` default field to `_seq_no` field
+    area: Search
+    type: breaking
+    issues: []
+    breaking:
+      area: Search
+      title: Adjust `random_score` default field to `_seq_no` field
+      details: "When providing a 'seed' parameter to a 'random_score' function in the 'function_score' query but NOT providing a 'field', the default 'field' is switched from '_id' to '_seq_no'."
+      impact: The random scoring and ordering may change when providing a 'seed' and not providing a 'field' to a 'random_score' function.
+      notable: false
+      essSettingChange: false
+  - pr: 118674
+    summary: Ignore failures from renormalizing buckets in read-only index
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 118681
+    summary: "`ConnectTransportException` returns retryable BAD_GATEWAY"
+    area: Network
+    type: enhancement
+    issues:
+      - 118320
+  - pr: 118697
+    summary: Esql implicit casting for date nanos
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 118476
+  - pr: 118704
+    summary: Avoid updating settings version in `MetadataMigrateToDataStreamService` when settings have not changed
+    area: Data streams
+    type: bug
+    issues: []
+  - pr: 118774
+    summary: Apply default k for knn query eagerly
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 118802
+    summary: ST_EXTENT_AGG optimize envelope extraction from doc-values for cartesian_shape
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 118804
+    summary: Add new experimental `rank_vectors` mapping for late-interaction second order ranking
+    area: Vector Search
+    type: feature
+    issues: []
+    highlight:
+      notable: true
+      title: rank_vectors field type is now available for late-interaction ranking
+      body: |
+        [`rank_vectors`](../reference/elasticsearch/mapping-reference/rank-vectors.md) is a new field type released as an experimental feature in Elasticsearch 9.0. It is designed to be used with dense vectors and allows for late-interaction second order ranking.
+
+        Late-interaction models are powerful rerankers. While their size and overall cost doesn’t lend itself for HNSW indexing, utilizing them as second order reranking can provide excellent boosts in relevance. The new `rank_vectors` mapping allows for rescoring over new and novel multi-vector late-interaction models like ColBERT or ColPali.
+      pr: 118804
+  - pr: 118823
+    summary: Fix attribute set equals
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 118825
+    summary: "Remove support for type, fields, `copy_to` and boost in metadata field definition"
+    area: Mapping
+    type: breaking
+    issues: []
+    breaking:
+      area: Mapping
+      title: "Remove support for type, fields, copy_to and boost in metadata field definition"
+      details: "The type, fields, copy_to and boost parameters are no longer supported in metadata field definition starting with version 9."
+      impact: "Users providing type, fields, copy_to or boost as part of metadata field definition should remove them from their mappings."
+      notable: false
+      essSettingChange: false
+  - pr: 118858
+    summary: Lookup join on multiple join fields not yet supported
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 118870
+    summary: Rewrite TO_UPPER/TO_LOWER comparisons
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 118304
+  - pr: 118871
+    summary: "[Elastic Inference Service] Add ElasticInferenceService Unified ChatCompletions Integration"
+    area: Inference
+    type: enhancement
+    issues: []
+  - pr: 118890
+    summary: Add action to create index from a source index
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 118931
+    summary: Add a `LicenseAware` interface for licensed Nodes
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 117405
+  - pr: 118938
+    summary: Hash functions
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 118941
+    summary: Allow archive and searchable snapshots indices in N-2 version
+    area: Recovery
+    type: enhancement
+    issues: []
+  - pr: 118959
+    summary: Allow kibana_system user to manage .reindexed-v8-internal.alerts indices
+    area: Authorization
+    type: enhancement
+    issues: []
+  - pr: 118968
+    summary: Configure index sorting through index settings for logsdb
+    area: Logs
+    type: enhancement
+    issues:
+      - 118686
+  - pr: 119001
+    summary: Add support for specifying reindexing script for system index migration
+    area: Infra/Core
+    type: enhancement
+    issues: []
+  - pr: 119003
+    summary: Add a `replicate_for` option to the ILM `searchable_snapshot` action
+    area: ILM+SLM
+    type: enhancement
+    issues: []
+  - pr: 119007
+    summary: Block-writes cannot be added after read-only
+    area: Data streams
+    type: bug
+    issues:
+      - 119002
+  - pr: 119011
+    summary: Add support for knn vector queries on `semantic_text` fields
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 119054
+    summary: "[Security Solution] allows `kibana_system` user to manage .reindexed-v8-* Security Solution indices"
+    area: Authorization
+    type: enhancement
+    issues: []
+  - pr: 119067
+    summary: Metrics for indexing failures due to version conflicts
+    area: CRUD
+    type: feature
+    issues: []
+  - pr: 119072
+    summary: Turn `_source` meta fieldmapper's mode attribute into a no-op
+    area: Mapping
+    type: breaking
+    issues:
+      - 118596
+    breaking:
+      area: Mapping
+      title: Turn `_source` meta fieldmapper's mode attribute into a no-op
+      details: The `mode` mapping attribute of `_source` metadata field mapper has been turned into a no-op. Instead the `index.mapping.source.mode` index setting should be used to configure source mode.
+      impact: Configuring the `mode` attribute for the `_source` meta field mapper will have no effect on indices created with Elasticsearch 9.0.0 or later. Note that `_source.mode` configured on indices before upgrading to 9.0.0 or later will remain efficive after upgrading.
+      notable: false
+      essSettingChange: false
+  - pr: 119227
+    summary: Remove unfreeze REST endpoint
+    area: Indices APIs
+    type: breaking
+    issues: []
+    breaking:
+      area: REST API
+      title: Remove unfreeze REST endpoint
+      details: "The `/{index}/_unfreeze` REST endpoint is no longer supported. This API was deprecated, and the corresponding `/{index}/_freeze` endpoint was removed in 8.0."
+      impact: "None, since it is not possible to have a frozen index in a version which is readable by Elasticsearch 9.0"
+      notable: false
+      essSettingChange: false
+  - pr: 119250
+    summary: Add rest endpoint for `create_from_source_index`
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 119265
+    summary: Fix `AbstractShapeGeometryFieldMapperTests`
+    area: ES|QL
+    type: bug
+    issues:
+      - 119201
+  - pr: 119291
+    summary: Register mustache size limit setting
+    area: Infra/Scripting
+    type: bug
+    issues: []
+  - pr: 119296
+    summary: Fix writing for LOOKUP status
+    area: ES|QL
+    type: bug
+    issues:
+      - 119086
+  - pr: 119308
+    summary: Upgrade to Lucene 10.1.0
+    area: Search
+    type: upgrade
+    issues: []
+  - pr: 119310
+    summary: Remove ChunkedToXContentBuilder
+    area: Network
+    type: bug
+    issues:
+      - 118647
+  - pr: 119348
+    summary: Auto-migrate `max_page_search_size`
+    area: Transform
+    type: enhancement
+    issues: []
+  - pr: 119474
+    summary: Add ES|QL cross-cluster query telemetry collection
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 119476
+    summary: Fix TopN row size estimate
+    area: ES|QL
+    type: bug
+    issues:
+      - 106956
+  - pr: 119503
+    summary: Support indices created in ESv6 and updated in ESV7 using different LuceneCodecs as archive in current version.
+    area: Search
+    type: bug
+    issues:
+      - 117042
+  - pr: 119504
+    summary: Optimized index sorting for OTel logs
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 119536
+    summary: Fix ROUND() with unsigned longs throwing in some edge cases
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 119542
+    summary: Wait while index is blocked
+    area: Transform
+    type: enhancement
+    issues: []
+  - pr: 119543
+    summary: "[Inference API] Fix unique ID message for inference ID matches trained model ID"
+    area: Machine Learning
+    type: bug
+    issues:
+      - 111312
+  - pr: 119564
+    summary: Http stream activity tracker and exceptions handling
+    area: Network
+    type: enhancement
+    issues: []
+  - pr: 119575
+    summary: Fix realtime get of nested fields with synthetic source
+    area: Mapping
+    type: bug
+    issues:
+      - 119553
+  - pr: 119580
+    summary: Do not serialize `EsIndex` in plan
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 119621
+    summary: Enable node-level reduction by default
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 119679
+    summary: Support mTLS for the Elastic Inference Service integration inside the inference API
+    area: Machine Learning
+    type: feature
+    issues: []
+  - pr: 119691
+    summary: Fix `bbq_hnsw` merge file cleanup on random IO exceptions
+    area: Vector Search
+    type: bug
+    issues:
+      - 119392
+  - pr: 119730
+    summary: Enable KQL function as a tech preview
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 119743
+    summary: POC mark read-only
+    area: Engine
+    type: enhancement
+    issues: []
+  - pr: 119749
+    summary: Strengthen encryption for elasticsearch-keystore tool to AES 256
+    area: Infra/CLI
+    type: enhancement
+    issues: []
+  - pr: 119772
+    summary: ESQL Support IN operator for Date nanos
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 118578
+  - pr: 119780
+    summary: Add index and reindex request settings to speed up reindex
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 119792
+    summary: Make semantic text part of the text family
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 119798
+    summary: "Add a `PostAnalysisAware,` distribute verification"
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 119830
+    summary: Run `TransportGetComposableIndexTemplate` on local node
+    area: Indices APIs
+    type: enhancement
+    issues: []
+  - pr: 119831
+    summary: Run `TransportClusterGetSettingsAction` on local node
+    area: Infra/Settings
+    type: enhancement
+    issues: []
+  - pr: 119837
+    summary: Run `TransportGetIndexTemplateAction` on local node
+    area: Indices APIs
+    type: enhancement
+    issues: []
+  - pr: 119846
+    summary: Drop support for brackets from METADATA syntax
+    area: ES|QL
+    type: deprecation
+    issues:
+      - 115401
+    deprecation:
+      area: ES|QL
+      title: Drop support for brackets from METADATA syntax
+      details: Please describe the details of this change for the release notes. You can use asciidoc.
+      impact: Please describe the impact of this change to users
+      notable: false
+      essSettingChange: false
+  - pr: 119863
+    summary: Restrict Connector APIs to manage/monitor_connector privileges
+    area: Extract&Transform
+    type: breaking
+    issues: []
+    breaking:
+      area: REST API
+      title: Restrict Connector APIs to manage/monitor_connector privileges
+      details: "Connector APIs now enforce the manage_connector and monitor_connector privileges (introduced in 8.15), replacing the previous reliance on index-level permissions for .elastic-connectors and .elastic-connectors-sync-jobs in API calls."
+      impact: Connector APIs now require manage_connector and monitor_connector privileges
+      notable: false
+      essSettingChange: false
+  - pr: 119886
+    summary: Initial support for unmapped fields
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 119889
+    summary: Optimize ST_EXTENT_AGG for `geo_shape` and `cartesian_shape`
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 119893
+    summary: Add enterprise license check for Inference API actions
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 119898
+    summary: Resolve/cluster allows querying for cluster info only (no index expression required)
+    area: CCS
+    type: enhancement
+    issues: []
+  - pr: 119922
+    summary: "[Inference API] fix spell words: covertToString to convertToString"
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 119926
+    summary: Deprecated tracing.apm.* settings got removed.
+    area: Infra/Metrics
+    type: breaking
+    issues: []
+    breaking:
+      area: Cluster and node setting
+      title: Deprecated tracing.apm.* settings got removed.
+      details: "Deprecated `tracing.apm.*` settings got removed, use respective `telemetry.*` / `telemetry.tracing.*` settings instead."
+      impact: 9.x nodes will refuse to start if any such setting (including secret settings) is still present.
+      notable: false
+      essSettingChange: false
+  - pr: 119968
+    summary: Reset relocation/allocation failure counter on node join/shutdown
+    area: Allocation
+    type: enhancement
+    issues: []
+  - pr: 120020
+    summary: Resume Driver on cancelled or early finished
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 120038
+    summary: Run template simulation actions on local node
+    area: Ingest Node
+    type: enhancement
+    issues: []
+  - pr: 120042
+    summary: Match dot prefix of migrated DS backing index with the source index
+    area: Data streams
+    type: bug
+    issues: []
+  - pr: 120055
+    summary: Optimize loading mappings when determining synthetic source usage and whether host.name can be sorted on.
+    area: Logs
+    type: enhancement
+    issues: []
+  - pr: 120064
+    summary: Change the auditor to write via an alias
+    area: Machine Learning
+    type: upgrade
+    issues: []
+  - pr: 120084
+    summary: Improve how reindex data stream index action handles api blocks
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 120087
+    summary: Include `clusterApplyListener` in long cluster apply warnings
+    area: Cluster Coordination
+    type: enhancement
+    issues: []
+  - pr: 120108
+    summary: Remove the ability to read frozen indices
+    area: Indices APIs
+    type: breaking
+    issues: []
+    breaking:
+      area: Index setting
+      title: Remove the ability to read frozen indices
+      details: The ability to read frozen indices has been removed. (Frozen indices are no longer useful due to improvements in heap memory usage. The ability to freeze indices was removed in 8.0.)
+      impact: Users must unfreeze any frozen indices before upgrading.
+      notable: false
+      essSettingChange: false
+  - pr: 120128
+    summary: Add Multi-Field Support for Semantic Text Fields
+    area: Relevance
+    type: feature
+    issues: []
+  - pr: 120142
+    summary: Limit `ByteSizeUnit` to 2 decimals
+    area: Infra/Core
+    type: breaking
+    issues: []
+    breaking:
+      area: Cluster and node setting
+      title: Limit `ByteSizeUnit` to 2 decimals
+      details: "In the past, byte values like `1.25 mb` were allowed but deprecated. Now, values with up to two decimal places are allowed, unless the unit is bytes, in which case no decimals are allowed. Values with too many decimal places result in an error."
+      impact: "Values with more than two decimal places, like `0.123 mb` will be rejected as an error, where in the past, they'd be accepted with a deprecation warning."
+      notable: false
+      essSettingChange: false
+  - pr: 120143
+    summary: Esql - support date nanos in date format function
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 109994
+  - pr: 120163
+    summary: Filter deprecated settings when making dest index
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 120192
+    summary: Extend `TranslationAware` to all pushable expressions
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 120193
+    summary: "Do not capture `ClusterChangedEvent` in `IndicesStore` call to #onClusterStateShardsClosed"
+    area: Store
+    type: bug
+    issues: []
+  - pr: 120198
+    summary: Bump `TrialLicenseVersion` to allow starting new trial on 9.0
+    area: License
+    type: enhancement
+    issues: []
+  - pr: 120200
+    summary: "[Connector API] Support hard deletes with new URL param in delete endpoint"
+    area: Extract&Transform
+    type: feature
+    issues: []
+  - pr: 120207
+    summary: Make `requests_per_second` configurable to throttle reindexing
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 120222
+    summary: Adding linear retriever to support weighted sums of sub-retrievers
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 120231
+    summary: Add sanity check to `ReindexDatastreamIndexAction`
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 120244
+    summary: Ignore closed indices for reindex
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 120250
+    summary: "Retry internally when CAS upload is throttled [GCS]"
+    area: Snapshot/Restore
+    type: enhancement
+    issues:
+      - 116546
+  - pr: 120267
+    summary: Set allow_partial_search_results=true by default
+    area: EQL
+    type: breaking
+    issues: []
+    breaking:
+      area: REST API
+      title: Set allow_partial_search_results=true by default
+      details: "Before this change, in case of shard failures, EQL queries always returned an error. With this change, they will keep running and will return partial results."
+      impact: "EQL queries that would previously fail due to shard failures, will now succeed and return partial results. The previous defaults can be restored by setting `xpack.eql.default_allow_partial_results` cluster setting to `false` or setting with `allow_partial_search_results` to `false` in the query request."
+      notable: false
+      essSettingChange: false
+  - pr: 120271
+    summary: Optimize indexing points with index and doc values set to true
+    area: Geo
+    type: enhancement
+    issues: []
+  - pr: 120291
+    summary: ESQL - Allow full text functions disjunctions for non-full text functions
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 120334
+    summary: Introduce `IndexSettingDeprecatedInV8AndRemovedInV9` Setting property
+    area: Infra/Settings
+    type: enhancement
+    issues: []
+  - pr: 120340
+    summary: Add support for `extended_stats`
+    area: Transform
+    type: enhancement
+    issues: []
+  - pr: 120343
+    summary: Support some stats on aggregate_metric_double
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 110649
+  - pr: 120354
+    summary: Move scoring in ES|QL out of snapshot
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 120355
+    summary: Ensure cluster string could be quoted
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 120360
+    summary: ESQL - Add Match function options
+    area: ES|QL
+    type: feature
+    issues: []
+  - pr: 120370
+    summary: "Merge field mappers when updating mappings with [subobjects:false]"
+    area: Mapping
+    type: bug
+    issues:
+      - 120216
+  - pr: 120392
+    summary: Test/107515 restore template with match only text mapper it fail
+    area: Search
+    type: bug
+    issues:
+      - 107515
+  - pr: 120400
+    summary: "[Inference API] Add node-local rate limiting for the inference API"
+    area: Machine Learning
+    type: feature
+    issues: []
+  - pr: 120405
+    summary: Automatically rollover legacy ml indices
+    area: Machine Learning
+    type: upgrade
+    issues: []
+  - pr: 120445
+    summary: Run `GetPipelineTransportAction` on local node
+    area: Ingest Node
+    type: enhancement
+    issues: []
+  - pr: 120458
+    summary: Do not recommend increasing `max_shards_per_node`
+    area: Health
+    type: bug
+    issues: []
+  - pr: 120487
+    summary: Fix cat_component_templates documentation
+    area: CAT APIs
+    type: bug
+    issues: []
+  - pr: 120494
+    summary: Update grammar to rely on `indexPattern` instead of identifier in join target
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 120505
+    summary: introduce new categories for deprecated resources in deprecation API
+    area: Indices APIs
+    type: enhancement
+    issues: []
+  - pr: 120538
+    summary: "Revert unwanted ES|QL lexer changes from PR #120354"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 120542
+    summary: "Feat: add a user-configurable timeout parameter to the `_resolve/cluster` API"
+    area: Search
+    type: enhancement
+    issues: []
+  - pr: 120546
+    summary: Restrict agent entitlements to the system classloader unnamed module
+    area: Infra/Plugins
+    type: bug
+    issues: []
+  - pr: 120547
+    summary: Consistent mapping for OTel log and event bodies
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 120548
+    summary: Add `remove_index_block` arg to `_create_from` api
+    area: Indices APIs
+    type: enhancement
+    issues: []
+  - pr: 120551
+    summary: Set default reranker for text similarity reranker to Elastic reranker
+    area: Ranking
+    type: enhancement
+    issues: []
+  - pr: 120573
+    summary: Optimize `IngestDocument` `FieldPath` allocation
+    area: Ingest Node
+    type: enhancement
+    issues: []
+  - pr: 120591
+    summary: Increase field limit for OTel metrics to 10 000
+    area: TSDB
+    type: enhancement
+    issues: []
+  - pr: 120617
+    summary: Fix queries with document level security on lookup indexes
+    area: ES|QL
+    type: bug
+    issues:
+      - 120509
+  - pr: 120629
+    summary: Report Deprecated Indices That Are Flagged To Ignore Migration Reindex As A Warning
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 120642
+    summary: Defer unpromotable shard refreshes until index refresh blocks are cleared
+    area: Engine
+    type: enhancement
+    issues: []
+  - pr: 120643
+    summary: Remove index blocks by default in `create_from`
+    area: Indices APIs
+    type: enhancement
+    issues: []
+  - pr: 120645
+    summary: Esql Support date nanos on date diff function
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 109999
+  - pr: 120662
+    summary: Fix broken yaml test `30_create_from`
+    area: Indices APIs
+    type: bug
+    issues: []
+  - pr: 120722
+    summary: Migrate stream to core error parsing
+    area: Machine Learning
+    type: enhancement
+    issues: []
+  - pr: 120725
+    summary: |-
+      A new query parameter `?include_source_on_error` was added for create / index, update and bulk REST APIs to control
+      if to include the document source in the error response in case of parsing errors. The default value is `true`.
+    area: Infra/REST API
+    type: enhancement
+    issues: []
+  - pr: 120727
+    summary: Esql - Support date nanos in date extract function
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 110000
+  - pr: 120748
+    summary: Removing support for types field in watcher search
+    area: Watcher
+    type: breaking
+    issues: []
+    breaking:
+      area: REST API
+      title: Removing support for types field in watcher search
+      details: "Previously, setting the `input.search.request.types` field in the payload when creating a watcher to an empty array was  allowed, although it resulted in a deprecation warning and had no effect (and any value other than an empty array would result in an error). Now, support for this field is entirely removed, and the empty array will also result in an error."
+      impact: Users should stop setting this field (which did not have any effect anyway).
+      notable: false
+      essSettingChange: false
+  - pr: 120752
+    summary: Refresh source index before reindexing data stream index
+    area: Data streams
+    type: bug
+    issues:
+      - 120314
+  - pr: 120753
+    summary: Optimize `IngestDocMetadata` `isAvailable`
+    area: Ingest Node
+    type: enhancement
+    issues: []
+  - pr: 120799
+    summary: Remove duplicate code in ESIntegTestCase
+    area: Search
+    type: bug
+    issues: []
+  - pr: 120806
+    summary: Deprecate certificate based remote cluster security model
+    area: Security
+    type: deprecation
+    issues: []
+    deprecation:
+      area: Authorization
+      title: Deprecate certificate based remote cluster security model
+      details: "-| <<remote-clusters-cert,_Certificate-based remote cluster security model_>> is deprecated and will be removed in a future major version. Users are encouraged to <<remote-clusters-migrate, migrate remote clusters from certificate to API key authentication>>. The <<remote-clusters-api-key,*API key-based security model*>> is preferred way to configure remote clusters, as it allows to follow security best practices when setting up remote cluster connections and defining fine-grained access control."
+      impact: "-| If you have configured remote clusters with certificate-based security model, you should <<remote-clusters-migrate, migrate remote clusters from certificate to API key authentication>>. Configuring a remote cluster using <<remote-clusters-cert,certificate authentication>>, generates a warning in the deprecation logs."
+      notable: false
+      essSettingChange: false
+  - pr: 120807
+    summary: Remove INDEX_REFRESH_BLOCK after index becomes searchable
+    area: CRUD
+    type: enhancement
+    issues: []
+  - pr: 120813
+    summary: Change Semantic Text To Act Like A Normal Text Field
+    area: Search
+    type: breaking
+    issues: []
+    breaking:
+      area: Search
+      title: Change Semantic Text To Act Like A Normal Text Field
+      details: "The previous semantic_text format used a complex subfield structure in _source to store the embeddings. This complicated interactions/integrations with semantic_text fields and _source in general. This new semantic_text format treats it as a normal text field, where the field's value in _source is the value assigned by the user."
+      impact: "Users who parsed the subfield structure of the previous semantic_text format in _source will need to update their parsing logic. The new format does not directly expose the chunks and embeddings generated from the input text. The new format will be applied to all new indices, any existing indices will continue to use the previous format."
+      notable: true
+      essSettingChange: false
+  - pr: 120821
+    summary: "[Deprecation] Add `transform_ids` to outdated index"
+    area: Transform
+    type: enhancement
+    issues: []
+  - pr: 120824
+    summary: Optimize some per-document hot paths in the geoip processor
+    area: Ingest Node
+    type: enhancement
+    issues: []
+  - pr: 120833
+    summary: Optimize `IngestCtxMap` construction
+    area: Ingest Node
+    type: enhancement
+    issues: []
+  - pr: 120842
+    summary: Remove Elastic Inference Service feature flag and deprecated setting
+    area: Inference
+    type: enhancement
+    issues: []
+  - pr: 120852
+    summary: Correct line and column numbers of missing named parameters
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 120883
+    summary: Add `?master_timeout` to `POST /_ilm/migrate_to_data_tiers`
+    area: Indices APIs
+    type: bug
+    issues: []
+  - pr: 120913
+    summary: Automatically rollover legacy .ml-anomalies indices
+    area: Machine Learning
+    type: upgrade
+    issues: []
+  - pr: 120937
+    summary: Use the system index descriptor in the snapshot blob cache cleanup task
+    area: Snapshot/Restore
+    type: bug
+    issues:
+      - 120518
+  - pr: 120959
+    summary: Remove unnecessary entitlement
+    area: Infra/Plugins
+    type: bug
+    issues: []
+  - pr: 120974
+    summary: Tweak `copy_to` handling in synthetic `_source` to account for nested objects
+    area: Mapping
+    type: bug
+    issues:
+      - 120831
+  - pr: 120997
+    summary: Allow `SSHA-256` for API key credential hash
+    area: Authentication
+    type: enhancement
+    issues: []
+  - pr: 121048
+    summary: Updating Inference Update API documentation to have the correct PUT method
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 121049
+    summary: Conditionally enable logsdb by default for data streams matching with logs-*-* pattern.
+    area: Logs
+    type: breaking
+    issues:
+      - 106489
+    breaking:
+      area: Logs
+      title: Conditionally enable logsdb by default
+      details: |-
+        Logsdb will be enabled by default for data streams matching with logs-*-* pattern.
+        If upgrading from 8.x to 9.x and data streams matching with log-*-* do exist,
+        then Logsdb will not be enabled by default.
+      impact: |-
+        Logsdb reduce storage footprint in Elasticsearch for logs, but there are side effects
+        to be taken into account that are described in the Logsdb docs:
+        https://www.elastic.co/guide/en/elasticsearch/reference/current/logs-data-stream.html#upgrade-to-logsdb-notes
+      notable: true
+      essSettingChange: false
+  - pr: 121074
+    summary: Implement a `MetricsAware` interface
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 121105
+    summary: Mark bbq indices as GA and add rolling upgrade integration tests
+    area: Vector Search
+    type: feature
+    issues: []
+  - pr: 121109
+    summary: Fix propagation of dynamic mapping parameter when applying `copy_to`
+    area: Mapping
+    type: bug
+    issues:
+      - 113049
+  - pr: 121124
+    summary: Run `TransportGetEnrichPolicyAction` on local node
+    area: Ingest Node
+    type: enhancement
+    issues: []
+  - pr: 121156
+    summary: Remove redundant sorts from execution plan
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 121193
+    summary: Enable LOOKUP JOIN in non-snapshot builds
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 121185
+    highlight:
+      notable: true
+      title: "ES|QL LOOKUP JOIN is now available in technical preview"
+      body: |-
+        [LOOKUP JOIN](../reference/query-languages/esql/esql-commands.md) is now available in technical preview. LOOKUP JOIN combines data from your ES|QL queries with matching records from a lookup index, enabling you to:
+
+        - Enrich your search results with reference data
+        - Speed up root-cause analysis and security investigations
+        - Join data across indices without complex queries
+        - Reduce operational overhead when correlating events
+      pr: 121193
+  - pr: 121196
+    summary: Fix geoip databases index access after system feature migration
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 121207
+    summary: "[Inference API] Put back legacy EIS URL setting"
+    area: Inference
+    type: bug
+    issues: []
+  - pr: 121325
+    summary: "`ReindexDataStreamIndex` bug in assertion caused by reference equality"
+    area: Data streams
+    type: bug
+    issues: []
+  - pr: 121392
+    summary: Include data streams when converting an existing resource to a system resource
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 121396
+    summary: Change format for Unified Chat
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 121552
+    summary: Fix a bug in TOP
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 121556
+    summary: Enable New Semantic Text Format Only On Newly Created Indices
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 121568
+    summary: Analyze API to return 400 for wrong custom analyzer
+    area: Analysis
+    type: bug
+    issues:
+      - 121443
+  - pr: 121667
+    summary: Add deprecation warning for flush API
+    area: Machine Learning
+    type: deprecation
+    issues:
+      - 121506
+    deprecation:
+      area: REST API
+      title: Add deprecation warning for flush API
+      details: "The anomaly detection job flush API is deprecated since it is only required for the post data API, which was deprecated since 7.11.0."
+      impact: "This should have a minimal impact on users as the flush API is only required for the post data API, which was deprecated since 7.11.0."
+      notable: false
+      essSettingChange: false
+  - pr: 121720
+    summary: Skip fetching _inference_fields field in legacy semantic_text format
+    area: Search
+    type: bug
+    issues: []
+  - pr: 121727
+    summary: Copy metrics and `default_metric` properties when downsampling `aggregate_metric_double`
+    area: Downsampling
+    type: bug
+    issues:
+      - 119696
+      - 96076
+  - pr: 121731
+    summary: Remove TLSv1.1 from default protocols
+    area: TLS
+    type: breaking
+    issues: []
+    breaking:
+      area: Cluster and node setting
+      title: Remove TLSv1.1 from default protocols
+      details: "TLSv1.1 is no longer enabled by default. Prior to version 9.0, Elasticsearch would attempt to enable TLSv1.1 if the JDK supported it. In most cases, including all cases where Elasticsearch 8 was running with the bundled JDK, the JDK would not support TLSv1.1, so that protocol would not be available in Elasticsearch. However, if Elasticsearch was running on an old JDK or a JDK that have been reconfigured to support TLSv1.1, then the protocol would automatically be available within Elasticsearch. As of Elasticsearch 9.0, this is no longer true. If you wish to enable TLSv1.1 then you must enable it within the JDK and also enable it within Elasticsearch by using the `ssl.supported_protocols` setting."
+      impact: "Most users will not be impacted. If your Elastisearch 8 cluster was using a custom JDK and you relied on TLSv1.1, then you will need to explicitly enable TLSv1.1 within Elasticsearch (as well as enabling it within your JDK)"
+      notable: false
+      essSettingChange: false
+  - pr: 121787
+    summary: Added optional parameters to QSTR ES|QL function
+    area: Search
+    type: feature
+    issues:
+      - 120933
+  - pr: 121793
+    summary: ES|QL - Add scoring for full text functions disjunctions
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 121821
+    summary: Fix get all inference endponts not returning multiple endpoints sharing model deployment
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 121843
+    summary: Fix async stop sometimes not properly collecting result
+    area: ES|QL
+    type: bug
+    issues:
+      - 121249
+  - pr: 121850
+    summary: Take named parameters for identifier and pattern out of snapshot
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 121971
+    summary: Do not fetch reserved roles from native store when Get Role API is called
+    area: Authorization
+    type: enhancement
+    issues: []
+  - pr: 122074
+    summary: "If the Transform is configured to write to an alias as its destination index, when the delete_dest_index parameter is set to true, then the Delete API will now delete the write index backing the alias"
+    area: Transform
+    type: bug
+    issues:
+      - 121913
+  - pr: 122246
+    summary: Ensure removal of index blocks does not leave key with null value
+    area: Data streams
+    type: bug
+    issues: []
+  - pr: 122250
+    summary: "ESQL: Align `RENAME` behavior with `EVAL` for sequential processing"
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 121739
+  - pr: 122257
+    summary: Revive inlinestats
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 122278
+    summary: Fix serialising the inference update request
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 122293
+    summary: Add enterprise license check to inference action for semantic text fields
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 122326
+    summary: System Index Migration Failure Results in a Non-Recoverable State
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 122357
+    summary: Handle search timeout in `SuggestPhase`
+    area: Search
+    type: bug
+    issues:
+      - 122186
+  - pr: 122409
+    summary: Allow setting the `type` in the reroute processor
+    area: Ingest Node
+    type: enhancement
+    issues:
+      - 121553
+  - pr: 122427
+    summary: Improve size limiting string message
+    area: Infra/Core
+    type: enhancement
+    issues: []
+  - pr: 122431
+    summary: Upgrade AWS SDK to v1.12.746
+    area: Snapshot/Restore
+    type: upgrade
+    issues: []
+  - pr: 122575
+    summary: Return an empty suggestion when suggest phase times out
+    area: Suggesters
+    type: bug
+    issues:
+      - 122548
+  - pr: 122601
+    summary: Implicit numeric casting for CASE/GREATEST/LEAST
+    area: ES|QL
+    type: bug
+    issues:
+      - 121890
+  - pr: 122606
+    summary: Avoid serializing empty `_source` fields in mappings
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 122653
+    summary: Knn vector rescoring to sort score docs
+    area: Vector Search
+    type: bug
+    issues:
+      - 119711
+  - pr: 122731
+    summary: Fork post-snapshot-delete cleanup off master thread
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 122762
+    summary: "ESQL: Remove estimated row size assertion"
+    area: ES|QL
+    type: bug
+    issues:
+      - 121535
+  - pr: 122886
+    summary: Add support to VALUES aggregation for spatial types
+    area: ES|QL
+    type: bug
+    issues:
+      - 122413
+  - pr: 122905
+    summary: Updating `TransportRolloverAction.checkBlock` so that non-write-index blocks do not prevent data stream rollover
+    area: Data streams
+    type: bug
+    issues: []
+  - pr: 122938
+    summary: Fix geoip databases index access after system feature migration (again)
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 122951
+    summary: Updates the deprecation info API to not warn about system indices and data streams
+    area: Indices APIs
+    type: bug
+    issues: []
+  - pr: 122960
+    summary: Deprecate Behavioral Analytics CRUD apis
+    area: Search
+    type: deprecation
+    issues: []
+    deprecation:
+      area: Search
+      title: Deprecate Behavioral Analytics CRUD apis
+      details: "Behavioral Analytics has been deprecated as of 9.0.0 and will be removed in a future release. The APIs will still work for now, but will emit warning headers that the API has been deprecated."
+      impact: Behavioral Analytics has been deprecated as of 9.0.0 and will be removed in a future release.
+      notable: false
+      essSettingChange: false
+  - pr: 123010
+    summary: Hold store reference in `InternalEngine#performActionWithDirectoryReader(...)`
+    area: Engine
+    type: bug
+    issues:
+      - 122974
+  - pr: 123076
+    summary: Retry on streaming errors
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 123155
+    summary: Add `ElasticInferenceServiceCompletionServiceSettings`
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 123272
+    summary: Set Connect Timeout to 5s
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 123290
+    summary: Fix Driver status iterations and `cpuTime`
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 122967
+  - pr: 123296
+    summary: Avoid over collecting in Limit or Lucene Operator
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 123381
+    summary: Push down `StartsWith` and `EndsWith` functions to Lucene
+    area: ES|QL
+    type: enhancement
+    issues:
+      - 123067
+  - pr: 123427
+    summary: Reduce iteration complexity for plan traversal
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 123492
+    summary: Fix function registry concurrency issues on constructor
+    area: ES|QL
+    type: bug
+    issues:
+      - 123430
+  - pr: 123589
+    summary: Revive some more of inlinestats functionality
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 123600
+    summary: Drop `TLS_RSA` cipher support for JDK 24
+    area: TLS
+    type: breaking
+    issues: []
+    breaking:
+      area: Cluster and node setting
+      title: Drop `TLS_RSA` cipher support for JDK 24
+      details: "This change removes `TLS_RSA` ciphers from the list of default supported ciphers, for Elasticsearch deployments running on JDK 24."
+      impact: "The dropped ciphers are `TLS_RSA_WITH_AES_256_GCM_SHA384`, `TLS_RSA_WITH_AES_128_GCM_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA256`, `TLS_RSA_WITH_AES_128_CBC_SHA256`, `TLS_RSA_WITH_AES_256_CBC_SHA`, and `TLS_RSA_WITH_AES_128_CBC_SHA`. TLS connections to Elasticsearch using these ciphers will no longer work. Please configure your clients to use one of supported cipher suites."
+      notable: false
+      essSettingChange: false
+  - pr: 123728
+    summary: Allow skip shards with `_tier` and `_index` in ES|QL
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 123743
+    summary: Adjust exception thrown when unable to load hunspell dict
+    area: Analysis
+    type: bug
+    issues: []
+  - pr: 123761
+    summary: Have create index return a bad request on poor formatting
+    area: Infra/Core
+    type: bug
+    issues: []
+  - pr: 124001
+    summary: Use a must boolean statement when pushing down to Lucene when scoring is also needed
+    area: ES|QL
+    type: bug
+    issues:
+      - 123967
+  - pr: 124048
+    summary: Handle long overflow in dates
+    area: Search
+    type: bug
+    issues:
+      - 112483
+  - pr: 124149
+    summary: Retry ILM async action after reindexing data stream
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 124225
+    summary: "[Inference API] Fix output stream ordering in `InferenceActionProxy`"
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 124335
+    summary: Change the order of the optimization rules
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 124363
+    summary: Set cause on create index request in create from action
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 124424
+    summary: Lazy collection copying during node transform
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 124446
+    summary: "ESQL: Fail in `AggregateFunction` when `LogicPlan` is not an `Aggregate`"
+    area: ES|QL
+    type: bug
+    issues:
+      - 124311
+  - pr: 124451
+    summary: Improve downsample performance by avoiding to read unnecessary dimension values when downsampling.
+    area: Downsampling
+    type: bug
+    issues: []
+  - pr: 124477
+    summary: Improve downsample performance by buffering docids and do bulk processing
+    area: Downsampling
+    type: enhancement
+    issues: []
+  - pr: 124527
+    summary: Avoid potentially throwing calls to Task#getDescription in model download
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 124540
+    summary: "ES|QL: Fix scoring for full text functions"
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 124604
+    summary: Fix geoip databases index access after system feature migration (take 3)
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 124611
+    summary: Reuse child `outputSet` inside the plan where possible
+    area: ES|QL
+    type: enhancement
+    issues: []
+  - pr: 124651
+    summary: Fix system data streams to be restorable from a snapshot
+    area: Infra/Core
+    type: bug
+    issues:
+      - 89261
+  - pr: 124662
+    summary: Let MLTQuery throw IAE when no analyzer is set
+    area: Search
+    type: bug
+    issues:
+      - 124562
+  - pr: 124669
+    summary: Release semantic_text as a GA feature
+    area: Mapping
+    type: feature
+    issues: []
+    highlight:
+      notable: true
+      title: The semantic_text field type is now GA
+      body: "[`semantic_text`](../reference/elasticsearch/mapping-reference/semantic-text.md) is now an official GA (generally available) feature! This field type allows you to easily set up and perform semantic search with minimal ramp up time."
+      pr: 124669
+  - pr: 124739
+    summary: Improve rolling up metrics
+    area: Downsampling
+    type: enhancement
+    issues: []
+  - pr: 124782
+    summary: "Aggs: Let terms run in global ords mode no match"
+    area: Aggregations
+    type: bug
+    issues: []
+  - pr: 124784
+    summary: Merge template mappings properly during validation
+    area: Mapping
+    type: bug
+    issues:
+      - 123372
+  - pr: 124843
+    summary: Ignore _JAVA_OPTIONS
+    area: Infra/CLI
+    type: enhancement
+    issues: []
+  - pr: 124865
+    summary: "Permanently switch from Java SecurityManager to Entitlements. The Java SecurityManager has been deprecated since Java 17, and it is now completely disabled in Java 24. In order to retain an similar level of protection, Elasticsearch implemented its own protection mechanism, Entitlements. Starting with this version, Entitlements will permanently replace the Java SecurityManager."
+    area: Infra/Core
+    type: upgrade
+    issues: []
+  - pr: 124873
+    summary: Restore V8 REST compatibility around highlight `force_source` parameter
+    area: Highlighting
+    type: bug
+    issues: []
+  - pr: 124884
+    summary: System data streams are not being upgraded in the feature migration API
+    area: Infra/Core
+    type: bug
+    issues:
+      - 122949
+  - pr: 124931
+    summary: This PR fixes a bug whereby partial snapshots of system datastreams could be used to restore system features.
+    area: Snapshot/Restore
+    type: bug
+    issues: []
+  - pr: 124936
+    summary: Indicate when errors represent timeouts
+    area: Infra/REST API
+    type: enhancement
+    issues: []
+  - pr: 125023
+    summary: Fix `AlibabaCloudSearchCompletionAction` not accepting `ChatCompletionInputs`
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 125103
+    summary: Fix LTR query feature with phrases (and two-phase) queries
+    area: Ranking
+    type: bug
+    issues: []
+  - pr: 125159
+    summary: Update bundled JDK to Java 24
+    area: Packaging
+    type: upgrade
+    issues: []
+  - pr: 125171
+    summary: Reindex data stream indices on different nodes
+    area: Data streams
+    type: enhancement
+    issues: []
+  - pr: 125345
+    summary: ESQL - date nanos range bug?
+    area: ES|QL
+    type: bug
+    issues:
+      - 125439
+  - pr: 125352
+    summary: Fix NPE in rolling over unknown target and return 404
+    area: Indices APIs
+    type: bug
+    issues: []
+  - pr: 125370
+    summary: Set default similarity for Cohere model to cosine
+    area: Machine Learning
+    type: bug
+    issues:
+      - 122878
+  - pr: 125404
+    summary: Check if the anomaly results index has been rolled over
+    area: Machine Learning
+    type: upgrade
+    issues: []
+  - pr: 125446
+    summary: Fix Semantic Text 8.x Upgrade Bug
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 125595
+    summary: Esql - Fix lucene push down behavior when a range contains nanos and millis
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 125606
+    summary: Rename deprecation index template
+    area: Infra/Logging
+    type: breaking
+    issues:
+      - 125445
+    breaking:
+      area: Logging
+      title: Rename deprecation index template
+      details: "The deprecation datastream contains log entries for deprecations that occured while Elasticsearch is running. The deprecation log entries had a mismatch in their dataset name. In order to avoid changing the dataset name in the existing datastream, a new datastream now exists."
+      impact: "If querying for deprecations previously using the `.logs-deprecation.elasticsearch-default` datastream, you should now use the `.logs-elasticsearch.deprecation-default` datastream."
+      notable: false
+      essSettingChange: false
+  - pr: 125636
+    summary: Make `numberOfChannels` consistent with layout map by removing duplicated `ChannelSet`
+    area: ES|QL
+    type: bug
+    issues: []
+  - pr: 125650
+    summary: Load `FieldInfos` from store if not yet initialised through a refresh on `IndexShard`
+    area: Search
+    type: bug
+    issues:
+      - 125483
+  - pr: 125659
+    summary: Non existing synonyms sets do not fail shard recovery for indices
+    area: Analysis
+    type: bug
+    issues:
+      - 125603
+  - pr: 125666
+    summary: Minor-Fixes Support 7x segments as archive in 8x / 9x
+    area: Search
+    type: bug
+    issues: []
+  - pr: 125716
+    summary: Return appropriate error on null dims update instead of npe
+    area: Vector Search
+    type: bug
+    issues: []
+  - pr: 125732
+    summary: Log stack traces on data nodes before they are cleared for transport
+    area: Search
+    type: bug
+    issues: []
+  - pr: 125764
+    summary: Fix `ReplaceMissingFieldsWithNull`
+    area: ES|QL
+    type: bug
+    issues:
+      - 126036
+      - 121754
+      - 126030
+  - pr: 125881
+    summary: Fixes a invalid warning from being issued when restoring a system data stream from a snapshot.
+    area: Data streams
+    type: bug
+    issues: []
+  - pr: 125916
+    summary: Re-enable parallel collection for field sorted top hits
+    area: Search
+    type: bug
+    issues: []
+  - pr: 126077
+    summary: Preventing `ConcurrentModificationException` when updating settings for more than one index
+    area: Indices APIs
+    type: bug
+    issues: []
+  - pr: 126191
+    summary: Fix NPE for missing Content Type header in OIDC Authenticator
+    area: Authentication
+    type: bug
+    issues: []

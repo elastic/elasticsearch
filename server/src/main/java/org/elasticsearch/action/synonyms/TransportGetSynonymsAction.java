@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
@@ -24,19 +25,35 @@ public class TransportGetSynonymsAction extends HandledTransportAction<GetSynony
     private final SynonymsManagementAPIService synonymsManagementAPIService;
 
     @Inject
-    public TransportGetSynonymsAction(TransportService transportService, ActionFilters actionFilters, Client client) {
+    public TransportGetSynonymsAction(
+        TransportService transportService,
+        ActionFilters actionFilters,
+        Client client,
+        ClusterService clusterService
+    ) {
         super(GetSynonymsAction.NAME, transportService, actionFilters, GetSynonymsAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
-        this.synonymsManagementAPIService = new SynonymsManagementAPIService(client);
+        this.synonymsManagementAPIService = new SynonymsManagementAPIService(client, clusterService);
     }
 
     @Override
     protected void doExecute(Task task, GetSynonymsAction.Request request, ActionListener<GetSynonymsAction.Response> listener) {
-        synonymsManagementAPIService.getSynonymSetRules(
-            request.synonymsSetId(),
-            request.from(),
-            request.size(),
-            listener.map(GetSynonymsAction.Response::new)
-        );
+        if (request.from() > 0) {
+            // Legacy offset-based pagination
+            synonymsManagementAPIService.getSynonymSetRules(
+                request.synonymsSetId(),
+                request.from(),
+                request.size(),
+                listener.map(GetSynonymsAction.Response::new)
+            );
+        } else {
+            // Cursor-based pagination; searchAfter is null on the first page
+            synonymsManagementAPIService.getSynonymSetRulesPage(
+                request.synonymsSetId(),
+                request.size(),
+                request.searchAfter(),
+                listener.map(GetSynonymsAction.Response::new)
+            );
+        }
     }
 }

@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,9 +51,7 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new GoogleVertexAiSecretSettings(secureServiceAccountJson);
     }
@@ -88,7 +85,7 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -111,7 +108,7 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return GoogleVertexAiSecretSettings.fromMap(new HashMap<>(newSecrets));
+        return GoogleVertexAiSecretSettings.fromMap(newSecrets);
     }
 
     public static class Configuration {
@@ -124,9 +121,9 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
                 var configurationMap = new HashMap<String, SettingsConfiguration>();
                 configurationMap.put(
                     SERVICE_ACCOUNT_JSON,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK)).setDescription(
-                        "API Key for the provider you're connecting to."
-                    )
+                    new SettingsConfiguration.Builder(
+                        EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK, TaskType.CHAT_COMPLETION, TaskType.COMPLETION)
+                    ).setDescription("API Key for the provider you're connecting to.")
                         .setLabel("Credentials JSON")
                         .setRequired(true)
                         .setSensitive(true)

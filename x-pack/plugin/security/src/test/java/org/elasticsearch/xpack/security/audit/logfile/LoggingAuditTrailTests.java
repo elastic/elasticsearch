@@ -35,13 +35,14 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.rest.FakeRestRequest;
 import org.elasticsearch.test.rest.FakeRestRequest.Builder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -51,6 +52,8 @@ import org.elasticsearch.xpack.core.security.action.ActionTypes;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKeyTests;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.BulkUpdateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyAction;
+import org.elasticsearch.xpack.core.security.action.apikey.CloneApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyAction;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyAction;
@@ -102,7 +105,9 @@ import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccount.ServiceAccountId;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
+import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.TemplateRoleName;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.ExpressionModel;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.RoleMapperExpression;
@@ -124,8 +129,6 @@ import org.elasticsearch.xpack.security.audit.AuditLevel;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
 import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAccountId;
-import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken;
 import org.elasticsearch.xpack.security.rest.RemoteHostHeader;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
@@ -150,6 +153,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashSet;
@@ -365,7 +369,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             clusterService,
             mock(CacheInvalidatorRegistry.class),
             mock(ThreadPool.class),
-            MeterRegistry.NOOP
+            MeterRegistry.NOOP,
+            mock(FeatureService.class)
         );
     }
 
@@ -770,6 +775,49 @@ public class LoggingAuditTrailTests extends ESTestCase {
         // clear log
         CapturingLogger.output(logger.getName(), Level.INFO).clear();
 
+        final String cloneKeyName = randomAlphaOfLength(12);
+        final TimeValue cloneExpiration = randomFrom(ApiKeyTests.randomFutureExpirationTime(), null);
+        final CloneApiKeyRequest cloneRequest = new CloneApiKeyRequest();
+        final String sourceKeyId = randomAlphaOfLength(12);
+        final String sourceKeySecret = randomAlphanumericOfLength(18);
+        final String sourceCredential = Base64.getEncoder()
+            .encodeToString((sourceKeyId + ":" + sourceKeySecret).getBytes(StandardCharsets.UTF_8));
+        cloneRequest.setApiKey(new SecureString(sourceCredential.toCharArray()));
+        cloneRequest.setName(cloneKeyName);
+        cloneRequest.setExpiration(cloneExpiration);
+        cloneRequest.setMetadata(metadataWithSerialization.metadata());
+        cloneRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
+        auditTrail.accessGranted(requestId, authentication, CloneApiKeyAction.NAME, cloneRequest, authorizationInfo);
+        final String expectedCloneKeyAuditEventString = String.format(
+            Locale.ROOT,
+            """
+                "create":{"apikey":{"id":"%s","name":"%s","type":"rest","expiration":%s,"source":{"id":"%s"}%s}}\
+                """,
+            cloneRequest.getId(),
+            cloneKeyName,
+            cloneExpiration != null ? "\"" + cloneExpiration + "\"" : "null",
+            sourceKeyId,
+            cloneRequest.getMetadata() == null ? "" : Strings.format(",\"metadata\":%s", metadataWithSerialization.serialization())
+        );
+        output = CapturingLogger.output(logger.getName(), Level.INFO);
+        assertThat(output.size(), is(2));
+        String generatedCloneKeyAuditEventString = output.get(1);
+        assertThat(generatedCloneKeyAuditEventString, containsString(expectedCloneKeyAuditEventString));
+        assertThat(generatedCloneKeyAuditEventString, not(containsString("\"api_key\"")));
+        assertThat(generatedCloneKeyAuditEventString, not(containsString(sourceKeySecret)));
+        assertThat(generatedCloneKeyAuditEventString, not(containsString(sourceCredential)));
+        generatedCloneKeyAuditEventString = generatedCloneKeyAuditEventString.replace(", " + expectedCloneKeyAuditEventString, "");
+        checkedFields = new HashMap<>(commonFields);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_ADDRESS_FIELD_NAME);
+        checkedFields.remove(LoggingAuditTrail.ORIGIN_TYPE_FIELD_NAME);
+        checkedFields.put("type", "audit");
+        checkedFields.put(LoggingAuditTrail.EVENT_TYPE_FIELD_NAME, "security_config_change");
+        checkedFields.put(LoggingAuditTrail.EVENT_ACTION_FIELD_NAME, "create_apikey");
+        checkedFields.put(LoggingAuditTrail.REQUEST_ID_FIELD_NAME, requestId);
+        assertMsg(generatedCloneKeyAuditEventString, checkedFields);
+        // clear log
+        CapturingLogger.output(logger.getName(), Level.INFO).clear();
+
         PutRoleRequest putRoleRequest = new PutRoleRequest();
         putRoleRequest.setRefreshPolicy(randomFrom(WriteRequest.RefreshPolicy.values()));
         RoleDescriptor roleDescriptor = randomFrom(allTestRoleDescriptors);
@@ -877,7 +925,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             apiKeyName,
             roleDescriptorBuilder,
             expiration,
-            metadataWithSerialization.metadata()
+            metadataWithSerialization.metadata(),
+            null
         );
 
         final String requestId = randomRequestId();
@@ -933,7 +982,8 @@ public class LoggingAuditTrailTests extends ESTestCase {
             createRequest.getId(),
             updateAccess,
             updateMetadataWithSerialization.metadata(),
-            newExpiration
+            newExpiration,
+            null
         );
         auditTrail.accessGranted(requestId, authentication, UpdateCrossClusterApiKeyAction.NAME, updateRequest, authorizationInfo);
 
@@ -2981,7 +3031,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
 
     private Tuple<Channel, RestRequest> prepareRestContent(String uri, InetSocketAddress remoteAddress, Map<String, String> params) {
         final RestContent content = randomFrom(RestContent.values());
-        final FakeRestRequest.Builder builder = new Builder(NamedXContentRegistry.EMPTY);
+        final Builder builder = new Builder(NamedXContentRegistry.EMPTY);
         if (content.hasContent()) {
             builder.withContent(content.content(), XContentType.JSON);
         }
@@ -3005,7 +3055,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         return new Tuple<>(channel, builder.build());
     }
 
-    /** creates address without any lookups. hostname can be null, for missing */
+    /**
+     * creates address without any lookups. hostname can be null, for missing
+     */
     protected static InetAddress forge(String hostname, String address) throws IOException {
         final byte bytes[] = InetAddress.getByName(address).getAddress();
         return InetAddress.getByAddress(hostname, bytes);
@@ -3054,7 +3106,7 @@ public class LoggingAuditTrailTests extends ESTestCase {
         return authentication;
     }
 
-    static class MockRequest extends TransportRequest {
+    static class MockRequest extends AbstractTransportRequest {
 
         MockRequest(ThreadContext threadContext) throws IOException {
             if (randomBoolean()) {
@@ -3265,7 +3317,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         }
     }
 
-    private record ApiKeyMetadataWithSerialization(Map<String, Object> metadata, String serialization) {};
+    private record ApiKeyMetadataWithSerialization(Map<String, Object> metadata, String serialization) {}
+
+    ;
 
     private ApiKeyMetadataWithSerialization randomApiKeyMetadataWithSerialization() {
         final int metadataCase = randomInt(3);
@@ -3288,7 +3342,9 @@ public class LoggingAuditTrailTests extends ESTestCase {
         };
     }
 
-    private record CrossClusterApiKeyAccessWithSerialization(String access, String serialization) {};
+    private record CrossClusterApiKeyAccessWithSerialization(String access, String serialization) {}
+
+    ;
 
     private CrossClusterApiKeyAccessWithSerialization randomCrossClusterApiKeyAccessWithSerialization() {
         return randomFrom(

@@ -7,338 +7,404 @@
 
 package org.elasticsearch.compute.operator;
 
-import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Rounding;
-import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.compute.aggregation.RateLongAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.SumDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.compute.aggregation.DimensionValuesByteRefGroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.GroupingAggregator;
+import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
+import org.elasticsearch.compute.aggregation.SumIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesBooleanAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.ValuesLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.WindowAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BlockUtils;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
-import org.elasticsearch.compute.lucene.ValuesSourceReaderOperatorTests;
 import org.elasticsearch.compute.test.ComputeTestCase;
-import org.elasticsearch.compute.test.OperatorTestCase;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
 import org.elasticsearch.compute.test.TestResultPageSinkOperator;
-import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.compute.test.operator.blocksource.ListRowsBlockSourceOperator;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.KeywordFieldMapper;
-import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.junit.After;
+import org.elasticsearch.index.mapper.DateFieldMapper;
 
-import java.io.IOException;
-import java.time.ZoneOffset;
+import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
-import java.util.stream.IntStream;
+import java.util.function.BiFunction;
 
-import static org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorTests.createTimeSeriesSourceOperator;
-import static org.elasticsearch.compute.lucene.TimeSeriesSortedSourceOperatorTests.writeTS;
-import static org.elasticsearch.compute.operator.TimeSeriesAggregationOperatorFactories.SupplierWithChannels;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 
 public class TimeSeriesAggregationOperatorTests extends ComputeTestCase {
 
-    private IndexReader reader = null;
-    private Directory directory = null;
+    private static final int HASH_CHANNEL_COUNT = 2;
 
-    @After
-    public void cleanup() throws IOException {
-        IOUtils.close(reader, directory);
+    public void testValuesAggregator() {
+        BlockFactory blockFactory = blockFactory();
+        DriverContext driverContext = new DriverContext(blockFactory.bigArrays(), blockFactory, null, "test");
+        List<BiFunction<List<Integer>, DriverContext, GroupingAggregatorFunction>> functions = List.of(
+            (channels, ctx) -> new ValuesBooleanAggregatorFunctionSupplier().groupingAggregator(ctx, channels),
+            (channels, ctx) -> new ValuesIntAggregatorFunctionSupplier().groupingAggregator(ctx, channels),
+            (channels, ctx) -> new ValuesLongAggregatorFunctionSupplier().groupingAggregator(ctx, channels),
+            (channels, ctx) -> new ValuesBytesRefAggregatorFunctionSupplier().groupingAggregator(ctx, channels),
+            DimensionValuesByteRefGroupingAggregatorFunction::new
+        );
+        for (var fn : functions) {
+            try (GroupingAggregatorFunction aggregator = fn.apply(List.of(randomNonNegativeInt()), driverContext)) {
+                assertTrue(TimeSeriesAggregationOperator.isValuesAggregator(aggregator));
+            }
+        }
     }
 
     /**
-     * A {@link DriverContext} with a nonBreakingBigArrays.
+     * Multiple TSIDs with non-multiple window/bucket (7m window, 5m output bucket, 1m internal bucket).
+     * Verifies the optimized emit path produces only output-aligned rows with correct windowed sums.
      */
-    protected DriverContext driverContext() { // TODO make this final once all operators support memory tracking
-        BlockFactory blockFactory = blockFactory();
-        return new DriverContext(blockFactory.bigArrays(), blockFactory);
+    public void testEmitFiltersToOutputAlignedGroupsBeforeEvaluation() {
+        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+        Rounding.Prepared fiveMinBucket = Rounding.builder(TimeValue.timeValueMinutes(5)).build().prepareForUnknown();
+        Duration windowDuration = Duration.ofMinutes(7);
+
+        final long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-11-13");
+        long baseTime = oneMinBucket.round(startTime);
+
+        List<List<Object>> rows = new ArrayList<>();
+        for (int i = 0; i < 15; i++) {
+            long ts = baseTime + TimeValue.timeValueMinutes(i).millis();
+            rows.add(List.of("a", ts, 1));
+            rows.add(List.of("b", ts, 10));
+        }
+
+        List<Page> results = runPipeline(oneMinBucket, fiveMinBucket, windowDuration, rows);
+
+        List<OutputRow> outputRows = extractRows(results);
+
+        for (OutputRow row : outputRows) {
+            assertThat(
+                "every output timestamp must be aligned to the 5-minute boundary",
+                fiveMinBucket.round(row.bucket()),
+                equalTo(row.bucket())
+            );
+        }
+        // 2 TSIDs × 3 output buckets (0, 5m, 10m)
+        assertThat(outputRows.size(), equalTo(6));
+
+        outputRows.sort(Comparator.comparing(OutputRow::tsid).thenComparingLong(OutputRow::bucket));
+        // TSID "a": each point has value 1.
+        // With no leading trim, early buckets contain partial windows.
+        assertThat(outputRows.get(0).value(), equalTo(1L));  // [0,1m) -> 1 point
+        assertThat(outputRows.get(1).value(), equalTo(6L));  // [0,6m) -> 6 points
+        assertThat(outputRows.get(2).value(), equalTo(7L));  // [4m,11m) -> 7 points
+        // TSID "b": each point has value 10.
+        assertThat(outputRows.get(3).value(), equalTo(10L));
+        assertThat(outputRows.get(4).value(), equalTo(60L));
+        assertThat(outputRows.get(5).value(), equalTo(70L));
     }
 
-    public void testBasicRate() throws Exception {
-        long[] v1 = { 1, 1, 3, 0, 2, 9, 21, 3, 7, 7, 9, 12 };
-        long[] t1 = { 1, 5, 11, 20, 21, 59, 88, 91, 92, 97, 99, 112 };
+    /**
+     * When internal bucket == output bucket, all groups are naturally aligned.
+     * {@code computeOutputAlignedPositions} returns null, and the standard super.emit() path is used.
+     */
+    public void testEmitFallsBackToSuperWhenAllGroupsAligned() {
+        Rounding.Prepared fiveMinBucket = Rounding.builder(TimeValue.timeValueMinutes(5)).build().prepareForUnknown();
+        Duration windowDuration = Duration.ofMinutes(10);
 
-        long[] v2 = { 7, 2, 0, 11, 24, 0, 4, 1, 10, 2 };
-        long[] t2 = { 1, 2, 4, 5, 6, 8, 10, 11, 12, 14 };
+        final long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-11-13");
+        long baseTime = fiveMinBucket.round(startTime);
 
-        long[] v3 = { 0, 1, 0, 1, 1, 4, 2, 2, 2, 2, 3, 5, 5 };
-        long[] t3 = { 2, 3, 5, 7, 8, 9, 10, 12, 14, 15, 18, 20, 22 };
-        List<Pod> pods = List.of(
-            new Pod("p1", "cluster_1", new Interval(2100, t1, v1)),
-            new Pod("p2", "cluster_1", new Interval(600, t2, v2)),
-            new Pod("p3", "cluster_2", new Interval(1100, t3, v3))
-        );
-        long unit = between(1, 5);
-        {
-            List<List<Object>> actual = runRateTest(
-                pods,
-                List.of("cluster"),
-                TimeValue.timeValueMillis(unit),
-                TimeValue.timeValueMillis(500)
-            );
-            List<List<Object>> expected = List.of(
-                List.of(new BytesRef("cluster_1"), 35.0 * unit / 111.0 + 42.0 * unit / 13.0),
-                List.of(new BytesRef("cluster_2"), 10.0 * unit / 20.0)
-            );
-            assertThat(actual, equalTo(expected));
+        List<List<Object>> rows = new ArrayList<>();
+        for (int i = 0; i < 4; i++) {
+            long ts = baseTime + TimeValue.timeValueMinutes(i * 5L).millis();
+            rows.add(List.of("x", ts, 3));
         }
-        {
-            List<List<Object>> actual = runRateTest(pods, List.of("pod"), TimeValue.timeValueMillis(unit), TimeValue.timeValueMillis(500));
-            List<List<Object>> expected = List.of(
-                List.of(new BytesRef("p1"), 35.0 * unit / 111.0),
-                List.of(new BytesRef("p2"), 42.0 * unit / 13.0),
-                List.of(new BytesRef("p3"), 10.0 * unit / 20.0)
-            );
-            assertThat(actual, equalTo(expected));
-        }
-        {
-            List<List<Object>> actual = runRateTest(
-                pods,
-                List.of("cluster", "bucket"),
-                TimeValue.timeValueMillis(unit),
-                TimeValue.timeValueMillis(500)
-            );
-            List<List<Object>> expected = List.of(
-                List.of(new BytesRef("cluster_1"), 2000L, 35.0 * unit / 111.0),
-                List.of(new BytesRef("cluster_1"), 500L, 42.0 * unit / 13.0),
-                List.of(new BytesRef("cluster_2"), 1000L, 10.0 * unit / 20.0)
-            );
-            assertThat(actual, equalTo(expected));
-        }
-    }
 
-    public void testRateWithInterval() throws Exception {
-        long[] v1 = { 1, 2, 3, 0, 1, 2, 3, 4, 5, 0, 1, 2, 3 };
-        long[] t1 = { 0, 10_000, 20_000, 30_000, 40_000, 50_000, 60_000, 70_000, 80_000, 90_000, 100_000, 110_000, 120_000 };
+        // internal bucket == output bucket → no sub-bucketing, all groups aligned
+        List<Page> results = runPipeline(fiveMinBucket, fiveMinBucket, windowDuration, rows);
 
-        long[] v2 = { 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2, 2 };
-        long[] t2 = { 0, 10_000, 20_000, 30_000, 40_000, 50_000, 60_000, 70_000, 80_000, 90_000, 100_000, 110_000, 120_000 };
-
-        long[] v3 = { 2, 4, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096, 8192 };
-        long[] t3 = { 0, 10_000, 20_000, 30_000, 40_000, 50_000, 60_000, 70_000, 80_000, 90_000, 100_000, 110_000, 120_000 };
-        List<Pod> pods = List.of(
-            new Pod("p1", "cluster_1", new Interval(0, t1, v1)),
-            new Pod("p2", "cluster_2", new Interval(0, t2, v2)),
-            new Pod("p3", "cluster_2", new Interval(0, t3, v3))
-        );
-        List<List<Object>> actual = runRateTest(
-            pods,
-            List.of("pod", "bucket"),
-            TimeValue.timeValueMillis(1),
-            TimeValue.timeValueMinutes(1)
-        );
-        List<List<Object>> expected = List.of(
-            List.of(new BytesRef("p1]"), 120_000L, 0.0D),
-            List.of(new BytesRef("p1"), 60_000L, 8.0E-5D),
-            List.of(new BytesRef("p1"), 0, 8.0E-5D),
-            List.of(new BytesRef("p2"), 120_000L, 0.0D),
-            List.of(new BytesRef("p2"), 60_000L, 0.0D),
-            List.of(new BytesRef("p2"), 0L, 0.0D),
-            List.of(new BytesRef("p3"), 120_000L, 0.0D),
-            List.of(new BytesRef("p3"), 60_000L, 0.07936D),
-            List.of(new BytesRef("p3"), 0L, 0.00124D)
-        );
-    }
-
-    public void testRandomRate() throws Exception {
-        int numPods = between(1, 10);
-        List<Pod> pods = new ArrayList<>();
-        TimeValue unit = TimeValue.timeValueSeconds(1);
-        List<List<Object>> expected = new ArrayList<>();
-        for (int p = 0; p < numPods; p++) {
-            int numIntervals = randomIntBetween(1, 3);
-            Interval[] intervals = new Interval[numIntervals];
-            long startTimeInHours = between(10, 100);
-            String podName = "p" + p;
-            for (int interval = 0; interval < numIntervals; interval++) {
-                final long startInterval = TimeValue.timeValueHours(--startTimeInHours).millis();
-                int numValues = between(2, 100);
-                long[] values = new long[numValues];
-                long[] times = new long[numValues];
-                long delta = 0;
-                for (int i = 0; i < numValues; i++) {
-                    values[i] = randomIntBetween(0, 100);
-                    delta += TimeValue.timeValueSeconds(between(1, 10)).millis();
-                    times[i] = delta;
-                }
-                intervals[interval] = new Interval(startInterval, times, values);
-                if (numValues == 1) {
-                    expected.add(List.of(new BytesRef(podName), startInterval, null));
-                } else {
-                    expected.add(List.of(new BytesRef(podName), startInterval, intervals[interval].expectedRate(unit)));
-                }
-            }
-            Pod pod = new Pod(podName, "cluster", intervals);
-            pods.add(pod);
-        }
-        List<List<Object>> actual = runRateTest(pods, List.of("pod", "bucket"), unit, TimeValue.timeValueHours(1));
-        assertThat(actual, equalTo(expected));
-    }
-
-    record Interval(long offset, long[] times, long[] values) {
-        double expectedRate(TimeValue unit) {
-            double dv = 0;
-            for (int v = 0; v < values.length - 1; v++) {
-                if (values[v + 1] < values[v]) {
-                    dv += values[v];
-                }
-            }
-            dv += (values[values.length - 1] - values[0]);
-            long dt = times[times.length - 1] - times[0];
-            return (dv * unit.millis()) / dt;
+        List<OutputRow> outputRows = extractRows(results);
+        assertThat(outputRows.size(), greaterThan(0));
+        for (OutputRow row : outputRows) {
+            assertThat(fiveMinBucket.round(row.bucket()), equalTo(row.bucket()));
         }
     }
 
-    record Pod(String name, String cluster, Interval... intervals) {}
+    /**
+     * Verifies that a VALUES-like aggregator combined with a window aggregator produces correct
+     * results through the optimized emit path where expanded groups are mapped via originalNumGroups.
+     * The DimensionValuesByteRefGroupingAggregatorFunction reads dimension values for each group;
+     * expanded (window-filled) groups must be mapped to their source group's values.
+     */
+    public void testSelectedForValuesAggregatorMapsExpandedGroupsViaOriginalNumGroups() {
+        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+        Rounding.Prepared fiveMinBucket = Rounding.builder(TimeValue.timeValueMinutes(5)).build().prepareForUnknown();
+        Duration windowDuration = Duration.ofMinutes(7);
 
-    List<List<Object>> runRateTest(List<Pod> pods, List<String> groupings, TimeValue unit, TimeValue bucketInterval) throws IOException {
-        cleanup();
-        directory = newDirectory();
-        long unitInMillis = unit.millis();
-        record Doc(String pod, String cluster, long timestamp, long requests) {
+        final long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-11-13");
+        long baseTime = oneMinBucket.round(startTime);
 
+        List<List<Object>> rows = new ArrayList<>();
+        for (int i = 0; i < 20; i++) {
+            long ts = baseTime + TimeValue.timeValueMinutes(i).millis();
+            rows.add(List.of("tsid1", ts, 5));
         }
-        var sourceOperatorFactory = createTimeSeriesSourceOperator(
-            directory,
-            r -> this.reader = r,
-            Integer.MAX_VALUE,
-            between(1, 100),
-            randomBoolean(),
-            writer -> {
-                List<Doc> docs = new ArrayList<>();
-                for (Pod pod : pods) {
-                    for (Interval interval : pod.intervals) {
-                        for (int i = 0; i < interval.times.length; i++) {
-                            docs.add(new Doc(pod.name, pod.cluster, interval.offset + interval.times[i], interval.values[i]));
-                        }
-                    }
-                }
-                Randomness.shuffle(docs);
-                for (Doc doc : docs) {
-                    writeTS(
-                        writer,
-                        doc.timestamp,
-                        new Object[] { "pod", doc.pod, "cluster", doc.cluster },
-                        new Object[] { "requests", doc.requests }
-                    );
-                }
-                return docs.size();
-            }
-        );
-        var ctx = driverContext();
 
-        List<Operator> intermediateOperators = new ArrayList<>();
-        final Rounding.Prepared rounding = new Rounding.Builder(bucketInterval).timeZone(ZoneOffset.UTC).build().prepareForUnknown();
-        var timeBucket = new EvalOperator(ctx.blockFactory(), new EvalOperator.ExpressionEvaluator() {
-            @Override
-            public Block eval(Page page) {
-                LongBlock timestampsBlock = page.getBlock(2);
-                LongVector timestamps = timestampsBlock.asVector();
-                try (var builder = blockFactory().newLongVectorFixedBuilder(timestamps.getPositionCount())) {
-                    for (int i = 0; i < timestamps.getPositionCount(); i++) {
-                        builder.appendLong(rounding.round(timestampsBlock.getLong(i)));
-                    }
-                    return builder.build().asBlock();
-                }
-            }
-
-            @Override
-            public void close() {
-
-            }
-        });
-        intermediateOperators.add(timeBucket);
-        var rateField = new NumberFieldMapper.NumberFieldType("requests", NumberFieldMapper.NumberType.LONG);
-        Operator extractRate = (ValuesSourceReaderOperatorTests.factory(reader, rateField, ElementType.LONG).get(ctx));
-        intermediateOperators.add(extractRate);
-        List<String> nonBucketGroupings = new ArrayList<>(groupings);
-        nonBucketGroupings.remove("bucket");
-        for (String grouping : nonBucketGroupings) {
-            var groupingField = new KeywordFieldMapper.KeywordFieldType(grouping);
-            intermediateOperators.add(ValuesSourceReaderOperatorTests.factory(reader, groupingField, ElementType.BYTES_REF).get(ctx));
-        }
-        // _doc, tsid, timestamp, bucket, requests, grouping1, grouping2
-        Operator intialAgg = new TimeSeriesAggregationOperatorFactories.Initial(
-            1,
-            3,
-            IntStream.range(0, nonBucketGroupings.size()).mapToObj(n -> new BlockHash.GroupSpec(5 + n, ElementType.BYTES_REF)).toList(),
-            List.of(new SupplierWithChannels(new RateLongAggregatorFunctionSupplier(unitInMillis), List.of(4, 2))),
-            List.of(),
-            between(1, 100)
-        ).get(ctx);
-
-        // tsid, bucket, rate[0][0],rate[0][1],rate[0][2], grouping1, grouping2
-        Operator intermediateAgg = new TimeSeriesAggregationOperatorFactories.Intermediate(
-            0,
-            1,
-            IntStream.range(0, nonBucketGroupings.size()).mapToObj(n -> new BlockHash.GroupSpec(5 + n, ElementType.BYTES_REF)).toList(),
-            List.of(new SupplierWithChannels(new RateLongAggregatorFunctionSupplier(unitInMillis), List.of(2, 3, 4))),
-            List.of(),
-            between(1, 100)
-        ).get(ctx);
-        // tsid, bucket, rate, grouping1, grouping2
-        List<BlockHash.GroupSpec> finalGroups = new ArrayList<>();
-        int groupChannel = 3;
-        for (String grouping : groupings) {
-            if (grouping.equals("bucket")) {
-                finalGroups.add(new BlockHash.GroupSpec(1, ElementType.LONG));
-            } else {
-                finalGroups.add(new BlockHash.GroupSpec(groupChannel++, ElementType.BYTES_REF));
-            }
-        }
-        Operator finalAgg = new TimeSeriesAggregationOperatorFactories.Final(
-            finalGroups,
-            List.of(new SupplierWithChannels(new SumDoubleAggregatorFunctionSupplier(), List.of(2))),
-            List.of(),
-            between(1, 100)
-        ).get(ctx);
-
-        List<Page> results = new ArrayList<>();
-        OperatorTestCase.runDriver(
-            TestDriverFactory.create(
-                ctx,
-                sourceOperatorFactory.get(ctx),
-                CollectionUtils.concatLists(intermediateOperators, List.of(intialAgg, intermediateAgg, finalAgg)),
-                new TestResultPageSinkOperator(results::add)
+        // Use both a window aggregator (sum) and a values aggregator (dimension values on tsid column)
+        List<GroupingAggregator.Factory> aggregatorFactories = List.of(
+            new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
+                AggregatorMode.SINGLE,
+                List.of(HASH_CHANNEL_COUNT)
+            ),
+            new org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(
+                AggregatorMode.SINGLE,
+                List.of(0)
             )
         );
-        List<List<Object>> values = new ArrayList<>();
-        for (Page result : results) {
-            for (int p = 0; p < result.getPositionCount(); p++) {
-                int blockCount = result.getBlockCount();
-                List<Object> row = new ArrayList<>();
-                for (int b = 0; b < blockCount; b++) {
-                    row.add(BlockUtils.toJavaObject(result.getBlock(b), p));
-                }
-                values.add(row);
-            }
-            result.releaseBlocks();
+
+        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
+            oneMinBucket,
+            false,
+            List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            ),
+            AggregatorMode.SINGLE,
+            aggregatorFactories,
+            10_000,
+            fiveMinBucket
+        );
+
+        BlockFactory blockFactory = blockFactory();
+        var driverCtx = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        var source = new ListRowsBlockSourceOperator(
+            driverCtx.blockFactory(),
+            List.of(ElementType.BYTES_REF, ElementType.LONG, ElementType.INT),
+            rows
+        );
+        List<Page> results = new ArrayList<>();
+        try (
+            var driver = TestDriverFactory.create(
+                driverCtx,
+                source,
+                List.of(operatorFactory.get(driverCtx)),
+                new TestResultPageSinkOperator(results::add)
+            )
+        ) {
+            new TestDriverRunner().run(driver);
         }
-        values.sort((v1, v2) -> {
-            for (int i = 0; i < v1.size(); i++) {
-                if (v1.get(i) instanceof BytesRef b1) {
-                    int cmp = b1.compareTo((BytesRef) v2.get(i));
-                    if (cmp != 0) {
-                        return cmp;
-                    }
-                } else if (v1.get(i) instanceof Long b1) {
-                    int cmp = b1.compareTo((Long) v2.get(i));
-                    if (cmp != 0) {
-                        return -cmp;
-                    }
-                }
+
+        BytesRef expectedTsid = new BytesRef("tsid1");
+        assertThat("should produce output rows", results.isEmpty(), equalTo(false));
+        for (Page page : results) {
+            // block 0: tsid key, block 1: timestamp key, block 2: windowed sum, block 3: values(tsid)
+            assertThat("expected 4 blocks (2 keys + 2 agg results)", page.getBlockCount(), equalTo(4));
+            LongBlock buckets = page.getBlock(1);
+            BytesRefBlock valuesBlock = page.getBlock(3);
+            var scratch = new BytesRef();
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                assertThat(fiveMinBucket.round(buckets.getLong(p)), equalTo(buckets.getLong(p)));
+                // The values aggregator must produce the tsid value for every output row,
+                // including rows whose group was created by expandWindowBuckets
+                assertFalse("values block must not be null at position " + p, valuesBlock.isNull(p));
+                BytesRef val = valuesBlock.getBytesRef(valuesBlock.getFirstValueIndex(p), scratch);
+                assertThat(val, equalTo(expectedTsid));
             }
-            return 0;
-        });
-        return values;
+        }
     }
+
+    /**
+     * Sparse data where output-aligned sub-buckets have no direct data points.
+     * With a backward 7m window, 5m output bucket, 1m internal bucket, and sparse data:
+     * - Output group at 10m is an expanded group (no direct data) and must keep VALUES output
+     * This exercises the path where expandWindowBuckets creates groups that become output-aligned,
+     * and selectedForValuesAggregator must remap them to the original group that has dimension data.
+     */
+    public void testValuesAggregatorWithSparseDataAndNonMultipleWindow() {
+        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+        Rounding.Prepared fiveMinBucket = Rounding.builder(TimeValue.timeValueMinutes(5)).build().prepareForUnknown();
+        Duration windowDuration = Duration.ofMinutes(7);
+
+        final long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-11-13");
+        long baseTime = oneMinBucket.round(startTime);
+
+        List<List<Object>> rows = new ArrayList<>();
+        // Only two data points: minute 2 and minute 8
+        rows.add(List.of("s1", baseTime + TimeValue.timeValueMinutes(2).millis(), 5));
+        rows.add(List.of("s1", baseTime + TimeValue.timeValueMinutes(8).millis(), 10));
+
+        List<GroupingAggregator.Factory> aggregatorFactories = List.of(
+            new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
+                AggregatorMode.SINGLE,
+                List.of(HASH_CHANNEL_COUNT)
+            ),
+            new org.elasticsearch.compute.aggregation.ValuesBytesRefAggregatorFunctionSupplier().groupingAggregatorFactory(
+                AggregatorMode.SINGLE,
+                List.of(0)
+            )
+        );
+
+        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
+            oneMinBucket,
+            false,
+            List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            ),
+            AggregatorMode.SINGLE,
+            aggregatorFactories,
+            10_000,
+            fiveMinBucket
+        );
+
+        BlockFactory blockFactory = blockFactory();
+        var driverCtx = new DriverContext(blockFactory.bigArrays(), blockFactory, null);
+        var source = new ListRowsBlockSourceOperator(
+            driverCtx.blockFactory(),
+            List.of(ElementType.BYTES_REF, ElementType.LONG, ElementType.INT),
+            rows
+        );
+        List<Page> results = new ArrayList<>();
+        try (
+            var driver = TestDriverFactory.create(
+                driverCtx,
+                source,
+                List.of(operatorFactory.get(driverCtx)),
+                new TestResultPageSinkOperator(results::add)
+            )
+        ) {
+            new TestDriverRunner().run(driver);
+        }
+
+        BytesRef expectedTsid = new BytesRef("s1");
+        assertThat("should produce output rows", results.isEmpty(), equalTo(false));
+        List<OutputRow> outputRows = new ArrayList<>();
+        for (Page page : results) {
+            // block 0: tsid key, block 1: timestamp key, block 2: windowed sum, block 3: values(tsid)
+            assertThat("expected 4 blocks (2 keys + 2 agg results)", page.getBlockCount(), equalTo(4));
+            BytesRefBlock tsids = page.getBlock(0);
+            LongBlock buckets = page.getBlock(1);
+            LongBlock sums = page.getBlock(2);
+            BytesRefBlock valuesBlock = page.getBlock(3);
+            var scratch = new BytesRef();
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                long bucket = buckets.getLong(p);
+                assertThat("output must be aligned to 5m", fiveMinBucket.round(bucket), equalTo(bucket));
+                assertFalse("values block must not be null at position " + p, valuesBlock.isNull(p));
+                BytesRef val = valuesBlock.getBytesRef(valuesBlock.getFirstValueIndex(p), scratch);
+                assertThat("dimension value must be present for expanded output-aligned group", val, equalTo(expectedTsid));
+                outputRows.add(new OutputRow(tsids.getBytesRef(p, scratch).utf8ToString(), bucket, sums.getLong(p)));
+            }
+        }
+        // With no leading trim and range-guarding to [2m,8m], only 05:00 remains output-aligned.
+        assertThat(outputRows.size(), equalTo(1));
+        outputRows.sort(Comparator.comparingLong(OutputRow::bucket));
+        // Window [−1m,6m) intersects available data at minute 2 only.
+        assertThat(outputRows.get(0).value(), equalTo(5L));
+    }
+
+    /**
+     * Verifies that the evaluation context resolves timestamps correctly when the keys blocks are
+     * filtered (positions no longer match group IDs). This exercises the tsBlockHash-based lookup
+     * introduced by the optimization, through a full pipeline with sub-bucketing.
+     */
+    public void testEvaluationContextUsesBlockHashDirectlyForTimestampLookups() {
+        Rounding.Prepared oneMinBucket = Rounding.builder(TimeValue.timeValueMinutes(1)).build().prepareForUnknown();
+        Rounding.Prepared threeMinBucket = Rounding.builder(TimeValue.timeValueMinutes(3)).build().prepareForUnknown();
+        Duration windowDuration = Duration.ofMinutes(4);
+
+        final long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-11-13");
+        long baseTime = oneMinBucket.round(startTime);
+
+        List<List<Object>> rows = new ArrayList<>();
+        for (int i = 0; i < 9; i++) {
+            long ts = baseTime + TimeValue.timeValueMinutes(i).millis();
+            rows.add(List.of("z", ts, 2));
+        }
+
+        // 4m backward window, 3m output bucket, 1m internal bucket.
+        List<Page> results = runPipeline(oneMinBucket, threeMinBucket, windowDuration, rows);
+
+        List<OutputRow> outputRows = extractRows(results);
+        assertThat(outputRows.size(), equalTo(3)); // 0, 3m, 6m
+        for (OutputRow row : outputRows) {
+            assertThat(threeMinBucket.round(row.bucket()), equalTo(row.bucket()));
+        }
+        outputRows.sort(Comparator.comparingLong(OutputRow::bucket));
+        // [0,1m) -> minute 0 -> 1 point × 2 = 2
+        assertThat(outputRows.get(0).value(), equalTo(2L));
+        // [0,4m) -> minutes 0..3 -> 4 points × 2 = 8
+        assertThat(outputRows.get(1).value(), equalTo(8L));
+        // [3m,7m) -> minutes 3..6 -> 4 points × 2 = 8
+        assertThat(outputRows.get(2).value(), equalTo(8L));
+    }
+
+    // --- helpers ---
+
+    private List<Page> runPipeline(
+        Rounding.Prepared internalBucket,
+        Rounding.Prepared outputBucket,
+        Duration windowDuration,
+        List<List<Object>> rows
+    ) {
+        var operatorFactory = new TimeSeriesAggregationOperator.Factory(
+            internalBucket,
+            false,
+            List.of(
+                new BlockHash.GroupSpec(0, ElementType.BYTES_REF, null, null),
+                new BlockHash.GroupSpec(1, ElementType.LONG, null, null)
+            ),
+            AggregatorMode.SINGLE,
+            List.of(
+                new WindowAggregatorFunctionSupplier(new SumIntAggregatorFunctionSupplier(), windowDuration).groupingAggregatorFactory(
+                    AggregatorMode.SINGLE,
+                    List.of(HASH_CHANNEL_COUNT)
+                )
+            ),
+            10_000,
+            outputBucket
+        );
+
+        BlockFactory bf = blockFactory();
+        var driverCtx = new DriverContext(bf.bigArrays(), bf, null);
+        var source = new ListRowsBlockSourceOperator(
+            driverCtx.blockFactory(),
+            List.of(ElementType.BYTES_REF, ElementType.LONG, ElementType.INT),
+            rows
+        );
+        List<Page> results = new ArrayList<>();
+        try (
+            var driver = TestDriverFactory.create(
+                driverCtx,
+                source,
+                List.of(operatorFactory.get(driverCtx)),
+                new TestResultPageSinkOperator(results::add)
+            )
+        ) {
+            new TestDriverRunner().run(driver);
+        }
+        return results;
+    }
+
+    private record OutputRow(String tsid, long bucket, long value) {}
+
+    private static List<OutputRow> extractRows(List<Page> results) {
+        List<OutputRow> outputRows = new ArrayList<>();
+        for (Page page : results) {
+            BytesRefBlock tsids = page.getBlock(0);
+            LongBlock buckets = page.getBlock(1);
+            LongBlock values = page.getBlock(2);
+            var scratch = new BytesRef();
+            for (int p = 0; p < page.getPositionCount(); p++) {
+                outputRows.add(new OutputRow(tsids.getBytesRef(p, scratch).utf8ToString(), buckets.getLong(p), values.getLong(p)));
+            }
+        }
+        return outputRows;
+    }
+
 }

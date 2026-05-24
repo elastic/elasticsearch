@@ -38,6 +38,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterApplierService;
@@ -47,6 +48,7 @@ import org.elasticsearch.cluster.version.CompatibilityVersionsUtils;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -1095,19 +1097,29 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     }
 
                     @Override
-                    public RecyclerBytesStreamOutput newNetworkBytesStream() {
-                        return new RecyclerBytesStreamOutput(clearableRecycler);
+                    public RecyclerBytesStreamOutput newNetworkBytesStream(@Nullable CircuitBreaker circuitBreaker) {
+                        return new RecyclerBytesStreamOutput(clearableRecycler, circuitBreaker);
                     }
                 };
-                final Settings settings = nodeSettings.hasValue(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey())
-                    ? nodeSettings
-                    : Settings.builder()
-                        .put(nodeSettings)
-                        .putList(
-                            ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
-                            ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY)
-                        )
-                        .build(); // suppress auto-bootstrap
+
+                final var settingsBuilder = Settings.builder();
+                if (randomBoolean()) {
+                    // relax lag detector
+                    settingsBuilder.put(
+                        LagDetector.CLUSTER_FOLLOWER_LAG_TIMEOUT_SETTING.getKey(),
+                        randomFrom(TimeValue.ONE_HOUR, TimeValue.timeValueDays(100), TimeValue.ZERO, TimeValue.MINUS_ONE)
+                    );
+                }
+                settingsBuilder.put(nodeSettings);
+                if (nodeSettings.hasValue(DiscoveryModule.DISCOVERY_TYPE_SETTING.getKey()) == false) {
+                    // suppress auto-bootstrap
+                    settingsBuilder.putList(
+                        ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
+                        ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.get(Settings.EMPTY)
+                    );
+                }
+                final var settings = settingsBuilder.build();
+
                 transportService = mockTransport.createTransportService(
                     settings,
                     threadPool,
@@ -1140,7 +1152,7 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     (dn, cs) -> extraJoinValidators.forEach(validator -> validator.accept(dn, cs))
                 );
                 final AllocationService allocationService = ESAllocationTestCase.createAllocationService(Settings.EMPTY);
-                final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+                final NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
                 final var coordinationServices = coordinatorStrategy.getCoordinationServices(
                     threadPool,
                     settings,
@@ -1170,7 +1182,8 @@ public class AbstractCoordinatorTestCase extends ESTestCase {
                     coordinationServices.getLeaderHeartbeatService(),
                     coordinationServices.getPreVoteCollectorFactory(),
                     CompatibilityVersionsUtils.staticCurrent(),
-                    new FeatureService(List.of())
+                    new FeatureService(List.of()),
+                    clusterService
                 );
                 coordinationDiagnosticsService = new CoordinationDiagnosticsService(
                     clusterService,

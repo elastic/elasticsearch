@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
@@ -56,8 +57,14 @@ public class ClusterHealthIT extends ESIntegTestCase {
     }
 
     public void testHealth() {
+        logger.info("--> running cluster health for '_all' on an empty cluster");
+        ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, Metadata.ALL).get();
+        assertThat(healthResponse.isTimedOut(), equalTo(false));
+        assertThat(healthResponse.getStatus(), equalTo(ClusterHealthStatus.GREEN));
+        assertThat(healthResponse.getIndices().isEmpty(), equalTo(true));
+
         logger.info("--> running cluster health on an index that does not exists");
-        ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test1")
+        healthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "test1")
             .setWaitForYellowStatus()
             .setTimeout(TimeValue.timeValueSeconds(1))
             .get();

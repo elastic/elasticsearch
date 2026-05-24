@@ -17,7 +17,7 @@ esplugin {
 }
 
 dependencies {
-  api "com.github.spullara.mustache.java:compiler:0.9.10"
+  api "com.github.spullara.mustache.java:compiler:0.9.14"
 }
 
 restResources {
@@ -25,5 +25,9 @@ restResources {
     include '_common', 'cluster', 'nodes', 'indices', 'index', 'bulk',
       'put_script', 'render_search_template', 'search_template', 'msearch_template', 'lang_mustache'
   }
+}
+
+tasks.named("yamlRestCompatTestTransform").configure { task ->
+  task.replaceValueInLength("profile", 2, "Test that parameters can be used")
 }
 

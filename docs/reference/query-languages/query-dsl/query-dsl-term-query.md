@@ -37,7 +37,6 @@ GET /_search
 }
 ```
 
-
 ## Top-level parameters for `term` [term-top-level-params]
 
 `<field>`
@@ -57,8 +56,12 @@ GET /_search
     Boost values are relative to the default value of `1.0`. A boost value between `0` and `1.0` decreases the relevance score. A value greater than `1.0` increases the relevance score.
 
 
-`case_insensitive` [7.10.0]
-:   (Optional, Boolean) Allows ASCII case insensitive matching of the value with the indexed field values when set to true. Default is false which means the case sensitivity of matching depends on the underlying field’s mapping.
+`case_insensitive`
+:   :::{admonition} Added in 7.10.0
+    This parameter was added in 7.10.0.
+    :::
+
+    (Optional, Boolean) Allows ASCII case insensitive matching of the value with the indexed field values when set to true. Default is false which means the case sensitivity of matching depends on the underlying field’s mapping.
 
 
 ## Notes [term-query-notes]
@@ -98,6 +101,7 @@ To see the difference in search results, try the following example.
       "full_text":   "Quick Brown Foxes!"
     }
     ```
+    % TEST[continued]
 
     Because `full_text` is a `text` field, {{es}} changes `Quick Brown Foxes!` to `[quick, brown, fox]` during analysis.
 
@@ -113,10 +117,18 @@ To see the difference in search results, try the following example.
       }
     }
     ```
+    % TEST[continued]
 
     Because the `full_text` field no longer contains the **exact** term `Quick Brown Foxes!`, the `term` query search returns no results.
 
 4. Use the `match` query to search for `Quick Brown Foxes!` in the `full_text` field.
+
+    <!--
+    ```console
+    POST my-index-000001/_refresh
+    ```
+    % TEST[continued]
+    -->
 
     ```console
     GET my-index-000001/_search?pretty
@@ -128,6 +140,7 @@ To see the difference in search results, try the following example.
       }
     }
     ```
+    % TEST[continued]
 
     Unlike the `term` query, the `match` query analyzes your provided search term, `Quick Brown Foxes!`, before performing a search. The `match` query then returns any documents containing the `quick`, `brown`, or `fox` tokens in the `full_text` field.
 
@@ -135,33 +148,34 @@ To see the difference in search results, try the following example.
 
     ```console-result
     {
-      "took" : 1,
-      "timed_out" : false,
-      "_shards" : {
-        "total" : 1,
-        "successful" : 1,
-        "skipped" : 0,
-        "failed" : 0
+      "took": 1,
+      "timed_out": false,
+      "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
       },
-      "hits" : {
-        "total" : {
-          "value" : 1,
-          "relation" : "eq"
+      "hits": {
+        "total": {
+          "value": 1,
+          "relation": "eq"
         },
-        "max_score" : 0.8630463,
-        "hits" : [
+        "max_score": 0.8630463,
+        "hits": [
           {
-            "_index" : "my-index-000001",
-            "_id" : "1",
-            "_score" : 0.8630463,
-            "_source" : {
-              "full_text" : "Quick Brown Foxes!"
+            "_index": "my-index-000001",
+            "_id": "1",
+            "_score": 0.8630463,
+            "_source": {
+              "full_text": "Quick Brown Foxes!"
             }
           }
         ]
       }
     }
     ```
+    % TESTRESPONSE[s/"took": 1/"took" : $body.took/]
 
 
 

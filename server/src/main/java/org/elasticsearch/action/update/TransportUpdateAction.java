@@ -44,6 +44,8 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.InferenceFieldMapper;
 import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
@@ -54,6 +56,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
@@ -62,6 +65,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Optional;
 import java.util.concurrent.Executor;
 
 import static org.elasticsearch.ExceptionsHelper.unwrapCause;
@@ -128,6 +132,36 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
     @Override
     protected void resolveRequest(ProjectState state, UpdateRequest docWriteRequest) {
         docWriteRequest.routing(state.metadata().resolveWriteIndexRouting(docWriteRequest.routing(), docWriteRequest.index()));
+        requireSliceRoutingWhenEnabled(state, docWriteRequest);
+    }
+
+    private static void requireSliceRoutingWhenEnabled(ProjectState state, UpdateRequest request) {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            return;
+        }
+        final String concreteName = IndexNameExpressionResolver.resolveDateMathExpression(request.index());
+        final boolean sliceEnabled = Optional.ofNullable(state.metadata().getIndicesLookup().get(concreteName))
+            .map(indexAbstraction -> indexAbstraction.getWriteIndex())
+            .map(state.metadata()::index)
+            .map(metadata -> IndexSettings.SLICE_ENABLED.get(metadata.getSettings()))
+            .orElse(false);
+        if (sliceEnabled == false && request.isRoutingFromSlice()) {
+            throw new IllegalArgumentException(
+                "[_slice] is not allowed when [index.slice.enabled] is false for request targeting [" + request.index() + "]"
+            );
+        }
+        if (sliceEnabled && request.isRoutingFromSlice() == false) {
+            if (request.routing() != null) {
+                throw new IllegalArgumentException(
+                    "[routing] is not allowed when [index.slice.enabled] is true for request targeting ["
+                        + request.index()
+                        + "], use [_slice] instead"
+                );
+            }
+            throw new IllegalArgumentException(
+                "[_slice] is required when [index.slice.enabled] is true for request targeting [" + request.index() + "]"
+            );
+        }
     }
 
     @Override
@@ -215,7 +249,14 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
             assert ThreadPool.assertCurrentThreadPool(Names.SYSTEM_WRITE, Names.WRITE);
             return deleteInferenceResults(
                 request,
-                updateHelper.prepare(request, indexShard, threadPool::absoluteTimeInMillis), // Gets the doc using the engine
+                // Gets the doc using the engine
+                updateHelper.prepare(
+                    request,
+                    indexShard,
+                    threadPool::absoluteTimeInMillis,
+                    // Exclude inference fields to ensure embeddings are recomputed.
+                    FetchSourceContext.FETCH_ALL_SOURCE_EXCLUDE_INFERENCE_FIELDS
+                ),
                 indexService.getMetadata(),
                 mappingLookup
             );

@@ -11,22 +11,31 @@ package org.elasticsearch.xpack.esql.heap_attack;
 
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 
 public class Clusters {
+    public static final int HEAP_SIZE_IN_MB = 512;
+
     static ElasticsearchCluster buildCluster() {
+        return buildClusterSpec().build();
+    }
+
+    static LocalClusterSpecBuilder<ElasticsearchCluster> buildClusterSpec() {
         var spec = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
             .nodes(2)
             .module("test-esql-heap-attack")
             .setting("xpack.security.enabled", "false")
             .setting("xpack.license.self_generated.type", "trial")
-            .jvmArg("-Xmx512m");
+            .setting("esql.query.allow_partial_results", "false")
+            .setting("logger.org.elasticsearch.compute.lucene.read", "DEBUG")
+            .jvmArg("-Xmx" + HEAP_SIZE_IN_MB + "m");
         String javaVersion = JvmInfo.jvmInfo().version();
         if (javaVersion.equals("20") || javaVersion.equals("21")) {
             // see https://github.com/elastic/elasticsearch/issues/99592
             spec.jvmArg("-XX:+UnlockDiagnosticVMOptions -XX:+G1UsePreventiveGC");
         }
-        return spec.build();
+        return spec;
     }
 }

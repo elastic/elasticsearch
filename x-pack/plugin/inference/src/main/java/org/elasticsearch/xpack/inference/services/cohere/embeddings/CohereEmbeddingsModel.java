@@ -15,10 +15,10 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereModel;
+import org.elasticsearch.xpack.inference.services.cohere.CohereService;
 import org.elasticsearch.xpack.inference.services.cohere.action.CohereActionVisitor;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
-import java.net.URI;
 import java.util.Map;
 
 public class CohereEmbeddingsModel extends CohereModel {
@@ -29,8 +29,6 @@ public class CohereEmbeddingsModel extends CohereModel {
 
     public CohereEmbeddingsModel(
         String inferenceId,
-        TaskType taskType,
-        String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
         ChunkingSettings chunkingSettings,
@@ -39,30 +37,33 @@ public class CohereEmbeddingsModel extends CohereModel {
     ) {
         this(
             inferenceId,
-            taskType,
-            service,
             CohereEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             CohereEmbeddingsTaskSettings.fromMap(taskSettings),
             chunkingSettings,
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 
-    // should only be used for testing
+    // should be used directly only for testing
     CohereEmbeddingsModel(
         String modelId,
-        TaskType taskType,
-        String service,
         CohereEmbeddingsServiceSettings serviceSettings,
         CohereEmbeddingsTaskSettings taskSettings,
         ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secretSettings
     ) {
+        this(
+            new ModelConfigurations(modelId, TaskType.TEXT_EMBEDDING, CohereService.NAME, serviceSettings, taskSettings, chunkingSettings),
+            new ModelSecrets(secretSettings)
+        );
+    }
+
+    public CohereEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
         super(
-            new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secretSettings),
-            secretSettings,
-            serviceSettings.getCommonSettings()
+            modelConfigurations,
+            modelSecrets,
+            (DefaultSecretSettings) modelSecrets.getSecretSettings(),
+            ((CohereEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
         );
     }
 
@@ -94,8 +95,4 @@ public class CohereEmbeddingsModel extends CohereModel {
         return visitor.create(this, taskSettings);
     }
 
-    @Override
-    public URI uri() {
-        return getServiceSettings().getCommonSettings().uri();
-    }
 }

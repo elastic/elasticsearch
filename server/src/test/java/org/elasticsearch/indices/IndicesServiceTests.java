@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.indices;
 
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.AlreadyClosedException;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.io.FileSystemUtils;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLockObtainFailedException;
@@ -40,24 +42,33 @@ import org.elasticsearch.gateway.GatewayMetaState;
 import org.elasticsearch.gateway.LocalAllocateDangledIndices;
 import org.elasticsearch.gateway.MetaStateWriterUtils;
 import org.elasticsearch.health.node.selection.HealthNodeTaskExecutor;
+import org.elasticsearch.index.ActionLoggingFields;
+import org.elasticsearch.index.ActionLoggingFieldsContext;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.SlowLogFieldProvider;
-import org.elasticsearch.index.SlowLogFields;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.mapper.DocumentMapper;
+import org.elasticsearch.index.mapper.DocumentParserContext;
+import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
+import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
@@ -65,6 +76,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.NonNegativeScoresSimilarity;
 import org.elasticsearch.indices.IndicesService.ShardDeletionCheckResult;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -92,6 +104,7 @@ import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolverTest
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -103,6 +116,8 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.matchesRegex;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -188,13 +203,98 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
     }
 
+    static class DeprecatedParameterMapper extends FieldMapper {
+
+        static final String CONTENT_TYPE = "deprecated-param-mapper";
+
+        private DeprecatedParameterMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
+            super(simpleName, mappedFieldType, builderParams);
+        }
+
+        @Override
+        protected void parseCreateField(DocumentParserContext context) {}
+
+        @Override
+        public Builder getMergeBuilder() {
+            return new DeprecatedParameterMapper.TypeBuilder(leafName()).init(this);
+        }
+
+        @Override
+        protected String contentType() {
+            return CONTENT_TYPE;
+        }
+
+        static class TypeBuilder extends FieldMapper.Builder {
+
+            private final Parameter<String> deprecatedParam = Parameter.stringParam(
+                "deprecated_field",
+                true,
+                m -> ((DeprecatedParameterFieldType) m.fieldType()).deprecatedField,
+                null
+            ).acceptsNull().deprecated();
+
+            TypeBuilder(String name) {
+                super(name);
+            }
+
+            @Override
+            protected Parameter<?>[] getParameters() {
+                return new Parameter<?>[] { deprecatedParam };
+            }
+
+            @Override
+            public String contentType() {
+                return CONTENT_TYPE;
+            }
+
+            @Override
+            public FieldMapper build(MapperBuilderContext context) {
+                return new DeprecatedParameterMapper(
+                    leafName(),
+                    new DeprecatedParameterFieldType(context.buildFullName(leafName()), deprecatedParam.getValue()),
+                    builderParams(this, context)
+                );
+            }
+        }
+
+        static class DeprecatedParameterFieldType extends MappedFieldType {
+
+            private final String deprecatedField;
+
+            DeprecatedParameterFieldType(String name, String deprecatedField) {
+                super(name, IndexType.NONE, false, Map.of());
+                this.deprecatedField = deprecatedField;
+            }
+
+            @Override
+            public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
+                return ValueFetcher.EMPTY;
+            }
+
+            @Override
+            public String typeName() {
+                return CONTENT_TYPE;
+            }
+
+            @Override
+            public Query termQuery(Object value, SearchExecutionContext context) {
+                throw new UnsupportedOperationException();
+            }
+        }
+    }
+
     public static class TestPlugin extends Plugin implements MapperPlugin {
 
         public TestPlugin() {}
 
         @Override
         public Map<String, Mapper.TypeParser> getMappers() {
-            return Collections.singletonMap("fake-mapper", KeywordFieldMapper.PARSER);
+            return Map.of(
+                "fake-mapper",
+                KeywordFieldMapper.PARSER,
+                DeprecatedParameterMapper.CONTENT_TYPE,
+                new FieldMapper.TypeParser((name, parserContext) -> new DeprecatedParameterMapper.TypeBuilder(name))
+            );
         }
 
         @Override
@@ -204,62 +304,40 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public static class TestSlowLogFieldProvider implements SlowLogFieldProvider {
-
+    public static class TestActionActionLoggingFieldsProvider implements ActionLoggingFieldsProvider {
         private static Map<String, String> fields = Map.of();
 
         static void setFields(Map<String, String> fields) {
-            TestSlowLogFieldProvider.fields = fields;
+            TestActionActionLoggingFieldsProvider.fields = fields;
         }
 
         @Override
-        public SlowLogFields create() {
-            return new SlowLogFields() {
+        public ActionLoggingFields create(ActionLoggingFieldsContext context) {
+            return new ActionLoggingFields(context) {
                 @Override
-                public Map<String, String> indexFields() {
-                    return fields;
-                }
-
-                @Override
-                public Map<String, String> searchFields() {
+                public Map<String, String> logFields() {
                     return fields;
                 }
             };
         }
-
-        @Override
-        public SlowLogFields create(IndexSettings indexSettings) {
-            return create();
-        }
-
     }
 
-    public static class TestAnotherSlowLogFieldProvider implements SlowLogFieldProvider {
+    public static class TestAnotherActionActionLoggingFieldsProvider implements ActionLoggingFieldsProvider {
 
         private static Map<String, String> fields = Map.of();
 
         static void setFields(Map<String, String> fields) {
-            TestAnotherSlowLogFieldProvider.fields = fields;
+            TestAnotherActionActionLoggingFieldsProvider.fields = fields;
         }
 
         @Override
-        public SlowLogFields create() {
-            return new SlowLogFields() {
+        public ActionLoggingFields create(ActionLoggingFieldsContext context) {
+            return new ActionLoggingFields(context) {
                 @Override
-                public Map<String, String> indexFields() {
-                    return fields;
-                }
-
-                @Override
-                public Map<String, String> searchFields() {
+                public Map<String, String> logFields() {
                     return fields;
                 }
             };
-        }
-
-        @Override
-        public SlowLogFields create(IndexSettings indexSettings) {
-            return create();
         }
     }
 
@@ -323,7 +401,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             test.getIndexSettings().customDataPath()
         );
 
-        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", firstMetadata));
+        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", firstMetadata, randomReason()));
         assertTrue(firstPath.exists());
 
         GatewayMetaState gwMetaState = getInstanceFromNode(GatewayMetaState.class);
@@ -353,7 +431,7 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         );
         assertTrue(secondPath.exists());
 
-        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", secondMetadata));
+        expectThrows(IllegalStateException.class, () -> indicesService.deleteIndexStore("boom", secondMetadata, randomReason()));
         assertTrue(secondPath.exists());
 
         assertAcked(client().admin().indices().prepareOpen("test"));
@@ -384,13 +462,13 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         int numPending = 1;
         if (randomBoolean()) {
-            indicesService.addPendingDelete(indexShard.shardId(), indexSettings);
+            indicesService.addPendingDelete(indexShard.shardId(), indexSettings, randomReason());
         } else {
             if (randomBoolean()) {
                 numPending++;
-                indicesService.addPendingDelete(indexShard.shardId(), indexSettings);
+                indicesService.addPendingDelete(indexShard.shardId(), indexSettings, randomReason());
             }
-            indicesService.addPendingDelete(index, indexSettings);
+            indicesService.addPendingDelete(index, indexSettings, randomReason());
         }
 
         assertAcked(client().admin().indices().prepareClose("test"));
@@ -410,9 +488,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
         final boolean hasBogus = randomBoolean();
         if (hasBogus) {
-            indicesService.addPendingDelete(new ShardId(index, 0), indexSettings);
-            indicesService.addPendingDelete(new ShardId(index, 1), indexSettings);
-            indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), indexSettings);
+            indicesService.addPendingDelete(new ShardId(index, 0), indexSettings, randomReason());
+            indicesService.addPendingDelete(new ShardId(index, 1), indexSettings, randomReason());
+            indicesService.addPendingDelete(new ShardId("bogus", "_na_", 1), indexSettings, randomReason());
             assertEquals(indicesService.numPendingDeletes(index), numPending + 2);
             assertTrue(indicesService.hasUncompletedPendingDeletes());
         }
@@ -448,7 +526,11 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .build();
 
         MetaStateWriterUtils.writeIndex(nodeEnv, "test index being created", indexMetadata);
-        final Metadata metadata = Metadata.builder(clusterService.state().metadata()).put(indexMetadata, true).build();
+        final Metadata current = clusterService.state().metadata();
+        final ProjectMetadata updatedProject = ProjectMetadata.builder(current.getProject(ProjectId.DEFAULT))
+            .put(indexMetadata, true)
+            .build();
+        final Metadata metadata = Metadata.builder(current).put(updatedProject).build();
         final ClusterState csWithIndex = new ClusterState.Builder(clusterService.state()).metadata(metadata).build();
         try {
             indicesService.verifyIndexIsDeleted(index, csWithIndex);
@@ -545,8 +627,9 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
             .build();
         final Index tombstonedIndex = new Index(indexName, UUIDs.randomBase64UUID());
         final IndexGraveyard graveyard = IndexGraveyard.builder().addTombstone(tombstonedIndex).build();
-        final Metadata metadata = Metadata.builder().put(indexMetadata, true).indexGraveyard(graveyard).build();
-        final ClusterState clusterState = new ClusterState.Builder(new ClusterName("testCluster")).metadata(metadata).build();
+        @FixForMultiProject // Use random project-id
+        final var project = ProjectMetadata.builder(ProjectId.DEFAULT).put(indexMetadata, true).indexGraveyard(graveyard).build();
+        final ClusterState clusterState = new ClusterState.Builder(new ClusterName("testCluster")).putProjectMetadata(project).build();
         // if all goes well, this won't throw an exception, otherwise, it will throw an IllegalStateException
         indicesService.verifyIndexIsDeleted(tombstonedIndex, clusterState);
     }
@@ -610,14 +693,18 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
 
                 shardStats.add(successfulShardStats);
 
-                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL)).thenReturn(successfulShardStats);
+                when(mockIndicesService.indexShardStats(eq(mockIndicesService), eq(shard), eq(CommonStatsFlags.ALL), any())).thenReturn(
+                    successfulShardStats
+                );
             } else {
-                when(mockIndicesService.indexShardStats(mockIndicesService, shard, CommonStatsFlags.ALL)).thenThrow(expectedException);
+                when(mockIndicesService.indexShardStats(eq(mockIndicesService), eq(shard), eq(CommonStatsFlags.ALL), any())).thenThrow(
+                    expectedException
+                );
             }
         }
 
-        when(mockIndicesService.iterator()).thenReturn(Collections.singleton(indexService).iterator());
-        when(indexService.iterator()).thenReturn(shards.iterator());
+        when(mockIndicesService.iterator()).thenAnswer(invocation -> Collections.singleton(indexService).iterator());
+        when(indexService.iterator()).thenAnswer(unused -> shards.iterator());
         when(indexService.index()).thenReturn(index);
 
         // real one, which has a logger defined
@@ -831,39 +918,35 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testLoadSlowLogFieldProvider() {
-        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
-        TestAnotherSlowLogFieldProvider.setFields(Map.of("key2", "value2"));
+    public void testLoadLoggingFieldsProvider() {
+        TestActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of("key2", "value2"));
 
         var indicesService = getIndicesService();
-        SlowLogFieldProvider fieldProvider = indicesService.slowLogFieldProvider;
-        SlowLogFields fields = fieldProvider.create(null);
+        ActionLoggingFieldsProvider fieldProvider = indicesService.loggingFieldsProvider;
+        ActionLoggingFields fields = fieldProvider.create(new ActionLoggingFieldsContext());
 
         // The map of fields from the two providers are merged to a single map of fields
-        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.searchFields());
-        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.indexFields());
+        assertEquals(Map.of("key1", "value1", "key2", "value2"), fields.logFields());
 
-        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
-        TestAnotherSlowLogFieldProvider.setFields(Map.of("key1", "value2"));
+        TestActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value2"));
 
         // There is an overlap of field names, since this isn't deterministic and probably a
         // programming error (two providers provide the same field) throw an exception
-        assertThrows(IllegalStateException.class, fields::searchFields);
-        assertThrows(IllegalStateException.class, fields::indexFields);
+        assertThrows(IllegalStateException.class, fields::logFields);
 
-        TestSlowLogFieldProvider.setFields(Map.of("key1", "value1"));
-        TestAnotherSlowLogFieldProvider.setFields(Map.of());
+        TestActionActionLoggingFieldsProvider.setFields(Map.of("key1", "value1"));
+        TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of());
 
         // One provider has no fields
-        assertEquals(Map.of("key1", "value1"), fields.searchFields());
-        assertEquals(Map.of("key1", "value1"), fields.indexFields());
+        assertEquals(Map.of("key1", "value1"), fields.logFields());
 
-        TestSlowLogFieldProvider.setFields(Map.of());
-        TestAnotherSlowLogFieldProvider.setFields(Map.of());
+        TestActionActionLoggingFieldsProvider.setFields(Map.of());
+        TestAnotherActionActionLoggingFieldsProvider.setFields(Map.of());
 
         // Both providers have no fields
-        assertEquals(Map.of(), fields.searchFields());
-        assertEquals(Map.of(), fields.indexFields());
+        assertEquals(Map.of(), fields.logFields());
     }
 
     public void testWithTempIndexServiceHandlesExistingIndex() throws Exception {
@@ -881,7 +964,120 @@ public class IndicesServiceTests extends ESSingleNodeTestCase {
         });
     }
 
+    /**
+     * Tests that the mapper service created for validation reuses the existing document mapper from the index service (if present).
+     */
+    public void testMapperServiceForValidationReusesExistingDocumentMapper() throws IOException {
+        IndicesService indicesService = getIndicesService();
+
+        IndexMetadata initialIndexMetadata = IndexMetadata.builder("test")
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
+            .build();
+        IndexService indexService = indicesService.createIndex(initialIndexMetadata, List.of(), randomBoolean());
+
+        IndexMetadata newIndexMetadata = IndexMetadata.builder(initialIndexMetadata)
+            .mappingVersion(initialIndexMetadata.getMappingVersion() + 1)
+            .putMapping("""
+                {
+                  "_doc":{
+                    "properties": {
+                      "@timestamp": {
+                        "type": "date"
+                      }
+                    }
+                  }
+                }""")
+            .build();
+        indexService.updateMapping(initialIndexMetadata, newIndexMetadata);
+
+        assertNotNull(indexService.mapperService());
+        DocumentMapper existingDocumentMapper = indexService.mapperService().documentMapper();
+        assertNotNull(existingDocumentMapper);
+        // Create the mapper service with the same index metadata that we used to update the mapping to ensure the document mapper is reused
+        DocumentMapper temporaryDocumentMapper = indicesService.createIndexMapperServiceForValidation(newIndexMetadata).documentMapper();
+        assertNotNull(temporaryDocumentMapper);
+        assertSame(existingDocumentMapper, temporaryDocumentMapper);
+    }
+
+    /**
+     * Tests that we only reuse the existing document mapper from the index service if the mapping is unchanged.
+     */
+    public void testMapperServiceForValidationChecksMapping() throws IOException {
+        IndicesService indicesService = getIndicesService();
+
+        IndexMetadata initialIndexMetadata = IndexMetadata.builder("test")
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
+            .build();
+        IndexService indexService = indicesService.createIndex(initialIndexMetadata, List.of(), randomBoolean());
+
+        IndexMetadata newIndexMetadata = IndexMetadata.builder(initialIndexMetadata)
+            .mappingVersion(initialIndexMetadata.getMappingVersion() + 1)
+            .putMapping("""
+                {
+                  "_doc":{
+                    "properties": {
+                      "@timestamp": {
+                        "type": "date"
+                      }
+                    }
+                  }
+                }""")
+            .build();
+        indexService.updateMapping(initialIndexMetadata, newIndexMetadata);
+
+        assertNotNull(indexService.mapperService());
+        DocumentMapper existingDocumentMapper = indexService.mapperService().documentMapper();
+        assertNotNull(existingDocumentMapper);
+        // Create the mapper service with the initial index metadata to ensure the document mapper is NOT reused as the mapping is different
+        DocumentMapper temporaryDocumentMapper = indicesService.createIndexMapperServiceForValidation(initialIndexMetadata)
+            .documentMapper();
+        assertNull(temporaryDocumentMapper);
+    }
+
+    /**
+     * Tests that deprecations warnings do not leak when the mapping is updated
+     */
+    public void testDeprecationsWarningsDoNotEscape() throws IOException {
+        IndicesService indicesService = getIndicesService();
+        IndexMetadata initialIndexMetadata = IndexMetadata.builder("test")
+            .settings(indexSettings(IndexVersion.current(), randomUUID(), 1, 0))
+            .build();
+        IndexService indexService = indicesService.createIndex(initialIndexMetadata, List.of(), randomBoolean());
+
+        IndexMetadata newIndexMetadata = IndexMetadata.builder(initialIndexMetadata)
+            .mappingVersion(initialIndexMetadata.getMappingVersion() + 1)
+            .putMapping("""
+                {
+                  "_doc":{
+                    "properties": {
+                      "my-field": {
+                        "type": "deprecated-param-mapper",
+                        "deprecated_field": "someValue"
+                      }
+                    }
+                  }
+                }""")
+            .build();
+        indexService.updateMapping(initialIndexMetadata, newIndexMetadata);
+        // This test sets two thread contexts to the HeaderWarning class, the thread context of the ESTestCase and the
+        // thread pool one, consequently the deprecation warning is added to both. The production code will only have
+        // the thread pool context, so we test the isolation of this context only.
+        final List<String> warnings = indexService.getThreadPool().getThreadContext().getResponseHeaders().get("Warning");
+        if (warnings != null) {
+            assertThat(
+                warnings,
+                not(contains(containsString("Parameter [deprecated_field] is deprecated and will be removed in a future version")))
+            );
+        }
+        // For the test's thread context we just handle the expected warning.
+        assertWarnings("Parameter [deprecated_field] is deprecated and will be removed in a future version");
+    }
+
     private Set<ResolvedExpression> resolvedExpressions(String... expressions) {
         return Arrays.stream(expressions).map(ResolvedExpression::new).collect(Collectors.toSet());
+    }
+
+    private IndexRemovalReason randomReason() {
+        return randomFrom(IndexRemovalReason.values());
     }
 }

@@ -53,9 +53,6 @@ public class BooleanBucketedSort implements Releasable {
 
     /**
      * Collects a {@code value} into a {@code bucket}.
-     * <p>
-     *     It may or may not be inserted in the heap, depending on if it is better than the current root.
-     * </p>
      */
     public void collect(boolean value, int bucket) {
         long rootIndex = (long) bucket * 2;

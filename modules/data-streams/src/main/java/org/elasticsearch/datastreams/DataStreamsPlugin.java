@@ -10,38 +10,40 @@ package org.elasticsearch.datastreams;
 
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.GetDataStreamMappingsAction;
+import org.elasticsearch.action.datastreams.GetDataStreamSettingsAction;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
+import org.elasticsearch.action.datastreams.PutDataStreamOptionsAction;
+import org.elasticsearch.action.datastreams.UpdateDataStreamMappingsAction;
+import org.elasticsearch.action.datastreams.UpdateDataStreamSettingsAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
-import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.datastreams.action.CreateDataStreamTransportAction;
-import org.elasticsearch.datastreams.action.DataStreamsStatsTransportAction;
-import org.elasticsearch.datastreams.action.DeleteDataStreamTransportAction;
-import org.elasticsearch.datastreams.action.MigrateToDataStreamTransportAction;
-import org.elasticsearch.datastreams.action.ModifyDataStreamsTransportAction;
-import org.elasticsearch.datastreams.action.PromoteDataStreamTransportAction;
+import org.elasticsearch.datastreams.action.TransportCreateDataStreamAction;
+import org.elasticsearch.datastreams.action.TransportDataStreamsStatsAction;
+import org.elasticsearch.datastreams.action.TransportDeleteDataStreamAction;
+import org.elasticsearch.datastreams.action.TransportGetDataStreamMappingsAction;
+import org.elasticsearch.datastreams.action.TransportGetDataStreamSettingsAction;
 import org.elasticsearch.datastreams.action.TransportGetDataStreamsAction;
-import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
+import org.elasticsearch.datastreams.action.TransportMigrateToDataStreamAction;
+import org.elasticsearch.datastreams.action.TransportModifyDataStreamsAction;
+import org.elasticsearch.datastreams.action.TransportPromoteDataStreamAction;
+import org.elasticsearch.datastreams.action.TransportUpdateDataStreamMappingsAction;
+import org.elasticsearch.datastreams.action.TransportUpdateDataStreamSettingsAction;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamLifecycleStatsAction;
@@ -57,9 +59,10 @@ import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamLifecycl
 import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestPutDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.lifecycle.transitions.steps.MarkIndexForDLMForceMergeAction;
+import org.elasticsearch.datastreams.lifecycle.transitions.steps.TransportMarkIndexForDLMForceMergeAction;
 import org.elasticsearch.datastreams.options.action.DeleteDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.GetDataStreamOptionsAction;
-import org.elasticsearch.datastreams.options.action.PutDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.TransportDeleteDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.TransportGetDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.action.TransportPutDataStreamOptionsAction;
@@ -69,17 +72,21 @@ import org.elasticsearch.datastreams.options.rest.RestPutDataStreamOptionsAction
 import org.elasticsearch.datastreams.rest.RestCreateDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestDataStreamsStatsAction;
 import org.elasticsearch.datastreams.rest.RestDeleteDataStreamAction;
+import org.elasticsearch.datastreams.rest.RestGetDataStreamMappingsAction;
+import org.elasticsearch.datastreams.rest.RestGetDataStreamSettingsAction;
 import org.elasticsearch.datastreams.rest.RestGetDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestMigrateToDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestModifyDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestPromoteDataStreamAction;
+import org.elasticsearch.datastreams.rest.RestUpdateDataStreamMappingsAction;
+import org.elasticsearch.datastreams.rest.RestUpdateDataStreamSettingsAction;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.plugins.ActionPlugin;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.HealthPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 
 import java.io.IOException;
@@ -93,11 +100,12 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 
-public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlugin {
+public class DataStreamsPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, HealthPlugin {
 
+    public static final int TIME_SERIES_POLL_INTERVAL_DEFAULT = 3;
     public static final Setting<TimeValue> TIME_SERIES_POLL_INTERVAL = Setting.timeSetting(
         "time_series.poll_interval",
-        TimeValue.timeValueMinutes(5),
+        TimeValue.timeValueMinutes(TIME_SERIES_POLL_INTERVAL_DEFAULT),
         TimeValue.timeValueMinutes(1),
         TimeValue.timeValueMinutes(10),
         Setting.Property.NodeScope,
@@ -105,9 +113,10 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
     );
 
     private static final TimeValue MAX_LOOK_AHEAD_TIME = TimeValue.timeValueHours(2);
+    public static final int LOOK_AHEAD_TIME_DEFAULT = 9;
     public static final Setting<TimeValue> LOOK_AHEAD_TIME = Setting.timeSetting(
         "index.look_ahead_time",
-        TimeValue.timeValueMinutes(30),
+        TimeValue.timeValueMinutes(LOOK_AHEAD_TIME_DEFAULT),
         TimeValue.timeValueMinutes(1),
         TimeValue.timeValueDays(7), // is effectively 2h now.
         Setting.Property.IndexScope,
@@ -136,9 +145,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         Setting.Property.Dynamic,
         Setting.Property.ServerlessPublic
     );
-    // The dependency of index.look_ahead_time is a cluster setting and currently there is no clean validation approach for this:
-    private final SetOnce<UpdateTimeSeriesRangeService> updateTimeSeriesRangeService = new SetOnce<>();
-    private final SetOnce<DataStreamLifecycleErrorStore> errorStoreInitialisationService = new SetOnce<>();
 
     private final SetOnce<DataStreamLifecycleService> dataLifecycleInitialisationService = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthInfoPublisher> dataStreamLifecycleErrorsPublisher = new SetOnce<>();
@@ -153,6 +159,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         return Clock.systemUTC();
     }
 
+    // The dependency of index.look_ahead_time is a cluster setting and currently there is no clean validation approach for this:
     static void additionalLookAheadTimeValidation(TimeValue lookAhead, TimeValue timeSeriesPollInterval) {
         if (lookAhead.compareTo(timeSeriesPollInterval) < 0) {
             final String message = String.format(
@@ -173,10 +180,11 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         pluginSettings.add(TIME_SERIES_POLL_INTERVAL);
         pluginSettings.add(LOOK_AHEAD_TIME);
         pluginSettings.add(LOOK_BACK_TIME);
+        pluginSettings.add(DataStreamIndexSettingsProvider.SUPPORT_SEQ_NO_DISABLED);
+        pluginSettings.add(DataStreamIndexSettingsProvider.SUPPORT_SYNTHETIC_ID);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_LIFECYCLE_POLL_INTERVAL_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FLOOR_SEGMENT_SETTING);
         pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_MERGE_POLICY_TARGET_FACTOR_SETTING);
-        pluginSettings.add(DataStreamLifecycleService.DATA_STREAM_SIGNALLING_ERROR_RETRY_INTERVAL_SETTING);
         return pluginSettings;
     }
 
@@ -189,17 +197,16 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
             services.threadPool(),
             services.clusterService()
         );
-        this.updateTimeSeriesRangeService.set(updateTimeSeriesRangeService);
-        components.add(this.updateTimeSeriesRangeService.get());
-        errorStoreInitialisationService.set(new DataStreamLifecycleErrorStore(services.threadPool()::absoluteTimeInMillis));
+        IndexScopedSettings indexScopedSettings = services.indicesService().getIndexScopedSettings();
+        indexScopedSettings.addSettingsUpdateConsumer(LOOK_AHEAD_TIME, value -> {
+            TimeValue timeSeriesPollInterval = updateTimeSeriesRangeService.pollInterval;
+            additionalLookAheadTimeValidation(value, timeSeriesPollInterval);
+        });
+        components.add(updateTimeSeriesRangeService);
         dataStreamLifecycleErrorsPublisher.set(
-            new DataStreamLifecycleHealthInfoPublisher(
-                settings,
-                services.client(),
-                services.clusterService(),
-                errorStoreInitialisationService.get()
-            )
+            new DataStreamLifecycleHealthInfoPublisher(settings, services.client(), services.clusterService(), services.dlmErrorStore())
         );
+
         dataLifecycleInitialisationService.set(
             new DataStreamLifecycleService(
                 settings,
@@ -208,61 +215,54 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
                 getClock(),
                 services.threadPool(),
                 services.threadPool()::absoluteTimeInMillis,
-                errorStoreInitialisationService.get(),
+                services.dlmErrorStore(),
                 services.allocationService(),
                 dataStreamLifecycleErrorsPublisher.get(),
-                services.dataStreamGlobalRetentionSettings(),
-                services.projectResolver()
+                services.dataStreamGlobalRetentionSettings()
             )
         );
         dataLifecycleInitialisationService.get().init();
-        dataStreamLifecycleHealthIndicatorService.set(new DataStreamLifecycleHealthIndicatorService());
+        dataStreamLifecycleHealthIndicatorService.set(new DataStreamLifecycleHealthIndicatorService(services.projectResolver()));
 
-        components.add(errorStoreInitialisationService.get());
         components.add(dataLifecycleInitialisationService.get());
         components.add(dataStreamLifecycleErrorsPublisher.get());
         return components;
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
-        actions.add(new ActionHandler<>(CreateDataStreamAction.INSTANCE, CreateDataStreamTransportAction.class));
-        actions.add(new ActionHandler<>(DeleteDataStreamAction.INSTANCE, DeleteDataStreamTransportAction.class));
-        actions.add(new ActionHandler<>(GetDataStreamAction.INSTANCE, TransportGetDataStreamsAction.class));
-        actions.add(new ActionHandler<>(DataStreamsStatsAction.INSTANCE, DataStreamsStatsTransportAction.class));
-        actions.add(new ActionHandler<>(MigrateToDataStreamAction.INSTANCE, MigrateToDataStreamTransportAction.class));
-        actions.add(new ActionHandler<>(PromoteDataStreamAction.INSTANCE, PromoteDataStreamTransportAction.class));
-        actions.add(new ActionHandler<>(ModifyDataStreamsAction.INSTANCE, ModifyDataStreamsTransportAction.class));
-        actions.add(new ActionHandler<>(PutDataStreamLifecycleAction.INSTANCE, TransportPutDataStreamLifecycleAction.class));
-        actions.add(new ActionHandler<>(GetDataStreamLifecycleAction.INSTANCE, TransportGetDataStreamLifecycleAction.class));
-        actions.add(new ActionHandler<>(DeleteDataStreamLifecycleAction.INSTANCE, TransportDeleteDataStreamLifecycleAction.class));
-        actions.add(new ActionHandler<>(ExplainDataStreamLifecycleAction.INSTANCE, TransportExplainDataStreamLifecycleAction.class));
-        actions.add(new ActionHandler<>(GetDataStreamLifecycleStatsAction.INSTANCE, TransportGetDataStreamLifecycleStatsAction.class));
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            actions.add(new ActionHandler<>(GetDataStreamOptionsAction.INSTANCE, TransportGetDataStreamOptionsAction.class));
-            actions.add(new ActionHandler<>(PutDataStreamOptionsAction.INSTANCE, TransportPutDataStreamOptionsAction.class));
-            actions.add(new ActionHandler<>(DeleteDataStreamOptionsAction.INSTANCE, TransportDeleteDataStreamOptionsAction.class));
+    public List<ActionHandler> getActions() {
+        List<ActionHandler> actions = new ArrayList<>();
+        actions.add(new ActionHandler(CreateDataStreamAction.INSTANCE, TransportCreateDataStreamAction.class));
+        actions.add(new ActionHandler(DeleteDataStreamAction.INSTANCE, TransportDeleteDataStreamAction.class));
+        actions.add(new ActionHandler(GetDataStreamAction.INSTANCE, TransportGetDataStreamsAction.class));
+        actions.add(new ActionHandler(DataStreamsStatsAction.INSTANCE, TransportDataStreamsStatsAction.class));
+        actions.add(new ActionHandler(MigrateToDataStreamAction.INSTANCE, TransportMigrateToDataStreamAction.class));
+        actions.add(new ActionHandler(PromoteDataStreamAction.INSTANCE, TransportPromoteDataStreamAction.class));
+        actions.add(new ActionHandler(ModifyDataStreamsAction.INSTANCE, TransportModifyDataStreamsAction.class));
+        actions.add(new ActionHandler(PutDataStreamLifecycleAction.INSTANCE, TransportPutDataStreamLifecycleAction.class));
+        actions.add(new ActionHandler(GetDataStreamLifecycleAction.INSTANCE, TransportGetDataStreamLifecycleAction.class));
+        actions.add(new ActionHandler(DeleteDataStreamLifecycleAction.INSTANCE, TransportDeleteDataStreamLifecycleAction.class));
+        actions.add(new ActionHandler(ExplainDataStreamLifecycleAction.INSTANCE, TransportExplainDataStreamLifecycleAction.class));
+        actions.add(new ActionHandler(GetDataStreamLifecycleStatsAction.INSTANCE, TransportGetDataStreamLifecycleStatsAction.class));
+        actions.add(new ActionHandler(GetDataStreamOptionsAction.INSTANCE, TransportGetDataStreamOptionsAction.class));
+        actions.add(new ActionHandler(PutDataStreamOptionsAction.INSTANCE, TransportPutDataStreamOptionsAction.class));
+        actions.add(new ActionHandler(DeleteDataStreamOptionsAction.INSTANCE, TransportDeleteDataStreamOptionsAction.class));
+        actions.add(new ActionHandler(GetDataStreamSettingsAction.INSTANCE, TransportGetDataStreamSettingsAction.class));
+        actions.add(new ActionHandler(UpdateDataStreamSettingsAction.INSTANCE, TransportUpdateDataStreamSettingsAction.class));
+        actions.add(new ActionHandler(GetDataStreamMappingsAction.INSTANCE, TransportGetDataStreamMappingsAction.class));
+        actions.add(new ActionHandler(UpdateDataStreamMappingsAction.INSTANCE, TransportUpdateDataStreamMappingsAction.class));
+        if (DataStreamLifecycle.DLM_SEARCHABLE_SNAPSHOTS_FEATURE_FLAG.isEnabled()) {
+            actions.add(new ActionHandler(MarkIndexForDLMForceMergeAction.TYPE, TransportMarkIndexForDLMForceMergeAction.class));
         }
         return actions;
     }
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        indexScopedSettings.addSettingsUpdateConsumer(LOOK_AHEAD_TIME, value -> {
-            TimeValue timeSeriesPollInterval = updateTimeSeriesRangeService.get().pollInterval;
-            additionalLookAheadTimeValidation(value, timeSeriesPollInterval);
-        });
         List<RestHandler> handlers = new ArrayList<>();
         handlers.add(new RestCreateDataStreamAction());
         handlers.add(new RestDeleteDataStreamAction());
@@ -276,17 +276,19 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         handlers.add(new RestDeleteDataStreamLifecycleAction());
         handlers.add(new RestExplainDataStreamLifecycleAction());
         handlers.add(new RestDataStreamLifecycleStatsAction());
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            handlers.add(new RestGetDataStreamOptionsAction());
-            handlers.add(new RestPutDataStreamOptionsAction());
-            handlers.add(new RestDeleteDataStreamOptionsAction());
-        }
+        handlers.add(new RestGetDataStreamOptionsAction());
+        handlers.add(new RestPutDataStreamOptionsAction());
+        handlers.add(new RestDeleteDataStreamOptionsAction());
+        handlers.add(new RestGetDataStreamSettingsAction());
+        handlers.add(new RestUpdateDataStreamSettingsAction());
+        handlers.add(new RestGetDataStreamMappingsAction());
+        handlers.add(new RestUpdateDataStreamMappingsAction());
         return handlers;
     }
 
     @Override
     public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-        return List.of(new DataStreamIndexSettingsProvider(parameters.mapperServiceFactory()));
+        return List.of(new DataStreamIndexSettingsProvider(parameters.mapperServiceFactory(), settings));
     }
 
     @Override

@@ -7,20 +7,23 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.BitSet;
+// end generated imports
 
 /**
  * Block implementation that stores values in a {@link LongArrayVector}.
  * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
-final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
+public final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(LongArrayBlock.class);
 
@@ -86,12 +89,17 @@ final class LongArrayBlock extends AbstractArrayBlock implements LongBlock {
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public long getLong(int valueIndex) {
         return vector.getLong(valueIndex);
     }
 
     @Override
-    public LongBlock filter(int... positions) {
+    public LongBlock filter(boolean mayContainDuplicates, int... positions) {
         try (var builder = blockFactory().newLongBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

@@ -17,12 +17,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.esql.expression.function.UnaryTestCaseHelper;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unary;
 
 public class LengthTests extends AbstractScalarFunctionTestCase {
     public LengthTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -32,48 +33,16 @@ public class LengthTests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> cases = new ArrayList<>();
-        cases.addAll(List.of(new TestCaseSupplier("length basic test", List.of(DataType.KEYWORD), () -> {
-            BytesRef value = new BytesRef(randomAlphaOfLength(between(0, 10000)));
-            return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(value, DataType.KEYWORD, "f")),
-                "LengthEvaluator[val=Attribute[channel=0]]",
-                DataType.INTEGER,
-                equalTo(UnicodeUtil.codePointCount(value))
-            );
-        })));
-        cases.addAll(makeTestCases("empty string", () -> "", 0));
-        cases.addAll(makeTestCases("single ascii character", () -> "a", 1));
-        cases.addAll(makeTestCases("ascii string", () -> "clump", 5));
-        cases.addAll(makeTestCases("3 bytes, 1 code point", () -> "☕", 1));
-        cases.addAll(makeTestCases("6 bytes, 2 code points", () -> "❗️", 2));
-        cases.addAll(makeTestCases("100 random alpha", () -> randomAlphaOfLength(100), 100));
-        cases.addAll(makeTestCases("100 random code points", () -> randomUnicodeOfCodepointLength(100), 100));
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, cases);
-    }
-
-    private static List<TestCaseSupplier> makeTestCases(String title, Supplier<String> text, int expectedLength) {
-        return List.of(
-            new TestCaseSupplier(
-                title + " with keyword",
-                List.of(DataType.KEYWORD),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.KEYWORD, "f")),
-                    "LengthEvaluator[val=Attribute[channel=0]]",
-                    DataType.INTEGER,
-                    equalTo(expectedLength)
-                )
-            ),
-            new TestCaseSupplier(
-                title + " with text",
-                List.of(DataType.TEXT),
-                () -> new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(new BytesRef(text.get()), DataType.TEXT, "f")),
-                    "LengthEvaluator[val=Attribute[channel=0]]",
-                    DataType.INTEGER,
-                    equalTo(expectedLength)
-                )
-            )
-        );
+        UnaryTestCaseHelper base = unary().expectedOutputType(DataType.INTEGER).evaluatorToString("LengthEvaluator[val=%0]");
+        base.strings().expectedFromString(s -> UnicodeUtil.codePointCount(new BytesRef(s))).build(cases);
+        base.strings("empty string", () -> "").expectedFromString(s -> 0).build(cases);
+        base.strings("single ascii character", () -> "a").expectedFromString(s -> 1).build(cases);
+        base.strings("ascii string", () -> "clump").expectedFromString(s -> 5).build(cases);
+        base.strings("3 bytes, 1 code point", () -> "☕").expectedFromString(s -> 1).build(cases);
+        base.strings("6 bytes, 2 code points", () -> "❗️").expectedFromString(s -> 2).build(cases);
+        base.strings("100 random alpha", () -> randomAlphaOfLength(100)).expectedFromString(s -> 100).build(cases);
+        base.strings("100 random code points", () -> randomUnicodeOfCodepointLength(100)).expectedFromString(s -> 100).build(cases);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, cases);
     }
 
     @Override

@@ -16,12 +16,15 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.test.ESTestCase;
 
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -29,6 +32,8 @@ import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityA
 import static org.elasticsearch.search.aggregations.metrics.AbstractCardinalityAlgorithm.MIN_PRECISION;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.lessThan;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -63,7 +68,8 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
         final int maxValue = randomIntBetween(1, randomBoolean() ? 1000 : 100000);
         final int p = randomIntBetween(14, MAX_PRECISION);
         Set<Integer> set = new HashSet<>();
-        HyperLogLogPlusPlus e = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        final CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        HyperLogLogPlusPlus e = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 1);
         for (int i = 0; i < numValues; ++i) {
             final int n = randomInt(maxValue);
             set.add(n);
@@ -79,12 +85,13 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
 
     public void testMerge() {
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
-        final HyperLogLogPlusPlus single = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
+        final CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        final HyperLogLogPlusPlus single = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 0);
         final HyperLogLogPlusPlus[] multi = new HyperLogLogPlusPlus[randomIntBetween(2, 100)];
         final long[] bucketOrds = new long[multi.length];
         for (int i = 0; i < multi.length; ++i) {
             bucketOrds[i] = randomInt(20);
-            multi[i] = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 5);
+            multi[i] = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 5);
         }
         final int numValues = randomIntBetween(1, 100000);
         final int maxValue = randomIntBetween(1, randomBoolean() ? 1000 : 1000000);
@@ -96,7 +103,7 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
             final int index = (int) (Math.pow(randomDouble(), 2));
             multi[index].collect(bucketOrds[index], hash);
             if (randomInt(100) == 0) {
-                HyperLogLogPlusPlus merged = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
+                HyperLogLogPlusPlus merged = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 0);
                 for (int j = 0; j < multi.length; ++j) {
                     merged.merge(0, multi[j], bucketOrds[j]);
                 }
@@ -108,7 +115,8 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
     public void testFakeHashes() {
         // hashes with lots of leading zeros trigger different paths in the code that we try to go through here
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
-        final HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 0);
+        final CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        final HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 0);
 
         counts.collect(0, 0);
         assertEquals(1, counts.cardinality(0));
@@ -168,7 +176,8 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
 
     public void testRetrieveCardinality() {
         final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
-        final HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, 1);
+        final CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        final HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 1);
         int bucket = randomInt(100);
         counts.collect(bucket, randomLong());
         for (int i = 0; i < 1000; i++) {
@@ -184,5 +193,55 @@ public class HyperLogLogPlusPlusTests extends ESTestCase {
             ByteSizeValue.ofBytes((initialBucketCount << precision) + initialBucketCount * 4 + PageCacheRecycler.PAGE_SIZE_IN_BYTES * 2),
             bigArrays -> new HyperLogLogPlusPlus(precision, bigArrays, initialBucketCount)
         );
+    }
+
+    public void testMaxOrdIsExclusiveUpperBound() {
+        final int p = randomIntBetween(MIN_PRECISION, MAX_PRECISION);
+        final CircuitBreaker breaker = new NoopCircuitBreaker("test");
+        // Use initialBucketCount=1 so that hll.maxOrd() stays at 1 and doesn't mask lc.maxOrd() bugs.
+        // Iterate through enough buckets to guarantee we cross at least one internal array growth boundary,
+        // where the off-by-one in LinearCounting.maxOrd() would surface.
+        try (HyperLogLogPlusPlus counts = new HyperLogLogPlusPlus(p, BigArrays.NON_RECYCLING_INSTANCE, breaker, 1)) {
+            for (int bucket = 0; bucket < 50; bucket++) {
+                counts.collect(bucket, BitMixer.mix64(bucket));
+                assertThat(
+                    "maxOrd must be an exclusive upper bound after collecting into bucket " + bucket,
+                    (long) bucket,
+                    lessThan(counts.maxOrd())
+                );
+            }
+        }
+    }
+
+    public void testDynamicGrowth() {
+        int numGroups = between(1000, 10_000);
+        int numValuesPerGroup = between(1, 14);
+        long requiredBytesOneGroup = 32L * 4L + 48L + 8L; // 48 bytes overhead each group + 8L bytes for the object reference in the array
+        long requiredBytes = requiredBytesOneGroup * numGroups;
+        requiredBytes += 2 * PageCacheRecycler.PAGE_SIZE_IN_BYTES; // extra pages for the object array
+        requiredBytes += 10 * PageCacheRecycler.PAGE_SIZE_IN_BYTES; // full allocations for the first few groups
+        CircuitBreakerService breakerService = LimitedBreaker.service("test", ByteSizeValue.ofBytes(requiredBytes));
+        BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, breakerService).withCircuitBreaking();
+        int precision = 14;
+        try (
+            HyperLogLogPlusPlus hll = new HyperLogLogPlusPlus(precision, bigArrays, breakerService.getBreaker(CircuitBreaker.REQUEST), 1)
+        ) {
+            Map<Long, Set<Integer>> uniques = new HashMap<>();
+            for (long g = 0; g < numGroups; g++) {
+                Set<Integer> sets = new HashSet<>();
+                for (int i = 0; i < numValuesPerGroup; i++) {
+                    int v = randomInt();
+                    long hash = BitMixer.mix64(v);
+                    hll.collect(g, hash);
+                    sets.add(AbstractLinearCounting.encodeHash(hash, precision));
+                }
+                uniques.put(g, sets);
+            }
+            for (long g = 0; g < numGroups; g++) {
+                Set<Integer> values = uniques.get(g);
+                int cardinality = (int) hll.cardinality(g);
+                assertThat("group=" + g + " values=" + values, values, hasSize(cardinality));
+            }
+        }
     }
 }

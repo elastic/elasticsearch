@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.codecs.DocValuesFormat;
+import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.PluginsLoader.PluginLayer;
@@ -32,8 +34,6 @@ import org.elasticsearch.plugins.spi.SPIClassIterator;
 import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
@@ -328,7 +328,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             throw new IllegalStateException(extensionSignatureMessage(extensionClass, extensionPointType, plugin));
         }
 
-        if (constructor.getParameterCount() == 1 && constructor.getParameterTypes()[0] != plugin.getClass()) {
+        if (constructor.getParameterCount() == 1 && isSingleParameterOfTheDesiredType(constructor, plugin) == false) {
             throw new IllegalStateException(
                 extensionSignatureMessage(extensionClass, extensionPointType, plugin)
                     + ", not ("
@@ -348,6 +348,14 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 "failed to create extension [" + extensionClass.getName() + "] of type [" + extensionPointType.getName() + "]",
                 e
             );
+        }
+    }
+
+    private static <T> boolean isSingleParameterOfTheDesiredType(Constructor<T> constructor, Plugin plugin) {
+        if (Assertions.ENABLED) {
+            return constructor.getParameterTypes()[0].isAssignableFrom(plugin.getClass());
+        } else {
+            return constructor.getParameterTypes()[0] == plugin.getClass();
         }
     }
 
@@ -395,7 +403,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             // Set context class loader to plugin's class loader so that plugins
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
-            privilegedSetContextClassLoader(pluginLayer.pluginClassLoader());
+            Thread.currentThread().setContextClassLoader(pluginLayer.pluginClassLoader());
 
             Plugin plugin;
             if (pluginBundle.pluginDescriptor().isStable()) {
@@ -428,7 +436,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             }
             loadedPlugins.put(name, new LoadedPlugin(pluginBundle.plugin, plugin, pluginLayer.pluginClassLoader()));
         } finally {
-            privilegedSetContextClassLoader(cl);
+            Thread.currentThread().setContextClassLoader(cl);
         }
     }
 
@@ -479,6 +487,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         // Codecs:
         PostingsFormat.reloadPostingsFormats(loader);
         DocValuesFormat.reloadDocValuesFormats(loader);
+        KnnVectorsFormat.reloadKnnVectorsFormat(loader);
         Codec.reloadCodecs(loader);
     }
 
@@ -536,13 +545,5 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     @SuppressWarnings("unchecked")
     public final <T> Stream<T> filterPlugins(Class<T> type) {
         return plugins().stream().filter(x -> type.isAssignableFrom(x.instance().getClass())).map(p -> ((T) p.instance()));
-    }
-
-    @SuppressWarnings("removal")
-    private static void privilegedSetContextClassLoader(ClassLoader loader) {
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            Thread.currentThread().setContextClassLoader(loader);
-            return null;
-        });
     }
 }

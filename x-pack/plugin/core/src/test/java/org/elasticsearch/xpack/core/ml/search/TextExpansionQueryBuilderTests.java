@@ -25,10 +25,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.extras.MapperExtrasPlugin;
+import org.elasticsearch.index.mapper.vectors.TokenPruningConfig;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.search.vectors.SparseVectorQueryWrapper;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.ml.action.CoordinatedInferenceAction;
@@ -183,25 +186,25 @@ public class TextExpansionQueryBuilderTests extends AbstractQueryTestCase<TextEx
     @Override
     public void testFromXContent() throws IOException {
         super.testFromXContent();
-        assertCriticalWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
+        assertWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
     }
 
     @Override
     public void testUnknownField() throws IOException {
         super.testUnknownField();
-        assertCriticalWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
+        assertWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
     }
 
     @Override
     public void testUnknownObjectException() throws IOException {
         super.testUnknownObjectException();
-        assertCriticalWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
+        assertWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
     }
 
     @Override
     public void testValidOutput() throws IOException {
         super.testValidOutput();
-        assertCriticalWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
+        assertWarnings(TextExpansionQueryBuilder.TEXT_EXPANSION_DEPRECATION_MESSAGE);
     }
 
     public void testIllegalValues() {

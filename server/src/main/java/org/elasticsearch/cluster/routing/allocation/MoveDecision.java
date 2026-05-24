@@ -23,6 +23,8 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
 
+import static org.elasticsearch.cluster.routing.allocation.decider.Decision.NO;
+
 /**
  * Represents a decision to move a started shard, either because it is no longer allowed to remain on its current node
  * or because moving it to another node will form a better cluster balance.
@@ -39,14 +41,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
         null,
         0
     );
-    private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(
-        null,
-        null,
-        AllocationDecision.NO,
-        Decision.NO,
-        null,
-        0
-    );
+    private static final MoveDecision CACHED_CANNOT_MOVE_DECISION = new MoveDecision(null, null, AllocationDecision.NO, NO, null, 0);
 
     @Nullable
     private final AllocationDecision canMoveDecision;
@@ -92,11 +87,12 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * Creates a move decision for the shard being able to remain on its current node, so the shard won't
      * be forced to move to another node.
      */
-    public static MoveDecision remain(Decision canRemainDecision) {
+    public static MoveDecision createRemainYesDecision(Decision canRemainDecision) {
+        assert canRemainDecision.type() != Type.NO;
+        assert canRemainDecision.type() != Type.NOT_PREFERRED;
         if (canRemainDecision == Decision.YES) {
             return CACHED_STAY_DECISION;
         }
-        assert canRemainDecision.type() != Type.NO;
         return new MoveDecision(null, null, AllocationDecision.NO_ATTEMPT, canRemainDecision, null, 0);
     }
 
@@ -116,14 +112,33 @@ public final class MoveDecision extends AbstractAllocationDecision {
         @Nullable List<NodeAllocationResult> nodeDecisions
     ) {
         assert canRemainDecision != null;
-        assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#stay instead";
+        assert canRemainDecision.type() != Type.YES : "create decision with MoveDecision#createRemainYesDecision instead";
+        assert decisionAndTargetAreConsistent(canRemainDecision, moveDecision, targetNode)
+            : "targetNode: " + targetNode + ", move decision: " + moveDecision;
         if (nodeDecisions == null && moveDecision == AllocationDecision.NO) {
             // the final decision is NO (no node to move the shard to) and we are not in explain mode, return a cached version
             return CACHED_CANNOT_MOVE_DECISION;
         } else {
-            assert ((targetNode == null) == (moveDecision != AllocationDecision.YES));
             return new MoveDecision(targetNode, nodeDecisions, moveDecision, canRemainDecision, null, 0);
         }
+    }
+
+    private static boolean decisionAndTargetAreConsistent(
+        Decision canRemainDecision,
+        AllocationDecision moveDecision,
+        DiscoveryNode targetNode
+    ) {
+        return switch (moveDecision) {
+            // YES must always have a target
+            case AllocationDecision.YES -> (targetNode != null);
+            case AllocationDecision.NOT_PREFERRED -> {
+                // If canRemain is not-preferred, then there should be no shard move, and thus no target node.
+                assert (canRemainDecision.type() == Type.NOT_PREFERRED) == (targetNode == null)
+                    : "remain decision: " + canRemainDecision + ", target node: " + targetNode;
+                yield true;
+            }
+            default -> targetNode == null;
+        };
     }
 
     /**
@@ -150,9 +165,28 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * returns {@code false} otherwise.  If {@link #isDecisionTaken()} returns {@code false},
      * then invoking this method will throw an {@code IllegalStateException}.
      */
-    public boolean forceMove() {
+    public boolean cannotRemainAndCanMove() {
         checkDecisionState();
-        return canRemain() == false && canMoveDecision == AllocationDecision.YES;
+        return switch (canRemainDecision.type()) {
+            case NO -> canMoveDecision == AllocationDecision.YES || canMoveDecision == AllocationDecision.NOT_PREFERRED;
+            case NOT_PREFERRED -> canMoveDecision == AllocationDecision.YES;
+            default -> false;
+        };
+    }
+
+    /**
+     * Returns {@code true} if the shard cannot remain on its current node and _cannot_ be moved.
+     * returns {@code false} otherwise.  If {@link #isDecisionTaken()} returns {@code false},
+     * then invoking this method will throw an {@code IllegalStateException}.
+     */
+    public boolean cannotRemainAndCannotMove() {
+        checkDecisionState();
+        return cannotRemain() && canMoveDecision != AllocationDecision.YES;
+    }
+
+    public boolean canRemainNotPreferred() {
+        checkDecisionState();
+        return canRemainDecision.type() == Type.NOT_PREFERRED;
     }
 
     /**
@@ -162,6 +196,14 @@ public final class MoveDecision extends AbstractAllocationDecision {
     public boolean canRemain() {
         checkDecisionState();
         return canRemainDecision.type() == Type.YES;
+    }
+
+    /**
+     * Returns {@code true} if the shard cannot remain on its current node, returns {@code false} if the shard can remain.
+     * If {@link #isDecisionTaken()} returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
+     */
+    public boolean cannotRemain() {
+        return canRemain() == false;
     }
 
     /**
@@ -179,6 +221,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * the result of this method is meaningless, as no rebalance decision was taken.  If {@link #isDecisionTaken()}
      * returns {@code false}, then invoking this method will throw an {@code IllegalStateException}.
      */
+    // @VisibleForTesting
     public boolean canRebalanceCluster() {
         checkDecisionState();
         return clusterRebalanceDecision != null && clusterRebalanceDecision.type() == Type.YES;
@@ -192,6 +235,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
      * If {@link #isDecisionTaken()} returns {@code false}, then invoking this method will throw an
      * {@code IllegalStateException}.
      */
+    // @VisibleForTesting
     @Nullable
     public Decision getClusterRebalanceDecision() {
         checkDecisionState();
@@ -238,17 +282,23 @@ public final class MoveDecision extends AbstractAllocationDecision {
                             ? Explanations.Rebalance.NODE_THROTTLE
                             : Explanations.Rebalance.YES;
                     } else {
-                        yield Explanations.Rebalance.ALREADY_BALANCED;
+                        yield canMoveDecision == AllocationDecision.NOT_PREFERRED
+                            ? Explanations.Rebalance.NOT_PREFERRED
+                            : Explanations.Rebalance.ALREADY_BALANCED;
                     }
                 }
+                case NOT_PREFERRED -> Explanations.Rebalance.NOT_PREFERRED;
             };
         } else {
-            // it was a decision to force move the shard
-            assert canRemain() == false;
+            // it was a decision by an allocation decider to move the shard
+            assert cannotRemain();
             return switch (canMoveDecision) {
-                case YES -> Explanations.Move.YES;
-                case THROTTLED -> Explanations.Move.THROTTLED;
-                case NO -> Explanations.Move.NO;
+                case YES -> canRemainNotPreferred() ? Explanations.Move.NOT_PREFERRED_TO_YES : Explanations.Move.YES;
+                case NOT_PREFERRED -> canRemainNotPreferred()
+                    ? Explanations.Move.NOT_PREFERRED_TO_NOT_PREFERRED
+                    : Explanations.Move.NOT_PREFERRED;
+                case THROTTLED -> canRemainNotPreferred() ? Explanations.Move.NOT_PREFERRED_TO_THROTTLED : Explanations.Move.THROTTLED;
+                case NO -> canRemainNotPreferred() ? Explanations.Move.NOT_PREFERRED_TO_NO : Explanations.Move.NO;
                 case WORSE_BALANCE, AWAITING_INFO, ALLOCATION_DELAYED, NO_VALID_SHARD_COPY, NO_ATTEMPT -> {
                     assert false : canMoveDecision;
                     yield canMoveDecision.toString();
@@ -267,7 +317,7 @@ public final class MoveDecision extends AbstractAllocationDecision {
                 builder.endObject();
             }
             builder.field("can_remain_on_current_node", canRemain() ? "yes" : "no");
-            if (canRemain() == false && canRemainDecision.getDecisions().isEmpty() == false) {
+            if (cannotRemain() && canRemainDecision.getDecisions().isEmpty() == false) {
                 builder.startArray("can_remain_decisions");
                 canRemainDecision.toXContent(builder, params);
                 builder.endArray();
@@ -285,7 +335,11 @@ public final class MoveDecision extends AbstractAllocationDecision {
                 builder.field("can_rebalance_to_other_node", canMoveDecision);
                 builder.field("rebalance_explanation", getExplanation());
             } else {
-                builder.field("can_move_to_other_node", forceMove() ? "yes" : "no");
+                if (cannotRemainAndCanMove()) {
+                    builder.field("can_move_to_other_node", canMoveDecision);
+                } else {
+                    builder.field("can_move_to_other_node", "no");
+                }
                 builder.field("move_explanation", getExplanation());
             }
             return builder;
@@ -312,4 +366,17 @@ public final class MoveDecision extends AbstractAllocationDecision {
         return 31 * super.hashCode() + Objects.hash(canMoveDecision, canRemainDecision, clusterRebalanceDecision, currentNodeRanking);
     }
 
+    @Override
+    public String toString() {
+        return "MoveDecision{"
+            + "canMoveDecision="
+            + canMoveDecision
+            + ", canRemainDecision="
+            + canRemainDecision
+            + ", clusterRebalanceDecision="
+            + clusterRebalanceDecision
+            + ", currentNodeRanking="
+            + currentNodeRanking
+            + '}';
+    }
 }

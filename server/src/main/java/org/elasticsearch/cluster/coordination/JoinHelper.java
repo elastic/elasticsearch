@@ -13,6 +13,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse.Empty;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
@@ -41,11 +42,10 @@ import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse.Empty;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
@@ -200,25 +200,26 @@ public class JoinHelper {
     /**
      * Saves information about a join failure. The failure information may be logged later via either {@link FailedJoinAttempt#logNow}
      * or {@link FailedJoinAttempt#lastFailedJoinAttempt}.
-     *
+     * <p>
      * Package-private for testing.
      */
     static class FailedJoinAttempt {
         private final DiscoveryNode destination;
         private final JoinRequest joinRequest;
         private final ElasticsearchException exception;
-        private final long timestamp;
+        private final long attemptTimeMillis;
 
         /**
-         * @param destination the master node targeted by the join request.
-         * @param joinRequest the join request that was sent to the perceived master node.
-         * @param exception the error response received in reply to the join request attempt.
+         * @param destination       the master node targeted by the join request.
+         * @param joinRequest       the join request that was sent to the perceived master node.
+         * @param exception         the error response received in reply to the join request attempt.
+         * @param attemptTimeMillis the (relative milliseconds) time at which the failed attempt occurred.
          */
-        FailedJoinAttempt(DiscoveryNode destination, JoinRequest joinRequest, ElasticsearchException exception) {
+        FailedJoinAttempt(DiscoveryNode destination, JoinRequest joinRequest, ElasticsearchException exception, long attemptTimeMillis) {
             this.destination = destination;
             this.joinRequest = joinRequest;
             this.exception = exception;
-            this.timestamp = System.nanoTime();
+            this.attemptTimeMillis = attemptTimeMillis;
         }
 
         /**
@@ -243,15 +244,15 @@ public class JoinHelper {
             return Level.INFO;
         }
 
-        void logWarnWithTimestamp() {
+        void logWarnWithTimestamp(LongSupplier relativeTimeMillisSupplier) {
             logger.warn(
                 () -> format(
                     "last failed join attempt was %s ago, failed to join %s with %s",
-                    // 'timestamp' is when this error exception was received by the local node. If the time that has passed since the error
-                    // was originally received is quite large, it could indicate that this is a stale error exception from some prior
-                    // out-of-order request response (where a later sent request but earlier received response was successful); or
+                    // 'attemptTimeMillis' is when this error exception was received by the local node. If the time that has passed since
+                    // the error was originally received is quite large, it could indicate that this is a stale error exception from some
+                    // prior out-of-order request response (where a later sent request but earlier received response was successful); or
                     // alternatively an old error could indicate that this node did not retry the join request for a very long time.
-                    TimeValue.timeValueMillis(TimeValue.nsecToMSec(System.nanoTime() - timestamp)),
+                    TimeValue.timeValueMillis(relativeTimeMillisSupplier.getAsLong() - attemptTimeMillis),
                     destination,
                     joinRequest
                 ),
@@ -266,7 +267,7 @@ public class JoinHelper {
     void logLastFailedJoinAttempt() {
         FailedJoinAttempt attempt = lastFailedJoinAttempt.get();
         if (attempt != null) {
-            attempt.logWarnWithTimestamp();
+            attempt.logWarnWithTimestamp(transportService.getThreadPool().relativeTimeInMillisSupplier());
             lastFailedJoinAttempt.compareAndSet(attempt, null);
         }
     }
@@ -299,7 +300,12 @@ public class JoinHelper {
                 pendingJoinInfo.message = PENDING_JOIN_FAILED;
                 pendingOutgoingJoins.remove(dedupKey);
                 if (e instanceof ElasticsearchException elasticsearchException) {
-                    final var attempt = new FailedJoinAttempt(destination, joinRequest, elasticsearchException);
+                    final var attempt = new FailedJoinAttempt(
+                        destination,
+                        joinRequest,
+                        elasticsearchException,
+                        transportService.getThreadPool().relativeTimeInMillis()
+                    );
                     attempt.logNow();
                     lastFailedJoinAttempt.set(attempt);
                     assert elasticsearchException instanceof CircuitBreakingException : e; // others shouldn't happen, handle them anyway
@@ -374,7 +380,12 @@ public class JoinHelper {
                             private void cleanUpOnFailure(TransportException exp) {
                                 pendingJoinInfo.message = PENDING_JOIN_FAILED;
                                 pendingOutgoingJoins.remove(dedupKey);
-                                final var attempt = new FailedJoinAttempt(destination, joinRequest, exp);
+                                final var attempt = new FailedJoinAttempt(
+                                    destination,
+                                    joinRequest,
+                                    exp,
+                                    transportService.getThreadPool().relativeTimeInMillis()
+                                );
                                 attempt.logNow();
                                 lastFailedJoinAttempt.set(attempt);
                                 unregisterAndReleaseConnection(destination, connectionReference);
@@ -390,7 +401,8 @@ public class JoinHelper {
                     final var attempt = new FailedJoinAttempt(
                         destination,
                         joinRequest,
-                        new ConnectTransportException(destination, "failed to acquire connection", e)
+                        new ConnectTransportException(destination, "failed to acquire connection", e),
+                        transportService.getThreadPool().relativeTimeInMillis()
                     );
                     attempt.logNow();
                     lastFailedJoinAttempt.set(attempt);
@@ -610,7 +622,7 @@ public class JoinHelper {
     static final String PENDING_JOIN_CONNECT_FAILED = "failed to connect";
     static final String PENDING_JOIN_FAILED = "failed";
 
-    static class JoinPingRequest extends TransportRequest {
+    static class JoinPingRequest extends AbstractTransportRequest {
         JoinPingRequest() {}
 
         JoinPingRequest(StreamInput in) throws IOException {

@@ -11,13 +11,14 @@ steps:
           setup:
             image:
               - windows-2022
+              - windows-2025
             PACKAGING_TASK:
               - default-windows-archive
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}
-          machineType: custom-32-98304
-          diskType: pd-ssd
+          machineType: n4-standard-16
+          diskType: hyperdisk-balanced
           diskSizeGb: 350
         env:
           PACKAGING_TASK: "{{matrix.PACKAGING_TASK}}"

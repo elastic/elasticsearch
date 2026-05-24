@@ -51,8 +51,8 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
     }
 
     public static SearchSortValues readFrom(StreamInput in) throws IOException {
-        Object[] formattedSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
-        Object[] rawSortValues = in.readArray(Lucene::readSortValue, Object[]::new);
+        Object[] formattedSortValues = Lucene.readSortValues(in);
+        Object[] rawSortValues = Lucene.readSortValues(in);
         if (formattedSortValues.length == 0 && rawSortValues.length == 0) {
             return EMPTY;
         }
@@ -62,6 +62,21 @@ public class SearchSortValues implements ToXContentFragment, Writeable {
     private SearchSortValues(Object[] formattedSortValues, Object[] rawSortValues) {
         this.formattedSortValues = formattedSortValues;
         this.rawSortValues = rawSortValues;
+    }
+
+    /**
+     * Build sort values from pre-formatted and raw arrays. Use this when the formatted values
+     * were produced with the correct per-field format (e.g. from a shard hit) and must not be
+     * re-formatted with a single format like RAW, which would fail for non-UTF-8 BytesRefs
+     * (e.g. version field).
+     */
+    public static SearchSortValues fromFormattedAndRaw(Object[] formattedSortValues, Object[] rawSortValues) {
+        Objects.requireNonNull(formattedSortValues);
+        Objects.requireNonNull(rawSortValues);
+        if (formattedSortValues.length != rawSortValues.length) {
+            throw new IllegalArgumentException("formattedSortValues and rawSortValues must have the same length");
+        }
+        return new SearchSortValues(formattedSortValues, rawSortValues);
     }
 
     @Override

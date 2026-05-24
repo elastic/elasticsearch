@@ -9,24 +9,41 @@
 
 package org.elasticsearch.search.vectors;
 
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.KnnFloatVectorQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
+import org.apache.lucene.search.knn.KnnCollectorManager;
+import org.apache.lucene.search.knn.KnnSearchStrategy;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryProfilerProvider {
-    private final Integer kParam;
+    private final int kParam;
     private long vectorOpsCount;
+    private final boolean earlyTermination;
 
-    public ESKnnFloatVectorQuery(String field, float[] target, Integer k, int numCands, Query filter) {
-        super(field, target, numCands, filter);
+    public ESKnnFloatVectorQuery(String field, float[] target, int k, int numCands, Query filter, KnnSearchStrategy strategy) {
+        this(field, target, k, numCands, filter, strategy, false);
+    }
+
+    public ESKnnFloatVectorQuery(
+        String field,
+        float[] target,
+        int k,
+        int numCands,
+        Query filter,
+        KnnSearchStrategy strategy,
+        boolean earlyTermination
+    ) {
+        super(field, target, numCands, filter, strategy);
         this.kParam = k;
+        this.earlyTermination = earlyTermination;
     }
 
     @Override
     protected TopDocs mergeLeafResults(TopDocs[] perLeafResults) {
         // if k param is set, we get only top k results from each shard
-        TopDocs topK = kParam == null ? super.mergeLeafResults(perLeafResults) : TopDocs.merge(kParam, perLeafResults);
+        TopDocs topK = TopDocs.merge(kParam, perLeafResults);
         vectorOpsCount = topK.totalHits.value();
         return topK;
     }
@@ -36,7 +53,17 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements QueryP
         queryProfiler.addVectorOpsCount(vectorOpsCount);
     }
 
-    public Integer kParam() {
+    public int kParam() {
         return kParam;
+    }
+
+    public KnnSearchStrategy getStrategy() {
+        return searchStrategy;
+    }
+
+    @Override
+    protected KnnCollectorManager getKnnCollectorManager(int k, IndexSearcher searcher) {
+        KnnCollectorManager knnCollectorManager = super.getKnnCollectorManager(k, searcher);
+        return earlyTermination ? PatienceCollectorManager.wrap(knnCollectorManager) : knnCollectorManager;
     }
 }

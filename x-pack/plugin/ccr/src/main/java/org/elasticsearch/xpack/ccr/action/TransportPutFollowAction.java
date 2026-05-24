@@ -24,11 +24,14 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.injection.guice.Inject;
@@ -205,16 +208,20 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
             (delegatedListener, response) -> afterRestoreStarted(clientWithHeaders, request, delegatedListener, response)
         );
 
-        final BiConsumer<ClusterState, Metadata.Builder> updater;
+        @FixForMultiProject(
+            description = "CCR may not be in scope for multi-project though we haven't made the decision explicitly yet. See also ES-12139"
+        )
+        final ProjectId projectId = ProjectId.DEFAULT;
+        final BiConsumer<ClusterState, ProjectMetadata.Builder> updater;
         if (remoteDataStream == null) {
             // If the index we're following is not part of a data stream, start the
             // restoration of the index normally.
-            updater = (clusterState, mdBuilder) -> {};
+            updater = (clusterState, projectBuilder) -> {};
         } else {
             String followerIndexName = request.getFollowerIndex();
             // This method is used to update the metadata in the same cluster state
             // update as the snapshot is restored.
-            updater = (currentState, mdBuilder) -> {
+            updater = (currentState, projectBuilder) -> {
                 final String localDataStreamName;
 
                 // If we have been given a data stream name, use that name for the local
@@ -227,8 +234,8 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                     // There was no specified name, use the original data stream name.
                     localDataStreamName = remoteDataStream.getName();
                 }
-                final DataStream localDataStream = mdBuilder.dataStreamMetadata().dataStreams().get(localDataStreamName);
-                final Index followerIndex = mdBuilder.get(followerIndexName).getIndex();
+                final DataStream localDataStream = projectBuilder.dataStream(localDataStreamName);
+                final Index followerIndex = projectBuilder.get(followerIndexName).getIndex();
                 assert followerIndex != null : "expected followerIndex " + followerIndexName + " to exist in the state, but it did not";
 
                 final DataStream updatedDataStream = updateLocalDataStream(
@@ -237,11 +244,11 @@ public final class TransportPutFollowAction extends TransportMasterNodeAction<Pu
                     localDataStreamName,
                     remoteDataStream
                 );
-                mdBuilder.put(updatedDataStream);
+                projectBuilder.put(updatedDataStream);
             };
         }
         threadPool.executor(ThreadPool.Names.SNAPSHOT_META)
-            .execute(ActionRunnable.wrap(delegatelistener, l -> restoreService.restoreSnapshot(restoreRequest, l, updater)));
+            .execute(ActionRunnable.wrap(delegatelistener, l -> restoreService.restoreSnapshot(projectId, restoreRequest, l, updater)));
     }
 
     private void afterRestoreStarted(

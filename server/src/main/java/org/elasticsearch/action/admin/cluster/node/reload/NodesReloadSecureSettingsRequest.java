@@ -9,10 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.reload;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
-import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -23,9 +20,8 @@ import org.elasticsearch.core.CharArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.tasks.TaskId;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.LeakTracker;
-import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -82,7 +78,7 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest {
         return new NodeRequest(secureSettingsPassword, refs);
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
 
         @Nullable
         private final SecureString secureSettingsPassword;
@@ -91,13 +87,6 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest {
 
         NodeRequest(StreamInput in) throws IOException {
             super(in);
-
-            if (in.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-                TaskId.readFromStream(in);
-                in.readStringArray();
-                in.readOptionalArray(DiscoveryNode::new, DiscoveryNode[]::new);
-                in.readOptionalTimeValue();
-            }
 
             final BytesReference bytesRef = in.readOptionalBytesReference();
             if (bytesRef != null) {
@@ -125,13 +114,6 @@ public class NodesReloadSecureSettingsRequest extends BaseNodesRequest {
         public void writeTo(StreamOutput out) throws IOException {
             assert hasReferences();
             super.writeTo(out);
-
-            if (out.getTransportVersion().before(TransportVersions.V_8_13_0)) {
-                TaskId.EMPTY_TASK_ID.writeTo(out);
-                out.writeStringArray(Strings.EMPTY_ARRAY);
-                out.writeOptionalArray(StreamOutput::writeWriteable, null);
-                out.writeOptionalTimeValue(null);
-            }
 
             if (this.secureSettingsPassword == null) {
                 out.writeOptionalBytesReference(null);

@@ -16,7 +16,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.logging.ThrottlerTests.mockLogger;
 import static org.mockito.ArgumentMatchers.any;
@@ -33,7 +33,7 @@ public class ThrottlerManagerTests extends ESTestCase {
 
     @Before
     public void init() {
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         taskQueue = new DeterministicTaskQueue();
     }
 

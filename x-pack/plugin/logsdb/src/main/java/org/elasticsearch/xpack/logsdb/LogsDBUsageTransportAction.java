@@ -12,6 +12,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.core.application.LogsDBFeatureSetUsage;
 public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction {
     private final ClusterService clusterService;
     private final Client client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public LogsDBUsageTransportAction(
@@ -37,11 +39,13 @@ public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        Client client
+        Client client,
+        ProjectResolver projectResolver
     ) {
         super(XPackUsageFeatureAction.LOGSDB.name(), transportService, clusterService, threadPool, actionFilters);
         this.clusterService = clusterService;
         this.client = client;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -53,7 +57,7 @@ public class LogsDBUsageTransportAction extends XPackUsageFeatureTransportAction
     ) {
         int numIndices = 0;
         int numIndicesWithSyntheticSources = 0;
-        for (IndexMetadata indexMetadata : state.metadata().getProject()) {
+        for (IndexMetadata indexMetadata : projectResolver.getProjectMetadata(state)) {
             if (indexMetadata.getIndexMode() == IndexMode.LOGSDB) {
                 numIndices++;
                 if (IndexSettings.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings()) == SourceFieldMapper.Mode.SYNTHETIC) {

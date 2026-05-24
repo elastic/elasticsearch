@@ -10,8 +10,9 @@
 package org.elasticsearch.index.mapper.vectors;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.codec.vectors.BFloat16;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
@@ -48,7 +49,7 @@ public final class VectorEncoderDecoder {
      * Calculates vector magnitude
      */
     private static float calculateMagnitude(float[] decodedVector) {
-        return (float) Math.sqrt(VectorUtil.dotProduct(decodedVector, decodedVector));
+        return (float) Math.sqrt(ESVectorUtil.dotProduct(decodedVector, decodedVector));
     }
 
     public static float getMagnitude(IndexVersion indexVersion, BytesRef vectorBR, float[] decodedVector) {
@@ -80,6 +81,33 @@ public final class VectorEncoderDecoder {
             ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
             for (int dim = 0; dim < vector.length; dim++) {
                 vector[dim] = byteBuffer.getFloat((dim * Float.BYTES) + vectorBR.offset);
+            }
+        }
+    }
+
+    public static void decodeBFloat16DenseVector(BytesRef vectorBR, float[] vector) {
+        if (vectorBR == null) {
+            throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
+        }
+        BFloat16.bFloat16ToFloat(vectorBR.bytes, vectorBR.offset, vector, 0, vector.length, ByteOrder.LITTLE_ENDIAN);
+    }
+
+    /**
+     * Decodes a BytesRef into the provided array of bytes
+     * @param vectorBR - dense vector encoded in BytesRef
+     * @param vector - array of bytes where the decoded vector should be stored
+     */
+    public static void decodeDenseVector(IndexVersion indexVersion, BytesRef vectorBR, byte[] vector) {
+        if (vectorBR == null) {
+            throw new IllegalArgumentException(DenseVectorScriptDocValues.MISSING_VECTOR_FIELD_MESSAGE);
+        }
+        if (indexVersion.onOrAfter(LITTLE_ENDIAN_FLOAT_STORED_INDEX_VERSION)) {
+            ByteBuffer fb = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length).order(ByteOrder.LITTLE_ENDIAN);
+            fb.get(vector);
+        } else {
+            ByteBuffer byteBuffer = ByteBuffer.wrap(vectorBR.bytes, vectorBR.offset, vectorBR.length);
+            for (int dim = 0; dim < vector.length; dim++) {
+                vector[dim] = byteBuffer.get(dim * vectorBR.offset);
             }
         }
     }

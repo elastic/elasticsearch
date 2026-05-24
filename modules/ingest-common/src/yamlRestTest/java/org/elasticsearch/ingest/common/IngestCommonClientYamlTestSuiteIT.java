@@ -15,9 +15,11 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.junit.ClassRule;
@@ -46,9 +48,11 @@ public class IngestCommonClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase
     private static ElasticsearchCluster createCluster() {
         LocalClusterSpecBuilder<ElasticsearchCluster> clusterBuilder = ElasticsearchCluster.local()
             .distribution(DistributionType.DEFAULT)
+            .configFile("user-agent/test-regexes.yml", Resource.fromClasspath("test-regexes.yml"))
+            .configFile("ingest-user-agent/test-regexes-legacy.yml", Resource.fromClasspath("test-regexes.yml"))
             .setting("xpack.security.enabled", "true")
             .user("x_pack_rest_user", "x-pack-test-password");
-        boolean setNodes = Boolean.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
+        boolean setNodes = Booleans.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
         if (setNodes) {
             clusterBuilder.nodes(2);
         }

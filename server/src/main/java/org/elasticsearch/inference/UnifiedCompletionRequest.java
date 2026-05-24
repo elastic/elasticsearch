@@ -9,16 +9,31 @@
 
 package org.elasticsearch.inference;
 
-import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.completion.Content;
+import org.elasticsearch.inference.completion.ContentObject;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectFile;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectImage;
+import org.elasticsearch.inference.completion.ContentObject.ContentObjectText;
+import org.elasticsearch.inference.completion.ContentObjects;
+import org.elasticsearch.inference.completion.ContentString;
+import org.elasticsearch.inference.completion.Message;
+import org.elasticsearch.inference.completion.Reasoning;
+import org.elasticsearch.inference.completion.ReasoningDetail;
+import org.elasticsearch.inference.completion.Tool;
+import org.elasticsearch.inference.completion.ToolChoice;
+import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceObject;
+import org.elasticsearch.inference.completion.ToolChoice.ToolChoiceString;
+import org.elasticsearch.inference.completion.UnifiedCompletionUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContentFragment;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -26,6 +41,17 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.CHAT_COMPLETION_REASONING_SUPPORT_ADDED;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_COMPLETION_TOKENS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MAX_TOKENS_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MESSAGES_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.MODEL_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.REASONING_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.STOP_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TEMPERATURE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_CHOICE_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOOL_FIELD;
+import static org.elasticsearch.inference.completion.UnifiedCompletionUtils.TOP_P_FIELD;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
@@ -37,10 +63,81 @@ public record UnifiedCompletionRequest(
     @Nullable Float temperature,
     @Nullable ToolChoice toolChoice,
     @Nullable List<Tool> tools,
-    @Nullable Float topP
-) implements Writeable {
+    @Nullable Float topP,
+    @Nullable Reasoning reasoning
+) implements Writeable, ToXContentFragment {
 
-    public sealed interface Content extends NamedWriteable permits ContentObjects, ContentString {}
+    /**
+     * We currently allow providers to override the model id that is written to JSON.
+     * Rather than use {@link #model()}, providers are expected to pass in the modelId via
+     * {@link Params}.
+     */
+    private static final String MODEL_ID_PARAM = "model_id_value";
+    /**
+     * Some providers only support the now-deprecated {@link UnifiedCompletionUtils#MAX_TOKENS_FIELD}, others have migrated to
+     * {@link UnifiedCompletionUtils#MAX_COMPLETION_TOKENS_FIELD}. Providers are expected to pass in their supported field name.
+     */
+    private static final String MAX_TOKENS_PARAM = "max_tokens_field";
+    /**
+     * Indicates whether to include the `stream_options` field in the JSON output.
+     * Some providers do not support this field. In such cases, this parameter should be set to "false",
+     * and the `stream_options` field will be excluded from the output.
+     * For providers that do support stream options, this parameter is left unset (default behavior),
+     * which implicitly includes the `stream_options` field in the output.
+     */
+    public static final String INCLUDE_STREAM_OPTIONS_PARAM = "include_stream_options";
+
+    /**
+     * Creates a {@link Params} that causes ToXContent to include the key values:
+     * - Key: {@link UnifiedCompletionUtils#MODEL_FIELD}, Value: modelId, if modelId is not null
+     * - Key: {@link UnifiedCompletionUtils#MAX_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
+     */
+    public static Params withMaxTokens(@Nullable String modelId, Params params) {
+        Map<String, String> entries = modelId != null
+            ? Map.ofEntries(Map.entry(MODEL_ID_PARAM, modelId), Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD))
+            : Map.ofEntries(Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD));
+        return new DelegatingMapParams(entries, params);
+    }
+
+    /**
+     * Creates a {@link Params} that causes ToXContent to include the key values:
+     * - Key: {@link UnifiedCompletionUtils#MODEL_FIELD}, Value: modelId, if modelId is not null
+     * - Key: {@link UnifiedCompletionUtils#MAX_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
+     * - Key: {@link #INCLUDE_STREAM_OPTIONS_PARAM}, Value: "false"
+     */
+    public static Params withMaxTokensAndSkipStreamOptionsField(@Nullable String modelId, Params params) {
+        Map<String, String> entries = modelId != null
+            ? Map.ofEntries(
+                Map.entry(MODEL_ID_PARAM, modelId),
+                Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD),
+                Map.entry(INCLUDE_STREAM_OPTIONS_PARAM, Boolean.FALSE.toString())
+            )
+            : Map.ofEntries(
+                Map.entry(MAX_TOKENS_PARAM, MAX_TOKENS_FIELD),
+                Map.entry(INCLUDE_STREAM_OPTIONS_PARAM, Boolean.FALSE.toString())
+            );
+        return new DelegatingMapParams(entries, params);
+    }
+
+    /**
+     * Creates a {@link Params} that causes ToXContent to include the key values:
+     * - Key: {@link UnifiedCompletionUtils#MODEL_FIELD}, Value: modelId
+     * - Key: {@link UnifiedCompletionUtils#MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
+     */
+    public static Params withMaxCompletionTokens(String modelId, Params params) {
+        return new DelegatingMapParams(
+            Map.ofEntries(Map.entry(MODEL_ID_PARAM, modelId), Map.entry(MAX_TOKENS_PARAM, MAX_COMPLETION_TOKENS_FIELD)),
+            params
+        );
+    }
+
+    /**
+     * Creates a {@link Params} that causes ToXContent to include the key values:
+     * - Key: {@link UnifiedCompletionUtils#MAX_COMPLETION_TOKENS_FIELD}, Value: {@link #maxCompletionTokens()}
+     */
+    public static Params withMaxCompletionTokens(Params params) {
+        return new DelegatingMapParams(Map.of(MAX_TOKENS_PARAM, MAX_COMPLETION_TOKENS_FIELD), params);
+    }
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<UnifiedCompletionRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -53,37 +150,71 @@ public record UnifiedCompletionRequest(
             (Float) args[4],
             (ToolChoice) args[5],
             (List<Tool>) args[6],
-            (Float) args[7]
+            (Float) args[7],
+            (Reasoning) args[8]
         )
     );
 
     static {
-        PARSER.declareObjectArray(constructorArg(), Message.PARSER::apply, new ParseField("messages"));
-        PARSER.declareString(optionalConstructorArg(), new ParseField("model"));
-        PARSER.declareLong(optionalConstructorArg(), new ParseField("max_completion_tokens"));
-        PARSER.declareStringArray(optionalConstructorArg(), new ParseField("stop"));
-        PARSER.declareFloat(optionalConstructorArg(), new ParseField("temperature"));
+        PARSER.declareObjectArray(constructorArg(), Message.PARSER::apply, new ParseField(MESSAGES_FIELD));
+        PARSER.declareString(optionalConstructorArg(), new ParseField(MODEL_FIELD));
+        PARSER.declareLong(optionalConstructorArg(), new ParseField(MAX_COMPLETION_TOKENS_FIELD));
+        PARSER.declareStringArray(optionalConstructorArg(), new ParseField(STOP_FIELD));
+        PARSER.declareFloat(optionalConstructorArg(), new ParseField(TEMPERATURE_FIELD));
         PARSER.declareField(
             optionalConstructorArg(),
             (p, c) -> parseToolChoice(p),
-            new ParseField("tool_choice"),
+            new ParseField(TOOL_CHOICE_FIELD),
             ObjectParser.ValueType.OBJECT_OR_STRING
         );
-        PARSER.declareObjectArray(optionalConstructorArg(), Tool.PARSER::apply, new ParseField("tools"));
-        PARSER.declareFloat(optionalConstructorArg(), new ParseField("top_p"));
+        PARSER.declareObjectArray(optionalConstructorArg(), Tool.PARSER::apply, new ParseField(TOOL_FIELD));
+        PARSER.declareFloat(optionalConstructorArg(), new ParseField(TOP_P_FIELD));
+        PARSER.declareObject(optionalConstructorArg(), Reasoning.PARSER::apply, new ParseField(REASONING_FIELD));
     }
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
             new NamedWriteableRegistry.Entry(Content.class, ContentObjects.NAME, ContentObjects::new),
             new NamedWriteableRegistry.Entry(Content.class, ContentString.NAME, ContentString::new),
+            new NamedWriteableRegistry.Entry(ContentObject.class, ContentObjectText.NAME, ContentObjectText::new),
+            new NamedWriteableRegistry.Entry(ContentObject.class, ContentObjectImage.NAME, ContentObjectImage::new),
+            new NamedWriteableRegistry.Entry(ContentObject.class, ContentObjectFile.NAME, ContentObjectFile::new),
             new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceObject.NAME, ToolChoiceObject::new),
-            new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceString.NAME, ToolChoiceString::new)
+            new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceString.NAME, ToolChoiceString::new),
+            new NamedWriteableRegistry.Entry(Reasoning.class, Reasoning.NAME, Reasoning::new),
+            new NamedWriteableRegistry.Entry(
+                ReasoningDetail.class,
+                ReasoningDetail.EncryptedReasoningDetail.NAME,
+                ReasoningDetail.EncryptedReasoningDetail::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                ReasoningDetail.class,
+                ReasoningDetail.SummaryReasoningDetail.NAME,
+                ReasoningDetail.SummaryReasoningDetail::new
+            ),
+            new NamedWriteableRegistry.Entry(
+                ReasoningDetail.class,
+                ReasoningDetail.TextReasoningDetail.NAME,
+                ReasoningDetail.TextReasoningDetail::new
+            )
         );
     }
 
     public static UnifiedCompletionRequest of(List<Message> messages) {
-        return new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null);
+        return new UnifiedCompletionRequest(messages, null, null, null, null, null, null, null, null);
+    }
+
+    public UnifiedCompletionRequest(
+        List<Message> messages,
+        @Nullable String model,
+        @Nullable Long maxCompletionTokens,
+        @Nullable List<String> stop,
+        @Nullable Float temperature,
+        @Nullable ToolChoice toolChoice,
+        @Nullable List<Tool> tools,
+        @Nullable Float top
+    ) {
+        this(messages, model, maxCompletionTokens, stop, temperature, toolChoice, tools, top, null);
     }
 
     public UnifiedCompletionRequest(StreamInput in) throws IOException {
@@ -95,7 +226,10 @@ public record UnifiedCompletionRequest(
             in.readOptionalFloat(),
             in.readOptionalNamedWriteable(ToolChoice.class),
             in.readOptionalCollectionAsList(Tool::new),
-            in.readOptionalFloat()
+            in.readOptionalFloat(),
+            in.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)
+                ? in.readOptionalNamedWriteable(Reasoning.class)
+                : null
         );
     }
 
@@ -109,178 +243,50 @@ public record UnifiedCompletionRequest(
         out.writeOptionalNamedWriteable(toolChoice);
         out.writeOptionalCollection(tools);
         out.writeOptionalFloat(topP);
-    }
-
-    public record Message(Content content, String role, @Nullable String toolCallId, @Nullable List<ToolCall> toolCalls)
-        implements
-            Writeable {
-
-        @SuppressWarnings("unchecked")
-        static final ConstructingObjectParser<Message, Void> PARSER = new ConstructingObjectParser<>(
-            Message.class.getSimpleName(),
-            args -> new Message((Content) args[0], (String) args[1], (String) args[2], (List<ToolCall>) args[3])
-        );
-
-        static {
-            PARSER.declareField(
-                optionalConstructorArg(),
-                (p, c) -> parseContent(p),
-                new ParseField("content"),
-                ObjectParser.ValueType.VALUE_ARRAY
-            );
-            PARSER.declareString(constructorArg(), new ParseField("role"));
-            PARSER.declareString(optionalConstructorArg(), new ParseField("tool_call_id"));
-            PARSER.declareObjectArray(optionalConstructorArg(), ToolCall.PARSER::apply, new ParseField("tool_calls"));
-        }
-
-        private static Content parseContent(XContentParser parser) throws IOException {
-            var token = parser.currentToken();
-            if (token == XContentParser.Token.START_ARRAY) {
-                var parsedContentObjects = XContentParserUtils.parseList(parser, (p) -> ContentObject.PARSER.apply(p, null));
-                return new ContentObjects(parsedContentObjects);
-            } else if (token == XContentParser.Token.VALUE_STRING) {
-                return ContentString.of(parser);
-            }
-
-            throw new XContentParseException("Expected an array start token or a value string token but found token [" + token + "]");
-        }
-
-        public Message(StreamInput in) throws IOException {
-            this(
-                in.readOptionalNamedWriteable(Content.class),
-                in.readString(),
-                in.readOptionalString(),
-                in.readOptionalCollectionAsList(ToolCall::new)
-            );
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeOptionalNamedWriteable(content);
-            out.writeString(role);
-            out.writeOptionalString(toolCallId);
-            out.writeOptionalCollection(toolCalls);
+        if (out.getTransportVersion().supports(CHAT_COMPLETION_REASONING_SUPPORT_ADDED)) {
+            out.writeOptionalNamedWriteable(reasoning);
         }
     }
 
-    public record ContentObjects(List<ContentObject> contentObjects) implements Content, NamedWriteable {
-
-        public static final String NAME = "content_objects";
-
-        public ContentObjects(StreamInput in) throws IOException {
-            this(in.readCollectionAsImmutableList(ContentObject::new));
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.field(MESSAGES_FIELD, messages);
+        if (stop != null && (stop.isEmpty() == false)) {
+            builder.field(STOP_FIELD, stop);
         }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeCollection(contentObjects);
+        if (temperature != null) {
+            builder.field(TEMPERATURE_FIELD, temperature);
         }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
+        if (toolChoice != null) {
+            toolChoice.toXContent(builder, params);
         }
+        if (tools != null && (tools.isEmpty() == false)) {
+            builder.field(TOOL_FIELD, tools);
+        }
+        if (topP != null) {
+            builder.field(TOP_P_FIELD, topP);
+        }
+        // some providers only support the now-deprecated max_tokens, others have migrated to max_completion_tokens
+        if (maxCompletionTokens != null && params.param(MAX_TOKENS_PARAM) != null) {
+            builder.field(params.param(MAX_TOKENS_PARAM), maxCompletionTokens);
+        }
+        // some implementations handle modelId differently, for example OpenAI has a default in the server settings and override it there
+        // so we allow implementations to pass in the model id via the params
+        if (params.param(MODEL_ID_PARAM) != null) {
+            builder.field(MODEL_FIELD, params.param(MODEL_ID_PARAM));
+        }
+        if (reasoning != null) {
+            builder.field(REASONING_FIELD, reasoning);
+        }
+        return builder;
     }
 
-    public record ContentObject(String text, String type) implements Writeable {
-        static final ConstructingObjectParser<ContentObject, Void> PARSER = new ConstructingObjectParser<>(
-            ContentObject.class.getSimpleName(),
-            args -> new ContentObject((String) args[0], (String) args[1])
-        );
-
-        static {
-            PARSER.declareString(constructorArg(), new ParseField("text"));
-            PARSER.declareString(constructorArg(), new ParseField("type"));
-        }
-
-        public ContentObject(StreamInput in) throws IOException {
-            this(in.readString(), in.readString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(text);
-            out.writeString(type);
-        }
-
-        public String toString() {
-            return text + ":" + type;
-        }
-
+    public boolean containsMultimodalContent() {
+        return messages().stream().anyMatch(m -> m.content() != null && m.content().containsMultimodalContent());
     }
 
-    public record ContentString(String content) implements Content, NamedWriteable {
-        public static final String NAME = "content_string";
-
-        public static ContentString of(XContentParser parser) throws IOException {
-            var content = parser.text();
-            return new ContentString(content);
-        }
-
-        public ContentString(StreamInput in) throws IOException {
-            this(in.readString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(content);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        public String toString() {
-            return content;
-        }
-    }
-
-    public record ToolCall(String id, FunctionField function, String type) implements Writeable {
-
-        static final ConstructingObjectParser<ToolCall, Void> PARSER = new ConstructingObjectParser<>(
-            ToolCall.class.getSimpleName(),
-            args -> new ToolCall((String) args[0], (FunctionField) args[1], (String) args[2])
-        );
-
-        static {
-            PARSER.declareString(constructorArg(), new ParseField("id"));
-            PARSER.declareObject(constructorArg(), FunctionField.PARSER::apply, new ParseField("function"));
-            PARSER.declareString(constructorArg(), new ParseField("type"));
-        }
-
-        public ToolCall(StreamInput in) throws IOException {
-            this(in.readString(), new FunctionField(in), in.readString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(id);
-            function.writeTo(out);
-            out.writeString(type);
-        }
-
-        public record FunctionField(String arguments, String name) implements Writeable {
-            static final ConstructingObjectParser<FunctionField, Void> PARSER = new ConstructingObjectParser<>(
-                "tool_call_function_field",
-                args -> new FunctionField((String) args[0], (String) args[1])
-            );
-
-            static {
-                PARSER.declareString(constructorArg(), new ParseField("arguments"));
-                PARSER.declareString(constructorArg(), new ParseField("name"));
-            }
-
-            public FunctionField(StreamInput in) throws IOException {
-                this(in.readString(), in.readString());
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeString(arguments);
-                out.writeString(name);
-            }
-        }
+    public boolean containsChatCompletionReasoning() {
+        return reasoning() != null || messages().stream().anyMatch(m -> m.reasoning() != null || m.reasoningDetails() != null);
     }
 
     private static ToolChoice parseToolChoice(XContentParser parser) throws IOException {
@@ -292,136 +298,5 @@ public record UnifiedCompletionRequest(
         }
 
         throw new XContentParseException("Unsupported token [" + token + "]");
-    }
-
-    public sealed interface ToolChoice extends NamedWriteable permits ToolChoiceObject, ToolChoiceString {}
-
-    public record ToolChoiceObject(String type, FunctionField function) implements ToolChoice, NamedWriteable {
-
-        public static final String NAME = "tool_choice_object";
-
-        static final ConstructingObjectParser<ToolChoiceObject, Void> PARSER = new ConstructingObjectParser<>(
-            ToolChoiceObject.class.getSimpleName(),
-            args -> new ToolChoiceObject((String) args[0], (FunctionField) args[1])
-        );
-
-        static {
-            PARSER.declareString(constructorArg(), new ParseField("type"));
-            PARSER.declareObject(constructorArg(), FunctionField.PARSER::apply, new ParseField("function"));
-        }
-
-        public ToolChoiceObject(StreamInput in) throws IOException {
-            this(in.readString(), new FunctionField(in));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(type);
-            function.writeTo(out);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-
-        public record FunctionField(String name) implements Writeable {
-            static final ConstructingObjectParser<FunctionField, Void> PARSER = new ConstructingObjectParser<>(
-                "tool_choice_function_field",
-                args -> new FunctionField((String) args[0])
-            );
-
-            static {
-                PARSER.declareString(constructorArg(), new ParseField("name"));
-            }
-
-            public FunctionField(StreamInput in) throws IOException {
-                this(in.readString());
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeString(name);
-            }
-        }
-    }
-
-    public record ToolChoiceString(String value) implements ToolChoice, NamedWriteable {
-        public static final String NAME = "tool_choice_string";
-
-        public static ToolChoiceString of(XContentParser parser) throws IOException {
-            var content = parser.text();
-            return new ToolChoiceString(content);
-        }
-
-        public ToolChoiceString(StreamInput in) throws IOException {
-            this(in.readString());
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(value);
-        }
-
-        @Override
-        public String getWriteableName() {
-            return NAME;
-        }
-    }
-
-    public record Tool(String type, FunctionField function) implements Writeable {
-
-        static final ConstructingObjectParser<Tool, Void> PARSER = new ConstructingObjectParser<>(
-            Tool.class.getSimpleName(),
-            args -> new Tool((String) args[0], (FunctionField) args[1])
-        );
-
-        static {
-            PARSER.declareString(constructorArg(), new ParseField("type"));
-            PARSER.declareObject(constructorArg(), FunctionField.PARSER::apply, new ParseField("function"));
-        }
-
-        public Tool(StreamInput in) throws IOException {
-            this(in.readString(), new FunctionField(in));
-        }
-
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(type);
-            function.writeTo(out);
-        }
-
-        public record FunctionField(
-            @Nullable String description,
-            String name,
-            @Nullable Map<String, Object> parameters,
-            @Nullable Boolean strict
-        ) implements Writeable {
-
-            @SuppressWarnings("unchecked")
-            static final ConstructingObjectParser<FunctionField, Void> PARSER = new ConstructingObjectParser<>(
-                "tool_function_field",
-                args -> new FunctionField((String) args[0], (String) args[1], (Map<String, Object>) args[2], (Boolean) args[3])
-            );
-
-            static {
-                PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
-                PARSER.declareString(constructorArg(), new ParseField("name"));
-                PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), new ParseField("parameters"));
-                PARSER.declareBoolean(optionalConstructorArg(), new ParseField("strict"));
-            }
-
-            public FunctionField(StreamInput in) throws IOException {
-                this(in.readOptionalString(), in.readString(), in.readGenericMap(), in.readOptionalBoolean());
-            }
-
-            @Override
-            public void writeTo(StreamOutput out) throws IOException {
-                out.writeOptionalString(description);
-                out.writeString(name);
-                out.writeGenericMap(parameters);
-                out.writeOptionalBoolean(strict);
-            }
-        }
     }
 }

@@ -12,6 +12,7 @@ package org.elasticsearch.action.admin.cluster.tasks;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.util.Arrays;
@@ -22,6 +23,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_BLOCKS_WR
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_READ_ONLY_ALLOW_DELETE;
 
+@ESTestCase.WithoutEntitlements // requires entitlement delegation ES-10920
 public class PendingTasksBlocksIT extends ESIntegTestCase {
 
     public void testPendingTasksWithIndexBlocks() {

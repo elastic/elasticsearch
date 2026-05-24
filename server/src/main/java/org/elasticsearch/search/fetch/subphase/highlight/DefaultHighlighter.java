@@ -21,7 +21,6 @@ import org.apache.lucene.util.CollectionUtil;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -34,6 +33,7 @@ import org.elasticsearch.lucene.search.uhighlight.QueryMaxAnalyzedOffset;
 import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.xcontent.Text;
 
 import java.io.IOException;
 import java.text.BreakIterator;

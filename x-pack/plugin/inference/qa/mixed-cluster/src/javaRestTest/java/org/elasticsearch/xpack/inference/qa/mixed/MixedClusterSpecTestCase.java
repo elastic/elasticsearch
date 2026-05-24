@@ -7,9 +7,9 @@
 
 package org.elasticsearch.xpack.inference.qa.mixed;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.TestFeatureService;
 import org.junit.AfterClass;

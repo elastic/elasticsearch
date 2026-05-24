@@ -223,12 +223,12 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
             }
 
             if (updatedMetadata.isEmpty() == false || updatedDataStreams.isEmpty() == false) {
-                Metadata.Builder builder = Metadata.builder(initialState.metadata());
+                ProjectMetadata.Builder builder = ProjectMetadata.builder(initialState.metadata().getProject());
                 updatedMetadata.forEach(idxMeta -> builder.put(idxMeta, true));
                 updatedDataStreams.forEach(builder::put);
                 updatedBackingIndices.forEach(idxMeta -> builder.put(idxMeta, true));
 
-                return ClusterState.builder(initialState).metadata(builder).build();
+                return ClusterState.builder(initialState).putProjectMetadata(builder).build();
             }
             return initialState;
         }
@@ -241,6 +241,10 @@ public class SystemIndexMetadataUpgradeService implements ClusterStateListener {
             final List<IndexMetadata> updatedMetadata = new ArrayList<>();
             for (Index index : indices) {
                 IndexMetadata indexMetadata = metadata.indexMetadata(index);
+                // this might happen because update is async and the index might have been deleted between task creation and execution
+                if (indexMetadata == null) {
+                    continue;
+                }
                 final boolean shouldBeSystem = shouldBeSystem(indexMetadata);
                 IndexMetadata updatedIndexMetadata = updateIndexIfNecessary(indexMetadata, shouldBeSystem);
                 if (updatedIndexMetadata != null) {

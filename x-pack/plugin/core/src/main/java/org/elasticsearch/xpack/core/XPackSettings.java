@@ -118,6 +118,13 @@ public class XPackSettings {
         Setting.Property.NodeScope
     );
 
+    /** Setting for enabling or disabling Prometheus Data ingestion and query support. Defaults to true. */
+    public static final Setting<Boolean> PROMETHEUS_ENABLED = Setting.boolSetting(
+        "xpack.prometheus.enabled",
+        true,
+        Setting.Property.NodeScope
+    );
+
     /** Setting for enabling or disabling enterprise search. Defaults to true. */
     public static final Setting<Boolean> ENTERPRISE_SEARCH_ENABLED = Setting.boolSetting(
         "xpack.ent_search.enabled",
@@ -129,7 +136,8 @@ public class XPackSettings {
     public static final Setting<Boolean> AUDIT_ENABLED = Setting.boolSetting(
         "xpack.security.audit.enabled",
         false,
-        Setting.Property.NodeScope
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
     );
 
     /** Setting for enabling or disabling document/field level security. Defaults to true. */
@@ -344,17 +352,13 @@ public class XPackSettings {
     public static final SslClientAuthenticationMode REMOTE_CLUSTER_CLIENT_AUTH_DEFAULT = SslClientAuthenticationMode.NONE;
     public static final SslVerificationMode VERIFICATION_MODE_DEFAULT = SslVerificationMode.FULL;
 
-    // http specific settings
     public static final String HTTP_SSL_PREFIX = SecurityField.setting("http.ssl.");
-    private static final SSLConfigurationSettings HTTP_SSL = SSLConfigurationSettings.withPrefix(HTTP_SSL_PREFIX, true);
-
-    // transport specific settings
     public static final String TRANSPORT_SSL_PREFIX = SecurityField.setting("transport.ssl.");
-    private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
-
-    // remote cluster specific settings
     public static final String REMOTE_CLUSTER_SERVER_SSL_PREFIX = SecurityField.setting("remote_cluster_server.ssl.");
     public static final String REMOTE_CLUSTER_CLIENT_SSL_PREFIX = SecurityField.setting("remote_cluster_client.ssl.");
+
+    private static final SSLConfigurationSettings HTTP_SSL = SSLConfigurationSettings.withPrefix(HTTP_SSL_PREFIX, true);
+    private static final SSLConfigurationSettings TRANSPORT_SSL = SSLConfigurationSettings.withPrefix(TRANSPORT_SSL_PREFIX, true);
 
     private static final SSLConfigurationSettings REMOTE_CLUSTER_SERVER_SSL = SSLConfigurationSettings.withPrefix(
         REMOTE_CLUSTER_SERVER_SSL_PREFIX,

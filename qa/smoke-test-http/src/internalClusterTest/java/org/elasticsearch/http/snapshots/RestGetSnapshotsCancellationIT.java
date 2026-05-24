@@ -17,6 +17,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.TimeUnit;
@@ -27,6 +28,7 @@ import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
 import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
 import static org.hamcrest.core.IsEqual.equalTo;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RestGetSnapshotsCancellationIT extends AbstractSnapshotRestTestCase {
 
     public void testGetSnapshotsCancellation() throws Exception {

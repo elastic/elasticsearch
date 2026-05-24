@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,13 +17,10 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 
@@ -68,7 +64,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         this.estimatedRowSize = estimatedRowSize;
     }
 
-    private AggregateExec(StreamInput in) throws IOException {
+    protected AggregateExec(StreamInput in) throws IOException {
         // This is only deserialized as part of node level reduction, which is turned off until at least 8.16.
         // So, we do not have to consider previous transport versions here, because old nodes will not send AggregateExecs to new nodes.
         this(
@@ -88,12 +84,8 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         out.writeNamedWriteable(child());
         out.writeNamedWriteableCollection(groupings());
         out.writeNamedWriteableCollection(aggregates());
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeEnum(getMode());
-            out.writeNamedWriteableCollection(intermediateAttributes());
-        } else {
-            out.writeEnum(AggregateExec.Mode.fromAggregatorMode(getMode()));
-        }
+        out.writeEnum(getMode());
+        out.writeNamedWriteableCollection(intermediateAttributes());
         out.writeOptionalVInt(estimatedRowSize());
     }
 
@@ -103,7 +95,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
     }
 
     @Override
-    protected NodeInfo<AggregateExec> info() {
+    protected NodeInfo<? extends AggregateExec> info() {
         return NodeInfo.create(this, AggregateExec::new, child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
     }
 
@@ -118,6 +110,10 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
 
     public List<? extends NamedExpression> aggregates() {
         return aggregates;
+    }
+
+    public AggregateExec withAggregates(List<? extends NamedExpression> newAggregates) {
+        return new AggregateExec(source(), child(), groupings, newAggregates, mode, intermediateAttributes, estimatedRowSize);
     }
 
     public AggregateExec withMode(AggregatorMode newMode) {
@@ -137,36 +133,15 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
         state.add(false, aggregates);  // The groupings are contained within the aggregates
         int size = state.consumeAllFields(true);
         size = Math.max(size, 1);
-        return Objects.equals(this.estimatedRowSize, size)
-            ? this
-            : new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, size);
+        return Objects.equals(this.estimatedRowSize, size) ? this : withEstimatedSize(size);
+    }
+
+    protected AggregateExec withEstimatedSize(int estimatedRowSize) {
+        return new AggregateExec(source(), child(), groupings, aggregates, mode, intermediateAttributes, estimatedRowSize);
     }
 
     public AggregatorMode getMode() {
         return mode;
-    }
-
-    /**
-     * Used only for bwc when de-/serializing.
-     */
-    @Deprecated
-    private enum Mode {
-        SINGLE,
-        PARTIAL, // maps raw inputs to intermediate outputs
-        FINAL; // maps intermediate inputs to final outputs
-
-        static Mode fromAggregatorMode(AggregatorMode aggregatorMode) {
-            return switch (aggregatorMode) {
-                case SINGLE -> SINGLE;
-                case INITIAL -> PARTIAL;
-                case FINAL -> FINAL;
-                // If needed, we could have this return an PARTIAL instead; that's how intermediate aggs were encoded in the past for
-                // data node level reduction.
-                case INTERMEDIATE -> throw new UnsupportedOperationException(
-                    "cannot turn intermediate aggregation into single, partial or final."
-                );
-            };
-        }
     }
 
     /**
@@ -185,27 +160,7 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
 
     @Override
     protected AttributeSet computeReferences() {
-        return mode.isInputPartial()
-            ? AttributeSet.of(intermediateAttributes)
-            : Aggregate.computeReferences(aggregates, groupings).subtract(AttributeSet.of(ordinalAttributes()));
-    }
-
-    /** Returns the attributes that can be loaded from ordinals -- no explicit extraction is needed */
-    public List<Attribute> ordinalAttributes() {
-        List<Attribute> orginalAttributs = new ArrayList<>(groupings.size());
-        // Ordinals can be leveraged just for a single grouping. If there are multiple groupings, fields need to be laoded for the
-        // hash aggregator.
-        // CATEGORIZE requires the standard hash aggregator as well.
-        if (groupings().size() == 1 && groupings.get(0).anyMatch(e -> e instanceof Categorize) == false) {
-            var leaves = new HashSet<>();
-            aggregates.stream().filter(a -> groupings.contains(a) == false).forEach(a -> leaves.addAll(a.collectLeaves()));
-            groupings.forEach(g -> {
-                if (leaves.contains(g) == false) {
-                    orginalAttributs.add((Attribute) g);
-                }
-            });
-        }
-        return orginalAttributs;
+        return mode.isInputPartial() ? AttributeSet.of(intermediateAttributes) : Aggregate.computeReferences(aggregates, groupings);
     }
 
     @Override

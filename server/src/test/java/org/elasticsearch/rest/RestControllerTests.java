@@ -320,7 +320,24 @@ public class RestControllerTests extends ESTestCase {
             eq(threadContext),
             eq(channel.request()),
             eq("GET /"),
-            eq(Map.of("http.method", "GET", "http.flavour", "1.1", "http.url", "/"))
+            eq(
+                Map.of(
+                    "http.method",
+                    "GET",
+                    "http.request.method",
+                    "GET",
+                    "http.flavour",
+                    "1.1",
+                    "network.protocol.version",
+                    "1.1",
+                    "http.url",
+                    "/",
+                    "url.full",
+                    "/",
+                    "url.path",
+                    "/"
+                )
+            )
         );
     }
 
@@ -640,8 +657,8 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsBulkContent() {
-                return true;
+            public boolean mediaTypesValid(RestRequest request) {
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
 
@@ -679,8 +696,8 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsBulkContent() {
-                return true;
+            public boolean mediaTypesValid(RestRequest request) {
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
 
@@ -704,8 +721,8 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsBulkContent() {
-                return true;
+            public boolean mediaTypesValid(RestRequest request) {
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
 
@@ -730,8 +747,8 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsBulkContent() {
-                return true;
+            public boolean mediaTypesValid(RestRequest request) {
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
         assertFalse(channel.getSendResponseCalled());
@@ -755,8 +772,8 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportsBulkContent() {
-                return true;
+            public boolean mediaTypesValid(RestRequest request) {
+                return RestHandler.super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
             }
         });
         assertFalse(channel.getSendResponseCalled());
@@ -880,6 +897,11 @@ public class RestControllerTests extends ESTestCase {
             }
 
             @Override
+            public void setBody(HttpBody body) {
+                throw new IllegalStateException("not allowed");
+            }
+
+            @Override
             public Map<String, List<String>> getHeaders() {
                 Map<String, List<String>> headers = new HashMap<>();
                 if (hasContent) {
@@ -901,6 +923,11 @@ public class RestControllerTests extends ESTestCase {
             @Override
             public HttpRequest removeHeader(String header) {
                 return this;
+            }
+
+            @Override
+            public boolean hasContent() {
+                return hasContent;
             }
 
             @Override
@@ -1176,6 +1203,19 @@ public class RestControllerTests extends ESTestCase {
         restController.getApiProtections().setEnabled(false);
         checkUnprotected.accept(accessiblePaths);
         checkUnprotected.accept(inaccessiblePaths);
+    }
+
+    public void testGetAllHandlersPreservesMultiValueParams() {
+        restController.registerHandler(new Route(GET, "/{index}"), (request, channel, client) -> {});
+
+        var params = RequestParams.of(Map.of("format", List.of("json", "yaml")));
+        var it = restController.getAllHandlers(params, "/my-index");
+        while (it.hasNext()) {
+            it.next();
+        }
+
+        // Multi-values must survive the per-iteration reset that PathTrie triggers
+        assertThat(params.getAll("format"), equalTo(List.of("json", "yaml")));
     }
 
     @ServerlessScope(Scope.PUBLIC)

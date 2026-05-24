@@ -35,8 +35,8 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
-import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -120,17 +120,12 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
     public void testDownsamplingAuthorized() throws Exception {
         String dataStreamName = "metrics-foo";
 
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.builder()
-            .downsampling(
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
+            .downsamplingMethod(randomSamplingMethod())
+            .downsamplingRounds(
                 List.of(
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueMillis(0),
-                        new DownsampleConfig(new DateHistogramInterval("5m"))
-                    ),
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueSeconds(10),
-                        new DownsampleConfig(new DateHistogramInterval("10m"))
-                    )
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")),
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueSeconds(10), new DateHistogramInterval("10m"))
                 )
             )
             .buildTemplate();
@@ -408,19 +403,22 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
         logger.info("-> Indexed [{}] documents. Dropped [{}] duplicates.", docsIndexed, duplicates);
     }
 
+    private static DownsampleConfig.SamplingMethod randomSamplingMethod() {
+        if (between(0, DownsampleConfig.SamplingMethod.values().length) == 0) {
+            return null;
+        } else {
+            return randomFrom(DownsampleConfig.SamplingMethod.values());
+        }
+    }
+
     public static class SystemDataStreamWithDownsamplingConfigurationPlugin extends Plugin implements SystemIndexPlugin {
 
-        public static final DataStreamLifecycle.Template LIFECYCLE = DataStreamLifecycle.builder()
-            .downsampling(
+        public static final DataStreamLifecycle.Template LIFECYCLE = DataStreamLifecycle.dataLifecycleBuilder()
+            .downsamplingMethod(randomSamplingMethod())
+            .downsamplingRounds(
                 List.of(
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueMillis(0),
-                        new DownsampleConfig(new DateHistogramInterval("5m"))
-                    ),
-                    new DataStreamLifecycle.DownsamplingRound(
-                        TimeValue.timeValueSeconds(10),
-                        new DownsampleConfig(new DateHistogramInterval("10m"))
-                    )
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueMillis(0), new DateHistogramInterval("5m")),
+                    new DataStreamLifecycle.DownsamplingRound(TimeValue.timeValueSeconds(10), new DateHistogramInterval("10m"))
                 )
             )
             .buildTemplate();
@@ -444,6 +442,7 @@ public class DataStreamLifecycleDownsamplingSecurityIT extends SecurityIntegTest
                             .build(),
                         Map.of(),
                         Collections.singletonList("test"),
+                        "test",
                         new ExecutorNames(
                             ThreadPool.Names.SYSTEM_CRITICAL_READ,
                             ThreadPool.Names.SYSTEM_READ,

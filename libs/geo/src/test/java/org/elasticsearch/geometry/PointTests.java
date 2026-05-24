@@ -17,8 +17,10 @@ import org.elasticsearch.geometry.utils.WellKnownText;
 
 import java.io.IOException;
 import java.text.ParseException;
+import java.util.List;
 
 public class PointTests extends BaseGeometryTestCase<Point> {
+
     @Override
     protected Point createTestInstance(boolean hasAlt) {
         return GeometryTestUtils.randomPoint(hasAlt);
@@ -56,6 +58,21 @@ public class PointTests extends BaseGeometryTestCase<Point> {
             () -> WellKnownText.fromWKT(GeographyValidator.instance(false), randomBoolean(), "point (20.0 10.0 100.0)")
         );
         assertEquals("found Z value [100.0] but [ignore_z_value] parameter is [false]", ex.getMessage());
+    }
+
+    public void testParsePointZorMWithThreeCoordinates() throws IOException, ParseException {
+        GeometryValidator validator = GeographyValidator.instance(true);
+        assertEquals(new Point(20, 10, 100), WellKnownText.fromWKT(validator, true, "POINT Z (20.0 10.0 100.0)"));
+        assertEquals(new Point(20, 10, 100), WellKnownText.fromWKT(validator, true, "POINT M (20.0 10.0 100.0)"));
+    }
+
+    public void testParsePointZorMWithTwoCoordinatesThrowsException() {
+        GeometryValidator validator = GeographyValidator.instance(true);
+        List<String> pointsWkt = List.of("POINT Z (20.0 10.0)", "POINT M (20.0 10.0)");
+        for (String point : pointsWkt) {
+            IllegalArgumentException ex = expectThrows(IllegalArgumentException.class, () -> WellKnownText.fromWKT(validator, true, point));
+            assertEquals(ZorMMustIncludeThreeValuesMsg, ex.getMessage());
+        }
     }
 
     @Override

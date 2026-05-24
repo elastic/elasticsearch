@@ -33,6 +33,11 @@ public class PointFieldBlockLoaderTests extends BlockLoaderTestCase {
     }
 
     @Override
+    protected boolean supportsMultiField() {
+        return false;
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         var nullValue = switch (fieldMapping.get("null_value")) {

@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -28,6 +29,8 @@ import org.elasticsearch.xpack.core.rollup.action.RollupJobCaps;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.TreeMap;
@@ -46,13 +49,15 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
     private final ClusterService clusterService;
     private final IndexNameExpressionResolver resolver;
     private final Executor managementExecutor;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportGetRollupIndexCapsAction(
         TransportService transportService,
         ClusterService clusterService,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver
     ) {
         // TODO replace SAME when removing workaround for https://github.com/elastic/elasticsearch/issues/97916
         super(
@@ -65,6 +70,7 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
         this.clusterService = clusterService;
         this.managementExecutor = transportService.getThreadPool().executor(ThreadPool.Names.MANAGEMENT);
         this.resolver = indexNameExpressionResolver;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -80,15 +86,13 @@ public class TransportGetRollupIndexCapsAction extends HandledTransportAction<
 
     private void doExecuteForked(IndicesRequest request, ActionListener<GetRollupIndexCapsAction.Response> listener) {
         Transports.assertNotTransportThread("retrieving rollup job index caps may be expensive");
-        String[] indices = resolver.concreteIndexNames(clusterService.state(), request.indicesOptions(), request);
-        Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(
-            Arrays.asList(indices),
-            clusterService.state().getMetadata().getProject().indices()
-        );
+        final var project = projectResolver.getProjectMetadata(clusterService.state());
+        String[] indices = resolver.concreteIndexNames(project, request.indicesOptions(), request);
+        Map<String, RollableIndexCaps> allCaps = getCapsByRollupIndex(new HashSet<>(Arrays.asList(indices)), project.indices());
         listener.onResponse(new GetRollupIndexCapsAction.Response(allCaps));
     }
 
-    static Map<String, RollableIndexCaps> getCapsByRollupIndex(List<String> resolvedIndexNames, Map<String, IndexMetadata> indices) {
+    static Map<String, RollableIndexCaps> getCapsByRollupIndex(Collection<String> resolvedIndexNames, Map<String, IndexMetadata> indices) {
         Map<String, List<RollupJobCaps>> allCaps = new TreeMap<>();
 
         indices.entrySet().stream().filter(entry -> resolvedIndexNames.contains(entry.getKey())).forEach(entry -> {

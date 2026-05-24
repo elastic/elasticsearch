@@ -149,7 +149,16 @@ public class RRFRetrieverBuilderNestedDocsIT extends RRFRetrieverBuilderIT {
         );
         standard1.getPreFilterQueryBuilders().add(QueryBuilders.queryStringQuery("search").defaultField(TEXT_FIELD));
         // this one retrieves docs 6
-        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(VECTOR_FIELD, new float[] { 6.0f }, null, 1, 100, null, null);
+        KnnRetrieverBuilder knnRetrieverBuilder = new KnnRetrieverBuilder(
+            VECTOR_FIELD,
+            new float[] { 6.0f },
+            null,
+            1,
+            100,
+            null,
+            null,
+            null
+        );
         source.retriever(
             new RRFRetrieverBuilder(
                 Arrays.asList(

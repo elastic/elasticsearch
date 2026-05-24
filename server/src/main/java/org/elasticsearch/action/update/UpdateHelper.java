@@ -22,18 +22,19 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.DocumentSourceMissingException;
+import org.elasticsearch.index.engine.UpdateNotSupportedException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.UpdateCtxMap;
 import org.elasticsearch.script.UpdateScript;
 import org.elasticsearch.script.UpsertCtxMap;
+import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentType;
@@ -59,16 +60,13 @@ public class UpdateHelper {
     /**
      * Prepares an update request by converting it into an index or delete request or an update response (no action).
      */
-    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis) throws IOException {
-        // TODO: Don't hard-code gFields
-        return prepare(request, indexShard, nowInMillis, new String[] { RoutingFieldMapper.NAME });
-    }
-
-    /**
-     * Prepares an update request by converting it into an index or delete request or an update response (no action).
-     */
-    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis, String[] gFields) throws IOException {
-        final GetResult getResult = indexShard.getService().getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm(), gFields);
+    public Result prepare(UpdateRequest request, IndexShard indexShard, LongSupplier nowInMillis, FetchSourceContext fetchSourceContext)
+        throws IOException {
+        if (indexShard.indexSettings().sequenceNumbersDisabled()) {
+            throw new UpdateNotSupportedException(indexShard.shardId());
+        }
+        final GetResult getResult = indexShard.getService()
+            .getForUpdate(request.id(), request.ifSeqNo(), request.ifPrimaryTerm(), fetchSourceContext);
         return prepare(indexShard, request, getResult, nowInMillis);
     }
 
@@ -77,18 +75,20 @@ public class UpdateHelper {
      * noop).
      */
     protected Result prepare(IndexShard indexShard, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
+        final boolean routingFromSlice = request.isRoutingFromSlice()
+            || (indexShard.indexSettings() != null && indexShard.indexSettings().isSliceEnabled() && request.routing() != null);
         if (getResult.isExists() == false) {
             // If the document didn't exist, execute the update request as an upsert
-            return prepareUpsert(indexShard.shardId(), request, getResult, nowInMillis);
+            return prepareUpsert(indexShard.shardId(), request, getResult, nowInMillis, routingFromSlice);
         } else if (getResult.internalSourceRef() == null) {
             // no source, we can't do anything, throw a failure...
             throw new DocumentSourceMissingException(indexShard.shardId(), request.id());
         } else if (request.script() == null && request.doc() != null) {
             // The request has no script, it is a new doc that should be merged with the old document
-            return prepareUpdateIndexRequest(indexShard, request, getResult, request.detectNoop());
+            return prepareUpdateIndexRequest(indexShard, request, getResult, request.detectNoop(), routingFromSlice);
         } else {
             // The request has a script (or empty script), execute the script and prepare a new index request
-            return prepareUpdateScriptRequest(indexShard, request, getResult, nowInMillis);
+            return prepareUpdateScriptRequest(indexShard, request, getResult, nowInMillis, routingFromSlice);
         }
     }
 
@@ -112,7 +112,13 @@ public class UpdateHelper {
      * Prepare the request for upsert, executing the upsert script if present, and returning a {@code Result} containing a new
      * {@code IndexRequest} to be executed on the primary and replicas.
      */
-    Result prepareUpsert(ShardId shardId, UpdateRequest request, final GetResult getResult, LongSupplier nowInMillis) {
+    Result prepareUpsert(
+        ShardId shardId,
+        UpdateRequest request,
+        final GetResult getResult,
+        LongSupplier nowInMillis,
+        boolean routingFromSlice
+    ) {
         if (request.upsertRequest() == null && request.docAsUpsert() == false) {
             throw new DocumentMissingException(shardId, request.id());
         }
@@ -155,6 +161,7 @@ public class UpdateHelper {
             .id(request.id())
             .setRefreshPolicy(request.getRefreshPolicy())
             .routing(request.routing())
+            .setRoutingFromSlice(routingFromSlice)
             .timeout(request.timeout())
             .waitForActiveShards(request.waitForActiveShards())
             // it has to be a "create!"
@@ -169,16 +176,17 @@ public class UpdateHelper {
     }
 
     /**
-     * Calculate a routing value to be used, either the included index request's routing, or retrieved document's routing when defined.
+     * Calculate a routing value to be used, either the included index request's routing, retrieved document's routing when defined, or
+     * in case the routing is stored as doc values, then the provided request routing is used as the routing.
      */
     @Nullable
-    static String calculateRouting(GetResult getResult, @Nullable IndexRequest updateIndexRequest) {
+    static String calculateRouting(GetResult getResult, @Nullable IndexRequest updateIndexRequest, @Nullable String requestRouting) {
         if (updateIndexRequest != null && updateIndexRequest.routing() != null) {
             return updateIndexRequest.routing();
         } else if (getResult.getFields().containsKey(RoutingFieldMapper.NAME)) {
             return getResult.field(RoutingFieldMapper.NAME).getValue().toString();
         } else {
-            return null;
+            return requestRouting;
         }
     }
 
@@ -186,18 +194,20 @@ public class UpdateHelper {
      * Prepare the request for merging the existing document with a new one, can optionally detect a noop change. Returns a {@code Result}
      * containing a new {@code IndexRequest} to be executed on the primary and replicas.
      */
-    Result prepareUpdateIndexRequest(IndexShard indexShard, UpdateRequest request, GetResult getResult, boolean detectNoop) {
+    Result prepareUpdateIndexRequest(
+        IndexShard indexShard,
+        UpdateRequest request,
+        GetResult getResult,
+        boolean detectNoop,
+        boolean routingFromSlice
+    ) {
         final IndexRequest currentRequest = request.doc();
-        final String routing = calculateRouting(getResult, currentRequest);
+        final String routing = calculateRouting(getResult, currentRequest, request.routing());
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
         final Map<String, Object> updatedSourceAsMap = sourceAndContent.v2();
 
-        final boolean noop = XContentHelper.update(
-            updatedSourceAsMap,
-            currentRequest.sourceAsMap(XContentParserDecorator.NOOP),
-            detectNoop
-        ) == false;
+        final boolean noop = XContentHelper.update(updatedSourceAsMap, currentRequest.sourceAsMap(), detectNoop) == false;
 
         // We can only actually turn the update into a noop if detectNoop is true to preserve backwards compatibility and to handle cases
         // where users repopulating multi-fields or adding synonyms, etc.
@@ -228,6 +238,7 @@ public class UpdateHelper {
             String index = request.index();
             IndexRequest finalIndexRequest = new IndexRequest(index).id(request.id())
                 .routing(routing)
+                .setRoutingFromSlice(routingFromSlice)
                 .source(updatedSourceAsMap, updateSourceContentType)
                 .setIfSeqNo(getResult.getSeqNo())
                 .setIfPrimaryTerm(getResult.getPrimaryTerm())
@@ -243,9 +254,15 @@ public class UpdateHelper {
      * either a new {@code IndexRequest} or {@code DeleteRequest} (depending on the script's returned "op" value) to be executed on the
      * primary and replicas.
      */
-    Result prepareUpdateScriptRequest(IndexShard indexShard, UpdateRequest request, GetResult getResult, LongSupplier nowInMillis) {
+    Result prepareUpdateScriptRequest(
+        IndexShard indexShard,
+        UpdateRequest request,
+        GetResult getResult,
+        LongSupplier nowInMillis,
+        boolean routingFromSlice
+    ) {
         final IndexRequest currentRequest = request.doc();
-        final String routing = calculateRouting(getResult, currentRequest);
+        final String routing = calculateRouting(getResult, currentRequest, request.routing());
         final Tuple<XContentType, Map<String, Object>> sourceAndContent = XContentHelper.convertToMap(getResult.internalSourceRef(), true);
         final XContentType updateSourceContentType = sourceAndContent.v1();
 
@@ -270,6 +287,7 @@ public class UpdateHelper {
                 String index = request.index();
                 IndexRequest indexRequest = new IndexRequest(index).id(request.id())
                     .routing(routing)
+                    .setRoutingFromSlice(routingFromSlice)
                     .source(updatedSourceAsMap, updateSourceContentType)
                     .setIfSeqNo(getResult.getSeqNo())
                     .setIfPrimaryTerm(getResult.getPrimaryTerm())
@@ -282,6 +300,7 @@ public class UpdateHelper {
                 String index = request.index();
                 DeleteRequest deleteRequest = new DeleteRequest(index).id(request.id())
                     .routing(routing)
+                    .setRoutingFromSlice(routingFromSlice)
                     .setIfSeqNo(getResult.getSeqNo())
                     .setIfPrimaryTerm(getResult.getPrimaryTerm())
                     .waitForActiveShards(request.waitForActiveShards())

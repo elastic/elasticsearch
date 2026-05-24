@@ -15,6 +15,7 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.LatchedActionListener;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -288,7 +289,7 @@ public class TransportActionFilterChainTests extends ESTestCase {
         );
     }
 
-    public static class TestRequest extends ActionRequest {
+    public static class TestRequest extends LegacyActionRequest {
         @Override
         public ActionRequestValidationException validate() {
             return null;

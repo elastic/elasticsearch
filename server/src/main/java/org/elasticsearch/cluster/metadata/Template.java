@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -43,6 +42,33 @@ import java.util.Objects;
  */
 public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
+    /**
+     * A template decorator allows modification of template during parsing.
+     */
+    public interface TemplateDecorator {
+        TemplateDecorator DEFAULT = new TemplateDecorator() {};
+
+        default Settings decorate(String template, @Nullable Settings settings) {
+            return settings;
+        };
+
+        default DataStreamLifecycle.Template decorate(String template, @Nullable DataStreamLifecycle.Template lifecycle) {
+            return lifecycle;
+        };
+    }
+
+    record NamedTemplateDecorator(String name, TemplateDecorator decorator) {
+        static NamedTemplateDecorator DEFAULT = new NamedTemplateDecorator(null, TemplateDecorator.DEFAULT);
+
+        public Settings decorate(Settings settings) {
+            return decorator.decorate(name, settings);
+        }
+
+        public DataStreamLifecycle.Template decorate(DataStreamLifecycle.Template lifecycle) {
+            return decorator.decorate(name, lifecycle);
+        }
+    }
+
     private static final ParseField SETTINGS = new ParseField("settings");
     private static final ParseField MAPPINGS = new ParseField("mappings");
     private static final ParseField ALIASES = new ParseField("aliases");
@@ -50,33 +76,29 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     private static final ParseField DATA_STREAM_OPTIONS = new ParseField("data_stream_options");
 
     @SuppressWarnings("unchecked")
-    public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>(
+    static final ConstructingObjectParser<Template, NamedTemplateDecorator> PARSER = new ConstructingObjectParser<>(
         "template",
         false,
-        a -> new Template(
-            (Settings) a[0],
+        (a, d) -> new Template(
+            d.decorate((Settings) a[0]),
             (CompressedXContent) a[1],
             (Map<String, AliasMetadata>) a[2],
-            (DataStreamLifecycle.Template) a[3],
+            d.decorate((DataStreamLifecycle.Template) a[3]),
             a[4] == null ? ResettableValue.undefined() : (ResettableValue<DataStreamOptions.Template>) a[4]
         )
     );
-    public static final DataStreamLifecycle.Template DISABLED_LIFECYCLE = DataStreamLifecycle.builder().enabled(false).buildTemplate();
+    public static final DataStreamLifecycle.Template DISABLED_LIFECYCLE = DataStreamLifecycle.dataLifecycleBuilder()
+        .enabled(false)
+        .buildTemplate();
 
     static {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> Settings.fromXContent(p), SETTINGS);
-        PARSER.declareField(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
-            XContentParser.Token token = p.currentToken();
-            if (token == XContentParser.Token.VALUE_STRING) {
-                return new CompressedXContent(Base64.getDecoder().decode(p.text()));
-            } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
-                return new CompressedXContent(p.binaryValue());
-            } else if (token == XContentParser.Token.START_OBJECT) {
-                return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(p.mapOrdered())));
-            } else {
-                throw new IllegalArgumentException("Unexpected token: " + token);
-            }
-        }, MAPPINGS, ObjectParser.ValueType.VALUE_OBJECT_ARRAY);
+        PARSER.declareField(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> { return parseMappings(p); },
+            MAPPINGS,
+            ObjectParser.ValueType.VALUE_OBJECT_ARRAY
+        );
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> {
             Map<String, AliasMetadata> aliasMap = new HashMap<>();
             XContentParser.Token token;
@@ -91,7 +113,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         }, ALIASES);
         PARSER.declareObject(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> DataStreamLifecycle.Template.fromXContent(p),
+            (p, c) -> DataStreamLifecycle.Template.dataLifecycleTemplatefromXContent(p),
             LIFECYCLE
         );
         PARSER.declareObjectOrNull(
@@ -100,6 +122,23 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             ResettableValue.reset(),
             DATA_STREAM_OPTIONS
         );
+    }
+
+    public static Template parse(XContentParser parser, String templateName, TemplateDecorator decorator) {
+        return PARSER.apply(parser, new NamedTemplateDecorator(templateName, decorator));
+    }
+
+    public static CompressedXContent parseMappings(XContentParser parser) throws IOException {
+        XContentParser.Token token = parser.currentToken();
+        if (token == XContentParser.Token.VALUE_STRING) {
+            return new CompressedXContent(Base64.getDecoder().decode(parser.text()));
+        } else if (token == XContentParser.Token.VALUE_EMBEDDED_OBJECT) {
+            return new CompressedXContent(parser.binaryValue());
+        } else if (token == XContentParser.Token.START_OBJECT) {
+            return new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(parser.mapOrdered())));
+        } else {
+            throw new IllegalArgumentException("Unexpected token: " + token);
+        }
     }
 
     @Nullable
@@ -123,6 +162,8 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
+        assert lifecycle == null || lifecycle.toDataStreamLifecycle().targetsFailureStore() == false
+            : "Invalid lifecycle type for data lifecycle";
         this.lifecycle = lifecycle;
         assert dataStreamOptions != null : "Template does not accept null values, please use Resettable.undefined()";
         this.dataStreamOptions = dataStreamOptions;
@@ -162,24 +203,8 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         } else {
             this.aliases = null;
         }
-        if (in.getTransportVersion().onOrAfter(DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
-            this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle.Template::read);
-        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            boolean isExplicitNull = in.readBoolean();
-            if (isExplicitNull) {
-                this.lifecycle = DISABLED_LIFECYCLE;
-            } else {
-                this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle.Template::read);
-            }
-        } else {
-            this.lifecycle = null;
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
-            dataStreamOptions = ResettableValue.read(in, DataStreamOptions.Template::read);
-        } else {
-            // We default to no data stream options since failure store is behind a feature flag up to this version
-            this.dataStreamOptions = ResettableValue.undefined();
-        }
+        this.lifecycle = in.readOptionalWriteable(DataStreamLifecycle.Template::read);
+        dataStreamOptions = ResettableValue.read(in, DataStreamOptions.Template::read);
     }
 
     @Nullable
@@ -231,18 +256,8 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             out.writeBoolean(true);
             out.writeMap(this.aliases, StreamOutput::writeWriteable);
         }
-        if (out.getTransportVersion().onOrAfter(DataStreamLifecycle.ADDED_ENABLED_FLAG_VERSION)) {
-            out.writeOptionalWriteable(lifecycle);
-        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-            boolean isExplicitNull = lifecycle != null && lifecycle.enabled() == false;
-            out.writeBoolean(isExplicitNull);
-            if (isExplicitNull == false) {
-                out.writeOptionalWriteable(lifecycle);
-            }
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
-            ResettableValue.write(out, dataStreamOptions, (o, v) -> v.writeTo(o));
-        }
+        out.writeOptionalWriteable(lifecycle);
+        ResettableValue.write(out, dataStreamOptions, (o, v) -> v.writeTo(o));
     }
 
     @Override
@@ -314,9 +329,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             builder.field(LIFECYCLE.getPreferredName());
             lifecycle.toXContent(builder, params, rolloverConfiguration, null, false);
         }
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            dataStreamOptions.toXContent(builder, params, DATA_STREAM_OPTIONS.getPreferredName());
-        }
+        dataStreamOptions.toXContent(builder, params, DATA_STREAM_OPTIONS.getPreferredName());
         builder.endObject();
         return builder;
     }

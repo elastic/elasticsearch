@@ -24,7 +24,6 @@ import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Matches;
 import org.apache.lucene.search.MultiPhraseQuery;
@@ -41,9 +40,11 @@ import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.search.similarities.Similarity.SimScorer;
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOFunction;
 import org.elasticsearch.common.CheckedIntFunction;
 import org.elasticsearch.common.lucene.search.MultiPhrasePrefixQuery;
+import org.elasticsearch.common.lucene.search.Queries;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -77,7 +78,7 @@ public final class SourceConfirmedTextQuery extends Query {
         } else if (query instanceof MultiPhrasePrefixQuery) {
             return approximate((MultiPhrasePrefixQuery) query);
         } else {
-            return new MatchAllDocsQuery();
+            return Queries.ALL_DOCS_INSTANCE;
         }
     }
 
@@ -104,7 +105,7 @@ public final class SourceConfirmedTextQuery extends Query {
     private static Query approximate(MultiPhrasePrefixQuery query) {
         Term[][] terms = query.getTerms();
         if (terms.length == 0) {
-            return new MatchNoDocsQuery();
+            return Queries.NO_DOCS_INSTANCE;
         } else if (terms.length == 1) {
             // Only a prefix, approximate with a prefix query
             BooleanQuery.Builder approximation = new BooleanQuery.Builder();
@@ -175,14 +176,18 @@ public final class SourceConfirmedTextQuery extends Query {
             return false;
         }
         SourceConfirmedTextQuery that = (SourceConfirmedTextQuery) obj;
-        return Objects.equals(in, that.in)
-            && Objects.equals(valueFetcherProvider, that.valueFetcherProvider)
-            && Objects.equals(indexAnalyzer, that.indexAnalyzer);
+        // We intentionally do not compare the value fetcher or analyzer, as they
+        // do not typically implement equals() themselves, and the inner
+        // Query is sufficient to establish identity.
+        return Objects.equals(in, that.in);
     }
 
     @Override
     public int hashCode() {
-        return 31 * Objects.hash(in, valueFetcherProvider, indexAnalyzer) + classHash();
+        // We intentionally do not hash the value fetcher or analyzer, as they
+        // do not typically implement hashCode() themselves, and the inner
+        // Query is sufficient to establish identity.
+        return 31 * Objects.hash(in) + classHash();
     }
 
     @Override
@@ -267,7 +272,11 @@ public final class SourceConfirmedTextQuery extends Query {
             @Override
             public Explanation explain(LeafReaderContext context, int doc) throws IOException {
                 NumericDocValues norms = context.reader().getNormValues(field);
-                RuntimePhraseScorer scorer = (RuntimePhraseScorer) scorerSupplier(context).get(0);
+                ScorerSupplier scorerSupplier = scorerSupplier(context);
+                if (scorerSupplier == null) {
+                    return Explanation.noMatch("No matching phrase");
+                }
+                RuntimePhraseScorer scorer = (RuntimePhraseScorer) scorerSupplier.get(0);
                 if (scorer == null) {
                     return Explanation.noMatch("No matching phrase");
                 }
@@ -277,6 +286,7 @@ public final class SourceConfirmedTextQuery extends Query {
                 }
                 float phraseFreq = scorer.freq();
                 Explanation freqExplanation = Explanation.match(phraseFreq, "phraseFreq=" + phraseFreq);
+                assert simScorer != null;
                 Explanation scoreExplanation = simScorer.explain(freqExplanation, getNormValue(norms, doc));
                 return Explanation.match(
                     scoreExplanation.getValue(),
@@ -321,7 +331,11 @@ public final class SourceConfirmedTextQuery extends Query {
                     Weight innerWeight = in.createWeight(searcher, ScoreMode.COMPLETE_NO_SCORES, 1);
                     return innerWeight.matches(context, doc);
                 }
-                RuntimePhraseScorer scorer = (RuntimePhraseScorer) scorerSupplier(context).get(0L);
+                ScorerSupplier scorerSupplier = scorerSupplier(context);
+                if (scorerSupplier == null) {
+                    return null;
+                }
+                RuntimePhraseScorer scorer = (RuntimePhraseScorer) scorerSupplier.get(0L);
                 if (scorer == null) {
                     return null;
                 }
@@ -429,7 +443,13 @@ public final class SourceConfirmedTextQuery extends Query {
                     if (value == null) {
                         continue;
                     }
-                    cacheEntry.memoryIndex.addField(field, value.toString(), indexAnalyzer);
+                    String valueStr;
+                    if (value instanceof BytesRef valueRef) {
+                        valueStr = valueRef.utf8ToString();
+                    } else {
+                        valueStr = value.toString();
+                    }
+                    cacheEntry.memoryIndex.addField(field, valueStr, indexAnalyzer);
                 }
             }
             return cacheEntry.memoryIndex;

@@ -19,7 +19,9 @@ import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.plugins.Plugin;
@@ -30,12 +32,12 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.Aggregator.SubAggCollectionMode;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.search.aggregations.bucket.nested.Nested;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregatorFactory.ExecutionMode;
 import org.elasticsearch.search.fetch.FetchSubPhase;
@@ -46,6 +48,7 @@ import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.lookup.FieldLookup;
 import org.elasticsearch.search.lookup.LeafSearchLookup;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
+import org.elasticsearch.search.sort.NestedSortBuilder;
 import org.elasticsearch.search.sort.ScriptSortBuilder.ScriptSortType;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.sort.SortOrder;
@@ -130,6 +133,8 @@ public class TopHitsIT extends ESIntegTestCase {
             prepareCreate("idx").setMapping(TERMS_AGGS_FIELD, "type=keyword", "text", "type=text,store=true"),
             prepareCreate("field-collapsing").setMapping("group", "type=keyword"),
             prepareCreate("empty"),
+            prepareCreate("top_hits_float").setMapping("brand_id", "type=float"),
+            prepareCreate("top_hits_long").setMapping("brand_id", "type=long"),
             prepareCreate("articles").setMapping(
                 jsonBuilder().startObject()
                     .startObject("_doc")
@@ -167,7 +172,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     .endObject()
             )
         );
-        ensureGreen("idx", "empty", "articles");
+        ensureGreen("idx", "empty", "top_hits_float", "top_hits_long", "articles");
 
         List<IndexRequestBuilder> builders = new ArrayList<>();
         for (int i = 0; i < 50; i++) {
@@ -307,6 +312,11 @@ public class TopHitsIT extends ESIntegTestCase {
         );
 
         indexRandom(true, builders);
+
+        prepareIndex("top_hits_float").setId("1").setSource("brand_id", 1.5).get();
+        prepareIndex("top_hits_long").setId("1").setSource("brand_id", 1).get();
+        refresh("top_hits_float", "top_hits_long");
+
         ensureSearchable();
     }
 
@@ -344,6 +354,18 @@ public class TopHitsIT extends ESIntegTestCase {
 
                     assertThat(hits.getAt(0).getSourceAsMap().size(), equalTo(5));
                 }
+            }
+        );
+    }
+
+    public void testMixedSortFieldTypes() {
+        assertNoFailuresAndResponse(
+            prepareSearch("top_hits_float", "top_hits_long").setSize(0)
+                .addAggregation(topHits("hits").sort(SortBuilders.fieldSort("brand_id").order(SortOrder.ASC)).size(2)),
+            response -> {
+                TopHits topHits = response.getAggregations().get("hits");
+                assertThat(topHits.getHits().getTotalHits().value(), equalTo(2L));
+                assertThat(topHits.getHits().getHits().length, equalTo(2));
             }
         );
     }
@@ -465,7 +487,7 @@ public class TopHitsIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("idx").setQuery(matchAllQuery()).addAggregation(global("global").subAggregation(topHits("hits"))),
             response -> {
-                Global global = response.getAggregations().get("global");
+                SingleBucketAggregation global = response.getAggregations().get("global");
                 assertThat(global, notNullValue());
                 assertThat(global.getName(), equalTo("global"));
                 assertThat(global.getAggregations(), notNullValue());
@@ -744,7 +766,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     )
                 ),
             response -> {
-                Nested nested = response.getAggregations().get("to-comments");
+                SingleBucketAggregation nested = response.getAggregations().get("to-comments");
                 assertThat(nested.getDocCount(), equalTo(4L));
 
                 Terms terms = nested.getAggregations().get("users");
@@ -793,7 +815,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     ).subAggregation(topHits("top-comments").sort("comments.date", SortOrder.DESC).size(4))
                 ),
             response -> {
-                Nested toComments = response.getAggregations().get("to-comments");
+                SingleBucketAggregation toComments = response.getAggregations().get("to-comments");
                 assertThat(toComments.getDocCount(), equalTo(4L));
 
                 TopHits topComments = toComments.getAggregations().get("top-comments");
@@ -820,7 +842,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 assertThat(topComments.getHits().getAt(3).getNestedIdentity().getOffset(), equalTo(0));
                 assertThat(topComments.getHits().getAt(3).getNestedIdentity().getChild(), nullValue());
 
-                Nested toReviewers = toComments.getAggregations().get("to-reviewers");
+                SingleBucketAggregation toReviewers = toComments.getAggregations().get("to-reviewers");
                 assertThat(toReviewers.getDocCount(), equalTo(7L));
 
                 TopHits topReviewers = toReviewers.getAggregations().get("top-reviewers");
@@ -903,7 +925,7 @@ public class TopHitsIT extends ESIntegTestCase {
                 ),
             response -> {
                 assertHitCount(response, 2);
-                Nested nested = response.getAggregations().get("to-comments");
+                SingleBucketAggregation nested = response.getAggregations().get("to-comments");
                 assertThat(nested.getDocCount(), equalTo(4L));
 
                 SearchHits hits = ((TopHits) nested.getAggregations().get("top-comments")).getHits();
@@ -964,7 +986,7 @@ public class TopHitsIT extends ESIntegTestCase {
                     assertThat(bucket.getDocCount(), equalTo(5L));
 
                     long numNestedDocs = 10 + (5 * i);
-                    Nested nested = bucket.getAggregations().get("to-comments");
+                    SingleBucketAggregation nested = bucket.getAggregations().get("to-comments");
                     assertThat(nested.getDocCount(), equalTo(numNestedDocs));
 
                     TopHits hits = nested.getAggregations().get("comments");
@@ -982,6 +1004,67 @@ public class TopHitsIT extends ESIntegTestCase {
                 }
             }
         );
+    }
+
+    public void testTopHitsOnInnerHits() {
+        QueryBuilder nestedQuery = nestedQuery("comments", matchQuery("comments.message", "text"), ScoreMode.Avg).innerHit(
+            new InnerHitBuilder().setSize(2)
+        );
+        AggregationBuilder topHitsAgg = topHits("top-comments").size(3)
+            .sort(SortBuilders.fieldSort("comments.date").order(SortOrder.ASC).setNestedSort(new NestedSortBuilder("comments")));
+
+        assertNoFailuresAndResponse(prepareSearch("articles").setQuery(nestedQuery).addAggregation(topHitsAgg), response -> {
+            TopHits topHits = response.getAggregations().get("top-comments");
+            SearchHits hits = topHits.getHits();
+            assertThat(hits.getHits().length, equalTo(3));
+
+            for (SearchHit hit : hits) {
+                SearchHits innerHits = hit.getInnerHits().get("comments");
+                assertThat(innerHits.getHits().length, lessThanOrEqualTo(2));
+                for (SearchHit innerHit : innerHits) {
+                    assertThat(innerHit.getNestedIdentity().getField().string(), equalTo("comments"));
+                    Map<String, Object> source = innerHit.getSourceAsMap();
+                    assertTrue(source.containsKey("message"));
+                    assertFalse(source.containsKey("reviewers"));
+                }
+            }
+        });
+    }
+
+    public void testTopHitsOnMultipleNestedInnerHits() {
+        QueryBuilder doubleNestedQuery = nestedQuery(
+            "comments",
+            nestedQuery("comments.reviewers", matchQuery("comments.reviewers.name", "user c"), ScoreMode.Avg).innerHit(
+                new InnerHitBuilder()
+            ),
+            ScoreMode.Avg
+        ).innerHit(new InnerHitBuilder("review"));
+        AggregationBuilder topHitsAgg = topHits("top-reviewers").size(2)
+            .sort(SortBuilders.fieldSort("comments.date").order(SortOrder.ASC).setNestedSort(new NestedSortBuilder("comments")));
+
+        assertNoFailuresAndResponse(prepareSearch("articles").setQuery(doubleNestedQuery).addAggregation(topHitsAgg), response -> {
+            TopHits topHits = response.getAggregations().get("top-reviewers");
+            SearchHits hits = topHits.getHits();
+            assertThat(hits.getHits().length, equalTo(1));
+
+            SearchHit hit = hits.getAt(0);
+            SearchHits innerHits = hit.getInnerHits().get("review");
+            assertThat(innerHits.getHits().length, equalTo(2));
+
+            assertThat(innerHits.getAt(0).getId(), equalTo("1"));
+            assertThat(innerHits.getAt(0).getNestedIdentity().getField().string(), equalTo("comments"));
+            assertThat(innerHits.getAt(0).getNestedIdentity().getOffset(), equalTo(0));
+            Map<String, Object> source0 = innerHits.getAt(0).getSourceAsMap();
+            assertTrue(source0.containsKey("message"));
+            assertTrue(source0.containsKey("reviewers"));
+
+            assertThat(innerHits.getAt(1).getId(), equalTo("1"));
+            assertThat(innerHits.getAt(1).getNestedIdentity().getField().string(), equalTo("comments"));
+            assertThat(innerHits.getAt(1).getNestedIdentity().getOffset(), equalTo(1));
+            Map<String, Object> source1 = innerHits.getAt(1).getSourceAsMap();
+            assertTrue(source1.containsKey("message"));
+            assertTrue(source1.containsKey("reviewers"));
+        });
     }
 
     public void testUseMaxDocInsteadOfSize() throws Exception {
@@ -1328,8 +1411,7 @@ public class TopHitsIT extends ESIntegTestCase {
                         public void process(FetchSubPhase.HitContext hitContext) {
                             leafSearchLookup.setDocument(hitContext.docId());
                             FieldLookup fieldLookup = leafSearchLookup.fields().get("text");
-                            hitContext.hit()
-                                .setDocumentField("text_stored_lookup", new DocumentField("text_stored_lookup", fieldLookup.getValues()));
+                            hitContext.hit().setDocumentField(new DocumentField("text_stored_lookup", fieldLookup.getValues()));
                         }
 
                         @Override

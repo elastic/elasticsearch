@@ -7,15 +7,15 @@
 
 package org.elasticsearch.compute.aggregation;
 
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BooleanVector;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.ToMask;
-import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.stream.IntStream;
@@ -29,22 +29,27 @@ import java.util.stream.IntStream;
  *     positions.
  * </p>
  */
-record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalOperator.ExpressionEvaluator filter)
+public record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, ExpressionEvaluator filter)
     implements
         GroupingAggregatorFunction {
 
-    FilteredGroupingAggregatorFunction {
+    public FilteredGroupingAggregatorFunction {
+        // Filtered aggregators may filter out entire pages, so the underlying aggregator
+        // may not see all groups. It needs to know this so it can initialize unseen groups to null.
         next.selectedMayContainUnseenGroups(new SeenGroupIds.Empty());
     }
 
     @Override
-    public AddInput prepareProcessPage(SeenGroupIds seenGroupIds, Page page) {
+    public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
         try (BooleanBlock filterResult = ((BooleanBlock) filter.eval(page))) {
             ToMask mask = filterResult.toMask();
             // TODO warn on mv fields
             AddInput nextAdd = null;
             try {
-                nextAdd = next.prepareProcessPage(seenGroupIds, page);
+                nextAdd = next.prepareProcessRawInputPage(seenGroupIds, page);
+                if (nextAdd == null) {
+                    return null;
+                }
                 AddInput result = new FilteredAddInput(mask.mask(), nextAdd, page.getPositionCount());
                 mask = null;
                 nextAdd = null;
@@ -57,7 +62,21 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
 
     private record FilteredAddInput(BooleanVector mask, AddInput nextAdd, int positionCount) implements AddInput {
         @Override
-        public void add(int positionOffset, IntBlock groupIds) {
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+            addBlock(positionOffset, groupIds);
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+            addBlock(positionOffset, groupIds);
+        }
+
+        @Override
+        public void add(int positionOffset, IntVector groupIds) {
+            addBlock(positionOffset, groupIds.asBlock());
+        }
+
+        private void addBlock(int positionOffset, IntBlock groupIds) {
             if (positionOffset == 0) {
                 try (IntBlock filtered = groupIds.keepMask(mask)) {
                     nextAdd.add(positionOffset, filtered);
@@ -65,6 +84,7 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
             } else {
                 try (
                     BooleanVector offsetMask = mask.filter(
+                        false,
                         IntStream.range(positionOffset, positionOffset + groupIds.getPositionCount()).toArray()
                     );
                     IntBlock filtered = groupIds.keepMask(offsetMask)
@@ -72,11 +92,6 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
                     nextAdd.add(positionOffset, filtered);
                 }
             }
-        }
-
-        @Override
-        public void add(int positionOffset, IntVector groupIds) {
-            add(positionOffset, groupIds.asBlock());
         }
 
         @Override
@@ -91,23 +106,34 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, EvalO
     }
 
     @Override
+    public void addIntermediateInput(int positionOffset, IntArrayBlock groupIdVector, Page page) {
+        next.addIntermediateInput(positionOffset, groupIdVector, page);
+    }
+
+    @Override
+    public void addIntermediateInput(int positionOffset, IntBigArrayBlock groupIdVector, Page page) {
+        next.addIntermediateInput(positionOffset, groupIdVector, page);
+    }
+
+    @Override
     public void addIntermediateInput(int positionOffset, IntVector groupIdVector, Page page) {
         next.addIntermediateInput(positionOffset, groupIdVector, page);
     }
 
     @Override
-    public void addIntermediateRowInput(int groupId, GroupingAggregatorFunction input, int position) {
-        next.addIntermediateRowInput(groupId, ((FilteredGroupingAggregatorFunction) input).next(), position);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return next.prepareEvaluateIntermediate(selected, ctx);
     }
 
     @Override
-    public void evaluateIntermediate(Block[] blocks, int offset, IntVector selected) {
-        next.evaluateIntermediate(blocks, offset, selected);
-    }
-
-    @Override
-    public void evaluateFinal(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-        next.evaluateFinal(blocks, offset, selected, driverContext);
+    public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return next.prepareEvaluateFinal(selected, ctx);
     }
 
     @Override

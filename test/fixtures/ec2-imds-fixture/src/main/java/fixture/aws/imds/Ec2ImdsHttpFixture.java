@@ -10,6 +10,7 @@ package fixture.aws.imds;
 
 import com.sun.net.httpserver.HttpServer;
 
+import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -20,17 +21,9 @@ import org.junit.runners.model.Statement;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.UnknownHostException;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.Objects;
 
 public class Ec2ImdsHttpFixture extends ExternalResource {
-
-    /**
-     * Name of the JVM system property that allows to override the IMDS endpoint address when using the AWS v1 SDK.
-     * Can be removed once we only use the v2 SDK.
-     */
-    public static final String ENDPOINT_OVERRIDE_SYSPROP_NAME = "com.amazonaws.sdk.ec2MetadataServiceEndpointOverride";
 
     /**
      * Name of the JVM system property that allows to override the IMDS endpoint address when using the AWS v2 SDK.
@@ -45,7 +38,8 @@ public class Ec2ImdsHttpFixture extends ExternalResource {
     }
 
     public String getAddress() {
-        return "http://" + server.getAddress().getHostString() + ":" + server.getAddress().getPort();
+        String host = InetAddresses.toUriString(server.getAddress().getAddress());
+        return "http://" + host + ":" + server.getAddress().getPort();
     }
 
     public void stop(int delay) {
@@ -77,17 +71,15 @@ public class Ec2ImdsHttpFixture extends ExternalResource {
      */
     @SuppressForbidden(reason = "deliberately adjusting system property for endpoint override for use in internal-cluster tests")
     public static Releasable withEc2MetadataServiceEndpointOverride(String endpointOverride) {
-        final PrivilegedAction<String> resetProperty = System.getProperty(
-            ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2
-        ) instanceof String originalValue
-            ? () -> System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2, originalValue)
-            : () -> System.clearProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2);
-        doPrivileged(() -> System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2, endpointOverride));
-        return () -> doPrivileged(resetProperty);
-    }
-
-    private static void doPrivileged(PrivilegedAction<?> privilegedAction) {
-        AccessController.doPrivileged(privilegedAction);
+        final String originalValue = System.getProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2);
+        System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2, endpointOverride);
+        return () -> {
+            if (originalValue != null) {
+                System.setProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2, originalValue);
+            } else {
+                System.clearProperty(ENDPOINT_OVERRIDE_SYSPROP_NAME_SDK2);
+            }
+        };
     }
 
     /**

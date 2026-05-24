@@ -19,7 +19,7 @@ Caching is done on a per segment basis if a segment contains at least 10000 docu
 The following setting is *static* and must be configured on every data node in the cluster:
 
 `indices.queries.cache.size`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) Controls the memory size for the filter cache. Accepts either a percentage value, like `5%`, or an exact value, like `512mb`. Defaults to `10%`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) Controls the memory size for the filter cache. Accepts either a percentage value, like `5%`, or an exact value, like `512mb`. Defaults to `10%`.
 
 ## Query cache index settings [query-cache-index-settings]
 

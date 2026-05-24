@@ -18,6 +18,7 @@ import org.apache.lucene.util.CollectionUtil;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
@@ -39,6 +40,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -72,38 +74,41 @@ import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
+import org.elasticsearch.index.ActionLoggingFieldsProvider;
 import org.elasticsearch.index.CloseUtils;
 import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.SlowLogFieldProvider;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.bulk.stats.BulkStats;
 import org.elasticsearch.index.cache.request.ShardRequestCache;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.engine.InternalEngineFactory;
+import org.elasticsearch.index.engine.MergeMetrics;
 import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.engine.ReadOnlyEngine;
 import org.elasticsearch.index.engine.ThreadPoolMergeExecutorService;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.flush.FlushStats;
 import org.elasticsearch.index.get.GetStats;
-import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
@@ -117,6 +122,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.refresh.RefreshStats;
 import org.elasticsearch.index.search.stats.SearchStats;
+import org.elasticsearch.index.search.stats.SearchStatsSettings;
 import org.elasticsearch.index.seqno.RetentionLeaseStats;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -130,8 +136,12 @@ import org.elasticsearch.index.shard.IndexingStats;
 import org.elasticsearch.index.shard.IndexingStatsSettings;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.store.DirectoryMetrics;
+import org.elasticsearch.index.store.PluggableDirectoryMetricsHolder;
+import org.elasticsearch.index.store.StoreMetrics;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
+import org.elasticsearch.indices.cluster.IndexRemovalReason;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.fielddata.cache.IndicesFieldDataCache;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
@@ -163,7 +173,6 @@ import java.nio.file.Files;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
-import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
@@ -182,6 +191,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.function.LongSupplier;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static java.util.Collections.emptyList;
@@ -208,11 +218,14 @@ public class IndicesService extends AbstractLifecycleComponent
         TimeValue.timeValueMinutes(1),
         Property.NodeScope
     );
+
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE) // To be removed in v10
     public static final Setting<Boolean> INDICES_ID_FIELD_DATA_ENABLED_SETTING = Setting.boolSetting(
         "indices.id_field_data.enabled",
         false,
         Property.Dynamic,
-        Property.NodeScope
+        Property.NodeScope,
+        Property.Deprecated
     );
 
     public static final Setting<Boolean> WRITE_DANGLING_INDICES_INFO_SETTING = Setting.boolSetting(
@@ -263,9 +276,6 @@ public class IndicesService extends AbstractLifecycleComponent
     private final CountDownLatch closeLatch = new CountDownLatch(1);
     private volatile boolean idFieldDataEnabled;
     private volatile boolean allowExpensiveQueries;
-
-    private final Function<IndexMode, IdFieldMapper> idFieldMappers;
-
     @Nullable
     private final EsThreadPoolExecutor danglingIndicesThreadPoolExecutor;
     private final Set<Index> danglingIndicesToWrite = ConcurrentCollections.newConcurrentSet();
@@ -277,8 +287,12 @@ public class IndicesService extends AbstractLifecycleComponent
     private final PostRecoveryMerger postRecoveryMerger;
     private final List<SearchOperationListener> searchOperationListeners;
     private final QueryRewriteInterceptor queryRewriteInterceptor;
-    final SlowLogFieldProvider slowLogFieldProvider; // pkg-private for testingå
+    final ActionLoggingFieldsProvider loggingFieldsProvider; // pkg-private for testingå
     private final IndexingStatsSettings indexStatsSettings;
+    private final SearchStatsSettings searchStatsSettings;
+    private final MergeMetrics mergeMetrics;
+    private final PluggableDirectoryMetricsHolder<StoreMetrics> storeMetricHolder;
+    private final Map<String, PluggableDirectoryMetricsHolder<?>> directoryMetricHolderMap;
 
     @Override
     protected void doStart() {
@@ -293,10 +307,6 @@ public class IndicesService extends AbstractLifecycleComponent
     IndicesService(IndicesServiceBuilder builder) {
         this.settings = builder.settings;
         this.threadPool = builder.threadPool;
-        this.threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
-            threadPool,
-            settings
-        );
         this.pluginsService = builder.pluginsService;
         this.nodeEnv = builder.nodeEnv;
         this.parserConfig = XContentParserConfiguration.EMPTY.withDeprecationHandler(LoggingDeprecationHandler.INSTANCE)
@@ -319,6 +329,11 @@ public class IndicesService extends AbstractLifecycleComponent
         this.bigArrays = builder.bigArrays;
         this.scriptService = builder.scriptService;
         this.clusterService = builder.clusterService;
+        this.threadPoolMergeExecutorService = ThreadPoolMergeExecutorService.maybeCreateThreadPoolMergeExecutorService(
+            threadPool,
+            clusterService.getClusterSettings(),
+            nodeEnv
+        );
         this.projectResolver = builder.projectResolver;
         this.client = builder.client;
         this.idFieldDataEnabled = INDICES_ID_FIELD_DATA_ENABLED_SETTING.get(clusterService.getSettings());
@@ -353,6 +368,7 @@ public class IndicesService extends AbstractLifecycleComponent
         this.requestCacheKeyDifferentiator = builder.requestCacheKeyDifferentiator;
         this.queryRewriteInterceptor = builder.queryRewriteInterceptor;
         this.mapperMetrics = builder.mapperMetrics;
+        this.mergeMetrics = builder.mergeMetrics;
         // doClose() is called when shutting down a node, yet there might still be ongoing requests
         // that we need to wait for before closing some resources such as the caches. In order to
         // avoid closing these resources while ongoing requests are still being processed, we use a
@@ -366,7 +382,8 @@ public class IndicesService extends AbstractLifecycleComponent
                     indicesFieldDataCache,
                     cacheCleaner,
                     indicesRequestCache,
-                    indicesQueryCache
+                    indicesQueryCache,
+                    threadPoolMergeExecutorService
                 );
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
@@ -374,12 +391,6 @@ public class IndicesService extends AbstractLifecycleComponent
                 closeLatch.countDown();
             }
         });
-
-        Map<IndexMode, IdFieldMapper> idFieldMappers = new EnumMap<>(IndexMode.class);
-        for (IndexMode mode : IndexMode.values()) {
-            idFieldMappers.put(mode, mode.buildIdFieldMapper(() -> idFieldDataEnabled));
-        }
-        this.idFieldMappers = idFieldMappers::get;
 
         final String nodeName = Objects.requireNonNull(Node.NODE_NAME_SETTING.get(settings));
         nodeWriteDanglingIndicesInfo = WRITE_DANGLING_INDICES_INFO_SETTING.get(settings);
@@ -402,8 +413,11 @@ public class IndicesService extends AbstractLifecycleComponent
         this.timestampFieldMapperService = new TimestampFieldMapperService(settings, threadPool, this);
         this.postRecoveryMerger = new PostRecoveryMerger(settings, threadPool.executor(ThreadPool.Names.FORCE_MERGE), this::getShardOrNull);
         this.searchOperationListeners = builder.searchOperationListener;
-        this.slowLogFieldProvider = builder.slowLogFieldProvider;
+        this.loggingFieldsProvider = builder.loggingFieldsProvider;
         this.indexStatsSettings = new IndexingStatsSettings(clusterService.getClusterSettings());
+        this.searchStatsSettings = new SearchStatsSettings(clusterService.getClusterSettings());
+        this.storeMetricHolder = builder.storeMetricsHolder;
+        this.directoryMetricHolderMap = builder.directoryMetricHolderMap;
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -482,7 +496,13 @@ public class IndicesService extends AbstractLifecycleComponent
             }
         }
 
-        return new NodeIndicesStats(commonStats, statsByIndex(this, flags), statsByShard(this, flags), includeShardsStats);
+        return new NodeIndicesStats(
+            commonStats,
+            statsByIndex(this, flags),
+            statsByShard(this, flags),
+            projectsByIndex(),
+            includeShardsStats
+        );
     }
 
     static Map<Index, CommonStats> statsByIndex(final IndicesService indicesService, final CommonStatsFlags flags) {
@@ -503,33 +523,40 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     static Map<Index, List<IndexShardStats>> statsByShard(final IndicesService indicesService, final CommonStatsFlags flags) {
+        Map<ShardId, Long> shardIdToSharedRam = IndicesQueryCache.getSharedRamSizeForAllShards(indicesService);
         final Map<Index, List<IndexShardStats>> statsByShard = new HashMap<>();
-
         for (final IndexService indexService : indicesService) {
             for (final IndexShard indexShard : indexService) {
+                // get the shared ram for this shard id (or zero if there's nothing in the map)
                 try {
-                    final IndexShardStats indexShardStats = indicesService.indexShardStats(indicesService, indexShard, flags);
-
+                    final IndexShardStats indexShardStats = indicesService.indexShardStats(
+                        indicesService,
+                        indexShard,
+                        flags,
+                        () -> shardIdToSharedRam.getOrDefault(indexShard.shardId(), 0L)
+                    );
                     if (indexShardStats == null) {
                         continue;
                     }
-
                     if (statsByShard.containsKey(indexService.index()) == false) {
                         statsByShard.put(indexService.index(), arrayAsArrayList(indexShardStats));
                     } else {
                         statsByShard.get(indexService.index()).add(indexShardStats);
                     }
                 } catch (IllegalIndexShardStateException | AlreadyClosedException e) {
-                    // we can safely ignore illegal state on ones that are closing for example
                     logger.trace(() -> format("%s ignoring shard stats", indexShard.shardId()), e);
                 }
             }
         }
-
         return statsByShard;
     }
 
-    IndexShardStats indexShardStats(final IndicesService indicesService, final IndexShard indexShard, final CommonStatsFlags flags) {
+    IndexShardStats indexShardStats(
+        final IndicesService indicesService,
+        final IndexShard indexShard,
+        final CommonStatsFlags flags,
+        final Supplier<Long> precomputedSharedRam
+    ) {
         if (indexShard.routingEntry() == null) {
             return null;
         }
@@ -554,7 +581,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 new ShardStats(
                     indexShard.routingEntry(),
                     indexShard.shardPath(),
-                    CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, flags),
+                    CommonStats.getShardLevelStats(indicesService.getIndicesQueryCache(), indexShard, flags, precomputedSharedRam),
                     commitStats,
                     seqNoStats,
                     retentionLeaseStats,
@@ -562,6 +589,15 @@ public class IndicesService extends AbstractLifecycleComponent
                     indexShard.searchIdleTime()
                 ) }
         );
+    }
+
+    private Map<Index, ProjectId> projectsByIndex() {
+        Map<Index, ProjectId> map = new HashMap<>(indices.size());
+        for (IndexService indexShards : indices.values()) {
+            Index index = indexShards.index();
+            clusterService.state().metadata().lookupProject(index).ifPresent(project -> map.put(index, project.id()));
+        }
+        return map;
     }
 
     /**
@@ -775,10 +811,13 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            slowLogFieldProvider,
+            loggingFieldsProvider,
             mapperMetrics,
             searchOperationListeners,
-            indexStatsSettings
+            indexStatsSettings,
+            searchStatsSettings,
+            mergeMetrics,
+            storeMetricHolder
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -803,11 +842,10 @@ public class IndicesService extends AbstractLifecycleComponent
             mapperRegistry,
             indicesFieldDataCache,
             namedWriteableRegistry,
-            idFieldMappers.apply(idxSettings.getMode()),
+            () -> idFieldDataEnabled,
             valuesSourceRegistry,
             indexFoldersDeletionListeners,
-            snapshotCommitSuppliers,
-            queryRewriteInterceptor
+            snapshotCommitSuppliers
         );
     }
 
@@ -873,13 +911,26 @@ public class IndicesService extends AbstractLifecycleComponent
             () -> allowExpensiveQueries,
             indexNameExpressionResolver,
             recoveryStateFactories,
-            slowLogFieldProvider,
+            loggingFieldsProvider,
             mapperMetrics,
             searchOperationListeners,
-            indexStatsSettings
+            indexStatsSettings,
+            searchStatsSettings,
+            mergeMetrics,
+            storeMetricHolder
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
-        return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
+        // If an IndexService with a DocumentMapper already exists for this index, reuse its DocumentMapper to avoid parsing/merging
+        // mappings again, which can be expensive for large mappings.
+        final DocumentMapper documentMapper = Optional.ofNullable(indexService(indexMetadata.getIndex()))
+            .map(IndexService::mapperService)
+            .map(MapperService::documentMapper)
+            // There's a chance that the mapping from the existing IndexService is different from the one in the provided IndexMetadata,
+            // because both are updated non-atomically when a new cluster state is applied. Since reusing the DocumentMapper is merely an
+            // optimization, we only do so when we are sure they are the same.
+            .filter(dm -> indexMetadata.mapping() != null && dm.mappingSource() == indexMetadata.mapping().source())
+            .orElse(null);
+        return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService, documentMapper);
     }
 
     /**
@@ -892,8 +943,7 @@ public class IndicesService extends AbstractLifecycleComponent
     public synchronized void verifyIndexMetadata(IndexMetadata metadata, IndexMetadata metadataUpdate) throws IOException {
         final List<Closeable> closeables = new ArrayList<>();
         try {
-            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {
-            });
+            IndicesFieldDataCache indicesFieldDataCache = new IndicesFieldDataCache(settings, new IndexFieldDataCache.Listener() {});
             closeables.add(indicesFieldDataCache);
             IndicesQueryCache indicesQueryCache = new IndicesQueryCache(settings);
             closeables.add(indicesQueryCache);
@@ -921,6 +971,7 @@ public class IndicesService extends AbstractLifecycleComponent
 
     @Override
     public void createShard(
+        final ProjectId projectId,
         final ShardRouting shardRouting,
         final PeerRecoveryTargetService recoveryTargetService,
         final PeerRecoveryTargetService.RecoveryListener recoveryListener,
@@ -939,26 +990,29 @@ public class IndicesService extends AbstractLifecycleComponent
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
-        indexShard.startRecovery(
-            recoveryState,
-            recoveryTargetService,
-            postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, recoveryListener),
-            repositoriesService,
-            (mapping, listener) -> {
-                assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                    : "mapping update consumer only required by local shards recovery";
-                AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
-                    // concrete index - no name clash, it uses uuid
-                    .setConcreteIndex(shardRouting.index())
-                    .source(mapping.source().string(), XContentType.JSON);
-                client.execute(
-                    TransportAutoPutMappingAction.TYPE,
-                    putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
-                    new RefCountAwareThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
-                );
-            },
-            this,
-            clusterStateVersion
+        projectResolver.executeOnProject(
+            projectId,
+            () -> indexShard.startRecovery(
+                recoveryState,
+                recoveryTargetService,
+                postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, recoveryListener),
+                repositoriesService,
+                (mapping, listener) -> {
+                    assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                        : "mapping update consumer only required by local shards recovery";
+                    AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
+                        // concrete index - no name clash, it uses uuid
+                        .setConcreteIndex(shardRouting.index())
+                        .source(mapping.source().string(), XContentType.JSON);
+                    client.execute(
+                        TransportAutoPutMappingAction.TYPE,
+                        putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
+                        new RefCountAwareThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
+                    );
+                },
+                this,
+                clusterStateVersion
+            )
         );
     }
 
@@ -1005,7 +1059,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 listener.afterIndexRemoved(indexService.index(), indexSettings, reason);
                 if (reason == IndexRemovalReason.DELETED) {
                     // now we are done - try to wipe data on disk if possible
-                    deleteIndexStore(extraInfo, indexService.index(), indexSettings);
+                    deleteIndexStore(extraInfo, indexService.index(), indexSettings, reason);
                 }
             }));
         });
@@ -1021,6 +1075,12 @@ public class IndicesService extends AbstractLifecycleComponent
 
     public IndicesQueryCache getIndicesQueryCache() {
         return indicesQueryCache;
+    }
+
+    private QueryBuilder parseFilter(BytesReference bytes) throws IOException {
+        try (XContentParser parser = XContentHelper.createParser(parserConfig, bytes)) {
+            return parseTopLevelQuery(parser);
+        }
     }
 
     static class OldShardsStats implements IndexEventListener {
@@ -1058,26 +1118,32 @@ public class IndicesService extends AbstractLifecycleComponent
     /**
      * Deletes an index that is not assigned to this node. This method cleans up all disk folders relating to the index
      * but does not deal with in-memory structures. For those call {@link #removeIndex}
+     *
+     * @param reason the reason why this index should be deleted
+     * @param oldIndexMetadata the index metadata of the index that should be deleted
+     * @param currentProject the <i>current</i> project metadata which is used to verify that the index does not exist in the project
+     *                       anymore - can be null in case the whole project got deleted while there were still indices in it
      */
     @Override
-    public void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, ClusterState clusterState) {
+    public void deleteUnassignedIndex(String reason, IndexMetadata oldIndexMetadata, @Nullable ProjectMetadata currentProject) {
         if (nodeEnv.hasNodeFile()) {
             Index index = oldIndexMetadata.getIndex();
             try {
-                if (clusterState.metadata().getProject().hasIndex(index)) {
-                    final IndexMetadata currentMetadata = clusterState.metadata().getProject().index(index);
+                if (currentProject != null && currentProject.hasIndex(index)) {
+                    final IndexMetadata currentMetadata = currentProject.index(index);
                     throw new IllegalStateException(
                         "Can't delete unassigned index store for ["
                             + index.getName()
-                            + "] - it's still part "
-                            + "of the cluster state ["
+                            + "] - it's still part of project ["
+                            + currentProject.id()
+                            + "] with UUIDs ["
                             + currentMetadata.getIndexUUID()
                             + "] ["
                             + oldIndexMetadata.getIndexUUID()
                             + "]"
                     );
                 }
-                deleteIndexStore(reason, oldIndexMetadata);
+                deleteIndexStore(reason, oldIndexMetadata, IndexRemovalReason.DELETED);
             } catch (Exception e) {
                 logger.warn(() -> format("[%s] failed to delete unassigned index (reason [%s])", oldIndexMetadata.getIndex(), reason), e);
             }
@@ -1090,7 +1156,7 @@ public class IndicesService extends AbstractLifecycleComponent
      *
      * Package private for testing
      */
-    void deleteIndexStore(String reason, IndexMetadata metadata) throws IOException {
+    void deleteIndexStore(String reasonText, IndexMetadata metadata, IndexRemovalReason reason) throws IOException {
         if (nodeEnv.hasNodeFile()) {
             synchronized (this) {
                 Index index = metadata.getIndex();
@@ -1108,33 +1174,35 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
             final IndexSettings indexSettings = buildIndexSettings(metadata);
-            deleteIndexStore(reason, indexSettings.getIndex(), indexSettings);
+            deleteIndexStore(reasonText, indexSettings.getIndex(), indexSettings, reason);
         }
     }
 
-    private void deleteIndexStore(String reason, Index index, IndexSettings indexSettings) throws IOException {
-        deleteIndexStoreIfDeletionAllowed(reason, index, indexSettings, DEFAULT_INDEX_DELETION_PREDICATE);
+    private void deleteIndexStore(String reasonText, Index index, IndexSettings indexSettings, IndexRemovalReason reason)
+        throws IOException {
+        deleteIndexStoreIfDeletionAllowed(reasonText, index, indexSettings, DEFAULT_INDEX_DELETION_PREDICATE, reason);
     }
 
     private void deleteIndexStoreIfDeletionAllowed(
-        final String reason,
+        final String reasonText,
         final Index index,
         final IndexSettings indexSettings,
-        final IndexDeletionAllowedPredicate predicate
+        final IndexDeletionAllowedPredicate predicate,
+        final IndexRemovalReason reason
     ) throws IOException {
         boolean success = false;
         try {
             // we are trying to delete the index store here - not a big deal if the lock can't be obtained
             // the store metadata gets wiped anyway even without the lock this is just best effort since
             // every shards deletes its content under the shard lock it owns.
-            logger.debug("{} deleting index store reason [{}]", index, reason);
+            logger.debug("{} deleting index store reason [{}]", index, reasonText);
             if (predicate.apply(index, indexSettings)) {
                 // its safe to delete all index metadata and shard data
                 nodeEnv.deleteIndexDirectorySafe(
                     index,
                     0,
                     indexSettings,
-                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(index, indexSettings, paths)
+                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(index, indexSettings, paths, reason)
                 );
             }
             success = true;
@@ -1144,7 +1212,7 @@ public class IndicesService extends AbstractLifecycleComponent
             logger.warn(() -> format("%s failed to delete index", index), ex);
         } finally {
             if (success == false) {
-                addPendingDelete(index, indexSettings);
+                addPendingDelete(index, indexSettings, reason);
             }
             // this is a pure protection to make sure this index doesn't get re-imported as a dangling index.
             // we should in the future rather write a tombstone rather than wiping the metadata.
@@ -1154,19 +1222,21 @@ public class IndicesService extends AbstractLifecycleComponent
 
     /**
      * Deletes the shard with an already acquired shard lock.
-     * @param reason the reason for the shard deletion
+     * @param reasonText the reason for the shard deletion
      * @param lock the lock of the shard to delete
      * @param indexSettings the shards index settings.
+     * @param reason the reason for the deletion (as an enum)
      * @throws IOException if an IOException occurs
      */
     @Override
-    public void deleteShardStore(String reason, ShardLock lock, IndexSettings indexSettings) throws IOException {
+    public void deleteShardStore(String reasonText, ShardLock lock, IndexSettings indexSettings, IndexRemovalReason reason)
+        throws IOException {
         ShardId shardId = lock.getShardId();
-        logger.trace("{} deleting shard reason [{}]", shardId, reason);
+        logger.trace("{} deleting shard reason [{}]", shardId, reasonText);
         nodeEnv.deleteShardDirectoryUnderLock(
             lock,
             indexSettings,
-            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths)
+            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths, reason)
         );
     }
 
@@ -1178,13 +1248,14 @@ public class IndicesService extends AbstractLifecycleComponent
      * On data nodes, if the deleted shard is the last shard folder in its index, the method will attempt to remove
      * the index folder as well.
      *
-     * @param reason the reason for the shard deletion
+     * @param reasonText the reason for the shard deletion
      * @param shardId the shards ID to delete
      * @param clusterState . This is required to access the indexes settings etc.
+     * @param reason The reason for the deletion (as an enum)
      * @throws IOException if an IOException occurs
      */
-    public void deleteShardStore(String reason, ShardId shardId, ClusterState clusterState) throws IOException,
-        ShardLockObtainFailedException {
+    public void deleteShardStore(String reasonText, ShardId shardId, ClusterState clusterState, IndexRemovalReason reason)
+        throws IOException, ShardLockObtainFailedException {
         final IndexMetadata metadata = clusterState.getMetadata().getProject().indices().get(shardId.getIndexName());
 
         final IndexSettings indexSettings = buildIndexSettings(metadata);
@@ -1195,15 +1266,15 @@ public class IndicesService extends AbstractLifecycleComponent
         nodeEnv.deleteShardDirectorySafe(
             shardId,
             indexSettings,
-            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths)
+            paths -> indexFoldersDeletionListeners.beforeShardFoldersDeleted(shardId, indexSettings, paths, reason)
         );
-        logger.debug("{} deleted shard reason [{}]", shardId, reason);
+        logger.debug("{} deleted shard reason [{}]", shardId, reasonText);
 
         if (canDeleteIndexContents(shardId.getIndex())) {
             if (nodeEnv.findAllShardIds(shardId.getIndex()).isEmpty()) {
                 try {
                     // note that deleteIndexStore have more safety checks and may throw an exception if index was concurrently created.
-                    deleteIndexStore("no longer used", metadata);
+                    deleteIndexStore("no longer used", metadata, reason);
                 } catch (Exception e) {
                     // wrap the exception to indicate we already deleted the shard
                     throw new ElasticsearchException("failed to delete unused index after deleting its last shard (" + shardId + ")", e);
@@ -1240,7 +1311,7 @@ public class IndicesService extends AbstractLifecycleComponent
     @Nullable
     public IndexMetadata verifyIndexIsDeleted(final Index index, final ClusterState clusterState) {
         // this method should only be called when we know the index (name + uuid) is not part of the cluster state
-        if (clusterState.metadata().getProject().index(index) != null) {
+        if (clusterState.metadata().lookupProject(index).isPresent()) {
             throw new IllegalStateException("Cannot delete index [" + index + "], it is still part of the cluster state.");
         }
         if (nodeEnv.hasNodeFile() && FileSystemUtils.exists(nodeEnv.indexPaths(index))) {
@@ -1259,7 +1330,7 @@ public class IndicesService extends AbstractLifecycleComponent
             }
             final IndexSettings indexSettings = buildIndexSettings(metadata);
             try {
-                deleteIndexStoreIfDeletionAllowed("stale deleted index", index, indexSettings, ALWAYS_TRUE);
+                deleteIndexStoreIfDeletionAllowed("stale deleted index", index, indexSettings, ALWAYS_TRUE, IndexRemovalReason.DELETED);
             } catch (Exception e) {
                 // we just warn about the exception here because if deleteIndexStoreIfDeletionAllowed
                 // throws an exception, it gets added to the list of pending deletes to be tried again
@@ -1317,22 +1388,22 @@ public class IndicesService extends AbstractLifecycleComponent
      * Adds a pending delete for the given index shard.
      */
     @Override
-    public void addPendingDelete(ShardId shardId, IndexSettings settings) {
+    public void addPendingDelete(ShardId shardId, IndexSettings settings, IndexRemovalReason reason) {
         if (shardId == null) {
             throw new IllegalArgumentException("shardId must not be null");
         }
         if (settings == null) {
             throw new IllegalArgumentException("settings must not be null");
         }
-        PendingDelete pendingDelete = new PendingDelete(shardId, settings);
+        PendingDelete pendingDelete = new PendingDelete(shardId, settings, reason);
         addPendingDelete(shardId.getIndex(), pendingDelete);
     }
 
     /**
      * Adds a pending delete for the given index.
      */
-    public void addPendingDelete(Index index, IndexSettings settings) {
-        PendingDelete pendingDelete = new PendingDelete(index, settings);
+    public void addPendingDelete(Index index, IndexSettings settings, IndexRemovalReason reason) {
+        PendingDelete pendingDelete = new PendingDelete(index, settings, reason);
         addPendingDelete(index, pendingDelete);
     }
 
@@ -1348,25 +1419,28 @@ public class IndicesService extends AbstractLifecycleComponent
         final int shardId;
         final IndexSettings settings;
         final boolean deleteIndex;
+        final IndexRemovalReason reason;
 
         /**
          * Creates a new pending delete of an index
          */
-        PendingDelete(ShardId shardId, IndexSettings settings) {
+        PendingDelete(ShardId shardId, IndexSettings settings, IndexRemovalReason reason) {
             this.index = shardId.getIndex();
             this.shardId = shardId.getId();
             this.settings = settings;
             this.deleteIndex = false;
+            this.reason = reason;
         }
 
         /**
          * Creates a new pending delete of a shard
          */
-        PendingDelete(Index index, IndexSettings settings) {
+        PendingDelete(Index index, IndexSettings settings, IndexRemovalReason reason) {
             this.index = index;
             this.shardId = -1;
             this.settings = settings;
             this.deleteIndex = true;
+            this.reason = reason;
         }
 
         @Override
@@ -1430,7 +1504,12 @@ public class IndicesService extends AbstractLifecycleComponent
                                 nodeEnv.deleteIndexDirectoryUnderLock(
                                     index,
                                     indexSettings,
-                                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(index, indexSettings, paths)
+                                    paths -> indexFoldersDeletionListeners.beforeIndexFoldersDeleted(
+                                        index,
+                                        indexSettings,
+                                        paths,
+                                        delete.reason
+                                    )
                                 );
                                 iterator.remove();
                             } catch (IOException ex) {
@@ -1442,7 +1521,7 @@ public class IndicesService extends AbstractLifecycleComponent
                             final ShardLock shardLock = locks.get(shardId);
                             if (shardLock != null) {
                                 try {
-                                    deleteShardStore("pending delete", shardLock, delete.settings);
+                                    deleteShardStore("pending delete", shardLock, delete.settings, delete.reason);
                                     iterator.remove();
                                 } catch (IOException ex) {
                                     logger.debug(() -> format("%s retry pending delete", shardLock.getShardId()), ex);
@@ -1584,7 +1663,7 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexSettings settings = context.indexShard().indexSettings();
         // if not explicitly set in the request, use the index setting, if not, use the request
         if (request.requestCache() == null) {
-            if (settings.getValue(IndicesRequestCache.INDEX_CACHE_REQUEST_ENABLED_SETTING) == false) {
+            if (settings.isRequestCacheEnabled() == false) {
                 return false;
             } else if (context.size() != 0) {
                 // If no request cache query parameter and shard request cache
@@ -1607,13 +1686,27 @@ public class IndicesService extends AbstractLifecycleComponent
     }
 
     /**
-     * Loads the cache result, computing it if needed by executing the query phase and otherwise deserializing the cached
-     * value into the {@link SearchContext#queryResult() context's query result}. The combination of load + compute allows
-     * to have a single load operation that will cause other requests with the same key to wait till its loaded an reuse
-     * the same cache.
-     */
+    * Equivalent to {@link #loadIntoContext(ShardSearchRequest, SearchContext, Consumer)} with
+    * {@code cancellationRegistrar == null}.
+    */
     public void loadIntoContext(ShardSearchRequest request, SearchContext context) throws Exception {
-        assert canCache(request, context);
+        loadIntoContext(request, context, null);
+    }
+
+    /**
+    * Loads the cache result, computing it if needed by executing the query phase and otherwise deserializing the cached
+    * value into the {@link SearchContext#queryResult() context's query result}. The combination of load + compute allows
+    * to have a single load operation that will cause other requests with the same key to wait till its loaded an reuse
+    * the same cache.
+    *
+    * @param request the shard search request
+    * @param context the search context to populate
+    * @param cancellationRegistrar registers cancellation handling for the underlying work; may be {@code null}
+    * @throws Exception if loading, computing, or deserialization fails
+    */
+    public void loadIntoContext(ShardSearchRequest request, SearchContext context, Consumer<Runnable> cancellationRegistrar)
+        throws Exception {
+        assert IndicesService.canCache(request, context);
         final DirectoryReader directoryReader = context.searcher().getDirectoryReader();
 
         boolean[] loadedFromCache = new boolean[] { true };
@@ -1627,7 +1720,8 @@ public class IndicesService extends AbstractLifecycleComponent
                 QueryPhase.execute(context);
                 context.queryResult().writeToNoId(out);
                 loadedFromCache[0] = false;
-            }
+            },
+            cancellationRegistrar
         );
 
         if (loadedFromCache[0]) {
@@ -1670,6 +1764,7 @@ public class IndicesService extends AbstractLifecycleComponent
      * @param reader a reader for this shard. Used to invalidate the cache when there are changes.
      * @param cacheKey key for the thing being cached within this shard
      * @param loader loads the data into the cache if needed
+     * @param cancellationRegistrar if non-null, accepts a Runnable to be called when the operation should be cancelled
      * @return the contents of the cache or the result of calling the loader
      */
     private BytesReference cacheShardLevelResult(
@@ -1677,7 +1772,8 @@ public class IndicesService extends AbstractLifecycleComponent
         MappingLookup.CacheKey mappingCacheKey,
         DirectoryReader reader,
         BytesReference cacheKey,
-        CheckedConsumer<StreamOutput, IOException> loader
+        CheckedConsumer<StreamOutput, IOException> loader,
+        Consumer<Runnable> cancellationRegistrar
     ) throws Exception {
         IndexShardCacheEntity cacheEntity = new IndexShardCacheEntity(shard);
         CheckedSupplier<BytesReference, IOException> supplier = () -> {
@@ -1696,7 +1792,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 return out.bytes();
             }
         };
-        return indicesRequestCache.getOrCompute(cacheEntity, supplier, mappingCacheKey, reader, cacheKey);
+        return indicesRequestCache.getOrCompute(cacheEntity, supplier, mappingCacheKey, reader, cacheKey, cancellationRegistrar);
     }
 
     static final class IndexShardCacheEntity extends AbstractIndexShardCacheEntity {
@@ -1743,13 +1839,6 @@ public class IndicesService extends AbstractLifecycleComponent
     public AliasFilter buildAliasFilter(ProjectState project, String index, Set<ResolvedExpression> resolvedExpressions) {
         /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
          * of dependencies we pass in a function that can perform the parsing. */
-        CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
-            try (
-                XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, bytes, XContentHelper.xContentType(bytes))
-            ) {
-                return parseTopLevelQuery(parser);
-            }
-        };
 
         final ProjectMetadata metadata = project.metadata();
         String[] aliases = indexNameExpressionResolver.filteringAliases(metadata, index, resolvedExpressions);
@@ -1759,43 +1848,36 @@ public class IndicesService extends AbstractLifecycleComponent
 
         IndexAbstraction ia = metadata.getIndicesLookup().get(index);
         DataStream dataStream = ia.getParentDataStream();
+        final QueryBuilder filter;
         if (dataStream != null) {
+            var dsAliases = metadata.dataStreamAliases();
             String dataStreamName = dataStream.getName();
-            List<QueryBuilder> filters = Arrays.stream(aliases)
-                .map(name -> metadata.dataStreamAliases().get(name))
-                .filter(dataStreamAlias -> dataStreamAlias.getFilter(dataStreamName) != null)
-                .map(dataStreamAlias -> {
-                    try {
-                        return filterParser.apply(dataStreamAlias.getFilter(dataStreamName).uncompressed());
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                })
-                .toList();
-            if (filters.isEmpty()) {
-                return AliasFilter.of(null, aliases);
-            } else {
-                if (filters.size() == 1) {
-                    return AliasFilter.of(filters.get(0), aliases);
-                } else {
-                    BoolQueryBuilder bool = new BoolQueryBuilder();
-                    for (QueryBuilder filter : filters) {
-                        bool.should(filter);
-                    }
-                    return AliasFilter.of(bool, aliases);
+            List<QueryBuilder> filters = Arrays.stream(aliases).map(key -> {
+                var f = dsAliases.get(key).getFilter(dataStreamName);
+                if (f == null) {
+                    return null;
                 }
+                try {
+                    return parseFilter(f.compressedReference());
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }).filter(Objects::nonNull).toList();
+            if (filters.isEmpty()) {
+                filter = null;
+            } else if (filters.size() == 1) {
+                filter = filters.getFirst();
+            } else {
+                BoolQueryBuilder bool = new BoolQueryBuilder();
+                for (QueryBuilder f : filters) {
+                    bool.should(f);
+                }
+                filter = bool;
             }
         } else {
-            IndexMetadata indexMetadata = metadata.index(index);
-            return AliasFilter.of(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
+            filter = ShardSearchRequest.parseAliasFilter(this::parseFilter, metadata.index(index), aliases);
         }
-    }
-
-    /**
-     * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
-     */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit) {
-        return getRewriteContext(nowInMillis, resolvedIndices, pit, false);
+        return AliasFilter.of(filter, aliases);
     }
 
     /**
@@ -1803,11 +1885,29 @@ public class IndicesService extends AbstractLifecycleComponent
      */
     public QueryRewriteContext getRewriteContext(
         LongSupplier nowInMillis,
+        TransportVersion minTransportVersion,
+        String clusterAlias,
         ResolvedIndices resolvedIndices,
         PointInTimeBuilder pit,
-        final boolean isExplain
+        final Boolean ccsMinimizeRoundTrips,
+        final boolean isExplain,
+        final boolean isProfile,
+        final boolean allowPartialSearchResults
     ) {
-        return new QueryRewriteContext(parserConfig, client, nowInMillis, resolvedIndices, pit, queryRewriteInterceptor, isExplain);
+        return new QueryRewriteContext(
+            parserConfig,
+            client,
+            nowInMillis,
+            minTransportVersion,
+            clusterAlias,
+            resolvedIndices,
+            pit,
+            queryRewriteInterceptor,
+            ccsMinimizeRoundTrips,
+            isExplain,
+            isProfile,
+            allowPartialSearchResults
+        );
     }
 
     public DataRewriteContext getDataRewriteContext(LongSupplier nowInMillis) {
@@ -1832,7 +1932,7 @@ public class IndicesService extends AbstractLifecycleComponent
         final IndexService service = indexService(shardId.getIndex());
         if (service != null) {
             IndexShard shard = service.getShardOrNull(shardId.id());
-            final boolean clearedAtLeastOne = service.clearCaches(queryCache, fieldDataCache, fields);
+            final boolean clearedAtLeastOne = service.clearCaches(queryCache, fieldDataCache, requestCache, fields);
             if ((requestCache || (clearedAtLeastOne == false && fields.length == 0)) && shard != null) {
                 indicesRequestCache.clear(new IndexShardCacheEntity(shard));
             }
@@ -1936,5 +2036,41 @@ public class IndicesService extends AbstractLifecycleComponent
     @Nullable
     public ThreadPoolMergeExecutorService getThreadPoolMergeExecutorService() {
         return threadPoolMergeExecutorService;
+    }
+
+    /**
+     * Start measuring directory level metrics in the current thread, returning the delta when the supplier is invoked.
+     * This will be the amount consumed between calling this method and the supplier.
+     * @return supplier to give the delta of all directory metrics. Must be called from the same thread as this method.
+     */
+    public Supplier<DirectoryMetrics> directoryMetricsDelta() {
+        DirectoryMetrics.Builder directoryMetricsBuilder = new DirectoryMetrics.Builder();
+        directoryMetricHolderMap.forEach((s, m) -> directoryMetricsBuilder.add(s, m.instance()));
+        DirectoryMetrics metrics = directoryMetricsBuilder.build();
+        return assertThread(metrics.delta());
+    }
+
+    private Supplier<DirectoryMetrics> assertThread(Supplier<DirectoryMetrics> delta) {
+        if (Assertions.ENABLED) {
+            Thread thread = Thread.currentThread();
+            return () -> {
+                assert thread == Thread.currentThread();
+                return delta.get();
+            };
+        } else {
+            return delta;
+        }
+    }
+
+    /**
+     * run the block of code, extracting the directory metric changes it causes during its execution on the current thread.
+     * @param block the block to run
+     * @return the result and metrics delta.
+     * @throws E if the block does.
+     */
+    public <T, E extends Exception> Tuple<T, DirectoryMetrics> withDirectoryMetrics(CheckedSupplier<T, E> block) throws E {
+        var delta = directoryMetricsDelta();
+        T result = block.get();
+        return Tuple.tuple(result, delta.get());
     }
 }

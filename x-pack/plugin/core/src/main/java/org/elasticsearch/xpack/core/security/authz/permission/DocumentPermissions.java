@@ -106,7 +106,7 @@ public final class DocumentPermissions implements CacheKey {
 
     /**
      * Creates a {@link BooleanQuery} to be used as filter to restrict access to documents.<br>
-     * Document permission queries are used to create an boolean query.<br>
+     * Document permission queries are used to create a boolean query.<br>
      * If the document permissions are limited, then there is an additional filter added restricting access to documents only allowed by the
      * limited queries.
      *

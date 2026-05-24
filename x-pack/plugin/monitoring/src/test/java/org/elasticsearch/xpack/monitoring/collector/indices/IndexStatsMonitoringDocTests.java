@@ -21,8 +21,10 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.cache.query.QueryCacheStats;
 import org.elasticsearch.index.cache.request.RequestCacheStats;
+import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.SegmentsStats;
 import org.elasticsearch.index.fielddata.FieldDataStats;
 import org.elasticsearch.index.refresh.RefreshStats;
@@ -348,7 +350,9 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             .field("index", index.getName())
             .field("uuid", index.getUUID())
             .field("created", metadata.getCreationDate())
-            .field("status", indexHealth.getStatus().name().toLowerCase(Locale.ROOT));
+            .field("status", indexHealth.getStatus().name().toLowerCase(Locale.ROOT))
+            .field("mode", IndexSettings.MODE.get(metadata.getSettings()).getName())
+            .field("codec", EngineConfig.INDEX_CODEC_SETTING.get(metadata.getSettings()));
         {
             builder.startObject("shards")
                 .field("total", total)
@@ -404,11 +408,28 @@ public class IndexStatsMonitoringDocTests extends BaseFilteredMonitoringDocTestC
             no,
             no,
             no,
+            no,
             no
         );
         commonStats.getIndexing().add(new IndexingStats(indexingStats));
 
-        final SearchStats.Stats searchStats = new SearchStats.Stats(++iota, ++iota, no, no, no, no, no, no, no, no, no, no, no, no);
+        final SearchStats.Stats searchStats = new SearchStats.Stats(
+            ++iota,
+            ++iota,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            no,
+            Double.valueOf(no)
+        );
         commonStats.getSearch().add(new SearchStats(searchStats, no, null));
 
         final SegmentsStats segmentsStats = new SegmentsStats();

@@ -11,6 +11,7 @@ package org.elasticsearch.reservedstate.action;
 
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -37,11 +38,7 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
     static final ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(dummySetting1, dummySetting2));
     static final ReservedClusterSettingsAction testAction = new ReservedClusterSettingsAction(clusterSettings);
 
-    private TransformState<ClusterState> processJSON(
-        ReservedClusterSettingsAction action,
-        TransformState<ClusterState> prevState,
-        String json
-    ) throws Exception {
+    private TransformState processJSON(ReservedClusterSettingsAction action, TransformState prevState, String json) throws Exception {
         try (XContentParser parser = XContentType.JSON.xContent().createParser(XContentParserConfiguration.EMPTY, json)) {
             return action.transform(parser.map(), prevState);
         }
@@ -51,7 +48,7 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
+        TransformState prevState = new TransformState(state, Collections.emptySet());
         ReservedClusterSettingsAction action = new ReservedClusterSettingsAction(clusterSettings);
 
         String badPolicyJSON = """
@@ -69,12 +66,12 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
         ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
 
         ClusterState state = ClusterState.builder(new ClusterName("elasticsearch")).build();
-        TransformState<ClusterState> prevState = new TransformState<>(state, Collections.emptySet());
+        TransformState prevState = new TransformState(state, Collections.emptySet());
         ReservedClusterSettingsAction action = new ReservedClusterSettingsAction(clusterSettings);
 
         String emptyJSON = "";
 
-        TransformState<ClusterState> updatedState = processJSON(action, prevState, emptyJSON);
+        TransformState updatedState = processJSON(action, prevState, emptyJSON);
         assertThat(updatedState.keys(), empty());
         assertEquals(prevState.state(), updatedState.state());
 
@@ -115,6 +112,47 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
         assertNull(updatedState.state().metadata().persistentSettings().get("indices.recovery.max_bytes_per_sec"));
     }
 
+    public void testIgnoreRemovedSettings() throws Exception {
+        // Only setting1 remains registered; setting2 was removed from the codebase
+        Setting<String> setting1 = Setting.simpleString("dummy.setting1", "default1", NodeScope, Dynamic);
+        ClusterSettings limitedClusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(setting1));
+        ReservedClusterSettingsAction action = new ReservedClusterSettingsAction(limitedClusterSettings);
+
+        // Build a cluster state that has dummy.setting2 in persistent settings
+        // (it was valid when originally set, but is now removed from the registry)
+        ClusterState stateWithOldSetting = ClusterState.builder(new ClusterName("elasticsearch"))
+            .metadata(
+                Metadata.builder()
+                    .persistentSettings(Settings.builder().put("dummy.setting1", "old-value1").put("dummy.setting2", "old-value2").build())
+                    .build()
+            )
+            .build();
+
+        // Previous reserved state tracked both settings
+        TransformState prevState = new TransformState(stateWithOldSetting, Set.of("dummy.setting1", "dummy.setting2"));
+
+        // New config only specifies dummy.setting1 (dummy.setting2 was removed from the registry)
+        String json = """
+            {
+                "dummy": {
+                    "setting1": "new-value1"
+                }
+            }
+            """;
+
+        // Without the fix, this would throw:
+        // IllegalArgumentException: persistent setting [dummy.setting2], not recognized
+        TransformState newState = processJSON(action, prevState, json);
+
+        // dummy.setting2 should be dropped from reserved state keys
+        assertThat(newState.keys(), containsInAnyOrder("dummy.setting1"));
+        // dummy.setting1 should have the new value
+        assertThat(newState.state().metadata().persistentSettings().get("dummy.setting1"), is("new-value1"));
+        // dummy.setting2 is also absent from persistent settings: SettingsUpdater validates
+        // the final settings against the registry and drops keys it does not recognize
+        assertNull(newState.state().metadata().persistentSettings().get("dummy.setting2"));
+    }
+
     public void testSettingNameNormalization() throws Exception {
         Settings prevSettings = Settings.builder().put("dummy.setting1", "a-value").build();
         var clusterState = new SettingsUpdater(clusterSettings).updateSettings(
@@ -123,7 +161,7 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
             prevSettings,
             logger
         );
-        TransformState<ClusterState> prevState = new TransformState<>(clusterState, Set.of("dummy.setting1"));
+        TransformState prevState = new TransformState(clusterState, Set.of("dummy.setting1"));
 
         String json = """
             {
@@ -134,7 +172,7 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
             }
             """;
 
-        TransformState<ClusterState> newState = processJSON(testAction, prevState, json);
+        TransformState newState = processJSON(testAction, prevState, json);
         assertThat(newState.keys(), containsInAnyOrder("dummy.setting1", "dummy.setting2"));
         assertThat(newState.state().metadata().persistentSettings().get("dummy.setting1"), is("value1"));
         assertThat(newState.state().metadata().persistentSettings().get("dummy.setting2"), is("value2"));
@@ -146,7 +184,7 @@ public class ReservedClusterSettingsActionTests extends ESTestCase {
                 }
             }
             """;
-        TransformState<ClusterState> newState2 = processJSON(testAction, prevState, jsonRemoval);
+        TransformState newState2 = processJSON(testAction, prevState, jsonRemoval);
         assertThat(newState2.keys(), containsInAnyOrder("dummy.setting2"));
         assertThat(newState2.state().metadata().persistentSettings().get("dummy.setting2"), is("value2"));
     }

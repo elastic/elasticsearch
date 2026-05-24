@@ -7,15 +7,20 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+// end generated imports
 
 /**
  * Vector implementation that stores an array of int values.
@@ -83,6 +88,16 @@ final class IntArrayVector extends AbstractVector implements IntVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, int[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return Integer.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.INT;
     }
@@ -93,7 +108,7 @@ final class IntArrayVector extends AbstractVector implements IntVector {
     }
 
     @Override
-    public IntVector filter(int... positions) {
+    public IntVector filter(boolean mayContainDuplicates, int... positions) {
         try (IntVector.Builder builder = blockFactory().newIntVectorBuilder(positions.length)) {
             for (int pos : positions) {
                 builder.appendInt(values[pos]);
@@ -135,6 +150,20 @@ final class IntArrayVector extends AbstractVector implements IntVector {
 
     public static long ramBytesEstimated(int[] values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public IntVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (IntVector.FixedBuilder builder = blockFactory().newIntVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendInt(getInt(i));
+            }
+            return builder.build();
+        }
     }
 
     /**

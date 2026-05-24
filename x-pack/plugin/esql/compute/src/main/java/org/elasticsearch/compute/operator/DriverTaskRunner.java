@@ -8,9 +8,10 @@
 package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -20,7 +21,6 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportChannel;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
@@ -36,24 +36,31 @@ import java.util.concurrent.Executor;
 public class DriverTaskRunner {
     public static final String ACTION_NAME = "indices:data/read/esql/compute";
     private final TransportService transportService;
+    private final Executor searchExecutor;
 
-    public DriverTaskRunner(TransportService transportService, Executor executor) {
+    public DriverTaskRunner(TransportService transportService, Executor searchExecutor) {
         this.transportService = transportService;
-        transportService.registerRequestHandler(ACTION_NAME, executor, DriverRequest::new, new DriverRequestHandler(transportService));
+        this.searchExecutor = searchExecutor;
+        transportService.registerRequestHandler(
+            ACTION_NAME,
+            searchExecutor,
+            DriverRequest::new,
+            new DriverRequestHandler(transportService)
+        );
     }
 
-    public void executeDrivers(Task parentTask, List<Driver> drivers, Executor executor, ActionListener<Void> listener) {
+    public void executeDrivers(Task parentTask, List<Driver> drivers, Executor workerExecutor, ActionListener<Void> listener) {
         var runner = new DriverRunner(transportService.getThreadPool().getThreadContext()) {
             @Override
             protected void start(Driver driver, ActionListener<Void> driverListener) {
                 transportService.sendChildRequest(
                     transportService.getLocalNode(),
                     ACTION_NAME,
-                    new DriverRequest(driver, executor),
+                    new DriverRequest(driver, workerExecutor),
                     parentTask,
                     TransportRequestOptions.EMPTY,
                     TransportResponseHandler.empty(
-                        executor,
+                        searchExecutor,
                         // The TransportResponseHandler can be notified while the Driver is still running during node shutdown
                         // or the Driver hasn't started when the parent task is canceled. In such cases, we should abort
                         // the Driver and wait for it to finish.
@@ -65,7 +72,7 @@ public class DriverTaskRunner {
         runner.runToCompletion(drivers, listener);
     }
 
-    private static class DriverRequest extends ActionRequest implements CompositeIndicesRequest {
+    private static class DriverRequest extends LegacyActionRequest implements CompositeIndicesRequest {
         private final Driver driver;
         private final Executor executor;
 
@@ -117,13 +124,13 @@ public class DriverTaskRunner {
     private record DriverRequestHandler(TransportService transportService) implements TransportRequestHandler<DriverRequest> {
         @Override
         public void messageReceived(DriverRequest request, TransportChannel channel, Task task) {
-            var listener = new ChannelActionListener<TransportResponse.Empty>(channel);
+            var listener = new ChannelActionListener<ActionResponse.Empty>(channel);
             Driver.start(
                 transportService.getThreadPool().getThreadContext(),
                 request.executor,
                 request.driver,
                 Driver.DEFAULT_MAX_ITERATIONS,
-                listener.map(unused -> TransportResponse.Empty.INSTANCE)
+                listener.map(unused -> ActionResponse.Empty.INSTANCE)
             );
         }
     }

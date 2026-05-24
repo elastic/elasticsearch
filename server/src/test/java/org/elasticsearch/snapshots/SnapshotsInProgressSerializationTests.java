@@ -10,7 +10,6 @@
 package org.elasticsearch.snapshots;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -35,7 +34,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.repositories.IndexId;
-import org.elasticsearch.repositories.RepositoryOperation.ProjectRepo;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.ShardGeneration;
 import org.elasticsearch.repositories.ShardSnapshotResult;
 import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
@@ -65,6 +64,8 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
         .putCompatibilityVersions("local", new CompatibilityVersions(TransportVersion.current(), Map.of()))
         .build();
 
+    private static final TransportVersion PROJECT_ID_IN_SNAPSHOT = TransportVersion.fromName("project_id_in_snapshot");
+
     @Override
     protected Custom createTestInstance() {
         return createTestInstance(() -> randomSnapshot(randomProjectIdOrDefault()));
@@ -88,7 +89,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
     }
 
     public void testSerializationBwc() throws IOException {
-        final var oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.PROJECT_ID_IN_SNAPSHOT);
+        final var oldVersion = TransportVersionUtils.getPreviousVersion(PROJECT_ID_IN_SNAPSHOT);
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(oldVersion);
         final Custom original = createTestInstance(() -> randomSnapshot(ProjectId.DEFAULT));
@@ -101,7 +102,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
     }
 
     public void testDiffSerializationBwc() throws IOException {
-        final var oldVersion = TransportVersionUtils.getPreviousVersion(TransportVersions.PROJECT_ID_IN_SNAPSHOT);
+        final var oldVersion = TransportVersionUtils.getPreviousVersion(PROJECT_ID_IN_SNAPSHOT);
         final BytesStreamOutput out = new BytesStreamOutput();
         out.setTransportVersion(oldVersion);
 
@@ -248,7 +249,11 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                     entries = shuffledList(entries);
                 }
                 final Entry firstEntry = perRepoEntries.get(0);
-                updatedInstance = updatedInstance.withUpdatedEntriesForRepo(firstEntry.projectId(), firstEntry.repository(), entries);
+                updatedInstance = updatedInstance.createCopyWithUpdatedEntriesForRepo(
+                    firstEntry.projectId(),
+                    firstEntry.repository(),
+                    entries
+                );
             }
         }
         return updatedInstance;
@@ -287,7 +292,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
                 } else {
                     updatedEntries.remove(index);
                 }
-                return snapshotsInProgress.withUpdatedEntriesForRepo(repo.projectId(), repo.name(), updatedEntries);
+                return snapshotsInProgress.createCopyWithUpdatedEntriesForRepo(repo.projectId(), repo.name(), updatedEntries);
             }
         } else {
             return snapshotsInProgress.withUpdatedNodeIdsForRemoval(
@@ -546,7 +551,7 @@ public class SnapshotsInProgressSerializationTests extends SimpleDiffableWireSer
             );
 
         AbstractChunkedSerializingTestCase.assertChunkCount(sip, instance -> Math.toIntExact(instance.asStream().count() + 5));
-        final var json = Strings.toString(sip, false, true);
+        final var json = Strings.toTruncatedString(sip, false, true);
         assertThat(
             json,
             anyOf(

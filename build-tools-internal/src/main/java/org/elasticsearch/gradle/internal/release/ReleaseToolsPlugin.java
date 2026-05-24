@@ -9,6 +9,10 @@
 
 package org.elasticsearch.gradle.internal.release;
 
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
+
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.conventions.precommit.PrecommitTaskPlugin;
@@ -23,7 +27,10 @@ import org.gradle.api.provider.Provider;
 import org.gradle.api.tasks.util.PatternSet;
 
 import java.io.File;
-import java.util.function.Function;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.UncheckedIOException;
+import java.util.List;
 
 import javax.inject.Inject;
 
@@ -33,6 +40,7 @@ import javax.inject.Inject;
 public class ReleaseToolsPlugin implements Plugin<Project> {
 
     private static final String RESOURCES = "build-tools-internal/src/main/resources/";
+    private static final String EXTERNAL_SOURCES_CONFIG = "external-changelog-sources.yml";
 
     private final ProjectLayout projectLayout;
 
@@ -53,11 +61,11 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
 
         project.getTasks().register("extractCurrentVersions", ExtractCurrentVersionsTask.class);
         project.getTasks().register("tagVersions", TagVersionsTask.class);
-        project.getTasks().register("setCompatibleVersions", SetCompatibleVersionsTask.class, t -> t.setThisVersion(version));
+        project.getTasks().register("updateBranchesJson", UpdateBranchesJsonTask.class);
 
-        final FileTree yamlFiles = projectDirectory.dir("docs/changelog")
-            .getAsFileTree()
-            .matching(new PatternSet().include("**/*.yml", "**/*.yaml"));
+        final Directory changeLogDirectory = projectDirectory.dir("docs/changelog");
+        final Directory changeLogBundlesDirectory = projectDirectory.dir("docs/release-notes/changelog-bundles");
+        final FileTree yamlFiles = changeLogDirectory.getAsFileTree().matching(new PatternSet().include("**/*.yml", "**/*.yaml"));
 
         final Provider<ValidateYamlAgainstSchemaTask> validateChangelogsTask = project.getTasks()
             .register("validateChangelogs", ValidateYamlAgainstSchemaTask.class, task -> {
@@ -68,49 +76,42 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
                 task.setReport(new File(project.getBuildDir(), "reports/validateYaml.txt"));
             });
 
-        final Function<Boolean, Action<GenerateReleaseNotesTask>> configureGenerateTask = shouldConfigureYamlFiles -> task -> {
+        final Action<BundleChangelogsTask> configureBundleTask = task -> {
             task.setGroup("Documentation");
-            if (shouldConfigureYamlFiles) {
-                task.setChangelogs(yamlFiles);
-                task.setDescription("Generates release notes from changelog files held in this checkout");
-            } else {
-                task.setDescription("Generates stub release notes e.g. after feature freeze");
-            }
+            task.setDescription("Generates release notes from changelog files held in this checkout and external repos");
+            task.setChangelogs(yamlFiles);
+            task.setChangelogDirectory(changeLogDirectory);
+            task.setChangelogBundlesDirectory(changeLogBundlesDirectory);
+            task.setBundleFile(projectDirectory.file("docs/release-notes/changelogs-" + version.toString() + ".yml"));
+            task.setExternalSources(loadExternalSources());
+            task.getOutputs().upToDateWhen(o -> false);
+        };
 
-            task.setReleaseNotesIndexTemplate(projectDirectory.file(RESOURCES + "templates/release-notes-index.asciidoc"));
-            task.setReleaseNotesIndexFile(projectDirectory.file("docs/reference/release-notes.asciidoc"));
+        final Action<GenerateReleaseNotesTask> configureGenerateTask = task -> {
+            task.setGroup("Documentation");
+            task.setDescription("Generates release notes for all versions/branches using changelog bundles in this checkout");
 
-            task.setReleaseNotesTemplate(projectDirectory.file(RESOURCES + "templates/release-notes.asciidoc"));
-            task.setReleaseNotesFile(
-                projectDirectory.file(
-                    String.format(
-                        "docs/reference/release-notes/%d.%d.%d.asciidoc",
-                        version.getMajor(),
-                        version.getMinor(),
-                        version.getRevision()
-                    )
-                )
-            );
+            task.setReleaseNotesTemplate(projectDirectory.file(RESOURCES + "templates/index.md"));
+            task.setReleaseNotesFile(projectDirectory.file("docs/release-notes/index.md"));
 
             task.setReleaseHighlightsTemplate(projectDirectory.file(RESOURCES + "templates/release-highlights.asciidoc"));
             task.setReleaseHighlightsFile(projectDirectory.file("docs/reference/release-notes/highlights.asciidoc"));
 
-            task.setBreakingChangesTemplate(projectDirectory.file(RESOURCES + "templates/breaking-changes.asciidoc"));
-            task.setBreakingChangesMigrationFile(
-                projectDirectory.file(
-                    String.format("docs/reference/migration/migrate_%d_%d.asciidoc", version.getMajor(), version.getMinor())
-                )
-            );
-            task.setMigrationIndexTemplate(projectDirectory.file(RESOURCES + "templates/migration-index.asciidoc"));
-            task.setMigrationIndexFile(projectDirectory.file("docs/reference/migration/index.asciidoc"));
+            task.setBreakingChangesTemplate(projectDirectory.file(RESOURCES + "templates/breaking-changes.md"));
+            task.setBreakingChangesFile(projectDirectory.file("docs/release-notes/breaking-changes.md"));
+
+            task.setDeprecationsTemplate(projectDirectory.file(RESOURCES + "templates/deprecations.md"));
+            task.setDeprecationsFile(projectDirectory.file("docs/release-notes/deprecations.md"));
+
+            task.setChangelogBundleDirectory(changeLogBundlesDirectory);
+
+            task.getOutputs().upToDateWhen(o -> false);
 
             task.dependsOn(validateChangelogsTask);
         };
 
-        project.getTasks().register("generateReleaseNotes", GenerateReleaseNotesTask.class).configure(configureGenerateTask.apply(true));
-        project.getTasks()
-            .register("generateStubReleaseNotes", GenerateReleaseNotesTask.class)
-            .configure(configureGenerateTask.apply(false));
+        project.getTasks().register("bundleChangelogs", BundleChangelogsTask.class).configure(configureBundleTask);
+        project.getTasks().register("generateReleaseNotes", GenerateReleaseNotesTask.class).configure(configureGenerateTask);
 
         project.getTasks().register("pruneChangelogs", PruneChangelogsTask.class).configure(task -> {
             task.setGroup("Documentation");
@@ -119,5 +120,17 @@ public class ReleaseToolsPlugin implements Plugin<Project> {
         });
 
         project.getTasks().named("precommit").configure(task -> task.dependsOn(validateChangelogsTask));
+    }
+
+    private static List<BundleChangelogsTask.ExternalChangelogSource> loadExternalSources() {
+        try (InputStream is = ReleaseToolsPlugin.class.getClassLoader().getResourceAsStream(EXTERNAL_SOURCES_CONFIG)) {
+            if (is == null) {
+                return List.of();
+            }
+            ObjectMapper mapper = new ObjectMapper(new YAMLFactory());
+            return mapper.readValue(is, new TypeReference<>() {});
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to load " + EXTERNAL_SOURCES_CONFIG, e);
+        }
     }
 }

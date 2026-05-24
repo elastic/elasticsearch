@@ -11,6 +11,7 @@ package org.elasticsearch.repositories.azure;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -21,8 +22,11 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.repositories.RepositoriesMetrics;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.MeteredBlobStoreRepository;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
@@ -102,6 +106,15 @@ public class AzureRepository extends MeteredBlobStoreRepository {
          * The maximum number of concurrent batch deletes
          */
         static final Setting<Integer> MAX_CONCURRENT_BATCH_DELETES_SETTING = Setting.intSetting("max_concurrent_batch_deletes", 10, 1, 100);
+
+        /**
+         * Duration between each poll for the copy status during a copy operation
+         */
+        static final Setting<TimeValue> COPY_POLL_INTERVAL = Setting.timeSetting(
+            "copy_poll_interval",
+            TimeValue.timeValueSeconds(1),
+            Property.NodeScope
+        );
     }
 
     private final ByteSizeValue chunkSize;
@@ -110,22 +123,26 @@ public class AzureRepository extends MeteredBlobStoreRepository {
     private final RepositoriesMetrics repositoriesMetrics;
 
     public AzureRepository(
+        @Nullable final ProjectId projectId,
         final RepositoryMetadata metadata,
         final NamedXContentRegistry namedXContentRegistry,
         final AzureStorageService storageService,
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        final RepositoriesMetrics repositoriesMetrics
+        final RepositoriesMetrics repositoriesMetrics,
+        final SnapshotMetrics snapshotMetrics
     ) {
         super(
+            projectId,
             metadata,
             namedXContentRegistry,
             clusterService,
             bigArrays,
             recoverySettings,
             buildBasePath(metadata),
-            buildLocation(metadata)
+            buildLocation(metadata),
+            snapshotMetrics
         );
         this.chunkSize = Repository.CHUNK_SIZE_SETTING.get(metadata.settings());
         this.storageService = storageService;
@@ -171,7 +188,7 @@ public class AzureRepository extends MeteredBlobStoreRepository {
 
     @Override
     protected AzureBlobStore createBlobStore() {
-        final AzureBlobStore blobStore = new AzureBlobStore(metadata, storageService, bigArrays, repositoriesMetrics);
+        final AzureBlobStore blobStore = new AzureBlobStore(getProjectId(), metadata, storageService, bigArrays, repositoriesMetrics);
 
         logger.debug(
             () -> format(
@@ -197,6 +214,6 @@ public class AzureRepository extends MeteredBlobStoreRepository {
 
     @Override
     protected Set<String> getExtraUsageFeatures() {
-        return storageService.getExtraUsageFeatures(Repository.CLIENT_NAME.get(getMetadata().settings()));
+        return storageService.getExtraUsageFeatures(getProjectId(), Repository.CLIENT_NAME.get(getMetadata().settings()));
     }
 }

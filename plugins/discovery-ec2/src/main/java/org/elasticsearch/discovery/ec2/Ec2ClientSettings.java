@@ -63,7 +63,7 @@ final class Ec2ClientSettings {
     );
 
     /** Previously, the protocol to use to connect to ec2, but now has no effect */
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // no longer used, should be removed in v10
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED) // no longer used, should be removed in v10
     static final Setting<HttpScheme> PROTOCOL_SETTING = new Setting<>(
         "discovery.ec2.protocol",
         "https",
@@ -71,7 +71,6 @@ final class Ec2ClientSettings {
         Property.NodeScope,
         Property.Deprecated
     );
-    // NOMERGE should we now reject this if set to `http` or just silently ignore it?
 
     /** The username of a proxy to connect to EC2 through. */
     static final Setting<SecureString> PROXY_USERNAME_SETTING = SecureSetting.secureString("discovery.ec2.proxy.username", null);

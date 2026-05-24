@@ -23,6 +23,7 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 
 /**
  * The Authenticator interface represents an authentication mechanism or a group of similar authentication mechanisms.
@@ -37,7 +38,7 @@ public interface Authenticator {
     /**
      * Attempt to Extract an {@link AuthenticationToken} from the given {@link Context}.
      * @param context The context object encapsulating current request and other information relevant for authentication.
-     *
+
      * @return An {@link AuthenticationToken} if one can be extracted or null if this Authenticator cannot
      *         extract one.
      */
@@ -240,6 +241,18 @@ public interface Authenticator {
             if (false == getUnsuccessfulMessages().isEmpty()) {
                 ese.addMetadata("es.additional_unsuccessful_credentials", getUnsuccessfulMessages());
             }
+        }
+
+        @Override
+        public String toString() {
+            return Strings.format(
+                "%s{tokens=%s, messages=%s}",
+                getClass().getSimpleName(),
+                this.authenticationTokens.stream()
+                    .map(t -> t.getClass().getSimpleName() + ":" + t.principal())
+                    .collect(Collectors.joining(",", "[", "]")),
+                this.unsuccessfulMessages
+            );
         }
     }
 }

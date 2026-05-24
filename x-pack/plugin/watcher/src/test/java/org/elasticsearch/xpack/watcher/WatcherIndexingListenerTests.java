@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -30,10 +31,12 @@ import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.core.NotMultiProjectCapable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.core.watcher.WatcherState;
@@ -41,8 +44,6 @@ import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.elasticsearch.xpack.core.watcher.watch.Watch;
 import org.elasticsearch.xpack.core.watcher.watch.WatchStatus;
 import org.elasticsearch.xpack.watcher.WatcherIndexingListener.Configuration;
-import org.elasticsearch.xpack.watcher.WatcherIndexingListener.ShardAllocationConfiguration;
-import org.elasticsearch.xpack.watcher.trigger.TriggerService;
 import org.elasticsearch.xpack.watcher.watch.WatchParser;
 import org.junit.Before;
 
@@ -59,7 +60,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.stream.Stream;
 
-import static java.util.Arrays.asList;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.xpack.watcher.WatcherIndexingListener.INACTIVE;
@@ -81,17 +81,21 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     private WatcherIndexingListener listener;
     private WatchParser parser = mock(WatchParser.class);
     private ClockMock clock = new ClockMock();
-    private TriggerService triggerService = mock(TriggerService.class);
+    private WatcherEventConsumer watcherEventConsumer = mock(WatcherEventConsumer.class);
 
     private ShardId shardId = mock(ShardId.class);
     private Engine.IndexResult result = mock(Engine.IndexResult.class);
     private Engine.Index operation = mock(Engine.Index.class);
     private Engine.Delete delete = mock(Engine.Delete.class);
+    @NotMultiProjectCapable(description = "Watcher is not available in serverless")
+    private final ProjectId projectId = ProjectId.DEFAULT;
 
     @Before
     public void setup() throws Exception {
         clock.freeze();
-        listener = new WatcherIndexingListener(parser, clock, triggerService, () -> WatcherState.STARTED);
+        // Wire onWatchActive/onWatchInactive directly to triggerService so the existing verify(triggerService)
+        // assertions still observe what the listener decides to do.
+        listener = new WatcherIndexingListener(parser, clock, watcherEventConsumer, () -> WatcherState.STARTED);
 
         Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
         map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
@@ -118,7 +122,9 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
     public void testPostIndex() throws Exception {
         when(operation.id()).thenReturn(randomAlphaOfLength(10));
-        when(operation.source()).thenReturn(BytesArray.EMPTY);
+        SourceToParse.Source source = mock(SourceToParse.Source.class);
+        when(source.originalBytes()).thenReturn(BytesArray.EMPTY);
+        when(operation.source()).thenReturn(source);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
         List<Engine.Result.Type> types = new ArrayList<>(List.of(Engine.Result.Type.values()));
         types.remove(Engine.Result.Type.FAILURE);
@@ -135,20 +141,22 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         if (isNewWatch) {
             if (watchActive) {
-                verify(triggerService).add(eq(watch));
+                verify(watcherEventConsumer).onWatchAdded(eq(watch));
             } else {
-                verify(triggerService).remove(eq("_id"));
+                verify(watcherEventConsumer).onWatchRemoved(eq("_id"));
             }
         }
     }
 
     public void testPostIndexWhenStopped() throws Exception {
-        listener = new WatcherIndexingListener(parser, clock, triggerService, () -> WatcherState.STOPPED);
+        listener = new WatcherIndexingListener(parser, clock, watcherEventConsumer, () -> WatcherState.STOPPED);
         Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
         map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
         listener.setConfiguration(new Configuration(Watch.INDEX, map));
         when(operation.id()).thenReturn(randomAlphaOfLength(10));
-        when(operation.source()).thenReturn(BytesArray.EMPTY);
+        SourceToParse.Source source = mock(SourceToParse.Source.class);
+        when(source.originalBytes()).thenReturn(BytesArray.EMPTY);
+        when(operation.source()).thenReturn(source);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
         List<Engine.Result.Type> types = new ArrayList<>(List.of(Engine.Result.Type.values()));
         types.remove(Engine.Result.Type.FAILURE);
@@ -162,11 +170,10 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         listener.postIndex(shardId, operation, result);
         ZonedDateTime now = DateUtils.nowWithMillisResolution(clock);
         verify(parser).parseWithSecrets(eq(operation.id()), eq(true), eq(BytesArray.EMPTY), eq(now), any(), anyLong(), anyLong());
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
-    // this test emulates an index with 10 shards, and ensures that triggering only happens on a
-    // single shard
+    // this test emulates an index with 10 shards and ensures that triggering only happens on a single shard
     public void testPostIndexWatchGetsOnlyTriggeredOnceAcrossAllShards() throws Exception {
         String id = randomAlphaOfLength(10);
         int totalShardCount = randomIntBetween(1, 10);
@@ -174,13 +181,14 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         boolean isNewWatch = randomBoolean();
         Watch watch = mockWatch(id, watchActive, isNewWatch);
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
-
+        SourceToParse.Source source = mock(SourceToParse.Source.class);
+        when(source.originalBytes()).thenReturn(BytesArray.EMPTY);
+        when(operation.source()).thenReturn(source);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
         when(parser.parseWithSecrets(any(), eq(true), any(), any(), any(), anyLong(), anyLong())).thenReturn(watch);
 
         for (int idx = 0; idx < totalShardCount; idx++) {
-            final Map<ShardId, ShardAllocationConfiguration> localShards = new HashMap<>();
-            localShards.put(shardId, new ShardAllocationConfiguration(idx, totalShardCount, Collections.emptyList()));
+            final var localShards = Map.of(shardId, new ShardAllocationConfiguration(idx, totalShardCount, List.of()));
             Configuration configuration = new Configuration(Watch.INDEX, localShards);
             listener.setConfiguration(configuration);
             listener.postIndex(shardId, operation, result);
@@ -189,9 +197,9 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         // no matter how many shards we had, this should have been only called once
         if (isNewWatch) {
             if (watchActive) {
-                verify(triggerService, times(1)).add(eq(watch));
+                verify(watcherEventConsumer, times(1)).onWatchAdded(eq(watch));
             } else {
-                verify(triggerService, times(1)).remove(eq(watch.id()));
+                verify(watcherEventConsumer, times(1)).onWatchRemoved(eq(watch.id()));
             }
         }
     }
@@ -218,7 +226,9 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     public void testPostIndexCheckParsingException() throws Exception {
         String id = randomAlphaOfLength(10);
         when(operation.id()).thenReturn(id);
-        when(operation.source()).thenReturn(BytesArray.EMPTY);
+        SourceToParse.Source source = mock(SourceToParse.Source.class);
+        when(source.originalBytes()).thenReturn(BytesArray.EMPTY);
+        when(operation.source()).thenReturn(source);
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
         when(parser.parseWithSecrets(any(), eq(true), any(), any(), any(), anyLong(), anyLong())).thenThrow(new IOException("self thrown"));
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
@@ -238,7 +248,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
         listener.postIndex(shardId, operation, result);
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPostIndexRemoveTriggerOnDocumentRelatedException_ignoreNonWatcherDocument() throws Exception {
@@ -248,7 +258,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(shardId.getIndexName()).thenReturn(randomAlphaOfLength(4));
 
         listener.postIndex(shardId, operation, result);
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPostIndexRemoveTriggerOnEngineLevelException() throws Exception {
@@ -256,7 +266,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(shardId.getIndexName()).thenReturn(Watch.INDEX);
 
         listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPostIndexRemoveTriggerOnEngineLevelException_ignoreNonWatcherDocument() throws Exception {
@@ -265,14 +275,14 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(result.getResultType()).thenReturn(Engine.Result.Type.SUCCESS);
 
         listener.postIndex(shardId, operation, new ElasticsearchParseException("whatever"));
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPreDeleteCheckActive() throws Exception {
         listener.setConfiguration(INACTIVE);
         listener.preDelete(shardId, delete);
 
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPreDeleteCheckIndex() throws Exception {
@@ -280,7 +290,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         listener.preDelete(shardId, delete);
 
-        verifyNoMoreInteractions(triggerService);
+        verifyNoMoreInteractions(watcherEventConsumer);
     }
 
     public void testPreDelete() throws Exception {
@@ -289,7 +299,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         listener.preDelete(shardId, delete);
 
-        verify(triggerService).remove(eq("_id"));
+        verify(watcherEventConsumer).onWatchRemoved(eq("_id"));
     }
 
     //
@@ -303,9 +313,8 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     }
 
     public void testClusterChangedNoWatchIndex() throws Exception {
-        Map<ShardId, ShardAllocationConfiguration> map = new HashMap<>();
-        map.put(shardId, new ShardAllocationConfiguration(0, 1, Collections.singletonList("foo")));
-        Configuration randomConfiguration = new Configuration(randomAlphaOfLength(10), map);
+        final var localShards = Map.of(shardId, new ShardAllocationConfiguration(0, 1, List.of("foo")));
+        Configuration randomConfiguration = new Configuration(randomAlphaOfLength(10), localShards);
         listener.setConfiguration(randomConfiguration);
 
         ClusterState clusterState = mockClusterState(null);
@@ -324,7 +333,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(routingTable.hasIndex(eq(newActiveWatchIndex))).thenReturn(true);
 
         ClusterState currentClusterState = mockClusterState(newActiveWatchIndex);
-        when(currentClusterState.routingTable()).thenReturn(routingTable);
+        when(currentClusterState.routingTable(projectId)).thenReturn(routingTable);
         DiscoveryNodes nodes = DiscoveryNodes.builder().add(newNode("node_1")).localNodeId("node_1").build();
         when(currentClusterState.getNodes()).thenReturn(nodes);
         RoutingNodes routingNodes = mock(RoutingNodes.class);
@@ -347,7 +356,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         when(currentClusterState.getRoutingNodes()).thenReturn(routingNodes);
 
         ClusterState previousClusterState = mockClusterState(randomAlphaOfLength(8));
-        when(previousClusterState.routingTable()).thenReturn(routingTable);
+        when(previousClusterState.routingTable(projectId)).thenReturn(routingTable);
 
         ClusterChangedEvent event = new ClusterChangedEvent("something", currentClusterState, previousClusterState);
         listener.clusterChanged(event);
@@ -364,12 +373,12 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         IndexRoutingTable watchRoutingTable = IndexRoutingTable.builder(index).build();
         ClusterState previousState = ClusterState.builder(new ClusterName("my-cluster"))
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")))
-            .routingTable(RoutingTable.builder().add(watchRoutingTable).build())
+            .putRoutingTable(projectId, RoutingTable.builder().add(watchRoutingTable).build())
             .build();
 
         ClusterState currentState = ClusterState.builder(new ClusterName("my-cluster"))
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(newNode("node_1")).add(newNode("node_2")))
-            .routingTable(RoutingTable.builder().add(watchRoutingTable).build())
+            .putRoutingTable(projectId, RoutingTable.builder().add(watchRoutingTable).build())
             .build();
 
         Configuration configuration = listener.getConfiguration();
@@ -397,14 +406,14 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         );
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting).build();
 
-        Map<ShardId, ShardAllocationConfiguration> allocationIds = WatcherIndexingListener.getLocalShardAllocationIds(
-            asList(shardRouting),
+        Map<ShardId, ShardAllocationConfiguration> allocationIds = ShardAllocationConfiguration.forLocalShards(
+            List.of(shardRouting),
             indexRoutingTable
         );
 
         assertThat(allocationIds.size(), is(1));
-        assertThat(allocationIds.get(shardId).index, is(0));
-        assertThat(allocationIds.get(shardId).shardCount, is(1));
+        assertThat(allocationIds.get(shardId).index(), is(0));
+        assertThat(allocationIds.get(shardId).shardCount(), is(1));
     }
 
     public void testCheckAllocationIdsWithoutShards() throws Exception {
@@ -413,8 +422,8 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         ShardRouting shardRouting = TestShardRouting.newShardRouting(shardId, "other", true, STARTED);
         IndexRoutingTable indexRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting).build();
 
-        Map<ShardId, ShardAllocationConfiguration> allocationIds = WatcherIndexingListener.getLocalShardAllocationIds(
-            Collections.emptyList(),
+        Map<ShardId, ShardAllocationConfiguration> allocationIds = ShardAllocationConfiguration.forLocalShards(
+            List.of(),
             indexRoutingTable
         );
         assertThat(allocationIds.size(), is(0));
@@ -437,7 +446,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
             .addShard(TestShardRouting.newShardRouting(secondShardId, "node2", false, STARTED))
             .build();
 
-        Map<ShardId, ShardAllocationConfiguration> allocationIds = WatcherIndexingListener.getLocalShardAllocationIds(
+        Map<ShardId, ShardAllocationConfiguration> allocationIds = ShardAllocationConfiguration.forLocalShards(
             localShards,
             indexRoutingTable
         );
@@ -456,7 +465,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
             ShardAllocationConfiguration sac = new ShardAllocationConfiguration(currentShardId, numberOfShards, Collections.emptyList());
 
             for (int i = 0; i < numberOfDocuments; i++) {
-                boolean shouldBeTriggered = sac.shouldBeTriggered("watch_" + i);
+                boolean shouldBeTriggered = sac.hostsWatch("watch_" + i);
                 boolean hasAlreadyBeenTriggered = bitSet.get(i);
                 if (shouldBeTriggered) {
                     String message = Strings.format("Watch [%s] has already been " + "triggered", i);
@@ -492,9 +501,9 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         IndexMetadata.Builder indexMetadataBuilder = createIndexBuilder(Watch.INDEX, 1, 0);
 
         ClusterState previousState = ClusterState.builder(new ClusterName("my-cluster"))
-            .metadata(Metadata.builder().put(indexMetadataBuilder))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadataBuilder))
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(node1).add(node2).add(node3))
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
+            .putRoutingTable(projectId, RoutingTable.builder().add(indexRoutingTable).build())
             .build();
 
         IndexMetadata.Builder newIndexMetadataBuilder = createIndexBuilder(Watch.INDEX, 1, 1);
@@ -502,9 +511,9 @@ public class WatcherIndexingListenerTests extends ESTestCase {
         ShardRouting replicaShardRouting = TestShardRouting.newShardRouting(shardId, "node3", false, STARTED);
         IndexRoutingTable.Builder newRoutingTable = IndexRoutingTable.builder(index).addShard(shardRouting).addShard(replicaShardRouting);
         ClusterState currentState = ClusterState.builder(new ClusterName("my-cluster"))
-            .metadata(Metadata.builder().put(newIndexMetadataBuilder))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(newIndexMetadataBuilder))
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(node1).add(node2).add(node3))
-            .routingTable(RoutingTable.builder().add(newRoutingTable).build())
+            .putRoutingTable(projectId, RoutingTable.builder().add(newRoutingTable).build())
             .build();
 
         ClusterChangedEvent event = new ClusterChangedEvent("something", currentState, previousState);
@@ -526,9 +535,9 @@ public class WatcherIndexingListenerTests extends ESTestCase {
             .addShard(TestShardRouting.newShardRouting(firstShardId, "node_2", false, STARTED));
 
         ClusterState previousState = ClusterState.builder(new ClusterName("my-cluster"))
-            .metadata(Metadata.builder().put(indexMetadataBuilder))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadataBuilder))
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(node1).add(node2))
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
+            .putRoutingTable(projectId, RoutingTable.builder().add(indexRoutingTable).build())
             .build();
 
         IndexMetadata.Builder currentMetadataBuilder = createIndexBuilder(Watch.INDEX, 2, 1);
@@ -543,9 +552,9 @@ public class WatcherIndexingListenerTests extends ESTestCase {
             .addShard(TestShardRouting.newShardRouting(watchShardId, "node_2", false, STARTED));
 
         ClusterState currentState = ClusterState.builder(new ClusterName("my-cluster"))
-            .metadata(Metadata.builder().put(currentMetadataBuilder))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(currentMetadataBuilder))
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(node1).add(node2))
-            .routingTable(RoutingTable.builder().add(currentRoutingTable).build())
+            .putRoutingTable(projectId, RoutingTable.builder().add(currentRoutingTable).build())
             .build();
 
         listener.setConfiguration(INACTIVE);
@@ -588,9 +597,9 @@ public class WatcherIndexingListenerTests extends ESTestCase {
             .addShard(secondShardRoutingReplica);
 
         ClusterState previousState = ClusterState.builder(new ClusterName("my-cluster"))
-            .metadata(Metadata.builder().put(indexMetadataBuilder))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(indexMetadataBuilder))
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId(localNode).add(node1).add(node2).add(node3).add(node4))
-            .routingTable(RoutingTable.builder().add(indexRoutingTable).build())
+            .putRoutingTable(projectId, RoutingTable.builder().add(indexRoutingTable).build())
             .build();
 
         ClusterState emptyState = ClusterState.builder(new ClusterName("my-cluster"))
@@ -611,9 +620,9 @@ public class WatcherIndexingListenerTests extends ESTestCase {
             .addShard(secondShardRoutingPrimary);
 
         ClusterState currentState = ClusterState.builder(new ClusterName("my-cluster"))
-            .metadata(Metadata.builder().put(newIndexMetadataBuilder))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put(newIndexMetadataBuilder))
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId(localNode).add(node1).add(node2).add(node3).add(node4))
-            .routingTable(RoutingTable.builder().add(newRoutingTable).build())
+            .putRoutingTable(projectId, RoutingTable.builder().add(newRoutingTable).build())
             .build();
 
         ClusterChangedEvent nodeGoneEvent = new ClusterChangedEvent("something", currentState, previousState);
@@ -636,9 +645,11 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         // regular cluster state with correct single alias pointing to watches index
         ClusterState previousState = ClusterState.builder(new ClusterName("my-cluster"))
-            .metadata(Metadata.builder().put(createIndexBuilder("foo", 1, 0).putAlias(AliasMetadata.builder(Watch.INDEX))))
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId).put(createIndexBuilder("foo", 1, 0).putAlias(AliasMetadata.builder(Watch.INDEX)))
+            )
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(node1))
-            .routingTable(RoutingTable.builder().add(fooIndexRoutingTable).build())
+            .putRoutingTable(projectId, RoutingTable.builder().add(fooIndexRoutingTable).build())
             .build();
 
         // index bar pointing to .watches
@@ -650,11 +661,15 @@ public class WatcherIndexingListenerTests extends ESTestCase {
 
         // cluster state with two indices pointing to the .watches index
         ClusterState currentState = ClusterState.builder(new ClusterName("my-cluster"))
-            .metadata(
-                Metadata.builder().put(createIndexBuilder("foo", 1, 0).putAlias(AliasMetadata.builder(Watch.INDEX))).put(barIndexMetadata)
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId)
+                    .put(createIndexBuilder("foo", 1, 0).putAlias(AliasMetadata.builder(Watch.INDEX)))
+                    .put(barIndexMetadata)
+                    .build()
             )
             .nodes(new DiscoveryNodes.Builder().masterNodeId("node_1").localNodeId("node_1").add(node1))
-            .routingTable(
+            .putRoutingTable(
+                projectId,
                 RoutingTable.builder().add(IndexRoutingTable.builder(fooIndex).addShard(fooShardRouting)).add(barIndexRoutingTable).build()
             )
             .build();
@@ -699,7 +714,7 @@ public class WatcherIndexingListenerTests extends ESTestCase {
     private ClusterState mockClusterState(String watchIndex) {
         Metadata metadata = mock(Metadata.class);
         ProjectMetadata projectMetadata = mock(ProjectMetadata.class);
-        when(metadata.getProject()).thenReturn(projectMetadata);
+        when(metadata.getProject(projectId)).thenReturn(projectMetadata);
         if (watchIndex == null) {
             when(projectMetadata.getIndicesLookup()).thenReturn(Collections.emptySortedMap());
         } else {

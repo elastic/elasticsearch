@@ -9,10 +9,14 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.analysis.TokenStream;
 import org.apache.lucene.analysis.synonym.SynonymFilter;
 import org.apache.lucene.analysis.synonym.SynonymMap;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
@@ -27,12 +31,17 @@ import org.elasticsearch.index.analysis.TokenFilterFactory;
 import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.synonyms.SynonymsManagementAPIService;
 
+import java.io.IOException;
 import java.io.Reader;
 import java.io.StringReader;
+import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.function.Function;
 
 public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
+    private static final Logger LOGGER = LogManager.getLogger(SynonymTokenFilterFactory.class);
+
+    private static final SynonymMap EMPTY_SYNONYM_MAP = buildEmptySynonymMap();
 
     protected enum SynonymsSource {
         INLINE("synonyms") {
@@ -137,13 +146,15 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
     protected final AnalysisMode analysisMode;
     private final SynonymsManagementAPIService synonymsManagementAPIService;
     protected final SynonymsSource synonymsSource;
+    protected final CircuitBreaker circuitBreaker;
 
     SynonymTokenFilterFactory(
         IndexSettings indexSettings,
         Environment env,
         String name,
         Settings settings,
-        SynonymsManagementAPIService synonymsManagementAPIService
+        SynonymsManagementAPIService synonymsManagementAPIService,
+        CircuitBreaker circuitBreaker
     ) {
         super(name);
         this.settings = settings;
@@ -159,6 +170,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         this.analysisMode = updateable ? AnalysisMode.SEARCH_TIME : AnalysisMode.ALL;
         this.environment = env;
         this.synonymsManagementAPIService = synonymsManagementAPIService;
+        this.circuitBreaker = circuitBreaker;
     }
 
     @Override
@@ -182,7 +194,20 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         final Analyzer analyzer = buildSynonymAnalyzer(tokenizer, charFilters, previousTokenFilters);
         ReaderWithOrigin rulesReader = synonymsSource.getRulesReader(this, context);
         final SynonymMap synonyms = buildSynonyms(analyzer, rulesReader);
-        final String name = name();
+        return buildChainedFactory(name(), synonyms, analysisMode, rulesReader.resource(), ts -> new SynonymFilter(ts, synonyms, false));
+    }
+
+    /**
+     * Static so the returned factory does not hold a reference to the outer instance,
+     * allowing the outer factory's raw synonym rule strings to be GC'd after {@link SynonymMap} construction.
+     */
+    protected static TokenFilterFactory buildChainedFactory(
+        String name,
+        SynonymMap synonyms,
+        AnalysisMode analysisMode,
+        String resourceName,
+        Function<TokenStream, TokenStream> createFilter
+    ) {
         return new TokenFilterFactory() {
             @Override
             public String name() {
@@ -191,14 +216,24 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
             @Override
             public TokenStream create(TokenStream tokenStream) {
-                return synonyms.fst == null ? tokenStream : new SynonymFilter(tokenStream, synonyms, false);
+                return synonyms.fst == null ? tokenStream : createFilter.apply(tokenStream);
             }
 
             @Override
             public TokenFilterFactory getSynonymFilter() {
-                // In order to allow chained synonym filters, we return IDENTITY here to
-                // ensure that synonyms don't get applied to the synonym map itself,
-                // which doesn't support stacked input tokens
+                // When building a synonym filter, we must prevent previous synonym filters in the chain
+                // from being active, as this would cause recursive synonym expansion during the building phase.
+                //
+                // Without this fix, when chaining multiple synonym filters (e.g., synonym_A → synonym_B → synonym_C),
+                // building synonym_C would use an analyzer containing active synonym_A and synonym_B filters.
+                // This causes:
+                // 1. Recursive synonym expansion when parsing synonym rules (e.g., synonyms are expanded via previous filters)
+                // 2. Each SynonymMap inflates since it applies all previous synonym rules again
+                // 3. Triggering O(n²) operations in SynonymGraphFilter.bufferOutputTokens()
+                // 4. Massive memory allocation during analyzer reload → OutOfMemoryError
+                //
+                // This matches the behavior of SynonymTokenFilterFactory and prevents OOM with chained
+                // synonym filters (critical for users with many chained synonym sets).
                 return IDENTITY_FILTER;
             }
 
@@ -209,7 +244,7 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
 
             @Override
             public String getResourceName() {
-                return rulesReader.resource();
+                return resourceName;
             }
         };
     }
@@ -230,21 +265,35 @@ public class SynonymTokenFilterFactory extends AbstractTokenFilterFactory {
         try {
             SynonymMap.Builder parser;
             if ("wordnet".equalsIgnoreCase(format)) {
-                parser = new ESWordnetSynonymParser(true, expand, lenient, analyzer);
+                parser = new ESWordnetSynonymParser(true, expand, lenient, analyzer, circuitBreaker);
                 ((ESWordnetSynonymParser) parser).parse(rules.reader);
             } else {
-                parser = new ESSolrSynonymParser(true, expand, lenient, analyzer);
+                parser = new ESSolrSynonymParser(true, expand, lenient, analyzer, circuitBreaker);
                 ((ESSolrSynonymParser) parser).parse(rules.reader);
             }
             return parser.build();
         } catch (Exception e) {
-            throw new IllegalArgumentException("failed to build synonyms from [" + rules.origin + "]", e);
+            String message = "failed to build synonyms from [" + rules.origin + "]";
+            if (lenient && e instanceof CircuitBreakingException) {
+                LOGGER.error(message + ". Using an empty synonyms map in its place because lenient=true.", e);
+                return EMPTY_SYNONYM_MAP;
+            }
+
+            throw new IllegalArgumentException(message, e);
         }
     }
 
     record ReaderWithOrigin(Reader reader, String origin, String resource) {
         ReaderWithOrigin(Reader reader, String origin) {
             this(reader, origin, null);
+        }
+    }
+
+    private static SynonymMap buildEmptySynonymMap() {
+        try {
+            return new SynonymMap.Builder().build();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 }

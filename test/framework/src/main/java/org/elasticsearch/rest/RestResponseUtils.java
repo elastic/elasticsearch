@@ -12,14 +12,19 @@ package org.elasticsearch.rest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.io.StringWriter;
 import java.io.Writer;
 import java.util.Iterator;
 
+import static org.elasticsearch.test.ESTestCase.asInstanceOf;
+import static org.elasticsearch.test.ESTestCase.fail;
 import static org.elasticsearch.transport.BytesRefRecycler.NON_RECYCLING_INSTANCE;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.when;
 
 public class RestResponseUtils {
     private RestResponseUtils() {}
@@ -48,7 +53,7 @@ public class RestResponseUtils {
             out.flush();
             return out.bytes();
         } catch (Exception e) {
-            return ESTestCase.fail(e);
+            return fail(e);
         }
     }
 
@@ -60,7 +65,18 @@ public class RestResponseUtils {
             writer.flush();
             return writer.toString();
         } catch (Exception e) {
-            return ESTestCase.fail(e);
+            return fail(e);
         }
+    }
+
+    public static <T extends ToXContent> T setUpXContentMock(T mock) {
+        try {
+            when(mock.toXContent(any(), any())).thenAnswer(
+                invocation -> asInstanceOf(XContentBuilder.class, invocation.getArgument(0)).startObject().endObject()
+            );
+        } catch (IOException e) {
+            fail(e);
+        }
+        return mock;
     }
 }

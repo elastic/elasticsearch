@@ -25,6 +25,9 @@ import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -65,6 +68,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
     private VerifyingClient client;
     private ClusterService clusterService;
     private ILMHistoryStore historyStore;
+    private ProjectId projectId;
 
     @Before
     public void setup() {
@@ -83,13 +87,21 @@ public class ILMHistoryStoreTests extends ESTestCase {
             NamedXContentRegistry.EMPTY
         );
         ClusterState state = clusterService.state();
+        projectId = randomProjectIdOrDefault();
         ClusterServiceUtils.setState(
             clusterService,
             ClusterState.builder(state)
-                .metadata(Metadata.builder(state.metadata()).indexTemplates(registry.getComposableTemplateConfigs()))
+                .putProjectMetadata(ProjectMetadata.builder(projectId).indexTemplates(registry.getComposableTemplateConfigs()))
                 .build()
         );
-        historyStore = new ILMHistoryStore(client, clusterService, threadPool, ActionListener.noop(), TimeValue.timeValueMillis(500));
+        historyStore = new ILMHistoryStore(
+            client,
+            clusterService,
+            threadPool,
+            TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()),
+            ActionListener.noop(),
+            TimeValue.timeValueMillis(500)
+        );
     }
 
     @After
@@ -115,7 +127,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
             latch.countDown();
             return null;
         });
-        historyStore.putAsync(record);
+        historyStore.putAsync(projectId, record);
         assertFalse(latch.await(2, TimeUnit.SECONDS));
     }
 
@@ -156,7 +168,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 );
             });
 
-            historyStore.putAsync(record);
+            historyStore.putAsync(projectId, record);
             assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
         }
 
@@ -207,7 +219,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
                 );
             });
 
-            historyStore.putAsync(record);
+            historyStore.putAsync(projectId, record);
             assertBusy(() -> assertThat(calledTimes.get(), equalTo(1)));
         }
     }
@@ -255,23 +267,32 @@ public class ILMHistoryStoreTests extends ESTestCase {
             );
             return bulkItemResponse;
         });
-        try (ILMHistoryStore localHistoryStore = new ILMHistoryStore(client, clusterService, threadPool, new ActionListener<>() {
-            @Override
-            public void onResponse(BulkResponse response) {
-                int itemsInResponse = response.getItems().length;
-                actions.addAndGet(itemsInResponse);
-                for (int i = 0; i < itemsInResponse; i++) {
-                    latch.countDown();
-                }
-                logger.info("cumulative responses: {}", actions.get());
-            }
+        try (
+            ILMHistoryStore localHistoryStore = new ILMHistoryStore(
+                client,
+                clusterService,
+                threadPool,
+                TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()),
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(BulkResponse response) {
+                        int itemsInResponse = response.getItems().length;
+                        actions.addAndGet(itemsInResponse);
+                        for (int i = 0; i < itemsInResponse; i++) {
+                            latch.countDown();
+                        }
+                        logger.info("cumulative responses: {}", actions.get());
+                    }
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error(e);
-                fail(e.getMessage());
-            }
-        }, TimeValue.timeValueMillis(randomIntBetween(50, 1000)))) {
+                    @Override
+                    public void onFailure(Exception e) {
+                        logger.error(e);
+                        fail(e.getMessage());
+                    }
+                },
+                TimeValue.timeValueMillis(randomIntBetween(50, 1000))
+            )
+        ) {
             for (int i = 0; i < numberOfDocs; i++) {
                 ILMHistoryItem record1 = ILMHistoryItem.success(
                     "index",
@@ -280,7 +301,7 @@ public class ILMHistoryStoreTests extends ESTestCase {
                     10L,
                     LifecycleExecutionState.builder().setPhase("phase").build()
                 );
-                localHistoryStore.putAsync(record1);
+                localHistoryStore.putAsync(projectId, record1);
             }
             latch.await(5, TimeUnit.SECONDS);
             assertThat(actions.get(), equalTo(numberOfDocs));

@@ -31,7 +31,7 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class ReloadAnalyzersResponseTests extends AbstractBroadcastResponseTestCase<ReloadAnalyzersResponse> {
 
     @SuppressWarnings({ "unchecked" })
-    private static final ConstructingObjectParser<ReloadAnalyzersResponse, Void> PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<ReloadAnalyzersResponse, Void> PARSER = new ConstructingObjectParser<>(
         "reload_analyzer",
         true,
         arg -> {
@@ -67,8 +67,8 @@ public class ReloadAnalyzersResponseTests extends AbstractBroadcastResponseTestC
         declareBroadcastFields(PARSER);
         PARSER.declareObjectArray(constructorArg(), ENTRY_PARSER, ReloadAnalyzersResponse.RELOAD_DETAILS_FIELD);
         ENTRY_PARSER.declareString(constructorArg(), ReloadAnalyzersResponse.INDEX_FIELD);
-        ENTRY_PARSER.declareStringArray(constructorArg(), ReloadAnalyzersResponse.RELOADED_ANALYZERS_FIELD);
         ENTRY_PARSER.declareStringArray(constructorArg(), ReloadAnalyzersResponse.RELOADED_NODE_IDS_FIELD);
+        ENTRY_PARSER.declareStringArray(constructorArg(), ReloadAnalyzersResponse.RELOADED_ANALYZERS_FIELD);
     }
 
     @Override
@@ -130,7 +130,7 @@ public class ReloadAnalyzersResponseTests extends AbstractBroadcastResponseTestC
             response,
             writableRegistry(),
             ReloadAnalyzersResponse::new,
-            TransportVersionUtils.randomVersion(random())
+            TransportVersionUtils.randomVersion()
         );
         assertEquals(response.getReloadDetails(), copy.getReloadDetails());
     }

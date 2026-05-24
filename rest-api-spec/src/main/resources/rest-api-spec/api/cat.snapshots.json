@@ -1,67 +1,88 @@
 {
-  "cat.snapshots":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/cat-snapshots.html",
-      "description":"Returns all snapshots in a specific repository."
+  "cat.snapshots": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cat-snapshots",
+      "description": "Get snapshot information"
     },
-    "stability":"stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "text/plain", "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "text/plain",
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_cat/snapshots",
-          "methods":[
+          "path": "/_cat/snapshots",
+          "methods": [
             "GET"
           ]
         },
         {
-          "path":"/_cat/snapshots/{repository}",
-          "methods":[
+          "path": "/_cat/snapshots/{repository}",
+          "methods": [
             "GET"
           ],
-          "parts":{
-            "repository":{
-              "type":"list",
-              "description":"Name of repository from which to fetch the snapshot information"
+          "parts": {
+            "repository": {
+              "type": "list",
+              "description": "Name of repository from which to fetch the snapshot information"
             }
           }
         }
       ]
     },
-    "params":{
-      "format":{
-        "type":"string",
-        "description":"a short version of the Accept header, e.g. json, yaml"
+    "params": {
+      "format": {
+        "type": "string",
+        "default": "text",
+        "description": "a short version of the Accept header, e.g. json, yaml"
       },
-      "ignore_unavailable":{
-        "type":"boolean",
-        "description":"Set to true to ignore unavailable snapshots",
-        "default":false
+      "ignore_unavailable": {
+        "type": "boolean",
+        "description": "Set to true to ignore unavailable snapshots",
+        "default": false
       },
-      "master_timeout":{
-        "type":"time",
-        "description":"Explicit operation timeout for connection to master node"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Explicit operation timeout for connection to master node"
       },
-      "h":{
-        "type":"list",
-        "description":"Comma-separated list of column names to display"
+      "h": {
+        "type": "list",
+        "default": "ip,hp,rp,r,m,n,cpu,l",
+        "description": "Comma-separated list of column names to display",
+        "options": [
+          "id",
+          "repository",
+          "status",
+          "start_epoch",
+          "start_time",
+          "end_epoch",
+          "end_time",
+          "duration",
+          "indices",
+          "successful_shards",
+          "failed_shards",
+          "total_shards",
+          "reason"
+        ]
       },
-      "help":{
-        "type":"boolean",
-        "description":"Return help information",
-        "default":false
+      "help": {
+        "type": "boolean",
+        "description": "Return help information",
+        "default": false
       },
-      "s":{
-        "type":"list",
-        "description":"Comma-separated list of column names or column aliases to sort by"
+      "s": {
+        "type": "list",
+        "description": "Comma-separated list of column names or column aliases to sort by"
       },
-      "time":{
-        "type":"enum",
-        "description":"The unit in which to display time values",
-        "options":[
+      "time": {
+        "type": "enum",
+        "description": "The unit in which to display time values",
+        "options": [
           "d",
           "h",
           "m",
@@ -71,10 +92,22 @@
           "nanos"
         ]
       },
-      "v":{
-        "type":"boolean",
-        "description":"Verbose mode. Display column headers",
-        "default":false
+      "v": {
+        "type": "boolean",
+        "description": "Verbose mode. Display column headers",
+        "default": false
+      },
+      "bytes": {
+        "type": "enum",
+        "description": "The unit in which to display byte values",
+        "options": [
+          "b",
+          "kb",
+          "mb",
+          "gb",
+          "tb",
+          "pb"
+        ]
       }
     }
   }

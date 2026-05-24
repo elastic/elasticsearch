@@ -9,8 +9,6 @@
 
 package org.elasticsearch.test.jar;
 
-import org.elasticsearch.test.PrivilegedOperations.ClosableURLClassLoader;
-
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.OutputStream;
@@ -22,8 +20,6 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -101,10 +97,10 @@ public final class JarUtils {
      * @param path Path to the jar file to load
      * @return A URLClassLoader that will load classes from the jar. It should be closed when no longer needed.
      */
-    public static ClosableURLClassLoader loadJar(Path path) {
+    public static URLClassLoader loadJar(Path path) {
         try {
             URL[] urls = new URL[] { path.toUri().toURL() };
-            return new ClosableURLClassLoader(URLClassLoader.newInstance(urls, JarUtils.class.getClassLoader()));
+            return URLClassLoader.newInstance(urls, JarUtils.class.getClassLoader());
         } catch (MalformedURLException e) {
             throw new RuntimeException(e);
         }
@@ -113,9 +109,7 @@ public final class JarUtils {
     public static ModuleLayer.Controller loadModule(Path path, ClassLoader loader, String name) {
         var finder = ModuleFinder.of(path.getParent());
         var cf = Configuration.resolveAndBind(finder, List.of(ModuleLayer.boot().configuration()), ModuleFinder.of(), Set.of(name));
-        return AccessController.doPrivileged(
-            (PrivilegedAction<ModuleLayer.Controller>) () -> ModuleLayer.defineModulesWithOneLoader(cf, List.of(ModuleLayer.boot()), loader)
-        );
+        return ModuleLayer.defineModulesWithOneLoader(cf, List.of(ModuleLayer.boot()), loader);
     }
 
     @FunctionalInterface

@@ -8,18 +8,14 @@
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
-import org.apache.logging.log4j.Level;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.EmptySystemIndices;
@@ -120,12 +116,8 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.get(".b").size(), equalTo(1));
         assertThat(result.get("c").size(), equalTo(1));
         assertWarnings(
-            true,
-            new DeprecationWarning(
-                Level.WARN,
-                "this request accesses system indices: [.b], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
-            )
+            "this request accesses system indices: [.b], "
+                + "but in a future major version, direct access to system indices will be prevented by default"
         );
     }
 
@@ -149,12 +141,8 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
         assertWarnings(
-            true,
-            new DeprecationWarning(
-                Level.WARN,
-                "this request accesses system indices: [.b], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
-            )
+            "this request accesses system indices: [.b], "
+                + "but in a future major version, direct access to system indices will be prevented by default"
         );
     }
 
@@ -177,12 +165,8 @@ public class TransportGetAliasesActionTests extends ESTestCase {
         assertThat(result.size(), equalTo(1));
         assertThat(result.get(".b").size(), equalTo(1));
         assertWarnings(
-            true,
-            new DeprecationWarning(
-                Level.WARN,
-                "this request accesses system indices: [.b], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
-            )
+            "this request accesses system indices: [.b], "
+                + "but in a future major version, direct access to system indices will be prevented by default"
         );
     }
 
@@ -233,13 +217,11 @@ public class TransportGetAliasesActionTests extends ESTestCase {
     public void testPostProcessDataStreamAliases() {
         var resolver = TestIndexNameExpressionResolver.newInstance();
         var tuples = List.of(new Tuple<>("logs-foo", 1), new Tuple<>("logs-bar", 1), new Tuple<>("logs-baz", 1));
-        @FixForMultiProject(description = "update the helper method to random for non-default project")
-        var clusterState = DataStreamTestHelper.getClusterStateWithDataStreams(tuples, List.of());
-        var builder = Metadata.builder(clusterState.metadata());
+        var builder = ProjectMetadata.builder(DataStreamTestHelper.getProjectWithDataStreams(tuples, List.of()));
         builder.put("logs", "logs-foo", null, null);
         builder.put("logs", "logs-bar", null, null);
         builder.put("secret", "logs-bar", null, null);
-        final ProjectMetadata projectMetadata = ClusterState.builder(clusterState).metadata(builder).build().metadata().getProject();
+        final ProjectMetadata projectMetadata = builder.build();
 
         // return all all data streams with aliases
         var getAliasesRequest = new GetAliasesRequest(TEST_REQUEST_TIMEOUT);

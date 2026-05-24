@@ -1,0 +1,149 @@
+version: 9.1.5
+released: true
+generated: 2025-10-06T15:09:28.901349022Z
+changelogs:
+  - pr: 134461
+    summary: Propagates filter() to aggregation functions' surrogates
+    area: Aggregations
+    type: bug
+    issues:
+      - 134380
+  - pr: 134582
+    summary: Fixed match only text block loader not working when a keyword multi field is present
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 134636
+    summary: "[Island Browser] Add `manage`, `create_index`, `read`, `index`, `write`, `delete`, permission for third party agent indices `kibana_system`"
+    area: Authorization
+    type: enhancement
+    issues:
+      - 134136
+    highlight:
+      notable: true
+      title: Security advisory
+      body: |-
+        The 9.1.5 release contains fixes for potential security vulnerabilities. Please see our [security advisory](https://discuss.elastic.co/c/announcements/security-announcements/31) for more details.
+      pr: 134136
+  - pr: 134656
+    summary: Fix deadlock in `ThreadPoolMergeScheduler` when a failing merge closes the `IndexWriter`
+    area: Engine
+    type: bug
+    issues: []
+  - pr: 134673
+    summary: Gracefully shutdown model deployment when node is removed from assignment routing
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 134790
+    summary: "Bug fix: Facilitate second retrieval of the same value"
+    area: Infra/Core
+    type: bug
+    issues:
+      - 134770
+  - pr: 134887
+    summary: Avoid holding references to `SearchExecutionContext` in `SourceConfirmedTextQuery`
+    area: Mapping
+    type: bug
+    issues: []
+  - pr: 134955
+    summary: Prevent Transform from queuing too many PIT close requests by waiting for PIT to close before finishing the checkpoint
+    area: Transform
+    type: bug
+    issues:
+      - 134925
+  - pr: 134963
+    summary: Fix a bug in the GET _transform API that incorrectly claims some Transform configurations are missing
+    area: Transform
+    type: bug
+    issues:
+      - 134263
+  - pr: 135012
+    summary: Bypass MMap arena grouping as this has caused issues with too many regions being mapped
+    area: Engine
+    type: bug
+    issues: []
+  - pr: 135051
+    summary: Ban Limit + `MvExpand` before remote Enrich
+    area: ES|QL
+    type: bug
+    issues: []
+    highlight:
+      notable: false
+      title: Prevent LIMIT + MV_EXPAND before remote ENRICH
+      body: |-
+        Queries using LIMIT followed by MV_EXPAND before a remote ENRICH can produce incorrect results due to distributed execution semantics.
+        These queries are now unsupported and produce an error. Example:
+        
+        ```yaml
+        FROM *:events | SORT @timestamp | LIMIT 2 | MV_EXPAND ip | ENRICH _remote:clientip_policy ON ip
+        ```
+        
+        To avoid this error, reorder your query, for example by moving ENRICH earlier in the pipeline.
+      pr: 135051
+  - pr: 135078
+    summary: Fix async get results with inconsistent headers
+    area: ES|QL
+    type: bug
+    issues:
+      - 135042
+  - pr: 135096
+    summary: Tolerate mixed types in datafeed stats sort
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 135176
+    summary: '`CentroidCalculator` does not return negative summation weights'
+    area: Geo
+    type: bug
+    issues:
+      - 131861
+  - pr: 135209
+    summary: Fix expiration time in ES|QL async
+    area: ES|QL
+    type: bug
+    issues:
+      - 135169
+  - pr: 135235
+    summary: Fix systemd notify to use a shared arena
+    area: Infra/Node Lifecycle
+    type: bug
+    issues: []
+  - pr: 135270
+    summary: Add .reindexed-v7-ml-anomalies-* to anomaly results template index pattern
+    area: Machine Learning
+    type: bug
+    issues: []
+  - pr: 135414
+    summary: "Change reindex to use ::es-redacted:: filtering"
+    area: Audit
+    type: enhancement
+    issues: []
+  - pr: 135479
+    summary: Correctly apply field path to JSON processor when adding contents to document root
+    area: Ingest Node
+    type: bug
+    issues: []
+  - pr: 135505
+    summary: Address es819 tsdb doc values format performance bug
+    area: Codec
+    type: bug
+    issues:
+      - 135340
+  - pr: 135653
+    summary: Reset health status on successful empty checkpoint
+    area: Machine Learning
+    type: bug
+    issues:
+      - 135650
+  - pr: 135776
+    summary: Fix KQL case-sensitivity for keyword fields in ES|QL
+    area: Search
+    type: bug
+    issues:
+      - 135772
+  - pr: 135845
+    summary: Fix for creating semantic_text fields on pre-8.11 indices crashing Elasticsearch
+    area: Mapping
+    type: bug
+    issues: []

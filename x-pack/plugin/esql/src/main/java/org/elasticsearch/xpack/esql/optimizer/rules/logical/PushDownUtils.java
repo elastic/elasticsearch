@@ -14,19 +14,21 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.PipelineBreaker;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -55,10 +57,10 @@ class PushDownUtils {
     public static <Plan extends UnaryPlan & GeneratingPlan<Plan>> LogicalPlan pushGeneratingPlanPastProjectAndOrderBy(Plan generatingPlan) {
         LogicalPlan child = generatingPlan.child();
         if (child instanceof OrderBy orderBy) {
-            Set<String> evalFieldNames = new LinkedHashSet<>(Expressions.names(generatingPlan.generatedAttributes()));
+            Set<String> generatedFieldNames = new HashSet<>(Expressions.names(generatingPlan.generatedAttributes()));
 
             // Look for attributes in the OrderBy's expressions and create aliases with temporary names for them.
-            AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(evalFieldNames, orderBy.order());
+            AttributeReplacement nonShadowedOrders = renameAttributesInExpressions(generatedFieldNames, orderBy.order());
 
             AttributeMap<Alias> aliasesForShadowedOrderByAttrs = nonShadowedOrders.replacedAttributes;
             @SuppressWarnings("unchecked")
@@ -91,8 +93,7 @@ class PushDownUtils {
 
             List<Attribute> generatedAttributes = generatingPlan.generatedAttributes();
 
-            @SuppressWarnings("unchecked")
-            Plan generatingPlanWithResolvedExpressions = (Plan) resolveRenamesFromProject(generatingPlan, project);
+            Plan generatingPlanWithResolvedExpressions = resolveRenamesFromProject(generatingPlan, project);
 
             Set<String> namesReferencedInRenames = new HashSet<>();
             for (NamedExpression ne : project.projections()) {
@@ -156,7 +157,7 @@ class PushDownUtils {
             rewrittenExpressions.add(expr.transformUp(Attribute.class, attr -> {
                 if (attributeNamesToRename.contains(attr.name())) {
                     Alias renamedAttribute = aliasesForReplacedAttributesBuilder.computeIfAbsent(attr, a -> {
-                        String tempName = TemporaryNameUtils.locallyUniqueTemporaryName(a.name(), "temp_name");
+                        String tempName = TemporaryNameGenerator.locallyUniqueTemporaryName(a.name());
                         return new Alias(a.source(), tempName, a, null, true);
                     });
                     return renamedAttribute.toAttribute();
@@ -181,7 +182,7 @@ class PushDownUtils {
         for (Attribute attr : potentiallyConflictingAttributes) {
             String name = attr.name();
             if (reservedNames.contains(name)) {
-                renameAttributeTo.putIfAbsent(name, TemporaryNameUtils.locallyUniqueTemporaryName(name, "temp_name"));
+                renameAttributeTo.putIfAbsent(name, TemporaryNameGenerator.locallyUniqueTemporaryName(name));
             }
         }
 
@@ -198,13 +199,66 @@ class PushDownUtils {
         }
     }
 
-    private static UnaryPlan resolveRenamesFromProject(UnaryPlan plan, Project project) {
+    private static <P extends LogicalPlan> P resolveRenamesFromProject(P plan, Project project) {
         AttributeMap.Builder<Expression> aliasBuilder = AttributeMap.builder();
         project.forEachExpression(Alias.class, a -> aliasBuilder.put(a.toAttribute(), a.child()));
         var aliases = aliasBuilder.build();
 
-        return (UnaryPlan) plan.transformExpressionsOnly(ReferenceAttribute.class, r -> aliases.resolve(r, r));
+        return resolveRenamesFromMap(plan, aliases);
+    }
+
+    @SuppressWarnings("unchecked")
+    public static <P extends LogicalPlan> P resolveRenamesFromMap(P plan, AttributeMap<Expression> map) {
+        return (P) plan.transformExpressionsOnly(Attribute.class, r -> map.resolve(r, r));
     }
 
     private record AttributeReplacement(List<Expression> rewrittenExpressions, AttributeMap<Alias> replacedAttributes) {}
+
+    public static boolean shouldPushDownPipelineBreakerIntoForkBranch(LogicalPlan plan) {
+        // We only push down a pipeline breaker when:
+        // 1. There is an OrderBy that is not followed by a Limit.
+        // 2. There is no PipelineBreaker, but we have an EsRelation. If no EsRelation is found.
+        // We should not push a pipeline breaker like LIMIT into the fork branch, since it will
+        // be removed by other optimizations.
+        Holder<Boolean> hasPipelineBreaker = new Holder<>(false);
+        Holder<Boolean> hasEsRelation = new Holder<>(false);
+        Holder<Boolean> hasUnboundedOrderBy = new Holder<>(false);
+        Holder<Boolean> hasLimit = new Holder<>(false);
+
+        plan.forEachDown(p -> {
+            if (p instanceof PipelineBreaker && p instanceof OrderBy == false) {
+                hasPipelineBreaker.set(true);
+            }
+            if (p instanceof EsRelation) {
+                hasEsRelation.set(true);
+            }
+
+            if (p instanceof Limit) {
+                hasLimit.set(true);
+            }
+
+            if (p instanceof OrderBy && hasLimit.get() == false) {
+                hasUnboundedOrderBy.set(true);
+            }
+        });
+
+        if (hasUnboundedOrderBy.get()) {
+            return true;
+        }
+
+        return hasEsRelation.get() && hasPipelineBreaker.get() == false;
+    }
+
+    public static Map<Expression, Expression> outputMap(LogicalPlan plan, LogicalPlan otherPlan) {
+        Map<Expression, Expression> outputMap = new HashMap<>();
+
+        for (Attribute attr : plan.output()) {
+            for (Attribute otherAttr : otherPlan.output()) {
+                if (attr.name().equals(otherAttr.name())) {
+                    outputMap.put(attr, otherAttr);
+                }
+            }
+        }
+        return outputMap;
+    }
 }

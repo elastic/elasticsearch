@@ -11,7 +11,6 @@ package org.elasticsearch.transport;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -121,9 +120,7 @@ public class InboundDecoder implements Releasable {
                 bytesConsumedThisDecode += maxBytesToConsume;
                 bytesConsumed += maxBytesToConsume;
                 if (maxBytesToConsume == remainingToConsume) {
-                    try (ReleasableBytesReference retained = reference.retainedSlice(0, maxBytesToConsume)) {
-                        fragmentConsumer.accept(retained);
-                    }
+                    fragmentConsumer.accept(reference.slice(0, maxBytesToConsume));
                 } else {
                     fragmentConsumer.accept(reference);
                 }
@@ -239,7 +236,7 @@ public class InboundDecoder implements Releasable {
                 "Received message from unsupported version: ["
                     + remoteVersion.toReleaseVersion()
                     + "] minimal compatible version is: ["
-                    + TransportVersions.MINIMUM_COMPATIBLE.toReleaseVersion()
+                    + TransportVersion.minimumCompatible().toReleaseVersion()
                     + "]"
             );
         }

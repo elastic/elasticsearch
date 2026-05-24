@@ -9,13 +9,14 @@
 
 package org.elasticsearch.gradle.internal
 
+import spock.lang.Unroll
+
 import org.elasticsearch.gradle.fixtures.AbstractGradleFuncTest
 import org.gradle.testkit.runner.TaskOutcome
 
 class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
 
-    def "can disable assertions via cmdline param"() {
-        given:
+    private void setupAssertionTest() {
         file("src/test/java/acme/SomeTests.java").text = """
         public class SomeTests {
             @org.junit.Test
@@ -38,31 +39,34 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
                 testImplementation 'junit:junit:4.12'
             }
         """
+    }
+
+    def "assertions are enabled by default"() {
+        given:
+        setupAssertionTest()
 
         when:
         def result = gradleRunner("test").buildAndFail()
         then:
         result.task(':test').outcome == TaskOutcome.FAILED
+    }
+
+    @Unroll
+    def "can disable assertions via #description"() {
+        given:
+        setupAssertionTest()
 
         when:
-        result = gradleRunner("test", "-Dtests.asserts=false").build()
+        def result = gradleRunner(*gradleArgs).build()
         then:
         result.task(':test').outcome == TaskOutcome.SUCCESS
 
-        when:
-        result = gradleRunner("test", "-Dtests.jvm.argline=-da").build()
-        then:
-        result.task(':test').outcome == TaskOutcome.SUCCESS
-
-        when:
-        result = gradleRunner("test", "-Dtests.jvm.argline=-disableassertions").build()
-        then:
-        result.task(':test').outcome == TaskOutcome.SUCCESS
-
-        when:
-        result = gradleRunner("test", "-Dtests.asserts=false", "-Dtests.jvm.argline=-da").build()
-        then:
-        result.task(':test').outcome == TaskOutcome.SUCCESS
+        where:
+        description                              | gradleArgs
+        "tests.asserts=false"                    | ["test", "-Dtests.asserts=false"]
+        "tests.jvm.argline=-da"                  | ["test", "-Dtests.jvm.argline=-da"]
+        "tests.jvm.argline=-disableassertions"   | ["test", "-Dtests.jvm.argline=-disableassertions"]
+        "tests.asserts=false and -da combined"   | ["test", "-Dtests.asserts=false", "-Dtests.jvm.argline=-da"]
     }
 
     def "can configure nonInputProperties for test tasks"() {
@@ -107,5 +111,68 @@ class ElasticsearchTestBasePluginFuncTest extends AbstractGradleFuncTest {
 
         then:
         result.task(':test').outcome == TaskOutcome.UP_TO_DATE
+    }
+
+    def "uses new test seed for every invocation"() {
+        given:
+        file("src/test/java/acme/SomeTests.java").text = """
+
+        public class SomeTests {
+            @org.junit.Test
+            public void printTestSeed() {
+                System.out.println("TESTSEED=[" + System.getProperty("tests.seed") + "]");
+            }
+        }
+
+        """
+        buildFile.text = """
+            plugins {
+             id 'java'
+             id 'elasticsearch.test-base'
+            }
+
+            tasks.named('test').configure {
+                testLogging {
+                    showStandardStreams = true
+                }
+            }
+
+            tasks.register('test2', Test) {
+                classpath = sourceSets.test.runtimeClasspath
+                testClassesDirs = sourceSets.test.output.classesDirs
+                testLogging {
+                    showStandardStreams = true
+                }
+            }
+
+            repositories {
+                mavenCentral()
+            }
+
+            dependencies {
+                testImplementation 'junit:junit:4.12'
+            }
+
+        """
+
+        when:
+        // Avoid invoking cleanTest* on Windows; it can flake due to file handle timing when deleting build/test-results/**/binary.
+        // We still need two consecutive task executions to observe two different seeds while reusing the configuration cache.
+        def result1 = gradleRunner("test", "test2", "--rerun-tasks").build()
+        def result2 = gradleRunner("test", "test2", "--rerun-tasks").build()
+
+        then:
+        def seeds1 = result1.output.findAll(/(?m)TESTSEED=\[([^\]]+)\]/) { it[1] }
+        def seeds2 = result2.output.findAll(/(?m)TESTSEED=\[([^\]]+)\]/) { it[1] }
+
+        seeds1.unique().size() == 1
+        seeds2.unique().size() == 1
+
+        verifyAll {
+            seeds1[0] != null
+            seeds2[0] != null
+            seeds1[0] != seeds2[0]
+        }
+        result2.output.contains("Configuration cache entry reused.")
     }
 }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.esql.expression.predicate.operator.comparison;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -15,6 +16,8 @@ import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -24,15 +27,17 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.querydsl.query.TermQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 
 import java.io.IOException;
 
-import static org.elasticsearch.xpack.esql.core.expression.Foldables.valueOf;
+import static org.elasticsearch.xpack.esql.expression.Foldables.literalValueOf;
 
-public class InsensitiveEquals extends InsensitiveBinaryComparison {
+public class InsensitiveEquals extends InsensitiveBinaryComparison implements EvaluatorMapper {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "InsensitiveEquals",
@@ -83,6 +88,10 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
     }
 
     public static Automaton automaton(BytesRef val) {
+        if (val.length == 0) {
+            // toCaseInsensitiveString doesn't match empty strings properly so let's do it ourselves
+            return Automata.makeEmptyString();
+        }
         return AutomatonQueries.toCaseInsensitiveString(val.utf8ToString());
     }
 
@@ -97,12 +106,12 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableFieldAttribute(left()) && right().foldable();
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return pushdownPredicates.isPushableFieldAttribute(left()) && right().foldable() ? Translatable.YES : Translatable.NO;
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
         checkInsensitiveComparison();
         return translate();
     }
@@ -120,7 +129,7 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
 
     private Query translate() {
         TypedAttribute attribute = LucenePushdownPredicates.checkIsPushableAttribute(left());
-        BytesRef value = BytesRefs.toBytesRef(valueOf(FoldContext.small() /* TODO remove me */, right()));
+        BytesRef value = BytesRefs.toBytesRef(literalValueOf(right()));
         String name = LucenePushdownPredicates.pushableAttributeName(attribute);
         return new TermQuery(source(), name, value.utf8ToString(), true);
     }
@@ -128,5 +137,23 @@ public class InsensitiveEquals extends InsensitiveBinaryComparison {
     @Override
     public Expression singleValueField() {
         return left();
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(EvaluatorMapper.ToEvaluator toEvaluator) {
+        DataType leftType = left().dataType();
+        DataType rightType = right().dataType();
+
+        var leftEval = toEvaluator.apply(left());
+        if (DataType.isString(leftType)) {
+            if (right().foldable() && DataType.isString(rightType)) {
+                BytesRef rightVal = BytesRefs.toBytesRef(right().fold(toEvaluator.foldCtx()));
+                Automaton automaton = InsensitiveEquals.automaton(rightVal);
+                return new InsensitiveEqualsConstantEvaluator.Factory(source(), leftEval, new ByteRunAutomaton(automaton));
+            }
+            var rightEval = toEvaluator.apply(right());
+            return new InsensitiveEqualsEvaluator.Factory(source(), leftEval, rightEval);
+        }
+        throw new EsqlIllegalArgumentException("resolved type for [" + this + "] but didn't implement mapping");
     }
 }

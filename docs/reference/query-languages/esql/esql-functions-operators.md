@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Functions and operators"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/esql-functions-operators.html
@@ -12,56 +15,79 @@ mapped_pages:
 ## Functions overview [esql-functions]
 
 ::::{dropdown} Aggregate functions
+:open:
 :::{include} _snippets/lists/aggregation-functions.md
 :::
 ::::
 
+::::{dropdown} Time-series aggregate functions
+:open:
+:::{include} _snippets/lists/time-series-aggregation-functions.md
+:::
+::::
+
 ::::{dropdown} Grouping functions
+:open:
 :::{include} _snippets/lists/grouping-functions.md
 :::
 ::::
 
 ::::{dropdown} Conditional functions and expressions
+:open:
 :::{include} _snippets/lists/conditional-functions-and-expressions.md
 :::
 ::::
 
 ::::{dropdown} Date and time functions
+:open:
 :::{include} _snippets/lists/date-time-functions.md
 :::
 ::::
 
 ::::{dropdown} IP functions
+:open:
 :::{include} _snippets/lists/ip-functions.md
 :::
 ::::
 
 ::::{dropdown} Math functions
+:open:
 :::{include} _snippets/lists/math-functions.md
 :::
 ::::
 
 ::::{dropdown} Search functions
+:open:
 :::{include} _snippets/lists/search-functions.md
 :::
 ::::
 
 ::::{dropdown} Spatial functions
+:open:
 :::{include} _snippets/lists/spatial-functions.md
 :::
 ::::
 
 ::::{dropdown} String functions
+:open:
 :::{include} _snippets/lists/string-functions.md
 :::
 ::::
 
 ::::{dropdown} Type conversion functions
+:open:
 :::{include} _snippets/lists/type-conversion-functions.md
 :::
 ::::
 
+::::{dropdown} Dense vector functions
+:open:
+:::{include} _snippets/lists/dense-vector-functions.md
+:::
+::::
+
 ::::{dropdown} Multi value functions
+:open:
 :::{include} _snippets/lists/mv-functions.md
 :::
 ::::
@@ -70,44 +96,7 @@ mapped_pages:
 ## Operators overview [esql-operators-overview]
 
 ::::{dropdown} Operators
+:open:
 :::{include} _snippets/lists/operators.md
 :::
 ::::
-
-% Below this is the bulk of the real content
-
-:::{include} _snippets/aggregation-functions.md
-:::
-
-:::{include} _snippets/grouping-functions.md
-:::
-
-:::{include} _snippets/conditional-functions-and-expressions.md
-:::
-
-:::{include} _snippets/date-time-functions.md
-:::
-
-:::{include} _snippets/ip-functions.md
-:::
-
-:::{include} _snippets/math-functions.md
-:::
-
-:::{include} _snippets/search-functions.md
-:::
-
-:::{include} _snippets/spatial-functions.md
-:::
-
-:::{include} _snippets/string-functions.md
-:::
-
-:::{include} _snippets/type-conversion-functions.md
-:::
-
-:::{include} _snippets/mv-functions.md
-:::
-
-:::{include} _snippets/operators.md
-:::

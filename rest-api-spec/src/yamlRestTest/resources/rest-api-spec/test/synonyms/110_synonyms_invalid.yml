@@ -11,12 +11,6 @@ setup:
           synonyms_set:
             synonyms: "foo => bar, baz"
 
-  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
-  - do:
-      cluster.health:
-        index: .synonyms
-        wait_for_status: green
-
   - do:
       indices.create:
         index: test_index
@@ -216,6 +210,13 @@ setup:
 
   - length: { indices: 0 }
 
+  # Explicit cleanup: the broken shard would otherwise be stuck in
+  # INITIALIZING state and ESClientYamlSuiteTestCase would get stuck
+  # in cleanUpCluster's ensureNoInitializingShards.
+  - do:
+      indices.delete:
+        index: test_index
+
 ---
 "Reload index with an invalid synonym rule with lenient set to false":
   - do:
@@ -314,6 +315,13 @@ setup:
 
   - length: { indices: 0 }
 
+  # Explicit cleanup: the broken shard would otherwise be stuck in
+  # INITIALIZING state and ESClientYamlSuiteTestCase would get stuck
+  # in cleanUpCluster's ensureNoInitializingShards.
+  - do:
+      indices.delete:
+        index: test_index
+
 ---
 "Load index with non existent synonyms set":
   - requires:
@@ -371,13 +379,6 @@ setup:
         body:
           synonyms_set:
             synonyms: "foo => bar, baz"
-
-  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
-  - do:
-      cluster.health:
-        index: .synonyms
-        wait_for_status: green
-
 
   - do:
       indices.stats: { index: test_index }
@@ -440,12 +441,6 @@ setup:
         body:
           synonyms_set:
             synonyms: "foo => bar, baz"
-
-  # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
-  - do:
-      cluster.health:
-        index: .synonyms
-        wait_for_status: green
 
   - do:
       # Warning issued in previous versions

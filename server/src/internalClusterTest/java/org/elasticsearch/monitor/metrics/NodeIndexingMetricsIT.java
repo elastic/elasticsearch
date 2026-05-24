@@ -796,7 +796,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         AtomicBoolean nextPage = new AtomicBoolean(false);
 
         ArrayList<IncrementalBulkService.Handler> handlers = new ArrayList<>();
-        for (int i = 0; i < 4; ++i) {
+        for (int i = 0; i < 5; ++i) {
             ArrayList<DocWriteRequest<?>> requests = new ArrayList<>();
             add512BRequests(requests, index);
             IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
@@ -838,9 +838,11 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         // Test that a request larger than SPLIT_BULK_HIGH_WATERMARK_SIZE (1KB) is throttled
         add512BRequests(requestsThrottle, index);
         add512BRequests(requestsThrottle, index);
+        // Ensure we'll be above SPLIT_BULK_HIGH_WATERMARK
+        assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes() + 1024, greaterThan(4096L));
 
         CountDownLatch finishLatch = new CountDownLatch(1);
-        blockWritePool(threadPool, finishLatch);
+        blockWriteCoordinationPool(threadPool, finishLatch);
         IncrementalBulkService.Handler handlerThrottled = incrementalBulkService.newBulkRequest();
         refCounted.incRef();
         handlerThrottled.addItems(requestsThrottle, refCounted::decRef, () -> nextPage.set(true));
@@ -919,8 +921,8 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         assertThat(total, lessThan(1024L));
     }
 
-    private static void blockWritePool(ThreadPool threadPool, CountDownLatch finishLatch) {
-        final var threadCount = threadPool.info(ThreadPool.Names.WRITE).getMax();
+    private static void blockWriteCoordinationPool(ThreadPool threadPool, CountDownLatch finishLatch) {
+        final var threadCount = threadPool.info(ThreadPool.Names.WRITE_COORDINATION).getMax();
         final var startBarrier = new CyclicBarrier(threadCount + 1);
         final var blockingTask = new AbstractRunnable() {
             @Override
@@ -940,7 +942,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             }
         };
         for (int i = 0; i < threadCount; i++) {
-            threadPool.executor(ThreadPool.Names.WRITE).execute(blockingTask);
+            threadPool.executor(ThreadPool.Names.WRITE_COORDINATION).execute(blockingTask);
         }
         safeAwait(startBarrier);
     }

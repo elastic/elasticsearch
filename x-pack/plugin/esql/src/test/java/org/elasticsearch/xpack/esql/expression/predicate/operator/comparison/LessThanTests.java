@@ -81,7 +81,7 @@ public class LessThanTests extends AbstractScalarFunctionTestCase {
 
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "LessThanKeywordsEvaluator",
+                "LessThanBytesRefEvaluator",
                 "lhs",
                 "rhs",
                 (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) < 0,
@@ -95,7 +95,7 @@ public class LessThanTests extends AbstractScalarFunctionTestCase {
 
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "LessThanKeywordsEvaluator",
+                "LessThanBytesRefEvaluator",
                 "lhs",
                 "rhs",
                 (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) < 0,
@@ -166,13 +166,13 @@ public class LessThanTests extends AbstractScalarFunctionTestCase {
         suppliers.addAll(
             TestCaseSupplier.stringCases(
                 (l, r) -> ((BytesRef) l).compareTo((BytesRef) r) < 0,
-                (lhsType, rhsType) -> "LessThanKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                (lhsType, rhsType) -> "LessThanBytesRefEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 List.of(),
                 DataType.BOOLEAN
             )
         );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

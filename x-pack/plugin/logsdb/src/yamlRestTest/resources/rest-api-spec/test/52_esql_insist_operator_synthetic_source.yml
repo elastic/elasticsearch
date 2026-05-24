@@ -1,0 +1,94 @@
+---
+setup:
+  - do:
+      indices.create:
+        index: my-index
+        body:
+          settings:
+            index:
+              mode: logsdb
+          mappings:
+            dynamic: false
+            properties:
+              "@timestamp":
+                type: date
+              message:
+                type: text
+
+  - do:
+      bulk:
+        index: my-index
+        refresh: true
+        body:
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:30:00Z", "host.name": "foo", "agent_id": "darth-vader", "process_id": 101, "http_method": "GET", "is_https": false, "location": {"lat" : 40.7128, "lon" : -74.0060}, "message": "No, I am your father." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:31:00Z", "host.name": "bar", "agent_id": "yoda", "process_id": 102, "http_method": "PUT", "is_https": false, "location": {"lat" : 40.7128, "lon" : -74.0060}, "message": "Do. Or do not. There is no try." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:32:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 103, "http_method": "GET", "is_https": false, "location": {"lat" : 40.7128, "lon" : -74.0060}, "message": "May the force be with you." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:33:00Z", "host.name": "baz", "agent_id": "darth-vader", "process_id": 102, "http_method": "POST", "is_https": true, "location": {"lat" : 40.7128, "lon" : -74.0060}, "message": "I find your lack of faith disturbing." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:34:00Z", "host.name": "baz", "agent_id": "yoda", "process_id": 104, "http_method": "POST", "is_https": false, "location": {"lat" : 40.7128, "lon" : -74.0060}, "message": "Wars not make one great." }
+          - { "index": { } }
+          - { "@timestamp": "2024-02-12T10:35:00Z", "host.name": "foo", "agent_id": "obi-wan", "process_id": 105, "http_method": "GET", "is_https": false, "location": {"lat" : 40.7128, "lon" : -74.0060}, "message": "That's no moon. It's a space station." }
+
+---
+teardown:
+  - do:
+      indices.delete:
+        index: my-index
+
+---
+"Simple from":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM my-index | SORT @timestamp | LIMIT 1'
+
+  - match: {columns.0.name: "@timestamp"}
+  - match: {columns.0.type: "date"}
+  - match: {columns.1.name: "message"}
+  - match: {columns.1.type: "text"}
+
+  - match: {values.0.0: "2024-02-12T10:30:00.000Z"}
+  - match: {values.0.1: "No, I am your father."}
+
+---
+"FROM with INSIST_🐔and LIMIT 1":
+  - do:
+      esql.query:
+        body:
+          query: 'FROM my-index | INSIST_🐔 host.name, agent_id, http_method | SORT @timestamp | KEEP host.name, agent_id, http_method | LIMIT 1'
+
+  - match: {columns.0.name: "host.name"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "agent_id"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "http_method"}
+  - match: {columns.2.type: "keyword"}
+
+  - match: {values.0.0: "foo"}
+  - match: {values.0.1: "darth-vader"}
+  - match: {values.0.2: "GET"}
+
+---
+"FROM with INSIST_🐔":
+  - requires:
+      test_runner_features: allowed_warnings_regex
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM my-index | INSIST_🐔 agent_id | SORT @timestamp | KEEP agent_id'
+
+  - match: {columns.0.name: "agent_id"}
+  - match: {columns.0.type: "keyword"}
+
+  - match: {values.0.0: "darth-vader"}
+  - match: {values.1.0: "yoda"}
+  - match: {values.2.0: "obi-wan"}
+  - match: {values.3.0: "darth-vader"}
+  - match: {values.4.0: "yoda"}
+  - match: {values.5.0: "obi-wan"}

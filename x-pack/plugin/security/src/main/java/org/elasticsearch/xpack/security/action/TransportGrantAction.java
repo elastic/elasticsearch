@@ -120,29 +120,31 @@ public abstract class TransportGrantAction<Request extends GrantRequest, Respons
         ActionListener<Response> listener
     );
 
-    public static AuthenticationToken getAuthenticationToken(Grant grant) {
+    protected AuthenticationToken getAuthenticationToken(Grant grant) {
         assert grant.validate(null) == null : "grant is invalid";
         return switch (grant.getType()) {
             case PASSWORD_GRANT_TYPE -> new UsernamePasswordToken(grant.getUsername(), grant.getPassword());
-            case ACCESS_TOKEN_GRANT_TYPE -> {
-                SecureString clientAuthentication = grant.getClientAuthentication() != null
-                    ? grant.getClientAuthentication().value()
-                    : null;
-                AuthenticationToken token = JwtAuthenticationToken.tryParseJwt(grant.getAccessToken(), clientAuthentication);
-                if (token != null) {
-                    yield token;
-                }
-                if (clientAuthentication != null) {
-                    clientAuthentication.close();
-                    throw new ElasticsearchSecurityException(
-                        "[client_authentication] not supported with the supplied access_token type",
-                        RestStatus.BAD_REQUEST
-                    );
-                }
-                // here we effectively assume it's an ES access token (from the {@code TokenService})
-                yield new BearerToken(grant.getAccessToken());
-            }
+            case ACCESS_TOKEN_GRANT_TYPE -> extractAccessToken(grant);
             default -> throw new ElasticsearchSecurityException("the grant type [{}] is not supported", grant.getType());
         };
+    }
+
+    protected AuthenticationToken extractAccessToken(Grant grant) {
+        assert ACCESS_TOKEN_GRANT_TYPE.equalsIgnoreCase(grant.getType()) : "grant must be access_token";
+
+        SecureString clientAuthentication = grant.getClientAuthentication() != null ? grant.getClientAuthentication().value() : null;
+        AuthenticationToken token = JwtAuthenticationToken.tryParseJwt(grant.getAccessToken(), clientAuthentication);
+        if (token != null) {
+            return token;
+        }
+        if (clientAuthentication != null) {
+            clientAuthentication.close();
+            throw new ElasticsearchSecurityException(
+                "[client_authentication] not supported with the supplied access_token type",
+                RestStatus.BAD_REQUEST
+            );
+        }
+        // here we effectively assume it's an ES access token (from the {@code TokenService})
+        return new BearerToken(grant.getAccessToken());
     }
 }

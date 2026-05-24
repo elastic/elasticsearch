@@ -130,7 +130,8 @@ public class FetchHealthInfoCacheActionTests extends ESTestCase {
                 nodeId,
                 new DiskHealthInfo(randomFrom(HealthStatus.values()), randomFrom(DiskHealthInfo.Cause.values())),
                 randomDslHealthInfo(),
-                randomRepoHealthInfo()
+                randomRepoHealthInfo(),
+                FileSettingsHealthInfo.INDETERMINATE
             );
         }
         return healthInfoCache;

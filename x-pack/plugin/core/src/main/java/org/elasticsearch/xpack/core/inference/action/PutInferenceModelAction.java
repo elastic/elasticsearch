@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -15,6 +16,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -26,10 +29,18 @@ import org.elasticsearch.xpack.core.ml.utils.MlStrings;
 import java.io.IOException;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.OLD_DEFAULT_TIMEOUT;
+import static org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest.TIMEOUT_NOT_DETERMINED;
+
 public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.Response> {
 
     public static final PutInferenceModelAction INSTANCE = new PutInferenceModelAction();
     public static final String NAME = "cluster:admin/xpack/inference/put";
+
+    private static final TransportVersion INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT = TransportVersion.fromName(
+        "inference_add_timeout_put_endpoint"
+    );
 
     public PutInferenceModelAction() {
         super(NAME);
@@ -41,13 +52,21 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
         private final String inferenceEntityId;
         private final BytesReference content;
         private final XContentType contentType;
+        private final TimeValue timeout;
 
-        public Request(TaskType taskType, String inferenceEntityId, BytesReference content, XContentType contentType) {
+        public Request(
+            TaskType taskType,
+            String inferenceEntityId,
+            BytesReference content,
+            XContentType contentType,
+            @Nullable TimeValue timeout
+        ) {
             super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
             this.content = content;
             this.contentType = contentType;
+            this.timeout = Objects.requireNonNullElse(timeout, TIMEOUT_NOT_DETERMINED);
         }
 
         public Request(StreamInput in) throws IOException {
@@ -56,6 +75,12 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
             this.taskType = TaskType.fromStream(in);
             this.content = in.readBytesReference();
             this.contentType = in.readEnum(XContentType.class);
+
+            if (in.getTransportVersion().supports(INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT)) {
+                this.timeout = in.readTimeValue();
+            } else {
+                this.timeout = TIMEOUT_NOT_DETERMINED;
+            }
         }
 
         public TaskType getTaskType() {
@@ -74,6 +99,10 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
             return contentType;
         }
 
+        public TimeValue getTimeout() {
+            return timeout;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
@@ -81,6 +110,15 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
             taskType.writeTo(out);
             out.writeBytesReference(content);
             XContentHelper.writeTo(out, contentType);
+
+            if (out.getTransportVersion().supports(INFERENCE_ADD_TIMEOUT_PUT_ENDPOINT)) {
+                if (timeout.equals(TIMEOUT_NOT_DETERMINED)
+                    && out.getTransportVersion().supports(INFERENCE_REQUEST_PER_TASK_TIMEOUT_ADDED) == false) {
+                    out.writeTimeValue(OLD_DEFAULT_TIMEOUT);
+                } else {
+                    out.writeTimeValue(timeout);
+                }
+            }
         }
 
         @Override
@@ -105,12 +143,13 @@ public class PutInferenceModelAction extends ActionType<PutInferenceModelAction.
             return taskType == request.taskType
                 && Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && Objects.equals(content, request.content)
-                && contentType == request.contentType;
+                && contentType == request.contentType
+                && Objects.equals(timeout, request.timeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(taskType, inferenceEntityId, content, contentType);
+            return Objects.hash(taskType, inferenceEntityId, content, contentType, timeout);
         }
     }
 

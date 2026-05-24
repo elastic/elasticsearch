@@ -18,7 +18,8 @@ import java.util.function.BiConsumer;
  * Interface implemented by expressions or plans that require validation after query plan analysis,
  * when the indices and references have been resolved, but before the plan is transformed further by optimizations.
  * The interface is similar to {@link PostAnalysisVerificationAware}, but focused on the tree structure, oftentimes covering semantic
- * checks.
+ * checks. Generally, whenever one needs to check the plan structure leading to a certain node, which is the node of interest, this node's
+ * class needs to implement this interface. Otherwise it may implement {@link PostAnalysisVerificationAware}, as more convenient.
  */
 public interface PostAnalysisPlanVerificationAware {
 

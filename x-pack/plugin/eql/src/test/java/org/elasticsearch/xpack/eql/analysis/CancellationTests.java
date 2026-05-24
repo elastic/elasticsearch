@@ -74,6 +74,7 @@ public class CancellationTests extends ESTestCase {
             TransportVersion.current(),
             threadPool
         );
+        // Always return first argument
     }
 
     @After
@@ -114,6 +115,7 @@ public class CancellationTests extends ESTestCase {
         countDownLatch.await();
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
@@ -175,6 +177,7 @@ public class CancellationTests extends ESTestCase {
         verify(client).fieldCaps(any(), any());
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 
@@ -244,6 +247,7 @@ public class CancellationTests extends ESTestCase {
         verify(client).execute(any(), any(), any());
         verify(client, times(1)).settings();
         verify(client, times(1)).threadPool();
+        verify(client, times(1)).projectResolver();
         verifyNoMoreInteractions(client);
     }
 

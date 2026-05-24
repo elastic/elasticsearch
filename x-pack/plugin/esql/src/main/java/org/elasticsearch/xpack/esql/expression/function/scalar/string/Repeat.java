@@ -13,13 +13,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -30,7 +31,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 
-import static org.elasticsearch.common.unit.ByteSizeUnit.MB;
 import static org.elasticsearch.compute.ann.Fixed.Scope.THREAD_LOCAL;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -39,8 +39,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isTyp
 
 public class Repeat extends EsqlScalarFunction implements OptionalArgument {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Repeat", Repeat::new);
-
-    static final long MAX_REPEATED_LENGTH = MB.toBytes(1);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(Repeat.class).binary(Repeat::new).name("repeat");
 
     private final Expression str;
     private final Expression number;
@@ -123,9 +122,9 @@ public class Repeat extends EsqlScalarFunction implements OptionalArgument {
 
     static BytesRef processInner(BreakingBytesRefBuilder scratch, BytesRef str, int number) {
         int repeatedLen = str.length * number;
-        if (repeatedLen > MAX_REPEATED_LENGTH) {
+        if (repeatedLen > MAX_BYTES_REF_RESULT_SIZE) {
             throw new IllegalArgumentException(
-                "Creating repeated strings with more than [" + MAX_REPEATED_LENGTH + "] bytes is not supported"
+                "Creating repeated strings with more than [" + MAX_BYTES_REF_RESULT_SIZE + "] bytes is not supported"
             );
         }
         scratch.grow(repeatedLen);

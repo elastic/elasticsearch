@@ -37,6 +37,11 @@ public class GeoShapeFieldBlockLoaderTests extends BlockLoaderTestCase {
     }
 
     @Override
+    protected boolean supportsMultiField() {
+        return false;
+    }
+
+    @Override
     @SuppressWarnings("unchecked")
     protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
         if (value instanceof List<?> == false) {

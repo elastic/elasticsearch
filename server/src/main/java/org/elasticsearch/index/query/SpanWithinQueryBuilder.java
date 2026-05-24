@@ -13,7 +13,6 @@ import org.apache.lucene.queries.spans.SpanQuery;
 import org.apache.lucene.queries.spans.SpanWithinQuery;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -29,7 +28,7 @@ import static org.elasticsearch.index.query.SpanQueryBuilder.SpanQueryBuilderUti
 /**
  * Builder for {@link org.apache.lucene.queries.spans.SpanWithinQuery}.
  */
-public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQueryBuilder> implements SpanQueryBuilder {
+public class SpanWithinQueryBuilder extends LeafQueryBuilder<SpanWithinQueryBuilder> implements SpanQueryBuilder {
     public static final String NAME = "span_within";
 
     private static final ParseField BIG_FIELD = new ParseField("big");
@@ -177,6 +176,6 @@ public class SpanWithinQueryBuilder extends AbstractQueryBuilder<SpanWithinQuery
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 }

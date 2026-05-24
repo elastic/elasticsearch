@@ -9,16 +9,13 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator;
 
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.DocsV3Support;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.junit.AfterClass;
 
-import java.io.IOException;
-import java.util.List;
-import java.util.Map;
+import java.util.Set;
 
 public class CastOperatorTests extends ESTestCase {
     public void testDummy() {
@@ -26,7 +23,7 @@ public class CastOperatorTests extends ESTestCase {
     }
 
     @AfterClass
-    public static void renderDocs() throws IOException {
+    public static void renderDocs() throws Exception {
         if (System.getProperty("generateDocs") == null) {
             return;
         }
@@ -34,17 +31,22 @@ public class CastOperatorTests extends ESTestCase {
             "cast",
             "::",
             TestCastOperator.class,
-            DocsV3Support.OperatorCategory.UNARY,
-            false
+            DocsV3Support.OperatorCategory.CAST
         );
-        var docs = new DocsV3Support.OperatorsDocsSupport("cast", CastOperatorTests.class, op, CastOperatorTests::signatures);
+        var docs = new DocsV3Support.OperatorsDocsSupport(
+            "cast",
+            CastOperatorTests.class,
+            op,
+            CastOperatorTests::signatures,
+            DocsV3Support.callbacksFromSystemProperty()
+        );
         docs.renderSignature();
         docs.renderDocs();
     }
 
-    public static Map<List<DataType>, DataType> signatures() {
+    public static Set<DocsV3Support.TypeSignature> signatures() {
         // The cast operator cannot produce sensible signatures unless we consider the type as an extra parameter
-        return Map.of();
+        return Set.of();
     }
 
     /**
@@ -55,7 +57,7 @@ public class CastOperatorTests extends ESTestCase {
             operator = "::",
             returnType = {},
             description = "The `::` operator provides a convenient alternative syntax to the TO_<type> "
-                + "[conversion functions](/reference/query-languages/esql/esql-functions-operators.md#esql-type-conversion-functions).",
+                + "[conversion functions](/reference/query-languages/esql/functions-operators/type-conversion-functions.md).",
             examples = { @Example(file = "convert", tag = "docsCastOperator") }
         )
         public TestCastOperator(
@@ -70,6 +72,9 @@ public class CastOperatorTests extends ESTestCase {
                     "double",
                     "geo_point",
                     "geo_shape",
+                    "geohash",
+                    "geotile",
+                    "geohex",
                     "integer",
                     "ip",
                     "keyword",

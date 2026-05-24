@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-operators.html
 ---
 
-# Comparison Operators [sql-operators]
+# Comparison operators [sql-operators]
 
 Boolean operator for comparing against one or multiple expressions.
 

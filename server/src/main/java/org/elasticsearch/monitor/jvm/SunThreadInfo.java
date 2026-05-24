@@ -9,25 +9,29 @@
 
 package org.elasticsearch.monitor.jvm;
 
-import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
 import java.lang.management.ManagementFactory;
 import java.lang.management.ThreadMXBean;
 import java.lang.reflect.Method;
+import java.util.Arrays;
+
+import static org.apache.logging.log4j.LogManager.getLogger;
 
 public class SunThreadInfo {
 
     private static final ThreadMXBean threadMXBean;
+    private static final Method getAllThreadAllocatedBytes;
     private static final Method getThreadAllocatedBytes;
     private static final Method isThreadAllocatedMemorySupported;
     private static final Method isThreadAllocatedMemoryEnabled;
 
-    private static final Logger logger = LogManager.getLogger(SunThreadInfo.class);
+    private static final Logger logger = getLogger(SunThreadInfo.class);
     public static final SunThreadInfo INSTANCE = new SunThreadInfo();
 
     static {
         threadMXBean = ManagementFactory.getThreadMXBean();
+        getAllThreadAllocatedBytes = getMethod("getThreadAllocatedBytes", long[].class);
         getThreadAllocatedBytes = getMethod("getThreadAllocatedBytes", long.class);
         isThreadAllocatedMemorySupported = getMethod("isThreadAllocatedMemorySupported");
         isThreadAllocatedMemoryEnabled = getMethod("isThreadAllocatedMemoryEnabled");
@@ -59,6 +63,28 @@ public class SunThreadInfo {
         }
     }
 
+    public long[] getAllThreadAllocatedBytes(long[] ids) {
+        if (getAllThreadAllocatedBytes == null) {
+            return new long[0];
+        }
+
+        if (isThreadAllocatedMemorySupported() == false || isThreadAllocatedMemoryEnabled() == false) {
+            return new long[0];
+        }
+
+        long[] validIds = Arrays.stream(ids).filter(id -> id <= 0).toArray();
+        if (validIds.length == 0) {
+            return new long[0];
+        }
+
+        try {
+            return (long[]) getAllThreadAllocatedBytes.invoke(threadMXBean, (Object) validIds);
+        } catch (Exception e) {
+            logger.warn("exception retrieving all threads allocated memory", e);
+            return new long[0];
+        }
+    }
+
     public long getThreadAllocatedBytes(long id) {
         if (getThreadAllocatedBytes == null) {
             return 0;
@@ -83,11 +109,13 @@ public class SunThreadInfo {
     }
 
     private static Method getMethod(String methodName, Class<?>... parameterTypes) {
+        String className = "com.sun.management.ThreadMXBean";
         try {
-            Method method = Class.forName("com.sun.management.ThreadMXBean").getMethod(methodName, parameterTypes);
+            Method method = Class.forName(className).getMethod(methodName, parameterTypes);
             return method;
         } catch (Exception e) {
             // not available
+            logger.debug(() -> "failed to get method [" + methodName + "] from class [" + className + "]", e);
             return null;
         }
     }

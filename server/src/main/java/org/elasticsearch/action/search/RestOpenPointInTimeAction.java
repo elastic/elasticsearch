@@ -18,6 +18,7 @@ import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 
@@ -29,6 +30,12 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestOpenPointInTimeAction extends BaseRestHandler {
+
+    private final CrossProjectModeDecider crossProjectModeDecider;
+
+    public RestOpenPointInTimeAction(CrossProjectModeDecider crossProjectModeDecider) {
+        this.crossProjectModeDecider = crossProjectModeDecider;
+    }
 
     @Override
     public String getName() {
@@ -42,9 +49,15 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+
         final String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final OpenPointInTimeRequest openRequest = new OpenPointInTimeRequest(indices);
-        openRequest.indicesOptions(IndicesOptions.fromRequest(request, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS));
+        final boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        if (crossProjectEnabled) {
+            openRequest.indicesOptions(IndicesOptions.fromRequest(request, OpenPointInTimeRequest.DEFAULT_CPS_INDICES_OPTIONS));
+        } else {
+            openRequest.indicesOptions(IndicesOptions.fromRequest(request, OpenPointInTimeRequest.DEFAULT_INDICES_OPTIONS));
+        }
         openRequest.routing(request.param("routing"));
         openRequest.preference(request.param("preference"));
         openRequest.keepAlive(TimeValue.parseTimeValue(request.param("keep_alive"), null, "keep_alive"));
@@ -68,8 +81,10 @@ public class RestOpenPointInTimeAction extends BaseRestHandler {
 
     private static final ObjectParser<OpenPointInTimeRequest, Void> PARSER = new ObjectParser<>("open_point_in_time_request");
     private static final ParseField INDEX_FILTER_FIELD = new ParseField("index_filter");
+    private static final ParseField PROJECT_ROUTING = new ParseField("project_routing");
 
     static {
         PARSER.declareObject(OpenPointInTimeRequest::indexFilter, (p, c) -> parseTopLevelQuery(p), INDEX_FILTER_FIELD);
+        PARSER.declareString(OpenPointInTimeRequest::projectRouting, PROJECT_ROUTING);
     }
 }

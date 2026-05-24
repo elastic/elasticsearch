@@ -3,7 +3,7 @@ mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/sql-lexical-structure.html
 ---
 
-# Lexical Structure [sql-lexical-structure]
+# Lexical structure [sql-lexical-structure]
 
 This section covers the major lexical structure of SQL, which for the most part, is going to resemble that of ANSI SQL itself hence why low-levels details are not discussed in depth.
 
@@ -19,7 +19,7 @@ Take the following example:
 SELECT * FROM table
 ```
 
-This query has four tokens: `SELECT`, `*`, `FROM` and `table`. The first three, namely `SELECT`, `*` and `FROM` are *key words* meaning words that have a fixed meaning in SQL. The token `table` is an *identifier* meaning it identifies (by name) an entity inside SQL such as a table (in this case), a column, etc…​
+This query has four tokens: `SELECT`, `*`, `FROM` and `table`. The first three, namely `SELECT`, `*` and `FROM` are *key words* meaning words that have a fixed meaning in SQL. The token `table` is an *identifier* meaning it identifies (by name) an entity inside SQL such as a table (in this case), a column, etc… 
 
 As one can see, both key words and identifiers have the *same* lexical structure and thus one cannot know whether a token is one or the other without knowing the SQL language; the complete list of key words is available in the [reserved appendix](/reference/query-languages/sql/sql-syntax-reserved.md). Do note that key words are case-insensitive meaning the previous example can be written as:
 
@@ -123,12 +123,11 @@ To escape single or double quotes, one needs to use that specific quote one more
 
 A few characters that are not alphanumeric have a dedicated meaning different from that of an operator. For completeness these are specified below:
 
-|     |     |
-| --- | --- |
 | **Char** | **Description** |
+| --- | --- |
 | `*` | The asterisk (or wildcard) is used in some contexts to denote all fields for a table. Can be also used as an argument to some aggregate functions. |
 | `,` | Commas are used to enumerate the elements of a list. |
-| `.` | Used in numeric constants or to separate identifiers qualifiers (catalog, table, column names, etc…​). |
+| `.` | Used in numeric constants or to separate identifiers qualifiers (catalog, table, column names, etc… ). |
 | `()` | Parentheses are used for specific SQL commands, function declarations or to enforce precedence. |
 
 
@@ -138,9 +137,8 @@ Most operators in Elasticsearch SQL have the same precedence and are left-associ
 
 The following table indicates the supported operators and their precedence (highest to lowest);
 
-|     |     |     |
-| --- | --- | --- |
 | **Operator/Element** | **Associativity** | **Description** |
+| --- | --- | --- |
 | `.` | left | qualifier separator |
 | `::` | left | PostgreSQL-style type cast |
 | `+ -` | right | unary plus and minus (numeric literal sign) |

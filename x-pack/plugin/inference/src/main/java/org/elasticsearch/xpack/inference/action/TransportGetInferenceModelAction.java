@@ -97,8 +97,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
                 return;
             }
 
-            var model = service.get()
-                .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings());
+            var model = service.get().parsePersistedConfig(unparsedModel);
 
             service.get()
                 .updateModelsWithDynamicFields(
@@ -142,10 +141,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
                     throw serviceNotFoundException(unparsedModel.service(), unparsedModel.inferenceEntityId());
                 }
                 var list = parsedModelsByService.computeIfAbsent(service.get().name(), s -> new ArrayList<>());
-                list.add(
-                    service.get()
-                        .parsePersistedConfig(unparsedModel.inferenceEntityId(), unparsedModel.taskType(), unparsedModel.settings())
-                );
+                list.add(service.get().parsePersistedConfig(unparsedModel));
             }
 
             var groupedListener = new GroupedActionListener<List<Model>>(
@@ -174,7 +170,7 @@ public class TransportGetInferenceModelAction extends HandledTransportAction<
 
     private ElasticsearchStatusException serviceNotFoundException(String service, String inferenceId) {
         throw new ElasticsearchStatusException(
-            "Unknown service [{}] for inference endpoint [{}]. ",
+            "Unknown service [{}] for inference endpoint [{}].",
             RestStatus.INTERNAL_SERVER_ERROR,
             service,
             inferenceId

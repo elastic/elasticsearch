@@ -14,9 +14,9 @@ import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.MultiCommand;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
-import org.elasticsearch.cli.Terminal.Verbosity;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cli.terminal.Terminal;
+import org.elasticsearch.cli.terminal.Terminal.Verbosity;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.KeyStoreAwareCommand;
@@ -398,7 +398,7 @@ class SetupPasswordTool extends MultiCommand {
                 terminal.errorPrintln("");
                 throw new UserException(
                     ExitCodes.CONFIG,
-                    "Failed to establish SSL connection to elasticsearch at " + route.toString() + ". ",
+                    "Failed to establish SSL connection to elasticsearch at " + route.toString() + ".",
                     e
                 );
             } catch (IOException e) {
@@ -453,8 +453,8 @@ class SetupPasswordTool extends MultiCommand {
                     Map<String, Object> featureInfo = (Map<String, Object>) features.get("security");
                     if (featureInfo != null) {
                         xPackSecurityFeatureConfig = new XPackSecurityFeatureConfig(
-                            Boolean.parseBoolean(featureInfo.get("available").toString()),
-                            Boolean.parseBoolean(featureInfo.get("enabled").toString())
+                            Booleans.parseBoolean(featureInfo.get("available").toString()),
+                            Booleans.parseBoolean(featureInfo.get("enabled").toString())
                         );
                         return xPackSecurityFeatureConfig;
                     }
@@ -557,7 +557,7 @@ class SetupPasswordTool extends MultiCommand {
                     terminal.errorPrintln("* Try running this tool again.");
                     terminal.errorPrintln("* Try running with the --verbose parameter for additional messages.");
                     terminal.errorPrintln("* Check the elasticsearch logs for additional error details.");
-                    terminal.errorPrintln("* Use the change password API manually. ");
+                    terminal.errorPrintln("* Use the change password API manually.");
                     terminal.errorPrintln("");
                     throw new UserException(ExitCodes.TEMP_FAILURE, "Failed to set password for user [" + user + "].");
                 }

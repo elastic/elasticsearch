@@ -7,6 +7,6 @@ ALL-UNNAMED:
       properties:
         - hadoop.home.dir
   - files:
-      - relative_path: "repository-hdfs/"
+      - relative_path: "repository-hdfs"
         relative_to: config
-        mode: read_write
+        mode: read

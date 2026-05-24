@@ -13,8 +13,8 @@ import joptsimple.OptionSpecBuilder;
 
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.cli.KeyStoreAwareCommand;
 import org.elasticsearch.common.settings.KeyStoreWrapper;
@@ -213,7 +213,7 @@ public abstract class BaseRunAsSuperuserCommand extends KeyStoreAwareCommand {
         try {
             response = client.execute("GET", clusterHealthUrl, username, password, () -> null, CommandLineHttpClient::responseBuilder);
         } catch (Exception e) {
-            throw new UserException(ExitCodes.UNAVAILABLE, "Failed to determine the health of the cluster. ", e);
+            throw new UserException(ExitCodes.UNAVAILABLE, "Failed to determine the health of the cluster.", e);
         }
         final int responseStatus = response.getHttpStatus();
         if (responseStatus != HttpURLConnection.HTTP_OK) {

@@ -19,11 +19,11 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.unit.SizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionHandler;
 import org.elasticsearch.common.util.concurrent.EsThreadPoolExecutor;
+import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.core.Nullable;
@@ -112,6 +112,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         public static final String GET = "get";
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
+        public static final String WRITE_COORDINATION = "write_coordination";
         public static final String SEARCH = "search";
         public static final String SEARCH_COORDINATION = "search_coordination";
         public static final String AUTO_COMPLETE = "auto_complete";
@@ -140,6 +141,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         public static final String FETCH_SHARD_STORE = "fetch_shard_store";
         public static final String SYSTEM_READ = "system_read";
         public static final String SYSTEM_WRITE = "system_write";
+        public static final String SYSTEM_WRITE_COORDINATION = "system_write_coordination";
         public static final String SYSTEM_CRITICAL_READ = "system_critical_read";
         public static final String SYSTEM_CRITICAL_WRITE = "system_critical_write";
     }
@@ -149,8 +151,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     public static final String THREAD_POOL_METRIC_NAME_CURRENT = ".threads.count.current";
     public static final String THREAD_POOL_METRIC_NAME_QUEUE = ".threads.queue.size";
     public static final String THREAD_POOL_METRIC_NAME_ACTIVE = ".threads.active.current";
+    public static final String THREAD_POOL_METRIC_NAME_UTILIZATION = ".threads.utilization.current";
     public static final String THREAD_POOL_METRIC_NAME_LARGEST = ".threads.largest.current";
     public static final String THREAD_POOL_METRIC_NAME_REJECTED = ".threads.rejected.total";
+    public static final String THREAD_POOL_METRIC_NAME_QUEUE_TIME = ".queue.latency.histogram";
 
     public enum ThreadPoolType {
         FIXED("fixed"),
@@ -184,6 +188,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         entry(Names.GET, ThreadPoolType.FIXED),
         entry(Names.ANALYZE, ThreadPoolType.FIXED),
         entry(Names.WRITE, ThreadPoolType.FIXED),
+        entry(Names.WRITE_COORDINATION, ThreadPoolType.FIXED),
         entry(Names.SEARCH, ThreadPoolType.FIXED),
         entry(Names.SEARCH_COORDINATION, ThreadPoolType.FIXED),
         entry(Names.AUTO_COMPLETE, ThreadPoolType.FIXED),
@@ -199,6 +204,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         entry(Names.FETCH_SHARD_STORE, ThreadPoolType.SCALING),
         entry(Names.SYSTEM_READ, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_WRITE, ThreadPoolType.FIXED),
+        entry(Names.SYSTEM_WRITE_COORDINATION, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_CRITICAL_READ, ThreadPoolType.FIXED),
         entry(Names.SYSTEM_CRITICAL_WRITE, ThreadPoolType.FIXED)
     );
@@ -373,6 +379,10 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             RejectedExecutionHandler rejectedExecutionHandler = threadPoolExecutor.getRejectedExecutionHandler();
             if (rejectedExecutionHandler instanceof EsRejectedExecutionHandler handler) {
                 handler.registerCounter(meterRegistry, prefix + THREAD_POOL_METRIC_NAME_REJECTED, name);
+            }
+
+            if (threadPoolExecutor instanceof TaskExecutionTimeTrackingEsThreadPoolExecutor timeTrackingExecutor) {
+                instruments.addAll(timeTrackingExecutor.setupMetrics(meterRegistry, name));
             }
         }
         return instruments;
@@ -675,7 +685,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         return ((allocatedProcessors * 3) / 2) + 1;
     }
 
-    static int getMaxSnapshotThreadPoolSize(int allocatedProcessors) {
+    public static int getMaxSnapshotThreadPoolSize(int allocatedProcessors) {
         final ByteSizeValue maxHeapSize = ByteSizeValue.ofBytes(Runtime.getRuntime().maxMemory());
         return getMaxSnapshotThreadPoolSize(allocatedProcessors, maxHeapSize);
     }
@@ -923,7 +933,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         private final int min;
         private final int max;
         private final TimeValue keepAlive;
-        private final SizeValue queueSize;
+        private final Long queueSize;
 
         public Info(String name, ThreadPoolType type) {
             this(name, type, -1);
@@ -933,7 +943,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             this(name, type, size, size, null, null);
         }
 
-        public Info(String name, ThreadPoolType type, int min, int max, @Nullable TimeValue keepAlive, @Nullable SizeValue queueSize) {
+        public Info(String name, ThreadPoolType type, int min, int max, @Nullable TimeValue keepAlive, @Nullable Long queueSize) {
             this.name = name;
             this.type = type;
             this.min = min;
@@ -948,7 +958,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             min = in.readInt();
             max = in.readInt();
             keepAlive = in.readOptionalTimeValue();
-            queueSize = in.readOptionalWriteable(SizeValue::new);
+            queueSize = in.readOptionalVLong();
         }
 
         @Override
@@ -958,7 +968,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             out.writeInt(min);
             out.writeInt(max);
             out.writeOptionalTimeValue(keepAlive);
-            out.writeOptionalWriteable(queueSize);
+            out.writeOptionalVLong(queueSize);
         }
 
         public String getName() {
@@ -983,7 +993,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         }
 
         @Nullable
-        public SizeValue getQueueSize() {
+        public Long getQueueSize() {
             return this.queueSize;
         }
 
@@ -1007,10 +1017,27 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
             if (queueSize == null) {
                 builder.field("queue_size", -1);
             } else {
-                builder.field("queue_size", queueSize.singles());
+                builder.field("queue_size", queueSize);
             }
             builder.endObject();
             return builder;
+        }
+
+        @Override
+        public String toString() {
+            return "Info[name="
+                + name
+                + ",type="
+                + type
+                + ",min="
+                + min
+                + ",max="
+                + max
+                + ",keepAlive="
+                + keepAlive
+                + ",queueSize="
+                + queueSize
+                + "]";
         }
 
     }
@@ -1080,11 +1107,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
     }
 
     public static boolean assertCurrentThreadPool(String... permittedThreadPoolNames) {
-        final var threadName = Thread.currentThread().getName();
-        final var executorName = EsExecutors.executorName(threadName);
+        final Thread thread = Thread.currentThread();
+        final var threadName = thread.getName();
         assert threadName.startsWith("TEST-")
             || threadName.startsWith("LuceneTestCase")
-            || Arrays.asList(permittedThreadPoolNames).contains(executorName)
+            || Arrays.asList(permittedThreadPoolNames).contains(EsExecutors.executorName(thread))
             : threadName + " not in " + Arrays.toString(permittedThreadPoolNames) + " nor a test thread";
         return true;
     }

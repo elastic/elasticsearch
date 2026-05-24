@@ -7,8 +7,6 @@
 
 package org.elasticsearch.xpack.core.action;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
@@ -135,7 +133,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                 boolean systemDataStream = rarely();
                 if (hasLifecycle) {
                     if (randomBoolean()) {
-                        lifecycle = new DataStreamLifecycle(null, null, null);
+                        lifecycle = DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE;
                         dataStreamsWithLifecycleCount.incrementAndGet();
                         if (useDefaultRetention && systemDataStream == false) {
                             dataStreamsWithDefaultRetentionCount.incrementAndGet();
@@ -157,7 +155,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                             }
                             atLeastOne = true;
                         }
-                        lifecycle = DataStreamLifecycle.builder()
+                        lifecycle = DataStreamLifecycle.dataLifecycleBuilder()
                             .dataRetention(TimeValue.timeValueMillis(retentionMillis))
                             .enabled(isEnabled)
                             .build();
@@ -289,9 +287,9 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
      */
     public static final class TestDateLifecycleUsagePlugin extends XPackClientPlugin {
         @Override
-        public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-            List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
-            actions.add(new ActionPlugin.ActionHandler<>(DATA_STREAM_LIFECYCLE, DataStreamLifecycleUsageTransportAction.class));
+        public List<ActionHandler> getActions() {
+            List<ActionHandler> actions = new ArrayList<>();
+            actions.add(new ActionPlugin.ActionHandler(DATA_STREAM_LIFECYCLE, DataStreamLifecycleUsageTransportAction.class));
             return actions;
         }
     }

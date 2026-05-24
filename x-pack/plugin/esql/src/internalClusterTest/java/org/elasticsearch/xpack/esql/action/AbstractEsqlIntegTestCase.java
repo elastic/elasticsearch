@@ -23,13 +23,16 @@ import org.elasticsearch.compute.test.MockBlockFactory;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.health.node.selection.HealthNode;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.inference.InferenceSettings;
+import org.elasticsearch.xpack.esql.parser.EsqlConfig;
+import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
@@ -39,15 +42,18 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
 public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
+
+    protected static final TimeValue DEFAULT_REQUEST_TIMEOUT = TimeValue.timeValueSeconds(30L);
+
     @After
     public void ensureExchangesAreReleased() throws Exception {
         for (String node : internalCluster().getNodeNames()) {
@@ -136,7 +142,15 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), EsqlPlugin.class);
+        return CollectionUtils.appendToCopy(super.nodePlugins(), EsqlPluginWithEnterpriseOrTrialLicense.class);
+    }
+
+    @Override
+    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
+        return Settings.builder()
+            .put(super.nodeSettings(nodeOrdinal, otherSettings))
+            .put(EsqlPlugin.QUERY_ALLOW_PARTIAL_RESULTS.getKey(), false)
+            .build();
     }
 
     protected void setRequestCircuitBreakerLimit(ByteSizeValue limit) {
@@ -158,38 +172,42 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     }
 
     protected final EsqlQueryResponse run(String esqlCommands) {
-        return run(esqlCommands, randomPragmas());
+        return run(esqlCommands, DEFAULT_REQUEST_TIMEOUT);
     }
 
-    protected final EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas) {
-        return run(esqlCommands, pragmas, null);
+    protected final EsqlQueryResponse run(String esqlCommands, TimeValue timeout) {
+        return run(syncEsqlQueryRequest(esqlCommands).pragmas(getPragmas()), timeout);
     }
 
-    protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter) {
-        return run(esqlCommands, pragmas, filter, null);
+    /** A hook for overriding. */
+    protected QueryPragmas getPragmas() {
+        return randomPragmas();
     }
 
-    protected EsqlQueryResponse run(String esqlCommands, QueryPragmas pragmas, QueryBuilder filter, Boolean allowPartialResults) {
-        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
-        request.query(esqlCommands);
-        if (pragmas != null) {
-            request.pragmas(pragmas);
-        }
-        if (filter != null) {
-            request.filter(filter);
-        }
-        if (allowPartialResults != null) {
-            request.allowPartialResults(allowPartialResults);
-        }
-        return run(request);
+    public EsqlQueryResponse run(EsqlQueryRequest request) {
+        return run(request, DEFAULT_REQUEST_TIMEOUT);
     }
 
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
+    public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
         try {
-            return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(30, TimeUnit.SECONDS);
+            return client().execute(EsqlQueryAction.INSTANCE, maybeWrapAsPrepared(request)).actionGet(timeout);
         } catch (ElasticsearchTimeoutException e) {
             throw new AssertionError("timeout", e);
         }
+    }
+
+    /**
+     * Randomly wraps the given request in a {@link PreparedEsqlQueryRequest} to exercise the
+     * pre-built-plan code path.
+     */
+    private EsqlQueryRequest maybeWrapAsPrepared(EsqlQueryRequest request) {
+        if (request instanceof PreparedEsqlQueryRequest || randomBoolean()) {
+            return request;
+        }
+        var parser = new EsqlParser(new EsqlConfig(new EsqlFunctionRegistry()));
+        var inferenceSettings = new InferenceSettings(clusterService().state().metadata().settings());
+        var statement = parser.parse(request.query(), request.params(), inferenceSettings);
+        return PreparedEsqlQueryRequest.from(request, statement, "pre-built statement for testing");
     }
 
     protected static QueryPragmas randomPragmas() {

@@ -35,6 +35,7 @@ public final class HdfsClientThreadLeakFilter implements ThreadFilter {
             || t.getName().startsWith("SSL Certificates Store Monitor") // hadoop 3 brings that in
             || t.getName().startsWith("GcTimeMonitor") // hadoop 3
             || t.getName().startsWith("Command processor") // hadoop 3
-            || t.getName().startsWith("ForkJoinPool-"); // hadoop 3
+            || t.getName().startsWith("ForkJoinPool-") // hadoop 3
+            || t.getName().startsWith("ForkJoinPool.commonPool-worker-"); // hadoop 3
     }
 }

@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.xpack.inference.rest.BaseInferenceAction.parseTimeout;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID;
 import static org.elasticsearch.xpack.inference.rest.Paths.INFERENCE_ID_PATH;
 import static org.elasticsearch.xpack.inference.rest.Paths.TASK_TYPE_INFERENCE_ID_PATH;
@@ -49,8 +50,15 @@ public class RestPutInferenceModelAction extends BaseRestHandler {
             taskType = TaskType.ANY; // task type must be defined in the body
         }
 
+        var inferTimeout = parseTimeout(restRequest);
         var content = restRequest.requiredContent();
-        var request = new PutInferenceModelAction.Request(taskType, inferenceEntityId, content, restRequest.getXContentType());
+        var request = new PutInferenceModelAction.Request(
+            taskType,
+            inferenceEntityId,
+            content,
+            restRequest.getXContentType(),
+            inferTimeout
+        );
         return channel -> client.execute(
             PutInferenceModelAction.INSTANCE,
             request,

@@ -89,6 +89,12 @@ public abstract class RescorerBuilder<RB extends RescorerBuilder<RB>>
                 }
             } else if (token == XContentParser.Token.START_OBJECT) {
                 if (fieldName != null) {
+                    if (rescorer != null) {
+                        throw new ParsingException(
+                            parser.getTokenLocation(),
+                            "Can't have more than one rescore type in a [rescore] object"
+                        );
+                    }
                     rescorer = parser.namedObject(RescorerBuilder.class, fieldName, null);
                     rescorerNameConsumer.accept(fieldName);
                     rescorerType = fieldName;

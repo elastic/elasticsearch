@@ -1,5 +1,0 @@
-pr: 125881
-summary: Fixes a invalid warning from being issued when restoring a system data stream from a snapshot.
-area: "Data streams"
-type: bug
-issues: []

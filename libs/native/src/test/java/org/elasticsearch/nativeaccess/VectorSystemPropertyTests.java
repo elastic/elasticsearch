@@ -12,7 +12,6 @@ package org.elasticsearch.nativeaccess;
 import org.apache.lucene.util.Constants;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.ESTestCase.WithoutSecurityManager;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 import org.junit.BeforeClass;
@@ -28,7 +27,6 @@ import static org.elasticsearch.nativeaccess.PosixNativeAccess.ENABLE_JDK_VECTOR
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
-@WithoutSecurityManager
 public class VectorSystemPropertyTests extends ESTestCase {
 
     static Path jarPath;
@@ -77,7 +75,6 @@ public class VectorSystemPropertyTests extends ESTestCase {
 
         public class Test {
             static {
-                LogConfigurator.loadLog4jPlugins();
                 LogConfigurator.configureESLogging(); // native access requires logging to be initialized
             }
 

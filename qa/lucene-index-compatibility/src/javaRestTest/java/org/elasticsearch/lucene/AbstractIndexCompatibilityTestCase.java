@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.XContentTestUtils;
@@ -76,7 +77,6 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
         .setting("path.repo", () -> REPOSITORY_PATH.getRoot().getPath())
         .setting("xpack.security.enabled", "false")
         .setting("xpack.ml.enabled", "false")
-        .setting("path.repo", () -> REPOSITORY_PATH.getRoot().getPath())
         .apply(() -> clusterConfig)
         .build();
 
@@ -330,7 +330,7 @@ public abstract class AbstractIndexCompatibilityTestCase extends ESRestTestCase 
     @SuppressWarnings("unchecked")
     protected static void assertIndexSetting(String indexName, Setting<?> setting, Matcher<Boolean> matcher) throws Exception {
         var indexSettings = getIndexSettingsAsMap(indexName);
-        assertThat(Boolean.parseBoolean((String) indexSettings.get(setting.getKey())), matcher);
+        assertThat(Booleans.parseBoolean((String) indexSettings.get(setting.getKey()), false), matcher);
     }
 
     protected static ResponseException expectUpdateIndexSettingsThrows(String indexName, Settings.Builder settings) {

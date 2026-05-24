@@ -37,6 +37,9 @@ import static org.hamcrest.Matchers.lessThan;
 
 public class DateUtilsTests extends ESTestCase {
 
+    public static final long UNIT_MILLIS = 13_000L;
+    public static final long DATE_TIME_MILLIS = Instant.parse("2024-01-01T12:00:15Z").toEpochMilli();
+
     public void testCompareNanosToMillis() {
         assertThat(MAX_NANOSECOND_IN_MILLIS * 1_000_000, lessThan(Long.MAX_VALUE));
 
@@ -233,6 +236,28 @@ public class DateUtilsTests extends ESTestCase {
         assertThat(rounded, is(result.toInstant().toEpochMilli()));
     }
 
+    public void testFloorRemainder() {
+        assertThat(DateUtils.floorRemainder(0L, 5_000L), is(0L));
+        assertThat(DateUtils.floorRemainder(12_002L, 5_000L), is(2_002L));
+        assertThat(DateUtils.floorRemainder(-1L, 5_000L), is(4_999L));
+        assertThat(DateUtils.floorRemainder(-7L, 5L), is(3L));
+        assertThat(DateUtils.floorRemainder(-10L, 5L), is(0L));
+        assertThat(DateUtils.floorRemainder(DATE_TIME_MILLIS, UNIT_MILLIS), is(7_000L));
+    }
+
+    public void testRoundWithOffset() {
+        long offsetMillis = DateUtils.floorRemainder(DATE_TIME_MILLIS, UNIT_MILLIS);
+
+        assertThat(offsetMillis, is(7_000L));
+        assertThat(DateUtils.roundFloor(DATE_TIME_MILLIS, UNIT_MILLIS, offsetMillis), is(DATE_TIME_MILLIS));
+        assertThat(DateUtils.roundFloor(DATE_TIME_MILLIS - 1, UNIT_MILLIS, offsetMillis), is(DATE_TIME_MILLIS - UNIT_MILLIS));
+        assertThat(DateUtils.roundCeil(DATE_TIME_MILLIS, UNIT_MILLIS, offsetMillis), is(DATE_TIME_MILLIS));
+        assertThat(DateUtils.roundCeil(DATE_TIME_MILLIS - 1, UNIT_MILLIS, offsetMillis), is(DATE_TIME_MILLIS));
+        assertThat(DateUtils.roundCeil(DATE_TIME_MILLIS + 1, UNIT_MILLIS, offsetMillis), is(DATE_TIME_MILLIS + UNIT_MILLIS));
+        assertThat(DateUtils.roundFloor(-1L, 5L, 2L), is(-3L));
+        assertThat(DateUtils.roundCeil(-1L, 5L, 2L), is(2L));
+    }
+
     public void testRoundQuarterOfYear() {
         assertThat(DateUtils.roundQuarterOfYear(0), is(0L));
         long lastQuarter1969 = ZonedDateTime.of(1969, 10, 1, 0, 0, 0, 0, ZoneOffset.UTC).toInstant().toEpochMilli();
@@ -267,6 +292,17 @@ public class DateUtilsTests extends ESTestCase {
         assertThat(DateUtils.roundMonthOfYear(1), is(0L));
         long dec1969 = LocalDate.of(1969, 12, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
         assertThat(DateUtils.roundMonthOfYear(-1), is(dec1969));
+
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> DateUtils.roundIntervalMonthOfYear(0, -1));
+        assertThat(exc.getMessage(), is("month interval must be strictly positive, got [-1]"));
+        long epochMilli = LocalDate.of(1969, 10, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundIntervalMonthOfYear(1, 5), is(epochMilli));
+        epochMilli = LocalDate.of(1969, 6, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundIntervalMonthOfYear(-1, 13), is(epochMilli));
+        epochMilli = LocalDate.of(2024, 8, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundIntervalMonthOfYear(1737378896000L, 7), is(epochMilli));
+        epochMilli = LocalDate.of(-2026, 4, 1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundIntervalMonthOfYear(-126068400000000L, 11), is(epochMilli));
     }
 
     public void testRoundYear() {
@@ -276,9 +312,33 @@ public class DateUtilsTests extends ESTestCase {
         assertThat(DateUtils.roundYear(-1), is(startOf1969));
         long endOf1970 = ZonedDateTime.of(1970, 12, 31, 23, 59, 59, 999_999_999, ZoneOffset.UTC).toInstant().toEpochMilli();
         assertThat(DateUtils.roundYear(endOf1970), is(0L));
-        // test with some leapyear
+        // test with some leap year
         long endOf1996 = ZonedDateTime.of(1996, 12, 31, 23, 59, 59, 999_999_999, ZoneOffset.UTC).toInstant().toEpochMilli();
         long startOf1996 = Year.of(1996).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
         assertThat(DateUtils.roundYear(endOf1996), is(startOf1996));
+
+        IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> DateUtils.roundYearInterval(0, -1));
+        assertThat(exc.getMessage(), is("year interval must be strictly positive, got [-1]"));
+        assertThat(DateUtils.roundYearInterval(0, 2), is(startOf1969));
+        long startOf1968 = Year.of(1968).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundYearInterval(0, 7), is(startOf1968));
+        long startOf1966 = Year.of(1966).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundYearInterval(1, 5), is(startOf1966));
+        long startOf1961 = Year.of(1961).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundYearInterval(-1, 10), is(startOf1961));
+        long startOf1992 = Year.of(1992).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundYearInterval(endOf1996, 11), is(startOf1992));
+        long epochMilli = Year.of(-2034).atDay(1).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundYearInterval(-126068400000000L, 11), is(epochMilli));
+    }
+
+    public void testRoundWeek() {
+        long epochMilli = Year.of(1969).atMonth(12).atDay(29).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundWeekOfWeekYear(0), is(epochMilli));
+        assertThat(DateUtils.roundWeekOfWeekYear(1), is(epochMilli));
+        assertThat(DateUtils.roundWeekOfWeekYear(-1), is(epochMilli));
+
+        epochMilli = Year.of(2025).atMonth(1).atDay(20).atStartOfDay().toInstant(ZoneOffset.UTC).toEpochMilli();
+        assertThat(DateUtils.roundWeekOfWeekYear(1737378896000L), is(epochMilli));
     }
 }

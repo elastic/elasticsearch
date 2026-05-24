@@ -33,6 +33,7 @@ import java.util.Objects;
 import java.util.function.IntUnaryOperator;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.compute.data.BasicBlockTests.assertDeepCopy;
 import static org.elasticsearch.compute.data.BasicBlockTests.assertInsertNulls;
 import static org.elasticsearch.compute.test.BlockTestUtils.valuesAtPositions;
 import static org.hamcrest.Matchers.equalTo;
@@ -44,7 +45,14 @@ public class BlockMultiValuedTests extends ESTestCase {
     public static List<Object[]> params() {
         List<Object[]> params = new ArrayList<>();
         for (ElementType e : ElementType.values()) {
-            if (e == ElementType.UNKNOWN || e == ElementType.NULL || e == ElementType.DOC || e == ElementType.COMPOSITE) {
+            if (e == ElementType.UNKNOWN
+                || e == ElementType.NULL
+                || e == ElementType.DOC
+                || e == ElementType.COMPOSITE
+                || e == ElementType.EXPONENTIAL_HISTOGRAM // TODO(b/133393): Enable tests once the block supports lookup
+                || e == ElementType.TDIGEST
+                || e == ElementType.AGGREGATE_METRIC_DOUBLE
+                || e == ElementType.LONG_RANGE) {
                 continue;
             }
             for (boolean nullAllowed : new boolean[] { false, true }) {
@@ -74,6 +82,7 @@ public class BlockMultiValuedTests extends ESTestCase {
 
             assertThat(b.block().mayHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
             assertThat(b.block().doesHaveMultivaluedFields(), equalTo(b.values().stream().anyMatch(l -> l != null && l.size() > 1)));
+            assertThat(b.block().valueMaxByteSize(), equalTo(b.valueMaxByteSize()));
             assertInsertNulls(b.block());
         } finally {
             b.block().close();
@@ -190,12 +199,22 @@ public class BlockMultiValuedTests extends ESTestCase {
         }
     }
 
+    public void testDeepCopy() {
+        int positionCount = randomIntBetween(1, 16 * 1024);
+        var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 2, 10, 0, 0);
+        try {
+            assertDeepCopy(b.block());
+        } finally {
+            b.block().close();
+        }
+    }
+
     private void assertFiltered(boolean all, boolean shuffled) {
         int positionCount = randomIntBetween(1, 16 * 1024);
         var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 10, 0, 0);
         try {
             int[] positions = randomFilterPositions(b.block(), all, shuffled);
-            Block filtered = b.block().filter(positions);
+            Block filtered = b.block().filter(false, positions);
             try {
                 assertThat(filtered.getPositionCount(), equalTo(positions.length));
 
@@ -264,7 +283,7 @@ public class BlockMultiValuedTests extends ESTestCase {
         var b = RandomBlock.randomBlock(blockFactory(), elementType, positionCount, nullAllowed, 0, 10, 0, 0);
         try {
             int[] positions = randomFilterPositions(b.block(), all, shuffled);
-            assertExpanded(b.block().filter(positions));
+            assertExpanded(b.block().filter(false, positions));
         } finally {
             b.block().close();
         }
@@ -278,9 +297,8 @@ public class BlockMultiValuedTests extends ESTestCase {
      */
     protected BlockFactory blockFactory() { // TODO move this to driverContext once everyone supports breaking
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        breakers.add(breaker);
-        BlockFactory factory = new MockBlockFactory(breaker, bigArrays);
+        breakers.add(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST));
+        BlockFactory factory = new MockBlockFactory(BlockFactory.builder(bigArrays));
         blockFactories.add(factory);
         return factory;
     }

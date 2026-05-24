@@ -152,6 +152,21 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
         verify(cutoffListener).onResponse(eq(new AbstractExpiredJobDataRemover.CutoffDetails(latest.getTime(), expectedCutoffTime)));
     }
 
+    public void testRemove_GivenIndexNotWritable_ShouldHandleGracefully() {
+        givenBucket(new Bucket("id_not_important", new Date(), 60));
+        List<Job> jobs = Arrays.asList(
+            JobTests.buildJobBuilder("annotations-1").setResultsRetentionDays(10L).build(),
+            JobTests.buildJobBuilder("annotations-2").setResultsRetentionDays(20L).build()
+        );
+
+        // annotationIndexWritable = false
+        createExpiredAnnotationsRemover(jobs.iterator(), false).remove(1.0f, listener, () -> false);
+
+        // No DBQ requests should be made, but listener should still be called with true
+        assertThat(capturedDeleteByQueryRequests.size(), equalTo(0));
+        verify(listener).onResponse(true);
+    }
+
     private void givenDBQRequestsSucceed() {
         givenDBQRequest(true);
     }
@@ -180,12 +195,13 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
     private void givenBucket(Bucket bucket) {
         doAnswer(invocationOnMock -> {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
-            listener.onResponse(AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(bucket)));
+            SearchResponse searchResponse = AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(bucket));
+            ActionListener.respondAndRelease(listener, searchResponse);
             return null;
         }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
     }
 
-    private ExpiredAnnotationsRemover createExpiredAnnotationsRemover(Iterator<Job> jobIterator) {
+    private ExpiredAnnotationsRemover createExpiredAnnotationsRemover(Iterator<Job> jobIterator, boolean annotationIndexWritable) {
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executor = mock(ExecutorService.class);
 
@@ -197,6 +213,7 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
             return null;
         }).when(executor).execute(any());
 
+        MockWritableIndexExpander.create(annotationIndexWritable);
         return new ExpiredAnnotationsRemover(
             originSettingClient,
             jobIterator,
@@ -204,5 +221,9 @@ public class ExpiredAnnotationsRemoverTests extends ESTestCase {
             mock(AnomalyDetectionAuditor.class),
             threadPool
         );
+    }
+
+    private ExpiredAnnotationsRemover createExpiredAnnotationsRemover(Iterator<Job> jobIterator) {
+        return createExpiredAnnotationsRemover(jobIterator, true);
     }
 }

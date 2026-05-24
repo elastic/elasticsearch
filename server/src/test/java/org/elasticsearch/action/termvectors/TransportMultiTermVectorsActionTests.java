@@ -15,6 +15,7 @@ import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.get.TransportMultiGetActionTests;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.ReshardingActionHelper;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -182,7 +183,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
 
     public void testTransportMultiGetAction() {
         final Task task = createTask();
-        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
         final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client);
         request.add(new TermVectorsRequest("index1", "1"));
         request.add(new TermVectorsRequest("index2", "2"));
@@ -194,7 +195,8 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             client,
             new ActionFilters(emptySet()),
             projectResolver,
-            new Resolver()
+            new Resolver(),
+            new ReshardingActionHelper(clusterService, projectResolver, threadPool)
         ) {
             @Override
             protected void executeShardAction(
@@ -215,7 +217,7 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
 
     public void testTransportMultiGetAction_withMissingRouting() {
         final Task task = createTask();
-        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
+        final NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
         final MultiTermVectorsRequestBuilder request = new MultiTermVectorsRequestBuilder(client);
         request.add(new TermVectorsRequest("index2", "1").routing("1"));
         request.add(new TermVectorsRequest("index2", "2"));
@@ -227,7 +229,8 @@ public class TransportMultiTermVectorsActionTests extends ESTestCase {
             client,
             new ActionFilters(emptySet()),
             projectResolver,
-            new Resolver()
+            new Resolver(),
+            new ReshardingActionHelper(clusterService, projectResolver, threadPool)
         ) {
             @Override
             protected void executeShardAction(

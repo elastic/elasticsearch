@@ -100,6 +100,32 @@ Conflicting attribute types:
   - length: { hits.hits: 2 }
   - match: { hits.hits.0.fields.attributes\.http\.status_code: [200] }
   - match: { hits.hits.1._ignored: ["attributes.http.status_code"] }
+
+---
+"http.response.status_code should be mapped as long":
+  - do:
+      bulk:
+        index: traces-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - "@timestamp": 2024-10-05T00:00:00
+            attributes:
+              http.response.status_code: "200"
+          - create: {}
+          - "@timestamp": 2024-10-05T01:00:00
+            attributes:
+              http.response.status_code: 201
+  - is_false: errors
+  - do:
+      search:
+        index: traces-generic.otel-default
+        body:
+          fields: ["*"]
+          "sort" : [ "@timestamp" ]
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0.fields.attributes\.http\.response\.status_code: [200] }
+  - match: { hits.hits.1.fields.attributes\.http\.response\.status_code: [201] }
 ---
 "resource.attributes.host.name @timestamp should be used as sort fields":
   - do:
@@ -140,3 +166,21 @@ traces@lifecycle:
         index: $datastream-backing-index
   - is_true: $datastream-backing-index
   - match: { .$datastream-backing-index.settings.index.lifecycle.name: "traces@lifecycle" }
+---
+"profiler_stack_trace_ids field should have type counted_keyword":
+  - do:
+      bulk:
+        index: traces-generic.otel-default
+        refresh: true
+        body:
+          - create: {}
+          - '{"@timestamp":"2024-07-18T14:49:33.467654000Z","data_stream":{"dataset":"generic.otel","namespace":"default"}, "span_id":"1", "attributes": {"elastic.profiler_stack_trace_ids": "S7VyNjRieh4zCEmv7MiwwAcaFlvHvn1cleFkExsq-nbA"}}'
+  - is_false: errors
+  - do:
+      indices.get_data_stream:
+        name: traces-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+  - match: { .$idx0name.mappings.properties.attributes.properties.elastic\.profiler_stack_trace_ids.type: 'counted_keyword' }

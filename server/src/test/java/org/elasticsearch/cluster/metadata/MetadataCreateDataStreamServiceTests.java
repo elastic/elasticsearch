@@ -18,7 +18,6 @@ import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.Create
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
@@ -26,6 +25,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.ExecutorNames;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
 import org.elasticsearch.indices.SystemDataStreamDescriptor.Type;
+import org.elasticsearch.indices.SystemIndexDescriptorUtils;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.Feature;
 import org.elasticsearch.test.ESTestCase;
@@ -71,6 +71,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             true,
             req,
+            RerouteBehavior.PERFORM_REROUTE,
             ActionListener.noop(),
             false
         );
@@ -80,14 +81,12 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(project.dataStreams().get(dataStreamName).isSystem(), is(false));
         assertThat(project.dataStreams().get(dataStreamName).isHidden(), is(false));
         assertThat(project.dataStreams().get(dataStreamName).isReplicated(), is(false));
-        assertThat(project.dataStreams().get(dataStreamName).getDataLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
+        assertThat(project.dataStreams().get(dataStreamName).getDataLifecycle(), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
         assertThat(project.dataStreams().get(dataStreamName).getIndexMode(), nullValue());
-        assertThat(project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
-        assertThat(
-            project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
-            equalTo("true")
-        );
-        assertThat(project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(), is(false));
+        final var index = project.index(project.dataStreams().get(dataStreamName).getWriteIndex());
+        assertThat(index, notNullValue());
+        assertThat(index.getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(index.isSystem(), is(false));
     }
 
     public void testCreateDataStreamLogsdb() throws Exception {
@@ -109,6 +108,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             true,
             req,
+            RerouteBehavior.PERFORM_REROUTE,
             ActionListener.noop(),
             false
         );
@@ -119,13 +119,49 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(project.dataStreams().get(dataStreamName).isHidden(), is(false));
         assertThat(project.dataStreams().get(dataStreamName).isReplicated(), is(false));
         assertThat(project.dataStreams().get(dataStreamName).getIndexMode(), equalTo(IndexMode.LOGSDB));
-        assertThat(project.dataStreams().get(dataStreamName).getDataLifecycle(), equalTo(DataStreamLifecycle.DEFAULT));
-        assertThat(project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
-        assertThat(
-            project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
-            equalTo("true")
+        assertThat(project.dataStreams().get(dataStreamName).getDataLifecycle(), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
+        final var index = project.index(project.dataStreams().get(dataStreamName).getWriteIndex());
+        assertThat(index, notNullValue());
+        assertThat(index.getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(index.isSystem(), is(false));
+    }
+
+    public void testCreateDataStreamLogsdbColumnar() throws Exception {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+        final String dataStreamName = "my-data-stream";
+        ComposableIndexTemplate template = ComposableIndexTemplate.builder()
+            .indexPatterns(List.of(dataStreamName + "*"))
+            .template(new Template(Settings.builder().put("index.mode", "logsdb_columnar").build(), null, null))
+            .dataStreamTemplate(new DataStreamTemplate())
+            .build();
+        final var projectId = randomProjectIdOrDefault();
+        ClusterState cs = ClusterState.builder(new ClusterName("_name"))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).put("template", template).build())
+            .build();
+        CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(projectId, dataStreamName);
+        ClusterState newState = MetadataCreateDataStreamService.createDataStream(
+            metadataCreateIndexService,
+            Settings.EMPTY,
+            cs,
+            true,
+            req,
+            RerouteBehavior.PERFORM_REROUTE,
+            ActionListener.noop(),
+            false
         );
-        assertThat(project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(), is(false));
+        final var project = newState.metadata().getProject(projectId);
+        assertThat(project.dataStreams().size(), equalTo(1));
+        assertThat(project.dataStreams().get(dataStreamName).getName(), equalTo(dataStreamName));
+        assertThat(project.dataStreams().get(dataStreamName).isSystem(), is(false));
+        assertThat(project.dataStreams().get(dataStreamName).isHidden(), is(false));
+        assertThat(project.dataStreams().get(dataStreamName).isReplicated(), is(false));
+        assertThat(project.dataStreams().get(dataStreamName).getIndexMode(), equalTo(IndexMode.LOGSDB_COLUMNAR));
+        assertThat(project.dataStreams().get(dataStreamName).getDataLifecycle(), equalTo(DataStreamLifecycle.DEFAULT_DATA_LIFECYCLE));
+        final var index = project.index(project.dataStreams().get(dataStreamName).getWriteIndex());
+        assertThat(index, notNullValue());
+        assertThat(index.getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(index.isSystem(), is(false));
     }
 
     public void testCreateDataStreamWithAliasFromTemplate() throws Exception {
@@ -153,6 +189,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
+            RerouteBehavior.PERFORM_REROUTE,
             ActionListener.noop(),
             false
         );
@@ -176,13 +213,11 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             project.dataStreamAliases().values().stream().map(DataStreamAlias::getName).toArray(),
             arrayContainingInAnyOrder(new ArrayList<>(aliases.keySet()).toArray())
         );
-        assertThat(project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
-        assertThat(project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getAliases().size(), is(0));
-        assertThat(
-            project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
-            equalTo("true")
-        );
-        assertThat(project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(), is(false));
+        final var index = project.index(project.dataStreams().get(dataStreamName).getWriteIndex());
+        assertThat(index, notNullValue());
+        assertThat(index.getAliases().size(), is(0));
+        assertThat(index.getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(index.isSystem(), is(false));
     }
 
     public void testCreateDataStreamWithAliasFromComponentTemplate() throws Exception {
@@ -233,6 +268,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
+            RerouteBehavior.PERFORM_REROUTE,
             ActionListener.noop(),
             false
         );
@@ -253,13 +289,11 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             }
         }
 
-        assertThat(project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
-        assertThat(project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getAliases().size(), is(0));
-        assertThat(
-            project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
-            equalTo("true")
-        );
-        assertThat(project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(), is(false));
+        final var index = project.index(project.dataStreams().get(dataStreamName).getWriteIndex());
+        assertThat(index, notNullValue());
+        assertThat(index.getAliases().size(), is(0));
+        assertThat(index.getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(index.isSystem(), is(false));
     }
 
     private static AliasMetadata randomAlias(String prefix) {
@@ -291,6 +325,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
+            RerouteBehavior.PERFORM_REROUTE,
             ActionListener.noop(),
             true
         );
@@ -335,6 +370,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
+            RerouteBehavior.PERFORM_REROUTE,
             ActionListener.noop(),
             false
         );
@@ -376,6 +412,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
+            RerouteBehavior.PERFORM_REROUTE,
             ActionListener.noop(),
             true
         );
@@ -404,8 +441,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             dataStreamName,
             systemDataStreamDescriptor(),
             TimeValue.MAX_VALUE,
-            TimeValue.ZERO,
-            true
+            TimeValue.ZERO
         );
         ClusterState newState = MetadataCreateDataStreamService.createDataStream(
             metadataCreateIndexService,
@@ -413,6 +449,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
             cs,
             randomBoolean(),
             req,
+            RerouteBehavior.PERFORM_REROUTE,
             ActionListener.noop(),
             false
         );
@@ -422,12 +459,10 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         assertThat(project.dataStreams().get(dataStreamName).isSystem(), is(true));
         assertThat(project.dataStreams().get(dataStreamName).isHidden(), is(true));
         assertThat(project.dataStreams().get(dataStreamName).isReplicated(), is(false));
-        assertThat(project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)), notNullValue());
-        assertThat(
-            project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).getSettings().get("index.hidden"),
-            equalTo("true")
-        );
-        assertThat(project.index(DataStream.getDefaultBackingIndexName(dataStreamName, 1)).isSystem(), is(true));
+        final var index = project.index(project.dataStreams().get(dataStreamName).getWriteIndex());
+        assertThat(index, notNullValue());
+        assertThat(index.getSettings().get("index.hidden"), equalTo("true"));
+        assertThat(index.isSystem(), is(true));
     }
 
     public void testCreateDuplicateDataStream() throws Exception {
@@ -451,6 +486,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
+                RerouteBehavior.PERFORM_REROUTE,
                 ActionListener.noop(),
                 false
             )
@@ -474,6 +510,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
+                RerouteBehavior.PERFORM_REROUTE,
                 ActionListener.noop(),
                 false
             )
@@ -497,6 +534,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
+                RerouteBehavior.PERFORM_REROUTE,
                 ActionListener.noop(),
                 false
             )
@@ -520,6 +558,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
+                RerouteBehavior.PERFORM_REROUTE,
                 ActionListener.noop(),
                 false
             )
@@ -543,6 +582,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
+                RerouteBehavior.PERFORM_REROUTE,
                 ActionListener.noop(),
                 false
             )
@@ -567,6 +607,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 cs,
                 randomBoolean(),
                 req,
+                RerouteBehavior.PERFORM_REROUTE,
                 ActionListener.noop(),
                 false
             )
@@ -577,32 +618,50 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
         );
     }
 
-    public static ClusterState createDataStream(final String dataStreamName) throws Exception {
-        final MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService();
+    public void testCreateDataStreamMatchingSystemIndexDescriptorFails() throws Exception {
+        final String dataStreamName = ".my-system-idx";
+        SystemIndices systemIndices = new SystemIndices(
+            List.of(
+                new Feature(
+                    "testFeature",
+                    "a test feature with an index descriptor matching a data stream name",
+                    List.of(SystemIndexDescriptorUtils.createUnmanaged(".my-system-idx*", "test"))
+                )
+            )
+        );
+        MetadataCreateIndexService metadataCreateIndexService = getMetadataCreateIndexService(systemIndices);
         ComposableIndexTemplate template = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(dataStreamName + "*"))
-            .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
+            .dataStreamTemplate(new DataStreamTemplate())
             .build();
-        @FixForMultiProject(description = "This method is exclusively used by TransportBulkActionTests.java")
-        final var projectId = Metadata.DEFAULT_PROJECT_ID;
+        final var projectId = randomProjectIdOrDefault();
         ClusterState cs = ClusterState.builder(new ClusterName("_name"))
             .putProjectMetadata(ProjectMetadata.builder(projectId).put("template", template).build())
             .build();
         CreateDataStreamClusterStateUpdateRequest req = new CreateDataStreamClusterStateUpdateRequest(projectId, dataStreamName);
-        return MetadataCreateDataStreamService.createDataStream(
-            metadataCreateIndexService,
-            Settings.EMPTY,
-            cs,
-            randomBoolean(),
-            req,
-            ActionListener.noop(),
-            false
+        AssertionError e = expectThrows(
+            AssertionError.class,
+            () -> MetadataCreateDataStreamService.createDataStream(
+                metadataCreateIndexService,
+                Settings.EMPTY,
+                cs,
+                randomBoolean(),
+                req,
+                RerouteBehavior.PERFORM_REROUTE,
+                ActionListener.noop(),
+                false
+            )
         );
+        assertThat(e.getMessage(), containsString("matches a SystemIndexDescriptor"));
     }
 
     private static MetadataCreateIndexService getMetadataCreateIndexService() throws Exception {
+        return getMetadataCreateIndexService(getSystemIndices());
+    }
+
+    private static MetadataCreateIndexService getMetadataCreateIndexService(SystemIndices systemIndices) throws Exception {
         MetadataCreateIndexService s = mock(MetadataCreateIndexService.class);
-        when(s.getSystemIndices()).thenReturn(getSystemIndices());
+        when(s.getSystemIndices()).thenReturn(systemIndices);
         Answer<Object> objectAnswer = mockInvocation -> {
             ClusterState currentState = (ClusterState) mockInvocation.getArguments()[0];
             CreateIndexClusterStateUpdateRequest request = (CreateIndexClusterStateUpdateRequest) mockInvocation.getArguments()[1];
@@ -617,7 +676,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                                 .build()
                         )
                         .putMapping(generateMapping("@timestamp"))
-                        .system(getSystemIndices().isSystemName(request.index()))
+                        .system(systemIndices.isSystemName(request.index()))
                         .numberOfShards(1)
                         .numberOfReplicas(1)
                         .build(),
@@ -625,10 +684,24 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 );
             return ClusterState.builder(currentState).putProjectMetadata(b.build()).build();
         };
-        when(s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean(), any()))
-            .thenAnswer(objectAnswer);
         when(
-            s.applyCreateIndexRequest(any(ClusterState.class), any(CreateIndexClusterStateUpdateRequest.class), anyBoolean(), any(), any())
+            s.applyCreateIndexRequest(
+                any(ClusterState.class),
+                any(CreateIndexClusterStateUpdateRequest.class),
+                anyBoolean(),
+                any(RerouteBehavior.class),
+                any()
+            )
+        ).thenAnswer(objectAnswer);
+        when(
+            s.applyCreateIndexRequest(
+                any(ClusterState.class),
+                any(CreateIndexClusterStateUpdateRequest.class),
+                anyBoolean(),
+                any(),
+                any(RerouteBehavior.class),
+                any()
+            )
         ).thenAnswer(objectAnswer);
 
         return s;
@@ -653,6 +726,7 @@ public class MetadataCreateDataStreamServiceTests extends ESTestCase {
                 .build(),
             Map.of(),
             List.of("stack"),
+            "stack",
             ExecutorNames.DEFAULT_SYSTEM_DATA_STREAM_THREAD_POOLS
         );
     }

@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequest;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.cluster.project.ProjectIdResolver;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -31,6 +32,7 @@ import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestResponseListener;
 import org.elasticsearch.script.ScriptStats;
 import org.elasticsearch.threadpool.ThreadPoolStats;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,7 +49,6 @@ import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsReques
 import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric.INGEST;
 import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric.SCRIPT;
 import static org.elasticsearch.action.admin.cluster.node.stats.NodesStatsRequestParameters.Metric.THREAD_POOL;
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestClusterInfoAction extends BaseRestHandler {
@@ -76,6 +77,12 @@ public class RestClusterInfoAction extends BaseRestHandler {
     );
     static final Set<Metric> AVAILABLE_TARGETS = RESPONSE_MAPPER.keySet();
     static final Set<String> AVAILABLE_TARGET_NAMES = AVAILABLE_TARGETS.stream().map(Metric::metricName).collect(toUnmodifiableSet());
+
+    private final ProjectIdResolver projectIdResolver;
+
+    public RestClusterInfoAction(ProjectIdResolver projectIdResolver) {
+        this.projectIdResolver = projectIdResolver;
+    }
 
     @Override
     public String getName() {
@@ -137,12 +144,18 @@ public class RestClusterInfoAction extends BaseRestHandler {
                                 Iterators.flatMap(chunkedResponses, chunk -> chunk.toXContentChunked(outerParams)),
                                 ChunkedToXContentHelper.endObject()
                             ),
-                            EMPTY_PARAMS,
+                            xContentParams(),
                             channel
                         ),
                         null
                     );
                 }
             });
+    }
+
+    private ToXContent.MapParams xContentParams() {
+        return new ToXContent.MapParams(
+            Map.of(NodeStats.MULTI_PROJECT_ENABLED_XCONTENT_PARAM_KEY, Boolean.toString(projectIdResolver.supportsMultipleProjects()))
+        );
     }
 }

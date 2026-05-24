@@ -21,7 +21,9 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -103,6 +105,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
     private final AnomalyDetectionAuditor auditor;
     private final NamedXContentRegistry xContentRegistry;
     private final boolean remoteClusterClient;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportStartDatafeedAction(
@@ -117,7 +120,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         JobConfigProvider jobConfigProvider,
         DatafeedConfigProvider datafeedConfigProvider,
         AnomalyDetectionAuditor auditor,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        ProjectResolver projectResolver
     ) {
         super(
             StartDatafeedAction.NAME,
@@ -137,6 +141,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         this.auditor = auditor;
         this.xContentRegistry = xContentRegistry;
         this.remoteClusterClient = DiscoveryNode.isRemoteClusterClient(settings);
+        this.projectResolver = projectResolver;
     }
 
     static void validate(
@@ -223,6 +228,20 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         Consumer<Job> createDataExtractor = job -> {
             final List<String> remoteIndices = RemoteClusterLicenseChecker.remoteIndices(params.getDatafeedIndices());
             if (remoteIndices.isEmpty() == false) {
+                if (remoteClusterClient == false) {
+                    responseHeaderPreservingListener.onFailure(
+                        ExceptionsHelper.badRequestException(
+                            Messages.getMessage(
+                                Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
+                                datafeedConfigHolder.get().getId(),
+                                RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices()),
+                                clusterService.getNodeName()
+                            )
+                        )
+                    );
+                    return;
+                }
+
                 final RemoteClusterLicenseChecker remoteClusterLicenseChecker = new RemoteClusterLicenseChecker(
                     client,
                     MachineLearningField.ML_API_FEATURE
@@ -235,17 +254,6 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                     ActionListener.wrap(response -> {
                         if (response.isSuccess() == false) {
                             responseHeaderPreservingListener.onFailure(createUnlicensedError(params.getDatafeedId(), response));
-                        } else if (remoteClusterClient == false) {
-                            responseHeaderPreservingListener.onFailure(
-                                ExceptionsHelper.badRequestException(
-                                    Messages.getMessage(
-                                        Messages.DATAFEED_NEEDS_REMOTE_CLUSTER_SEARCH,
-                                        datafeedConfigHolder.get().getId(),
-                                        RemoteClusterLicenseChecker.remoteIndices(datafeedConfigHolder.get().getIndices()),
-                                        clusterService.getNodeName()
-                                    )
-                                )
-                            );
                         } else {
                             final RemoteClusterService remoteClusterService = transportService.getRemoteClusterService();
                             List<String> remoteAliases = RemoteClusterLicenseChecker.remoteClusterAliases(
@@ -307,7 +315,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         final TransportVersion minVersion = minVersionAndReason.get().v1();
 
         List<String> clustersTooOld = remoteClusters.stream()
-            .filter(cn -> transportVersionSupplier.apply(cn).before(minVersion))
+            .filter(cn -> transportVersionSupplier.apply(cn).supports(minVersion) == false)
             .collect(Collectors.toList());
         if (clustersTooOld.isEmpty()) {
             return;
@@ -356,7 +364,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
         // then delagating to PersistentTasksService doesn't make a whole lot of sense,
         // because PersistentTasksService will then fail.
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     private void waitForDatafeedStarted(
@@ -487,10 +495,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(
+        protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
             StartDatafeedAction.DatafeedParams params,
             Collection<DiscoveryNode> candidateNodes,
-            ClusterState clusterState
+            ClusterState clusterState,
+            @Nullable ProjectId projectId
         ) {
             return new DatafeedNodeSelector(
                 clusterState,
@@ -503,7 +512,7 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
         }
 
         @Override
-        public void validate(StartDatafeedAction.DatafeedParams params, ClusterState clusterState) {
+        public void validate(StartDatafeedAction.DatafeedParams params, ClusterState clusterState, @Nullable ProjectId projectId) {
             new DatafeedNodeSelector(
                 clusterState,
                 resolver,
@@ -512,6 +521,11 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
                 params.getDatafeedIndices(),
                 params.getIndicesOptions()
             ).checkDatafeedTaskCanBeCreated();
+        }
+
+        @Override
+        public boolean automaticReassignmentOnShutdown() {
+            return false;
         }
 
         @Override
@@ -645,14 +659,37 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             return false;
         }
 
+        /**
+         * Marks this datafeed task as stopped and asks the {@link DatafeedRunner} to shut down the in-memory datafeed,
+         * using default rules for whether the job is auto-closed when the datafeed has an {@code end_time} (lookback-only).
+         *
+         * @param reason  short label for logs and audits explaining why the datafeed is stopping
+         * @param timeout maximum time to wait when acquiring the datafeed job lock before proceeding with shutdown
+         */
         public void stop(String reason, TimeValue timeout) {
+            stop(reason, timeout, null);
+        }
+
+        /**
+         * Marks this datafeed task as stopped and asks the {@link DatafeedRunner} to shut down the in-memory datafeed,
+         * optionally overriding whether the anomaly detection job is auto-closed after the stop.
+         *
+         * @param reason               short label for logs and audits explaining why the datafeed is stopping
+         * @param timeout              maximum time to wait when acquiring the datafeed job lock before proceeding with
+         *                             shutdown
+         * @param autoCloseJobOverride when non-null, whether to auto-close the job after the datafeed stops; when
+         *                             {@code null}, default lookback-only auto-close behavior applies (see {@link #isLookbackOnly()}).
+         *                             Non-null values are forwarded to {@link DatafeedRunner}{@code .stopDatafeed(DatafeedTask,
+         *                             String, TimeValue, Boolean)}.
+         */
+        public void stop(String reason, TimeValue timeout, Boolean autoCloseJobOverride) {
             synchronized (this) {
                 stoppedOrIsolated = StoppedOrIsolated.STOPPED;
                 if (datafeedRunner == null) {
                     return;
                 }
             }
-            datafeedRunner.stopDatafeed(this, reason, timeout);
+            datafeedRunner.stopDatafeed(this, reason, timeout, autoCloseJobOverride);
         }
 
         public synchronized StoppedOrIsolated getStoppedOrIsolated() {
@@ -702,7 +739,8 @@ public class TransportStartDatafeedAction extends TransportMasterNodeAction<Star
             return new GetDatafeedRunningStateAction.Response.RunningState(
                 endTime == null,
                 datafeedRunner.finishedLookBack(this),
-                datafeedRunner.getSearchInterval(this)
+                datafeedRunner.getSearchInterval(this),
+                datafeedRunner.getCrossClusterStats(this)
             );
         }
     }

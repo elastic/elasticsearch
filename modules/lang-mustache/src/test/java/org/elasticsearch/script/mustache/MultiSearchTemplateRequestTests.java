@@ -11,9 +11,11 @@ package org.elasticsearch.script.mustache;
 
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.StreamsUtils;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -35,7 +37,10 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(data), XContentType.JSON)
             .build();
 
-        MultiSearchTemplateRequest request = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
+        MultiSearchTemplateRequest request = new RestMultiSearchTemplateAction(Settings.EMPTY, CrossProjectModeDecider.NOOP).parseRequest(
+            restRequest,
+            true
+        );
 
         assertThat(request.requests().size(), equalTo(3));
         assertThat(request.requests().get(0).getRequest().indices()[0], equalTo("test0"));
@@ -73,7 +78,10 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(content), XContentType.JSON)
             .build();
 
-        MultiSearchTemplateRequest request = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
+        MultiSearchTemplateRequest request = new RestMultiSearchTemplateAction(Settings.EMPTY, CrossProjectModeDecider.NOOP).parseRequest(
+            restRequest,
+            true
+        );
 
         assertThat(request.requests().size(), equalTo(1));
         assertThat(request.requests().get(0).getRequest().indices()[0], equalTo("test0"));
@@ -125,7 +133,10 @@ public class MultiSearchTemplateRequestTests extends ESTestCase {
         // Deserialize the request
         RestRequest restRequest = new FakeRestRequest.Builder(xContentRegistry()).withContent(new BytesArray(serialized), XContentType.JSON)
             .build();
-        MultiSearchTemplateRequest deser = RestMultiSearchTemplateAction.parseRequest(restRequest, true);
+        MultiSearchTemplateRequest deser = new RestMultiSearchTemplateAction(Settings.EMPTY, CrossProjectModeDecider.NOOP).parseRequest(
+            restRequest,
+            true
+        );
 
         // For object equality purposes need to set the search requests' source to non-null
         for (SearchTemplateRequest str : deser.requests()) {

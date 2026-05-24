@@ -10,6 +10,7 @@
 package org.elasticsearch.cluster;
 
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -434,6 +435,7 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
                         SnapshotDeletionsInProgress.of(
                             List.of(
                                 new SnapshotDeletionsInProgress.Entry(
+                                    ProjectId.DEFAULT,
                                     "test-repo",
                                     List.of(new SnapshotId("deleting", "uuid")),
                                     startTimes[2],
@@ -446,7 +448,7 @@ public class ClusterSnapshotStatsTests extends AbstractWireSerializingTestCase<C
                     .putCustom(
                         RepositoryCleanupInProgress.TYPE,
                         new RepositoryCleanupInProgress(
-                            List.of(new RepositoryCleanupInProgress.Entry("test-repo", randomNonNegativeLong()))
+                            List.of(new RepositoryCleanupInProgress.Entry(ProjectId.DEFAULT, "test-repo", randomNonNegativeLong()))
                         )
                     )
                     .build(),

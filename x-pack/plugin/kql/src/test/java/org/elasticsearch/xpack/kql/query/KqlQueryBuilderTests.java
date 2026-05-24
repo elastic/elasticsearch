@@ -170,7 +170,7 @@ public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder>
         for (boolean caseInsensitive : List.of(true, false)) {
             KqlQueryBuilder kqlQuery = new KqlQueryBuilder(KEYWORD_FIELD_NAME + ": foo*");
             // Check case case_insensitive is true by default
-            assertThat(kqlQuery.caseInsensitive(), equalTo(true));
+            assertThat(kqlQuery.caseInsensitive(), equalTo(false));
 
             kqlQuery.caseInsensitive(caseInsensitive);
 
@@ -190,7 +190,7 @@ public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder>
         for (boolean caseInsensitive : List.of(true, false)) {
             KqlQueryBuilder kqlQuery = new KqlQueryBuilder(KEYWORD_FIELD_NAME + ": foo");
             // Check case case_insensitive is true by default
-            assertThat(kqlQuery.caseInsensitive(), equalTo(true));
+            assertThat(kqlQuery.caseInsensitive(), equalTo(false));
 
             kqlQuery.caseInsensitive(caseInsensitive);
 

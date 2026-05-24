@@ -1335,6 +1335,50 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
 
     }
 
+    public void testFindFormatGivenYyyyMmDdWithSlashes() {
+        Consumer<Boolean> testFindFormatGivenYyyyMmDdWithSlashesAndEcsCompatibility = (ecsCompatibility) -> {
+            validateTimestampMatch(
+                "2018/05/15 17:14:56",
+                "TIMESTAMP_YMD",
+                "\\b\\d{4}[./-]\\d{2}[./-]\\d{2} \\d{2}:\\d{2}:\\d{2}(?:[.,]\\d+)?\\b",
+                List.of("yyyy/MM/dd HH:mm:ss", "yyyy.MM.dd HH:mm:ss", "yyyy-MM-dd HH:mm:ss"),
+                1526400896000L,
+                ecsCompatibility
+            );
+        };
+        ecsCompatibilityModes.forEach(testFindFormatGivenYyyyMmDdWithSlashesAndEcsCompatibility);
+    }
+
+    public void testFindFormatGivenYyyyMmDdWithDashes() {
+        Consumer<Boolean> testFindFormatGivenYyyyMmDdWithDashesAndEcsCompatibility = (ecsCompatibility) -> {
+            validateTimestampMatch(
+                "2018-05-15 17:14:56",
+                "TIMESTAMP_ISO8601", // TIMESTAMP_ISO8601 should have precedence
+                "\\b\\d{4}-\\d{2}-\\d{2}[T ]\\d{2}:\\d{2}",
+                List.of("yyyy-MM-dd HH:mm:ss"),
+                1526400896000L,
+                ecsCompatibility
+            );
+        };
+        ecsCompatibilityModes.forEach(testFindFormatGivenYyyyMmDdWithDashesAndEcsCompatibility);
+    }
+
+    public void testFindFormatGivenMmmDCommaYyyy() {
+
+        Consumer<Boolean> testFindFormatGivenMmmDCommaYyyyAndEcsCompatibility = (ecsCompatibility) -> {
+            validateTimestampMatch(
+                "May 15, 2018",
+                "CUSTOM_TIMESTAMP",
+                "\\b[A-Z][a-z]{2} \\d{1,2}, \\d{4}\\b",
+                "MMM d, yyyy",
+                1526338800000L,
+                ecsCompatibility
+            );
+        };
+
+        ecsCompatibilityModes.forEach(testFindFormatGivenMmmDCommaYyyyAndEcsCompatibility);
+    }
+
     public void testCustomOverrideMatchingBuiltInFormat() {
 
         String overrideFormat = "yyyy-MM-dd HH:mm:ss,SSS";
@@ -1590,7 +1634,7 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
                 [2018-06-27T11:59:22,202][INFO ][o.e.e.NodeEnvironment    ] [node-0] heap size [494.9mb], compressed ordinary object pointers [true]
                 [2018-06-27T11:59:22,204][INFO ][o.e.n.Node               ] [node-0] node name [node-0], node ID [Ha1gD8nNSDqjd6PIyu3DJA]
                 [2018-06-27T11:59:22,204][INFO ][o.e.n.Node               ] [node-0] version[6.4.0-SNAPSHOT], pid[2785], build[default/zip/3c60efa/2018-06-26T14:55:15.206676Z], OS[Mac OS X/10.12.6/x86_64], JVM["Oracle Corporation"/Java HotSpot(TM) 64-Bit Server VM/10/10+46]
-                [2018-06-27T11:59:22,205][INFO ][o.e.n.Node               ] [node-0] JVM arguments [-Xms1g, -Xmx1g, -XX:+UseConcMarkSweepGC, -XX:CMSInitiatingOccupancyFraction=75, -XX:+UseCMSInitiatingOccupancyOnly, -XX:+AlwaysPreTouch, -Xss1m, -Djava.awt.headless=true, -Dfile.encoding=UTF-8, -Djna.nosys=true, -XX:-OmitStackTraceInFastThrow, -Dio.netty.noUnsafe=true, -Dio.netty.noKeySetOptimization=true, -Dio.netty.recycler.maxCapacityPerThread=0, -Dlog4j.shutdownHookEnabled=false, -Dlog4j2.disable.jmx=true, -Djava.io.tmpdir=/var/folders/k5/5sqcdlps5sg3cvlp783gcz740000h0/T/elasticsearch.nFUyeMH1, -XX:+HeapDumpOnOutOfMemoryError, -XX:HeapDumpPath=data, -XX:ErrorFile=logs/hs_err_pid%p.log, -Xlog:gc*,gc+age=trace,safepoint:file=logs/gc.log:utctime,level,pid,tags:filecount=32,filesize=64m, -Djava.locale.providers=COMPAT, -Dio.netty.allocator.type=unpooled, -ea, -esa, -Xms512m, -Xmx512m, -Des.path.home=/Users/dave/elasticsearch/distribution/build/cluster/run node0/elasticsearch-6.4.0-SNAPSHOT, -Des.path.conf=/Users/dave/elasticsearch/distribution/build/cluster/run node0/elasticsearch-6.4.0-SNAPSHOT/config, -Des.distribution.flavor=default, -Des.distribution.type=zip]
+                [2018-06-27T11:59:22,205][INFO ][o.e.n.Node               ] [node-0] JVM arguments [-Xms1g, -Xmx1g, -XX:+UseConcMarkSweepGC, -XX:CMSInitiatingOccupancyFraction=75, -XX:+UseCMSInitiatingOccupancyOnly, -XX:+AlwaysPreTouch, -Xss1m, -Djava.awt.headless=true, -Dfile.encoding=UTF-8, -Djna.nosys=true, -XX:-OmitStackTraceInFastThrow, -Dio.netty.noUnsafe=true, -Dio.netty.noKeySetOptimization=true, -Dio.netty.recycler.maxCapacityPerThread=0, -Dlog4j.shutdownHookEnabled=false, -Dlog4j2.disable.jmx=true, -Djava.io.tmpdir=/var/folders/k5/5sqcdlps5sg3cvlp783gcz740000h0/T/elasticsearch.nFUyeMH1, -XX:+HeapDumpOnOutOfMemoryError, -XX:ErrorFile=hs_err_pid%p.log, -Xlog:gc*,gc+age=trace,safepoint:file=gc.log:utctime,level,pid,tags:filecount=32,filesize=64m, -Djava.locale.providers=COMPAT, -Dio.netty.allocator.type=unpooled, -ea, -esa, -Xms512m, -Xmx512m, -Des.path.home=/Users/dave/elasticsearch/distribution/build/cluster/run node0/elasticsearch-6.4.0-SNAPSHOT, -Des.path.conf=/Users/dave/elasticsearch/distribution/build/cluster/run node0/elasticsearch-6.4.0-SNAPSHOT/config, -Des.distribution.flavor=default, -Des.distribution.type=zip]
                 [2018-06-27T11:59:22,205][WARN ][o.e.n.Node               ] [node-0] version [6.4.0-SNAPSHOT] is a pre-release version of Elasticsearch and is not suitable for production
                 [2018-06-27T11:59:23,585][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [aggs-matrix-stats]
                 [2018-06-27T11:59:23,586][INFO ][o.e.p.PluginsService     ] [node-0] loaded module [analysis-common]
@@ -1857,12 +1901,10 @@ public class TimestampFormatFinderTests extends TextStructureTestCase {
             );
             timestampFormatFinder.addSample(message);
             timestampFormatFinder.selectBestMatch();
-            if ("CATALINA7_DATESTAMP".equals(expectedGrokPatternName)) {
-                if (ecsCompatibility) {
-                    assertEquals(expectedGrokPatternName, timestampFormatFinder.getGrokPatternName());
-                } else {
-                    assertEquals("CATALINA_DATESTAMP", timestampFormatFinder.getGrokPatternName());
-                }
+            if ("CATALINA7_DATESTAMP".equals(expectedGrokPatternName) && ecsCompatibility == false) {
+                assertEquals("CATALINA_DATESTAMP", timestampFormatFinder.getGrokPatternName());
+            } else {
+                assertEquals(expectedGrokPatternName, timestampFormatFinder.getGrokPatternName());
             }
             assertEquals(expectedSimplePattern.pattern(), timestampFormatFinder.getSimplePattern().pattern());
             assertEquals(expectedJavaTimestampFormats, timestampFormatFinder.getJavaTimestampFormats());

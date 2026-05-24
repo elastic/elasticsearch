@@ -12,6 +12,7 @@ package org.elasticsearch.common.compress;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.BufferedInputStream;
 import java.io.IOException;
@@ -48,12 +49,12 @@ public interface Compressor {
     InputStream threadLocalInputStream(InputStream in) throws IOException;
 
     /**
-     * Creates a new output stream that compresses the contents and writes to the provided output stream.
-     * Closing the returned {@link OutputStream} will close the provided output stream.
+     * Creates a new {@link StreamOutput} that compresses the contents and writes to the provided output stream.
+     * Closing the returned {@link StreamOutput} will close the delegate {@code out} stream.
      * Note: The returned stream may only be used on the thread that created it as it might use thread-local resources and must be safely
      * closed after use
      */
-    OutputStream threadLocalOutputStream(OutputStream out) throws IOException;
+    StreamOutput threadLocalStreamOutput(OutputStream out) throws IOException;
 
     /**
      * Decompress bytes into a newly allocated buffer.

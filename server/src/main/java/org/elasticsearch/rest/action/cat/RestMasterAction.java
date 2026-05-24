@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
+import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestResponseListener;
@@ -48,7 +49,7 @@ public class RestMasterAction extends AbstractCatAction {
     public RestChannelConsumer doCatRequest(final RestRequest request, final NodeClient client) {
         final ClusterStateRequest clusterStateRequest = new ClusterStateRequest(getMasterNodeTimeout(request));
         clusterStateRequest.clear().nodes(true);
-        clusterStateRequest.local(request.paramAsBoolean("local", clusterStateRequest.local()));
+        RestUtils.consumeDeprecatedLocalParameter(request);
 
         return channel -> client.admin().cluster().state(clusterStateRequest, new RestResponseListener<ClusterStateResponse>(channel) {
             @Override

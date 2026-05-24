@@ -21,12 +21,15 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.document.DocumentField;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -47,12 +50,10 @@ import org.elasticsearch.xpack.core.ml.inference.ModelAliasMetadata;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelConfig;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentStats;
-import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignment;
 import org.elasticsearch.xpack.core.ml.inference.assignment.TrainedModelAssignmentMetadata;
 import org.elasticsearch.xpack.core.ml.inference.persistence.InferenceIndexConstants;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceStats;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelSizeStats;
-import org.elasticsearch.xpack.core.ml.utils.TransportVersionUtils;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelDefinitionDoc;
 import org.elasticsearch.xpack.ml.inference.persistence.TrainedModelProvider;
@@ -205,25 +206,23 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
                 (l, ignored) -> getDeploymentStats(client, request.getResourceId(), parentTaskId, assignmentMetadata, l)
             )
             .andThenApply(deploymentStats -> {
-                // deployment stats for each matching deployment not necessarily for all models
-                responseBuilder.setDeploymentStatsByDeploymentId(
-                    deploymentStats.getStats()
-                        .results()
-                        .stream()
-                        .collect(Collectors.toMap(AssignmentStats::getDeploymentId, Function.identity()))
-                );
-                return deploymentStats.getStats().results().stream().mapToInt(AssignmentStats::getNumberOfAllocations).sum();
+                Map<String, AssignmentStats> statsByDeploymentId = deploymentStats.getStats()
+                    .results()
+                    .stream()
+                    .collect(Collectors.toMap(AssignmentStats::getDeploymentId, Function.identity()));
+                responseBuilder.setDeploymentStatsByDeploymentId(statsByDeploymentId);
+                return statsByDeploymentId;
             })
 
             .<Map<String, TrainedModelSizeStats>>andThen(
                 executor,
                 null,
-                (l, numberOfAllocations) -> modelSizeStats(
+                (l, deploymentStatsByDeploymentId) -> modelSizeStats(
                     responseBuilder.getExpandedModelIdsWithAliases(),
                     request.isAllowNoResources(),
                     parentTaskId,
                     l,
-                    numberOfAllocations
+                    deploymentStatsByDeploymentId
                 )
             )
             .andThenAccept(responseBuilder::setModelSizeStatsByModelId)
@@ -311,42 +310,23 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         boolean allowNoResources,
         TaskId parentTaskId,
         ActionListener<Map<String, TrainedModelSizeStats>> listener,
-        int numberOfAllocations
+        Map<String, AssignmentStats> deploymentStatsByDeploymentId
     ) {
         ActionListener<List<TrainedModelConfig>> modelsListener = ActionListener.wrap(models -> {
             final List<String> pytorchModelIds = models.stream()
                 .filter(m -> m.getModelType() == TrainedModelType.PYTORCH)
                 .map(TrainedModelConfig::getModelId)
                 .toList();
-            definitionLengths(pytorchModelIds, parentTaskId, ActionListener.wrap(pytorchTotalDefinitionLengthsByModelId -> {
-                Map<String, TrainedModelSizeStats> modelSizeStatsByModelId = new HashMap<>();
-                for (TrainedModelConfig model : models) {
-                    if (model.getModelType() == TrainedModelType.PYTORCH) {
-                        long totalDefinitionLength = pytorchTotalDefinitionLengthsByModelId.getOrDefault(model.getModelId(), 0L);
-                        // We ensure that in the mixed cluster state trained model stats uses the same values for memory estimation
-                        // as the rebalancer.
-                        boolean useNewMemoryFields = TrainedModelAssignment.useNewMemoryFields(
-                            TransportVersionUtils.getMinTransportVersion(clusterService.state())
-                        );
-                        long estimatedMemoryUsageBytes = totalDefinitionLength > 0L
-                            ? StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
-                                model.getModelId(),
-                                totalDefinitionLength,
-                                useNewMemoryFields ? model.getPerDeploymentMemoryBytes() : 0,
-                                useNewMemoryFields ? model.getPerAllocationMemoryBytes() : 0,
-                                numberOfAllocations
-                            )
-                            : 0L;
-                        modelSizeStatsByModelId.put(
-                            model.getModelId(),
-                            new TrainedModelSizeStats(totalDefinitionLength, estimatedMemoryUsageBytes)
-                        );
-                    } else {
-                        modelSizeStatsByModelId.put(model.getModelId(), new TrainedModelSizeStats(model.getModelSize(), 0));
-                    }
-                }
-                listener.onResponse(modelSizeStatsByModelId);
-            }, listener::onFailure));
+            definitionLengths(
+                pytorchModelIds,
+                parentTaskId,
+                ActionListener.wrap(
+                    pytorchTotalDefinitionLengthsByModelId -> listener.onResponse(
+                        buildModelSizeStatsByKey(models, pytorchTotalDefinitionLengthsByModelId, deploymentStatsByDeploymentId)
+                    ),
+                    listener::onFailure
+                )
+            );
         }, listener::onFailure);
 
         trainedModelProvider.getTrainedModels(
@@ -355,6 +335,63 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
             allowNoResources,
             parentTaskId,
             modelsListener
+        );
+    }
+
+    /**
+     * Builds a map of model size stats keyed by deployment ID (for deployed PyTorch models) or model ID (for undeployed
+     * or non-PyTorch). Only includes deployments present in {@code deploymentStatsByDeploymentId} (i.e. matching the
+     * request).
+     */
+    static Map<String, TrainedModelSizeStats> buildModelSizeStatsByKey(
+        List<TrainedModelConfig> models,
+        Map<String, Long> pytorchTotalDefinitionLengthsByModelId,
+        Map<String, AssignmentStats> deploymentStatsByDeploymentId
+    ) {
+        Map<String, TrainedModelSizeStats> modelSizeStatsByKey = new HashMap<>();
+        Map<String, List<String>> modelIdToDeploymentIds = new HashMap<>();
+        for (AssignmentStats stats : deploymentStatsByDeploymentId.values()) {
+            modelIdToDeploymentIds.computeIfAbsent(stats.getModelId(), k -> new ArrayList<>()).add(stats.getDeploymentId());
+        }
+
+        for (TrainedModelConfig model : models) {
+            if (model.getModelType() == TrainedModelType.PYTORCH) {
+                long totalDefinitionLength = pytorchTotalDefinitionLengthsByModelId.getOrDefault(model.getModelId(), 0L);
+                List<String> deploymentIds = modelIdToDeploymentIds.get(model.getModelId());
+
+                if (deploymentIds != null) {
+                    for (String deploymentId : deploymentIds) {
+                        AssignmentStats assignmentStats = deploymentStatsByDeploymentId.get(deploymentId);
+                        int numberOfAllocations = assignmentStats.getNumberOfAllocations() != null
+                            ? assignmentStats.getNumberOfAllocations()
+                            : 0;
+                        long estimatedMemoryUsageBytes = estimatedMemoryUsageBytes(model, totalDefinitionLength, numberOfAllocations);
+                        modelSizeStatsByKey.put(deploymentId, new TrainedModelSizeStats(totalDefinitionLength, estimatedMemoryUsageBytes));
+                    }
+                } else {
+                    long estimatedMemoryUsageBytes = estimatedMemoryUsageBytes(model, totalDefinitionLength, 0);
+                    modelSizeStatsByKey.put(
+                        model.getModelId(),
+                        new TrainedModelSizeStats(totalDefinitionLength, estimatedMemoryUsageBytes)
+                    );
+                }
+            } else {
+                modelSizeStatsByKey.put(model.getModelId(), new TrainedModelSizeStats(model.getModelSize(), 0));
+            }
+        }
+        return modelSizeStatsByKey;
+    }
+
+    private static long estimatedMemoryUsageBytes(TrainedModelConfig model, long totalDefinitionLength, int numberOfAllocations) {
+        if (totalDefinitionLength <= 0L) {
+            return 0L;
+        }
+        return StartTrainedModelDeploymentAction.estimateMemoryUsageBytes(
+            model.getModelId(),
+            totalDefinitionLength,
+            model.getPerDeploymentMemoryBytes(),
+            model.getPerAllocationMemoryBytes(),
+            numberOfAllocations
         );
     }
 
@@ -420,21 +457,26 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         return nodesStatsRequest;
     }
 
+    @FixForMultiProject // do not use default project
     static IngestStats ingestStatsForPipelineIds(NodeStats nodeStats, Set<String> pipelineIds) {
         IngestStats fullNodeStats = nodeStats.getIngestStats();
-        Map<String, List<IngestStats.ProcessorStat>> filteredProcessorStats = new HashMap<>(fullNodeStats.processorStats());
+        Map<String, List<IngestStats.ProcessorStat>> filteredProcessorStats = new HashMap<>(
+            fullNodeStats.processorStats().getOrDefault(ProjectId.DEFAULT, Map.of())
+        );
         filteredProcessorStats.keySet().retainAll(pipelineIds);
         List<IngestStats.PipelineStat> filteredPipelineStats = fullNodeStats.pipelineStats()
             .stream()
+            .filter(pipelineStat -> pipelineStat.projectId().equals(ProjectId.DEFAULT))
             .filter(pipelineStat -> pipelineIds.contains(pipelineStat.pipelineId()))
             .collect(Collectors.toList());
         IngestStatsAccumulator accumulator = new IngestStatsAccumulator();
 
         filteredPipelineStats.forEach(pipelineStat -> accumulator.inc(pipelineStat.stats()));
 
-        return new IngestStats(accumulator.build(), filteredPipelineStats, filteredProcessorStats);
+        return new IngestStats(accumulator.build(), filteredPipelineStats, Map.of(ProjectId.DEFAULT, filteredProcessorStats));
     }
 
+    @FixForMultiProject // don't use default project
     private static IngestStats mergeStats(List<IngestStats> ingestStatsList) {
 
         Map<String, PipelineStatsAccumulator> pipelineStatsAcc = Maps.newLinkedHashMapWithExpectedSize(ingestStatsList.size());
@@ -448,7 +490,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
                         .inc(pipelineStat)
                 );
 
-            ingestStats.processorStats().forEach((pipelineId, processorStat) -> {
+            ingestStats.processorStats().getOrDefault(ProjectId.DEFAULT, Map.of()).forEach((pipelineId, processorStat) -> {
                 Map<String, IngestStatsAccumulator> processorAcc = processorStatsAcc.computeIfAbsent(
                     pipelineId,
                     k -> new LinkedHashMap<>()
@@ -464,7 +506,12 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
         List<IngestStats.PipelineStat> pipelineStatList = new ArrayList<>(pipelineStatsAcc.size());
         pipelineStatsAcc.forEach(
             (pipelineId, accumulator) -> pipelineStatList.add(
-                new IngestStats.PipelineStat(pipelineId, accumulator.buildStats(), accumulator.buildByteStats())
+                new IngestStats.PipelineStat(
+                    Metadata.DEFAULT_PROJECT_ID,
+                    pipelineId,
+                    accumulator.buildStats(),
+                    accumulator.buildByteStats()
+                )
             )
         );
 
@@ -477,7 +524,7 @@ public class TransportGetTrainedModelsStatsAction extends TransportAction<
             processorStatList.put(pipelineId, processorStats);
         });
 
-        return new IngestStats(totalStats.build(), pipelineStatList, processorStatList);
+        return new IngestStats(totalStats.build(), pipelineStatList, Map.of(ProjectId.DEFAULT, processorStatList));
     }
 
     private static class IngestStatsAccumulator {

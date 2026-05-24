@@ -20,8 +20,8 @@ import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
+import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
@@ -95,7 +95,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
             "dsl-managed-index",
             numBackingIndices,
             settings(IndexVersion.current()),
-            DataStreamLifecycle.builder().dataRetention(TimeValue.timeValueDays(10)).build(),
+            DataStreamLifecycle.dataLifecycleBuilder().dataRetention(TimeValue.timeValueDays(10)).build(),
             Clock.systemUTC().millis()
         );
         indicesInError.add(dslDataStream.getIndices().get(randomInt(numBackingIndices - 1)).getName());
@@ -131,7 +131,7 @@ public class TransportGetDataStreamLifecycleStatsActionTests extends ESTestCase 
             IndexMetadata indexMetadata = indexMetaBuilder.build();
             builder.put(indexMetadata, false);
             backingIndices.add(indexMetadata.getIndex());
-            builder.put(newInstance(dataStreamName, backingIndices, 3, null, false, DataStreamLifecycle.builder().build()));
+            builder.put(newInstance(dataStreamName, backingIndices, 3, null, false, DataStreamLifecycle.dataLifecycleBuilder().build()));
         }
         ProjectMetadata project = builder.build();
         when(errorStore.getAllIndices(project.id())).thenReturn(indicesInError);

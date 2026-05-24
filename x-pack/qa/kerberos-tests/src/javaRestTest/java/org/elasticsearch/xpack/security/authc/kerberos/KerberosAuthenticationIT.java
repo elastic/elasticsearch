@@ -19,6 +19,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -29,7 +30,6 @@ import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
-import org.ietf.jgss.GSSException;
 import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
@@ -38,14 +38,12 @@ import org.junit.rules.TestRule;
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.UnknownHostException;
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.List;
 import java.util.Map;
 
+import javax.security.auth.Subject;
 import javax.security.auth.login.LoginContext;
+import javax.security.auth.login.LoginException;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.convertToMap;
 import static org.hamcrest.Matchers.contains;
@@ -74,9 +72,11 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
-        // force localhost IPv4 otherwise it is a chicken and egg problem where we need the keytab for the hostname when starting the
-        // cluster but do not know the exact address that is first in the http ports file
-        .setting("http.host", "127.0.0.1")
+        // Pin HTTP to a single-family loopback so the bound address resolves back to `localhost` for the SPNEGO
+        // `HTTP/localhost` principal in our keytab. Match the IP stack the test JVM prefers, otherwise the test
+        // client (which canonicalises the bound address to `localhost`) will resolve `localhost` to the other
+        // family and fail with connection refused.
+        .setting("http.host", () -> Boolean.getBoolean("java.net.preferIPv6Addresses") ? "_local:ipv6_" : "_local:ipv4_")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "true")
         .setting("xpack.security.authc.realms.file.file1.order", "0")
@@ -139,9 +139,9 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         assertOK(response);
     }
 
-    public void testLoginByKeytab() throws IOException, PrivilegedActionException {
+    public void testLoginByKeytab() throws Exception {
         final String keytabPath = krb5Fixture.getKeytab().toString();
-        final boolean enabledDebugLogs = Boolean.parseBoolean(ENABLE_KERBEROS_DEBUG_LOGS_KEY);
+        final boolean enabledDebugLogs = Booleans.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY), false);
         final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(
             krb5Fixture.getPrincipal(),
             keytabPath,
@@ -150,10 +150,10 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         executeRequestAndVerifyResponse(krb5Fixture.getPrincipal(), callbackHandler);
     }
 
-    public void testLoginByUsernamePassword() throws IOException, PrivilegedActionException {
+    public void testLoginByUsernamePassword() throws Exception {
         final String userPrincipalName = TEST_USER_WITH_PWD_KEY;
         final String password = TEST_USER_WITH_PWD_PASSWD_KEY;
-        final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
+        final boolean enabledDebugLogs = Booleans.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY), false);
         final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(
             userPrincipalName,
             new SecureString(password.toCharArray()),
@@ -162,10 +162,10 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
         executeRequestAndVerifyResponse(userPrincipalName, callbackHandler);
     }
 
-    public void testGetOauth2TokenInExchangeForKerberosTickets() throws PrivilegedActionException, GSSException, IOException {
+    public void testGetOauth2TokenInExchangeForKerberosTickets() throws Exception {
         final String userPrincipalName = TEST_USER_WITH_PWD_KEY;
         final String password = TEST_USER_WITH_PWD_PASSWD_KEY;
-        final boolean enabledDebugLogs = Boolean.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY));
+        final boolean enabledDebugLogs = Booleans.parseBoolean(System.getProperty(ENABLE_KERBEROS_DEBUG_LOGS_KEY), false);
         final SpnegoHttpClientConfigCallbackHandler callbackHandler = new SpnegoHttpClientConfigCallbackHandler(
             userPrincipalName,
             new SecureString(password.toCharArray()),
@@ -224,18 +224,11 @@ public class KerberosAuthenticationIT extends ESRestTestCase {
     private void executeRequestAndVerifyResponse(
         final String userPrincipalName,
         final SpnegoHttpClientConfigCallbackHandler callbackHandler
-    ) throws PrivilegedActionException, IOException {
+    ) throws IOException, LoginException {
         final Request request = new Request("GET", "/_security/_authenticate");
         try (RestClient restClient = buildRestClientForKerberos(callbackHandler)) {
-            final AccessControlContext accessControlContext = AccessController.getContext();
             final LoginContext lc = callbackHandler.login();
-            Response response = SpnegoHttpClientConfigCallbackHandler.doAsPrivilegedWrapper(
-                lc.getSubject(),
-                (PrivilegedExceptionAction<Response>) () -> {
-                    return restClient.performRequest(request);
-                },
-                accessControlContext
-            );
+            Response response = Subject.callAs(lc.getSubject(), () -> restClient.performRequest(request));
 
             assertOK(response);
             final Map<String, Object> map = parseResponseAsMap(response.getEntity());

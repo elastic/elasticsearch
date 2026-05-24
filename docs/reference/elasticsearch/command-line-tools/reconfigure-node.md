@@ -1,6 +1,9 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/reconfigure-node.html
+applies_to:
+  deployment:
+    self: ga
 ---
 
 # elasticsearch-reconfigure-node [reconfigure-node]

@@ -22,13 +22,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
@@ -114,6 +117,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
     private final MlMemoryTracker memoryTracker;
     private final DataFrameAnalyticsAuditor auditor;
     private final SourceDestValidator sourceDestValidator;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportStartDataFrameAnalyticsAction(
@@ -127,7 +131,8 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         PersistentTasksService persistentTasksService,
         DataFrameAnalyticsConfigProvider configProvider,
         MlMemoryTracker memoryTracker,
-        DataFrameAnalyticsAuditor auditor
+        DataFrameAnalyticsAuditor auditor,
+        ProjectResolver projectResolver
     ) {
         super(
             StartDataFrameAnalyticsAction.NAME,
@@ -154,6 +159,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
             clusterService.getNodeName(),
             License.OperationMode.PLATINUM.description()
         );
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -161,7 +167,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         // We only delegate here to PersistentTasksService, but if there is a metadata writeblock,
         // then delegating to PersistentTasksService doesn't make a whole lot of sense,
         // because PersistentTasksService will then fail.
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     @Override
@@ -385,7 +391,7 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                         Strings.arrayToCommaDelimitedString(startContext.config.getSource().getIndex())
                     )
                 );
-            } else if (Math.floor(startContext.config.getAnalysis().getTrainingPercent() * dataSummary.rows) >= Math.pow(2, 32)) {
+            } else if (tooManyDocumentsForAnalysis(dataSummary.rows, startContext.config.getAnalysis().getTrainingPercent())) {
                 listener.onFailure(
                     ExceptionsHelper.badRequestException(
                         "Unable to start because too many documents "
@@ -396,6 +402,10 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
                 listener.onResponse(startContext);
             }
         }, listener::onFailure));
+    }
+
+    static boolean tooManyDocumentsForAnalysis(long rows, double trainingPercent) {
+        return Math.floor(rows * trainingPercent / 100.0) >= Math.pow(2, 32);
     }
 
     private void getProgress(DataFrameAnalyticsConfig config, ActionListener<List<PhaseProgress>> listener) {
@@ -686,10 +696,11 @@ public class TransportStartDataFrameAnalyticsAction extends TransportMasterNodeA
         }
 
         @Override
-        public PersistentTasksCustomMetadata.Assignment getAssignment(
+        protected PersistentTasksCustomMetadata.Assignment doGetAssignment(
             TaskParams params,
             Collection<DiscoveryNode> candidateNodes,
-            @SuppressWarnings("HiddenField") ClusterState clusterState
+            @SuppressWarnings("HiddenField") ClusterState clusterState,
+            @Nullable ProjectId projectId
         ) {
             boolean isMemoryTrackerRecentlyRefreshed = memoryTracker.isRecentlyRefreshed();
             Optional<PersistentTasksCustomMetadata.Assignment> optionalAssignment = getPotentialAssignment(

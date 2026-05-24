@@ -48,11 +48,11 @@ import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -71,6 +71,7 @@ import org.elasticsearch.xpack.core.transform.TransformMessages;
 import org.elasticsearch.xpack.core.transform.TransformMetadata;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
 import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
+import org.elasticsearch.xpack.core.transform.transforms.TransformParsingContext;
 import org.elasticsearch.xpack.core.transform.transforms.TransformStoredDoc;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
@@ -115,17 +116,20 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     private final IndexNameExpressionResolver indexNameExpressionResolver;
     private final Client client;
     private final NamedXContentRegistry xContentRegistry;
+    private final TransformParsingContext transformParsingContext;
 
     public IndexBasedTransformConfigManager(
         ClusterService clusterService,
         IndexNameExpressionResolver indexNameExpressionResolver,
         Client client,
-        NamedXContentRegistry xContentRegistry
+        NamedXContentRegistry xContentRegistry,
+        TransformParsingContext transformParsingContext
     ) {
         this.clusterService = clusterService;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
         this.client = client;
         this.xContentRegistry = xContentRegistry;
+        this.transformParsingContext = transformParsingContext;
     }
 
     @Override
@@ -170,7 +174,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             listener.onFailure(conflictStatusException("Cannot update Transform while the Transform feature is upgrading."));
             return;
         }
-        if (seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_NAME)) {
+        if (isLatestTransformIndex(seqNoPrimaryTermAndIndex.getIndex())) {
             // update the config in the same, current index using optimistic concurrency control
             putTransformConfiguration(transformConfig, DocWriteRequest.OpType.INDEX, seqNoPrimaryTermAndIndex, listener);
         } else {
@@ -178,6 +182,21 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             // this leaves a dup behind in the old index, see dup handling on the top
             putTransformConfiguration(transformConfig, DocWriteRequest.OpType.CREATE, null, listener);
         }
+    }
+
+    @Override
+    public boolean isLatestTransformIndex(String indexName) {
+        if (TransformInternalIndexConstants.LATEST_INDEX_NAME.equals(indexName)) {
+            return true;
+        }
+
+        // in some cases, the System Index gets reindexed and LATEST_INDEX_NAME is now an alias pointing to that reindexed index
+        // this mostly likely happens after the SystemIndexMigrator ran
+        // we need to check if the LATEST_INDEX_NAME is now an alias and points to the indexName
+        var metadata = clusterService.state().projectState().metadata();
+        var indicesForAlias = metadata.aliasedIndices(TransformInternalIndexConstants.LATEST_INDEX_NAME);
+        var index = metadata.index(indexName);
+        return index != null && indicesForAlias.contains(index.getIndex());
     }
 
     @Override
@@ -280,15 +299,18 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
 
         // use the transform context as we access system indexes
         try (ThreadContext.StoredContext ctx = client.threadPool().getThreadContext().stashWithOrigin(TRANSFORM_ORIGIN)) {
-            indicesToDelete.addAll(
-                Arrays.asList(
-                    indexNameExpressionResolver.concreteIndexNames(
-                        state,
-                        IndicesOptions.lenientExpandHidden(),
-                        TransformInternalIndexConstants.INDEX_NAME_PATTERN
-                    )
-                )
+            var matchingIndexes = indexNameExpressionResolver.concreteIndices(
+                state,
+                IndicesOptions.lenientExpandHidden(),
+                TransformInternalIndexConstants.INDEX_NAME_PATTERN
             );
+
+            for (var index : matchingIndexes) {
+                var meta = state.getMetadata().indexMetadata(index);
+                if (meta.isSystem() == false) { // ignore system indices as these are automatically managed
+                    indicesToDelete.add(meta.getIndex().getName());
+                }
+            }
 
             indicesToDelete.addAll(
                 Arrays.asList(
@@ -544,7 +566,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             Set<TransformConfig> configs = Sets.newLinkedHashSetWithExpectedSize(searchResponse.getHits().getHits().length);
             for (SearchHit hit : searchResponse.getHits().getHits()) {
                 try (XContentParser parser = createParser(hit)) {
-                    TransformConfig config = TransformConfig.fromXContent(parser, null, true);
+                    TransformConfig config = TransformConfig.fromXContent(parser, null, true, transformParsingContext);
                     if (ids.add(config.getId())) {
                         configs.add(config);
                     }
@@ -697,7 +719,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 // could have been called, see gh#80073
                 indexRequest.opType(DocWriteRequest.OpType.INDEX);
                 // if on the latest index use optimistic concurrency control in addition
-                if (seqNoPrimaryTermAndIndex.getIndex().equals(TransformInternalIndexConstants.LATEST_INDEX_NAME)) {
+                if (isLatestTransformIndex(seqNoPrimaryTermAndIndex.getIndex())) {
                     indexRequest.setIfSeqNo(seqNoPrimaryTermAndIndex.getSeqNo())
                         .setIfPrimaryTerm(seqNoPrimaryTermAndIndex.getPrimaryTerm());
                 }
@@ -849,7 +871,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         ActionListener<TransformConfig> transformListener
     ) {
         try (XContentParser parser = createParser(source)) {
-            transformListener.onResponse(TransformConfig.fromXContent(parser, transformId, true));
+            transformListener.onResponse(TransformConfig.fromXContent(parser, transformId, true, transformParsingContext));
         } catch (Exception e) {
             logger.error(TransformMessages.getMessage(TransformMessages.FAILED_TO_PARSE_TRANSFORM_CONFIGURATION, transformId), e);
             transformListener.onFailure(e);
@@ -982,7 +1004,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     }
 
     private boolean isUpgrading() {
-        return TransformMetadata.upgradeMode(clusterService.state());
+        return TransformMetadata.isUpgradeMode(clusterService.state());
     }
 
     private Exception conflictStatusException(String message) {
@@ -1001,7 +1023,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             }
         }
 
-        for (ScrollableHitSource.SearchFailure failure : response.getSearchFailures()) {
+        for (PaginatedSearchFailure failure : response.getSearchFailures()) {
             RestStatus failureStatus = org.elasticsearch.ExceptionsHelper.status(failure.getReason());
             if (failureStatus.getStatus() > status.getStatus()) {
                 status = failureStatus;
@@ -1021,7 +1043,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         DeleteByQueryRequest deleteByQuery = new DeleteByQueryRequest();
 
         deleteByQuery.setAbortOnVersionConflict(false)
-            .setSlices(AbstractBulkByScrollRequest.AUTO_SLICES)
+            .setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES)
             .setIndicesOptions(IndicesOptions.lenientExpandOpen());
 
         // disable scoring by using index order

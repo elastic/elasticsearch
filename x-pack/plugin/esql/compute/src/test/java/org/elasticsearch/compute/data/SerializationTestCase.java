@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.data;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -33,7 +32,7 @@ public abstract class SerializationTestCase extends ESTestCase {
     @Before
     public final void newBlockFactory() {
         bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofGb(1)).withCircuitBreaking();
-        blockFactory = new BlockFactory(bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST), bigArrays);
+        blockFactory = BlockFactory.builder(bigArrays).build();
     }
 
     @After
@@ -53,15 +52,30 @@ public abstract class SerializationTestCase extends ESTestCase {
         return new BlockStreamInput(ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())), blockFactory);
     }
 
-    @SuppressWarnings("unchecked")
     <T extends Block> T serializeDeserializeBlock(T origBlock) throws IOException {
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
+        return serializeDeserializeBlockWithVersion(origBlock, version);
+    }
+
+    @SuppressWarnings("unchecked")
+    <T extends Block> T serializeDeserializeBlockWithVersion(T origBlock, TransportVersion version) throws IOException {
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
             out.setTransportVersion(version);
             Block.writeTypedBlock(origBlock, out);
             try (BlockStreamInput in = blockStreamInput(out)) {
                 in.setTransportVersion(version);
                 return (T) Block.readTypedBlock(in);
+            }
+        }
+    }
+
+    Page serializeDeserializePageWithVersion(Page origPage, TransportVersion version) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(version);
+            origPage.writeTo(out);
+            try (BlockStreamInput in = blockStreamInput(out)) {
+                in.setTransportVersion(version);
+                return new Page(in);
             }
         }
     }

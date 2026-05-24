@@ -386,11 +386,11 @@ public class SearchAfterIT extends ESIntegTestCase {
         for (int i = 0; i < sortValues.size(); i++) {
             Object from = sortValues.get(i);
             if (from instanceof Integer integer) {
-                converted.add(integer.longValue());
+                converted.add(integer.intValue());
             } else if (from instanceof Short s) {
-                converted.add(s.longValue());
+                converted.add(s.intValue());
             } else if (from instanceof Byte b) {
-                converted.add(b.longValue());
+                converted.add(b.intValue());
             } else if (from instanceof Boolean b) {
                 if (b) {
                     converted.add(1L);

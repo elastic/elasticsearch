@@ -9,10 +9,10 @@
 
 package org.elasticsearch.gradle.internal.test.rest.transform.length;
 
-import com.fasterxml.jackson.databind.node.NumericNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
 
 import org.elasticsearch.gradle.internal.test.rest.transform.ReplaceByKey;
+import org.elasticsearch.gradle.internal.test.rest.transform.SerializableJsonNode;
 import org.gradle.api.tasks.Internal;
 
 /**
@@ -21,11 +21,11 @@ import org.gradle.api.tasks.Internal;
  */
 public class ReplaceValueInLength extends ReplaceByKey {
 
-    public ReplaceValueInLength(String replaceKey, NumericNode replacementNode) {
+    public ReplaceValueInLength(String replaceKey, SerializableJsonNode replacementNode) {
         this(replaceKey, replacementNode, null);
     }
 
-    public ReplaceValueInLength(String replaceKey, NumericNode replacementNode, String testName) {
+    public ReplaceValueInLength(String replaceKey, SerializableJsonNode replacementNode, String testName) {
         super(replaceKey, replaceKey, replacementNode, testName);
     }
 
@@ -38,7 +38,7 @@ public class ReplaceValueInLength extends ReplaceByKey {
     @Override
     public void transformTest(ObjectNode matchParent) {
         ObjectNode matchNode = (ObjectNode) matchParent.get(getKeyToFind());
-        matchNode.remove(requiredChildKey());
-        matchNode.set(getNewChildKey(), getReplacementNode());
+        updateReplacement(matchNode);
     }
+
 }

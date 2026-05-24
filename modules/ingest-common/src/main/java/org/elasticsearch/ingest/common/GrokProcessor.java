@@ -41,6 +41,7 @@ public final class GrokProcessor extends AbstractProcessor {
     private final Grok grok;
     private final boolean traceMatch;
     private final boolean ignoreMissing;
+    private final boolean validateOnly;
 
     GrokProcessor(
         String tag,
@@ -50,17 +51,20 @@ public final class GrokProcessor extends AbstractProcessor {
         String matchField,
         boolean traceMatch,
         boolean ignoreMissing,
+        boolean validateOnly,
         MatcherWatchdog matcherWatchdog
     ) {
         super(tag, description);
+        String combinedPattern = Grok.combinePatterns(matchPatterns, traceMatch ? PATTERN_MATCH_KEY : null);
         this.matchField = matchField;
         this.matchPatterns = matchPatterns;
-        this.grok = new Grok(patternBank, combinePatterns(matchPatterns, traceMatch), matcherWatchdog, logger::debug);
+        this.grok = new Grok(patternBank, combinedPattern, matcherWatchdog, logger::debug);
         this.traceMatch = traceMatch;
         this.ignoreMissing = ignoreMissing;
+        this.validateOnly = validateOnly;
         // Joni warnings are only emitted on an attempt to match, and the warning emitted for every call to match which is too verbose
         // so here we emit a warning (if there is one) to the logfile at warn level on construction / processor creation.
-        new Grok(patternBank, combinePatterns(matchPatterns, traceMatch), matcherWatchdog, logger::warn).match("___nomatch___");
+        new Grok(patternBank, combinedPattern, matcherWatchdog, logger::warn).match("___nomatch___");
     }
 
     @Override
@@ -78,7 +82,9 @@ public final class GrokProcessor extends AbstractProcessor {
             throw new IllegalArgumentException("Provided Grok expressions do not match field value: [" + fieldValue + "]");
         }
 
-        matches.forEach(ingestDocument::setFieldValue);
+        if (!validateOnly) {
+            matches.forEach(ingestDocument::setFieldValue);
+        }
 
         if (traceMatch) {
             if (matchPatterns.size() > 1) {
@@ -113,31 +119,6 @@ public final class GrokProcessor extends AbstractProcessor {
         return matchPatterns;
     }
 
-    static String combinePatterns(List<String> patterns, boolean traceMatch) {
-        String combinedPattern;
-        if (patterns.size() > 1) {
-            combinedPattern = "";
-            for (int i = 0; i < patterns.size(); i++) {
-                String pattern = patterns.get(i);
-                String valueWrap;
-                if (traceMatch) {
-                    valueWrap = "(?<" + PATTERN_MATCH_KEY + "." + i + ">" + pattern + ")";
-                } else {
-                    valueWrap = "(?:" + patterns.get(i) + ")";
-                }
-                if (combinedPattern.equals("")) {
-                    combinedPattern = valueWrap;
-                } else {
-                    combinedPattern = combinedPattern + "|" + valueWrap;
-                }
-            }
-        } else {
-            combinedPattern = patterns.get(0);
-        }
-
-        return combinedPattern;
-    }
-
     public static final class Factory implements Processor.Factory {
 
         private final MatcherWatchdog matcherWatchdog;
@@ -158,6 +139,7 @@ public final class GrokProcessor extends AbstractProcessor {
             List<String> matchPatterns = ConfigurationUtils.readList(TYPE, processorTag, config, "patterns");
             boolean traceMatch = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "trace_match", false);
             boolean ignoreMissing = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
+            boolean validateOnly = ConfigurationUtils.readBooleanProperty(TYPE, processorTag, config, "validate_only", false);
             String ecsCompatibility = ConfigurationUtils.readStringProperty(
                 TYPE,
                 processorTag,
@@ -183,6 +165,7 @@ public final class GrokProcessor extends AbstractProcessor {
                     matchField,
                     traceMatch,
                     ignoreMissing,
+                    validateOnly,
                     matcherWatchdog
                 );
             } catch (Exception e) {

@@ -12,6 +12,7 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
@@ -54,7 +55,7 @@ public class RestPostDataAction extends BaseRestHandler {
     }
 
     @Override
-    public boolean supportsBulkContent() {
-        return true;
+    public boolean mediaTypesValid(RestRequest request) {
+        return super.mediaTypesValid(request) && XContentType.supportsDelimitedBulkRequests(request.getXContentType());
     }
 }

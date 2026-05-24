@@ -7,15 +7,20 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+// end generated imports
 
 /**
  * Vector implementation that stores an array of float values.
@@ -73,6 +78,16 @@ final class FloatArrayVector extends AbstractVector implements FloatVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, float[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return Float.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.FLOAT;
     }
@@ -83,7 +98,7 @@ final class FloatArrayVector extends AbstractVector implements FloatVector {
     }
 
     @Override
-    public FloatVector filter(int... positions) {
+    public FloatVector filter(boolean mayContainDuplicates, int... positions) {
         try (FloatVector.Builder builder = blockFactory().newFloatVectorBuilder(positions.length)) {
             for (int pos : positions) {
                 builder.appendFloat(values[pos]);
@@ -125,6 +140,20 @@ final class FloatArrayVector extends AbstractVector implements FloatVector {
 
     public static long ramBytesEstimated(float[] values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public FloatVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (FloatVector.FixedBuilder builder = blockFactory().newFloatVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendFloat(getFloat(i));
+            }
+            return builder.build();
+        }
     }
 
     @Override

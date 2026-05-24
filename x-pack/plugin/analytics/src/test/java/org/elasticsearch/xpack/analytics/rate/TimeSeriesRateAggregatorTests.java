@@ -18,8 +18,8 @@ import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.IndexType;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
@@ -191,7 +191,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
     }
 
     private MappedFieldType dimensionField(String name) {
-        return new KeywordFieldMapper.Builder(name, IndexVersion.current()).dimension(true)
+        return new KeywordFieldMapper.Builder(name, defaultIndexSettings()).dimension(true)
             .docValues(true)
             .build(MapperBuilderContext.root(true, true))
             .fieldType();
@@ -201,9 +201,8 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
         return new NumberFieldMapper.NumberFieldType(
             name,
             NumberFieldMapper.NumberType.LONG,
-            true,
+            IndexType.points(true, true),
             false,
-            true,
             false,
             null,
             Collections.emptyMap(),
@@ -218,7 +217,7 @@ public class TimeSeriesRateAggregatorTests extends AggregatorTestCase {
     private DateFieldMapper.DateFieldType timeStampField() {
         return new DateFieldMapper.DateFieldType(
             "@timestamp",
-            true,
+            IndexType.points(true, true),
             false,
             true,
             DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER,

@@ -6,11 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.xpack.core.ilm.step.info.EmptyInfo;
@@ -43,18 +42,15 @@ public class WaitUntilTimeSeriesEndTimePassesStep extends AsyncWaitStep {
     }
 
     @Override
-    public void evaluateCondition(Metadata metadata, Index index, Listener listener, TimeValue masterTimeout) {
-        IndexMetadata indexMetadata = metadata.getProject().index(index);
-        assert indexMetadata != null
-            : "the index metadata for index [" + index.getName() + "] must exist in the cluster state for step [" + NAME + "]";
-
+    public void evaluateCondition(ProjectState state, IndexMetadata indexMetadata, Listener listener, TimeValue masterTimeout) {
+        String indexName = indexMetadata.getIndex().getName();
         if (IndexSettings.MODE.get(indexMetadata.getSettings()) != IndexMode.TIME_SERIES) {
             // this index is not a time series index so no need to wait
             listener.onResponse(true, EmptyInfo.INSTANCE);
             return;
         }
         Instant configuredEndTime = IndexSettings.TIME_SERIES_END_TIME.get(indexMetadata.getSettings());
-        assert configuredEndTime != null : "a time series index must have an end time configured but [" + index.getName() + "] does not";
+        assert configuredEndTime != null : "a time series index must have an end time configured but [" + indexName + "] does not";
         if (nowSupplier.get().isBefore(configuredEndTime)) {
             listener.onResponse(
                 false,
@@ -63,7 +59,7 @@ public class WaitUntilTimeSeriesEndTimePassesStep extends AsyncWaitStep {
                         "The [%s] setting for index [%s] is [%s]. Waiting until the index's time series end time lapses before"
                             + " proceeding with action [%s] as the index can still accept writes.",
                         IndexSettings.TIME_SERIES_END_TIME.getKey(),
-                        index.getName(),
+                        indexName,
                         configuredEndTime.toEpochMilli(),
                         getKey().action()
                     )

@@ -22,6 +22,7 @@ import org.apache.lucene.search.DisjunctionMaxQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.SynonymQuery;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.lucene.search.Queries;
@@ -68,7 +69,7 @@ public class SimpleQueryStringQueryParser extends SimpleQueryParser {
         super(analyzer, weights, flags);
         this.settings = settings;
         this.context = context;
-        this.queryBuilder = new MultiMatchQueryParser(context);
+        this.queryBuilder = new MultiMatchQueryParser(context, QueryVisitor.EMPTY_VISITOR);
         this.queryBuilder.setAutoGenerateSynonymsPhraseQuery(settings.autoGenerateSynonymsPhraseQuery());
         this.queryBuilder.setLenient(settings.lenient());
         this.queryBuilder.setZeroTermsQuery(ZeroTermsQueryOption.NULL);

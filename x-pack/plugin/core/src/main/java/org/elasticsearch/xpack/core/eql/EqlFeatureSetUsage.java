@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.core.eql;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -54,7 +53,7 @@ public class EqlFeatureSetUsage extends XPackFeatureUsage {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
 }

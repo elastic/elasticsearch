@@ -7,22 +7,23 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 $if(BytesRef)$
 import org.apache.lucene.util.BytesRef;
+$endif$
 import org.apache.lucene.util.RamUsageEstimator;
+$if(BytesRef)$
+import org.elasticsearch.common.bytes.PagedBytesCursor;
+$endif$
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BytesRefArray;
-$else$
-import org.apache.lucene.util.RamUsageEstimator;
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.unit.ByteSizeValue;
-$endif$
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.BitSet;
+// end generated imports
 
 /**
  * Block implementation that stores values in a {@link $Type$ArrayVector}.
@@ -31,7 +32,7 @@ $if(BytesRef)$
 $endif$
  * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
-final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
+public final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance($Type$ArrayBlock.class);
 
@@ -96,6 +97,11 @@ final class $Type$ArrayBlock extends AbstractArrayBlock implements $Type$Block {
         return null;
     }
 
+    @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
 $if(BytesRef)$
     @Override
     public OrdinalBytesRefBlock asOrdinals() {
@@ -135,8 +141,15 @@ $else$
 $endif$
     }
 
+$if(BytesRef)$
     @Override
-    public $Type$Block filter(int... positions) {
+    public PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch) {
+        return vector.get(valueIndex, scratch);
+    }
+
+$endif$
+    @Override
+    public $Type$Block filter(boolean mayContainDuplicates, int... positions) {
 $if(BytesRef)$
         final BytesRef scratch = new BytesRef();
 $endif$

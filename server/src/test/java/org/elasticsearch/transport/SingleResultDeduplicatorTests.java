@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TestEsExecutors;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -110,7 +111,7 @@ public class SingleResultDeduplicatorTests extends ESTestCase {
                     "test",
                     threads,
                     0,
-                    EsExecutors.daemonThreadFactory("test"),
+                    TestEsExecutors.testOnlyDaemonThreadFactory("test"),
                     threadContext,
                     EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
                 );

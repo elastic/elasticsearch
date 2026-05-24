@@ -9,13 +9,14 @@
 
 package org.elasticsearch.search.slice;
 
-import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -45,6 +46,9 @@ import java.util.Objects;
  */
 public class SliceBuilder implements Writeable, ToXContentObject {
 
+    private static final TransportVersion OPTIMIZE_BY_SHARD_VERSION = TransportVersion.fromName("optimize_by_shard");
+    private static final MatchNoDocsQuery NOT_PART_OF_SLICE = new MatchNoDocsQuery("this shard is not part of the slice");
+
     private static final ParseField FIELD_FIELD = new ParseField("field");
     public static final ParseField ID_FIELD = new ParseField("id");
     private static final ParseField MAX_FIELD = new ParseField("max");
@@ -63,6 +67,8 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     private int id = -1;
     /** Max number of slices */
     private int max = -1;
+    /** Whether to optimize the slice query by shard */
+    private boolean optimizeByShard = true;
 
     private SliceBuilder() {}
 
@@ -93,6 +99,9 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         field = in.readOptionalString();
         id = in.readVInt();
         max = in.readVInt();
+        if (in.getTransportVersion().supports(OPTIMIZE_BY_SHARD_VERSION)) {
+            optimizeByShard = in.readBoolean();
+        }
     }
 
     @Override
@@ -100,6 +109,21 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         out.writeOptionalString(field);
         out.writeVInt(id);
         out.writeVInt(max);
+        if (out.getTransportVersion().supports(OPTIMIZE_BY_SHARD_VERSION)) {
+            out.writeBoolean(optimizeByShard);
+        }
+    }
+
+    public static SliceBuilder withoutShardOptimization(SliceBuilder sb) {
+        final SliceBuilder newSliceBuilder = new SliceBuilder(sb.field, sb.id, sb.max);
+        newSliceBuilder.setOptimizeByShard(false);
+        return newSliceBuilder;
+    }
+
+    public static SliceBuilder withShardOptimization(SliceBuilder sb) {
+        final SliceBuilder newSliceBuilder = new SliceBuilder(sb.field, sb.id, sb.max);
+        newSliceBuilder.setOptimizeByShard(true);
+        return newSliceBuilder;
     }
 
     private SliceBuilder setField(String field) {
@@ -150,6 +174,17 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         return max;
     }
 
+    /**
+     * Whether to optimize the slice query by shard.
+     */
+    public boolean optimizeByShard() {
+        return optimizeByShard;
+    }
+
+    private void setOptimizeByShard(boolean optimizeByShard) {
+        this.optimizeByShard = optimizeByShard;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -176,12 +211,12 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SliceBuilder that = (SliceBuilder) o;
-        return id == that.id && max == that.max && Objects.equals(field, that.field);
+        return id == that.id && max == that.max && optimizeByShard == that.optimizeByShard && Objects.equals(field, that.field);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.field, this.id, this.max);
+        return Objects.hash(this.field, this.id, this.max, this.optimizeByShard);
     }
 
     /**
@@ -194,10 +229,10 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         int numShards = request.shardRequestIndex() != -1 ? request.numberOfShards() : context.getIndexSettings().getNumberOfShards();
         boolean isScroll = request.scroll() != null;
 
-        if (numShards == 1) {
+        if (numShards == 1 || optimizeByShard == false) {
             return createSliceQuery(id, max, context, isScroll);
         }
-        if (max >= numShards) {
+        if (max > numShards) {
             // the number of slices is greater than the number of shards
             // in such case we can reduce the number of requested shards by slice
 
@@ -205,7 +240,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
             int targetShard = id % numShards;
             if (targetShard != shardIndex) {
                 // the shard is not part of this slice, we can skip it.
-                return new MatchNoDocsQuery("this shard is not part of the slice");
+                return NOT_PART_OF_SLICE;
             }
             // compute the number of slices where this shard appears
             int numSlicesInShard = max / numShards;
@@ -216,30 +251,27 @@ public class SliceBuilder implements Writeable, ToXContentObject {
 
             if (numSlicesInShard == 1) {
                 // this shard has only one slice so we must check all the documents
-                return new MatchAllDocsQuery();
+                return Queries.ALL_DOCS_INSTANCE;
             }
             // get the new slice id for this shard
             int shardSlice = id / numShards;
             return createSliceQuery(shardSlice, numSlicesInShard, context, isScroll);
         }
-        // the number of shards is greater than the number of slices
+        // the number of shards is greater than or equal to the number of slices
 
         // check if the shard is assigned to the slice
         int targetSlice = shardIndex % max;
         if (id != targetSlice) {
             // the shard is not part of this slice, we can skip it.
-            return new MatchNoDocsQuery("this shard is not part of the slice");
+            return NOT_PART_OF_SLICE;
         }
-        return new MatchAllDocsQuery();
+        return Queries.ALL_DOCS_INSTANCE;
     }
 
     private Query createSliceQuery(int id, int max, SearchExecutionContext context, boolean isScroll) {
         if (field == null) {
             return isScroll ? new TermsSliceQuery(IdFieldMapper.NAME, id, max) : new DocIdSliceQuery(id, max);
         } else if (IdFieldMapper.NAME.equals(field)) {
-            if (isScroll == false) {
-                throw new IllegalArgumentException("cannot slice on [_id] when using [point-in-time]");
-            }
             return new TermsSliceQuery(IdFieldMapper.NAME, id, max);
         } else {
             MappedFieldType type = context.getFieldType(field);

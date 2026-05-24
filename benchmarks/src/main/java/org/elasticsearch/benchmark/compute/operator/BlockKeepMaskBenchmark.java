@@ -39,10 +39,16 @@ import java.util.concurrent.TimeUnit;
 @BenchmarkMode(Mode.AverageTime)
 @OutputTimeUnit(TimeUnit.NANOSECONDS)
 @State(Scope.Thread)
-@Fork(1)
+@Fork(value = 1, jvmArgs = { "--add-opens=java.base/java.nio=ALL-UNNAMED" })
 public class BlockKeepMaskBenchmark extends BlockBenchmark {
     static {
-        // Smoke test all the expected values and force loading subclasses more like prod
+        if (false == "true".equals(System.getProperty("skipSelfTest"))) {
+            // Smoke test all the expected values and force loading subclasses more like prod
+            selfTest();
+        }
+    }
+
+    static void selfTest() {
         int totalPositions = 10;
         for (String paramString : RELEVANT_TYPE_BLOCK_COMBINATIONS) {
             String[] params = paramString.split("/");

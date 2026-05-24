@@ -489,3 +489,46 @@ use no-op _source.mode attr:
         index: test
 
   - match: { test.settings.index.mapping.source.mode: synthetic }
+
+---
+use deprecated _source.mode attr:
+  - requires:
+      test_runner_features: [ "warnings" ]
+
+  - do:
+      warnings:
+        - "Configuring source mode in mappings is deprecated and will be removed in future versions. Use [index.mapping.source.mode] index setting instead."
+      indices.create:
+        index: test
+        body:
+          mappings:
+            _source:
+              mode: synthetic
+            properties:
+              cloud:
+                properties:
+                  account:
+                    properties:
+                      full_text:
+                        type: text
+                        fields:
+                          keyword:
+                            type: keyword
+                            ignore_above: 256
+
+  - do:
+      index:
+        index:  test_index
+        id:     "1"
+        body:
+          cloud:
+            account:
+              full_text: "test"
+  - match:   { result: created }
+
+  - do:
+      get:
+        index:  test_index
+        id:     "1"
+        force_synthetic_source: true
+  - match: { _source:  { cloud: {account: {full_text: "test" } } } }

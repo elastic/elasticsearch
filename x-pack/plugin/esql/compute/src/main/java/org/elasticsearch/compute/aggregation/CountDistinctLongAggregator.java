@@ -8,7 +8,6 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
@@ -21,8 +20,8 @@ import org.elasticsearch.compute.operator.DriverContext;
 @GroupingAggregator
 public class CountDistinctLongAggregator {
 
-    public static HllStates.SingleState initSingle(BigArrays bigArrays, int precision) {
-        return new HllStates.SingleState(bigArrays, precision);
+    public static HllStates.SingleState initSingle(DriverContext driverContext, int precision) {
+        return new HllStates.SingleState(driverContext, precision);
     }
 
     public static void combine(HllStates.SingleState current, long v) {
@@ -38,8 +37,8 @@ public class CountDistinctLongAggregator {
         return driverContext.blockFactory().newConstantLongBlockWith(result, 1);
     }
 
-    public static HllStates.GroupingState initGrouping(BigArrays bigArrays, int precision) {
-        return new HllStates.GroupingState(bigArrays, precision);
+    public static HllStates.GroupingState initGrouping(DriverContext driverContext, int precision) {
+        return new HllStates.GroupingState(driverContext, precision);
     }
 
     public static void combine(HllStates.GroupingState current, int groupId, long v) {
@@ -50,17 +49,8 @@ public class CountDistinctLongAggregator {
         current.merge(groupId, inValue, 0);
     }
 
-    public static void combineStates(
-        HllStates.GroupingState current,
-        int currentGroupId,
-        HllStates.GroupingState state,
-        int statePosition
-    ) {
-        current.merge(currentGroupId, state.hll, statePosition);
-    }
-
-    public static Block evaluateFinal(HllStates.GroupingState state, IntVector selected, DriverContext driverContext) {
-        try (LongBlock.Builder builder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount())) {
+    public static Block evaluateFinal(HllStates.GroupingState state, IntVector selected, GroupingAggregatorEvaluationContext ctx) {
+        try (LongBlock.Builder builder = ctx.blockFactory().newLongBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 long count = state.cardinality(group);

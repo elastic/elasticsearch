@@ -134,7 +134,7 @@ public class SpatialEnvelopeVisitorTests extends ESTestCase {
             } else {
                 // Both positive and negative x values exist, we need to decide which way to wrap the bbox
                 double unwrappedWidth = maxPosX - minNegX;
-                double wrappedWidth = (180 - minPosX) - (-180 - maxNegX);
+                double wrappedWidth = 360.0 + maxNegX - minPosX;
                 if (unwrappedWidth <= wrappedWidth) {
                     // The smaller bbox is around the front of the planet, no dateline wrapping required
                     assertRectangleResult(i + ": " + point, result, minNegX, maxPosX, maxY, minY, false);

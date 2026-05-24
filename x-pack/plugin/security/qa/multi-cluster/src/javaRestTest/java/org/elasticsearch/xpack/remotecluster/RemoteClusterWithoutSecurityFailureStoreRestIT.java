@@ -11,7 +11,6 @@ import org.apache.http.HttpHost;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
-import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.client.RestClientBuilder;
 import org.elasticsearch.common.settings.Settings;
@@ -21,7 +20,6 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -41,7 +39,6 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -52,7 +49,6 @@ public class RemoteClusterWithoutSecurityFailureStoreRestIT extends ESRestTestCa
         .distribution(DistributionType.DEFAULT)
         .name("fulfilling-cluster")
         .nodes(3)
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .module("analysis-common")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
@@ -61,7 +57,6 @@ public class RemoteClusterWithoutSecurityFailureStoreRestIT extends ESRestTestCa
     private static ElasticsearchCluster queryCluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .name("query-cluster")
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .module("analysis-common")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
@@ -124,31 +119,6 @@ public class RemoteClusterWithoutSecurityFailureStoreRestIT extends ESRestTestCa
         // query cluster setup
         setupLocalDataOnQueryCluster();
 
-        // query remote cluster using :: selectors should not succeed, even with security off
-        for (String indexName : Set.of(
-            "test1::data",
-            "test*::data",
-            "*::data",
-            "test1::failures",
-            "test*::failures",
-            "*::failures",
-            "other1::failures",
-            "non-existing::whatever"
-        )) {
-            final Request searchRequest = new Request(
-                "GET",
-                String.format(
-                    Locale.ROOT,
-                    "/%s:%s/_search?ccs_minimize_roundtrips=%s",
-                    randomFrom("my_remote_cluster", "*", "my_remote_*"),
-                    indexName,
-                    ccsMinimizeRoundtrips
-                )
-            );
-            final ResponseException exception = expectThrows(ResponseException.class, () -> client().performRequest(searchRequest));
-            assertSelectorsNotSupported(exception);
-        }
-
         final Tuple<String, String> backingIndices = getSingleDataAndFailureIndices("test1");
         final String backingDataIndexName = backingIndices.v1();
         final String backingFailureIndexName = backingIndices.v2();
@@ -171,6 +141,36 @@ public class RemoteClusterWithoutSecurityFailureStoreRestIT extends ESRestTestCa
                 ? new String[] { "local_index", backingDataIndexName }
                 : new String[] { backingDataIndexName };
             assertSearchResponseContainsIndices(client().performRequest(dataSearchRequest), expectedIndices);
+        }
+
+        // query remote cluster using ::data and ::failures selectors should succeed with security off
+        for (String indexName : Set.of("test1::data", "test*::data", "*::data")) {
+            final Request searchRequest = new Request(
+                "GET",
+                String.format(
+                    Locale.ROOT,
+                    "/%s:%s/_search?ccs_minimize_roundtrips=%s",
+                    randomFrom("my_remote_cluster", "*", "my_remote_*"),
+                    indexName,
+                    ccsMinimizeRoundtrips
+                )
+            );
+            final String[] expectedIndices = new String[] { backingDataIndexName };
+            assertSearchResponseContainsIndices(client().performRequest(searchRequest), expectedIndices);
+        }
+        for (String indexName : Set.of("test1::failures", "test*::failures", "*::failures")) {
+            final Request searchRequest = new Request(
+                "GET",
+                String.format(
+                    Locale.ROOT,
+                    "/%s:%s/_search?ccs_minimize_roundtrips=%s",
+                    randomFrom("my_remote_cluster", "*", "my_remote_*"),
+                    indexName,
+                    ccsMinimizeRoundtrips
+                )
+            );
+            final String[] expectedIndices = new String[] { backingFailureIndexName };
+            assertSearchResponseContainsIndices(client().performRequest(searchRequest), expectedIndices);
         }
 
         // also, searching directly the backing failure index should work
@@ -254,11 +254,6 @@ public class RemoteClusterWithoutSecurityFailureStoreRestIT extends ESRestTestCa
                 "email" : "jack@example.com"
             }""");
         assertOK(performRequestAgainstFulfillingCluster(createDoc2));
-    }
-
-    private static void assertSelectorsNotSupported(ResponseException exception) {
-        assertThat(exception.getResponse().getStatusLine().getStatusCode(), equalTo(400));
-        assertThat(exception.getMessage(), containsString("Selectors are not yet supported on remote cluster patterns"));
     }
 
     private static void assertSearchResponseContainsIndices(Response response, String... expectedIndices) throws IOException {

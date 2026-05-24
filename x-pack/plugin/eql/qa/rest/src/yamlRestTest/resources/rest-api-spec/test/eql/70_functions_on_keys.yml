@@ -1,0 +1,119 @@
+---
+setup:
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /{index}/_eql/search
+          parameters: [ ]
+          capabilities: [ filters_on_keys_fix ]
+      reason: "Testing a recent fix"
+  - do:
+      indices.create:
+          index:  eql_test
+          body:
+            {
+              "mappings": {
+                "properties": {
+                  "@timestamp": {
+                    "type": "date"
+                  },
+                  "event": {
+                    "properties": {
+                      "type": {
+                        "type": "keyword",
+                        "ignore_above": 1024
+                      }
+                    }
+                  },
+                  "user": {
+                    "properties": {
+                      "domain": {
+                        "type": "keyword",
+                        "ignore_above": 1024
+                      },
+                      "name": {
+                        "type": "keyword",
+                        "fields": {
+                          "text": {
+                            "type": "match_only_text"
+                          }
+                        }
+                      }
+                    }
+                  },
+                  "winlog": {
+                    "dynamic": "true",
+                    "properties": {
+                      "computer_name": {
+                        "type": "keyword",
+                        "ignore_above": 1024
+                      }
+                    }
+                  },
+                  "source": {
+                    "properties": {
+                      "ip": {
+                        "type": "ip"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - index:
+              _index: eql_test
+              _id:    "1"
+          - "winlog":
+              "computer_name": "foo.bar.baz"
+            "@timestamp": "2025-06-18T12:21:37.018Z"
+            "event":
+              "category": "authentication"
+              "code": "5145"
+            "user":
+              "domain": "bar.baz"
+              "name": "something"
+            "source":
+              "ip": "192.168.56.200"
+          - index:
+              _index: eql_test
+              _id:    "2"
+          - "winlog":
+              "computer_name": "foo.bar.baz"
+            "@timestamp": "2025-06-18T12:21:37.093Z"
+            "event":
+              "category": "authentication"
+            "user":
+              "domain": "BAR.BAZ"
+              "name": "foo$"
+            "source":
+              "ip": "192.168.56.200"
+
+---
+"Test one join key":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'sequence by source.ip with maxspan=5s [any where event.code : "5145" and winlog.computer_name == "foo.bar.baz" ] [any where winlog.computer_name == "foo.bar.baz" and startswith(winlog.computer_name, substring(user.name, 0, -1)) ]'
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+
+---
+"Test two join keys ":
+  - do:
+      eql.search:
+        index: eql_test
+        body:
+          query: 'sequence by source.ip, winlog.computer_name with maxspan=5s [any where event.code : "5145" and winlog.computer_name == "foo.bar.baz" ] [any where winlog.computer_name == "foo.bar.baz" and startswith(winlog.computer_name, substring(user.name, 0, -1)) ]'
+
+  - match: {timed_out: false}
+  - match: {hits.total.value: 1}
+  - match: {hits.total.relation: "eq"}
+

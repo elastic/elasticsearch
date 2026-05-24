@@ -10,6 +10,7 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.core.Nullable;
 
 /**
  * A listener interface that allows to react on transport events. All methods may be
@@ -38,5 +39,5 @@ public interface TransportConnectionListener {
     /**
      * Called once a node connection is closed and unregistered.
      */
-    default void onNodeDisconnected(DiscoveryNode node, Transport.Connection connection) {}
+    default void onNodeDisconnected(DiscoveryNode node, @Nullable Exception closeException) {}
 }

@@ -8,9 +8,7 @@
  */
 package org.elasticsearch.index.fielddata;
 
-import org.apache.lucene.index.DocValues;
-import org.apache.lucene.index.NumericDocValues;
-import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.search.LongValues;
 import org.elasticsearch.common.geo.GeoPoint;
 
 import java.io.IOException;
@@ -33,7 +31,7 @@ import java.io.IOException;
 public class MultiGeoPointValues extends MultiPointValues<GeoPoint> {
     private final GeoPoint point = new GeoPoint();
 
-    public MultiGeoPointValues(SortedNumericDocValues numericValues) {
+    public MultiGeoPointValues(SortedNumericLongValues numericValues) {
         super(numericValues);
     }
 
@@ -46,7 +44,7 @@ public class MultiGeoPointValues extends MultiPointValues<GeoPoint> {
      * Returns a single-valued view of the {@link MultiPointValues} if possible, otherwise null.
      */
     protected GeoPointValues getPointValues() {
-        final NumericDocValues singleton = DocValues.unwrapSingleton(numericValues);
+        final LongValues singleton = SortedNumericLongValues.unwrapSingleton(numericValues);
         return singleton != null ? new GeoPointValues(singleton) : null;
     }
 }

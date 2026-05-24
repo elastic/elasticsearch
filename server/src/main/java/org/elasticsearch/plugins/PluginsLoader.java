@@ -27,8 +27,6 @@ import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -40,6 +38,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
@@ -128,16 +127,17 @@ public class PluginsLoader {
     private final Set<PluginBundle> pluginBundles;
 
     /**
-     * Loads a set of PluginBundles from the modules directory
+     * Loads a set of PluginBundles from the modules directory.
      *
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
+     * @param isStatelessMode  If running in stateless mode to load the distribution accordingly.
      */
-    public static Set<PluginBundle> loadModulesBundles(Path modulesDirectory) {
+    public static Set<PluginBundle> loadModulesBundles(Path modulesDirectory, boolean isStatelessMode) {
         // load (elasticsearch) module layers
         final Set<PluginBundle> modules;
         if (modulesDirectory != null) {
             try {
-                modules = PluginsUtils.getModuleBundles(modulesDirectory);
+                modules = PluginsUtils.getModuleBundles(modulesDirectory, deploymentTargetPredicate(isStatelessMode));
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
             }
@@ -148,18 +148,20 @@ public class PluginsLoader {
     }
 
     /**
-     * Loads a set of PluginBundles from the plugins directory
+     * Loads a set of PluginBundles from the plugins directory.
+     * Bundles are filtered by {@code dynamic_bundle} type and {@code stateless.enabled}.
      *
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
+     * @param isStatelessMode  If running in stateless mode to load the distribution accordingly.
      */
-    public static Set<PluginBundle> loadPluginsBundles(Path pluginsDirectory) {
+    public static Set<PluginBundle> loadPluginsBundles(Path pluginsDirectory, boolean isStatelessMode) {
         final Set<PluginBundle> plugins;
         if (pluginsDirectory != null) {
             try {
                 // TODO: remove this leniency, but tests bogusly rely on it
                 if (isAccessibleDirectory(pluginsDirectory, logger)) {
                     PluginsUtils.checkForFailedPluginRemovals(pluginsDirectory);
-                    plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
+                    plugins = PluginsUtils.getPluginBundles(pluginsDirectory, deploymentTargetPredicate(isStatelessMode));
                 } else {
                     plugins = Collections.emptySet();
                 }
@@ -170,6 +172,14 @@ public class PluginsLoader {
             plugins = Collections.emptySet();
         }
         return plugins;
+    }
+
+    private static Predicate<PluginDescriptor> deploymentTargetPredicate(boolean isStatelessMode) {
+        return descriptor -> switch (descriptor.getDeploymentTarget()) {
+            case STATEFUL_ONLY -> isStatelessMode == false;
+            case STATELESS_ONLY -> isStatelessMode;
+            case ALL -> true;
+        };
     }
 
     /**
@@ -423,7 +433,7 @@ public class PluginsLoader {
             finder,
             Set.of(moduleName)
         );
-        var controller = privilegedDefineModulesWithOneLoader(configuration, parentLayersOrBoot(parentLayers), parentLoader);
+        var controller = ModuleLayer.defineModulesWithOneLoader(configuration, parentLayersOrBoot(parentLayers), parentLoader);
         var pluginModule = controller.layer().findModule(moduleName).get();
         ensureEntryPointAccessible(controller, pluginModule, className);
         // export/open upstream modules to this plugin module
@@ -432,7 +442,7 @@ public class PluginsLoader {
         addPluginExportsServices(qualifiedExports, controller);
         enableNativeAccess(moduleName, modulesWithNativeAccess, controller);
         logger.debug(() -> "Loading bundle: created module layer and loader for module " + moduleName);
-        return new LayerAndLoader(controller.layer(), privilegedFindLoader(controller.layer(), moduleName));
+        return new LayerAndLoader(controller.layer(), controller.layer().findLoader(moduleName));
     }
 
     /** Determines the module name of the SPI module, given its URL. */
@@ -488,18 +498,6 @@ public class PluginsLoader {
         if (className != null) {
             controller.addOpens(pluginModule, toPackageName(className), serverModule);
         }
-    }
-
-    @SuppressWarnings("removal")
-    static Controller privilegedDefineModulesWithOneLoader(Configuration cf, List<ModuleLayer> parentLayers, ClassLoader parentLoader) {
-        return AccessController.doPrivileged(
-            (PrivilegedAction<Controller>) () -> ModuleLayer.defineModulesWithOneLoader(cf, parentLayers, parentLoader)
-        );
-    }
-
-    @SuppressWarnings("removal")
-    static ClassLoader privilegedFindLoader(ModuleLayer layer, String name) {
-        return AccessController.doPrivileged((PrivilegedAction<ClassLoader>) () -> layer.findLoader(name));
     }
 
     private static List<ModuleLayer> parentLayersOrBoot(List<ModuleLayer> parentLayers) {

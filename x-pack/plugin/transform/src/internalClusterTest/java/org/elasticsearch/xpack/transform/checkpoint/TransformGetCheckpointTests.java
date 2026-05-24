@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.transform.checkpoint;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.LatchedActionListener;
@@ -75,7 +75,6 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
     private ThreadPool threadPool;
     private IndexNameExpressionResolver indexNameExpressionResolver;
     private Client client;
-    private MockTransport mockTransport;
     private Task transformTask;
     private final String indexNamePattern = "test_index-";
     private String[] testIndices;
@@ -99,7 +98,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         indexNameExpressionResolver = new MockResolver();
         clusterService = getInstanceFromNode(ClusterService.class);
         indicesService = getInstanceFromNode(IndicesService.class);
-        mockTransport = new MockTransport() {
+        MockTransport mockTransport = new MockTransport() {
             @Override
             protected void onSendRequest(long requestId, String action, TransportRequest request, DiscoveryNode node) {
                 if (action.equals(GetCheckpointNodeAction.NAME)) {
@@ -134,7 +133,7 @@ public class TransformGetCheckpointTests extends ESSingleNodeTestCase {
         testIndices = testIndicesList.toArray(new String[0]);
 
         clusterStateWithIndex = ClusterState.builder(ClusterStateCreationUtils.state(numberOfNodes, testIndices, numberOfShards))
-            .putCompatibilityVersions("node01", TransportVersions.V_8_5_0, Map.of())
+            .putCompatibilityVersions("node01", TransportVersion.minimumCompatible(), Map.of())
             .build();
 
         client = mock(Client.class);

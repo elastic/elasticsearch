@@ -27,7 +27,7 @@ import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.netty4.AcceptChannelHandler;
 import org.elasticsearch.transport.netty4.SharedGroupFactory;
@@ -109,7 +109,7 @@ public class ClusterInfoRestCancellationIT extends HttpSmokeTestCase {
             HttpServerTransport.Dispatcher dispatcher,
             BiConsumer<HttpPreRequest, ThreadContext> perRequestThreadContext,
             ClusterSettings clusterSettings,
-            Tracer tracer
+            TelemetryProvider telemetryProvider
         ) {
             return Map.of(
                 FakeHttpTransport.NAME,
@@ -121,7 +121,7 @@ public class ClusterInfoRestCancellationIT extends HttpSmokeTestCase {
                     dispatcher,
                     clusterSettings,
                     new SharedGroupFactory(settings),
-                    tracer,
+                    telemetryProvider,
                     TLSConfig.noTLS(),
                     null,
                     null
@@ -143,7 +143,7 @@ public class ClusterInfoRestCancellationIT extends HttpSmokeTestCase {
             Dispatcher dispatcher,
             ClusterSettings clusterSettings,
             SharedGroupFactory sharedGroupFactory,
-            Tracer tracer,
+            TelemetryProvider telemetryProvider,
             TLSConfig tlsConfig,
             AcceptChannelHandler.AcceptPredicate acceptChannelPredicate,
             HttpValidator httpValidator
@@ -156,7 +156,7 @@ public class ClusterInfoRestCancellationIT extends HttpSmokeTestCase {
                 dispatcher,
                 clusterSettings,
                 sharedGroupFactory,
-                tracer,
+                telemetryProvider,
                 tlsConfig,
                 acceptChannelPredicate,
                 httpValidator

@@ -100,7 +100,7 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
                 assertThat(result.getStatus(), is(equalTo(AuthenticationResult.Status.TERMINATE)));
                 if (throwExceptionForInvalidTicket == false) {
                     assertThat(result.getException(), is(instanceOf(ElasticsearchSecurityException.class)));
-                    final List<String> wwwAuthnHeader = ((ElasticsearchSecurityException) result.getException()).getHeader(
+                    final List<String> wwwAuthnHeader = ((ElasticsearchSecurityException) result.getException()).getBodyHeader(
                         KerberosAuthenticationToken.WWW_AUTHENTICATE
                     );
                     assertThat(wwwAuthnHeader, is(notNullValue()));
@@ -113,7 +113,7 @@ public class KerberosRealmAuthenticateFailedTests extends KerberosRealmTestCase 
                         assertThat(result.getMessage(), is(equalTo("failed to authenticate user, gss context negotiation failure")));
                     }
                     assertThat(result.getException(), is(instanceOf(ElasticsearchSecurityException.class)));
-                    final List<String> wwwAuthnHeader = ((ElasticsearchSecurityException) result.getException()).getHeader(
+                    final List<String> wwwAuthnHeader = ((ElasticsearchSecurityException) result.getException()).getBodyHeader(
                         KerberosAuthenticationToken.WWW_AUTHENTICATE
                     );
                     assertThat(wwwAuthnHeader, is(notNullValue()));

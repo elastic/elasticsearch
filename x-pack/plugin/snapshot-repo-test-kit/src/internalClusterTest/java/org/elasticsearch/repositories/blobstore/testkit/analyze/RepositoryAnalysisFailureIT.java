@@ -9,6 +9,7 @@ package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ReferenceDocs;
@@ -25,6 +26,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.CheckedConsumer;
@@ -39,6 +41,7 @@ import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryMissingException;
 import org.elasticsearch.repositories.RepositoryVerificationException;
+import org.elasticsearch.repositories.SnapshotMetrics;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.blobstore.testkit.SnapshotRepositoryTestKit;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
@@ -51,6 +54,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.io.UncheckedIOException;
 import java.nio.file.FileAlreadyExistsException;
 import java.util.Arrays;
 import java.util.Collection;
@@ -74,6 +78,8 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.hamcrest.Matchers.nullValue;
 
 public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
@@ -133,7 +139,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
 
-        final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
+        final CountDown countDown = createDisruptionCountdown(request);
         blobStore.setDisruption(new Disruption() {
             @Override
             public byte[] onRead(byte[] actualContents, long position, long length) throws IOException {
@@ -157,7 +163,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         request.abortWritePermitted(false);
         request.rareActionProbability(0.0); // not found on an early read or an overwrite is ok
 
-        final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
+        final CountDown countDown = createDisruptionCountdown(request);
 
         blobStore.setDisruption(new Disruption() {
             @Override
@@ -170,6 +176,31 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         });
 
         assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
+    public void testFailsOnCopyAfterWrite() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        request.abortWritePermitted(false);
+
+        final AtomicBoolean failedCopy = new AtomicBoolean();
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public void onCopy() throws IOException {
+                failedCopy.set(true);
+                throw new IOException("simulated");
+            }
+        });
+
+        safeAwait((ActionListener<RepositoryAnalyzeAction.Response> l) -> analyseRepository(request, l.delegateResponse((ll, e) -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof RepositoryVerificationException repositoryVerificationException) {
+                assertAnalysisFailureMessage(repositoryVerificationException.getMessage());
+                assertTrue("did not fail a copy operation, so why did the verification fail?", failedCopy.get());
+                ll.onResponse(null);
+            } else {
+                ll.onFailure(e);
+            }
+        })));
     }
 
     public void testFailsOnChecksumMismatch() {
@@ -186,7 +217,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         // leads to CI failures. Therefore, we disable rare actions to improve CI stability.
         request.rareActionProbability(0.0);
 
-        final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
+        final CountDown countDown = createDisruptionCountdown(request);
 
         blobStore.setDisruption(new Disruption() {
             @Override
@@ -208,7 +239,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         request.maxBlobSize(ByteSizeValue.ofBytes(10L));
         request.abortWritePermitted(false);
 
-        final CountDown countDown = new CountDown(between(1, request.getBlobCount()));
+        final CountDown countDown = createDisruptionCountdown(request);
 
         blobStore.setDisruption(new Disruption() {
 
@@ -358,6 +389,55 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
     }
 
+    public void testFailsOnLostIncrement() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        final AtomicBoolean registerWasCorrupted = new AtomicBoolean();
+
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public BytesReference onContendedCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
+                if (expected.equals(updated) == false // not the initial read
+                    && updated.length() == Long.BYTES // not the final write
+                    && randomBoolean()
+                    && register.get().equals(expected) // would have succeeded
+                    && registerWasCorrupted.compareAndSet(false, true)) {
+
+                    // indicate success without actually applying the update
+                    return expected;
+                }
+
+                return register.compareAndExchange(expected, updated);
+            }
+        });
+
+        safeAwait((ActionListener<RepositoryAnalyzeAction.Response> l) -> analyseRepository(request, l.delegateResponse((ll, e) -> {
+            if (ExceptionsHelper.unwrapCause(e) instanceof RepositoryVerificationException repositoryVerificationException) {
+                assertAnalysisFailureMessage(repositoryVerificationException.getMessage());
+                assertTrue(
+                    "did not lose increment, so why did the verification fail?",
+                    // clear flag for final assertion
+                    registerWasCorrupted.compareAndSet(true, false)
+                );
+                assertThat(
+                    asInstanceOf(
+                        RepositoryVerificationException.class,
+                        ExceptionsHelper.unwrapCause(repositoryVerificationException.getCause())
+                    ).getMessage(),
+                    matchesPattern("""
+                        \\[test-repo] Successfully completed all \\[.*] atomic increments of register \\[test-register-contended-.*] \
+                        so its expected value is \\[OptionalBytesReference\\[.*]], but reading its value with \\[.*] unexpectedly \
+                        yielded \\[OptionalBytesReference\\[.*]]\\. This anomaly may indicate an atomicity failure amongst concurrent \
+                        compare-and-exchange operations on registers in this repository\\.""")
+                );
+                ll.onResponse(null);
+            } else {
+                ll.onFailure(e);
+            }
+        })));
+
+        assertFalse(registerWasCorrupted.get());
+    }
+
     public void testFailsIfRegisterHoldsSpuriousValue() {
         final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
 
@@ -479,6 +559,173 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
     }
 
+    public void testFailsIfOverwriteProtectionIgnored() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean ignoreOverwriteProtection() {
+                return true;
+            }
+        });
+        final var exception = analyseRepositoryExpectFailure(request);
+        assertAnalysisFailureMessage(exception.getMessage());
+        assertThat(
+            asInstanceOf(RepositoryVerificationException.class, ExceptionsHelper.unwrapCause(exception.getCause())).getMessage(),
+            containsString("multiple writes succeeded to overwrite-protected blob")
+        );
+    }
+
+    /*
+     * Tests that we correctly fail if the object store does not return all objects that match the prefix when listBlobsByPrefix is called.
+     */
+    public void testFailsOnMissingPrefixListingEntry() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        request.abortWritePermitted(false);
+
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public Map<String, BlobMetadata> onPrefixList(String prefix, Map<String, BlobMetadata> filteredListing) {
+                if (prefix.equals("test-blob-")) {
+                    // Drop a blob from the common-prefix listing to simulate an incorrect prefix filter
+                    Map<String, BlobMetadata> disrupted = filteredListing;
+                    if (disrupted.isEmpty() == false) {
+                        disrupted = Maps.copyMapWithRemovedEntry(Map.copyOf(disrupted), randomFrom(disrupted.keySet()));
+                    }
+                    return disrupted;
+                }
+                return filteredListing;
+            }
+        });
+
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
+    /*
+     * Tests that we correctly fail if the object store returns objects that do not match the prefix when listBlobsByPrefix is called.
+     */
+    public void testFailsOnSpuriousPrefixListingEntry() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        request.abortWritePermitted(false);
+
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public Map<String, BlobMetadata> onPrefixList(String prefix, Map<String, BlobMetadata> filteredListing) {
+                if (prefix.equals("test-blob-")) {
+                    // Add a blob that doesn't match the requested prefix to simulate a broken prefix filter
+                    final HashMap<String, BlobMetadata> disrupted = new HashMap<>(filteredListing);
+                    final String spurious = "wrong-prefix-blob-" + randomAlphaOfLength(5);
+                    disrupted.put(spurious, new BlobMetadata(spurious, 1));
+                    return disrupted;
+                }
+                return filteredListing;
+            }
+        });
+
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
+    /*
+     * Tests that we correctly fail if the object store returns results for a prefix that matches no blobs.
+     */
+    public void testFailsOnNonEmptyNoMatchPrefixListing() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        request.abortWritePermitted(false);
+
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public Map<String, BlobMetadata> onPrefixList(String prefix, Map<String, BlobMetadata> filteredListing) {
+                if (prefix.equals("nonexistent-prefix-")) {
+                    // Inject a spurious result for the no-match prefix query
+                    final String spurious = "nonexistent-prefix-phantom";
+                    return Map.of(spurious, new BlobMetadata(spurious, 1));
+                }
+                return filteredListing;
+            }
+        });
+
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
+    /*
+     * Tests that we correctly fail if the object store returns correct blob names but incorrect BlobMetadata in prefix listings.
+     */
+    public void testFailsOnIncorrectPrefixListingBlobSize() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        request.abortWritePermitted(false);
+
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public Map<String, BlobMetadata> onPrefixList(String prefix, Map<String, BlobMetadata> filteredListing) {
+                if (prefix.equals("test-blob-") && filteredListing.isEmpty() == false) {
+                    // Return correct keys but corrupt the size of one blob
+                    final HashMap<String, BlobMetadata> disrupted = new HashMap<>(filteredListing);
+                    final String key = disrupted.keySet().iterator().next();
+                    final BlobMetadata original = disrupted.get(key);
+                    disrupted.put(key, new BlobMetadata(key, original.length() + 1));
+                    return disrupted;
+                }
+                return filteredListing;
+            }
+        });
+
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
+    public void testFailsWhenExistingBlobNotFoundByExistenceCheck() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        request.abortWritePermitted(false);
+
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean onBlobExistenceCheck(String blobName, boolean actualExists) {
+                // Always report every blob as not existing, causing the blob-exists check to fail
+                return false;
+            }
+        });
+
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
+    public void testFailsWhenNonExistentBlobReportedAsExistingByExistenceCheck() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        request.abortWritePermitted(false);
+
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean onBlobExistenceCheck(String blobName, boolean actualExists) {
+                // Always report every blob as existing, causing the non-existent-blob check to fail
+                return true;
+            }
+        });
+
+        assertAnalysisFailureMessage(analyseRepositoryExpectFailure(request).getMessage());
+    }
+
+    public void testFailsOnBlobExistenceException() {
+        final RepositoryAnalyzeAction.Request request = new RepositoryAnalyzeAction.Request("test-repo");
+        request.maxBlobSize(ByteSizeValue.ofBytes(10L));
+        request.abortWritePermitted(false);
+
+        blobStore.setDisruption(new Disruption() {
+            @Override
+            public boolean onBlobExistenceCheck(String blobName, boolean actualExists) throws IOException {
+                throw new IOException("simulated");
+            }
+        });
+
+        final Exception exception = analyseRepositoryExpectFailure(request);
+        assertAnalysisFailureMessage(exception.getMessage());
+        final IOException ioException = (IOException) ExceptionsHelper.unwrap(exception, IOException.class);
+        assert ioException != null : exception;
+        assertThat(ioException.getMessage(), equalTo("simulated"));
+    }
+
     private RepositoryVerificationException analyseRepositoryExpectFailure(RepositoryAnalyzeAction.Request request) {
         return safeAwaitAndUnwrapFailure(
             RepositoryVerificationException.class,
@@ -489,13 +736,19 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     private void analyseRepository(RepositoryAnalyzeAction.Request request, ActionListener<RepositoryAnalyzeAction.Response> listener) {
         client().execute(RepositoryAnalyzeAction.INSTANCE, request, listener.delegateFailureAndWrap((l, response) -> {
-            RepositoryAnalysisSuccessIT.assertNoThrottling(response);
+            RepositoryAnalysisSuccessIT.assertResponseSummaryFields(request, response);
             l.onResponse(response);
         }));
     }
 
     private static void assertPurpose(OperationPurpose purpose) {
         assertEquals(OperationPurpose.REPOSITORY_ANALYSIS, purpose);
+    }
+
+    private static CountDown createDisruptionCountdown(RepositoryAnalyzeAction.Request request) {
+        // requests that create copies count as two blobs. Halving the count ensures that we trigger the disruption
+        // even if every request is a copy
+        return new CountDown(between(1, request.getBlobCount() / 2));
     }
 
     public static class TestPlugin extends Plugin implements RepositoryPlugin {
@@ -509,17 +762,20 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            RepositoriesMetrics repositoriesMetrics
+            RepositoriesMetrics repositoriesMetrics,
+            SnapshotMetrics snapshotMetrics
         ) {
             return Map.of(
                 DISRUPTABLE_REPO_TYPE,
-                metadata -> new DisruptableRepository(
+                (projectId, metadata) -> new DisruptableRepository(
+                    projectId,
                     metadata,
                     namedXContentRegistry,
                     clusterService,
                     bigArrays,
                     recoverySettings,
-                    BlobPath.EMPTY
+                    BlobPath.EMPTY,
+                    snapshotMetrics
                 )
             );
         }
@@ -530,14 +786,16 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         private final AtomicReference<BlobStore> blobStoreRef = new AtomicReference<>();
 
         DisruptableRepository(
+            ProjectId projectId,
             RepositoryMetadata metadata,
             NamedXContentRegistry namedXContentRegistry,
             ClusterService clusterService,
             BigArrays bigArrays,
             RecoverySettings recoverySettings,
-            BlobPath basePath
+            BlobPath basePath,
+            SnapshotMetrics snapshotMetrics
         ) {
-            super(metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath);
+            super(projectId, metadata, namedXContentRegistry, clusterService, bigArrays, recoverySettings, basePath, snapshotMetrics);
         }
 
         void setBlobStore(BlobStore blobStore) {
@@ -584,14 +842,15 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
 
     interface Disruption {
 
-        Disruption NONE = new Disruption() {
-        };
+        Disruption NONE = new Disruption() {};
 
         default byte[] onRead(byte[] actualContents, long position, long length) throws IOException {
             return actualContents;
         }
 
         default void onWrite() throws IOException {}
+
+        default void onCopy() throws IOException {}
 
         default Map<String, BlobMetadata> onList(Map<String, BlobMetadata> actualListing) throws IOException {
             return actualListing;
@@ -611,8 +870,20 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             return true;
         }
 
+        default boolean ignoreOverwriteProtection() {
+            return false;
+        }
+
         default BytesReference onContendedCompareAndExchange(BytesRegister register, BytesReference expected, BytesReference updated) {
             return register.compareAndExchange(expected, updated);
+        }
+
+        default boolean onBlobExistenceCheck(String blobName, boolean actualExists) throws IOException {
+            return actualExists;
+        }
+
+        default Map<String, BlobMetadata> onPrefixList(String prefix, Map<String, BlobMetadata> filteredListing) throws IOException {
+            return filteredListing;
         }
     }
 
@@ -636,9 +907,9 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
 
         @Override
-        public boolean blobExists(OperationPurpose purpose, String blobName) {
+        public boolean blobExists(OperationPurpose purpose, String blobName) throws IOException {
             assertPurpose(purpose);
-            return blobs.containsKey(blobName);
+            return disruption.onBlobExistenceCheck(blobName, blobs.containsKey(blobName));
         }
 
         @Override
@@ -734,7 +1005,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
         }
 
         private void writeBlobAtomic(String blobName, InputStream inputStream, boolean failIfAlreadyExists) throws IOException {
-            if (failIfAlreadyExists && blobs.get(blobName) != null) {
+            if (failIfAlreadyExists && disruption.ignoreOverwriteProtection() == false && blobs.get(blobName) != null) {
                 throw new FileAlreadyExistsException(blobName);
             }
 
@@ -747,8 +1018,50 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
                 }
                 throw e;
             }
-            disruption.onWrite();
-            blobs.put(blobName, contents);
+            if (failIfAlreadyExists && disruption.ignoreOverwriteProtection() == false) {
+                final byte[] updatedContents;
+                try {
+                    updatedContents = blobs.computeIfAbsent(blobName, ignored -> {
+                        try {
+                            disruption.onWrite();
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                        return contents;
+                    });
+                } catch (UncheckedIOException e) {
+                    if (e.getCause() instanceof IOException ioException) {
+                        throw ioException;
+                    } else {
+                        throw e;
+                    }
+                }
+                if (updatedContents != contents) {
+                    throw new FileAlreadyExistsException(blobName);
+                }
+            } else {
+                disruption.onWrite();
+                blobs.put(blobName, contents);
+            }
+        }
+
+        @Override
+        public void copyBlob(
+            OperationPurpose purpose,
+            BlobContainer sourceBlobContainer,
+            String sourceBlobName,
+            String blobName,
+            long blobSize
+        ) throws IOException {
+            assertThat(sourceBlobContainer, instanceOf(DisruptableBlobContainer.class));
+            assertPurpose(purpose);
+            final var source = (DisruptableBlobContainer) sourceBlobContainer;
+            final var sourceBlob = source.blobs.get(sourceBlobName);
+            if (sourceBlob == null) {
+                throw new FileNotFoundException(sourceBlobName + " not found");
+            }
+            disruption.onCopy();
+            blobs.put(blobName, sourceBlob);
         }
 
         @Override
@@ -788,7 +1101,7 @@ public class RepositoryAnalysisFailureIT extends AbstractSnapshotIntegTestCase {
             assertPurpose(purpose);
             final Map<String, BlobMetadata> blobMetadataByName = listBlobs(purpose);
             blobMetadataByName.keySet().removeIf(s -> s.startsWith(blobNamePrefix) == false);
-            return blobMetadataByName;
+            return disruption.onPrefixList(blobNamePrefix, blobMetadataByName);
         }
 
         @Override

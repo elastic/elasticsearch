@@ -18,7 +18,6 @@ import org.hamcrest.MatcherAssert;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Locale;
@@ -32,7 +31,7 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
 
     public static VoyageAIEmbeddingsTaskSettings createRandom() {
         var inputType = randomBoolean() ? randomWithIngestAndSearch() : null;
-        var truncation = randomBoolean();
+        var truncation = randomOptionalBoolean();
 
         return new VoyageAIEmbeddingsTaskSettings(inputType, truncation);
     }
@@ -45,23 +44,22 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
 
     public void testUpdatedTaskSettings_NotUpdated_UseInitialSettings() {
         var initialSettings = createRandom();
-        var newSettings = new VoyageAIEmbeddingsTaskSettings((InputType) null, null);
         Map<String, Object> newSettingsMap = new HashMap<>();
         VoyageAIEmbeddingsTaskSettings updatedSettings = (VoyageAIEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
-            Collections.unmodifiableMap(newSettingsMap)
+            newSettingsMap
         );
-        assertEquals(initialSettings.getInputType(), updatedSettings.getInputType());
+        assertEquals(initialSettings.inputType(), updatedSettings.inputType());
     }
 
     public void testUpdatedTaskSettings_Updated_UseNewSettings() {
         var initialSettings = createRandom();
         var newSettings = new VoyageAIEmbeddingsTaskSettings(randomWithIngestAndSearch(), randomBoolean());
         Map<String, Object> newSettingsMap = new HashMap<>();
-        newSettingsMap.put(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE, newSettings.getInputType().toString());
+        newSettingsMap.put(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE_FIELD, newSettings.inputType().toString());
         VoyageAIEmbeddingsTaskSettings updatedSettings = (VoyageAIEmbeddingsTaskSettings) initialSettings.updatedTaskSettings(
-            Collections.unmodifiableMap(newSettingsMap)
+            newSettingsMap
         );
-        assertEquals(newSettings.getInputType(), updatedSettings.getInputType());
+        assertEquals(newSettings.inputType(), updatedSettings.inputType());
     }
 
     public void testFromMap_CreatesEmptySettings_WhenAllFieldsAreNull() {
@@ -82,7 +80,12 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
         MatcherAssert.assertThat(
             VoyageAIEmbeddingsTaskSettings.fromMap(
                 new HashMap<>(
-                    Map.of(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE, InputType.INGEST.toString(), VoyageAIServiceFields.TRUNCATION, false)
+                    Map.of(
+                        VoyageAIEmbeddingsTaskSettings.INPUT_TYPE_FIELD,
+                        InputType.INGEST.toString(),
+                        VoyageAIServiceFields.TRUNCATION,
+                        false
+                    )
                 )
             ),
             is(new VoyageAIEmbeddingsTaskSettings(InputType.INGEST, false))
@@ -93,7 +96,7 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
         var exception = expectThrows(
             ValidationException.class,
             () -> VoyageAIEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE, "abc", VoyageAIServiceFields.TRUNCATION, false))
+                new HashMap<>(Map.of(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE_FIELD, "abc", VoyageAIServiceFields.TRUNCATION, false))
             )
         );
 
@@ -113,7 +116,12 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
             ValidationException.class,
             () -> VoyageAIEmbeddingsTaskSettings.fromMap(
                 new HashMap<>(
-                    Map.of(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE, InputType.INGEST.toString(), VoyageAIServiceFields.TRUNCATION, "abc")
+                    Map.of(
+                        VoyageAIEmbeddingsTaskSettings.INPUT_TYPE_FIELD,
+                        InputType.INGEST.toString(),
+                        VoyageAIServiceFields.TRUNCATION,
+                        "abc"
+                    )
                 )
             )
         );
@@ -128,7 +136,7 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
         var exception = expectThrows(
             ValidationException.class,
             () -> VoyageAIEmbeddingsTaskSettings.fromMap(
-                new HashMap<>(Map.of(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE, InputType.UNSPECIFIED.toString()))
+                new HashMap<>(Map.of(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE_FIELD, InputType.UNSPECIFIED.toString()))
             )
         );
 
@@ -183,7 +191,13 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
 
     @Override
     protected VoyageAIEmbeddingsTaskSettings mutateInstance(VoyageAIEmbeddingsTaskSettings instance) throws IOException {
-        return randomValueOtherThan(instance, VoyageAIEmbeddingsTaskSettingsTests::createRandom);
+        if (randomBoolean()) {
+            var inputType = randomValueOtherThan(instance.inputType(), () -> randomFrom(randomWithIngestAndSearch(), null));
+            return new VoyageAIEmbeddingsTaskSettings(inputType, instance.truncation());
+        } else {
+            var truncation = instance.truncation() == null ? randomBoolean() : instance.truncation() == false;
+            return new VoyageAIEmbeddingsTaskSettings(instance.inputType(), truncation);
+        }
     }
 
     public static Map<String, Object> getTaskSettingsMapEmpty() {
@@ -194,7 +208,7 @@ public class VoyageAIEmbeddingsTaskSettingsTests extends AbstractWireSerializing
         var map = new HashMap<String, Object>();
 
         if (inputType != null) {
-            map.put(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE, inputType.toString());
+            map.put(VoyageAIEmbeddingsTaskSettings.INPUT_TYPE_FIELD, inputType.toString());
         }
 
         return map;

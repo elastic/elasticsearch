@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.transform.persistence.TransformConfigManager;
 import org.elasticsearch.xpack.transform.transforms.FunctionFactory;
 
 import java.time.Instant;
+import java.util.function.BooleanSupplier;
 
 import static org.elasticsearch.xpack.transform.utils.SecondaryAuthorizationUtils.getSecurityHeadersPreferringSecondary;
 
@@ -65,6 +67,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
     private final SecurityContext securityContext;
     private final TransformAuditor auditor;
     private final TransformConfigAutoMigration transformConfigAutoMigration;
+    private final BooleanSupplier hasLinkedProjects;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportPutTransformAction(
@@ -76,7 +80,8 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         ClusterService clusterService,
         TransformServices transformServices,
         Client client,
-        TransformConfigAutoMigration transformConfigAutoMigration
+        TransformConfigAutoMigration transformConfigAutoMigration,
+        ProjectResolver projectResolver
     ) {
         super(
             PutTransformAction.NAME,
@@ -96,13 +101,15 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             : null;
         this.auditor = transformServices.auditor();
         this.transformConfigAutoMigration = transformConfigAutoMigration;
+        this.hasLinkedProjects = () -> transformServices.hasLinkedProjects().apply(projectResolver.getProjectId());
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState clusterState, ActionListener<AcknowledgedResponse> listener) {
         XPackPlugin.checkReadyForXPackCustomMetadata(clusterState);
 
-        if (TransformMetadata.upgradeMode(clusterState)) {
+        if (TransformMetadata.isUpgradeMode(clusterState)) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "Cannot create new Transform while the Transform feature is upgrading.",
@@ -130,13 +137,13 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         );
 
         // <2> Validate source and destination indices
-
         var parentTaskId = new TaskId(clusterService.localNode().getId(), task.getId());
         ActionListener<Void> checkPrivilegesListener = validateTransformListener.delegateFailureAndWrap(
             (l, aVoid) -> ClientHelper.executeAsyncWithOrigin(
                 new ParentTaskAssigningClient(client, parentTaskId),
                 ClientHelper.TRANSFORM_ORIGIN,
                 ValidateTransformAction.INSTANCE,
+                true,
                 new ValidateTransformAction.Request(config, request.isDeferValidation(), request.ackTimeout()),
                 l
             )
@@ -153,6 +160,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
                 client,
                 config,
                 true,
+                hasLinkedProjects.getAsBoolean(),
                 ActionListener.wrap(
                     aVoid -> AuthorizationStatePersistenceUtils.persistAuthState(
                         settings,
@@ -183,7 +191,7 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
 
     @Override
     protected ClusterBlockException checkBlock(PutTransformAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
     private void putTransform(Request request, ActionListener<AcknowledgedResponse> listener) {

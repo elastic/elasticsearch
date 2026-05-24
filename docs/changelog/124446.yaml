@@ -1,6 +1,0 @@
-pr: 124446
-summary: "ESQL: Fail in `AggregateFunction` when `LogicPlan` is not an `Aggregate`"
-area: ES|QL
-type: bug
-issues:
-  - 124311

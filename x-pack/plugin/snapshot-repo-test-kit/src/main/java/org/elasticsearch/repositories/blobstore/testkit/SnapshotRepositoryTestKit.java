@@ -7,25 +7,19 @@
 
 package org.elasticsearch.repositories.blobstore.testkit;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.repositories.blobstore.testkit.analyze.BlobAnalyzeAction;
 import org.elasticsearch.repositories.blobstore.testkit.analyze.RepositoryAnalyzeAction;
 import org.elasticsearch.repositories.blobstore.testkit.analyze.RestRepositoryAnalyzeAction;
 import org.elasticsearch.repositories.blobstore.testkit.integrity.RepositoryVerifyIntegrityTask;
 import org.elasticsearch.repositories.blobstore.testkit.integrity.RestRepositoryVerifyIntegrityAction;
 import org.elasticsearch.repositories.blobstore.testkit.integrity.TransportRepositoryVerifyIntegrityCoordinationAction;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -38,10 +32,10 @@ import java.util.function.Supplier;
 public class SnapshotRepositoryTestKit extends Plugin implements ActionPlugin {
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(RepositoryAnalyzeAction.INSTANCE, RepositoryAnalyzeAction.class),
-            new ActionHandler<>(
+            new ActionHandler(RepositoryAnalyzeAction.INSTANCE, RepositoryAnalyzeAction.class),
+            new ActionHandler(
                 TransportRepositoryVerifyIntegrityCoordinationAction.INSTANCE,
                 TransportRepositoryVerifyIntegrityCoordinationAction.class
             )
@@ -50,13 +44,7 @@ public class SnapshotRepositoryTestKit extends Plugin implements ActionPlugin {
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
@@ -83,5 +71,10 @@ public class SnapshotRepositoryTestKit extends Plugin implements ActionPlugin {
                 RepositoryVerifyIntegrityTask.Status::new
             )
         );
+    }
+
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(BlobAnalyzeAction.ENABLE_COPY_DURING_WRITE_CONTENTION);
     }
 }

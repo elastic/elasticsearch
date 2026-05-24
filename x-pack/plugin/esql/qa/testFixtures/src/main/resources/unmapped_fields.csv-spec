@@ -495,8 +495,8 @@ required_capability: source_field_mapping
 required_capability: unmapped_fields
 FROM partial_mapping_sample_data,partial_mapping_excluded_source_sample_data METADATA _index
 | INSIST_🐔 message
-| SORT message, @timestamp
 | STATS max(@timestamp), count(*) BY message
+| SORT message NULLS FIRST
 ;
 
 max(@timestamp):date     | count(*):long | message:keyword

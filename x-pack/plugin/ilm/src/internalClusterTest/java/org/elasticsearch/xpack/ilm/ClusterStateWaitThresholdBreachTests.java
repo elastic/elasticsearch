@@ -11,8 +11,10 @@ import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -128,7 +130,9 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // now to the tricky bit
         // we'll use the cluster service to issue a move-to-step task in order to manipulate the ILM execution state `step_time` value to
         // a very low value (in order to trip the LIFECYCLE_STEP_WAIT_TIME_THRESHOLD threshold and retry the shrink cycle)
-        IndexMetadata managedIndexMetadata = clusterService().state().metadata().getProject().index(managedIndex);
+        @FixForMultiProject(description = "ilm is not project aware")
+        final ProjectId projectId = ProjectId.DEFAULT;
+        IndexMetadata managedIndexMetadata = clusterService().state().metadata().getProject(projectId).index(managedIndex);
         Step.StepKey currentStepKey = new Step.StepKey("warm", ShrinkAction.NAME, ShrunkShardsAllocatedStep.NAME);
 
         String masterNode = masterOnlyNodes.get(0);
@@ -141,7 +145,9 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         clusterService.submitUnbatchedStateUpdateTask("testing-move-to-step-to-manipulate-step-time", new ClusterStateUpdateTask() {
             @Override
             public ClusterState execute(ClusterState currentState) throws Exception {
+                final var projectState = currentState.projectState();
                 return new MoveToNextStepUpdateTask(
+                    projectState.projectId(),
                     managedIndexMetadata.getIndex(),
                     policy,
                     currentStepKey,
@@ -149,7 +155,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
                     nowWayBackInThePastSupplier,
                     indexLifecycleService.getPolicyRegistry(),
                     state -> {}
-                ).execute(currentState);
+                ).execute(projectState);
             }
 
             @Override
@@ -173,7 +179,7 @@ public class ClusterStateWaitThresholdBreachTests extends ESIntegTestCase {
         // the shrink index generated in the first attempt must've been deleted!
         assertBusy(() -> assertFalse(indexExists(firstAttemptShrinkIndexName[0])));
 
-        assertBusy(() -> assertTrue(indexExists(secondCycleShrinkIndexName[0])), 30, TimeUnit.SECONDS);
+        awaitIndexExists(secondCycleShrinkIndexName[0]);
 
         // at this point, the second shrink attempt was executed and the manged index is looping into the `shrunk-shards-allocated` step as
         // waiting for the huge numbers of replicas for the shrunk index to allocate. this will never happen, so let's unblock this

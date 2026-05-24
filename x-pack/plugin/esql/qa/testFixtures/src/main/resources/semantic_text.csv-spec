@@ -515,6 +515,21 @@ result:keyword
 <em>live long and prosper</em>
 ;
 
+contains
+required_capability: semantic_text_field_caps
+
+FROM semantic_text METADATA _id
+| EVAL result = contains(semantic_text_field, "all")
+| KEEP _id, result
+| SORT _id
+;
+
+_id:keyword | result:boolean
+1           | false
+2           | true
+3           | false
+;
+
 endsWith
 required_capability: semantic_text_field_caps
 

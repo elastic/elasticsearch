@@ -17,6 +17,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.snapshots.AbstractSnapshotIntegTestCase;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.test.ESIntegTestCase;
 
 import java.util.Collection;
 import java.util.concurrent.CancellationException;
@@ -27,6 +28,7 @@ import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAre
 import static org.elasticsearch.test.TaskAssertions.assertAllTasksHaveFinished;
 import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefix;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class RestSnapshotsStatusCancellationIT extends AbstractSnapshotRestTestCase {
 
     public void testSnapshotStatusCancellation() throws Exception {

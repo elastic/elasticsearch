@@ -24,7 +24,7 @@ import java.util.Base64;
 import java.util.List;
 import java.util.function.Supplier;
 
-import static org.hamcrest.Matchers.equalTo;
+import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.unary;
 
 @FunctionName("from_base64")
 public class FromBase64Tests extends AbstractScalarFunctionTestCase {
@@ -35,19 +35,13 @@ public class FromBase64Tests extends AbstractScalarFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType dataType : DataType.stringTypes()) {
-            suppliers.add(new TestCaseSupplier(List.of(dataType), () -> {
-                BytesRef input = new BytesRef(randomAlphaOfLength(54));
-                return new TestCaseSupplier.TestCase(
-                    List.of(new TestCaseSupplier.TypedData(input, dataType, "string")),
-                    "FromBase64Evaluator[field=Attribute[channel=0]]",
-                    DataType.KEYWORD,
-                    equalTo(new BytesRef(Base64.getDecoder().decode(input.utf8ToString().getBytes(StandardCharsets.UTF_8))))
-                );
-            }));
-        }
-
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        unary().expectedOutputType(DataType.KEYWORD)
+            .expectedFromString(s -> new BytesRef(Base64.getDecoder().decode(s.getBytes(StandardCharsets.UTF_8))))
+            .evaluatorToString("FromBase64Evaluator[field=%0]")
+            .strings("empty", () -> "")
+            .strings("54 ascii characters", () -> randomAlphaOfLength(54))
+            .build(suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override

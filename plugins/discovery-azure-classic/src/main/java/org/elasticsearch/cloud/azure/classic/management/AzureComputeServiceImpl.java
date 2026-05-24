@@ -19,7 +19,6 @@ import com.microsoft.windowsazure.management.compute.models.HostedServiceGetDeta
 import com.microsoft.windowsazure.management.configuration.ManagementConfiguration;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.cloud.azure.classic.AzureServiceRemoteException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
@@ -29,9 +28,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
 import java.io.IOException;
-import java.security.AccessController;
-import java.security.PrivilegedActionException;
-import java.security.PrivilegedExceptionAction;
 import java.util.ServiceLoader;
 
 public class AzureComputeServiceImpl extends AbstractLifecycleComponent implements AzureComputeService {
@@ -92,13 +88,9 @@ public class AzureComputeServiceImpl extends AbstractLifecycleComponent implemen
 
     @Override
     public HostedServiceGetDetailedResponse getServiceDetails() {
-        SpecialPermission.check();
         try {
-            return AccessController.doPrivileged(
-                (PrivilegedExceptionAction<HostedServiceGetDetailedResponse>) () -> client.getHostedServicesOperations()
-                    .getDetailed(serviceName)
-            );
-        } catch (PrivilegedActionException e) {
+            return client.getHostedServicesOperations().getDetailed(serviceName);
+        } catch (Exception e) {
             throw new AzureServiceRemoteException("can not get list of azure nodes", e.getCause());
         }
     }

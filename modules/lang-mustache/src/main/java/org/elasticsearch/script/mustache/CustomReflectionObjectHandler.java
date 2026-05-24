@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 
 final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
+
     private final boolean detectMissingParams;
 
     CustomReflectionObjectHandler(boolean detectMissingParams) {
@@ -43,9 +44,7 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
     public Object coerce(Object object) {
         if (object == null) {
             return null;
-        }
-
-        if (object.getClass().isArray()) {
+        } else if (object.getClass().isArray()) {
             return new ArrayMap(object);
         } else if (object instanceof Collection) {
             @SuppressWarnings("unchecked")
@@ -79,7 +78,7 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         return null;
     }
 
-    static class DetectMissingParamsGuardedBinding extends GuardedBinding {
+    private static final class DetectMissingParamsGuardedBinding extends GuardedBinding {
         private final Code code;
 
         DetectMissingParamsGuardedBinding(ObjectHandler oh, String name, TemplateContext tc, Code code) {
@@ -96,7 +95,7 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
         }
     }
 
-    static final class ArrayMap extends AbstractMap<Object, Object> implements Iterable<Object> {
+    private static final class ArrayMap extends AbstractMap<Object, Object> implements Iterable<Object> {
 
         private final Object array;
         private final int length;
@@ -111,11 +110,11 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
             if ("size".equals(key)) {
                 return size();
             } else if (key instanceof Number number) {
-                return Array.get(array, number.intValue());
+                return number.intValue() >= 0 && number.intValue() < length ? Array.get(array, number.intValue()) : null;
             }
             try {
                 int index = Integer.parseInt(key.toString());
-                return Array.get(array, index);
+                return index >= 0 && index < length ? Array.get(array, index) : null;
             } catch (NumberFormatException nfe) {
                 // if it's not a number it is as if the key doesn't exist
                 return null;
@@ -138,7 +137,7 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
 
         @Override
         public Iterator<Object> iterator() {
-            return new Iterator<Object>() {
+            return new Iterator<>() {
 
                 int index = 0;
 
@@ -156,7 +155,7 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
 
     }
 
-    static final class CollectionMap extends AbstractMap<Object, Object> implements Iterable<Object> {
+    private static final class CollectionMap extends AbstractMap<Object, Object> implements Iterable<Object> {
 
         private final Collection<Object> col;
 
@@ -169,11 +168,11 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
             if ("size".equals(key)) {
                 return col.size();
             } else if (key instanceof Number number) {
-                return Iterables.get(col, number.intValue());
+                return number.intValue() >= 0 && number.intValue() < col.size() ? Iterables.get(col, number.intValue()) : null;
             }
             try {
                 int index = Integer.parseInt(key.toString());
-                return Iterables.get(col, index);
+                return index >= 0 && index < col.size() ? Iterables.get(col, index) : null;
             } catch (NumberFormatException nfe) {
                 // if it's not a number it is as if the key doesn't exist
                 return null;
@@ -203,7 +202,11 @@ final class CustomReflectionObjectHandler extends ReflectionObjectHandler {
 
     @Override
     public String stringify(Object object) {
-        CollectionUtils.ensureNoSelfReferences(object, "CustomReflectionObjectHandler stringify");
-        return super.stringify(object);
+        if (object instanceof String string) {
+            return string; // if object is already a string, we can just return it
+        } else {
+            CollectionUtils.ensureNoSelfReferences(object, "CustomReflectionObjectHandler stringify");
+            return super.stringify(object);
+        }
     }
 }

@@ -1,10 +1,10 @@
 {
   "connector.update_filtering": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/update-connector-filtering-api.html",
-      "description": "Updates the filtering field in the connector document."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-connector-update-filtering",
+      "description": "Update the connector filtering"
     },
-    "stability": "experimental",
+    "stability": "beta",
     "visibility": "public",
     "headers": {
       "accept": [

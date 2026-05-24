@@ -59,11 +59,11 @@ public class CacheInvalidatorRegistryTests extends ESTestCase {
         final ProjectId projectId = randomProjectIdOrDefault();
         final SecurityIndexManager indexManager = mock(SecurityIndexManager.class);
         final SecurityIndexManager.IndexState previousState = indexManager.new IndexState(
-            projectId, SecurityIndexManager.ProjectStatus.CLUSTER_NOT_RECOVERED, null, false, false, false, false, false, null, null, null,
-            null, null, null, null, null, Set.of()
+            projectId, SecurityIndexManager.ProjectStatus.CLUSTER_NOT_RECOVERED, null, false, false, false, false, false, null, false, null,
+            null, null, null, null, null, null, Set.of()
         );
         final SecurityIndexManager.IndexState currentState = indexManager.new IndexState(
-            projectId, SecurityIndexManager.ProjectStatus.PROJECT_AVAILABLE, Instant.now(), true, true, true, true, true, null, null,
+            projectId, SecurityIndexManager.ProjectStatus.PROJECT_AVAILABLE, Instant.now(), true, true, true, true, true, null, false, null,
             new SystemIndexDescriptor.MappingsVersion(SecurityMainIndexMappingVersion.latest().id(), 0), null, ".security",
             ClusterHealthStatus.GREEN, IndexMetadata.State.OPEN, "my_uuid", Set.of()
         );

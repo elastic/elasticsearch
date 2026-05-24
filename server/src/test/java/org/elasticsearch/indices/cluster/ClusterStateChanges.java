@@ -12,7 +12,6 @@ package org.elasticsearch.indices.cluster;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
@@ -104,7 +103,7 @@ import org.elasticsearch.indices.ShardLimitValidator;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -173,7 +172,11 @@ public class ClusterStateChanges {
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         shardFailedClusterStateTaskExecutor = new ShardStateAction.ShardFailedClusterStateTaskExecutor(allocationService, null);
-        shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(allocationService, null);
+        shardStartedClusterStateTaskExecutor = new ShardStateAction.ShardStartedClusterStateTaskExecutor(
+            clusterSettings,
+            allocationService,
+            null
+        );
         ActionFilters actionFilters = new ActionFilters(Collections.emptySet());
         IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance();
         DestructiveOperations destructiveOperations = new DestructiveOperations(SETTINGS, clusterSettings);
@@ -184,7 +187,8 @@ public class ClusterStateChanges {
             SETTINGS,
             clusterSettings,
             threadPool,
-            new TaskManager(SETTINGS, threadPool, Collections.emptySet())
+            new TaskManager(SETTINGS, threadPool, Collections.emptySet()),
+            MeterRegistry.NOOP
         ) {
             @Override
             protected ExecutorService createThreadPoolExecutor() {
@@ -207,8 +211,7 @@ public class ClusterStateChanges {
                 MapperService mapperService = mock(MapperService.class);
                 when(indexService.mapperService()).thenReturn(mapperService);
                 when(mapperService.documentMapper()).thenReturn(null);
-                when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {
-                });
+                when(indexService.getIndexEventListener()).thenReturn(new IndexEventListener() {});
                 when(indexService.getIndexSortSupplier()).thenReturn(() -> null);
                 return ((CheckedFunction<IndexService, ?, ?>) invocationOnMock.getArguments()[1]).apply(indexService);
             });
@@ -235,8 +238,7 @@ public class ClusterStateChanges {
                 .address(boundAddress.publishAddress())
                 .build(),
             clusterSettings,
-            Collections.emptySet(),
-            Tracer.NOOP
+            Collections.emptySet()
         ) {
             @Override
             public Transport.Connection getConnection(DiscoveryNode node) {
@@ -264,9 +266,8 @@ public class ClusterStateChanges {
                 return indexMetadata;
             }
         };
-        NodeClient client = new NodeClient(Settings.EMPTY, threadPool);
-        Map<ActionType<? extends ActionResponse>, TransportAction<? extends ActionRequest, ? extends ActionResponse>> actions =
-            new HashMap<>();
+        NodeClient client = new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow());
+        Map<ActionType<?>, TransportAction<?, ?>> actions = new HashMap<>();
         actions.put(
             TransportVerifyShardBeforeCloseAction.TYPE,
             new TransportVerifyShardBeforeCloseAction(

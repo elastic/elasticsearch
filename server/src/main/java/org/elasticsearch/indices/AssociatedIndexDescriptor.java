@@ -13,6 +13,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.indices.system.IndexPatternMatcher;
 
 import java.util.List;
 import java.util.Objects;
@@ -37,6 +38,8 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
 
     /** Used to determine whether an index name matches the {@link #indexPattern} */
     private final CharacterRunAutomaton indexPatternAutomaton;
+
+    private final Automaton automaton;
 
     /**
      * Create a descriptor for an index associated with a feature
@@ -66,7 +69,7 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
 
         this.indexPattern = indexPattern;
 
-        final Automaton automaton = buildAutomaton(indexPattern);
+        this.automaton = buildAutomaton(indexPattern);
         this.indexPatternAutomaton = new CharacterRunAutomaton(automaton);
 
         this.description = description;
@@ -132,5 +135,9 @@ public class AssociatedIndexDescriptor implements IndexPatternMatcher {
             + ", indexPatternAutomaton="
             + indexPatternAutomaton
             + '}';
+    }
+
+    public Automaton getIndexPatternAutomaton() {
+        return this.automaton;
     }
 }

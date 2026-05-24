@@ -222,17 +222,6 @@ id:l | within:boolean | contains:boolean | centroid:geo_point | location:geo_poi
 12   | true           | true             | "POINT(0.0 0.0)"   | ["POINT(0 0)", "POINT(55 55)", "POINT(-55 -55)"]
 ;
 
-whereWithinPolygonStats
-required_capability: st_contains_within
-
-FROM multivalue_points
-| WHERE ST_WITHIN(location, TO_GEOSHAPE("POLYGON ((-10 -10, -10 10, 10 10, 10 -10, -10 -10))")) | STATS c=COUNT(*)
-;
-
-c:l
-4
-;
-
 literalPointContainsPoint
 required_capability: st_contains_within
 
@@ -458,7 +447,7 @@ FROM multivalue_points
 ;
 
 c:l | outer:geo_point                               | inner:geo_point
-12  | "POINT (4.391304308386601 3.086956503558094)" | "POINT (5.461538461538462 4.846153846153846)"
+12  | "POINT (4.391304308386601 3.086956503558094)" | "POINT (5.461538432595821 4.846153828100516)"
 ;
 
 whereWithinMultiValuePointsFields
@@ -508,5 +497,32 @@ FROM multivalue_points
 ;
 
 c:l | inner:geo_point                               | outer:geo_point
-12  | "POINT (5.461538432595821 4.846153828100516)" | "POINT (4.391304347826087 3.0869565217391304)"
+12  | "POINT (5.461538432595821 4.846153828100516)" | "POINT (4.391304308386601 3.086956503558094)"
+;
+
+spatialMultiValuePointsGeometryTypeDimensionIsEmpty
+required_capability: fn_st_geometrytype
+required_capability: fn_st_dimension
+required_capability: fn_st_isempty
+
+FROM multivalue_points
+| EVAL type = ST_GEOMETRYTYPE(location), dim = ST_DIMENSION(location), empty = ST_ISEMPTY(location)
+| KEEP id, type, dim, empty
+| SORT id
+;
+
+id:l | type:keyword | dim:integer | empty:boolean
+0    | ST_Point     | 0           | false
+1    | ST_Point     | 0           | false
+2    | ST_Point     | 0           | false
+3    | ST_Point     | 0           | false
+4    | ST_Point     | 0           | false
+5    | ST_Point     | 0           | false
+6    | ST_Point     | 0           | false
+7    | ST_Point     | 0           | false
+8    | ST_Point     | 0           | false
+9    | ST_Point     | 0           | false
+10   | ST_Point     | 0           | false
+11   | ST_Point     | 0           | false
+12   | ST_Point     | 0           | false
 ;

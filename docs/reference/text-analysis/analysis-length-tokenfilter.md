@@ -9,7 +9,7 @@ mapped_pages:
 
 Removes tokens shorter or longer than specified character lengths. For example, you can use the `length` filter to exclude tokens shorter than 2 characters and tokens longer than 5 characters.
 
-This filter uses Lucene’s [LengthFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/LengthFilter.md).
+This filter uses Lucene’s [LengthFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/LengthFilter.html).
 
 ::::{tip}
 The `length` filter removes entire tokens. If you’d prefer to shorten tokens to a specific length, use the [`truncate`](/reference/text-analysis/analysis-truncate-tokenfilter.md) filter.
@@ -70,7 +70,7 @@ PUT length_example
 :   (Optional, integer) Minimum character length of a token. Shorter tokens are excluded from the output. Defaults to `0`.
 
 `max`
-:   (Optional, integer) Maximum character length of a token. Longer tokens are excluded from the output. Defaults to `Integer.MAX_VALUE`, which is `2^31-1` or `2147483647`.
+:   (Optional, integer) Maximum character length of a token. Longer tokens are excluded from the output. Defaults to `Integer.MAX_VALUE`, which is `2^31 - 1` or `2147483647`.
 
 
 ## Customize [analysis-length-tokenfilter-customize]

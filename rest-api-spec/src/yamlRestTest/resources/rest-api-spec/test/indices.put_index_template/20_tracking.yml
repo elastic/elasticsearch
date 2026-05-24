@@ -1,0 +1,112 @@
+setup:
+  - requires:
+      test_runner_features: [capabilities, contains]
+      capabilities:
+        - method: PUT
+          path: /_index_template/{id}
+          capabilities: [ index_template_tracking_info ]
+      reason: "Index templates have tracking info: modified_date and created_date"
+
+---
+"Test PUT setting created_date":
+  - do:
+      catch: bad_request
+      indices.put_index_template:
+        name: test_tracking
+        body:
+          index_patterns: [ "test-*" ]
+          template:
+            settings:
+              number_of_shards: 1
+          created_date: "2025-07-04T12:50:48.415Z"
+  - match: { status: 400 }
+  - contains: { error.reason: "[index_template] unknown field [created_date] did you mean [created_date_millis]?" }
+
+---
+"Test PUT setting created_date_millis":
+  - do:
+      catch: bad_request
+      indices.put_index_template:
+        name: test_tracking
+        body:
+          index_patterns: ["test-*"]
+          template:
+            settings:
+              number_of_shards: 1
+          created_date_millis: 0
+  - match: { status: 400 }
+  - match: { error.reason: "index_template [test_tracking] invalid, cause [provided a template property which is managed by the system: created_date]" }
+
+---
+"Test PUT setting modified_date":
+  - do:
+      catch: bad_request
+      indices.put_index_template:
+        name: test_tracking
+        body:
+          index_patterns: ["test-*"]
+          template:
+            settings:
+              number_of_shards: 1
+          modified_date: "2025-07-04T12:50:48.415Z"
+  - match: { status: 400 }
+  - contains: { error.reason: "[index_template] unknown field [modified_date] did you mean [modified_date_millis]?" }
+
+---
+"Test PUT setting modified_date_millis":
+  - do:
+      catch: bad_request
+      indices.put_index_template:
+        name: test_tracking
+        body:
+          index_patterns: ["test-*"]
+          template:
+            settings:
+              number_of_shards: 1
+          modified_date_millis: 0
+  - match: { status: 400 }
+  - match: { error.reason: "index_template [test_tracking] invalid, cause [provided a template property which is managed by the system: modified_date]" }
+
+---
+"Test update preserves created_date but updates modified_date":
+  - do:
+      indices.put_index_template:
+        name: test_tracking
+        body:
+          index_patterns: ["test-*"]
+          template:
+            settings:
+              number_of_shards: 1
+  - match: { acknowledged: true }
+
+  - do:
+      indices.get_index_template:
+        human: true
+        name: test_tracking
+  - set: { index_templates.0.index_template.created_date: first_created }
+  - set: { index_templates.0.index_template.created_date_millis: first_created_millis }
+  - set: { index_templates.0.index_template.modified_date: first_modified }
+  - set: { index_templates.0.index_template.modified_date_millis: first_modified_millis }
+  - match: { $first_created: "/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/" }
+  - match: { $first_modified: "/^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}\\.\\d{3}Z$/" }
+  - match: { $first_created: $first_modified }
+  - match: { $first_created_millis: $first_modified_millis }
+  - gte: { $first_created_millis: 0 }
+
+  - do:
+      indices.put_index_template:
+        name: test_tracking
+        body:
+          index_patterns: ["test-*"]
+          template:
+            settings:
+              number_of_shards: 2
+
+  - do:
+      indices.get_index_template:
+        human: true
+        name: test_tracking
+  - set: { index_templates.0.index_template.created_date: second_created }
+  - set: { index_templates.0.index_template.created_date_millis: second_created_millis }
+  - match: { $second_created: $first_created }
+  - match: { $second_created_millis: $first_created_millis }

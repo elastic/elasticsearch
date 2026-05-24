@@ -9,7 +9,6 @@ package org.elasticsearch.compute.aggregation.blockhash;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.analysis.common.CommonAnalysisPlugin;
-import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -25,6 +24,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntArrayBlock;
+import org.elasticsearch.compute.data.IntBigArrayBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
@@ -37,6 +38,8 @@ import org.elasticsearch.compute.operator.LocalSourceOperator;
 import org.elasticsearch.compute.operator.PageConsumerOperator;
 import org.elasticsearch.compute.test.CannedSourceOperator;
 import org.elasticsearch.compute.test.TestDriverFactory;
+import org.elasticsearch.compute.test.TestDriverRunner;
+import org.elasticsearch.compute.test.TestWarningsSource;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
@@ -54,7 +57,6 @@ import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
-import static org.elasticsearch.compute.test.OperatorTestCase.runDriver;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -74,7 +76,13 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         ).getAnalysisRegistry();
     }
 
+    private BlockHash.CategorizeDef getCategorizeDef() {
+        return new BlockHash.CategorizeDef(null, randomFrom(BlockHash.CategorizeDef.OutputFormat.values()), 70);
+    }
+
     public void testCategorizeRaw() {
+        BlockHash.CategorizeDef categorizeDef = getCategorizeDef();
+
         final Page page;
         boolean withNull = randomBoolean();
         final int positions = 7 + (withNull ? 1 : 0);
@@ -96,11 +104,10 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             page = new Page(builder.build());
         }
 
-        try (var hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.SINGLE, analysisRegistry)) {
+        try (var hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.SINGLE, categorizeDef, analysisRegistry)) {
             for (int i = randomInt(2); i < 3; i++) {
                 hash.add(page, new GroupingAggregatorFunction.AddInput() {
-                    @Override
-                    public void add(int positionOffset, IntBlock groupIds) {
+                    private void addBlock(int positionOffset, IntBlock groupIds) {
                         assertEquals(groupIds.getPositionCount(), positions);
 
                         assertEquals(1, groupIds.getInt(0));
@@ -116,8 +123,18 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     }
 
                     @Override
+                    public void add(int positionOffset, IntArrayBlock groupIds) {
+                        addBlock(positionOffset, groupIds);
+                    }
+
+                    @Override
+                    public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                        addBlock(positionOffset, groupIds);
+                    }
+
+                    @Override
                     public void add(int positionOffset, IntVector groupIds) {
-                        add(positionOffset, groupIds.asBlock());
+                        addBlock(positionOffset, groupIds.asBlock());
                     }
 
                     @Override
@@ -126,7 +143,10 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     }
                 });
 
-                assertHashState(hash, withNull, ".*?Connected.+?to.*?", ".*?Connection.+?error.*?", ".*?Disconnected.*?");
+                switch (categorizeDef.outputFormat()) {
+                    case REGEX -> assertHashState(hash, withNull, ".*?Connected.+?to.*?", ".*?Connection.+?error.*?", ".*?Disconnected.*?");
+                    case TOKENS -> assertHashState(hash, withNull, "Connected to", "Connection error", "Disconnected");
+                }
             }
         } finally {
             page.releaseBlocks();
@@ -134,6 +154,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
     }
 
     public void testCategorizeRawMultivalue() {
+        BlockHash.CategorizeDef categorizeDef = getCategorizeDef();
+
         final Page page;
         boolean withNull = randomBoolean();
         final int positions = 3 + (withNull ? 1 : 0);
@@ -159,11 +181,10 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             page = new Page(builder.build());
         }
 
-        try (var hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.SINGLE, analysisRegistry)) {
+        try (var hash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.SINGLE, categorizeDef, analysisRegistry)) {
             for (int i = randomInt(2); i < 3; i++) {
                 hash.add(page, new GroupingAggregatorFunction.AddInput() {
-                    @Override
-                    public void add(int positionOffset, IntBlock groupIds) {
+                    private void addBlock(int positionOffset, IntBlock groupIds) {
                         assertEquals(groupIds.getPositionCount(), positions);
 
                         assertThat(groupIds.getFirstValueIndex(0), equalTo(0));
@@ -186,8 +207,18 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     }
 
                     @Override
+                    public void add(int positionOffset, IntArrayBlock groupIds) {
+                        addBlock(positionOffset, groupIds);
+                    }
+
+                    @Override
+                    public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                        addBlock(positionOffset, groupIds);
+                    }
+
+                    @Override
                     public void add(int positionOffset, IntVector groupIds) {
-                        add(positionOffset, groupIds.asBlock());
+                        addBlock(positionOffset, groupIds.asBlock());
                     }
 
                     @Override
@@ -196,7 +227,10 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     }
                 });
 
-                assertHashState(hash, withNull, ".*?Connected.+?to.*?", ".*?Connection.+?error.*?", ".*?Disconnected.*?");
+                switch (categorizeDef.outputFormat()) {
+                    case REGEX -> assertHashState(hash, withNull, ".*?Connected.+?to.*?", ".*?Connection.+?error.*?", ".*?Disconnected.*?");
+                    case TOKENS -> assertHashState(hash, withNull, "Connected to", "Connection error", "Disconnected");
+                }
             }
         } finally {
             page.releaseBlocks();
@@ -204,6 +238,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
     }
 
     public void testCategorizeIntermediate() {
+        BlockHash.CategorizeDef categorizeDef = getCategorizeDef();
+
         Page page1;
         boolean withNull = randomBoolean();
         int positions1 = 7 + (withNull ? 1 : 0);
@@ -239,12 +275,11 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
 
         // Fill intermediatePages with the intermediate state from the raw hashes
         try (
-            BlockHash rawHash1 = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INITIAL, analysisRegistry);
-            BlockHash rawHash2 = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INITIAL, analysisRegistry);
+            BlockHash rawHash1 = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INITIAL, categorizeDef, analysisRegistry);
+            BlockHash rawHash2 = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.INITIAL, categorizeDef, analysisRegistry);
         ) {
             rawHash1.add(page1, new GroupingAggregatorFunction.AddInput() {
-                @Override
-                public void add(int positionOffset, IntBlock groupIds) {
+                private void addBlock(int positionOffset, IntBlock groupIds) {
                     assertEquals(groupIds.getPositionCount(), positions1);
                     assertEquals(1, groupIds.getInt(0));
                     assertEquals(2, groupIds.getInt(1));
@@ -259,8 +294,18 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 }
 
                 @Override
+                public void add(int positionOffset, IntArrayBlock groupIds) {
+                    addBlock(positionOffset, groupIds);
+                }
+
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                    addBlock(positionOffset, groupIds);
+                }
+
+                @Override
                 public void add(int positionOffset, IntVector groupIds) {
-                    add(positionOffset, groupIds.asBlock());
+                    addBlock(positionOffset, groupIds.asBlock());
                 }
 
                 @Override
@@ -268,11 +313,12 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     fail("hashes should not close AddInput");
                 }
             });
-            intermediatePage1 = new Page(rawHash1.getKeys()[0]);
+            try (IntVector nonEmpty = rawHash1.nonEmpty()) {
+                intermediatePage1 = new Page(rawHash1.getKeys(nonEmpty)[0]);
+            }
 
             rawHash2.add(page2, new GroupingAggregatorFunction.AddInput() {
-                @Override
-                public void add(int positionOffset, IntBlock groupIds) {
+                private void addBlock(int positionOffset, IntBlock groupIds) {
                     assertEquals(groupIds.getPositionCount(), positions2);
                     assertEquals(1, groupIds.getInt(0));
                     assertEquals(2, groupIds.getInt(1));
@@ -282,8 +328,18 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 }
 
                 @Override
+                public void add(int positionOffset, IntArrayBlock groupIds) {
+                    addBlock(positionOffset, groupIds);
+                }
+
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                    addBlock(positionOffset, groupIds);
+                }
+
+                @Override
                 public void add(int positionOffset, IntVector groupIds) {
-                    add(positionOffset, groupIds.asBlock());
+                    addBlock(positionOffset, groupIds.asBlock());
                 }
 
                 @Override
@@ -291,16 +347,17 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     fail("hashes should not close AddInput");
                 }
             });
-            intermediatePage2 = new Page(rawHash2.getKeys()[0]);
+            try (IntVector nonEmpty = rawHash2.nonEmpty()) {
+                intermediatePage2 = new Page(rawHash2.getKeys(nonEmpty)[0]);
+            }
         } finally {
             page1.releaseBlocks();
             page2.releaseBlocks();
         }
 
-        try (var intermediateHash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.FINAL, null)) {
+        try (var intermediateHash = new CategorizeBlockHash(blockFactory, 0, AggregatorMode.FINAL, categorizeDef, null)) {
             intermediateHash.add(intermediatePage1, new GroupingAggregatorFunction.AddInput() {
-                @Override
-                public void add(int positionOffset, IntBlock groupIds) {
+                private void addBlock(int positionOffset, IntBlock groupIds) {
                     List<Integer> values = IntStream.range(0, groupIds.getPositionCount())
                         .map(groupIds::getInt)
                         .boxed()
@@ -313,8 +370,18 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 }
 
                 @Override
+                public void add(int positionOffset, IntArrayBlock groupIds) {
+                    addBlock(positionOffset, groupIds);
+                }
+
+                @Override
+                public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                    addBlock(positionOffset, groupIds);
+                }
+
+                @Override
                 public void add(int positionOffset, IntVector groupIds) {
-                    add(positionOffset, groupIds.asBlock());
+                    addBlock(positionOffset, groupIds.asBlock());
                 }
 
                 @Override
@@ -325,8 +392,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
 
             for (int i = randomInt(2); i < 3; i++) {
                 intermediateHash.add(intermediatePage2, new GroupingAggregatorFunction.AddInput() {
-                    @Override
-                    public void add(int positionOffset, IntBlock groupIds) {
+                    private void addBlock(int positionOffset, IntBlock groupIds) {
                         List<Integer> values = IntStream.range(0, groupIds.getPositionCount())
                             .map(groupIds::getInt)
                             .boxed()
@@ -337,8 +403,18 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     }
 
                     @Override
+                    public void add(int positionOffset, IntArrayBlock groupIds) {
+                        addBlock(positionOffset, groupIds);
+                    }
+
+                    @Override
+                    public void add(int positionOffset, IntBigArrayBlock groupIds) {
+                        addBlock(positionOffset, groupIds);
+                    }
+
+                    @Override
                     public void add(int positionOffset, IntVector groupIds) {
-                        add(positionOffset, groupIds.asBlock());
+                        addBlock(positionOffset, groupIds.asBlock());
                     }
 
                     @Override
@@ -347,14 +423,24 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     }
                 });
 
-                assertHashState(
-                    intermediateHash,
-                    withNull,
-                    ".*?Connected.+?to.*?",
-                    ".*?Connection.+?error.*?",
-                    ".*?Disconnected.*?",
-                    ".*?System.+?shutdown.*?"
-                );
+                switch (categorizeDef.outputFormat()) {
+                    case REGEX -> assertHashState(
+                        intermediateHash,
+                        withNull,
+                        ".*?Connected.+?to.*?",
+                        ".*?Connection.+?error.*?",
+                        ".*?Disconnected.*?",
+                        ".*?System.+?shutdown.*?"
+                    );
+                    case TOKENS -> assertHashState(
+                        intermediateHash,
+                        withNull,
+                        "Connected to",
+                        "Connection error",
+                        "Disconnected",
+                        "System shutdown"
+                    );
+                }
             }
         } finally {
             intermediatePage1.releaseBlocks();
@@ -363,9 +449,11 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
     }
 
     public void testCategorize_withDriver() {
+        BlockHash.CategorizeDef categorizeDef = getCategorizeDef();
+        BlockHash.GroupSpec groupSpec = new BlockHash.GroupSpec(0, ElementType.BYTES_REF, categorizeDef);
+
         BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, ByteSizeValue.ofMb(256)).withCircuitBreaking();
-        CircuitBreaker breaker = bigArrays.breakerService().getBreaker(CircuitBreaker.REQUEST);
-        DriverContext driverContext = new DriverContext(bigArrays, new BlockFactory(breaker, bigArrays));
+        DriverContext driverContext = new DriverContext(bigArrays, BlockFactory.builder(bigArrays).build(), null);
 
         LocalSourceOperator.BlockSupplier input1 = () -> {
             try (
@@ -420,39 +508,51 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             driverContext,
             new LocalSourceOperator(input1),
             List.of(
-                new HashAggregationOperator.HashAggregationOperatorFactory(
-                    List.of(makeGroupSpec()),
-                    AggregatorMode.INITIAL,
-                    List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
-                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
-                    ),
-                    16 * 1024,
-                    analysisRegistry
-                ).get(driverContext)
+                new HashAggregationOperator.Builder().groups(List.of(groupSpec))
+                    .mode(AggregatorMode.INITIAL)
+                    .aggregators(
+                        List.of(
+                            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                                AggregatorMode.INITIAL,
+                                List.of(1)
+                            ),
+                            new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
+                        )
+                    )
+                    .maxPageSize(16 * 1024)
+                    .aggregationBatchSize(16 * 1024)
+                    .analysisRegistry(analysisRegistry)
+                    .build()
+                    .get(driverContext)
             ),
             new PageConsumerOperator(intermediateOutput::add)
         );
-        runDriver(driver);
+        new TestDriverRunner().run(driver);
 
         driver = TestDriverFactory.create(
             driverContext,
             new LocalSourceOperator(input2),
             List.of(
-                new HashAggregationOperator.HashAggregationOperatorFactory(
-                    List.of(makeGroupSpec()),
-                    AggregatorMode.INITIAL,
-                    List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1)),
-                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
-                    ),
-                    16 * 1024,
-                    analysisRegistry
-                ).get(driverContext)
+                new HashAggregationOperator.Builder().groups(List.of(groupSpec))
+                    .mode(AggregatorMode.INITIAL)
+                    .aggregators(
+                        List.of(
+                            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                                AggregatorMode.INITIAL,
+                                List.of(1)
+                            ),
+                            new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.INITIAL, List.of(1))
+                        )
+                    )
+                    .maxPageSize(16 * 1024)
+                    .aggregationBatchSize(16 * 1024)
+                    .analysisRegistry(analysisRegistry)
+                    .build()
+                    .get(driverContext)
             ),
             new PageConsumerOperator(intermediateOutput::add)
         );
-        runDriver(driver);
+        new TestDriverRunner().run(driver);
 
         List<Page> finalOutput = new ArrayList<>();
 
@@ -460,20 +560,27 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             driverContext,
             new CannedSourceOperator(intermediateOutput.iterator()),
             List.of(
-                new HashAggregationOperator.HashAggregationOperatorFactory(
-                    List.of(makeGroupSpec()),
-                    AggregatorMode.FINAL,
-                    List.of(
-                        new SumLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(1, 2)),
-                        new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(3, 4))
-                    ),
-                    16 * 1024,
-                    analysisRegistry
-                ).get(driverContext)
+                new HashAggregationOperator.Builder().groups(List.of(groupSpec))
+                    .mode(AggregatorMode.FINAL)
+                    .aggregators(
+                        List.of(
+                            new SumLongAggregatorFunctionSupplier(TestWarningsSource.INSTANCE).groupingAggregatorFactory(
+                                AggregatorMode.FINAL,
+                                List.of(1, 2, 3)
+                            ),
+                            new MaxLongAggregatorFunctionSupplier().groupingAggregatorFactory(AggregatorMode.FINAL, List.of(4, 5))
+                        )
+                    )
+                    .partialEmit(randomIntBetween(1, 1000), randomDoubleBetween(0.1, 1.0, true))
+                    .maxPageSize(16 * 1024)
+                    .aggregationBatchSize(16 * 1024)
+                    .analysisRegistry(analysisRegistry)
+                    .build()
+                    .get(driverContext)
             ),
             new PageConsumerOperator(finalOutput::add)
         );
-        runDriver(driver);
+        new TestDriverRunner().run(driver);
 
         assertThat(finalOutput, hasSize(1));
         assertThat(finalOutput.get(0).getBlockCount(), equalTo(3));
@@ -488,23 +595,36 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             sums.put(outputTexts.getBytesRef(i, new BytesRef()).utf8ToString(), outputSums.getLong(i));
             maxs.put(outputTexts.getBytesRef(i, new BytesRef()).utf8ToString(), outputMaxs.getLong(i));
         }
+        List<String> keys = switch (categorizeDef.outputFormat()) {
+            case REGEX -> List.of(
+                ".*?aaazz.*?",
+                ".*?bbbzz.*?",
+                ".*?ccczz.*?",
+                ".*?dddzz.*?",
+                ".*?eeezz.*?",
+                ".*?words.+?words.+?words.+?goodbye.*?",
+                ".*?words.+?words.+?words.+?hello.*?"
+            );
+            case TOKENS -> List.of("aaazz", "bbbzz", "ccczz", "dddzz", "eeezz", "words words words goodbye", "words words words hello");
+        };
+
         assertThat(
             sums,
             equalTo(
                 Map.of(
-                    ".*?aaazz.*?",
+                    keys.get(0),
                     1L,
-                    ".*?bbbzz.*?",
+                    keys.get(1),
                     2L,
-                    ".*?ccczz.*?",
+                    keys.get(2),
                     33L,
-                    ".*?dddzz.*?",
+                    keys.get(3),
                     44L,
-                    ".*?eeezz.*?",
+                    keys.get(4),
                     5L,
-                    ".*?words.+?words.+?words.+?goodbye.*?",
+                    keys.get(5),
                     8888L,
-                    ".*?words.+?words.+?words.+?hello.*?",
+                    keys.get(6),
                     999L
                 )
             )
@@ -513,19 +633,19 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             maxs,
             equalTo(
                 Map.of(
-                    ".*?aaazz.*?",
+                    keys.get(0),
                     1L,
-                    ".*?bbbzz.*?",
+                    keys.get(1),
                     2L,
-                    ".*?ccczz.*?",
+                    keys.get(2),
                     30L,
-                    ".*?dddzz.*?",
+                    keys.get(3),
                     40L,
-                    ".*?eeezz.*?",
+                    keys.get(4),
                     5L,
-                    ".*?words.+?words.+?words.+?goodbye.*?",
+                    keys.get(5),
                     8000L,
-                    ".*?words.+?words.+?words.+?hello.*?",
+                    keys.get(6),
                     900L
                 )
             )
@@ -533,15 +653,11 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         Releasables.close(() -> Iterators.map(finalOutput.iterator(), (Page p) -> p::releaseBlocks));
     }
 
-    private BlockHash.GroupSpec makeGroupSpec() {
-        return new BlockHash.GroupSpec(0, ElementType.BYTES_REF, true);
-    }
-
     private void assertHashState(CategorizeBlockHash hash, boolean withNull, String... expectedKeys) {
         // Check the keys
         Block[] blocks = null;
-        try {
-            blocks = hash.getKeys();
+        try (IntVector nonEmpty = hash.nonEmpty()) {
+            blocks = hash.getKeys(nonEmpty);
             assertThat(blocks, arrayWithSize(1));
 
             var keysBlock = (BytesRefBlock) blocks[0];

@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-field-meta.html
 ---
@@ -22,6 +25,7 @@ PUT my-index-000001
   }
 }
 ```
+% TEST
 
 ::::{note}
 Field metadata enforces at most 5 entries, that keys have a length that is less than or equal to 20, and that values are strings whose length is less than or equal to 50.

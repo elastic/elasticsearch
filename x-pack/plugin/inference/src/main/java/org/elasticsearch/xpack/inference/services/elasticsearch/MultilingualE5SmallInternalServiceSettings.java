@@ -11,6 +11,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.MinimalServiceSettings;
+import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
@@ -88,9 +89,7 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
             }
         }
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return baseSettings;
     }
@@ -113,5 +112,15 @@ public class MultilingualE5SmallInternalServiceSettings extends ElasticsearchInt
     @Override
     public DenseVectorFieldMapper.ElementType elementType() {
         return DenseVectorFieldMapper.ElementType.FLOAT;
+    }
+
+    @Override
+    public ServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        ServiceSettings updated = super.updateServiceSettings(serviceSettings);
+        if (updated instanceof ElasticsearchInternalServiceSettings esSettings) {
+            return new MultilingualE5SmallInternalServiceSettings(esSettings);
+        } else {
+            throw new IllegalStateException("Unexpected service settings type [" + updated.getClass().getName() + "]");
+        }
     }
 }

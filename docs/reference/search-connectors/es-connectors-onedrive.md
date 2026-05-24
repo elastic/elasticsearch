@@ -9,11 +9,7 @@ mapped_pages:
 
 The *Elastic OneDrive connector* is a [connector](/reference/search-connectors/index.md) for OneDrive. This connector is written in Python using the [Elastic connector framework](https://github.com/elastic/connectors/tree/main).
 
-View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/connectors/sources/onedrive.py) (branch *main*, compatible with Elastic *9.0*).
-
-::::{important}
-As of Elastic 9.0, managed connectors on Elastic Cloud Hosted are no longer available. All connectors must be [self-managed](/reference/search-connectors/self-managed-connectors.md).
-::::
+View the [**source code** for this connector](https://github.com/elastic/connectors/tree/main/app/connectors_service/connectors/sources/onedrive) (branch *main*, compatible with Elastic *9.0*).
 
 ## **Self-managed connector** [es-connectors-onedrive-connector-client-reference]
 
@@ -33,7 +29,7 @@ To use this connector, satisfy all [self-managed connector requirements](/refere
 
 To create a new OneDrive connector:
 
-1. In the Kibana UI, navigate to the **Search → Content → Connectors** page from the main menu, or use the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects).
+1. In the Kibana UI, search for "connectors" using the [global search field](docs-content://explore-analyze/query-filter/filtering.md#_finding_your_apps_and_objects) and choose the "Elasticsearch" connectors.
 2. Follow the instructions to create a new  **OneDrive** self-managed connector.
 
 
@@ -51,6 +47,7 @@ PUT _connector/my-onedrive-connector
   "service_type": "onedrive"
 }
 ```
+% TEST[skip:can’t test in isolation]
 
 :::::{dropdown} You’ll also need to create an API key for the connector to use.
 ::::{note}
@@ -134,8 +131,9 @@ You can deploy the OneDrive connector as a self-managed connector using Docker. 
 Download the sample configuration file. You can either download it manually or run the following command:
 
 ```sh
-curl https://raw.githubusercontent.com/elastic/connectors/main/config.yml.example --output ~/connectors-config/config.yml
+curl https://raw.githubusercontent.com/elastic/connectors/main/app/connectors_service/config.yml.example --output ~/connectors-config/config.yml
 ```
+% NOTCONSOLE
 
 Remember to update the `--output` argument value if your directory name is different, or you want to use a different config file name.
 
@@ -173,13 +171,13 @@ Note: You can change other default configurations by simply uncommenting specifi
 ::::{dropdown} Step 3: Run the Docker image
 Run the Docker image with the Connector Service using the following command:
 
-```sh
+```sh subs=true
 docker run \
 -v ~/connectors-config:/config \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/integrations/elastic-connectors:9.0.0 \
+docker.elastic.co/integrations/elastic-connectors:{{version.stack}} \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ```
@@ -311,6 +309,7 @@ This rule skips indexing for files with `.xlsx` and `.docx` extensions. All othe
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-onedrive-client-sync-rules-advanced-examples-2$$$
 **Example 2**
@@ -325,6 +324,7 @@ This rule focuses on indexing files and folders owned by `user1-domain@onmicroso
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-onedrive-client-sync-rules-advanced-examples-3$$$
 **Example 3**
@@ -339,6 +339,7 @@ This rule indexes only the files and folders directly inside the root folder, ex
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-onedrive-client-sync-rules-advanced-examples-4$$$
 **Example 4**
@@ -354,6 +355,7 @@ This rule indexes files and folders owned by `user1-domain@onmicrosoft.com` and 
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-onedrive-client-sync-rules-advanced-examples-5$$$
 **Example 5**
@@ -370,6 +372,7 @@ This example contains two rules. The first rule indexes all files and folders ow
   }
 ]
 ```
+% NOTCONSOLE
 
 $$$es-connectors-onedrive-client-sync-rules-advanced-examples-6$$$
 **Example 6**
@@ -387,6 +390,7 @@ This example contains two rules. The first rule indexes all files owned by `user
   }
 ]
 ```
+% NOTCONSOLE
 
 
 ### Content Extraction [es-connectors-onedrive-client-content-extraction]

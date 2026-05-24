@@ -8,14 +8,12 @@
 package org.elasticsearch.xpack.core.security.authc;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptorsIntersection;
@@ -38,6 +36,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.API_KEY_REALM_TYPE;
@@ -56,6 +55,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.isA;
 
 public class SubjectTests extends ESTestCase {
+    private static final TransportVersion VERSION_7_0_0 = TransportVersion.fromId(7_00_00_99);
 
     public void testGetRoleReferencesForRegularUser() {
         final User user = new User("joe", "role_a", "role_b");
@@ -307,7 +307,7 @@ public class SubjectTests extends ESTestCase {
         final Subject subject = new Subject(
             new User("joe"),
             new Authentication.RealmRef(API_KEY_REALM_NAME, API_KEY_REALM_TYPE, "node"),
-            TransportVersionUtils.randomVersionBetween(random(), TransportVersions.V_7_0_0, TransportVersions.V_7_8_1),
+            VERSION_7_0_0,
             authMetadata
         );
 
@@ -358,7 +358,7 @@ public class SubjectTests extends ESTestCase {
         final List<RoleReference> roleReferences = roleReferenceIntersection.getRoleReferences();
         assertThat(roleReferences, contains(isA(ApiKeyRoleReference.class), isA(ApiKeyRoleReference.class)));
         final ApiKeyRoleReference limitedByRoleReference = (ApiKeyRoleReference) roleReferences.get(1);
-        assertThat(limitedByRoleReference.getRoleDescriptorsBytes(), equalTo(FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14));
+        assertThat(limitedByRoleReference.getRoleDescriptorsBytes(), equalBytes(FLEET_SERVER_ROLE_DESCRIPTOR_BYTES_V_7_14));
     }
 
     private AnonymousUser getAnonymousUser() {

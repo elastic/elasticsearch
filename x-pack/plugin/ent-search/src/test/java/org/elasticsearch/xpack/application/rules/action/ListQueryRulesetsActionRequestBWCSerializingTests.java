@@ -25,14 +25,15 @@ public class ListQueryRulesetsActionRequestBWCSerializingTests extends AbstractB
 
     @Override
     protected ListQueryRulesetsAction.Request createTestInstance() {
-
         PageParams pageParams = EnterpriseSearchModuleTestUtils.randomPageParams();
         return new ListQueryRulesetsAction.Request(pageParams);
     }
 
     @Override
     protected ListQueryRulesetsAction.Request mutateInstance(ListQueryRulesetsAction.Request instance) {
-        return randomValueOtherThan(instance, this::createTestInstance);
+        return new ListQueryRulesetsAction.Request(
+            randomValueOtherThan(instance.pageParams(), EnterpriseSearchModuleTestUtils::randomPageParams)
+        );
     }
 
     @Override

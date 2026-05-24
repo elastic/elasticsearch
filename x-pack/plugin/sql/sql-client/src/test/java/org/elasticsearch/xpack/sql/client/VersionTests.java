@@ -35,7 +35,7 @@ public class VersionTests extends ESTestCase {
     private static final String JAR_PATH_SEPARATOR = "!/";
 
     private static String versionString(byte[] parts) {
-        StringBuffer version = new StringBuffer();
+        StringBuilder version = new StringBuilder();
         for (byte part : parts) {
             version.append(".");
             version.append(part);

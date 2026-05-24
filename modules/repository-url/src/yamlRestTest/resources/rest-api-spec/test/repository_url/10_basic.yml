@@ -116,14 +116,14 @@ teardown:
   # Ensure that the URL repository is registered
   - do:
       snapshot.get_repository:
-        repository: repository-url
+        repository: repository-url-http
 
-  - match: { repository-url.type : "url" }
-  - match: { repository-url.settings.url: '/http://(.+):\d+/' }
+  - match: { repository-url-http.type : "url" }
+  - match: { repository-url-http.settings.url: '/http://(.+):\d+/' }
 
   - do:
       snapshot.get:
-        repository: repository-url
+        repository: repository-url-http
         snapshot: snapshot-one,snapshot-two
 
   - is_true: snapshots
@@ -138,7 +138,7 @@ teardown:
   # Restore the second snapshot
   - do:
       snapshot.restore:
-        repository: repository-url
+        repository: repository-url-http
         snapshot: snapshot-two
         wait_for_completion: true
 
@@ -156,7 +156,7 @@ teardown:
   # Restore the first snapshot
   - do:
       snapshot.restore:
-        repository: repository-url
+        repository: repository-url-http
         snapshot: snapshot-one
         wait_for_completion: true
 
@@ -169,7 +169,7 @@ teardown:
   - do:
       catch: /repository is readonly/
       snapshot.delete:
-        repository: repository-url
+        repository: repository-url-http
         snapshot: snapshot-two
 
 ---
@@ -178,14 +178,14 @@ teardown:
   # Ensure that the URL repository is registered
   - do:
       snapshot.get_repository:
-        repository: repository-file
+        repository: repository-url-file
 
-  - match: { repository-file.type : "url" }
-  - match: { repository-file.settings.url: '/file://(.+)/' }
+  - match: { repository-url-file.type : "url" }
+  - match: { repository-url-file.settings.url: '/file://(.+)/' }
 
   - do:
       snapshot.get:
-        repository: repository-file
+        repository: repository-url-file
         snapshot: snapshot-one,snapshot-two
 
   - is_true: snapshots
@@ -200,7 +200,7 @@ teardown:
   # Restore the second snapshot
   - do:
       snapshot.restore:
-        repository: repository-file
+        repository: repository-url-file
         snapshot: snapshot-two
         wait_for_completion: true
 
@@ -218,7 +218,7 @@ teardown:
   # Restore the first snapshot
   - do:
       snapshot.restore:
-        repository: repository-file
+        repository: repository-url-file
         snapshot: snapshot-one
         wait_for_completion: true
 
@@ -231,7 +231,69 @@ teardown:
   - do:
       catch: /repository is readonly/
       snapshot.delete:
-        repository: repository-file
+        repository: repository-url-file
+        snapshot: snapshot-one
+
+---
+"Restore with repository-url using ftp://":
+
+  # Ensure that the ftp:// URL repository is registered
+  - do:
+      snapshot.get_repository:
+        repository: repository-url-ftp
+
+  - match: { repository-url-ftp.type : "url" }
+  - match: { repository-url-ftp.settings.url: '/ftp://(.+)/' }
+
+  - do:
+      snapshot.get:
+        repository: repository-url-ftp
+        snapshot: snapshot-one,snapshot-two
+
+  - is_true: snapshots
+  - match: { snapshots.0.state : SUCCESS }
+  - match: { snapshots.1.state : SUCCESS }
+
+  # Delete the index
+  - do:
+      indices.delete:
+        index: docs
+
+  # Restore the second snapshot
+  - do:
+      snapshot.restore:
+        repository: repository-url-ftp
+        snapshot: snapshot-two
+        wait_for_completion: true
+
+  - do:
+      count:
+        index: docs
+
+  - match: {count: 7}
+
+  # Delete the index again
+  - do:
+      indices.delete:
+        index: docs
+
+  # Restore the first snapshot
+  - do:
+      snapshot.restore:
+        repository: repository-url-ftp
+        snapshot: snapshot-one
+        wait_for_completion: true
+
+  - do:
+      count:
+        index: docs
+
+  - match: {count: 3}
+
+  - do:
+      catch: /repository is readonly/
+      snapshot.delete:
+        repository: repository-url-ftp
         snapshot: snapshot-one
 
 ---
@@ -240,7 +302,7 @@ teardown:
   - do:
       catch: /snapshot_missing_exception/
       snapshot.get:
-        repository: repository-url
+        repository: repository-url-http
         snapshot: missing
 
 ---
@@ -249,7 +311,7 @@ teardown:
   - do:
       catch: /snapshot_missing_exception/
       snapshot.delete:
-        repository: repository-url
+        repository: repository-url-http
         snapshot: missing
 
 ---
@@ -258,6 +320,6 @@ teardown:
   - do:
       catch: /snapshot_restore_exception/
       snapshot.restore:
-        repository: repository-url
+        repository: repository-url-http
         snapshot: missing
         wait_for_completion: true

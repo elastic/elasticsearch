@@ -1,0 +1,5 @@
+area: Inference
+issues: []
+pr: 148001
+summary: "[Inference API] Fix issues in VoyageAI integration"
+type: bug

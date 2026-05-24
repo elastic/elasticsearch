@@ -133,7 +133,7 @@ public final class RestResponse implements Releasable {
                 channel.request().params(),
                 status.getStatus()
             );
-            if (status.getStatus() < 500 || ExceptionsHelper.isNodeOrShardUnavailableTypeException(e)) {
+            if (status.getStatus() < 500) {
                 SUPPRESSED_ERROR_LOGGER.debug(messageSupplier, e);
             } else {
                 SUPPRESSED_ERROR_LOGGER.warn(messageSupplier, e);
@@ -212,12 +212,16 @@ public final class RestResponse implements Releasable {
     }
 
     public void copyHeaders(ElasticsearchException ex) {
-        Set<String> headerKeySet = ex.getHeaderKeys();
+        Set<String> bodyHeaderKeySet = ex.getBodyHeaderKeys();
+        Set<String> httpHeaderKeySet = ex.getHttpHeaderKeys();
         if (customHeaders == null) {
-            customHeaders = Maps.newMapWithExpectedSize(headerKeySet.size());
+            customHeaders = Maps.newMapWithExpectedSize(bodyHeaderKeySet.size() + httpHeaderKeySet.size());
         }
-        for (String key : headerKeySet) {
-            customHeaders.computeIfAbsent(key, k -> new ArrayList<>()).addAll(ex.getHeader(key));
+        for (String key : bodyHeaderKeySet) {
+            customHeaders.computeIfAbsent(key, k -> new ArrayList<>()).addAll(ex.getBodyHeader(key));
+        }
+        for (String key : httpHeaderKeySet) {
+            customHeaders.computeIfAbsent(key, k -> new ArrayList<>()).addAll(ex.getHttpHeader(key));
         }
     }
 

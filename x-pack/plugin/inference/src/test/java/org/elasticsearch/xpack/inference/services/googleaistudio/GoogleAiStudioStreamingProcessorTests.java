@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.inference.services.googleaistudio;
 
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.inference.external.response.googleaistudio.GoogleAiStudioCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
+import org.elasticsearch.xpack.inference.services.googleaistudio.response.GoogleAiStudioCompletionResponseEntity;
 
 import java.util.ArrayDeque;
 import java.util.concurrent.Flow;

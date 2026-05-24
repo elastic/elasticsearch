@@ -77,9 +77,17 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
         Property.NodeScope
     );
 
+    public static final Setting<Boolean> CLUSTER_ROUTING_ALLOCATION_UNTHROTTLE_REPLICA_ASSIGNMENT_IN_SIMULATION = Setting.boolSetting(
+        "cluster.routing.allocation.unthrottle_replica_assignment_in_simulation",
+        false,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
     private volatile int primariesInitialRecoveries;
     private volatile int concurrentIncomingRecoveries;
     private volatile int concurrentOutgoingRecoveries;
+    private volatile boolean unthrottleReplicaAssignmentInSimulation = false;
 
     public ThrottlingAllocationDecider(ClusterSettings clusterSettings) {
         clusterSettings.initializeAndWatch(
@@ -94,6 +102,9 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
             CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING,
             this::setConcurrentOutgoingRecoverries
         );
+        clusterSettings.initializeAndWatch(CLUSTER_ROUTING_ALLOCATION_UNTHROTTLE_REPLICA_ASSIGNMENT_IN_SIMULATION, (settingVal) -> {
+            unthrottleReplicaAssignmentInSimulation = settingVal;
+        });
         logger.debug(
             "using node_concurrent_outgoing_recoveries [{}], node_concurrent_incoming_recoveries [{}], "
                 + "node_initial_primaries_recoveries [{}]",
@@ -118,22 +129,28 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
     @Override
     public Decision canAllocate(ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
         if (shardRouting.primary() && shardRouting.unassigned()) {
+            // Primary is unassigned, means we are going to do recovery from store, snapshot or local shards
             assert initializingShard(shardRouting, node.nodeId()).recoverySource().getType() != RecoverySource.Type.PEER;
-            // primary is unassigned, means we are going to do recovery from store, snapshot or local shards
-            // count *just the primaries* currently doing recovery on the node and check against primariesInitialRecoveries
 
+            if (allocation.isSimulating()) {
+                return allocation.decision(Decision.YES, NAME, "primary allocation is not throttled when simulating");
+            }
+
+            // Count the primaries currently doing recovery on the node, to ensure the primariesInitialRecoveries setting is obeyed.
             int primariesInRecovery = 0;
+            final var returnUnexplainedDecision = allocation.debugDecision() == false;
             for (ShardRouting shard : node.initializing()) {
                 // when a primary shard is INITIALIZING, it can be because of *initial recovery* or *relocation from another node*
                 // we only count initial recoveries here, so we need to make sure that relocating node is null
                 if (shard.primary() && shard.relocatingNodeId() == null) {
                     primariesInRecovery++;
+                    if (returnUnexplainedDecision && primariesInRecovery >= primariesInitialRecoveries) {
+                        // bail out early if we don't need the final total
+                        return THROTTLE;
+                    }
                 }
             }
-            if (allocation.isSimulating()) {
-                return allocation.decision(Decision.YES, NAME, "primary allocation is not throttled when simulating");
-            } else if (primariesInRecovery >= primariesInitialRecoveries) {
-                // TODO: Should index creation not be throttled for primary shards?
+            if (primariesInRecovery >= primariesInitialRecoveries) {
                 return allocation.decision(
                     THROTTLE,
                     NAME,
@@ -142,9 +159,15 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
                     CLUSTER_ROUTING_ALLOCATION_NODE_INITIAL_PRIMARIES_RECOVERIES_SETTING.getKey(),
                     primariesInitialRecoveries
                 );
-            } else {
-                return allocation.decision(YES, NAME, "below primary recovery limit of [%d]", primariesInitialRecoveries);
             }
+            return allocation.decision(YES, NAME, "below primary recovery limit of [%d]", primariesInitialRecoveries);
+        } else if (allocation.isSimulating() && unthrottleReplicaAssignmentInSimulation && shardRouting.unassigned()) {
+            // CLUSTER_ROUTING_ALLOCATION_UNTHROTTLE_REPLICA_ASSIGNMENT_IN_SIMULATION permits us to treat unassigned replicas as equally
+            // urgent as unassigned primaries to allocate, for availability reasons.
+            // During simulation, this supports early publishing DesiredBalance, with all unassigned shards assigned.
+            // Notably, this bypass is only in simulation decisions. Reconciliation will continue to obey throttling, in particular the
+            // requirement to assign a primary before allowing its replicas to begin initializing.
+            return allocation.decision(Decision.YES, NAME, "replica allocation is not throttled when simulating");
         } else {
             // Peer recovery
             assert initializingShard(shardRouting, node.nodeId()).recoverySource().getType() == RecoverySource.Type.PEER;
@@ -210,7 +233,7 @@ public class ThrottlingAllocationDecider extends AllocationDecider {
      *
      * This method returns the corresponding initializing shard that would be allocated to this node.
      */
-    private static ShardRouting initializingShard(ShardRouting shardRouting, String currentNodeId) {
+    public static ShardRouting initializingShard(ShardRouting shardRouting, String currentNodeId) {
         final ShardRouting initializingShard;
         if (shardRouting.unassigned()) {
             initializingShard = shardRouting.initialize(currentNodeId, null, ShardRouting.UNAVAILABLE_EXPECTED_SHARD_SIZE);

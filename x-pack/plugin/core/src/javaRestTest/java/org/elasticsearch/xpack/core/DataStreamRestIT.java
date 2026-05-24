@@ -14,7 +14,6 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentParser;
@@ -37,7 +36,6 @@ public class DataStreamRestIT extends ESRestTestCase {
         .setting("xpack.security.enabled", "true")
         .setting("xpack.license.self_generated.type", "trial")
         .setting("indices.lifecycle.history_index_enabled", "false")
-        .feature(FeatureFlag.FAILURE_STORE_ENABLED)
         .keystore("bootstrap.password", "x-pack-test-password")
         .user("x_pack_rest_user", "x-pack-test-password")
         .systemProperty("es.queryable_built_in_roles_enabled", "false")
@@ -72,20 +70,20 @@ public class DataStreamRestIT extends ESRestTestCase {
         assertThat(failureStoreStats.get("effectively_enabled_count"), equalTo(0));
         assertThat(failureStoreStats.get("failure_indices_count"), equalTo(0));
         assertBusy(() -> {
-            Map<?, ?> logsTemplate = (Map<?, ?>) ((List<?>) getLocation("/_index_template/logs").get("index_templates")).get(0);
-            assertThat(logsTemplate, notNullValue());
-            assertThat(logsTemplate.get("name"), equalTo("logs"));
-            assertThat(((Map<?, ?>) logsTemplate.get("index_template")).get("data_stream"), notNullValue());
+            Map<?, ?> syntheticsTemplate = (Map<?, ?>) ((List<?>) getLocation("/_index_template/synthetics").get("index_templates")).get(0);
+            assertThat(syntheticsTemplate, notNullValue());
+            assertThat(syntheticsTemplate.get("name"), equalTo("synthetics"));
+            assertThat(((Map<?, ?>) syntheticsTemplate.get("index_template")).get("data_stream"), notNullValue());
         });
         putFailureStoreTemplate();
 
         // Create a data stream
-        Request indexRequest = new Request("POST", "/logs-mysql-default/_doc");
+        Request indexRequest = new Request("POST", "/synthetics-myapp-default/_doc");
         indexRequest.setJsonEntity("{\"@timestamp\": \"2020-01-01\"}");
         client().performRequest(indexRequest);
 
         // Roll over the data stream
-        Request rollover = new Request("POST", "/logs-mysql-default/_rollover");
+        Request rollover = new Request("POST", "/synthetics-myapp-default/_rollover");
         client().performRequest(rollover);
 
         // Create failure store data stream
@@ -107,10 +105,10 @@ public class DataStreamRestIT extends ESRestTestCase {
         assertThat(failureStoreStats.get("effectively_enabled_count"), equalTo(1));
         assertThat(failureStoreStats.get("failure_indices_count"), equalTo(1));
 
-        // Enable the failure store for logs-mysql-default using the cluster setting...
+        // Enable the failure store for synthetics-myapp-default using the cluster setting...
         updateClusterSettings(
             Settings.builder()
-                .put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), "logs-mysql-default")
+                .put(DataStreamFailureStoreSettings.DATA_STREAM_FAILURE_STORED_ENABLED_SETTING.getKey(), "synthetics-myapp-default")
                 .build()
         );
         // ...and assert that it counts towards effectively_enabled_count but not explicitly_enabled_count:

@@ -10,7 +10,6 @@
 package org.elasticsearch.search.aggregations.bucket.composite;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdFieldType;
@@ -306,7 +305,7 @@ public class CompositeAggregationBuilder extends AbstractAggregationBuilder<Comp
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     @Override

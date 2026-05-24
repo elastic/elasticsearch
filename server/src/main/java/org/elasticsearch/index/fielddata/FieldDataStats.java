@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.fielddata;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.FieldMemoryStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -48,18 +47,12 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         memorySize = in.readVLong();
         evictions = in.readVLong();
         fields = in.readOptionalWriteable(FieldMemoryStats::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            long buildTimeMillis = in.readVLong();
-            Map<String, GlobalOrdinalsStats.GlobalOrdinalFieldStats> fieldGlobalOrdinalsStats = null;
-            if (in.readBoolean()) {
-                fieldGlobalOrdinalsStats = in.readMap(
-                    in1 -> new GlobalOrdinalsStats.GlobalOrdinalFieldStats(in1.readVLong(), in1.readVLong())
-                );
-            }
-            globalOrdinalsStats = new GlobalOrdinalsStats(buildTimeMillis, fieldGlobalOrdinalsStats);
-        } else {
-            globalOrdinalsStats = new GlobalOrdinalsStats(0, null);
+        long buildTimeMillis = in.readVLong();
+        Map<String, GlobalOrdinalsStats.GlobalOrdinalFieldStats> fieldGlobalOrdinalsStats = null;
+        if (in.readBoolean()) {
+            fieldGlobalOrdinalsStats = in.readMap(in1 -> new GlobalOrdinalsStats.GlobalOrdinalFieldStats(in1.readVLong(), in1.readVLong()));
         }
+        globalOrdinalsStats = new GlobalOrdinalsStats(buildTimeMillis, fieldGlobalOrdinalsStats);
     }
 
     public FieldDataStats(long memorySize, long evictions, @Nullable FieldMemoryStats fields, GlobalOrdinalsStats globalOrdinalsStats) {
@@ -111,17 +104,15 @@ public class FieldDataStats implements Writeable, ToXContentFragment {
         out.writeVLong(memorySize);
         out.writeVLong(evictions);
         out.writeOptionalWriteable(fields);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeVLong(globalOrdinalsStats.buildTimeMillis);
-            if (globalOrdinalsStats.fieldGlobalOrdinalsStats != null) {
-                out.writeBoolean(true);
-                out.writeMap(globalOrdinalsStats.fieldGlobalOrdinalsStats, (out1, value) -> {
-                    out1.writeVLong(value.totalBuildingTime);
-                    out1.writeVLong(value.valueCount);
-                });
-            } else {
-                out.writeBoolean(false);
-            }
+        out.writeVLong(globalOrdinalsStats.buildTimeMillis);
+        if (globalOrdinalsStats.fieldGlobalOrdinalsStats != null) {
+            out.writeBoolean(true);
+            out.writeMap(globalOrdinalsStats.fieldGlobalOrdinalsStats, (out1, value) -> {
+                out1.writeVLong(value.totalBuildingTime);
+                out1.writeVLong(value.valueCount);
+            });
+        } else {
+            out.writeBoolean(false);
         }
     }
 

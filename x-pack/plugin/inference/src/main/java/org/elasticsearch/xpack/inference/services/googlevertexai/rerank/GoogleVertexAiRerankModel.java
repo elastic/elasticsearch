@@ -7,25 +7,30 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.request.googlevertexai.GoogleVertexAiUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionVisitor;
+import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.Strings.format;
 
 public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
+    private static final String RERANK_RATE_LIMIT_ENDPOINT_ID = "rerank";
 
     public GoogleVertexAiRerankModel(
         String inferenceEntityId,
@@ -50,7 +55,7 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         super(model, serviceSettings);
     }
 
-    // Should only be used directly for testing
+    // Should be used directly only for testing
     GoogleVertexAiRerankModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -59,19 +64,21 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         GoogleVertexAiRerankTaskSettings taskSettings,
         @Nullable GoogleVertexAiSecretSettings secrets
     ) {
-        super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
-            new ModelSecrets(secrets),
-            serviceSettings
-        );
+        this(new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+    }
+
+    public GoogleVertexAiRerankModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, (GoogleVertexAiRerankServiceSettings) modelConfigurations.getServiceSettings());
         try {
-            this.uri = buildUri(serviceSettings.projectId());
+            this.nonStreamingUri = buildUri(((GoogleVertexAiRerankServiceSettings) modelConfigurations.getServiceSettings()).projectId());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
     }
 
-    // Should only be used directly for testing
+    // Should only be used directly for testing.
+    // This constructor allows tests to override the behaviour when setting the auth header, which by default requires a valid service
+    // account JSON
     protected GoogleVertexAiRerankModel(
         String inferenceEntityId,
         TaskType taskType,
@@ -79,15 +86,17 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         String uri,
         GoogleVertexAiRerankServiceSettings serviceSettings,
         GoogleVertexAiRerankTaskSettings taskSettings,
-        @Nullable GoogleVertexAiSecretSettings secrets
+        @Nullable GoogleVertexAiSecretSettings secrets,
+        BiConsumer<HttpPost, GoogleVertexAiModel> authHeaderDecorator
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
-            serviceSettings
+            serviceSettings,
+            authHeaderDecorator
         );
         try {
-            this.uri = new URI(uri);
+            this.nonStreamingUri = new URI(uri);
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -109,8 +118,8 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
     }
 
     @Override
-    public GoogleDiscoveryEngineRateLimitServiceSettings rateLimitServiceSettings() {
-        return (GoogleDiscoveryEngineRateLimitServiceSettings) super.rateLimitServiceSettings();
+    public GoogleVertexAiRateLimitServiceSettings rateLimitServiceSettings() {
+        return super.rateLimitServiceSettings();
     }
 
     @Override
@@ -131,5 +140,17 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
                 format("%s:%s", GoogleVertexAiUtils.DEFAULT_RANKING_CONFIG, GoogleVertexAiUtils.RANK)
             )
             .build();
+    }
+
+    @Override
+    public int rateLimitGroupingHash() {
+        // In VertexAI rate limiting is scoped to the project, region, model and endpoint.
+        // API Key does not affect the quota
+        // https://ai.google.dev/gemini-api/docs/rate-limits
+        // https://cloud.google.com/vertex-ai/docs/quotas
+        var projectId = getServiceSettings().projectId();
+        var modelId = getServiceSettings().modelId();
+
+        return Objects.hash(projectId, modelId, RERANK_RATE_LIMIT_ENDPOINT_ID);
     }
 }

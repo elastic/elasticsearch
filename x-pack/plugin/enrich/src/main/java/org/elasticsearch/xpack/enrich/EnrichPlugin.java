@@ -6,21 +6,15 @@
  */
 package org.elasticsearch.xpack.enrich;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.NamedDiff;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.Nullable;
@@ -34,7 +28,6 @@ import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
@@ -147,7 +140,7 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
      * This setting solely exists because the original setting was accidentally renamed in
      * https://github.com/elastic/elasticsearch/pull/111412.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED)
     public static final String CACHE_SIZE_SETTING_BWC_NAME = "enrich.cache.size";
     public static final Setting<FlatNumberOrByteSizeValue> CACHE_SIZE_BWC = new Setting<>(
         CACHE_SIZE_SETTING_BWC_NAME,
@@ -211,32 +204,26 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(XPackInfoFeatureAction.ENRICH, EnrichInfoTransportAction.class),
-            new ActionHandler<>(XPackUsageFeatureAction.ENRICH, EnrichUsageTransportAction.class),
-            new ActionHandler<>(GetEnrichPolicyAction.INSTANCE, TransportGetEnrichPolicyAction.class),
-            new ActionHandler<>(DeleteEnrichPolicyAction.INSTANCE, TransportDeleteEnrichPolicyAction.class),
-            new ActionHandler<>(PutEnrichPolicyAction.INSTANCE, TransportPutEnrichPolicyAction.class),
-            new ActionHandler<>(ExecuteEnrichPolicyAction.INSTANCE, TransportExecuteEnrichPolicyAction.class),
-            new ActionHandler<>(EnrichStatsAction.INSTANCE, TransportEnrichStatsAction.class),
-            new ActionHandler<>(EnrichCoordinatorProxyAction.INSTANCE, EnrichCoordinatorProxyAction.TransportAction.class),
-            new ActionHandler<>(EnrichShardMultiSearchAction.INSTANCE, EnrichShardMultiSearchAction.TransportAction.class),
-            new ActionHandler<>(EnrichCoordinatorStatsAction.INSTANCE, EnrichCoordinatorStatsAction.TransportAction.class),
-            new ActionHandler<>(EnrichReindexAction.INSTANCE, TransportEnrichReindexAction.class),
-            new ActionHandler<>(InternalExecutePolicyAction.INSTANCE, InternalExecutePolicyAction.Transport.class)
+            new ActionHandler(XPackInfoFeatureAction.ENRICH, EnrichInfoTransportAction.class),
+            new ActionHandler(XPackUsageFeatureAction.ENRICH, EnrichUsageTransportAction.class),
+            new ActionHandler(GetEnrichPolicyAction.INSTANCE, TransportGetEnrichPolicyAction.class),
+            new ActionHandler(DeleteEnrichPolicyAction.INSTANCE, TransportDeleteEnrichPolicyAction.class),
+            new ActionHandler(PutEnrichPolicyAction.INSTANCE, TransportPutEnrichPolicyAction.class),
+            new ActionHandler(ExecuteEnrichPolicyAction.INSTANCE, TransportExecuteEnrichPolicyAction.class),
+            new ActionHandler(EnrichStatsAction.INSTANCE, TransportEnrichStatsAction.class),
+            new ActionHandler(EnrichCoordinatorProxyAction.INSTANCE, EnrichCoordinatorProxyAction.TransportAction.class),
+            new ActionHandler(EnrichShardMultiSearchAction.INSTANCE, EnrichShardMultiSearchAction.TransportAction.class),
+            new ActionHandler(EnrichCoordinatorStatsAction.INSTANCE, EnrichCoordinatorStatsAction.TransportAction.class),
+            new ActionHandler(EnrichReindexAction.INSTANCE, TransportEnrichReindexAction.class),
+            new ActionHandler(InternalExecutePolicyAction.INSTANCE, InternalExecutePolicyAction.Transport.class)
         );
     }
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings unused,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {

@@ -129,9 +129,7 @@ public class TransformInternalIndexIT extends TransformSingleNodeTestCase {
             GetResponse getResponse = client().get(getRequest).actionGet();
             assertThat(getResponse.isExists(), is(true));
         }
-    }
 
-    private void createSourceIndex(String index) {
-        indicesAdmin().create(new CreateIndexRequest(index)).actionGet();
+        deleteTransform(transformId);
     }
 }

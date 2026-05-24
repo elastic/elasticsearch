@@ -12,7 +12,7 @@ import joptsimple.OptionSet;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cli.MockTerminal;
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElasticsearchNodeCommand;
@@ -27,6 +27,7 @@ import org.elasticsearch.gateway.PersistedClusterStateService;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.ESTestCase.WithoutEntitlements;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -48,6 +49,7 @@ import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
+@WithoutEntitlements // commands don't run with entitlements enforced
 public class NodeRepurposeCommandTests extends ESTestCase {
 
     private static final Index INDEX = new Index("testIndex", "testUUID");

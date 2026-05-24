@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Booleans;
 
 import java.io.IOException;
 import java.util.Locale;
@@ -61,7 +62,7 @@ public enum PredictionFieldType implements Writeable {
                         // do nothing, allow fall through to final fromDouble
                     }
                 } else if (isBoolQuickCheck(stringRep)) { // if we start with t/f case insensitive, it indicates boolean string
-                    return Boolean.parseBoolean(stringRep);
+                    return Booleans.parseBooleanLenient(stringRep, false);
                 }
                 return fromDouble(value);
             case NUMBER:

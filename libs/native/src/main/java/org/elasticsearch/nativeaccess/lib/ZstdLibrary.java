@@ -11,6 +11,8 @@ package org.elasticsearch.nativeaccess.lib;
 
 import org.elasticsearch.nativeaccess.CloseableByteBuffer;
 
+import java.nio.ByteBuffer;
+
 public non-sealed interface ZstdLibrary extends NativeLibrary {
 
     long compressBound(int scrLen);
@@ -22,4 +24,20 @@ public non-sealed interface ZstdLibrary extends NativeLibrary {
     String getErrorName(long code);
 
     long decompress(CloseableByteBuffer dst, CloseableByteBuffer src);
+
+    /**
+     * Decompress variant that accepts a direct {@link ByteBuffer} as the source, avoiding the need for a
+     * {@link CloseableByteBuffer} wrapper when the caller already holds a direct buffer (e.g. from
+     * {@code DirectAccessInput.withByteBufferSlice}).
+     */
+    long decompress(CloseableByteBuffer dst, ByteBuffer src);
+
+    /**
+     * Decompress variant that accepts direct {@link ByteBuffer}s on both sides with explicit
+     * offsets and lengths. Suits callers driven by an external codec API (e.g. parquet-mr's
+     * {@code BytesInputDecompressor}) where compressed and decompressed sizes are known
+     * up front and the buffers are managed outside this library. Both buffers must be direct.
+     * Neither buffer's position or limit is modified.
+     */
+    long decompress(ByteBuffer dst, int dstOffset, int dstSize, ByteBuffer src, int srcOffset, int srcSize);
 }

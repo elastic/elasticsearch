@@ -7,20 +7,23 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.BitSet;
+// end generated imports
 
 /**
  * Block implementation that stores values in a {@link IntArrayVector}.
  * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
-final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
+public final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(IntArrayBlock.class);
 
@@ -86,12 +89,17 @@ final class IntArrayBlock extends AbstractArrayBlock implements IntBlock {
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public int getInt(int valueIndex) {
         return vector.getInt(valueIndex);
     }
 
     @Override
-    public IntBlock filter(int... positions) {
+    public IntBlock filter(boolean mayContainDuplicates, int... positions) {
         try (var builder = blockFactory().newIntBlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

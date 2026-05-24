@@ -12,6 +12,7 @@ import org.elasticsearch.action.support.master.TransportMasterNodeAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -29,6 +30,7 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
 
     private final DatafeedManager datafeedManager;
     private final SecurityContext securityContext;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportUpdateDatafeedAction(
@@ -37,7 +39,8 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        DatafeedManager datafeedManager
+        DatafeedManager datafeedManager,
+        ProjectResolver projectResolver
     ) {
         super(
             UpdateDatafeedAction.NAME,
@@ -54,6 +57,7 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
         this.securityContext = XPackSettings.SECURITY_ENABLED.get(settings)
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -69,6 +73,6 @@ public class TransportUpdateDatafeedAction extends TransportMasterNodeAction<Upd
 
     @Override
     protected ClusterBlockException checkBlock(UpdateDatafeedAction.Request request, ClusterState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_WRITE);
+        return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 }

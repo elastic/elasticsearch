@@ -13,12 +13,17 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOFunction;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.index.mapper.BlockLoader.BytesRefBuilder;
+import org.elasticsearch.index.mapper.blockloader.docvalues.BlockDocValuesReader;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
+
+import static org.elasticsearch.index.mapper.BlockSourceReader.ESTIMATED_SIZE;
 
 /**
  * Loads values from {@link LeafReader#storedFields}. This whole process is very slow
@@ -30,20 +35,32 @@ import java.util.Set;
  * order.
  */
 public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideReader {
+    private final CircuitBreaker breaker;
+
+    protected BlockStoredFieldsReader(CircuitBreaker breaker) {
+        breaker.addEstimateBytesAndMaybeBreak(ESTIMATED_SIZE, "load blocks");
+        this.breaker = breaker;
+    }
+
     @Override
     public boolean canReuse(int startingDocID) {
         return true;
     }
 
-    private abstract static class StoredFieldsBlockLoader implements BlockLoader {
+    @Override
+    public final void close() {
+        breaker.addWithoutBreaking(-ESTIMATED_SIZE);
+    }
+
+    public abstract static class StoredFieldsBlockLoader implements BlockLoader {
         protected final String field;
 
-        StoredFieldsBlockLoader(String field) {
+        public StoredFieldsBlockLoader(String field) {
             this.field = field;
         }
 
         @Override
-        public final ColumnAtATimeReader columnAtATimeReader(LeafReaderContext context) {
+        public final IOFunction<CircuitBreaker, ColumnAtATimeReader> columnAtATimeReader(LeafReaderContext context) {
             return null;
         }
 
@@ -77,8 +94,8 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         }
 
         @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-            return new Bytes(field) {
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            return new Bytes(breaker, field) {
                 @Override
                 protected BytesRef toBytesRef(Object v) {
                     return (BytesRef) v;
@@ -100,8 +117,8 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         }
 
         @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context) {
-            return new Bytes(field) {
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) {
+            return new Bytes(breaker, field) {
                 private final BytesRef scratch = new BytesRef();
 
                 @Override
@@ -112,10 +129,11 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         }
     }
 
-    private abstract static class Bytes extends BlockStoredFieldsReader {
+    public abstract static class Bytes extends BlockStoredFieldsReader {
         private final String field;
 
-        Bytes(String field) {
+        public Bytes(CircuitBreaker breaker, String field) {
+            super(breaker);
             this.field = field;
         }
 
@@ -159,13 +177,17 @@ public abstract class BlockStoredFieldsReader implements BlockLoader.RowStrideRe
         }
 
         @Override
-        public RowStrideReader rowStrideReader(LeafReaderContext context) throws IOException {
-            return new Id();
+        public RowStrideReader rowStrideReader(CircuitBreaker breaker, LeafReaderContext context) throws IOException {
+            return new Id(breaker);
         }
     }
 
     private static class Id extends BlockStoredFieldsReader {
         private final BytesRef scratch = new BytesRef();
+
+        protected Id(CircuitBreaker breaker) {
+            super(breaker);
+        }
 
         @Override
         public void read(int docId, BlockLoader.StoredFields storedFields, BlockLoader.Builder builder) throws IOException {

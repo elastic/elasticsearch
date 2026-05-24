@@ -8,13 +8,11 @@
 package org.elasticsearch.xpack.slm.history;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.template.IndexTemplateConfig;
 import org.elasticsearch.xpack.core.template.IndexTemplateRegistry;
@@ -23,9 +21,6 @@ import org.elasticsearch.xpack.core.template.LifecyclePolicyConfig;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.ClientHelper.INDEX_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.xpack.core.ilm.LifecycleSettings.SLM_HISTORY_INDEX_ENABLED_SETTING;
@@ -47,6 +42,12 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
 
     public static final String SLM_TEMPLATE_VERSION_VARIABLE = "xpack.slm.template.version";
     public static final String SLM_TEMPLATE_NAME = ".slm-history-" + INDEX_TEMPLATE_VERSION;
+    public static final IndexTemplateConfig SLM_TEMPLATE_CONFIG = new IndexTemplateConfig(
+        SLM_TEMPLATE_NAME,
+        "/slm-history.json",
+        INDEX_TEMPLATE_VERSION,
+        SLM_TEMPLATE_VERSION_VARIABLE
+    );
 
     public static final String SLM_POLICY_NAME = "slm-history-ilm-policy";
 
@@ -68,16 +69,14 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
         slmHistoryEnabled = SLM_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
     }
 
-    public static final Map<String, ComposableIndexTemplate> COMPOSABLE_INDEX_TEMPLATE_CONFIGS = parseComposableTemplates(
-        new IndexTemplateConfig(SLM_TEMPLATE_NAME, "/slm-history.json", INDEX_TEMPLATE_VERSION, SLM_TEMPLATE_VERSION_VARIABLE)
-    );
+    private final Map<String, ComposableIndexTemplate> composableIndexTemplates = parseComposableTemplates(SLM_TEMPLATE_CONFIG);
 
     @Override
     protected Map<String, ComposableIndexTemplate> getComposableTemplateConfigs() {
         if (slmHistoryEnabled == false) {
             return Map.of();
         }
-        return COMPOSABLE_INDEX_TEMPLATE_CONFIGS;
+        return composableIndexTemplates;
     }
 
     private static final List<LifecyclePolicyConfig> LIFECYCLE_POLICY_CONFIGS = List.of(
@@ -100,19 +99,5 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     @Override
     protected String getOrigin() {
         return INDEX_LIFECYCLE_ORIGIN; // TODO use separate SLM origin?
-    }
-
-    public boolean validate(ClusterState state) {
-        boolean allTemplatesPresent = getComposableTemplateConfigs().keySet()
-            .stream()
-            .allMatch(name -> state.metadata().getProject().templatesV2().containsKey(name));
-
-        Optional<Map<String, LifecyclePolicy>> maybePolicies = Optional.<IndexLifecycleMetadata>ofNullable(
-            state.metadata().getProject().custom(IndexLifecycleMetadata.TYPE)
-        ).map(IndexLifecycleMetadata::getPolicies);
-        Set<String> policyNames = getLifecyclePolicies().stream().map(LifecyclePolicy::getName).collect(Collectors.toSet());
-
-        boolean allPoliciesPresent = maybePolicies.map(policies -> policies.keySet().containsAll(policyNames)).orElse(false);
-        return allTemplatesPresent && allPoliciesPresent;
     }
 }

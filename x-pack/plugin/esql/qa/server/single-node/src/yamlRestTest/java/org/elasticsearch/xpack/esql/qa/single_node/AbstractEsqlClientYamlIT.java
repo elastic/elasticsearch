@@ -8,12 +8,15 @@
 package org.elasticsearch.xpack.esql.qa.single_node;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
+import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestCandidate;
 import org.elasticsearch.test.rest.yaml.ESClientYamlSuiteTestCase;
 import org.elasticsearch.test.rest.yaml.section.ClientYamlTestSection;
 import org.elasticsearch.test.rest.yaml.section.DoSection;
 import org.elasticsearch.test.rest.yaml.section.ExecutableSection;
+import org.elasticsearch.test.rest.yaml.section.IsFalseAssertion;
+import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.After;
 import org.junit.Before;
@@ -29,6 +32,7 @@ abstract class AbstractEsqlClientYamlIT extends ESClientYamlSuiteTestCase {
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")
+        .feature(FeatureFlag.EXTENDED_DOC_VALUES_PARAMS)
         .build();
 
     @Override
@@ -51,18 +55,25 @@ abstract class AbstractEsqlClientYamlIT extends ESClientYamlSuiteTestCase {
         EsqlSpecTestCase.assertRequestBreakerEmpty();
     }
 
-    public static Iterable<Object[]> updateEsqlQueryDoSections(Iterable<Object[]> parameters, Function<DoSection, ExecutableSection> modify)
-        throws Exception {
+    public static Iterable<Object[]> partialResultsCheckingParameters() throws Exception {
+        return updateExecutableSections(createParameters(), AbstractEsqlClientYamlIT::insertPartialResultsAssertion);
+    }
+
+    public static Iterable<Object[]> updateExecutableSections(
+        Iterable<Object[]> parameters,
+        Function<List<ExecutableSection>, List<ExecutableSection>> updateFunction
+    ) {
         List<Object[]> result = new ArrayList<>();
         for (Object[] orig : parameters) {
             assert orig.length == 1;
             ClientYamlTestCandidate candidate = (ClientYamlTestCandidate) orig[0];
             try {
+                var testSection = candidate.getTestSection();
                 ClientYamlTestSection modified = new ClientYamlTestSection(
-                    candidate.getTestSection().getLocation(),
-                    candidate.getTestSection().getName(),
-                    candidate.getTestSection().getPrerequisiteSection(),
-                    candidate.getTestSection().getExecutableSections().stream().map(e -> modifyExecutableSection(e, modify)).toList()
+                    testSection.getLocation(),
+                    testSection.getName(),
+                    testSection.getPrerequisiteSection(),
+                    updateFunction.apply(testSection.getExecutableSections())
                 );
                 result.add(new Object[] { new ClientYamlTestCandidate(candidate.getRestTestSuite(), modified) });
             } catch (IllegalArgumentException e) {
@@ -70,6 +81,33 @@ abstract class AbstractEsqlClientYamlIT extends ESClientYamlSuiteTestCase {
             }
         }
         return result;
+    }
+
+    public static Iterable<Object[]> updateEsqlQueryDoSections(
+        Iterable<Object[]> parameters,
+        Function<DoSection, ExecutableSection> modify
+    ) {
+        return updateExecutableSections(parameters, sections -> sections.stream().map(e -> modifyExecutableSection(e, modify)).toList());
+    }
+
+    private static List<ExecutableSection> insertPartialResultsAssertion(List<ExecutableSection> sections) {
+        var newSections = new ArrayList<ExecutableSection>(sections.size());
+        for (var section : sections) {
+            var insertIsPartial = false;
+            if (section instanceof DoSection doSection) {
+                var apiCallSection = doSection.getApiCallSection();
+                if (apiCallSection.getApi().equals("esql.query")) {
+                    // If `allow_partial_results` is explicitly set to true, partial results are allowed.
+                    // If it's missing, no partial results are expected, even if the parameter's default is true.
+                    insertIsPartial = "true".equals(apiCallSection.getParams().get("allow_partial_results")) == false;
+                }
+            }
+            newSections.add(section);
+            if (insertIsPartial) {
+                newSections.add(new IsFalseAssertion(XContentLocation.UNKNOWN, "is_partial"));
+            }
+        }
+        return newSections.size() == sections.size() ? sections : newSections;
     }
 
     private static ExecutableSection modifyExecutableSection(ExecutableSection e, Function<DoSection, ExecutableSection> modify) {

@@ -19,7 +19,6 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.nativeaccess.NativeAccessUtil;
 import org.elasticsearch.plugin.analysis.CharFilterFactory;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.PrivilegedOperations;
 import org.elasticsearch.test.compiler.InMemoryJavaCompiler;
 import org.elasticsearch.test.jar.JarUtils;
 
@@ -39,7 +38,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 
-@ESTestCase.WithoutSecurityManager
 @LuceneTestCase.SuppressFileSystems(value = "ExtrasFS")
 public class PluginsLoaderTests extends ESTestCase {
 
@@ -52,7 +50,7 @@ public class PluginsLoaderTests extends ESTestCase {
     static PluginsLoader newPluginsLoader(Settings settings) {
         return PluginsLoader.createPluginsLoader(
             Set.of(),
-            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir()),
+            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir(), false),
             Map.of(),
             false
         );
@@ -121,7 +119,7 @@ public class PluginsLoaderTests extends ESTestCase {
 
         var pluginsLoader = PluginsLoader.createPluginsLoader(
             Set.of(),
-            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir()),
+            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir(), false),
             Map.of(STABLE_PLUGIN_NAME, Set.of(STABLE_PLUGIN_MODULE_NAME)),
             false
         );
@@ -182,7 +180,7 @@ public class PluginsLoaderTests extends ESTestCase {
 
         var pluginsLoader = PluginsLoader.createPluginsLoader(
             Set.of(),
-            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir()),
+            PluginsLoader.loadPluginsBundles(TestEnvironment.newEnvironment(settings).pluginsDir(), false),
             Map.of(MODULAR_PLUGIN_NAME, Set.of(MODULAR_PLUGIN_MODULE_NAME)),
             false
         );
@@ -352,13 +350,13 @@ public class PluginsLoaderTests extends ESTestCase {
         pluginsLoader.pluginLayers().forEach(lp -> {
             if (lp.pluginClassLoader() instanceof URLClassLoader urlClassLoader) {
                 try {
-                    PrivilegedOperations.closeURLClassLoader(urlClassLoader);
+                    urlClassLoader.close();
                 } catch (IOException unexpected) {
                     throw new UncheckedIOException(unexpected);
                 }
             } else if (lp.pluginClassLoader() instanceof UberModuleClassLoader loader) {
                 try {
-                    PrivilegedOperations.closeURLClassLoader(loader.getInternalLoader());
+                    loader.getInternalLoader().close();
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }

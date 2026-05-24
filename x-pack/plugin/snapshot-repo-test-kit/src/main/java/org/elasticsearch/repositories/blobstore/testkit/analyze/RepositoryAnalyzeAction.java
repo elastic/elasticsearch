@@ -12,14 +12,13 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.RefCountingRunnable;
@@ -36,12 +35,14 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobMetadata;
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThrottledIterator;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
@@ -67,6 +68,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
@@ -76,7 +78,6 @@ import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.LongSupplier;
@@ -97,7 +98,9 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
     private static final Logger logger = LogManager.getLogger(RepositoryAnalyzeAction.class);
 
-    public static final ActionType<RepositoryAnalyzeAction.Response> INSTANCE = new ActionType<>("cluster:admin/repository/analyze");
+    public static final ActionType<Response> INSTANCE = new ActionType<>("cluster:admin/repository/analyze");
+
+    static final TransportVersion REPO_ANALYSIS_BLOB_OVERWRITE = TransportVersion.fromName("repo_analysis_blob_overwrite");
 
     static final String UNCONTENDED_REGISTER_NAME_PREFIX = "test-register-uncontended-";
     static final String CONTENDED_REGISTER_NAME_PREFIX = "test-register-contended-";
@@ -113,13 +116,14 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         ClusterService clusterService,
         RepositoriesService repositoriesService
     ) {
-        super(INSTANCE.name(), transportService, actionFilters, RepositoryAnalyzeAction.Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(INSTANCE.name(), transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
         this.clusterService = clusterService;
         this.repositoriesService = repositoriesService;
 
         // construct (and therefore implicitly register) the subsidiary actions
-        new BlobAnalyzeAction(transportService, actionFilters, repositoriesService);
+        new BlobAnalyzeAction(transportService, clusterService.getSettings(), actionFilters, repositoriesService);
+        new BlobOverwriteAction(transportService, actionFilters, repositoriesService);
         new GetBlobChecksumAction(transportService, actionFilters, repositoriesService);
         new ContendedRegisterAnalyzeAction(transportService, actionFilters, repositoriesService);
         new UncontendedRegisterAnalyzeAction(transportService, actionFilters, repositoriesService);
@@ -365,6 +369,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
     public static class AsyncAction {
 
+        private static final TransportVersion REPO_ANALYSIS_COPY_BLOB = TransportVersion.fromName("repo_analysis_copy_blob");
+
         private final TransportService transportService;
         private final BlobStoreRepository repository;
         private final CancellableTask task;
@@ -379,13 +385,13 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         // choose the blob path nondeterministically to avoid clashes, assuming that the actual path doesn't matter for reproduction
         private final String blobPath = "temp-analysis-" + UUIDs.randomBase64UUID();
 
-        private final AtomicLong expectedRegisterValue = new AtomicLong();
         private final Queue<Consumer<Releasable>> queue = ConcurrentCollections.newQueue();
         private final AtomicReference<Exception> failure = new AtomicReference<>();
         private final Semaphore innerFailures = new Semaphore(5); // limit the number of suppressed failures
         private final RefCountingRunnable requestRefs = new RefCountingRunnable(this::runCleanUp);
         private final Set<String> expectedBlobs = ConcurrentCollections.newConcurrentSet();
         private final List<BlobAnalyzeAction.Response> responses;
+        private final AtomicBoolean blobOverwriteSucceeded = new AtomicBoolean();
         private final RepositoryPerformanceSummary.Builder summary = new RepositoryPerformanceSummary.Builder();
 
         private final RepositoryVerificationException analysisCancelledException;
@@ -482,49 +488,59 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             final Random random = new Random(request.getSeed());
             final List<DiscoveryNode> nodes = getSnapshotNodes(discoveryNodes);
 
-            if (minClusterTransportVersion.onOrAfter(TransportVersions.V_8_8_0)) {
-                final String contendedRegisterName = CONTENDED_REGISTER_NAME_PREFIX + UUIDs.randomBase64UUID(random);
-                final AtomicBoolean contendedRegisterAnalysisComplete = new AtomicBoolean();
-                try (
-                    var registerRefs = new RefCountingRunnable(
-                        finalRegisterValueVerifier(
-                            contendedRegisterName,
-                            random,
-                            Releasables.wrap(requestRefs.acquire(), () -> contendedRegisterAnalysisComplete.set(true))
-                        )
+            final String contendedRegisterName = CONTENDED_REGISTER_NAME_PREFIX + UUIDs.randomBase64UUID(random);
+            final AtomicBoolean contendedRegisterAnalysisComplete = new AtomicBoolean();
+            final int registerOperations = Math.max(nodes.size(), request.getRegisterOperationCount());
+            try (
+                var registerRefs = new RefCountingRunnable(
+                    finalRegisterValueVerifier(
+                        contendedRegisterName,
+                        registerOperations,
+                        random,
+                        Releasables.wrap(requestRefs.acquire(), () -> contendedRegisterAnalysisComplete.set(true))
                     )
-                ) {
-                    final int registerOperations = Math.max(nodes.size(), request.getRegisterOperationCount());
-                    for (int i = 0; i < registerOperations; i++) {
-                        final ContendedRegisterAnalyzeAction.Request registerAnalyzeRequest = new ContendedRegisterAnalyzeAction.Request(
-                            request.getRepositoryName(),
-                            blobPath,
-                            contendedRegisterName,
-                            registerOperations,
-                            random.nextInt((registerOperations + 1) * 2)
-                        );
-                        final DiscoveryNode node = nodes.get(i < nodes.size() ? i : random.nextInt(nodes.size()));
-                        final Releasable registerRef = registerRefs.acquire();
-                        queue.add(ref -> runContendedRegisterAnalysis(Releasables.wrap(registerRef, ref), registerAnalyzeRequest, node));
-                    }
-                }
-
-                if (minClusterTransportVersion.onOrAfter(TransportVersions.V_8_12_0)) {
-                    new UncontendedRegisterAnalysis(new Random(random.nextLong()), nodes, contendedRegisterAnalysisComplete).run();
+                )
+            ) {
+                for (int i = 0; i < registerOperations; i++) {
+                    final ContendedRegisterAnalyzeAction.Request registerAnalyzeRequest = new ContendedRegisterAnalyzeAction.Request(
+                        request.getRepositoryName(),
+                        blobPath,
+                        contendedRegisterName,
+                        registerOperations,
+                        random.nextInt((registerOperations + 1) * 2)
+                    );
+                    final DiscoveryNode node = nodes.get(i < nodes.size() ? i : random.nextInt(nodes.size()));
+                    final Releasable registerRef = registerRefs.acquire();
+                    queue.add(ref -> runContendedRegisterAnalysis(Releasables.wrap(registerRef, ref), registerAnalyzeRequest, node));
                 }
             }
+
+            new UncontendedRegisterAnalysis(new Random(random.nextLong()), nodes, contendedRegisterAnalysisComplete).run();
 
             final List<Long> blobSizes = getBlobSizes(request);
             Collections.shuffle(blobSizes, random);
 
-            for (int i = 0; i < request.getBlobCount(); i++) {
+            int blobCount = request.getBlobCount();
+            for (int i = 0; i < blobCount; i++) {
                 final long targetLength = blobSizes.get(i);
                 final boolean smallBlob = targetLength <= MAX_ATOMIC_WRITE_SIZE; // avoid the atomic API for larger blobs
                 final boolean abortWrite = smallBlob && request.isAbortWritePermitted() && rarely(random);
+                final boolean doCopy = minClusterTransportVersion.supports(REPO_ANALYSIS_COPY_BLOB) && rarely(random) && i < blobCount - 1;
+                final String blobName = "test-blob-" + i + "-" + UUIDs.randomBase64UUID(random);
+                final String copyBlobName;
+                if (doCopy) {
+                    copyBlobName = blobName + "-copy";
+                    blobCount--;
+                    if (i >= blobCount) {
+                        break;
+                    }
+                } else {
+                    copyBlobName = null;
+                }
                 final BlobAnalyzeAction.Request blobAnalyzeRequest = new BlobAnalyzeAction.Request(
                     request.getRepositoryName(),
                     blobPath,
-                    "test-blob-" + i + "-" + UUIDs.randomBase64UUID(random),
+                    blobName,
                     targetLength,
                     random.nextLong(),
                     nodes,
@@ -532,10 +548,34 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                     request.getEarlyReadNodeCount(),
                     smallBlob && rarely(random),
                     repository.supportURLRepo() && repository.hasAtomicOverwrites() && smallBlob && rarely(random) && abortWrite == false,
-                    abortWrite
+                    abortWrite,
+                    copyBlobName
                 );
                 final DiscoveryNode node = nodes.get(random.nextInt(nodes.size()));
                 queue.add(ref -> runBlobAnalysis(ref, blobAnalyzeRequest, node));
+            }
+
+            if (minClusterTransportVersion.supports(REPO_ANALYSIS_BLOB_OVERWRITE) && request.checkOverwriteProtection()) {
+                final var overwriteBlobName = "test-overwrite-blob-" + UUIDs.randomBase64UUID(random);
+                expectedBlobs.add(overwriteBlobName);
+                int overwriteCount = 0;
+                long overwriteSize = request.getMaxBlobSize().getBytes();
+                Iterator<DiscoveryNode> nodesIterator = Iterators.cycling(nodes);
+                while (overwriteSize >= 1 && overwriteCount < request.getConcurrency()) {
+                    final var node = nodesIterator.next();
+                    final var overwriteRequest = new BlobOverwriteAction.Request(
+                        request.getRepositoryName(),
+                        blobPath,
+                        overwriteBlobName,
+                        overwriteSize,
+                        random.nextLong()
+                    );
+                    overwriteCount += 1;
+                    overwriteSize /= 2L;
+                    queue.add(ref -> runBlobOverwrite(ref, overwriteRequest, node));
+                }
+            } else {
+                blobOverwriteSucceeded.set(true);
             }
 
             ThrottledIterator.run(getQueueIterator(), (ref, task) -> task.accept(ref), request.getConcurrency(), requestRefs::close);
@@ -587,7 +627,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                                     responses.add(response);
                                 }
                             }
-                            summary.add(response);
+                            summary.add(request, response);
                         }
 
                         @Override
@@ -596,6 +636,50 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                             fail(exp);
                         }
                     }, ref), BlobAnalyzeAction.Response::new, TransportResponseHandler.TRANSPORT_WORKER)
+                );
+            } else {
+                ref.close();
+            }
+        }
+
+        private void runBlobOverwrite(Releasable ref, final BlobOverwriteAction.Request request, DiscoveryNode node) {
+            if (isRunning()) {
+                logger.trace("processing [{}] on [{}]", request, node);
+                // NB although all this is on the SAME thread, the per-blob verification runs on a SNAPSHOT thread so we don't have to worry
+                // about local requests resulting in a stack overflow here
+                transportService.sendChildRequest(
+                    node,
+                    BlobOverwriteAction.NAME,
+                    request,
+                    task,
+                    TransportRequestOptions.EMPTY,
+                    new ActionListenerResponseHandler<>(ActionListener.releaseAfter(new ActionListener<>() {
+                        @Override
+                        public void onResponse(BlobOverwriteAction.Response response) {
+                            logger.trace("finished [{}] on [{}]: [{}]", request, node, response);
+                            if (response.writeSuccess()) {
+                                if (blobOverwriteSucceeded.compareAndSet(false, true)) {
+                                    expectedBlobs.add(request.blobName());
+                                } else {
+                                    fail(
+                                        new RepositoryVerificationException(
+                                            request.repository(),
+                                            "multiple writes succeeded to overwrite-protected blob "
+                                                + request.blobPath()
+                                                + "/"
+                                                + request.blobName()
+                                        )
+                                    );
+                                }
+                            }
+                        }
+
+                        @Override
+                        public void onFailure(Exception exp) {
+                            logger.debug(() -> "failed [" + request + "] on [" + node + "]", exp);
+                            fail(exp);
+                        }
+                    }, ref), BlobOverwriteAction.Response::new, TransportResponseHandler.TRANSPORT_WORKER)
                 );
             } else {
                 ref.close();
@@ -616,9 +700,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                     TransportRequestOptions.EMPTY,
                     new ActionListenerResponseHandler<>(ActionListener.releaseAfter(new ActionListener<>() {
                         @Override
-                        public void onResponse(ActionResponse.Empty response) {
-                            expectedRegisterValue.incrementAndGet();
-                        }
+                        public void onResponse(ActionResponse.Empty response) {}
 
                         @Override
                         public void onFailure(Exception exp) {
@@ -632,68 +714,109 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             }
         }
 
-        private Runnable finalRegisterValueVerifier(String registerName, Random random, Releasable ref) {
-            return () -> {
-                if (isRunning()) {
-                    final var expectedFinalRegisterValue = expectedRegisterValue.get();
-                    transportService.getThreadPool()
-                        .executor(ThreadPool.Names.SNAPSHOT)
-                        .execute(ActionRunnable.wrap(ActionListener.releaseAfter(new ActionListener<OptionalBytesReference>() {
-                            @Override
-                            public void onResponse(OptionalBytesReference actualFinalRegisterValue) {
-                                if (actualFinalRegisterValue.isPresent() == false
-                                    || longFromBytes(actualFinalRegisterValue.bytesReference()) != expectedFinalRegisterValue) {
-                                    fail(
-                                        new RepositoryVerificationException(
-                                            request.getRepositoryName(),
-                                            Strings.format(
-                                                "register [%s] should have value [%d] but instead had value [%s]",
-                                                registerName,
-                                                expectedFinalRegisterValue,
-                                                actualFinalRegisterValue
-                                            )
-                                        )
-                                    );
-                                }
-                            }
+        private Runnable finalRegisterValueVerifier(String registerName, int expectedFinalRegisterValue, Random random, Releasable ref) {
+            return new Runnable() {
 
-                            @Override
-                            public void onFailure(Exception exp) {
-                                // Registers are not supported on all repository types, and that's ok.
-                                if (exp instanceof UnsupportedOperationException == false) {
-                                    fail(exp);
+                final CheckedConsumer<ActionListener<OptionalBytesReference>, Exception> finalValueReader = switch (random.nextInt(3)) {
+                    case 0 -> new CheckedConsumer<ActionListener<OptionalBytesReference>, Exception>() {
+                        @Override
+                        public void accept(ActionListener<OptionalBytesReference> listener) {
+                            // All register operations have completed by this point so getRegister is safe
+                            getBlobContainer().getRegister(OperationPurpose.REPOSITORY_ANALYSIS, registerName, listener);
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "getRegister";
+                        }
+                    };
+                    case 1 -> new CheckedConsumer<ActionListener<OptionalBytesReference>, Exception>() {
+                        @Override
+                        public void accept(ActionListener<OptionalBytesReference> listener) {
+                            getBlobContainer().compareAndExchangeRegister(
+                                OperationPurpose.REPOSITORY_ANALYSIS,
+                                registerName,
+                                bytesFromLong(expectedFinalRegisterValue),
+                                new BytesArray(new byte[] { (byte) 0xff }),
+                                listener
+                            );
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "compareAndExchangeRegister";
+                        }
+                    };
+                    case 2 -> new CheckedConsumer<ActionListener<OptionalBytesReference>, Exception>() {
+                        @Override
+                        public void accept(ActionListener<OptionalBytesReference> listener) {
+                            getBlobContainer().compareAndSetRegister(
+                                OperationPurpose.REPOSITORY_ANALYSIS,
+                                registerName,
+                                bytesFromLong(expectedFinalRegisterValue),
+                                new BytesArray(new byte[] { (byte) 0xff }),
+                                listener.map(
+                                    b -> b
+                                        ? OptionalBytesReference.of(bytesFromLong(expectedFinalRegisterValue))
+                                        : OptionalBytesReference.MISSING
+                                )
+                            );
+                        }
+
+                        @Override
+                        public String toString() {
+                            return "compareAndSetRegister";
+                        }
+                    };
+                    default -> {
+                        assert false;
+                        throw new IllegalStateException();
+                    }
+                };
+
+                @Override
+                public void run() {
+                    if (isRunning()) {
+                        transportService.getThreadPool()
+                            .executor(ThreadPool.Names.SNAPSHOT)
+                            .execute(ActionRunnable.wrap(ActionListener.releaseAfter(new ActionListener<>() {
+                                @Override
+                                public void onResponse(OptionalBytesReference actualFinalRegisterValue) {
+                                    if (actualFinalRegisterValue.isPresent() == false
+                                        || longFromBytes(actualFinalRegisterValue.bytesReference()) != expectedFinalRegisterValue) {
+                                        fail(
+                                            new RepositoryVerificationException(
+                                                request.getRepositoryName(),
+                                                Strings.format(
+                                                    """
+                                                        Successfully completed all [%d] atomic increments of register [%s] so its expected \
+                                                        value is [%s], but reading its value with [%s] unexpectedly yielded [%s]. This \
+                                                        anomaly may indicate an atomicity failure amongst concurrent compare-and-exchange \
+                                                        operations on registers in this repository.""",
+                                                    expectedFinalRegisterValue,
+                                                    registerName,
+                                                    OptionalBytesReference.of(bytesFromLong(expectedFinalRegisterValue)),
+                                                    finalValueReader.toString(),
+                                                    actualFinalRegisterValue
+                                                )
+                                            )
+                                        );
+                                    }
                                 }
-                            }
-                        }, ref), listener -> {
-                            switch (random.nextInt(3)) {
-                                case 0 -> getBlobContainer().getRegister(OperationPurpose.REPOSITORY_ANALYSIS, registerName, listener);
-                                case 1 -> getBlobContainer().compareAndExchangeRegister(
-                                    OperationPurpose.REPOSITORY_ANALYSIS,
-                                    registerName,
-                                    bytesFromLong(expectedFinalRegisterValue),
-                                    new BytesArray(new byte[] { (byte) 0xff }),
-                                    listener
-                                );
-                                case 2 -> getBlobContainer().compareAndSetRegister(
-                                    OperationPurpose.REPOSITORY_ANALYSIS,
-                                    registerName,
-                                    bytesFromLong(expectedFinalRegisterValue),
-                                    new BytesArray(new byte[] { (byte) 0xff }),
-                                    listener.map(
-                                        b -> b
-                                            ? OptionalBytesReference.of(bytesFromLong(expectedFinalRegisterValue))
-                                            : OptionalBytesReference.MISSING
-                                    )
-                                );
-                                default -> {
-                                    assert false;
-                                    throw new IllegalStateException();
+
+                                @Override
+                                public void onFailure(Exception exp) {
+                                    // Registers are not supported on all repository types, and that's ok.
+                                    if (exp instanceof UnsupportedOperationException == false) {
+                                        fail(exp);
+                                    }
                                 }
-                            }
-                        }));
-                } else {
-                    ref.close();
+                            }, ref), finalValueReader));
+                    } else {
+                        ref.close();
+                    }
                 }
+
             };
         }
 
@@ -776,12 +899,24 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
         private void runCleanUp() {
             transportService.getThreadPool().executor(ThreadPool.Names.SNAPSHOT).execute(ActionRunnable.wrap(listener, l -> {
+                ensureOverwriteSucceeded();
                 final long listingStartTimeNanos = System.nanoTime();
                 ensureConsistentListing();
                 final long deleteStartTimeNanos = System.nanoTime();
                 deleteContainer();
                 sendResponse(listingStartTimeNanos, deleteStartTimeNanos);
             }));
+        }
+
+        private void ensureOverwriteSucceeded() {
+            if (blobOverwriteSucceeded.get() == false) {
+                final var repositoryVerificationException = new RepositoryVerificationException(
+                    request.repositoryName,
+                    "all overwrite protection checks failed"
+                );
+                logger.debug("all overwrite protection checks failed", repositoryVerificationException);
+                fail(repositoryVerificationException);
+            }
         }
 
         private void ensureConsistentListing() {
@@ -807,6 +942,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
 
                     if (missingBlobs.isEmpty()) {
                         logger.trace("all expected blobs found, cleaning up [{}:{}]", request.getRepositoryName(), blobPath);
+                        verifyPrefixListing(blobContainer, blobsMap);
                     } else {
                         final RepositoryVerificationException repositoryVerificationException = new RepositoryVerificationException(
                             request.repositoryName,
@@ -818,6 +954,95 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 } catch (Exception e) {
                     logger.debug(() -> format("failure during cleanup of [%s:%s]", request.getRepositoryName(), blobPath), e);
                     fail(e);
+                }
+            }
+        }
+
+        /**
+         * Verify that {@link BlobContainer#listBlobsByPrefix} correctly filters blobs by prefix. Uses the full listing from
+         * {@link BlobContainer#listBlobs} as the ground truth.
+         */
+        private void verifyPrefixListing(BlobContainer blobContainer, Map<String, BlobMetadata> allBlobs) throws IOException {
+            // Verify that listing with the common prefix "test-blob-" returns all matching blobs with correct metadata
+            final String commonPrefix = "test-blob-";
+            final String subsetPrefix = commonPrefix + "1";
+            final Map<String, BlobMetadata> expectedFromPrefix = new HashMap<>();
+            final Map<String, BlobMetadata> expectedFromSubsetPrefix = new HashMap<>();
+            for (Map.Entry<String, BlobMetadata> entry : allBlobs.entrySet()) {
+                String blobName = entry.getKey();
+                if (blobName.startsWith(commonPrefix)) {
+                    expectedFromPrefix.put(blobName, entry.getValue());
+                    if (blobName.startsWith(subsetPrefix)) {
+                        expectedFromSubsetPrefix.put(blobName, entry.getValue());
+                    }
+                }
+            }
+            verifyPrefixListingForExistingPrefix(blobContainer, expectedFromPrefix, commonPrefix);
+            verifyPrefixListingForExistingPrefix(blobContainer, expectedFromSubsetPrefix, subsetPrefix);
+
+            // Verify that listing with a prefix matching no blobs returns empty results
+            final String noMatchPrefix = "nonexistent-prefix-";
+            final Map<String, BlobMetadata> noMatchResults = blobContainer.listBlobsByPrefix(
+                OperationPurpose.REPOSITORY_ANALYSIS,
+                noMatchPrefix
+            );
+            if (noMatchResults.isEmpty() == false) {
+                fail(
+                    new RepositoryVerificationException(
+                        request.repositoryName,
+                        "listBlobsByPrefix(\"" + noMatchPrefix + "\") should return empty results but returned " + noMatchResults.keySet()
+                    )
+                );
+                return;
+            }
+
+            logger.trace("prefix-based listing verified for [{}:{}]", request.getRepositoryName(), blobPath);
+        }
+
+        private void verifyPrefixListingForExistingPrefix(
+            BlobContainer blobContainer,
+            Map<String, BlobMetadata> expectedFromPrefix,
+            String existingPrefix
+        ) throws IOException {
+            final Map<String, BlobMetadata> prefixResults = blobContainer.listBlobsByPrefix(
+                OperationPurpose.REPOSITORY_ANALYSIS,
+                existingPrefix
+            );
+            if (prefixResults.keySet().equals(expectedFromPrefix.keySet()) == false) {
+                final Set<String> missing = new HashSet<>(expectedFromPrefix.keySet());
+                missing.removeAll(prefixResults.keySet());
+                final Set<String> extra = new HashSet<>(prefixResults.keySet());
+                extra.removeAll(expectedFromPrefix.keySet());
+                fail(
+                    new RepositoryVerificationException(
+                        request.repositoryName,
+                        "listBlobsByPrefix(\""
+                            + existingPrefix
+                            + "\") returned incorrect results: missing="
+                            + missing
+                            + ", unexpected="
+                            + extra
+                    )
+                );
+                return;
+            }
+            for (Map.Entry<String, BlobMetadata> entry : expectedFromPrefix.entrySet()) {
+                final BlobMetadata actual = prefixResults.get(entry.getKey());
+                if (actual.length() != entry.getValue().length()) {
+                    fail(
+                        new RepositoryVerificationException(
+                            request.repositoryName,
+                            "listBlobsByPrefix(\""
+                                + existingPrefix
+                                + "\") returned incorrect size for blob ["
+                                + entry.getKey()
+                                + "]: expected "
+                                + entry.getValue().length()
+                                + " but got "
+                                + actual.length()
+                        )
+                    );
+                    return;
                 }
             }
         }
@@ -867,7 +1092,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                         summary.build(),
                         responses,
                         deleteStartTimeNanos - listingStartTimeNanos,
-                        completionTimeNanos - deleteStartTimeNanos
+                        completionTimeNanos - deleteStartTimeNanos,
+                        request.checkOverwriteProtection()
                     )
                 );
             } else {
@@ -890,7 +1116,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         }
     }
 
-    public static class Request extends ActionRequest {
+    public static class Request extends LegacyActionRequest {
 
         private final String repositoryName;
 
@@ -907,6 +1133,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         private boolean detailed = false;
         private DiscoveryNode reroutedFrom = null;
         private boolean abortWritePermitted = true;
+        private boolean checkOverwriteProtection = true;
 
         public Request(String repositoryName) {
             this.repositoryName = repositoryName;
@@ -919,11 +1146,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             rareActionProbability = in.readDouble();
             blobCount = in.readVInt();
             concurrency = in.readVInt();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                registerOperationCount = in.readVInt();
-            } else {
-                registerOperationCount = concurrency;
-            }
+            registerOperationCount = in.readVInt();
             readNodeCount = in.readVInt();
             earlyReadNodeCount = in.readVInt();
             timeout = in.readTimeValue();
@@ -932,6 +1155,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             detailed = in.readBoolean();
             reroutedFrom = in.readOptionalWriteable(DiscoveryNode::new);
             abortWritePermitted = in.readBoolean();
+            checkOverwriteProtection = in.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_BLOB_OVERWRITE)
+                && in.readBoolean();
         }
 
         @Override
@@ -947,15 +1172,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             out.writeDouble(rareActionProbability);
             out.writeVInt(blobCount);
             out.writeVInt(concurrency);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                out.writeVInt(registerOperationCount);
-            } else if (registerOperationCount != concurrency) {
-                throw new IllegalArgumentException(
-                    "cannot send request with registerOperationCount != concurrency to version ["
-                        + out.getTransportVersion().toReleaseVersion()
-                        + "]"
-                );
-            }
+            out.writeVInt(registerOperationCount);
             out.writeVInt(readNodeCount);
             out.writeVInt(earlyReadNodeCount);
             out.writeTimeValue(timeout);
@@ -964,6 +1181,11 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             out.writeBoolean(detailed);
             out.writeOptionalWriteable(reroutedFrom);
             out.writeBoolean(abortWritePermitted);
+            if (out.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_BLOB_OVERWRITE)) {
+                out.writeBoolean(checkOverwriteProtection);
+            } else if (checkOverwriteProtection) {
+                throw new IllegalArgumentException("not all nodes support overwrite-protection checks");
+            }
         }
 
         @Override
@@ -1109,6 +1331,14 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             return abortWritePermitted;
         }
 
+        public void checkOverwriteProtection(boolean checkOverwriteProtection) {
+            this.checkOverwriteProtection = checkOverwriteProtection;
+        }
+
+        public boolean checkOverwriteProtection() {
+            return checkOverwriteProtection;
+        }
+
         @Override
         public String toString() {
             return "Request{" + getDescription() + '}';
@@ -1140,6 +1370,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
                 + detailed
                 + ", abortWritePermitted="
                 + abortWritePermitted
+                + ", checkOverwriteProtection="
+                + checkOverwriteProtection
                 + "]";
         }
 
@@ -1169,6 +1401,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
         private final List<BlobAnalyzeAction.Response> blobResponses;
         private final long listingTimeNanos;
         private final long deleteTimeNanos;
+        private final boolean checkOverwriteProtection;
 
         public Response(
             String coordinatingNodeId,
@@ -1186,7 +1419,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             RepositoryPerformanceSummary summary,
             List<BlobAnalyzeAction.Response> blobResponses,
             long listingTimeNanos,
-            long deleteTimeNanos
+            long deleteTimeNanos,
+            boolean checkOverwriteProtection
         ) {
             this.coordinatingNodeId = coordinatingNodeId;
             this.coordinatingNodeName = coordinatingNodeName;
@@ -1204,6 +1438,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             this.blobResponses = blobResponses;
             this.listingTimeNanos = listingTimeNanos;
             this.deleteTimeNanos = deleteTimeNanos;
+            this.checkOverwriteProtection = checkOverwriteProtection;
         }
 
         public Response(StreamInput in) throws IOException {
@@ -1223,6 +1458,8 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             blobResponses = in.readCollectionAsList(BlobAnalyzeAction.Response::new);
             listingTimeNanos = in.readVLong();
             deleteTimeNanos = in.readVLong();
+            checkOverwriteProtection = in.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_BLOB_OVERWRITE)
+                && in.readBoolean();
         }
 
         @Override
@@ -1243,6 +1480,9 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             out.writeCollection(blobResponses);
             out.writeVLong(listingTimeNanos);
             out.writeVLong(deleteTimeNanos);
+            if (out.getTransportVersion().supports(RepositoryAnalyzeAction.REPO_ANALYSIS_BLOB_OVERWRITE)) {
+                out.writeBoolean(checkOverwriteProtection);
+            }
         }
 
         @Override
@@ -1264,6 +1504,7 @@ public class RepositoryAnalyzeAction extends HandledTransportAction<RepositoryAn
             builder.field("seed", seed);
             builder.field("rare_action_probability", rareActionProbability);
             builder.field("blob_path", blobPath);
+            builder.field("check_overwrite_protection", checkOverwriteProtection);
 
             builder.startArray("issues_detected");
             // nothing to report here, if we detected an issue then we would have thrown an exception, but we include this to emphasise

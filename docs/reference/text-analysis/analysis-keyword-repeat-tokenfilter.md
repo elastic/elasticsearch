@@ -23,7 +23,7 @@ To remove these duplicate tokens, add the [`remove_duplicates`](/reference/text-
 ::::
 
 
-The `keyword_repeat` filter uses Lucene’s [KeywordRepeatFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/KeywordRepeatFilter.md).
+The `keyword_repeat` filter uses Lucene’s [KeywordRepeatFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/miscellaneous/KeywordRepeatFilter.html).
 
 ## Example [analysis-keyword-repeat-tokenfilter-analyze-ex]
 
@@ -49,7 +49,7 @@ GET /_analyze
 
 The API returns the following response. Note that one version of each token has a `keyword` attribute of `true`.
 
-::::{dropdown} **Response**
+::::{dropdown} Response
 ```console-result
 {
   "detail": {
@@ -130,6 +130,7 @@ The API returns the following response. Note that one version of each token has 
   }
 }
 ```
+% TESTRESPONSE[s/"tokenizer": .../"tokenizer": $body.detail.tokenizer/]
 
 ::::
 
@@ -155,7 +156,7 @@ The API returns the following response. Note the following changes:
 * The non-keyword version of `running` was stemmed to `run`.
 * The non-keyword version of `jumping` was stemmed to `jump`.
 
-::::{dropdown} **Response**
+::::{dropdown} Response
 ```console-result
 {
   "detail": {
@@ -240,6 +241,8 @@ The API returns the following response. Note the following changes:
   }
 }
 ```
+% TESTRESPONSE[s/"tokenizer": .../"tokenizer": $body.detail.tokenizer/]
+% TESTRESPONSE[s/"tokens": .../"tokens": $body.$_path/]
 
 ::::
 
@@ -265,7 +268,7 @@ GET /_analyze
 
 The API returns the following response. Note that the duplicate tokens for `fox` and `and` have been removed.
 
-::::{dropdown} **Response**
+::::{dropdown} Response
 ```console-result
 {
   "detail": {
@@ -338,6 +341,8 @@ The API returns the following response. Note that the duplicate tokens for `fox`
   }
 }
 ```
+% TESTRESPONSE[s/"tokenizer": .../"tokenizer": $body.detail.tokenizer/]
+% TESTRESPONSE[s/"tokens": .../"tokens": $body.$_path/]
 
 ::::
 

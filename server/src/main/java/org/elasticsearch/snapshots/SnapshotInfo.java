@@ -11,7 +11,9 @@ package org.elasticsearch.snapshots;
 import org.elasticsearch.action.ShardOperationFailedException;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.cluster.SnapshotsInProgress;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -21,6 +23,8 @@ import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.repositories.ProjectRepo;
 import org.elasticsearch.repositories.RepositoryShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -178,12 +182,17 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     public static SnapshotInfo inProgress(SnapshotsInProgress.Entry entry) {
         int successfulShards = 0;
         List<SnapshotShardFailure> shardFailures = new ArrayList<>();
+        final boolean isClone = entry.isClone();
         for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> c : entry.shardSnapshotStatusByRepoShardId()
             .entrySet()) {
             if (c.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS) {
                 successfulShards++;
             } else if (c.getValue().state().failed() && c.getValue().state().completed()) {
-                shardFailures.add(new SnapshotShardFailure(c.getValue().nodeId(), entry.shardId(c.getKey()), c.getValue().reason()));
+                final RepositoryShardId repoShardId = c.getKey();
+                final ShardId shardId = isClone
+                    ? new ShardId(repoShardId.indexName(), IndexMetadata.INDEX_UUID_NA_VALUE, repoShardId.shardId())
+                    : entry.shardId(repoShardId);
+                shardFailures.add(new SnapshotShardFailure(c.getValue().nodeId(), shardId, c.getValue().reason()));
             }
         }
         int totalShards = entry.shardSnapshotStatusByRepoShardId().size();
@@ -353,6 +362,10 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
      */
     public SnapshotId snapshotId() {
         return snapshot.getSnapshotId();
+    }
+
+    public ProjectId projectId() {
+        return snapshot.getProjectId();
     }
 
     public String repository() {
@@ -699,7 +712,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
      * handle x-content written with the external version as external x-content
      * is only for display purposes and does not need to be parsed.
      */
-    public static SnapshotInfo fromXContentInternal(final String repoName, final XContentParser parser) throws IOException {
+    public static SnapshotInfo fromXContentInternal(final ProjectRepo projectRepo, final XContentParser parser) throws IOException {
         String name = null;
         String uuid = null;
         IndexVersion version = IndexVersion.current();
@@ -794,7 +807,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
             uuid = name;
         }
         return new SnapshotInfo(
-            new Snapshot(repoName, new SnapshotId(name, uuid)),
+            new Snapshot(projectRepo.projectId(), projectRepo.name(), new SnapshotId(name, uuid)),
             indices,
             dataStreams,
             featureStates,

@@ -9,19 +9,21 @@ package org.elasticsearch.xpack.esql.score;
 
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.planner.EsPhysicalOperationProviders.ShardContext;
-
-import java.util.List;
 
 /**
  * Maps an expression tree into ExpressionScorer.Factory, so scores can be evaluated for an expression tree.
  */
 public class ScoreMapper {
 
-    public static ScoreOperator.ExpressionScorer.Factory toScorer(Expression expression, List<ShardContext> shardContexts) {
+    public static ScoreOperator.ExpressionScorer.Factory toScorer(
+        Expression expression,
+        IndexedByShardId<? extends ShardContext> shardContexts
+    ) {
         if (expression instanceof ExpressionScoreMapper mapper) {
             return mapper.toScorer(new ExpressionScoreMapper.ToScorer() {
                 @Override
@@ -30,7 +32,7 @@ public class ScoreMapper {
                 }
 
                 @Override
-                public List<ShardContext> shardContexts() {
+                public IndexedByShardId<? extends ShardContext> shardContexts() {
                     return shardContexts;
                 }
             });

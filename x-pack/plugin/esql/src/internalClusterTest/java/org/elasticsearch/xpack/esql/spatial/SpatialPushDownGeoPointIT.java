@@ -41,4 +41,14 @@ public class SpatialPushDownGeoPointIT extends SpatialPushDownPointsTestCase {
     protected double searchDistance() {
         return 10000000;
     }
+
+    @Override
+    protected double quantizeX(double x) {
+        return GeoEncodingUtils.decodeLongitude(GeoEncodingUtils.encodeLongitude(x));
+    }
+
+    @Override
+    protected double quantizeY(double y) {
+        return GeoEncodingUtils.decodeLatitude(GeoEncodingUtils.encodeLatitude(y));
+    }
 }

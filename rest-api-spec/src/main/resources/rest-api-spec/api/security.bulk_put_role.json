@@ -1,8 +1,8 @@
 {
   "security.bulk_put_role": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/current/security-api-bulk-put-role.html",
-      "description": "Bulk adds and updates roles in the native realm."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-bulk-put-role",
+      "description": "Bulk create or update roles"
     },
     "stability": "stable",
     "visibility": "public",

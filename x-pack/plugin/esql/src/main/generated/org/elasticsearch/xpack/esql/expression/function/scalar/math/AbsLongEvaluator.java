@@ -4,33 +4,37 @@
 // 2.0.
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import java.lang.ArithmeticException;
 import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link EvalOperator.ExpressionEvaluator} implementation for {@link Abs}.
+ * {@link ExpressionEvaluator} implementation for {@link Abs}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator {
+public final class AbsLongEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(AbsLongEvaluator.class);
+
   private final Source source;
 
-  private final EvalOperator.ExpressionEvaluator fieldVal;
+  private final ExpressionEvaluator fieldVal;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public AbsLongEvaluator(Source source, EvalOperator.ExpressionEvaluator fieldVal,
+  public AbsLongEvaluator(Source source, ExpressionEvaluator fieldVal,
       DriverContext driverContext) {
     this.source = source;
     this.fieldVal = fieldVal;
@@ -44,34 +48,53 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
       if (fieldValVector == null) {
         return eval(page.getPositionCount(), fieldValBlock);
       }
-      return eval(page.getPositionCount(), fieldValVector).asBlock();
+      return eval(page.getPositionCount(), fieldValVector);
     }
+  }
+
+  @Override
+  public long baseRamBytesUsed() {
+    long baseRamBytesUsed = BASE_RAM_BYTES_USED;
+    baseRamBytesUsed += fieldVal.baseRamBytesUsed();
+    return baseRamBytesUsed;
   }
 
   public LongBlock eval(int positionCount, LongBlock fieldValBlock) {
     try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        if (fieldValBlock.isNull(p)) {
-          result.appendNull();
-          continue position;
+        switch (fieldValBlock.getValueCount(p)) {
+          case 0:
+              result.appendNull();
+              continue position;
+          case 1:
+              break;
+          default:
+              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
+              result.appendNull();
+              continue position;
         }
-        if (fieldValBlock.getValueCount(p) != 1) {
-          if (fieldValBlock.getValueCount(p) > 1) {
-            warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-          }
+        long fieldVal = fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p));
+        try {
+          result.appendLong(Abs.process(fieldVal));
+        } catch (ArithmeticException e) {
+          warnings().registerException(e);
           result.appendNull();
-          continue position;
         }
-        result.appendLong(Abs.process(fieldValBlock.getLong(fieldValBlock.getFirstValueIndex(p))));
       }
       return result.build();
     }
   }
 
-  public LongVector eval(int positionCount, LongVector fieldValVector) {
-    try(LongVector.FixedBuilder result = driverContext.blockFactory().newLongVectorFixedBuilder(positionCount)) {
+  public LongBlock eval(int positionCount, LongVector fieldValVector) {
+    try(LongBlock.Builder result = driverContext.blockFactory().newLongBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        result.appendLong(p, Abs.process(fieldValVector.getLong(p)));
+        long fieldVal = fieldValVector.getLong(p);
+        try {
+          result.appendLong(Abs.process(fieldVal));
+        } catch (ArithmeticException e) {
+          warnings().registerException(e);
+          result.appendNull();
+        }
       }
       return result.build();
     }
@@ -89,22 +112,17 @@ public final class AbsLongEvaluator implements EvalOperator.ExpressionEvaluator 
 
   private Warnings warnings() {
     if (warnings == null) {
-      this.warnings = Warnings.createWarnings(
-              driverContext.warningsMode(),
-              source.source().getLineNumber(),
-              source.source().getColumnNumber(),
-              source.text()
-          );
+      this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source);
     }
     return warnings;
   }
 
-  static class Factory implements EvalOperator.ExpressionEvaluator.Factory {
+  static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final EvalOperator.ExpressionEvaluator.Factory fieldVal;
+    private final ExpressionEvaluator.Factory fieldVal;
 
-    public Factory(Source source, EvalOperator.ExpressionEvaluator.Factory fieldVal) {
+    public Factory(Source source, ExpressionEvaluator.Factory fieldVal) {
       this.source = source;
       this.fieldVal = fieldVal;
     }

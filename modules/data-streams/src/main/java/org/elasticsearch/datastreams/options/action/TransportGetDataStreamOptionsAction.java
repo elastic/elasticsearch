@@ -50,7 +50,7 @@ public class TransportGetDataStreamOptionsAction extends TransportLocalProjectMe
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
      * we no longer need to support calling this action remotely.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
     @SuppressWarnings("this-escape")
     @Inject
     public TransportGetDataStreamOptionsAction(
@@ -121,6 +121,6 @@ public class TransportGetDataStreamOptionsAction extends TransportLocalProjectMe
 
     @Override
     protected ClusterBlockException checkBlock(GetDataStreamOptionsAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
     }
 }

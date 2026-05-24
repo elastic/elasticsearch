@@ -17,17 +17,19 @@ import org.elasticsearch.common.settings.SecureSetting;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.telemetry.apm.internal.export.otelsdk.OtelSdkSettings;
 import org.elasticsearch.telemetry.apm.internal.tracing.APMTracer;
 
-import java.security.AccessController;
-import java.security.PrivilegedAction;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.common.settings.Setting.Property.NodeScope;
 import static org.elasticsearch.common.settings.Setting.Property.OperatorDynamic;
+import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
+import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_TRACES_ENABLED_SYSTEM_PROPERTY;
 
 /**
  * This class is responsible for APM settings, both for Elasticsearch and the APM Java agent.
@@ -44,21 +46,22 @@ public class APMAgentSettings {
 
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_ENABLED_SETTING, enabled -> {
             apmTracer.setEnabled(enabled);
-            // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
-            // minimise its impact to a running Elasticsearch.
-            boolean recording = enabled || clusterSettings.get(TELEMETRY_METRICS_ENABLED_SETTING);
-            this.setAgentSetting("recording", Boolean.toString(recording));
+            this.setAgentSetting(
+                "recording",
+                Boolean.toString(shouldRecord(enabled, clusterSettings.get(TELEMETRY_METRICS_ENABLED_SETTING)))
+            );
         });
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_METRICS_ENABLED_SETTING, enabled -> {
             apmMeterService.setEnabled(enabled);
-            // The agent records data other than spans, e.g. JVM metrics, so we toggle this setting in order to
-            // minimise its impact to a running Elasticsearch.
-            boolean recording = enabled || clusterSettings.get(TELEMETRY_TRACING_ENABLED_SETTING);
-            this.setAgentSetting("recording", Boolean.toString(recording));
+            this.setAgentSetting(
+                "recording",
+                Boolean.toString(shouldRecord(clusterSettings.get(TELEMETRY_TRACING_ENABLED_SETTING), enabled))
+            );
         });
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_NAMES_INCLUDE_SETTING, apmTracer::setIncludeNames);
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING, apmTracer::setExcludeNames);
         clusterSettings.addSettingsUpdateConsumer(TELEMETRY_TRACING_SANITIZE_FIELD_NAMES, apmTracer::setLabelFilters);
+        clusterSettings.addSettingsUpdateConsumer(OtelSdkSettings.TELEMETRY_OTEL_TRACES_MAX_TRACE_DEPTH, apmTracer::setMaxTraceDepth);
         clusterSettings.addAffixMapUpdateConsumer(APM_AGENT_SETTINGS, map -> map.forEach(this::setAgentSetting), (x, y) -> {});
     }
 
@@ -71,9 +74,18 @@ public class APMAgentSettings {
         boolean tracing = TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
         boolean metrics = TELEMETRY_METRICS_ENABLED_SETTING.get(settings);
 
-        this.setAgentSetting("recording", Boolean.toString(tracing || metrics));
+        this.setAgentSetting("recording", Boolean.toString(shouldRecord(tracing, metrics)));
         // Apply values from the settings in the cluster state
         APM_AGENT_SETTINGS.getAsMap(settings).forEach(this::setAgentSetting);
+    }
+
+    // Keep the agent active only when it still has work to do: tracing or metrics when OTEL does not own them.
+    private boolean shouldRecord(boolean tracingEnabled, boolean metricsEnabled) {
+        boolean tracingOwnedByAgent = tracingEnabled
+            && Booleans.parseBoolean(System.getProperty(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY, "false")) == false;
+        boolean metricsOwnedByAgent = metricsEnabled
+            && Booleans.parseBoolean(System.getProperty(OTEL_METRICS_ENABLED_SYSTEM_PROPERTY, "false")) == false;
+        return tracingOwnedByAgent || metricsOwnedByAgent;
     }
 
     /**
@@ -94,16 +106,13 @@ public class APMAgentSettings {
             return;
         }
         final String completeKey = "elastic.apm." + Objects.requireNonNull(key);
-        AccessController.doPrivileged((PrivilegedAction<Void>) () -> {
-            if (value == null || value.isEmpty()) {
-                LOGGER.trace("Clearing system property [{}]", completeKey);
-                System.clearProperty(completeKey);
-            } else {
-                LOGGER.trace("Setting setting property [{}] to [{}]", completeKey, value);
-                System.setProperty(completeKey, value);
-            }
-            return null;
-        });
+        if (value == null || value.isEmpty()) {
+            LOGGER.trace("Clearing system property [{}]", completeKey);
+            System.clearProperty(completeKey);
+        } else {
+            LOGGER.trace("Setting setting property [{}] to [{}]", completeKey, value);
+            System.setProperty(completeKey, value);
+        }
     }
 
     private static final String TELEMETRY_SETTING_PREFIX = "telemetry.";

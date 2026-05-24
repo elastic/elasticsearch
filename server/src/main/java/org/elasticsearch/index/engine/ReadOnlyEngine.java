@@ -10,6 +10,7 @@ package org.elasticsearch.index.engine;
 
 import org.apache.lucene.document.LongPoint;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.PointValues;
@@ -21,6 +22,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.Lock;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeRequest;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.hash.MessageDigests;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -243,13 +245,6 @@ public class ReadOnlyEngine extends Engine {
         }
     }
 
-    private static SeqNoStats buildSeqNoStats(EngineConfig config, SegmentInfos infos) {
-        final SequenceNumbers.CommitInfo seqNoStats = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(infos.userData.entrySet());
-        long maxSeqNo = seqNoStats.maxSeqNo();
-        long localCheckpoint = seqNoStats.localCheckpoint();
-        return new SeqNoStats(maxSeqNo, localCheckpoint, config.getGlobalCheckpointSupplier().getAsLong());
-    }
-
     private static TranslogStats translogStats(final EngineConfig config, final SegmentInfos infos) throws IOException {
         assert config.getTranslogConfig().hasTranslog();
         final String translogUuid = infos.getUserData().get(Translog.TRANSLOG_UUID_KEY);
@@ -280,9 +275,10 @@ public class ReadOnlyEngine extends Engine {
         Get get,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
+        SplitShardCountSummary splitShardCountSummary,
         Function<Searcher, Searcher> searcherWrapper
     ) {
-        return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, searcherWrapper), false);
+        return getFromSearcher(get, acquireSearcher("get", SearcherScope.EXTERNAL, splitShardCountSummary, searcherWrapper), false);
     }
 
     @Override
@@ -446,7 +442,7 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public void maybeRefresh(String source, ActionListener<RefreshResult> listener) throws EngineException {
-        listener.onResponse(RefreshResult.NO_REFRESH);
+        ActionListener.completeWith(listener, () -> refresh(source));
     }
 
     @Override
@@ -458,8 +454,8 @@ public class ReadOnlyEngine extends Engine {
     }
 
     @Override
-    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) throws EngineException {
-        listener.onResponse(new FlushResult(true, lastCommittedSegmentInfos.getGeneration()));
+    protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) throws EngineException {
+        listener.onResponse(new FlushResult(false, lastCommittedSegmentInfos.getGeneration()));
     }
 
     @Override
@@ -506,6 +502,12 @@ public class ReadOnlyEngine extends Engine {
 
     @Override
     public void deactivateThrottling() {}
+
+    @Override
+    public void suspendThrottling() {}
+
+    @Override
+    public void resumeThrottling() {}
 
     @Override
     public void trimUnreferencedTranslogFiles() {}
@@ -602,19 +604,27 @@ public class ReadOnlyEngine extends Engine {
             final byte[] minPackedValue = PointValues.getMinPackedValue(directoryReader, field);
             final byte[] maxPackedValue = PointValues.getMaxPackedValue(directoryReader, field);
 
-            if (minPackedValue == null || maxPackedValue == null) {
-                assert minPackedValue == null && maxPackedValue == null
-                    : Arrays.toString(minPackedValue) + "-" + Arrays.toString(maxPackedValue);
-                return ShardLongFieldRange.EMPTY;
+            if (minPackedValue != null && maxPackedValue != null) {
+                return ShardLongFieldRange.of(LongPoint.decodeDimension(minPackedValue, 0), LongPoint.decodeDimension(maxPackedValue, 0));
             }
 
-            return ShardLongFieldRange.of(LongPoint.decodeDimension(minPackedValue, 0), LongPoint.decodeDimension(maxPackedValue, 0));
+            long minValue = DocValuesSkipper.globalMinValue(searcher.getIndexReader(), field);
+            long maxValue = DocValuesSkipper.globalMaxValue(searcher.getIndexReader(), field);
+            if (minValue == Long.MAX_VALUE && maxValue == Long.MIN_VALUE) {
+                // no skipper
+                return ShardLongFieldRange.EMPTY;
+            }
+            return ShardLongFieldRange.of(minValue, maxValue);
         }
     }
 
     @Override
-    public SearcherSupplier acquireSearcherSupplier(Function<Searcher, Searcher> wrapper, SearcherScope scope) throws EngineException {
-        final SearcherSupplier delegate = super.acquireSearcherSupplier(wrapper, scope);
+    public SearcherSupplier acquireSearcherSupplier(
+        Function<Searcher, Searcher> wrapper,
+        SearcherScope scope,
+        SplitShardCountSummary splitShardCountSummary
+    ) throws EngineException {
+        final SearcherSupplier delegate = super.acquireSearcherSupplier(wrapper, scope, splitShardCountSummary);
         return new SearcherSupplier(wrapper) {
             @Override
             protected void doClose() {

@@ -62,6 +62,7 @@ import static org.elasticsearch.rest.RestStatus.SERVICE_UNAVAILABLE;
 import static org.elasticsearch.rest.RestStatus.TOO_MANY_REQUESTS;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -166,9 +167,9 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_TOTAL, Operation.PUT_OBJECT), equalTo(4L * batch));
             assertThat(getLongCounterValue(plugin, METRIC_OPERATIONS_TOTAL, Operation.PUT_OBJECT), equalTo(batch));
             assertThat(getLongCounterValue(plugin, METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, Operation.PUT_OBJECT), equalTo(0L));
-            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.PUT_OBJECT), equalTo(batch));
+            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.PUT_OBJECT), equalTo(3L * batch));
             assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_TOTAL, Operation.PUT_OBJECT), equalTo(2L * batch));
-            assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.PUT_OBJECT), equalTo(batch));
+            assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.PUT_OBJECT), equalTo(3L * batch));
             assertThat(getLongHistogramValue(plugin, METRIC_THROTTLES_HISTOGRAM, Operation.PUT_OBJECT), equalTo(2L * batch));
             assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.PUT_OBJECT), equalTo(batch));
         }
@@ -186,9 +187,9 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_TOTAL, Operation.GET_OBJECT), equalTo(2L * batch));
             assertThat(getLongCounterValue(plugin, METRIC_OPERATIONS_TOTAL, Operation.GET_OBJECT), equalTo(batch));
             assertThat(getLongCounterValue(plugin, METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, Operation.GET_OBJECT), equalTo(batch));
-            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.GET_OBJECT), equalTo(batch));
+            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.GET_OBJECT), equalTo(2L * batch));
             assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_TOTAL, Operation.GET_OBJECT), equalTo(batch));
-            assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
+            assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.GET_OBJECT), equalTo(2L * batch));
             assertThat(getLongHistogramValue(plugin, METRIC_THROTTLES_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
             assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
 
@@ -209,9 +210,9 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_TOTAL, Operation.LIST_OBJECTS), equalTo(5L * batch));
             assertThat(getLongCounterValue(plugin, METRIC_OPERATIONS_TOTAL, Operation.LIST_OBJECTS), equalTo(batch));
             assertThat(getLongCounterValue(plugin, METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, Operation.LIST_OBJECTS), equalTo(batch));
-            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.LIST_OBJECTS), equalTo(batch));
+            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.LIST_OBJECTS), equalTo(5L * batch));
             assertThat(getLongCounterValue(plugin, METRIC_THROTTLES_TOTAL, Operation.LIST_OBJECTS), equalTo(5L * batch));
-            assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.LIST_OBJECTS), equalTo(batch));
+            assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.LIST_OBJECTS), equalTo(5L * batch));
             assertThat(getLongHistogramValue(plugin, METRIC_THROTTLES_HISTOGRAM, Operation.LIST_OBJECTS), equalTo(5L * batch));
             assertThat(getNumberOfMeasurements(plugin, HTTP_REQUEST_TIME_IN_MILLIS_HISTOGRAM, Operation.LIST_OBJECTS), equalTo(batch));
         }
@@ -249,8 +250,8 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
             assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_TOTAL, Operation.GET_OBJECT), equalTo(3 * batch));
             assertThat(getLongCounterValue(plugin, METRIC_OPERATIONS_TOTAL, Operation.GET_OBJECT), equalTo(batch));
             assertThat(getLongCounterValue(plugin, METRIC_UNSUCCESSFUL_OPERATIONS_TOTAL, Operation.GET_OBJECT), equalTo(batch));
-            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.GET_OBJECT), equalTo(batch));
-            assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.GET_OBJECT), equalTo(batch));
+            assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.GET_OBJECT), equalTo(3 * batch));
+            assertThat(getLongHistogramValue(plugin, METRIC_EXCEPTIONS_HISTOGRAM, Operation.GET_OBJECT), equalTo(3 * batch));
             assertThat(
                 getLongCounterValue(plugin, METRIC_EXCEPTIONS_REQUEST_RANGE_NOT_SATISFIED_TOTAL, Operation.GET_OBJECT),
                 equalTo(batch)
@@ -362,7 +363,7 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
                 );
             }
         });
-        assertThat(exception.getCause().getMessage(), containsString("InvalidAccessKeyId"));
+        assertThat(exception.getCause().getMessage(), containsString("Status Code: 403"));
 
         assertThat(getLongCounterValue(plugin, METRIC_REQUESTS_TOTAL, Operation.PUT_OBJECT), equalTo(1L));
         assertThat(getLongCounterValue(plugin, METRIC_EXCEPTIONS_TOTAL, Operation.PUT_OBJECT), equalTo(1L));
@@ -378,25 +379,25 @@ public class S3BlobStoreRepositoryMetricsTests extends S3BlobStoreRepositoryTest
 
     private long getLongCounterValue(TestTelemetryPlugin plugin, String instrumentName, Operation operation) {
         final List<Measurement> measurements = Measurement.combine(plugin.getLongCounterMeasurement(instrumentName));
-        return measurements.stream()
-            .filter(m -> m.attributes().get("operation") == operation.getKey())
-            .mapToLong(Measurement::getLong)
-            .findFirst()
-            .orElse(0L);
+        return measurements.stream().peek(m -> {
+            if (METRIC_EXCEPTIONS_TOTAL.equals(instrumentName)) {
+                assertThat(m.attributes(), hasKey("error_type"));
+            }
+        }).filter(m -> operation.getKey().equals(m.attributes().get("operation"))).mapToLong(Measurement::getLong).sum();
     }
 
     private long getNumberOfMeasurements(TestTelemetryPlugin plugin, String instrumentName, Operation operation) {
         final List<Measurement> measurements = plugin.getLongHistogramMeasurement(instrumentName);
-        return measurements.stream().filter(m -> m.attributes().get("operation") == operation.getKey()).count();
+        return measurements.stream().filter(m -> operation.getKey().equals(m.attributes().get("operation"))).count();
     }
 
     private long getLongHistogramValue(TestTelemetryPlugin plugin, String instrumentName, Operation operation) {
         final List<Measurement> measurements = Measurement.combine(plugin.getLongHistogramMeasurement(instrumentName));
-        return measurements.stream()
-            .filter(m -> m.attributes().get("operation") == operation.getKey())
-            .mapToLong(Measurement::getLong)
-            .findFirst()
-            .orElse(0L);
+        return measurements.stream().peek(m -> {
+            if (METRIC_EXCEPTIONS_HISTOGRAM.equals(instrumentName)) {
+                assertThat(m.attributes(), hasKey("error_type"));
+            }
+        }).filter(m -> operation.getKey().equals(m.attributes().get("operation"))).mapToLong(Measurement::getLong).sum();
     }
 
     @SuppressForbidden(reason = "this test uses a HttpServer to emulate an S3 endpoint")

@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.migrate.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -28,7 +28,7 @@ public class CancelReindexDataStreamAction extends ActionType<AcknowledgedRespon
         super(NAME);
     }
 
-    public static class Request extends ActionRequest implements IndicesRequest {
+    public static class Request extends LegacyActionRequest implements IndicesRequest {
         private final String index;
 
         public Request(String index) {

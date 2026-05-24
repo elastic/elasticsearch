@@ -1,5 +1,0 @@
-pr: 125916
-summary: Re-enable parallel collection for field sorted top hits
-area: Search
-type: bug
-issues: []

@@ -22,9 +22,8 @@ public class BreakerTestUtil {
      * Performs a binary search between 0 and {@code tooBigToBreak} bytes for the largest memory size
      * that'll cause the closure parameter to throw a {@link CircuitBreakingException}.
      */
-    public static <E extends Exception> ByteSizeValue findBreakerLimit(ByteSizeValue tooBigToBreak, CheckedConsumer<ByteSizeValue, E> c)
-        throws E {
-
+    public static ByteSizeValue findBreakerLimit(ByteSizeValue tooBigToBreak, CheckedConsumer<ByteSizeValue, Exception> c)
+        throws Exception {
         // Validate arguments: we don't throw for tooBigToBreak and we *do* throw for 0.
         try {
             c.accept(tooBigToBreak);
@@ -53,7 +52,7 @@ public class BreakerTestUtil {
         try {
             c.accept(onePastLimit);
         } catch (CircuitBreakingException e) {
-            throw new IllegalArgumentException("expected runnable to break under a limit of " + onePastLimit + " bytes");
+            throw new IllegalArgumentException("expected runnable to *not* break under a limit of " + onePastLimit + " bytes");
         }
         return limit;
     }

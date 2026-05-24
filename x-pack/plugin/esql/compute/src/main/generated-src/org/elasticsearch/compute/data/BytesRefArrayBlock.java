@@ -7,8 +7,10 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.bytes.PagedBytesCursor;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BytesRefArray;
@@ -17,13 +19,14 @@ import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.BitSet;
+// end generated imports
 
 /**
  * Block implementation that stores values in a {@link BytesRefArrayVector}.
  * Does not take ownership of the given {@link BytesRefArray} and does not adjust circuit breakers to account for it.
  * This class is generated. Edit {@code X-ArrayBlock.java.st} instead.
  */
-final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlock {
+public final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlock {
 
     static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(BytesRefArrayBlock.class);
 
@@ -89,6 +92,11 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public OrdinalBytesRefBlock asOrdinals() {
         return null;
     }
@@ -99,7 +107,12 @@ final class BytesRefArrayBlock extends AbstractArrayBlock implements BytesRefBlo
     }
 
     @Override
-    public BytesRefBlock filter(int... positions) {
+    public PagedBytesCursor get(int valueIndex, PagedBytesCursor scratch) {
+        return vector.get(valueIndex, scratch);
+    }
+
+    @Override
+    public BytesRefBlock filter(boolean mayContainDuplicates, int... positions) {
         final BytesRef scratch = new BytesRef();
         try (var builder = blockFactory().newBytesRefBlockBuilder(positions.length)) {
             for (int pos : positions) {

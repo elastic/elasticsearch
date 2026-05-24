@@ -7,17 +7,10 @@
 package org.elasticsearch.xpack.logstash;
 
 import org.elasticsearch.Version;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.indices.SystemIndexDescriptor;
@@ -25,7 +18,6 @@ import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.SystemIndexPlugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
@@ -68,25 +60,19 @@ public class Logstash extends Plugin implements SystemIndexPlugin {
     public Logstash() {}
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
+    public List<ActionHandler> getActions() {
         return List.of(
-            new ActionHandler<>(XPackUsageFeatureAction.LOGSTASH, LogstashUsageTransportAction.class),
-            new ActionHandler<>(XPackInfoFeatureAction.LOGSTASH, LogstashInfoTransportAction.class),
-            new ActionHandler<>(PutPipelineAction.INSTANCE, TransportPutPipelineAction.class),
-            new ActionHandler<>(GetPipelineAction.INSTANCE, TransportGetPipelineAction.class),
-            new ActionHandler<>(DeletePipelineAction.INSTANCE, TransportDeletePipelineAction.class)
+            new ActionHandler(XPackUsageFeatureAction.LOGSTASH, LogstashUsageTransportAction.class),
+            new ActionHandler(XPackInfoFeatureAction.LOGSTASH, LogstashInfoTransportAction.class),
+            new ActionHandler(PutPipelineAction.INSTANCE, TransportPutPipelineAction.class),
+            new ActionHandler(GetPipelineAction.INSTANCE, TransportGetPipelineAction.class),
+            new ActionHandler(DeletePipelineAction.INSTANCE, TransportDeletePipelineAction.class)
         );
     }
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings settings,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {

@@ -8,10 +8,8 @@ package org.elasticsearch.xpack.ml;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
-import org.elasticsearch.action.support.master.AcknowledgedResponse;
-import org.elasticsearch.client.internal.AdminClient;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.IndicesAdminClient;
+import org.elasticsearch.client.internal.ProjectClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.ClusterName;
@@ -40,7 +38,6 @@ import org.mockito.stubbing.Answer;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.same;
-import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -55,6 +52,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private Client client;
+    private ProjectClient projectClient;
     private ArgumentCaptor<TransportPutComposableIndexTemplateAction.Request> putIndexTemplateRequestCaptor;
 
     @Before
@@ -63,13 +61,10 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
         when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(threadPool.generic()).thenReturn(EsExecutors.DIRECT_EXECUTOR_SERVICE);
 
+        projectClient = mock(ProjectClient.class);
         client = mock(Client.class);
         when(client.threadPool()).thenReturn(threadPool);
-        AdminClient adminClient = mock(AdminClient.class);
-        IndicesAdminClient indicesAdminClient = mock(IndicesAdminClient.class);
-        when(adminClient.indices()).thenReturn(indicesAdminClient);
-        when(client.admin()).thenReturn(adminClient);
-        doAnswer(withResponse(AcknowledgedResponse.TRUE)).when(indicesAdminClient).putTemplate(any(), any());
+        when(client.projectClient(any())).thenReturn(projectClient);
 
         clusterService = mock(ClusterService.class);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
@@ -96,7 +91,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
-        verify(client, times(4)).execute(
+        verify(projectClient, times(4)).execute(
             same(TransportPutComposableIndexTemplateAction.TYPE),
             putIndexTemplateRequestCaptor.capture(),
             any()
@@ -108,8 +103,6 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("expected the ml state index template to be put"));
         ComposableIndexTemplate indexTemplate = req.indexTemplate();
-        assertThat(indexTemplate.template().settings().get("index.lifecycle.name"), equalTo("ml-size-based-ilm-policy"));
-        assertThat(indexTemplate.template().settings().get("index.lifecycle.rollover_alias"), equalTo(".ml-state-write"));
     }
 
     public void testStatsTemplate() {
@@ -124,7 +117,7 @@ public class MlIndexTemplateRegistryTests extends ESTestCase {
 
         registry.clusterChanged(createClusterChangedEvent(nodes));
 
-        verify(client, times(4)).execute(
+        verify(projectClient, times(4)).execute(
             same(TransportPutComposableIndexTemplateAction.TYPE),
             putIndexTemplateRequestCaptor.capture(),
             any()

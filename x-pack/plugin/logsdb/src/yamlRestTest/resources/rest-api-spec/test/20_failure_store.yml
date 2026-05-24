@@ -35,7 +35,7 @@ Test failure store with logsdb:
           capabilities: [ 'failure_store_status' ]
         - method: POST
           path: /_index_template/{template}
-          capabilities: [ 'failure_store_in_template' ]
+          capabilities: [ 'data_stream_options.failure_store' ]
       reason: "Support for 'logsdb' index mode & failure status config in templates"
 
   - do:

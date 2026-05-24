@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.inference.services.azureaistudio.action;
 
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
-import org.elasticsearch.xpack.inference.external.http.sender.AzureAiStudioChatCompletionRequestManager;
-import org.elasticsearch.xpack.inference.external.http.sender.AzureAiStudioEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioChatCompletionRequestManager;
+import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioEmbeddingsRequestManager;
+import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioRerankRequestManager;
 import org.elasticsearch.xpack.inference.services.azureaistudio.completion.AzureAiStudioChatCompletionModel;
 import org.elasticsearch.xpack.inference.services.azureaistudio.embeddings.AzureAiStudioEmbeddingsModel;
+import org.elasticsearch.xpack.inference.services.azureaistudio.rerank.AzureAiStudioRerankModel;
 
 import java.util.Map;
 import java.util.Objects;
@@ -47,6 +49,14 @@ public class AzureAiStudioActionCreator implements AzureAiStudioActionVisitor {
             serviceComponents.threadPool()
         );
         var errorMessage = constructFailedToSendRequestMessage("Azure AI Studio embeddings");
+        return new SenderExecutableAction(sender, requestManager, errorMessage);
+    }
+
+    @Override
+    public ExecutableAction create(AzureAiStudioRerankModel rerankModel, Map<String, Object> taskSettings) {
+        var overriddenModel = AzureAiStudioRerankModel.of(rerankModel, taskSettings);
+        var requestManager = new AzureAiStudioRerankRequestManager(overriddenModel, serviceComponents.threadPool());
+        var errorMessage = constructFailedToSendRequestMessage("Azure AI Studio rerank");
         return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 }

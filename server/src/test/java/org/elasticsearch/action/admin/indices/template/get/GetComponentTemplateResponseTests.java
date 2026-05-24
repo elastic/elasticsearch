@@ -39,7 +39,7 @@ public class GetComponentTemplateResponseTests extends ESTestCase {
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
-        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DEFAULT;
+        DataStreamLifecycle.Template lifecycle = DataStreamLifecycle.Template.DATA_DEFAULT;
         ResettableValue<DataStreamOptions.Template> dataStreamOptions = ResettableValue.undefined();
         if (randomBoolean()) {
             settings = randomSettings();
@@ -58,9 +58,11 @@ public class GetComponentTemplateResponseTests extends ESTestCase {
             new Template(settings, mappings, aliases, lifecycle, dataStreamOptions),
             randomBoolean() ? null : randomNonNegativeLong(),
             null,
-            false
+            false,
+            null,
+            null
         );
-        var rolloverConfiguration = RolloverConfigurationTests.randomRolloverConditions();
+        var rolloverConfiguration = RolloverConfigurationTests.randomRolloverConfiguration();
         var response = new GetComponentTemplateAction.Response(Map.of(randomAlphaOfLength(10), template), rolloverConfiguration);
 
         try (XContentBuilder builder = XContentBuilder.builder(XContentType.JSON.xContent())) {

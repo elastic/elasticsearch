@@ -9,6 +9,7 @@
 
 package org.elasticsearch.telemetry.apm;
 
+// trigger repeat pipeline test
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -18,10 +19,7 @@ import org.junit.ClassRule;
 public class ApmAgentSettingsIT extends ESRestTestCase {
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .module("apm")
-        .systemProperty("es.entitlements.enabled", "true")
-        .build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("apm").build();
 
     @Override
     protected String getTestRestCluster() {

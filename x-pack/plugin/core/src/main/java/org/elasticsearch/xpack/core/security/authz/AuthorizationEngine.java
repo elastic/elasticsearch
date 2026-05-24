@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.SubscribableListener;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
@@ -32,6 +31,7 @@ import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessCo
 import org.elasticsearch.xpack.core.security.authz.permission.ResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilegeDescriptor;
+import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -241,9 +241,15 @@ public interface AuthorizationEngine {
      *
      * @param authorizationInfo information used from authorization, for a specific Subject, that was previously retrieved
      *                          from {@link #resolveAuthorizationInfo(Subject, ActionListener)}
-     * @param listener the listener to be notified of the get privileges response
+     * @param unwrapLimitedRole if non-null, unwrap instances of {@link org.elasticsearch.xpack.core.security.authz.permission.LimitedRole}
+     *                          into one of its inner roles
+     * @param listener          the listener to be notified of the get privileges response
      */
-    void getUserPrivileges(AuthorizationInfo authorizationInfo, ActionListener<GetUserPrivilegesResponse> listener);
+    void getUserPrivileges(
+        AuthorizationInfo authorizationInfo,
+        @Nullable RoleReference.ApiKeyRoleType unwrapLimitedRole,
+        ActionListener<GetUserPrivilegesResponse> listener
+    );
 
     /**
      * Retrieve privileges towards a remote cluster, from the provided authorization information, to be sent together
@@ -348,17 +354,15 @@ public interface AuthorizationEngine {
                             validationException
                         );
                     }
-                    if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                        // best effort prevent users from attempting to use selectors in privilege check
-                        for (String indexPattern : indicesPrivileges.getIndices()) {
-                            if (IndexNameExpressionResolver.hasSelector(indexPattern, IndexComponentSelector.FAILURES)
-                                || IndexNameExpressionResolver.hasSelector(indexPattern, IndexComponentSelector.DATA)) {
-                                validationException = addValidationError(
-                                    "may only check index privileges without selectors in index patterns [" + indexPattern + "]",
-                                    validationException
-                                );
-                                break;
-                            }
+                    // best effort prevent users from attempting to use selectors in privilege check
+                    for (String indexPattern : indicesPrivileges.getIndices()) {
+                        if (IndexNameExpressionResolver.hasSelector(indexPattern, IndexComponentSelector.FAILURES)
+                            || IndexNameExpressionResolver.hasSelector(indexPattern, IndexComponentSelector.DATA)) {
+                            validationException = addValidationError(
+                                "may only check index privileges without selectors in index patterns [" + indexPattern + "]",
+                                validationException
+                            );
+                            break;
                         }
                     }
                 }

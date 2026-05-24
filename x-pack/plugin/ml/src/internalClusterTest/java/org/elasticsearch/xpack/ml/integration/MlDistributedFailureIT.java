@@ -12,7 +12,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -29,6 +28,8 @@ import org.elasticsearch.persistent.PersistentTaskResponse;
 import org.elasticsearch.persistent.PersistentTasksClusterService;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.UpdatePersistentTaskStatusAction;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -64,8 +65,6 @@ import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.job.persistence.JobResultsPersister;
 import org.elasticsearch.xpack.ml.job.process.autodetect.BlackHoleAutodetectProcess;
 import org.elasticsearch.xpack.ml.support.BaseMlIntegTestCase;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -75,7 +74,7 @@ import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.persistent.PersistentTasksClusterService.needsReassignment;
+import static org.elasticsearch.persistent.PersistentTasksClusterService.isUnassignedOrMisassigned;
 import static org.elasticsearch.test.NodeRoles.masterOnlyNode;
 import static org.elasticsearch.test.NodeRoles.onlyRole;
 import static org.elasticsearch.test.NodeRoles.onlyRoles;
@@ -91,6 +90,8 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
+@TestLogging(value = "org.elasticsearch.xpack.ml.utils.persistence:TRACE", reason = "")
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class MlDistributedFailureIT extends BaseMlIntegTestCase {
 
     @Override
@@ -113,16 +114,6 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
         });
     }
 
-    @Before
-    public void setLogging() {
-        updateClusterSettings(Settings.builder().put("logger.org.elasticsearch.xpack.ml.utils.persistence", "TRACE"));
-    }
-
-    @After
-    public void unsetLogging() {
-        updateClusterSettings(Settings.builder().putNull("logger.org.elasticsearch.xpack.ml.utils.persistence"));
-    }
-
     public void testLoseDedicatedMasterNode() throws Exception {
         internalCluster().ensureAtMostNumDataNodes(0);
         logger.info("Starting dedicated master node...");
@@ -134,15 +125,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             logger.info("Stopping dedicated master node");
             Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
             internalCluster().stopCurrentMasterNode();
-            assertBusy(() -> {
-                ClusterState state = client(mlAndDataNode).admin()
-                    .cluster()
-                    .prepareState(TEST_REQUEST_TIMEOUT)
-                    .setLocal(true)
-                    .get()
-                    .getState();
-                assertNull(state.nodes().getMasterNodeId());
-            });
+            awaitMasterNotFound(mlAndDataNode);
             logger.info("Restarting dedicated master node");
             internalCluster().startNode(Settings.builder().put(masterDataPathSettings).put(masterOnlyNode()).build());
             ensureStableCluster();
@@ -547,7 +530,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             DataCounts dataCounts = getJobStats(jobId).getDataCounts();
             assertThat(dataCounts.getProcessedRecordCount(), equalTo(numDocs));
             assertThat(dataCounts.getOutOfOrderTimeStampCount(), equalTo(0L));
-        });
+        }, 30, TimeUnit.SECONDS);
     }
 
     public void testClusterWithTwoMlNodes_StopsDatafeed_GivenJobFailsOnReassign() throws Exception {
@@ -733,7 +716,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
                 return false;
             }
             for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks) {
-                if (needsReassignment(task.getAssignment(), state.nodes())) {
+                if (isUnassignedOrMisassigned(task.getAssignment(), state.nodes())) {
                     return false;
                 }
             }

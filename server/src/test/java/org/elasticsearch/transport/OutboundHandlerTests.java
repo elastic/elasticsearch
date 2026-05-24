@@ -52,6 +52,7 @@ import java.util.function.LongSupplier;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,6 +67,7 @@ public class OutboundHandlerTests extends ESTestCase {
     private InboundPipeline pipeline;
     private OutboundHandler handler;
     private FakeTcpChannel channel;
+    private PlainActionFuture<Void> closeListener;
     private DiscoveryNode node;
     private Compression.Scheme compressionScheme;
 
@@ -73,6 +75,8 @@ public class OutboundHandlerTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         channel = new FakeTcpChannel(randomBoolean(), buildNewFakeTransportAddress().address(), buildNewFakeTransportAddress().address());
+        closeListener = new PlainActionFuture<>();
+        channel.addCloseListener(closeListener);
         TransportAddress transportAddress = buildNewFakeTransportAddress();
         node = DiscoveryNodeUtils.create("", transportAddress);
         StatsTracker statsTracker = new StatsTracker();
@@ -128,7 +132,7 @@ public class OutboundHandlerTests extends ESTestCase {
             assertSame(e, exception.get());
         }
 
-        assertEquals(bytesArray, reference);
+        assertThat(reference, equalBytes(bytesArray));
     }
 
     public void testSendRequest() throws IOException {
@@ -138,7 +142,7 @@ public class OutboundHandlerTests extends ESTestCase {
         boolean isHandshake = randomBoolean();
         TransportVersion version = isHandshake
             ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
-            : TransportVersionUtils.randomCompatibleVersion(random());
+            : TransportVersionUtils.randomCompatibleVersion();
         boolean compress = randomBoolean();
         String value = "message";
         threadContext.putHeader("header", "header_value");
@@ -211,7 +215,7 @@ public class OutboundHandlerTests extends ESTestCase {
         boolean isHandshake = randomBoolean();
         TransportVersion version = isHandshake
             ? randomFrom(TransportHandshaker.ALLOWED_HANDSHAKE_VERSIONS)
-            : TransportVersionUtils.randomCompatibleVersion(random());
+            : TransportVersionUtils.randomCompatibleVersion();
         boolean compress = randomBoolean();
 
         String value = "message";
@@ -270,7 +274,7 @@ public class OutboundHandlerTests extends ESTestCase {
 
     public void testErrorResponse() throws IOException {
         ThreadContext threadContext = threadPool.getThreadContext();
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         String action = "not-a-handshake";
         long requestId = randomLongBetween(0, 300);
         threadContext.putHeader("header", "header_value");
@@ -323,7 +327,7 @@ public class OutboundHandlerTests extends ESTestCase {
     }
 
     public void testSendErrorAfterFailToSendResponse() throws Exception {
-        TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
+        TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         String action = randomAlphaOfLength(10);
         long requestId = randomLongBetween(0, 300);
         var response = new ReleasbleTestResponse(randomAlphaOfLength(10)) {
@@ -378,6 +382,7 @@ public class OutboundHandlerTests extends ESTestCase {
             assertThat(rme.getCause().getMessage(), equalTo("simulated cbe"));
         }
         assertTrue(channel.isOpen());
+        assertFalse(closeListener.isDone());
     }
 
     public void testFailToSendResponseThenFailToSendError() {
@@ -388,6 +393,8 @@ public class OutboundHandlerTests extends ESTestCase {
                 throw new IllegalStateException("pipe broken");
             }
         };
+        closeListener = new PlainActionFuture<>();
+        channel.addCloseListener(closeListener);
         TransportVersion version = TransportVersionUtils.randomVersion();
         String action = randomAlphaOfLength(10);
         long requestId = randomLongBetween(0, 300);
@@ -431,6 +438,8 @@ public class OutboundHandlerTests extends ESTestCase {
         assertNull(channel.getMessageCaptor().get());
         assertNull(channel.getListenerCaptor().get());
         assertFalse(channel.isOpen());
+        assertTrue(closeListener.isDone());
+        expectThrows(Exception.class, () -> closeListener.get());
     }
 
     public void testFailToSendHandshakeResponse() {
@@ -473,6 +482,8 @@ public class OutboundHandlerTests extends ESTestCase {
         assertEquals(action, actionRef.get());
         assertTrue(response.released.get());
         assertFalse(channel.isOpen());
+        assertTrue(closeListener.isDone());
+        expectThrows(Exception.class, () -> closeListener.get());
     }
 
     public void testFailToSendErrorResponse() {
@@ -483,6 +494,8 @@ public class OutboundHandlerTests extends ESTestCase {
                 throw new IllegalStateException("pipe broken");
             }
         };
+        closeListener = new PlainActionFuture<>();
+        channel.addCloseListener(closeListener);
         TransportVersion version = TransportVersionUtils.randomVersion();
         String action = randomAlphaOfLength(10);
         long requestId = randomLongBetween(0, 300);
@@ -515,6 +528,8 @@ public class OutboundHandlerTests extends ESTestCase {
         assertFalse(channel.isOpen());
         assertNull(channel.getMessageCaptor().get());
         assertNull(channel.getListenerCaptor().get());
+        assertTrue(closeListener.isDone());
+        expectThrows(Exception.class, () -> closeListener.get());
     }
 
     /**

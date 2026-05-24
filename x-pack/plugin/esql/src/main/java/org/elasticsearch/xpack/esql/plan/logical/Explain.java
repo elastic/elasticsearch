@@ -25,6 +25,22 @@ public class Explain extends LeafPlan implements TelemetryAware {
         ANALYZED
     }
 
+    /**
+     * Output columns for EXPLAIN command.
+     * - cluster: the cluster alias (empty string for local cluster)
+     * - node: the node name where the plan runs
+     * - role: coordinator, data, or subplan
+     * - type: the plan type (parsedPlan, optimizedLogicalPlan, optimizedPhysicalPlan, localPlan)
+     * - plan: the plan string representation
+     */
+    public static final List<Attribute> OUTPUT_ATTRIBUTES = List.of(
+        new ReferenceAttribute(Source.EMPTY, null, "cluster", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, null, "node", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, null, "role", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, null, "type", DataType.KEYWORD),
+        new ReferenceAttribute(Source.EMPTY, null, "plan", DataType.KEYWORD)
+    );
+
     private final LogicalPlan query;
 
     public Explain(Source source, LogicalPlan query) {
@@ -42,32 +58,13 @@ public class Explain extends LeafPlan implements TelemetryAware {
         throw new UnsupportedOperationException("not serialized");
     }
 
-    // TODO: implement again
-    // @Override
-    // public void execute(EsqlSession session, ActionListener<Result> listener) {
-    // ActionListener<String> analyzedStringListener = listener.map(
-    // analyzed -> new Result(
-    // output(),
-    // List.of(List.of(query.toString(), Type.PARSED.toString()), List.of(analyzed, Type.ANALYZED.toString()))
-    // )
-    // );
-    //
-    // session.analyzedPlan(
-    // query,
-    // ActionListener.wrap(
-    // analyzed -> analyzedStringListener.onResponse(analyzed.toString()),
-    // e -> analyzedStringListener.onResponse(e.toString())
-    // )
-    // );
-    //
-    // }
+    public LogicalPlan query() {
+        return query;
+    }
 
     @Override
     public List<Attribute> output() {
-        return List.of(
-            new ReferenceAttribute(Source.EMPTY, "plan", DataType.KEYWORD),
-            new ReferenceAttribute(Source.EMPTY, "type", DataType.KEYWORD)
-        );
+        return OUTPUT_ATTRIBUTES;
     }
 
     @Override

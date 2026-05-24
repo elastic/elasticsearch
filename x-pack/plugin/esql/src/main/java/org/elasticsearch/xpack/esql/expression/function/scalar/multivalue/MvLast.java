@@ -16,14 +16,14 @@ import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.expression.ConstantEvaluators;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -31,13 +31,18 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram;
 
 /**
  * Reduce a multivalued field to a single valued field containing the minimum value.
  */
 public class MvLast extends AbstractMultivalueFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "MvLast", MvLast::new);
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(MvLast.class)
+        .unary(MvLast::new)
+        .capabilities("flattened")
+        .name("mv_last");
 
     @FunctionInfo(
         returnType = {
@@ -47,8 +52,12 @@ public class MvLast extends AbstractMultivalueFunction {
             "date",
             "date_nanos",
             "double",
+            "flattened",
             "geo_point",
             "geo_shape",
+            "geohash",
+            "geotile",
+            "geohex",
             "integer",
             "ip",
             "keyword",
@@ -78,8 +87,12 @@ public class MvLast extends AbstractMultivalueFunction {
                 "date",
                 "date_nanos",
                 "double",
+                "flattened",
                 "geo_point",
                 "geo_shape",
+                "geohash",
+                "geotile",
+                "geohex",
                 "integer",
                 "ip",
                 "keyword",
@@ -87,7 +100,7 @@ public class MvLast extends AbstractMultivalueFunction {
                 "text",
                 "unsigned_long",
                 "version" },
-            description = "Multivalue expression."
+            description = "Expression that can be null, a single value, or multiple values."
         ) Expression field
     ) {
         super(source, field);
@@ -104,7 +117,7 @@ public class MvLast extends AbstractMultivalueFunction {
 
     @Override
     protected TypeResolution resolveFieldType() {
-        return isType(field(), DataType::isRepresentable, sourceText(), null, "representable");
+        return isRepresentableExceptCountersDenseVectorAggregateMetricDoubleAndHistogram(field(), sourceText(), DEFAULT);
     }
 
     @Override
@@ -115,7 +128,7 @@ public class MvLast extends AbstractMultivalueFunction {
             case DOUBLE -> new MvLastDoubleEvaluator.Factory(fieldEval);
             case INT -> new MvLastIntEvaluator.Factory(fieldEval);
             case LONG -> new MvLastLongEvaluator.Factory(fieldEval);
-            case NULL -> EvalOperator.CONSTANT_NULL_FACTORY;
+            case NULL -> ConstantEvaluators.CONSTANT_NULL_FACTORY;
             default -> throw EsqlIllegalArgumentException.illegalDataType(field.dataType());
         };
     }

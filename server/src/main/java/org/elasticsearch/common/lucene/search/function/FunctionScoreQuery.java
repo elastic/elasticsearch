@@ -21,7 +21,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -198,6 +197,14 @@ public class FunctionScoreQuery extends Query {
         return combineFunction;
     }
 
+    public ScoreMode getScoreMode() {
+        return scoreMode;
+    }
+
+    public Float getMaxBoost() {
+        return maxBoost;
+    }
+
     @Override
     public void visit(QueryVisitor visitor) {
         // Highlighters must visit the child query to extract terms
@@ -251,7 +258,6 @@ public class FunctionScoreQuery extends Query {
                 final Set<Term> terms = new HashSet<>();
                 this.visit(QueryVisitor.termCollector(terms));
                 scriptScoreFunction.setTermStatsFactory((ctx, docIdSupplier) -> new ScriptTermStats(searcher, ctx, docIdSupplier, terms));
-
             }
         }
         Weight subQueryWeight = subQuery.createWeight(searcher, subQueryScoreMode, boost);
@@ -448,7 +454,13 @@ public class FunctionScoreQuery extends Query {
                   These scores are invalid for score based {@link org.apache.lucene.search.TopDocsCollector}s.
                   See {@link org.apache.lucene.search.TopScoreDocCollector} for details.
                  */
-                throw new ElasticsearchException("function score query returned an invalid score: " + finalScore + " for doc: " + docId);
+                throw new IllegalArgumentException(
+                    "function score query returned an invalid score: "
+                        + finalScore
+                        + " for doc: "
+                        + docId
+                        + "; score must be a non-negative real number"
+                );
             }
             return finalScore;
         }

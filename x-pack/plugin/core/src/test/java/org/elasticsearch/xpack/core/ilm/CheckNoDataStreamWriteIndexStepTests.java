@@ -6,10 +6,10 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.xpack.core.ilm.step.info.SingleMessageFieldInfo;
@@ -54,11 +54,9 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(Metadata.builder().put(indexMetadata, true).build())
-            .build();
+        ProjectState state = projectStateFromProject(ProjectMetadata.builder(randomUniqueProjectId()).put(indexMetadata, true));
 
-        ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexMetadata.getIndex(), clusterState);
+        ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexMetadata.getIndex(), state);
         assertThat(result.complete(), is(true));
         assertThat(result.informationContext(), is(nullValue()));
     }
@@ -80,20 +78,17 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
             .numberOfReplicas(randomIntBetween(0, 5))
             .build();
 
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, true)
-                    .put(failureIndexMetadata, true)
-                    .put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()), List.of(failureIndexMetadata.getIndex())))
-                    .build()
-            )
-            .build();
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomUniqueProjectId())
+                .put(indexMetadata, true)
+                .put(failureIndexMetadata, true)
+                .put(newInstance(dataStreamName, List.of(indexMetadata.getIndex()), List.of(failureIndexMetadata.getIndex())))
+        );
 
         boolean useFailureStore = randomBoolean();
         IndexMetadata indexToOperateOn = useFailureStore ? failureIndexMetadata : indexMetadata;
         String expectedIndexName = indexToOperateOn.getIndex().getName();
-        ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexToOperateOn.getIndex(), clusterState);
+        ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexToOperateOn.getIndex(), state);
         assertThat(result.complete(), is(false));
         SingleMessageFieldInfo info = (SingleMessageFieldInfo) result.informationContext();
         assertThat(
@@ -146,21 +141,18 @@ public class CheckNoDataStreamWriteIndexStepTests extends AbstractStepTestCase<C
 
         List<Index> backingIndices = List.of(indexMetadata.getIndex(), writeIndexMetadata.getIndex());
         List<Index> failureIndices = List.of(failureIndexMetadata.getIndex(), failureStoreWriteIndexMetadata.getIndex());
-        ClusterState clusterState = ClusterState.builder(emptyClusterState())
-            .metadata(
-                Metadata.builder()
-                    .put(indexMetadata, true)
-                    .put(writeIndexMetadata, true)
-                    .put(failureIndexMetadata, true)
-                    .put(failureStoreWriteIndexMetadata, true)
-                    .put(newInstance(dataStreamName, backingIndices, failureIndices))
-                    .build()
-            )
-            .build();
+        ProjectState state = projectStateFromProject(
+            ProjectMetadata.builder(randomUniqueProjectId())
+                .put(indexMetadata, true)
+                .put(writeIndexMetadata, true)
+                .put(failureIndexMetadata, true)
+                .put(failureStoreWriteIndexMetadata, true)
+                .put(newInstance(dataStreamName, backingIndices, failureIndices))
+        );
 
         boolean useFailureStore = randomBoolean();
         IndexMetadata indexToOperateOn = useFailureStore ? failureIndexMetadata : indexMetadata;
-        ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexToOperateOn.getIndex(), clusterState);
+        ClusterStateWaitStep.Result result = createRandomInstance().isConditionMet(indexToOperateOn.getIndex(), state);
         assertThat(result.complete(), is(true));
         assertThat(result.informationContext(), is(nullValue()));
     }

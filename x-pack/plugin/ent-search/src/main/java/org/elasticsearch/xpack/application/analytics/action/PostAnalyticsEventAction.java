@@ -7,10 +7,10 @@
 
 package org.elasticsearch.xpack.application.analytics.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.application.analytics.event.AnalyticsEvent;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -45,11 +46,11 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class PostAnalyticsEventAction {
 
     public static final String NAME = "cluster:admin/xpack/application/analytics/post_event";
-    public static final ActionType<PostAnalyticsEventAction.Response> INSTANCE = new ActionType<>(NAME);
+    public static final ActionType<Response> INSTANCE = new ActionType<>(NAME);
 
     private PostAnalyticsEventAction() {/* no instances */}
 
-    public static class Request extends ActionRequest implements AnalyticsEvent.Context, ToXContentObject {
+    public static class Request extends LegacyActionRequest implements AnalyticsEvent.Context, ToXContentObject {
 
         private final String eventCollectionName;
 
@@ -143,6 +144,10 @@ public class PostAnalyticsEventAction {
 
         public boolean isDebug() {
             return debug;
+        }
+
+        Map<String, List<String>> headers() {
+            return Collections.unmodifiableMap(headers);
         }
 
         private String header(String header) {

@@ -101,21 +101,29 @@ final class LongArrayState extends AbstractArrayState implements GroupingAggrega
         org.elasticsearch.compute.operator.DriverContext driverContext
     ) {
         assert blocks.length >= offset + 2;
+        boolean allHaveValue = true;
         try (
-            var valuesBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
+            var valuesBuilder = driverContext.blockFactory().newLongVectorFixedBuilder(selected.getPositionCount());
             var hasValueBuilder = driverContext.blockFactory().newBooleanVectorFixedBuilder(selected.getPositionCount())
         ) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
-                if (group < values.size()) {
-                    valuesBuilder.appendLong(values.get(group));
+                if (group < values.size() && hasValue(group)) {
+                    valuesBuilder.appendLong(i, values.get(group));
+                    hasValueBuilder.appendBoolean(i, true);
                 } else {
-                    valuesBuilder.appendLong(0); // TODO can we just use null?
+                    allHaveValue = false;
+                    valuesBuilder.appendLong(i, 0);
+                    hasValueBuilder.appendBoolean(i, false);
                 }
-                hasValueBuilder.appendBoolean(i, hasValue(group));
             }
-            blocks[offset + 0] = valuesBuilder.build();
-            blocks[offset + 1] = hasValueBuilder.build().asBlock();
+            blocks[offset + 0] = valuesBuilder.build().asBlock();
+            if (allHaveValue) {
+                // switch to a constant block to reduce memory usage and allow fast checks
+                blocks[offset + 1] = driverContext.blockFactory().newConstantBooleanBlockWith(true, selected.getPositionCount());
+            } else {
+                blocks[offset + 1] = hasValueBuilder.build().asBlock();
+            }
         }
     }
 

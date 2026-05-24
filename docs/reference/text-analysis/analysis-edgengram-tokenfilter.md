@@ -13,7 +13,7 @@ For example, you can use the `edge_ngram` token filter to change `quick` to `qu`
 
 When not customized, the filter creates 1-character edge n-grams by default.
 
-This filter uses Lucene’s [EdgeNGramTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/ngram/EdgeNGramTokenFilter.md).
+This filter uses Lucene’s [EdgeNGramTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/ngram/EdgeNGramTokenFilter.html).
 
 ::::{note}
 The `edge_ngram` filter is similar to the [`ngram` token filter](/reference/text-analysis/analysis-ngram-tokenizer.md). However, the `edge_ngram` only outputs n-grams that start at the beginning of a token. These edge n-grams are useful for [search-as-you-type](/reference/elasticsearch/mapping-reference/search-as-you-type.md) queries.
@@ -82,9 +82,11 @@ See [Limitations of the `max_gram` parameter](#analysis-edgengram-tokenfilter-ma
 :   (Optional, Boolean) Emits original token when set to `true`. Defaults to `false`.
 
 `side`
-:   (Optional, string) [8.16.0]. Indicates whether to truncate tokens from the `front` or `back`. Defaults to `front`.
+:   :::{admonition} Deprecated in 8.16.0
+    This setting was deprecated in 8.16.0.
+    :::
 
-
+    (Optional, string) Indicates whether to truncate tokens from the `front` or `back`. Defaults to `front`.
 
 ## Customize [analysis-edgengram-tokenfilter-customize]
 

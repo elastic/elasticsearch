@@ -19,10 +19,13 @@ import org.elasticsearch.xpack.rank.vectors.mapper.RankVectorsFieldMapper.RankVe
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.BBQ_MIN_DIMS;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.iterableWithSize;
 
 public class RankVectorsFieldTypeTests extends FieldTypeTestCase {
 
@@ -48,9 +51,9 @@ public class RankVectorsFieldTypeTests extends FieldTypeTestCase {
 
     public void testIsIndexed() {
         RankVectorsFieldType fft = createFloatFieldType();
-        assertFalse(fft.isIndexed());
+        assertTrue(fft.indexType().hasOnlyDocValues());
         RankVectorsFieldType bft = createByteFieldType();
-        assertFalse(bft.isIndexed());
+        assertTrue(bft.indexType().hasOnlyDocValues());
     }
 
     public void testIsSearchable() {
@@ -69,11 +72,25 @@ public class RankVectorsFieldTypeTests extends FieldTypeTestCase {
 
     public void testFielddataBuilder() {
         RankVectorsFieldType fft = createFloatFieldType();
-        FieldDataContext fdc = new FieldDataContext("test", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+        FieldDataContext fdc = new FieldDataContext(
+            "test",
+            null,
+            () -> null,
+            Set::of,
+            () -> false,
+            MappedFieldType.FielddataOperation.SCRIPT
+        );
         assertNotNull(fft.fielddataBuilder(fdc));
 
         RankVectorsFieldType bft = createByteFieldType();
-        FieldDataContext bdc = new FieldDataContext("test", null, () -> null, Set::of, MappedFieldType.FielddataOperation.SCRIPT);
+        FieldDataContext bdc = new FieldDataContext(
+            "test",
+            null,
+            () -> null,
+            Set::of,
+            () -> false,
+            MappedFieldType.FielddataOperation.SCRIPT
+        );
         assertNotNull(bft.fielddataBuilder(bdc));
     }
 
@@ -86,9 +103,16 @@ public class RankVectorsFieldTypeTests extends FieldTypeTestCase {
 
     public void testFetchSourceValue() throws IOException {
         RankVectorsFieldType fft = createFloatFieldType();
-        List<List<Double>> vector = List.of(List.of(0.0, 1.0, 2.0, 3.0, 4.0, 6.0));
-        assertEquals(vector, fetchSourceValue(fft, vector));
+        List<List<Double>> vectorFromXContent = List.of(List.of(0.0, 1.0, 2.0, 3.0, 4.0, 6.0));
+        List<float[]> vector = List.of(new float[] { 0.0f, 1.0f, 2.0f, 3.0f, 4.0f, 6.0f });
+        assertThat(fetchSourceValue(fft, vectorFromXContent), iterableWithSize(1));
+        assertThat(fetchSourceValue(fft, vectorFromXContent).get(0), equalTo(vector.get(0)));
         RankVectorsFieldType bft = createByteFieldType();
-        assertEquals(vector, fetchSourceValue(bft, vector));
+        assertThat(fetchSourceValue(bft, vectorFromXContent), iterableWithSize(1));
+        assertThat(fetchSourceValue(bft, vectorFromXContent).get(0), equalTo(vector.get(0)));
+        String hexStr = HexFormat.of().formatHex(new byte[] { 0, 1, 2, 3, 4, 6 });
+        List<String> hexVecs = List.of(hexStr);
+        assertThat(fetchSourceValue(bft, hexVecs), iterableWithSize(1));
+        assertThat(fetchSourceValue(bft, hexVecs).get(0), equalTo(hexStr));
     }
 }

@@ -21,7 +21,12 @@ options {
 }
 
 import Expression,
-       Join;
+       Join,
+       Promql;
+
+statements
+    : setCommand* singleStatement EOF
+    ;
 
 singleStatement
     : query EOF
@@ -33,12 +38,14 @@ query
     ;
 
 sourceCommand
-    : explainCommand
-    | fromCommand
+    : fromCommand
     | rowCommand
     | showCommand
+    | timeSeriesCommand
+    | promqlCommand
     // in development
-    | {this.isDevVersion()}? timeSeriesCommand
+    | {this.isDevVersion()}? explainCommand
+    | {this.isExternalDataSourcesEnabled()}? externalCommand
     ;
 
 processingCommand
@@ -55,13 +62,23 @@ processingCommand
     | enrichCommand
     | mvExpandCommand
     | joinCommand
+    | changePointCommand
+    | completionCommand
+    | sampleCommand
+    | forkCommand
+    | rerankCommand
+    | inlineStatsCommand
+    | fuseCommand
+    | uriPartsCommand
+    | metricsInfoCommand
+    | registeredDomainCommand
+    | tsInfoCommand
+    | userAgentCommand
+    | tsCollapseCommand
+    | mmrCommand
     // in development
-    | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
-    | {this.isDevVersion()}? changePointCommand
     | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? forkCommand
-    | {this.isDevVersion()}? rrfCommand
     ;
 
 whereCommand
@@ -89,26 +106,46 @@ fromCommand
     ;
 
 timeSeriesCommand
-    : DEV_TIME_SERIES indexPatternAndMetadataFields
+    : TS indexPatternAndMetadataFields
     ;
 
-indexPatternAndMetadataFields:
-    indexPattern (COMMA indexPattern)* metadata?
+externalCommand
+    : DEV_EXTERNAL stringOrParameter commandNamedParameters
+    ;
+
+indexPatternAndMetadataFields
+    : indexPatternOrSubquery (COMMA indexPatternOrSubquery)* metadata?
+    ;
+
+indexPatternOrSubquery
+    : indexPattern
+    | subquery
+    ;
+
+subquery
+    : LP subquerySourceCommand (PIPE processingCommand)* RP
+    ;
+
+subquerySourceCommand
+    : fromCommand
+    | {this.isDevVersion()}? rowCommand
     ;
 
 indexPattern
-    : (clusterString COLON)? indexString
-    | {this.isDevVersion()}? indexString (CAST_OP selectorString)?
+    : (clusterString COLON)? unquotedIndexString (CAST_OP selectorString)?
+    | indexString
     ;
 
 clusterString
     : UNQUOTED_SOURCE
-    | QUOTED_STRING
     ;
 
 selectorString
     : UNQUOTED_SOURCE
-    | QUOTED_STRING
+    ;
+
+unquotedIndexString
+    : UNQUOTED_SOURCE
     ;
 
 indexString
@@ -137,11 +174,21 @@ aggField
     ;
 
 qualifiedName
+    : {this.isDevVersion()}? OPENING_BRACKET qualifier=UNQUOTED_IDENTIFIER? CLOSING_BRACKET DOT OPENING_BRACKET name=fieldName CLOSING_BRACKET
+    | name=fieldName
+    ;
+
+fieldName
     : identifierOrParameter (DOT identifierOrParameter)*
     ;
 
 qualifiedNamePattern
-    : identifierPattern (DOT identifierPattern)*
+    : {this.isDevVersion()}? OPENING_BRACKET qualifier=ID_PATTERN? CLOSING_BRACKET DOT OPENING_BRACKET name=fieldNamePattern CLOSING_BRACKET
+    | name=fieldNamePattern
+    ;
+
+fieldNamePattern
+    : (identifierPattern (DOT identifierPattern)*)
     ;
 
 qualifiedNamePatterns
@@ -175,8 +222,17 @@ identifierOrParameter
     | doubleParameter
     ;
 
+stringOrParameter
+    : string
+    | parameter
+    ;
+
 limitCommand
-    : LIMIT INTEGER_LITERAL
+    : LIMIT constant limitByGroupKey?
+    ;
+
+limitByGroupKey:
+    BY booleanExpression (COMMA booleanExpression)*
     ;
 
 sortCommand
@@ -201,34 +257,40 @@ renameCommand
 
 renameClause:
     oldName=qualifiedNamePattern AS newName=qualifiedNamePattern
+    | newName=qualifiedNamePattern ASSIGN oldName=qualifiedNamePattern
     ;
 
 dissectCommand
-    : DISSECT primaryExpression string commandOptions?
+    : DISSECT primaryExpression string dissectCommandOptions?
+    ;
+
+dissectCommandOptions
+    : dissectCommandOption (COMMA dissectCommandOption)*
+    ;
+
+dissectCommandOption
+    : identifier ASSIGN constant
+    ;
+
+
+commandNamedParameters
+    : (WITH mapExpression)?
     ;
 
 grokCommand
-    : GROK primaryExpression string
+    : GROK primaryExpression string (COMMA string)*
     ;
 
 mvExpandCommand
     : MV_EXPAND qualifiedName
     ;
 
-commandOptions
-    : commandOption (COMMA commandOption)*
-    ;
-
-commandOption
-    : identifier ASSIGN constant
-    ;
-
 explainCommand
-    : EXPLAIN subqueryExpression
+    : DEV_EXPLAIN subqueryExpression
     ;
 
 subqueryExpression
-    : OPENING_BRACKET query CLOSING_BRACKET
+    : LP query RP
     ;
 
 showCommand
@@ -236,34 +298,28 @@ showCommand
     ;
 
 enrichCommand
-    : ENRICH policyName=ENRICH_POLICY_NAME (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    : ENRICH policyName=enrichPolicyName (ON matchField=qualifiedNamePattern)? (WITH enrichWithClause (COMMA enrichWithClause)*)?
+    ;
+
+enrichPolicyName
+    : ENRICH_POLICY_NAME
+    | QUOTED_STRING
     ;
 
 enrichWithClause
     : (newName=qualifiedNamePattern ASSIGN)? enrichField=qualifiedNamePattern
     ;
 
-//
-// In development
-//
-lookupCommand
-    : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
-    ;
-
-inlinestatsCommand
-    : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
+sampleCommand
+    : SAMPLE probability=constant
     ;
 
 changePointCommand
-    : DEV_CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)?
-    ;
-
-insistCommand
-    : DEV_INSIST qualifiedNamePatterns
+    : CHANGE_POINT value=qualifiedName (ON key=qualifiedName)? (AS targetType=qualifiedName COMMA targetPvalue=qualifiedName)? (BY groupings+=booleanExpression (COMMA groupings+=booleanExpression)*)?
     ;
 
 forkCommand
-    : DEV_FORK forkSubQueries
+    : FORK forkSubQueries
     ;
 
 forkSubQueries
@@ -280,11 +336,86 @@ forkSubQueryCommand
     ;
 
 forkSubQueryProcessingCommand
-    : whereCommand
-    | sortCommand
-    | limitCommand
+    : processingCommand
     ;
 
-rrfCommand
-   : DEV_RRF
+rerankCommand
+    : RERANK (targetField=qualifiedName ASSIGN)? queryText=constant ON rerankFields=fields commandNamedParameters
+    ;
+
+completionCommand
+    : COMPLETION (targetField=qualifiedName ASSIGN)? prompt=primaryExpression commandNamedParameters
+    ;
+
+inlineStatsCommand
+    : INLINE INLINE_STATS stats=aggFields (BY grouping=fields)?
+    // TODO: drop after next minor release
+    | INLINESTATS stats=aggFields (BY grouping=fields)?
+    ;
+
+fuseCommand
+    : FUSE (fuseType=identifier)? (fuseConfiguration)*
+    ;
+
+fuseConfiguration
+    : SCORE BY score=qualifiedName
+    | KEY BY key=fuseKeyByFields
+    | GROUP BY group=qualifiedName
+    | WITH options=mapExpression
+    ;
+
+fuseKeyByFields
+   : qualifiedName (COMMA qualifiedName)*
    ;
+
+metricsInfoCommand
+    : METRICS_INFO
+    ;
+
+tsInfoCommand
+    : TS_INFO
+    ;
+
+tsCollapseCommand
+    : TS_COLLAPSE
+    ;
+
+//
+// In development
+//
+lookupCommand
+    : DEV_LOOKUP tableName=indexPattern ON matchFields=qualifiedNamePatterns
+    ;
+
+insistCommand
+    : DEV_INSIST qualifiedNamePatterns
+    ;
+
+uriPartsCommand
+    : URI_PARTS qualifiedName ASSIGN primaryExpression
+    ;
+
+registeredDomainCommand
+    : REGISTERED_DOMAIN qualifiedName ASSIGN primaryExpression
+    ;
+
+userAgentCommand
+    : USER_AGENT qualifiedName ASSIGN primaryExpression commandNamedParameters
+    ;
+
+setCommand
+    : SET setField SEMICOLON
+    ;
+
+setField
+    : identifier ASSIGN ( constant | mapExpression )
+    ;
+
+mmrCommand
+    :  MMR (queryVector=mmrQueryVectorParams)? ON diversifyField=qualifiedName MMR_LIMIT limitValue=integerValue commandNamedParameters
+    ;
+
+mmrQueryVectorParams
+    : parameter                           # mmrQueryVectorParameter
+    | primaryExpression                   # mmrQueryVectorExpression
+    ;

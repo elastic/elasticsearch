@@ -19,14 +19,13 @@ import org.apache.http.impl.client.HttpClients;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.test.SecurityIntegTestCase;
-import org.elasticsearch.xpack.core.common.socket.SocketAccess;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.core.ssl.SslProfile;
 
 import java.io.InputStreamReader;
 import java.net.InetSocketAddress;
@@ -80,18 +79,15 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
             AuthScope.ANY,
             new UsernamePasswordCredentials(nodeClientUsername(), new String(nodeClientPassword().getChars()))
         );
-        SslConfiguration sslConfiguration = service.getSSLConfiguration("xpack.security.http.ssl");
+        SslProfile sslProfile = service.profile("xpack.security.http.ssl");
         try (
             CloseableHttpClient client = HttpClients.custom()
                 .setSSLSocketFactory(
-                    new SSLConnectionSocketFactory(
-                        service.sslSocketFactory(sslConfiguration),
-                        SSLConnectionSocketFactory.getDefaultHostnameVerifier()
-                    )
+                    new SSLConnectionSocketFactory(sslProfile.socketFactory(), SSLConnectionSocketFactory.getDefaultHostnameVerifier())
                 )
                 .setDefaultCredentialsProvider(provider)
                 .build();
-            CloseableHttpResponse response = SocketAccess.doPrivileged(() -> client.execute(new HttpGet(getNodeUrl())))
+            CloseableHttpResponse response = client.execute(new HttpGet(getNodeUrl()))
         ) {
             assertThat(response.getStatusLine().getStatusCode(), is(200));
             String data = Streams.copyToString(new InputStreamReader(response.getEntity().getContent(), StandardCharsets.UTF_8));
@@ -113,7 +109,7 @@ public class SslIntegrationTests extends SecurityIntegTestCase {
             NoopHostnameVerifier.INSTANCE
         );
         try (CloseableHttpClient client = HttpClients.custom().setSSLSocketFactory(sf).build()) {
-            expectThrows(SSLHandshakeException.class, () -> SocketAccess.doPrivileged(() -> client.execute(new HttpGet(getNodeUrl()))));
+            expectThrows(SSLHandshakeException.class, () -> client.execute(new HttpGet(getNodeUrl())));
         }
     }
 

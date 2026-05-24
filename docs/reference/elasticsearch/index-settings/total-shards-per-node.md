@@ -1,9 +1,14 @@
 ---
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/allocation-total-shards.html
+applies_to:
+  stack: all
 ---
 
 # Total shards per node [allocation-total-shards]
+
+:::{include} _snippets/serverless-availability.md
+:::
 
 The cluster-level shard allocator tries to spread the shards of a single index across as many nodes as possible. However, depending on how many shards and indices you have, and how big they are, it may not always be possible to spread shards evenly.
 
@@ -14,12 +19,12 @@ $$$total-shards-per-node$$$
 `index.routing.allocation.total_shards_per_node`
 :   The maximum number of shards (replicas and primaries) that will be allocated to a single node. Defaults to unbounded.
 
-You can also limit the amount of shards a node can have regardless of the index:
+With the following cluster level setting, you can also limit the amount of shards a node can have regardless of the index. This setting applies across all indices on a node and can be set at runtime using the [update cluster settings](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-put-settings) API:
 
 $$$cluster-total-shards-per-node$$$
 
 `cluster.routing.allocation.total_shards_per_node`
-:   ([Dynamic](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#dynamic-cluster-setting)) Maximum number of primary and replica shards allocated to each node. Defaults to `-1` (unlimited).
+:   ([Dynamic](docs-content://deploy-manage/stack-settings.md#dynamic-cluster-setting)) Maximum number of primary and replica shards allocated to each node. Defaults to `-1` (unlimited).
 
 {{es}} checks this setting during shard allocation. For example, a cluster has a `cluster.routing.allocation.total_shards_per_node` setting of `100` and three nodes with the following shard allocations:
 

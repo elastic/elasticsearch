@@ -97,7 +97,7 @@
       capabilities:
         - method: POST
           path: /_index_template/{template}
-          capabilities: [ 'failure_store_in_template' ]
+          capabilities: [ 'data_stream_options.failure_store' ]
 
   - do:
       allowed_warnings:

@@ -1,8 +1,8 @@
 {
   "search_application.render_query": {
     "documentation": {
-      "url": "https://www.elastic.co/guide/en/elasticsearch/reference/master/search-application-render-query.html",
-      "description": "Renders a query for given search application search parameters"
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-search-application-render-query",
+      "description": "Render a search application query"
     },
     "stability": "experimental",
     "visibility": "public",

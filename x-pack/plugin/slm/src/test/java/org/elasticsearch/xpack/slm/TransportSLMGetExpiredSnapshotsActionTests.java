@@ -21,11 +21,11 @@ import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.repositories.FinalizeSnapshotContext.UpdatedShardGenerations;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
 import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.RepositoryMissingException;
-import org.elasticsearch.repositories.ShardGenerations;
 import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotInfo;
@@ -299,7 +299,7 @@ public class TransportSLMGetExpiredSnapshotsActionTests extends ESTestCase {
                     repositoryData = repositoryData.addSnapshot(
                         snapshotInfo.snapshotId(),
                         snapshotDetails,
-                        ShardGenerations.EMPTY,
+                        UpdatedShardGenerations.EMPTY,
                         Map.of(),
                         Map.of()
                     );

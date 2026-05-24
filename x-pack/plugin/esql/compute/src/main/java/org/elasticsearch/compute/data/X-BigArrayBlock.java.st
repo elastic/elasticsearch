@@ -86,6 +86,11 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
         return null;
     }
 
+    @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
 $if(boolean)$
     @Override
     public ToMask toMask() {
@@ -115,7 +120,7 @@ $endif$
     }
 
     @Override
-    public $Type$Block filter(int... positions) {
+    public $Type$Block filter(boolean mayContainDuplicates, int... positions) {
         try (var builder = blockFactory().new$Type$BlockBuilder(positions.length)) {
             for (int pos : positions) {
                 if (isNull(pos)) {

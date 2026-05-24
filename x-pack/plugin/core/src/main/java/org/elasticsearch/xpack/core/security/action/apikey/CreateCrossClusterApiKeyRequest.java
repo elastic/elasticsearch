@@ -21,17 +21,21 @@ import java.util.Objects;
 
 public final class CreateCrossClusterApiKeyRequest extends AbstractCreateApiKeyRequest {
 
+    private final CertificateIdentity certificateIdentity;
+
     public CreateCrossClusterApiKeyRequest(
         String name,
         CrossClusterApiKeyRoleDescriptorBuilder roleDescriptorBuilder,
         @Nullable TimeValue expiration,
-        @Nullable Map<String, Object> metadata
+        @Nullable Map<String, Object> metadata,
+        @Nullable CertificateIdentity certificateIdentity
     ) {
         super();
         this.name = Objects.requireNonNull(name);
         this.roleDescriptors = List.of(roleDescriptorBuilder.build());
         this.expiration = expiration;
         this.metadata = metadata;
+        this.certificateIdentity = certificateIdentity;
     }
 
     @Override
@@ -60,15 +64,21 @@ public final class CreateCrossClusterApiKeyRequest extends AbstractCreateApiKeyR
             && Objects.equals(expiration, that.expiration)
             && Objects.equals(metadata, that.metadata)
             && Objects.equals(roleDescriptors, that.roleDescriptors)
-            && refreshPolicy == that.refreshPolicy;
+            && refreshPolicy == that.refreshPolicy
+            && Objects.equals(certificateIdentity, that.certificateIdentity);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(id, name, expiration, metadata, roleDescriptors, refreshPolicy);
+        return Objects.hash(id, name, expiration, metadata, roleDescriptors, refreshPolicy, certificateIdentity);
     }
 
     public static CreateCrossClusterApiKeyRequest withNameAndAccess(String name, String access) throws IOException {
-        return new CreateCrossClusterApiKeyRequest(name, CrossClusterApiKeyRoleDescriptorBuilder.parse(access), null, null);
+        return new CreateCrossClusterApiKeyRequest(name, CrossClusterApiKeyRoleDescriptorBuilder.parse(access), null, null, null);
     }
+
+    public CertificateIdentity getCertificateIdentity() {
+        return certificateIdentity;
+    }
+
 }

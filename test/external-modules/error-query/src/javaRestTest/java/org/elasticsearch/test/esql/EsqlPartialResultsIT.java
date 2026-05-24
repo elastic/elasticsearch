@@ -28,8 +28,8 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class EsqlPartialResultsIT extends ESRestTestCase {
     @ClassRule
@@ -106,7 +106,11 @@ public class EsqlPartialResultsIT extends ESRestTestCase {
         Set<String> okIds = populateIndices();
         String query = """
             {
-              "query": "FROM ok-index,failing-index | LIMIT 100 | KEEP fail_me,v"
+              "query": "FROM ok-index,failing-index | LIMIT 100 | KEEP fail_me,v",
+              "pragma": {
+                "max_concurrent_shards_per_node": 1
+              },
+              "accept_pragma_risks": true
             }
             """;
         // allow_partial_results = true
@@ -123,7 +127,7 @@ public class EsqlPartialResultsIT extends ESRestTestCase {
             List<?> columns = (List<?>) results.get("columns");
             assertThat(columns, equalTo(List.of(Map.of("name", "fail_me", "type", "long"), Map.of("name", "v", "type", "long"))));
             List<?> values = (List<?>) results.get("values");
-            assertThat(values.size(), lessThanOrEqualTo(okIds.size()));
+            assertThat(values.size(), equalTo(okIds.size()));
             Map<String, Object> localInfo = (Map<String, Object>) XContentMapValues.extractValue(
                 results,
                 "_clusters",
@@ -131,11 +135,10 @@ public class EsqlPartialResultsIT extends ESRestTestCase {
                 "(local)"
             );
             assertNotNull(localInfo);
-            assertThat(XContentMapValues.extractValue(localInfo, "_shards", "successful"), equalTo(0));
-            assertThat(
-                XContentMapValues.extractValue(localInfo, "_shards", "failed"),
-                equalTo(XContentMapValues.extractValue(localInfo, "_shards", "total"))
-            );
+            Integer successfulShards = (Integer) XContentMapValues.extractValue(localInfo, "_shards", "successful");
+            Integer failedShards = (Integer) XContentMapValues.extractValue(localInfo, "_shards", "failed");
+            assertThat(successfulShards, greaterThan(0));
+            assertThat(failedShards, greaterThan(0));
             List<Map<String, Object>> failures = (List<Map<String, Object>>) XContentMapValues.extractValue(localInfo, "failures");
             assertThat(failures, hasSize(1));
             assertThat(
@@ -167,7 +170,11 @@ public class EsqlPartialResultsIT extends ESRestTestCase {
             Set<String> okIds = populateIndices();
             String query = """
                 {
-                  "query": "FROM *:ok-index,*:failing-index | LIMIT 100 | KEEP fail_me,v"
+                  "query": "FROM *:ok-index,*:failing-index | LIMIT 100 | KEEP fail_me,v",
+                  "pragma": {
+                    "max_concurrent_shards_per_node": 1
+                  },
+                  "accept_pragma_risks": true
                 }
                 """;
             // allow_partial_results = true
@@ -183,7 +190,7 @@ public class EsqlPartialResultsIT extends ESRestTestCase {
             List<?> columns = (List<?>) results.get("columns");
             assertThat(columns, equalTo(List.of(Map.of("name", "fail_me", "type", "long"), Map.of("name", "v", "type", "long"))));
             List<?> values = (List<?>) results.get("values");
-            assertThat(values.size(), lessThanOrEqualTo(okIds.size()));
+            assertThat(values.size(), equalTo(okIds.size()));
             Map<String, Object> remoteCluster = (Map<String, Object>) XContentMapValues.extractValue(
                 results,
                 "_clusters",
@@ -191,17 +198,35 @@ public class EsqlPartialResultsIT extends ESRestTestCase {
                 "cluster_one"
             );
             assertNotNull(remoteCluster);
-            assertThat(XContentMapValues.extractValue(remoteCluster, "_shards", "successful"), equalTo(0));
-            assertThat(
-                XContentMapValues.extractValue(remoteCluster, "_shards", "failed"),
-                equalTo(XContentMapValues.extractValue(remoteCluster, "_shards", "total"))
-            );
+            Integer successfulShards = (Integer) XContentMapValues.extractValue(remoteCluster, "_shards", "successful");
+            Integer failedShards = (Integer) XContentMapValues.extractValue(remoteCluster, "_shards", "failed");
+            assertThat(successfulShards, greaterThan(0));
+            assertThat(failedShards, greaterThan(0));
             List<Map<String, Object>> failures = (List<Map<String, Object>>) XContentMapValues.extractValue(remoteCluster, "failures");
             assertThat(failures, hasSize(1));
             assertThat(
                 failures.get(0).get("reason"),
                 equalTo(Map.of("type", "illegal_state_exception", "reason", "Accessing failing field"))
             );
+        } finally {
+            removeRemoteCluster();
+        }
+    }
+
+    public void testAllShardsFailed() throws Exception {
+        setupRemoteClusters();
+        populateIndices();
+        try {
+            for (boolean allowPartialResults : List.of(Boolean.TRUE, Boolean.FALSE)) {
+                for (String index : List.of("failing*", "*:failing*", "*:failing*,failing*")) {
+                    Request request = new Request("POST", "/_query");
+                    request.setJsonEntity("{\"query\": \"FROM " + index + " | LIMIT 100\"}");
+                    request.addParameter("allow_partial_results", Boolean.toString(allowPartialResults));
+                    var error = expectThrows(ResponseException.class, () -> client().performRequest(request));
+                    Response resp = error.getResponse();
+                    assertThat(EntityUtils.toString(resp.getEntity()), containsString("Accessing failing field"));
+                }
+            }
         } finally {
             removeRemoteCluster();
         }

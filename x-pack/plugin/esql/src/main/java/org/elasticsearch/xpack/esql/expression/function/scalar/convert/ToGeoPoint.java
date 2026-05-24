@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
@@ -26,7 +27,7 @@ import java.util.Map;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
-import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToSpatial;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToGeo;
 
 public class ToGeoPoint extends AbstractConvertFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -34,6 +35,7 @@ public class ToGeoPoint extends AbstractConvertFunction {
         "ToGeoPoint",
         ToGeoPoint::new
     );
+    public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToGeoPoint.class).unary(ToGeoPoint::new).name("to_geopoint");
 
     private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
         Map.entry(GEO_POINT, (source, fieldEval) -> fieldEval),
@@ -91,6 +93,6 @@ public class ToGeoPoint extends AbstractConvertFunction {
 
     @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
     static BytesRef fromKeyword(BytesRef in) {
-        return stringToSpatial(in.utf8ToString());
+        return stringToGeo(in.utf8ToString());
     }
 }

@@ -1,5 +1,4 @@
----
-"Health indicator shards_availability for multi-project enabled cluster":
+setup:
   - requires:
       test_runner_features: capabilities
       capabilities:
@@ -7,6 +6,8 @@
           path: /_health_report
           capabilities: [ multi_project_shards_availability ]
       reason: Capability required to run test
+---
+"Health indicator shards_availability for multi-project enabled cluster":
   - do:
       health_report:
         feature: master_is_stable

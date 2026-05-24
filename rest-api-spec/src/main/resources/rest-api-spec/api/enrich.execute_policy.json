@@ -1,37 +1,42 @@
 {
   "enrich.execute_policy": {
     "documentation": {
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/execute-enrich-policy-api.html",
-      "description": "Creates the enrich index for an existing enrich policy."
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-enrich-execute-policy",
+      "description": "Run an enrich policy"
     },
-    "stability" : "stable",
-    "visibility":"public",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "public",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
     "url": {
       "paths": [
         {
           "path": "/_enrich/policy/{name}/_execute",
-          "methods": [ "PUT" ],
+          "methods": [
+            "PUT"
+          ],
           "parts": {
             "name": {
-              "type" : "string",
-              "description" : "The name of the enrich policy"
+              "type": "string",
+              "description": "The name of the enrich policy"
             }
           }
         }
       ]
     },
-    "params":{
-      "wait_for_completion":{
-        "type":"boolean",
-        "default":true,
-        "description":"Should the request should block until the execution is complete."
+    "params": {
+      "wait_for_completion": {
+        "type": "boolean",
+        "default": true,
+        "description": "Should the request should block until the execution is complete."
       },
-      "master_timeout":{
-        "type":"time",
-        "description":"Timeout for processing on master node"
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Timeout for processing on master node"
       }
     }
   }

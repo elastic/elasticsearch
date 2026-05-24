@@ -10,7 +10,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConditions;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.injection.guice.Inject;
@@ -42,14 +42,18 @@ import static org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType.shouldInj
 
 public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTransportAction {
 
+    private final ProjectResolver projectResolver;
+
     @Inject
     public IndexLifecycleUsageTransportAction(
         TransportService transportService,
         ClusterService clusterService,
         ThreadPool threadPool,
-        ActionFilters actionFilters
+        ActionFilters actionFilters,
+        ProjectResolver projectResolver
     ) {
         super(XPackUsageFeatureAction.INDEX_LIFECYCLE.name(), transportService, clusterService, threadPool, actionFilters);
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -59,12 +63,12 @@ public class IndexLifecycleUsageTransportAction extends XPackUsageFeatureTranspo
         ClusterState state,
         ActionListener<XPackUsageFeatureResponse> listener
     ) {
-        Metadata metadata = state.metadata();
-        IndexLifecycleMetadata lifecycleMetadata = metadata.getProject().custom(IndexLifecycleMetadata.TYPE);
+        final var project = projectResolver.getProjectMetadata(state);
+        IndexLifecycleMetadata lifecycleMetadata = project.custom(IndexLifecycleMetadata.TYPE);
         final IndexLifecycleFeatureSetUsage usage;
         if (lifecycleMetadata != null) {
             Map<String, Integer> policyUsage = new HashMap<>();
-            metadata.getProject().indices().values().forEach(value -> {
+            project.indices().values().forEach(value -> {
                 String policyName = value.getLifecyclePolicyName();
                 Integer indicesManaged = policyUsage.get(policyName);
                 if (indicesManaged == null) {

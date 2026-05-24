@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 navigation_title: "Object"
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/object.html
@@ -11,7 +14,7 @@ JSON documents are hierarchical in nature: the document may contain inner object
 
 ```console
 PUT my-index-000001/_doc/1
-{ <1>
+{ // <1>
   "region": "US",
   "manager": { <2>
     "age":     30,
@@ -38,6 +41,7 @@ Internally, this document is indexed as a simple, flat list of key-value pairs, 
   "manager.name.last":  "Smith"
 }
 ```
+% NOTCONSOLE
 
 An explicit mapping for the above document could look like this:
 

@@ -1,4 +1,7 @@
 ---
+applies_to:
+  stack:
+  serverless:
 mapped_pages:
   - https://www.elastic.co/guide/en/elasticsearch/reference/current/mapping-index-field.html
 ---
@@ -57,7 +60,7 @@ GET index_1,index_2/_search
 4. Accessing the `_index` field in scripts
 
 
-The `_index` field is exposed virtually — it is not added to the Lucene index as a real field. This means that you can use the `_index` field in a `term` or `terms` query (or any query that is rewritten to a `term` query, such as the `match`,  `query_string` or `simple_query_string` query), as well as `prefix` and `wildcard` queries. However, it does not support `regexp` and `fuzzy` queries.
+The `_index` field is exposed virtually — it is not added to the Lucene index as a real field. This means that you can use the `_index` field in a `term` or `terms` query (or any query that is rewritten to a `term` query, such as the `match`,  `query_string` or `simple_query_string` query), as well as `prefix` and `wildcard` queries. However, it does not support `regexp` and `fuzzy` queries.
 
 Queries on the `_index` field accept index aliases in addition to concrete index names.
 

@@ -57,11 +57,11 @@ Because this is a `text` field, the order of these search terms does not matter,
 http.request.body.content: "null pointer"
 ```
 
-Certain characters must be escaped by a backslash (unless surrounded by quotes). For example, to search for documents where `http.request.referrer` is [https://example.com](https://example.com), use either of the following queries:
+Certain characters must be escaped by a backslash (unless surrounded by quotes). For example, to search for documents where `http.request.referrer` is `https://<example-url>`, use either of the following queries:
 
 ```yaml
-http.request.referrer: "https://example.com"
-http.request.referrer: https\://example.com
+http.request.referrer: "https://<example-url>"
+http.request.referrer: https\://<example-url>
 ```
 
 You must escape following characters:

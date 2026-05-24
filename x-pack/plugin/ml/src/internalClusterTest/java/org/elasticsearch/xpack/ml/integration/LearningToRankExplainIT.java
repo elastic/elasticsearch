@@ -17,6 +17,7 @@ import org.elasticsearch.core.Predicates;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.action.PutTrainedModelAction;
@@ -42,6 +43,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class LearningToRankExplainIT extends BaseMlIntegTestCase {
 
     private static final String LTR_SEARCH_INDEX = "ltr-search-index";

@@ -22,7 +22,7 @@ import java.io.IOException;
 import java.util.Properties;
 import javax.inject.Inject;
 
-abstract class VersionPropertiesBuildService implements BuildService<VersionPropertiesBuildService.Params>, AutoCloseable {
+public abstract class VersionPropertiesBuildService implements BuildService<VersionPropertiesBuildService.Params>, AutoCloseable {
 
     private final Properties properties;
 

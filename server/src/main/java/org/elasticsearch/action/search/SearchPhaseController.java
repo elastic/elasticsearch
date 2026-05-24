@@ -9,12 +9,12 @@
 
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
-import org.apache.lucene.search.SortedNumericSortField;
-import org.apache.lucene.search.SortedSetSortField;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TopFieldDocs;
 import org.apache.lucene.search.TotalHits;
@@ -28,7 +28,6 @@ import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.lucene.grouping.TopFieldGroups;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
@@ -49,6 +48,7 @@ import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.context.QueryPhaseRankCoordinatorContext;
 import org.elasticsearch.search.sort.ShardDocSortField;
+import org.elasticsearch.search.sort.SortFieldValidation;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.Suggest.Suggestion;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
@@ -60,6 +60,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
@@ -68,6 +69,8 @@ import java.util.function.Supplier;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 
 public final class SearchPhaseController {
+
+    private static final Logger logger = LogManager.getLogger(SearchPhaseController.class);
 
     private final BiFunction<
         Supplier<Boolean>,
@@ -140,87 +143,34 @@ public final class SearchPhaseController {
     }
 
     static TopDocs mergeTopDocs(List<TopDocs> results, int topN, int from) {
-        if (results.isEmpty()) {
+        List<TopDocs> topDocsList = results.stream().filter(Objects::nonNull).toList();
+        if (topDocsList.isEmpty()) {
             return null;
         }
-        final TopDocs topDocs = results.getFirst();
-        final TopDocs mergedTopDocs;
-        final int numShards = results.size();
+        final TopDocs topDocs = topDocsList.getFirst();
+        final int numShards = topDocsList.size();
         if (numShards == 1 && from == 0) { // only one shard and no pagination we can just return the topDocs as we got them.
             return topDocs;
-        } else if (topDocs instanceof TopFieldGroups firstTopDocs) {
-            final Sort sort = new Sort(firstTopDocs.fields);
-            final TopFieldGroups[] shardTopDocs = results.toArray(new TopFieldGroups[0]);
-            mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
-        } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
-            final Sort sort = checkSameSortTypes(results, firstTopDocs.fields);
-            final TopFieldDocs[] shardTopDocs = results.toArray(new TopFieldDocs[0]);
-            mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
-        } else {
-            final TopDocs[] shardTopDocs = results.toArray(new TopDocs[numShards]);
-            mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
+        }
+        final TopDocs mergedTopDocs;
+        try {
+            if (topDocs instanceof TopFieldGroups firstTopDocs) {
+                final Sort sort = SortFieldValidation.validateAndMaybeRewrite(results, firstTopDocs.fields);
+                TopFieldGroups[] shardTopDocs = topDocsList.toArray(new TopFieldGroups[0]);
+                mergedTopDocs = TopFieldGroups.merge(sort, from, topN, shardTopDocs, false);
+            } else if (topDocs instanceof TopFieldDocs firstTopDocs) {
+                TopFieldDocs[] shardTopDocs = topDocsList.toArray(new TopFieldDocs[0]);
+                final Sort sort = SortFieldValidation.validateAndMaybeRewrite(results, firstTopDocs.fields);
+                mergedTopDocs = TopDocs.merge(sort, from, topN, shardTopDocs);
+            } else {
+                final TopDocs[] shardTopDocs = topDocsList.toArray(new TopDocs[0]);
+                mergedTopDocs = TopDocs.merge(from, topN, shardTopDocs);
+            }
+        } catch (IllegalArgumentException e) {
+            logger.debug("Failed to merge top docs: ", e);
+            throw e;
         }
         return mergedTopDocs;
-    }
-
-    private static Sort checkSameSortTypes(Collection<TopDocs> results, SortField[] firstSortFields) {
-        Sort sort = new Sort(firstSortFields);
-        if (results.size() < 2) return sort;
-
-        SortField.Type[] firstTypes = null;
-        boolean isFirstResult = true;
-        for (TopDocs topDocs : results) {
-            // We don't actually merge in empty score docs, so ignore potentially mismatched types if there are no docs
-            if (topDocs.scoreDocs == null || topDocs.scoreDocs.length == 0) {
-                continue;
-            }
-            SortField[] curSortFields = ((TopFieldDocs) topDocs).fields;
-            if (isFirstResult) {
-                sort = new Sort(curSortFields);
-                firstTypes = new SortField.Type[curSortFields.length];
-                for (int i = 0; i < curSortFields.length; i++) {
-                    firstTypes[i] = getType(curSortFields[i]);
-                    if (firstTypes[i] == SortField.Type.CUSTOM) {
-                        // for custom types that we can't resolve, we can't do the check
-                        return sort;
-                    }
-                }
-                isFirstResult = false;
-            } else {
-                for (int i = 0; i < curSortFields.length; i++) {
-                    SortField.Type curType = getType(curSortFields[i]);
-                    if (curType != firstTypes[i]) {
-                        if (curType == SortField.Type.CUSTOM) {
-                            // for custom types that we can't resolve, we can't do the check
-                            return sort;
-                        }
-                        throw new IllegalArgumentException(
-                            "Can't sort on field ["
-                                + curSortFields[i].getField()
-                                + "]; the field has incompatible sort types: ["
-                                + firstTypes[i]
-                                + "] and ["
-                                + curType
-                                + "] across shards!"
-                        );
-                    }
-                }
-            }
-        }
-        return sort;
-    }
-
-    private static SortField.Type getType(SortField sortField) {
-        if (sortField instanceof SortedNumericSortField sf) {
-            return sf.getNumericType();
-        } else if (sortField instanceof SortedSetSortField) {
-            return SortField.Type.STRING;
-        } else if (sortField.getComparatorSource() instanceof IndexFieldData.XFieldComparatorSource cmp) {
-            // This can occur if the sort field wasn't rewritten by Lucene#rewriteMergeSortField because all search shards are local.
-            return cmp.reducedType();
-        } else {
-            return sortField.getType();
-        }
     }
 
     static void setShardIndex(TopDocs topDocs, int shardIndex) {
@@ -277,26 +227,33 @@ public final class SearchPhaseController {
         if (reducedQueryPhase.isEmptyResult) {
             return SearchResponseSections.EMPTY_WITH_TOTAL_HITS;
         }
-        ScoreDoc[] sortedDocs = reducedQueryPhase.sortedTopDocs.scoreDocs;
         var fetchResults = fetchResultsArray.asList();
-        final SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
+        SearchHits hits = getHits(reducedQueryPhase, ignoreFrom, fetchResultsArray);
         try {
             if (reducedQueryPhase.suggest != null && fetchResults.isEmpty() == false) {
-                mergeSuggest(reducedQueryPhase, fetchResultsArray, hits, sortedDocs);
+                mergeSuggest(reducedQueryPhase, fetchResultsArray, hits.getHits().length, reducedQueryPhase.sortedTopDocs.scoreDocs);
             }
-            return reducedQueryPhase.buildResponse(hits, fetchResults);
+            // Own refs for suggestion option hits so they survive fetch result release (caller exits try-with-resources).
+            // Refs are incremented inside Suggest#collectCompletionOptionHits when passed true, not in mergeSuggest above.
+            List<SearchHit> completionOptionHitsToRelease = reducedQueryPhase.suggest == null
+                ? List.of()
+                : Objects.requireNonNullElse(reducedQueryPhase.suggest.collectCompletionOptionHits(true), List.of());
+            var res = reducedQueryPhase.buildResponse(hits, fetchResults, completionOptionHitsToRelease);
+            hits = null;
+            return res;
         } finally {
-            hits.decRef();
+            if (hits != null) {
+                hits.decRef();
+            }
         }
     }
 
     private static void mergeSuggest(
         ReducedQueryPhase reducedQueryPhase,
         AtomicArray<? extends SearchPhaseResult> fetchResultsArray,
-        SearchHits hits,
+        int currentOffset,
         ScoreDoc[] sortedDocs
     ) {
-        int currentOffset = hits.getHits().length;
         for (CompletionSuggestion suggestion : reducedQueryPhase.suggest.filter(CompletionSuggestion.class)) {
             final List<CompletionSuggestion.Entry.Option> suggestionOptions = suggestion.getOptions();
             for (int scoreDocIndex = currentOffset; scoreDocIndex < currentOffset + suggestionOptions.size(); scoreDocIndex++) {
@@ -311,8 +268,10 @@ public final class SearchPhaseController {
                 }
                 FetchSearchResult fetchResult = searchResultProvider.fetchResult();
                 final int index = fetchResult.counterGetAndIncrement();
-                assert index < fetchResult.hits().getHits().length
-                    : "not enough hits fetched. index [" + index + "] length: " + fetchResult.hits().getHits().length;
+                if (index >= fetchResult.hits().getHits().length) {
+                    // the fetch phase on this shard timed out and returned partial results
+                    continue;
+                }
                 SearchHit hit = fetchResult.hits().getHits()[index];
                 CompletionSuggestion.Entry.Option suggestOption = suggestionOptions.get(scoreDocIndex - currentOffset);
                 hit.score(shardDoc.score);
@@ -364,8 +323,10 @@ public final class SearchPhaseController {
                 }
                 FetchSearchResult fetchResult = fetchResultProvider.fetchResult();
                 final int index = fetchResult.counterGetAndIncrement();
-                assert index < fetchResult.hits().getHits().length
-                    : "not enough hits fetched. index [" + index + "] length: " + fetchResult.hits().getHits().length;
+                if (index >= fetchResult.hits().getHits().length) {
+                    // the fetch phase on this shard timed out and returned partial results
+                    continue;
+                }
                 SearchHit searchHit = fetchResult.hits().getHits()[index];
                 searchHit.shard(fetchResult.getSearchShardTarget());
                 if (shardDoc instanceof RankDoc) {
@@ -417,7 +378,8 @@ public final class SearchPhaseController {
         TopDocsStats topDocsStats,
         int numReducePhases,
         boolean isScrollRequest,
-        QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext
+        QueryPhaseRankCoordinatorContext queryPhaseRankCoordinatorContext,
+        @Nullable List<SearchHits> topHitsToRelease
     ) {
         assert numReducePhases >= 0 : "num reduce phases must be >= 0 but was: " + numReducePhases;
         numReducePhases++; // increment for this phase
@@ -437,7 +399,9 @@ public final class SearchPhaseController {
                 numReducePhases,
                 0,
                 0,
-                true
+                true,
+                null,
+                null
             );
         }
         final List<QuerySearchResult> nonNullResults = new ArrayList<>();
@@ -466,6 +430,7 @@ public final class SearchPhaseController {
             : Collections.emptyMap();
         int from = 0;
         int size = 0;
+        Long timeRangeFilterFromMillis = null;
         DocValueFormat[] sortValueFormats = null;
         for (QuerySearchResult result : nonNullResults) {
             from = result.from();
@@ -473,6 +438,16 @@ public final class SearchPhaseController {
             size = Math.max(result.size(), size);
             if (result.sortValueFormats() != null) {
                 sortValueFormats = result.sortValueFormats();
+            }
+
+            if (result.getTimeRangeFilterFromMillis() != null) {
+                if (timeRangeFilterFromMillis == null) {
+                    timeRangeFilterFromMillis = result.getTimeRangeFilterFromMillis();
+                } else {
+                    // all shards should hold the same value, besides edge cases like different mappings
+                    // for event.ingested and @timestamp across indices being searched
+                    timeRangeFilterFromMillis = Math.min(result.getTimeRangeFilterFromMillis(), timeRangeFilterFromMillis);
+                }
             }
 
             if (hasSuggest) {
@@ -529,7 +504,9 @@ public final class SearchPhaseController {
             numReducePhases,
             size,
             from,
-            false
+            false,
+            timeRangeFilterFromMillis,
+            topHitsToRelease
         );
     }
 
@@ -612,7 +589,10 @@ public final class SearchPhaseController {
         // the offset into the merged top hits
         int from,
         // <code>true</code> iff the query phase had no results. Otherwise <code>false</code>
-        boolean isEmptyResult
+        boolean isEmptyResult,
+        Long timeRangeFilterFromMillis,
+        // SearchHits from top_hits aggs for release by SearchResponse (may be null)
+        @Nullable List<SearchHits> topHitsToRelease
     ) {
 
         public ReducedQueryPhase {
@@ -625,7 +605,11 @@ public final class SearchPhaseController {
          * Creates a new search response from the given merged hits.
          * @see #merge(boolean, ReducedQueryPhase, AtomicArray)
          */
-        public SearchResponseSections buildResponse(SearchHits hits, Collection<? extends SearchPhaseResult> fetchResults) {
+        public SearchResponseSections buildResponse(
+            SearchHits hits,
+            Collection<? extends SearchPhaseResult> fetchResults,
+            @Nullable List<SearchHit> completionOptionHitsToRelease
+        ) {
             return new SearchResponseSections(
                 hits,
                 aggregations,
@@ -633,7 +617,10 @@ public final class SearchPhaseController {
                 timedOut,
                 terminatedEarly,
                 buildSearchProfileResults(fetchResults),
-                numReducePhases
+                numReducePhases,
+                timeRangeFilterFromMillis,
+                topHitsToRelease,
+                completionOptionHitsToRelease
             );
         }
 
@@ -642,8 +629,8 @@ public final class SearchPhaseController {
                 assert fetchResults.stream().map(SearchPhaseResult::fetchResult).allMatch(r -> r == null || r.profileResult() == null)
                     : "found fetch profile without search profile";
                 return null;
-
             }
+
             return profileBuilder.build(fetchResults);
         }
     }

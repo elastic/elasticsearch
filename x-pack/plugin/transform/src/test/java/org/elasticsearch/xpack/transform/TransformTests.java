@@ -12,10 +12,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterName;
-import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -40,8 +37,6 @@ public class TransformTests extends ESTestCase {
 
     public void testSetTransformUpgradeMode() {
         var threadPool = new TestThreadPool("testSetTransformUpgradeMode");
-        ClusterService clusterService = mock();
-        when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         Client client = mock();
         when(client.threadPool()).thenReturn(threadPool);
         doAnswer(invocationOnMock -> {
@@ -52,43 +47,46 @@ public class TransformTests extends ESTestCase {
 
         try (var transformPlugin = new Transform(Settings.EMPTY)) {
             SetOnce<Map<String, Object>> response = new SetOnce<>();
-            transformPlugin.prepareForIndicesMigration(clusterService, client, ActionTestUtils.assertNoFailureListener(response::set));
+            transformPlugin.prepareForIndicesMigration(emptyProject(), client, ActionTestUtils.assertNoFailureListener(response::set));
 
             assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", false)));
-            verify(client).execute(same(SetTransformUpgradeModeAction.INSTANCE), eq(new SetUpgradeModeActionRequest(true)), any());
+            verify(client).execute(
+                same(SetTransformUpgradeModeAction.INSTANCE),
+                eq(new SetUpgradeModeActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, true)),
+                any()
+            );
 
             transformPlugin.indicesMigrationComplete(
                 response.get(),
-                clusterService,
                 client,
                 ActionTestUtils.assertNoFailureListener(ESTestCase::assertTrue)
             );
 
-            verify(client).execute(same(SetTransformUpgradeModeAction.INSTANCE), eq(new SetUpgradeModeActionRequest(false)), any());
+            verify(client).execute(
+                same(SetTransformUpgradeModeAction.INSTANCE),
+                eq(new SetUpgradeModeActionRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, false)),
+                any()
+            );
         } finally {
             terminate(threadPool);
         }
     }
 
     public void testIgnoreSetTransformUpgradeMode() {
-        ClusterService clusterService = mock();
-        when(clusterService.state()).thenReturn(
-            ClusterState.builder(ClusterName.DEFAULT)
-                .metadata(Metadata.builder().putCustom(TransformMetadata.TYPE, new TransformMetadata.Builder().upgradeMode(true).build()))
-                .build()
-        );
+        final var project = ProjectMetadata.builder(randomProjectIdOrDefault())
+            .putCustom(TransformMetadata.TYPE, new TransformMetadata.Builder().upgradeMode(true).build())
+            .build();
         Client client = mock();
 
         try (var transformPlugin = new Transform(Settings.EMPTY)) {
             SetOnce<Map<String, Object>> response = new SetOnce<>();
-            transformPlugin.prepareForIndicesMigration(clusterService, client, ActionTestUtils.assertNoFailureListener(response::set));
+            transformPlugin.prepareForIndicesMigration(project, client, ActionTestUtils.assertNoFailureListener(response::set));
 
             assertThat(response.get(), equalTo(Collections.singletonMap("already_in_upgrade_mode", true)));
             verifyNoMoreInteractions(client);
 
             transformPlugin.indicesMigrationComplete(
                 response.get(),
-                clusterService,
                 client,
                 ActionTestUtils.assertNoFailureListener(ESTestCase::assertTrue)
             );

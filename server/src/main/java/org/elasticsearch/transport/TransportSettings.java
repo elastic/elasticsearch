@@ -66,27 +66,31 @@ public final class TransportSettings {
         "publish_port",
         key -> intSetting(key, -1, -1, Setting.Property.NodeScope)
     );
+    public static final Compression.Enabled DEFAULT_TRANSPORT_COMPRESS = Compression.Enabled.INDEXING_DATA;
     public static final Setting<Compression.Enabled> TRANSPORT_COMPRESS = enumSetting(
         Compression.Enabled.class,
         "transport.compress",
-        Compression.Enabled.INDEXING_DATA,
+        DEFAULT_TRANSPORT_COMPRESS,
         Setting.Property.NodeScope
     );
+    public static final Compression.Scheme DEFAULT_TRANSPORT_COMPRESSION_SCHEME = Compression.Scheme.LZ4;
     public static final Setting<Compression.Scheme> TRANSPORT_COMPRESSION_SCHEME = enumSetting(
         Compression.Scheme.class,
         "transport.compression_scheme",
-        Compression.Scheme.LZ4,
+        DEFAULT_TRANSPORT_COMPRESSION_SCHEME,
         Setting.Property.NodeScope
     );
     // the scheduled internal ping interval setting, defaults to disabled (-1)
+    public static final TimeValue DEFAULT_PING_SCHEDULE = TimeValue.MINUS_ONE;
     public static final Setting<TimeValue> PING_SCHEDULE = timeSetting(
         "transport.ping_schedule",
-        TimeValue.timeValueSeconds(-1),
+        DEFAULT_PING_SCHEDULE,
         Setting.Property.NodeScope
     );
+    public static final TimeValue DEFAULT_CONNECT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
     public static final Setting<TimeValue> CONNECT_TIMEOUT = timeSetting(
         "transport.connect_timeout",
-        new TimeValue(30, TimeUnit.SECONDS),
+        DEFAULT_CONNECT_TIMEOUT,
         Setting.Property.NodeScope
     );
     public static final Setting<Settings> DEFAULT_FEATURES_SETTING = Setting.groupSetting(FEATURE_PREFIX + ".", Setting.Property.NodeScope);

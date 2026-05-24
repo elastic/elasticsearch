@@ -55,7 +55,7 @@ public class NettyAllocator {
                 + ", factors={es.unsafe.use_netty_default_allocator=true}]";
         } else {
             final long heapSizeInBytes = JvmInfo.jvmInfo().getMem().getHeapMax().getBytes();
-            final boolean g1gcEnabled = Boolean.parseBoolean(JvmInfo.jvmInfo().useG1GC());
+            final boolean g1gcEnabled = useG1GC();
             final long g1gcRegionSizeInBytes = JvmInfo.jvmInfo().getG1RegionSize();
             final boolean g1gcRegionSizeIsKnown = g1gcRegionSizeInBytes != -1;
             ByteSizeValue heapSize = ByteSizeValue.ofBytes(heapSizeInBytes);
@@ -167,6 +167,10 @@ public class NettyAllocator {
                 return PageCacheRecycler.BYTE_PAGE_SIZE;
             }
         };
+    }
+
+    private static boolean useG1GC() {
+        return Booleans.parseBooleanLenient(JvmInfo.jvmInfo().useG1GC(), false);
     }
 
     public static void logAllocatorDescriptionIfNeeded() {

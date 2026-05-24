@@ -9,9 +9,9 @@ package org.elasticsearch.xpack.core.inference.results;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.WeightedToken;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.core.ml.search.WeightedToken;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -87,7 +87,7 @@ public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase
     public void testToXContent_CreatesTheRightFormatForASingleEmbedding() throws IOException {
         var entity = createSparseResult(List.of(createEmbedding(List.of(new WeightedToken("token", 0.1F)), false)));
         assertThat(entity.asMap(), is(buildExpectationSparseEmbeddings(List.of(new EmbeddingExpectation(Map.of("token", 0.1F), false)))));
-        String xContentResult = Strings.toString(entity, true, true);
+        String xContentResult = Strings.toTruncatedString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "sparse_embedding" : [
@@ -120,7 +120,7 @@ public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase
             )
         );
 
-        String xContentResult = Strings.toString(entity, true, true);
+        String xContentResult = Strings.toTruncatedString(entity, true, true);
         assertThat(xContentResult, is("""
             {
               "sparse_embedding" : [
@@ -207,7 +207,7 @@ public class SparseEmbeddingResultsTests extends AbstractWireSerializingTestCase
             embeddings.stream()
                 .map(
                     embedding -> Map.of(
-                        SparseEmbeddingResults.Embedding.EMBEDDING,
+                        EmbeddingResults.EMBEDDING,
                         embedding.tokens,
                         SparseEmbeddingResults.Embedding.IS_TRUNCATED,
                         embedding.isTruncated

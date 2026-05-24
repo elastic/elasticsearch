@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.common.amazon;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -23,11 +22,11 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
 import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 import static org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockConstants.ACCESS_KEY_FIELD;
@@ -58,9 +57,7 @@ public class AwsSecretSettings implements SecretSettings {
             validationException
         );
 
-        if (validationException.validationErrors().isEmpty() == false) {
-            throw validationException;
-        }
+        validationException.throwIfValidationErrorsExist();
 
         return new AwsSecretSettings(secureAccessKey, secureSecretKey);
     }
@@ -82,7 +79,7 @@ public class AwsSecretSettings implements SecretSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.V_8_15_0;
+        return TransportVersion.minimumCompatible();
     }
 
     @Override
@@ -117,7 +114,7 @@ public class AwsSecretSettings implements SecretSettings {
 
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
-        return fromMap(new HashMap<>(newSecrets));
+        return fromMap(newSecrets);
     }
 
     public SecureString accessKey() {
@@ -134,33 +131,39 @@ public class AwsSecretSettings implements SecretSettings {
         }
 
         private static final LazyInitializable<Map<String, SettingsConfiguration>, RuntimeException> configuration =
-            new LazyInitializable<>(() -> {
-                var configurationMap = new HashMap<String, SettingsConfiguration>();
-                configurationMap.put(
-                    ACCESS_KEY_FIELD,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).setDescription(
-                        "A valid AWS access key that has permissions to use Amazon Bedrock."
-                    )
-                        .setLabel("Access Key")
-                        .setRequired(true)
-                        .setSensitive(true)
-                        .setUpdatable(true)
-                        .setType(SettingsConfigurationFieldType.STRING)
-                        .build()
-                );
-                configurationMap.put(
-                    SECRET_KEY_FIELD,
-                    new SettingsConfiguration.Builder(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION)).setDescription(
-                        "A valid AWS secret key that is paired with the access_key."
-                    )
-                        .setLabel("Secret Key")
-                        .setRequired(true)
-                        .setSensitive(true)
-                        .setUpdatable(true)
-                        .setType(SettingsConfigurationFieldType.STRING)
-                        .build()
-                );
-                return Collections.unmodifiableMap(configurationMap);
-            });
+            new LazyInitializable<>(
+                () -> configuration(EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION, TaskType.CHAT_COMPLETION)).collect(
+                    Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue)
+                )
+            );
+    }
+
+    public static Stream<Map.Entry<String, SettingsConfiguration>> configuration(EnumSet<TaskType> supportedTaskTypes) {
+        return Stream.of(
+            Map.entry(
+                ACCESS_KEY_FIELD,
+                new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    "A valid AWS access key that has permissions to use Amazon Bedrock."
+                )
+                    .setLabel("Access Key")
+                    .setRequired(true)
+                    .setSensitive(true)
+                    .setUpdatable(true)
+                    .setType(SettingsConfigurationFieldType.STRING)
+                    .build()
+            ),
+            Map.entry(
+                SECRET_KEY_FIELD,
+                new SettingsConfiguration.Builder(supportedTaskTypes).setDescription(
+                    "A valid AWS secret key that is paired with the access_key."
+                )
+                    .setLabel("Secret Key")
+                    .setRequired(true)
+                    .setSensitive(true)
+                    .setUpdatable(true)
+                    .setType(SettingsConfigurationFieldType.STRING)
+                    .build()
+            )
+        );
     }
 }

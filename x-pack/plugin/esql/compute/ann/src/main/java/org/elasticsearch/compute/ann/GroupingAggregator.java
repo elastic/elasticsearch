@@ -29,7 +29,13 @@ public @interface GroupingAggregator {
     Class<? extends Exception>[] warnExceptions() default {};
 
     /**
-     * If {@code true} then the @timestamp LongVector will be appended to the input blocks of the aggregation function.
+     * When {@code false} (the default), the generated {@code prepareProcessRawInputPage}
+     * will return {@code null} — opting out of the callback loop — when all values in an
+     * input block are null, because there is nothing to aggregate.
+     * <p>
+     *     Set to {@code true} for aggregations like {@code FIRST} and {@code LAST} that
+     *     need to process null values to correctly track position-based semantics.
+     * </p>
      */
-    boolean includeTimestamps() default false;
+    boolean processNulls() default false;
 }

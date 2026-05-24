@@ -8,7 +8,6 @@
  */
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.publish'
 
 dependencies {
   api project(":test:framework")

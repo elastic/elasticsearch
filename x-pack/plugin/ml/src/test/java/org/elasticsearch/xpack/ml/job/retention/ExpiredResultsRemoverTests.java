@@ -135,6 +135,22 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
         verify(listener).onFailure(any());
     }
 
+    public void testRemove_GivenIndexNotWritable_ShouldHandleGracefully() {
+        givenBucket(new Bucket("id_not_important", new Date(), 60));
+
+        // Prepare one job with a retention policy
+        List<Job> jobs = Arrays.asList(
+            JobTests.buildJobBuilder("results-1").setResultsRetentionDays(10L).build(),
+            JobTests.buildJobBuilder("results-1").setResultsRetentionDays(20L).build()
+        );
+
+        createExpiredResultsRemover(jobs.iterator(), false).remove(1.0f, listener, () -> false);
+
+        // Assert: success callback invoked, no DBQ requests
+        verify(listener).onResponse(true);
+        assertThat(capturedDeleteByQueryRequests.size(), equalTo(0));
+    }
+
     @SuppressWarnings("unchecked")
     public void testCalcCutoffEpochMs() {
         String jobId = "calc-cutoff";
@@ -180,12 +196,17 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
     private void givenBucket(Bucket bucket) {
         doAnswer(invocationOnMock -> {
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocationOnMock.getArguments()[2];
-            listener.onResponse(AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(bucket)));
+            SearchResponse searchResponse = AbstractExpiredJobDataRemoverTests.createSearchResponse(Collections.singletonList(bucket));
+            ActionListener.respondAndRelease(listener, searchResponse);
             return null;
         }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
     }
 
     private ExpiredResultsRemover createExpiredResultsRemover(Iterator<Job> jobIterator) {
+        return createExpiredResultsRemover(jobIterator, true);
+    }
+
+    private ExpiredResultsRemover createExpiredResultsRemover(Iterator<Job> jobIterator, boolean isResultsIndexWritable) {
         ThreadPool threadPool = mock(ThreadPool.class);
         ExecutorService executor = mock(ExecutorService.class);
 
@@ -196,6 +217,8 @@ public class ExpiredResultsRemoverTests extends ESTestCase {
             run.run();
             return null;
         }).when(executor).execute(any());
+
+        MockWritableIndexExpander.create(isResultsIndexWritable);
 
         return new ExpiredResultsRemover(
             originSettingClient,

@@ -16,6 +16,7 @@ import org.elasticsearch.nativeaccess.lib.ZstdLibrary;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.MemorySegment;
 import java.lang.invoke.MethodHandle;
+import java.nio.ByteBuffer;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BOOLEAN;
@@ -96,6 +97,38 @@ class JdkZstdLibrary implements ZstdLibrary {
         var srcSize = src.buffer().remaining();
         var segmentDst = nativeDst.segment.asSlice(dst.buffer().position(), dstSize);
         var segmentSrc = nativeSrc.segment.asSlice(src.buffer().position(), srcSize);
+        try {
+            return (long) decompress$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public long decompress(CloseableByteBuffer dst, ByteBuffer src) {
+        assert dst instanceof JdkCloseableByteBuffer;
+        assert src.isDirect();
+        var nativeDst = (JdkCloseableByteBuffer) dst;
+        var dstSize = dst.buffer().remaining();
+        var srcSize = src.remaining();
+        var segmentDst = nativeDst.segment.asSlice(dst.buffer().position(), dstSize);
+        var segmentSrc = MemorySegment.ofBuffer(src);
+        try {
+            return (long) decompress$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public long decompress(ByteBuffer dst, int dstOffset, int dstSize, ByteBuffer src, int srcOffset, int srcSize) {
+        assert dst.isDirect();
+        assert src.isDirect();
+        // Use absolute addressing: MemorySegment.ofBuffer(buf) covers [position, limit), so
+        // duplicate().clear() yields a non-mutating view over [0, capacity) on which the
+        // explicit (offset, size) slice resolves to absolute byte positions in the buffer.
+        var segmentDst = MemorySegment.ofBuffer(dst.duplicate().clear()).asSlice(dstOffset, dstSize);
+        var segmentSrc = MemorySegment.ofBuffer(src.duplicate().clear()).asSlice(srcOffset, srcSize);
         try {
             return (long) decompress$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize);
         } catch (Throwable t) {

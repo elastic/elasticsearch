@@ -39,6 +39,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import javax.inject.Inject;
 
@@ -48,6 +49,8 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     public static final String PROPERTIES_FILENAME = "plugin-descriptor.properties";
     public static final String STABLE_PROPERTIES_FILENAME = "stable-plugin-descriptor.properties";
     private static final String DESCRIPTION = "Generates Elasticsearch Plugin descriptor file";
+
+    private static final Set<String> DEPLOYMENT_TARGETS = Set.of("ALL", "STATELESS_ONLY", "STATEFUL_ONLY");
 
     @Inject
     public GeneratePluginPropertiesTask(ProjectLayout projectLayout) {
@@ -95,6 +98,10 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     @Input
     public abstract Property<Boolean> getIsStable();
 
+    @Input
+    @Optional
+    public abstract Property<String> getDeploymentTarget();
+
     @TaskAction
     public void generatePropertiesFile() throws IOException {
         String classname = getClassname().getOrElse("");
@@ -118,6 +125,14 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
         props.put("requiresKeystore", getRequiresKeystore().get());
         props.put("licensed", getIsLicensed().get());
         props.put("modulename", findModuleName());
+
+        String deploymentTarget = getDeploymentTarget().getOrElse("ALL");
+        if (DEPLOYMENT_TARGETS.contains(deploymentTarget) == false) {
+            throw new InvalidUserDataException(
+                "invalid deploymentTarget '" + deploymentTarget + "', expected one of " + DEPLOYMENT_TARGETS
+            );
+        }
+        props.put("deploymentTarget", deploymentTarget);
 
         SimpleTemplateEngine engine = new SimpleTemplateEngine();
         Path outputFile = getOutputFile().get().getAsFile().toPath();

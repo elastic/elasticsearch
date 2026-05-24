@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.datastreams.options.action;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -49,17 +50,19 @@ public class GetDataStreamOptionsAction {
 
     public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
 
+        private static final TransportVersion DATA_STREAM_OPTIONS_API_REMOVE_INCLUDE_DEFAULTS = TransportVersion.fromName(
+            "data_stream_options_api_remove_include_defaults"
+        );
+
         private String[] names;
         private IndicesOptions indicesOptions = IndicesOptions.builder()
             .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
-            .wildcardOptions(
-                IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(true).allowEmptyExpressions(true).resolveAliases(false)
-            )
+            .wildcardOptions(IndicesOptions.WildcardOptions.builder().matchOpen(true).matchClosed(true).allowEmptyExpressions(true))
+            .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveAliases(false))
             .gatekeeperOptions(
                 IndicesOptions.GatekeeperOptions.builder().allowAliasToMultipleIndices(false).allowClosedIndices(true).allowSelectors(false)
             )
             .build();
-        private boolean includeDefaults = false;
 
         public Request(TimeValue masterNodeTimeout, String[] names) {
             super(masterNodeTimeout);
@@ -69,7 +72,6 @@ public class GetDataStreamOptionsAction {
         public Request(TimeValue masterNodeTimeout, String[] names, boolean includeDefaults) {
             super(masterNodeTimeout);
             this.names = names;
-            this.includeDefaults = includeDefaults;
         }
 
         public String[] getNames() {
@@ -90,12 +92,15 @@ public class GetDataStreamOptionsAction {
          * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to read these requests until
          * we no longer need to support calling this action remotely.
          */
-        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+        @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         public Request(StreamInput in) throws IOException {
             super(in);
             this.names = in.readOptionalStringArray();
             this.indicesOptions = IndicesOptions.readIndicesOptions(in);
-            this.includeDefaults = in.readBoolean();
+            // This boolean was removed in 8.19
+            if (in.getTransportVersion().supports(DATA_STREAM_OPTIONS_API_REMOVE_INCLUDE_DEFAULTS) == false) {
+                in.readBoolean();
+            }
         }
 
         @Override
@@ -103,14 +108,12 @@ public class GetDataStreamOptionsAction {
             if (this == o) return true;
             if (o == null || getClass() != o.getClass()) return false;
             Request request = (Request) o;
-            return Arrays.equals(names, request.names)
-                && indicesOptions.equals(request.indicesOptions)
-                && includeDefaults == request.includeDefaults;
+            return Arrays.equals(names, request.names) && indicesOptions.equals(request.indicesOptions);
         }
 
         @Override
         public int hashCode() {
-            int result = Objects.hash(indicesOptions, includeDefaults);
+            int result = Objects.hash(indicesOptions);
             result = 31 * result + Arrays.hashCode(names);
             return result;
         }
@@ -123,10 +126,6 @@ public class GetDataStreamOptionsAction {
         @Override
         public IndicesOptions indicesOptions() {
             return indicesOptions;
-        }
-
-        public boolean includeDefaults() {
-            return includeDefaults;
         }
 
         public Request indicesOptions(IndicesOptions indicesOptions) {
@@ -144,11 +143,6 @@ public class GetDataStreamOptionsAction {
             this.names = indices;
             return this;
         }
-
-        public Request includeDefaults(boolean includeDefaults) {
-            this.includeDefaults = includeDefaults;
-            return this;
-        }
     }
 
     public static class Response extends ActionResponse implements ChunkedToXContentObject {
@@ -163,7 +157,7 @@ public class GetDataStreamOptionsAction {
              * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
              * we no longer need to support calling this action remotely.
              */
-            @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+            @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
             @Override
             public void writeTo(StreamOutput out) throws IOException {
                 out.writeString(dataStreamName);
@@ -196,7 +190,7 @@ public class GetDataStreamOptionsAction {
          * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC we must remain able to write these responses until
          * we no longer need to support calling this action remotely.
          */
-        @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+        @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeCollection(dataStreams);

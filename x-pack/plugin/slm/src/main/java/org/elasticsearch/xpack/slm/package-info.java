@@ -20,13 +20,13 @@
  * {@link org.elasticsearch.common.scheduler.SchedulerEngine SchedulerEngine} that handles scheduling snapshots. The service
  * executes on the currently elected master node. It listens to the cluster state, detecting new policies to schedule, and unscheduling
  * policies when they are deleted or if SLM is stopped. The bulk of this scheduling management is handled within
- * {@link org.elasticsearch.xpack.slm.SnapshotLifecycleService#maybeScheduleSnapshot(SnapshotLifecyclePolicyMetadata)}
- * which is executed on all snapshot policies each update.
+ * {@link org.elasticsearch.xpack.slm.SnapshotLifecycleService#maybeScheduleSnapshot(SnapshotLifecycleProjectState,
+ * SnapshotLifecyclePolicyMetadata)}, which is executed on all snapshot policies each update.
  *
  * <p>The {@link org.elasticsearch.xpack.slm.SnapshotLifecycleTask} object is what receives an event when a scheduled policy
  * is triggered for execution. It constructs a snapshot request and runs it as the user who originally set up the policy. The bulk of this
  * logic is contained in the
- * {@link org.elasticsearch.xpack.slm.SnapshotLifecycleTask#maybeTakeSnapshot(String, Client, ClusterService,
+ * {@link org.elasticsearch.xpack.slm.SnapshotLifecycleTask#maybeTakeSnapshot(ProjectMetadata, String, Client, ClusterService,
  * SnapshotHistoryStore)} method. After a snapshot request has been submitted, it persists the result (success or failure) in a history
  * store (an index), caching the latest success and failure information in the cluster state. It is important to note that this task
  * fires the snapshot request off and forgets it; It does not wait until the entire snapshot completes. Any success or failure that this
@@ -35,6 +35,8 @@
 package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.xpack.core.slm.SnapshotLifecyclePolicyMetadata;
+import org.elasticsearch.xpack.slm.SnapshotLifecycleService.SnapshotLifecycleProjectState;
 import org.elasticsearch.xpack.slm.history.SnapshotHistoryStore;

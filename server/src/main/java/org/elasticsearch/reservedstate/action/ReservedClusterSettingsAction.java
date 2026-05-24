@@ -32,7 +32,7 @@ import java.util.stream.Collectors;
  * It is used by the ReservedClusterStateService to update the persistent cluster settings.
  * Since transient cluster settings are deprecated, this action doesn't support updating transient cluster settings.
  */
-public class ReservedClusterSettingsAction implements ReservedClusterStateHandler<ClusterState, Map<String, Object>> {
+public class ReservedClusterSettingsAction implements ReservedClusterStateHandler<Map<String, Object>> {
 
     private static final Logger logger = LogManager.getLogger(ReservedClusterSettingsAction.class);
 
@@ -50,15 +50,24 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
     }
 
     @SuppressWarnings("unchecked")
-    private static ClusterUpdateSettingsRequest prepare(Object input, Set<String> previouslySet) {
+    private ClusterUpdateSettingsRequest prepare(Object input, Set<String> previouslySet) {
         // load the new settings into a builder so their paths are normalized
-        @SuppressWarnings("unchecked")
         Settings.Builder newSettings = Settings.builder().loadFromMap((Map<String, ?>) input);
 
         // now the new and old settings can be compared to find which are missing for deletion
         Set<String> toDelete = new HashSet<>(previouslySet);
         toDelete.removeAll(newSettings.keys());
-        toDelete.forEach(k -> newSettings.put(k, (String) null));
+        for (String key : toDelete) {
+            if (clusterSettings.get(key) != null) {
+                newSettings.put(key, (String) null);
+            } else {
+                // The setting no longer exists in the registry (e.g. it was renamed or removed).
+                // Skip nulling it out — validation would fail since the setting is unknown.
+                // Omitting it from newSettings means it won't appear in currentKeys, so it will
+                // be silently dropped from the reserved state metadata.
+                logger.info("Previously reserved cluster setting [{}] no longer exists; removing from reserved state", key);
+            }
+        }
 
         final ClusterUpdateSettingsRequest clusterUpdateSettingsRequest = new ClusterUpdateSettingsRequest(
             RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
@@ -69,7 +78,7 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
     }
 
     @Override
-    public TransformState<ClusterState> transform(Map<String, Object> input, TransformState<ClusterState> prevState) {
+    public TransformState transform(Map<String, Object> input, TransformState prevState) {
         ClusterUpdateSettingsRequest request = prepare(input, prevState.keys());
 
         // allow empty requests, this is how we clean up settings
@@ -90,7 +99,12 @@ public class ReservedClusterSettingsAction implements ReservedClusterStateHandle
             .filter(k -> request.persistentSettings().hasValue(k))
             .collect(Collectors.toSet());
 
-        return new TransformState<>(state, currentKeys);
+        return new TransformState(state, currentKeys);
+    }
+
+    @Override
+    public ClusterState remove(TransformState prevState) throws Exception {
+        return transform(Map.of(), prevState).state();
     }
 
     @Override

@@ -24,7 +24,7 @@ Filter single field:
               name:
                 type: keyword
               secret:
-                type: keyword
+                type: match_only_text
 
   - do:
       bulk:
@@ -47,6 +47,263 @@ Filter single field:
                   privileges: [ "read" ]
                   field_security:
                     grant: [ "name" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.secret: squirrel }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - is_false: "hits.hits.0._source.secret"
+
+---
+match_only_text field type grant all except secret field:
+  - do:
+      indices.create:
+        index: index_fls
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              secret:
+                type: match_only_text
+
+  - do:
+      bulk:
+        index: index_fls
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"name": "A", "secret":"squirrel"}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "secret" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.secret: squirrel }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - is_false: "hits.hits.0._source.secret"
+
+---
+match_only_text field type grant name field:
+  - do:
+      indices.create:
+        index: index_fls
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: match_only_text
+              secret:
+                type: match_only_text
+
+  - do:
+      bulk:
+        index: index_fls
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"name": "A", "secret":"squirrel"}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "name" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.secret: squirrel }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - is_false: "hits.hits.0._source.secret"
+
+---
+keyword field type with ignore_above:
+  - do:
+      indices.create:
+        index: index_fls
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              secret:
+                type: keyword
+                ignore_above: 3
+
+  - do:
+      bulk:
+        index: index_fls
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"name": "A", "secret":"squirrel"}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "secret" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser...
+  - do:
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - match: { hits.hits.0._source.secret: squirrel }
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: index_fls
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: "eq" }
+  - match: { hits.hits.0._source.name: A }
+  - is_false: "hits.hits.0._source.secret"
+
+---
+long field type with ignore_malformed:
+  - do:
+      indices.create:
+        index: index_fls
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              name:
+                type: keyword
+              secret:
+                type: long
+                ignore_malformed: true
+
+  - do:
+      bulk:
+        index: index_fls
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"name": "A", "secret":"squirrel"}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "index_fls" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "secret" ]
   - match: { name: "test-fls" }
   - is_true: id
   - set:
@@ -367,3 +624,563 @@ Field with ignored_malformed:
   - is_false: "hits.hits.0._source.secret"
   - match: { hits.hits.1._source.name: B }
   - is_false: "hits.hits.1._source.secret"
+
+---
+Fields with copy_to, field level security and synthetic source:
+  - do:
+      indices.create:
+        index: test-fls-copy-to-synthetic
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              user:
+                type: keyword
+                copy_to: catch_all
+              domain:
+                type: keyword
+                copy_to: catch_all
+              catch_all:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test-fls-copy-to-synthetic
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"user": "darth.vader", "domain": "empire.gov"}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "test-fls-copy-to-synthetic" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "catch_all" ]
+  - match: { name: "test-fls" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser
+  - do:
+      search:
+        index: test-fls-copy-to-synthetic
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.user: "darth.vader" }
+  - match: { hits.hits.0._source.domain: "empire.gov" }
+  - is_false: "hits.hits.0._source.catch_all"
+
+  # With FLS API Key
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: test-fls-copy-to-synthetic
+  - match: { hits.total.value: 1 }
+  - match: { hits.hits.0._source.user: "darth.vader" }
+  - match: { hits.hits.0._source.domain: "empire.gov" }
+  - is_false: "hits.hits.0._source.catch_all"
+
+---
+Fields with copy_to and skip_ignored_source_read workaround:
+  # Setting skip_ignored_source_read skips _ignored_source during synthetic source reconstruction
+  - do:
+      indices.create:
+        index: test-fls-copy-to-skip-ignored
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+              mapping.synthetic_source.skip_ignored_source_read: true
+          mappings:
+            properties:
+              user:
+                type: keyword
+                copy_to: catch_all
+              domain:
+                type: keyword
+                copy_to: catch_all
+              catch_all:
+                type: keyword
+
+  - do:
+      bulk:
+        index: test-fls-copy-to-skip-ignored
+        refresh: true
+        body:
+          - '{"create": { }}'
+          - '{"user": "luke.skywalker", "domain": "tatooine.org"}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls-skip-ignored"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "test-fls-copy-to-skip-ignored" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "catch_all" ]
+  - match: { name: "test-fls-skip-ignored" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser: search succeeds but source may be incomplete since _ignored_source is skipped
+  - do:
+      search:
+        index: test-fls-copy-to-skip-ignored
+  - match: { hits.total.value: 1 }
+
+  # With FLS API Key: search succeeds without crash since _ignored_source VOID entries are not loaded
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      search:
+        index: test-fls-copy-to-skip-ignored
+  - match: { hits.total.value: 1 }
+
+---
+METRICS_INFO with field level security granting specific fields:
+  - requires:
+      test_runner_features: [ capabilities, headers, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ ts_command_v0, metrics_info_command ]
+      reason: "METRICS_INFO with FLS on time series index"
+
+  - do:
+      indices.create:
+        index: ts_fls_mi_grant
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              cpu:
+                type: long
+                time_series_metric: gauge
+              memory:
+                type: long
+                time_series_metric: gauge
+              network_in:
+                type: long
+                time_series_metric: counter
+
+  - do:
+      bulk:
+        index: ts_fls_mi_grant
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "host": "server1", "cpu": 80, "memory": 4096, "network_in": 1000}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "host": "server1", "cpu": 85, "memory": 4100, "network_in": 2000}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "host": "server2", "cpu": 60, "memory": 8192, "network_in": 500}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls-metrics-info"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "ts_fls_mi_grant" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "@timestamp", "host", "cpu" ]
+  - match: { name: "test-fls-metrics-info" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser: should see all 3 metrics
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS ts_fls_mi_grant | METRICS_INFO | SORT metric_name'
+  - match: {columns.0.name: "metric_name"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "data_stream"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "unit"}
+  - match: {columns.2.type: "keyword"}
+  - match: {columns.3.name: "metric_type"}
+  - match: {columns.3.type: "keyword"}
+  - match: {columns.4.name: "field_type"}
+  - match: {columns.4.type: "keyword"}
+  - match: {columns.5.name: "dimension_fields"}
+  - match: {columns.5.type: "keyword"}
+  - length: {values: 3}
+  - match: {values.0.0: "cpu"}
+  - match: {values.0.3: "gauge"}
+  - match: {values.0.4: "long"}
+  - match: {values.1.0: "memory"}
+  - match: {values.1.3: "gauge"}
+  - match: {values.1.4: "long"}
+  - match: {values.2.0: "network_in"}
+  - match: {values.2.3: "counter"}
+  - match: {values.2.4: "long"}
+
+  # With FLS API Key (only @timestamp, host, cpu granted)
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS ts_fls_mi_grant | METRICS_INFO | SORT metric_name'
+  - match: {columns.0.name: "metric_name"}
+  - match: {columns.0.type: "keyword"}
+  - length: {values: 1}
+  - match: {values.0.0: "cpu"}
+  - match: {values.0.3: "gauge"}
+  - match: {values.0.4: "long"}
+
+---
+METRICS_INFO with field level security excluding specific metrics:
+  - requires:
+      test_runner_features: [ capabilities, headers, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ ts_command_v0, metrics_info_command ]
+      reason: "METRICS_INFO with FLS using except pattern"
+
+  - do:
+      indices.create:
+        index: ts_fls_mi_except
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              cpu:
+                type: long
+                time_series_metric: gauge
+              memory:
+                type: long
+                time_series_metric: gauge
+              network_in:
+                type: long
+                time_series_metric: counter
+
+  - do:
+      bulk:
+        index: ts_fls_mi_except
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "host": "server1", "cpu": 80, "memory": 4096, "network_in": 1000}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "host": "server1", "cpu": 85, "memory": 4100, "network_in": 2000}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "host": "server2", "cpu": 60, "memory": 8192, "network_in": 500}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls-metrics-info-except"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "ts_fls_mi_except" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "memory", "network_in" ]
+  - match: { name: "test-fls-metrics-info-except" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser: should see all 3 metrics
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS ts_fls_mi_except | METRICS_INFO | SORT metric_name'
+  - length: {values: 3}
+  - match: {values.0.0: "cpu"}
+  - match: {values.1.0: "memory"}
+  - match: {values.2.0: "network_in"}
+
+  # With FLS API Key (all fields except memory and network_in)
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS ts_fls_mi_except | METRICS_INFO | SORT metric_name'
+  - length: {values: 1}
+  - match: {values.0.0: "cpu"}
+  - match: {values.0.3: "gauge"}
+  - match: {values.0.4: "long"}
+
+---
+TS_INFO with field level security granting specific fields:
+  - requires:
+      test_runner_features: [ capabilities, headers, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ ts_command_v0, ts_info_command ]
+      reason: "TS_INFO with FLS on time series index"
+
+  - do:
+      indices.create:
+        index: ts_fls_ti_grant
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              cpu:
+                type: long
+                time_series_metric: gauge
+              memory:
+                type: long
+                time_series_metric: gauge
+              network_in:
+                type: long
+                time_series_metric: counter
+
+  - do:
+      bulk:
+        index: ts_fls_ti_grant
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "host": "server1", "cpu": 80, "memory": 4096, "network_in": 1000}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "host": "server1", "cpu": 85, "memory": 4100, "network_in": 2000}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "host": "server2", "cpu": 60, "memory": 8192, "network_in": 500}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls-ts-info"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "ts_fls_ti_grant" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "@timestamp", "host", "cpu" ]
+  - match: { name: "test-fls-ts-info" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser: should see all time series info (3 metrics x 2 hosts = 6 rows)
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS ts_fls_ti_grant | TS_INFO | SORT metric_name, dimensions'
+  - match: {columns.0.name: "metric_name"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "data_stream"}
+  - match: {columns.1.type: "keyword"}
+  - match: {columns.2.name: "unit"}
+  - match: {columns.2.type: "keyword"}
+  - match: {columns.3.name: "metric_type"}
+  - match: {columns.3.type: "keyword"}
+  - match: {columns.4.name: "field_type"}
+  - match: {columns.4.type: "keyword"}
+  - match: {columns.5.name: "dimension_fields"}
+  - match: {columns.5.type: "keyword"}
+  - match: {columns.6.name: "dimensions"}
+  - match: {columns.6.type: "keyword"}
+  - length: {values: 6}
+  - match: {values.0.0: "cpu"}
+  - match: {values.1.0: "cpu"}
+  - match: {values.2.0: "memory"}
+  - match: {values.3.0: "memory"}
+  - match: {values.4.0: "network_in"}
+  - match: {values.5.0: "network_in"}
+
+  # With FLS API Key (only @timestamp, host, cpu granted — 1 metric x 2 hosts = 2 rows)
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS ts_fls_ti_grant | TS_INFO | SORT metric_name, dimensions'
+  - match: {columns.0.name: "metric_name"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.6.name: "dimensions"}
+  - match: {columns.6.type: "keyword"}
+  - length: {values: 2}
+  - match: {values.0.0: "cpu"}
+  - match: {values.1.0: "cpu"}
+
+---
+TS_INFO with field level security excluding specific metrics:
+  - requires:
+      test_runner_features: [ capabilities, headers, allowed_warnings_regex ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ ts_command_v0, ts_info_command ]
+      reason: "TS_INFO with FLS using except pattern"
+
+  - do:
+      indices.create:
+        index: ts_fls_ti_except
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [ host ]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              cpu:
+                type: long
+                time_series_metric: gauge
+              memory:
+                type: long
+                time_series_metric: gauge
+              network_in:
+                type: long
+                time_series_metric: counter
+
+  - do:
+      bulk:
+        index: ts_fls_ti_except
+        refresh: true
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "host": "server1", "cpu": 80, "memory": 4096, "network_in": 1000}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:24.467Z", "host": "server1", "cpu": 85, "memory": 4100, "network_in": 2000}'
+          - '{"index": {}}'
+          - '{"@timestamp": "2021-04-28T18:50:04.467Z", "host": "server2", "cpu": 60, "memory": 8192, "network_in": 500}'
+  - match: { errors: false }
+
+  - do:
+      security.create_api_key:
+        body:
+          name: "test-fls-ts-info-except"
+          expiration: "1d"
+          role_descriptors:
+            index_access:
+              indices:
+                - names: [ "ts_fls_ti_except" ]
+                  privileges: [ "read" ]
+                  field_security:
+                    grant: [ "*" ]
+                    except: [ "memory", "network_in" ]
+  - match: { name: "test-fls-ts-info-except" }
+  - is_true: id
+  - set:
+      id: api_key_id
+      encoded: credentials
+
+  # With superuser: should see all time series info (3 metrics x 2 hosts = 6 rows)
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS ts_fls_ti_except | TS_INFO | SORT metric_name, dimensions'
+  - length: {values: 6}
+  - match: {values.0.0: "cpu"}
+  - match: {values.1.0: "cpu"}
+  - match: {values.2.0: "memory"}
+  - match: {values.3.0: "memory"}
+  - match: {values.4.0: "network_in"}
+  - match: {values.5.0: "network_in"}
+
+  # With FLS API Key (all except memory, network_in — 1 metric x 2 hosts = 2 rows)
+  - do:
+      headers:
+        Authorization: "ApiKey ${credentials}"
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS ts_fls_ti_except | TS_INFO | SORT metric_name, dimensions'
+  - length: {values: 2}
+  - match: {values.0.0: "cpu"}
+  - match: {values.1.0: "cpu"}

@@ -6,33 +6,25 @@
  */
 package org.elasticsearch.repositories.blobstore.testkit.analyze;
 
+import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 
-import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.client.Request;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-import static org.hamcrest.Matchers.blankOrNullString;
-import static org.hamcrest.Matchers.not;
+import java.util.Objects;
 
-public class S3RepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTestCase {
+import static org.hamcrest.Matchers.hasSize;
 
-    static final boolean USE_FIXTURE = Boolean.parseBoolean(System.getProperty("tests.use.fixture", "true"));
+public class S3RepositoryAnalysisRestIT extends AbstractS3RepositoryAnalysisRestTestCase {
 
-    public static final S3HttpFixture s3Fixture = new S3HttpFixture(USE_FIXTURE);
+    public static final S3HttpFixture s3Fixture = new RepositoryAnalysisHttpFixture(S3ConsistencyModel.AWS_DEFAULT);
 
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
-        .distribution(DistributionType.DEFAULT)
-        .keystore("s3.client.repo_test_kit.access_key", System.getProperty("s3AccessKey"))
-        .keystore("s3.client.repo_test_kit.secret_key", System.getProperty("s3SecretKey"))
-        .setting("s3.client.repo_test_kit.protocol", () -> "http", (n) -> USE_FIXTURE)
-        .setting("s3.client.repo_test_kit.endpoint", s3Fixture::getAddress, (n) -> USE_FIXTURE)
-        .setting("xpack.security.enabled", "false")
-        .build();
+    public static final ElasticsearchCluster cluster = buildCluster(s3Fixture);
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(s3Fixture).around(cluster);
@@ -43,24 +35,23 @@ public class S3RepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRestTe
     }
 
     @Override
-    protected String repositoryType() {
-        return "s3";
+    S3ConsistencyModel consistencyModel() {
+        return S3ConsistencyModel.AWS_DEFAULT;
     }
 
     @Override
-    protected Settings repositorySettings() {
-        final String bucket = System.getProperty("test.s3.bucket");
-        assertThat(bucket, not(blankOrNullString()));
-
-        final String basePath = System.getProperty("test.s3.base_path");
-        assertThat(basePath, not(blankOrNullString()));
-
-        return Settings.builder()
-            .put("client", "repo_test_kit")
-            .put("bucket", bucket)
-            .put("base_path", basePath)
-            .put("delete_objects_max_size", between(1, 1000))
-            .put("buffer_size", ByteSizeValue.ofMb(5)) // so some uploads are multipart ones
-            .build();
+    protected boolean checkOverwriteProtection() {
+        try {
+            // sometimes the repository is registered as not supporting conditional writes, in which case we must suppress overwrite checks
+            final var response = ObjectPath.createFromResponse(client().performRequest(new Request("GET", "_snapshot/_all")));
+            final var repositories = response.evaluateMapKeys("");
+            assertThat(repositories, hasSize(1));
+            return Objects.equals(
+                "true",
+                response.evaluateExact(repositories.iterator().next(), "settings", "unsafely_incompatible_with_s3_conditional_writes")
+            ) == false;
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
     }
 }

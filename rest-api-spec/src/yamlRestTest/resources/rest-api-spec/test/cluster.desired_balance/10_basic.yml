@@ -2,11 +2,10 @@
 setup:
   - requires:
       cluster_features: ["gte_v8.6.0"]
-      reason: "API added in in 8.6.0"
+      reason: "API added in 8.6.0"
 
 ---
 "Test get empty desired balance":
-
   - do:
       _internal.get_desired_balance: { }
 
@@ -63,7 +62,7 @@ setup:
 
   - requires:
       cluster_features: ["gte_v8.7.0"]
-      reason: "cluster_balance_stats added in in 8.7.0"
+      reason: "cluster_balance_stats added in 8.7.0"
 
   - do:
       cluster.state: {}
@@ -111,7 +110,7 @@ setup:
 
   - requires:
       cluster_features: [gte_v8.8.0]
-      reason: "cluster_info added in in 8.8.0"
+      reason: "cluster_info added in 8.8.0"
 
   - do:
       _internal.get_desired_balance: { }
@@ -123,7 +122,7 @@ setup:
 
   - requires:
       cluster_features: ["gte_v8.8.0"]
-      reason: "node_id and roles added in in 8.8.0"
+      reason: "node_id and roles added in 8.8.0"
 
   - do:
       cluster.state: {}
@@ -142,7 +141,7 @@ setup:
 
   - requires:
       cluster_features: ["gte_v8.8.0"]
-      reason: "tier_preference added in in 8.8.0"
+      reason: "tier_preference added in 8.8.0"
 
   - do:
       indices.create:
@@ -167,7 +166,7 @@ setup:
 
   - requires:
       cluster_features: ["gte_v8.8.0"]
-      reason: "computed_shard_movements added in in 8.8.0"
+      reason: "computed_shard_movements added in 8.8.0"
 
   - do:
       _internal.get_desired_balance: { }
@@ -179,7 +178,12 @@ setup:
 
   - requires:
       cluster_features: ["gte_v8.8.0"]
-      reason: "reset API added in in 8.8.0"
+      reason: "reset API added in 8.8.0"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: DELETE
+          path: /_internal/desired_balance
+          capabilities: [ plain_text_empty_response ]
 
   - do:
       _internal.delete_desired_balance: { }
@@ -189,7 +193,7 @@ setup:
 
   - requires:
       cluster_features: ["gte_v8.12.0"]
-      reason: "undesired_shard_allocation_count added in in 8.12.0"
+      reason: "undesired_shard_allocation_count added in 8.12.0"
 
   - do:
       indices.create:
@@ -227,7 +231,7 @@ setup:
 
   - requires:
       cluster_features: [ "gte_v8.12.0" ]
-      reason: "undesired_shard_allocation_count added in in 8.12.0"
+      reason: "undesired_shard_allocation_count added in 8.12.0"
 
   - do:
       _internal.get_desired_balance: { }
@@ -236,3 +240,37 @@ setup:
   - gte: { 'stats.total_allocations' : 0 }
   - gte: { 'stats.undesired_allocations' : 0 }
   - gte: { 'stats.undesired_allocations_ratio' : 0.0 }
+
+---
+"Test node_weights":
+
+  - requires:
+      capabilities:
+        - method: GET
+          path: /_internal/desired_balance
+          capabilities: [ desired_balance_node_weights_in_response ]
+      test_runner_features: [ capabilities ]
+      reason: "Node weights were added in version 9.2.0"
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+
+  - do:
+      cluster.health:
+        index: test
+        wait_for_status: green
+
+  - do:
+      cluster.state: { }
+  - set: { nodes._arbitrary_key_: node_id }
+  - set: { nodes.$node_id.name: node_name }
+
+  - do:
+      _internal.get_desired_balance: { }
+
+  - exists: cluster_balance_stats.nodes.$node_name.node_weight

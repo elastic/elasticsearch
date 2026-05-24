@@ -13,6 +13,7 @@ import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -32,12 +33,11 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportChannel;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestHandler;
 import org.elasticsearch.transport.TransportRequestOptions;
-import org.elasticsearch.transport.TransportResponse;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
 
@@ -56,6 +56,9 @@ import java.util.concurrent.atomic.AtomicReference;
  * use {@link ExchangeSourceHandler#addRemoteSink(RemoteSink, boolean, Runnable, int, ActionListener)}.
  */
 public final class ExchangeService extends AbstractLifecycleComponent {
+
+    private static final Logger logger = LogManager.getLogger(ExchangeService.class);
+
     // TODO: Make this a child action of the data node transport to ensure that exchanges
     // are accessed only by the user initialized the session.
     public static final String EXCHANGE_ACTION_NAME = "internal:data/read/esql/exchange";
@@ -64,6 +67,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     public static final String OPEN_EXCHANGE_ACTION_NAME = "internal:data/read/esql/open_exchange";
     private static final String OPEN_EXCHANGE_ACTION_NAME_FOR_CCS = "cluster:internal:data/read/esql/open_exchange";
 
+    public static final String BATCH_EXCHANGE_STATUS_ACTION_NAME = "internal:data/read/esql/batch_exchange_status";
+
     /**
      * The time interval for an exchange sink handler to be considered inactive and subsequently
      * removed from the exchange service if no sinks are attached (i.e., no computation uses that sink handler).
@@ -71,14 +76,14 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     public static final String INACTIVE_SINKS_INTERVAL_SETTING = "esql.exchange.sink_inactive_interval";
     public static final TimeValue INACTIVE_SINKS_INTERVAL_DEFAULT = TimeValue.timeValueMinutes(5);
 
-    private static final Logger LOGGER = LogManager.getLogger(ExchangeService.class);
-
     private final ThreadPool threadPool;
     private final Executor executor;
     private final BlockFactory blockFactory;
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
     private final Map<String, ExchangeSourceHandler> exchangeSources = ConcurrentCollections.newConcurrentMap();
+    // Registry for bidirectional batch exchange servers, keyed by serverToClientId
+    private final Map<String, BidirectionalBatchExchangeServer> batchExchangeServers = ConcurrentCollections.newConcurrentMap();
 
     public ExchangeService(Settings settings, ThreadPool threadPool, String executorName, BlockFactory blockFactory) {
         this.threadPool = threadPool;
@@ -87,7 +92,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         final var inactiveInterval = settings.getAsTime(INACTIVE_SINKS_INTERVAL_SETTING, INACTIVE_SINKS_INTERVAL_DEFAULT);
         // Run the reaper every half of the keep_alive interval
         this.threadPool.scheduleWithFixedDelay(
-            new InactiveSinksReaper(LOGGER, threadPool, inactiveInterval),
+            new InactiveSinksReaper(threadPool, inactiveInterval),
             TimeValue.timeValueMillis(Math.max(1, inactiveInterval.millis() / 2)),
             executor
         );
@@ -115,6 +120,46 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             OpenExchangeRequest::new,
             new OpenExchangeRequestHandler()
         );
+
+        // Register batch exchange status handler once (singleton pattern)
+        // This handler routes requests to the appropriate server based on exchangeId
+        transportService.registerRequestHandler(
+            BATCH_EXCHANGE_STATUS_ACTION_NAME,
+            this.executor,
+            BatchExchangeStatusRequest::new,
+            new TransportRequestHandler<BatchExchangeStatusRequest>() {
+                @Override
+                public void messageReceived(BatchExchangeStatusRequest request, TransportChannel channel, Task task) throws Exception {
+                    final String exchangeId = request.exchangeId();
+                    BidirectionalBatchExchangeServer server = batchExchangeServers.get(exchangeId);
+                    if (server != null) {
+                        server.handleBatchExchangeStatusRequest(request, channel, task);
+                    } else {
+                        logger.warn("Received BatchExchangeStatusRequest for unknown exchangeId={}", exchangeId);
+                        channel.sendResponse(
+                            new BatchExchangeStatusResponse(new ResourceNotFoundException("exchange [{}] not found", exchangeId))
+                        );
+                    }
+                }
+            }
+        );
+    }
+
+    /**
+     * Register a bidirectional batch exchange server.
+     * The server will receive BatchExchangeStatusRequest messages for its exchangeId.
+     */
+    public void registerBatchExchangeServer(String serverToClientId, BidirectionalBatchExchangeServer server) {
+        if (batchExchangeServers.putIfAbsent(serverToClientId, server) != null) {
+            throw new IllegalStateException("batch exchange server for id [" + serverToClientId + "] already exists");
+        }
+    }
+
+    /**
+     * Unregister a bidirectional batch exchange server.
+     */
+    public void unregisterBatchExchangeServer(String serverToClientId) {
+        batchExchangeServers.remove(serverToClientId);
     }
 
     /**
@@ -139,6 +184,17 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             throw new ResourceNotFoundException("sink exchanger for id [{}] doesn't exist", exchangeId);
         }
         return sinkHandler;
+    }
+
+    /**
+     * Gets an existing {@link ExchangeSinkHandler} for the specified exchange id, or creates one if it doesn't exist.
+     * This is useful when the sink handler may have been pre-registered (e.g., for test setup coordination).
+     */
+    public ExchangeSinkHandler getOrCreateSinkHandler(String exchangeId, int maxBufferSize) {
+        return sinks.computeIfAbsent(
+            exchangeId,
+            id -> new ExchangeSinkHandler(blockFactory, maxBufferSize, threadPool.relativeTimeInMillisSupplier())
+        );
     }
 
     /**
@@ -171,7 +227,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             OPEN_EXCHANGE_ACTION_NAME,
             new OpenExchangeRequest(sessionId, exchangeBuffer),
             TransportRequestOptions.EMPTY,
-            new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> TransportResponse.Empty.INSTANCE, responseExecutor)
+            new ActionListenerResponseHandler<>(listener.map(unused -> null), in -> ActionResponse.Empty.INSTANCE, responseExecutor)
         );
     }
 
@@ -201,7 +257,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         }
     }
 
-    private static class OpenExchangeRequest extends TransportRequest {
+    private static class OpenExchangeRequest extends AbstractTransportRequest {
         private final String sessionId;
         private final int exchangeBuffer;
 
@@ -228,7 +284,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         @Override
         public void messageReceived(OpenExchangeRequest request, TransportChannel channel, Task task) throws Exception {
             createSinkHandler(request.sessionId, request.exchangeBuffer);
-            channel.sendResponse(TransportResponse.Empty.INSTANCE);
+            channel.sendResponse(ActionResponse.Empty.INSTANCE);
         }
     }
 
@@ -249,12 +305,10 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     }
 
     private final class InactiveSinksReaper extends AbstractRunnable {
-        private final Logger logger;
         private final TimeValue keepAlive;
         private final ThreadPool threadPool;
 
-        InactiveSinksReaper(Logger logger, ThreadPool threadPool, TimeValue keepAlive) {
-            this.logger = logger;
+        InactiveSinksReaper(ThreadPool threadPool, TimeValue keepAlive) {
             this.keepAlive = keepAlive;
             this.threadPool = threadPool;
         }
@@ -410,6 +464,26 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 }, e -> candidate.onResponse(null)));
             }
         }
+    }
+
+    /**
+     * Sends a batch exchange status request from client to server.
+     * The server will reply after batch processing completes.
+     */
+    public static void sendBatchExchangeStatusRequest(
+        TransportService transportService,
+        Transport.Connection connection,
+        String exchangeId,
+        Executor responseExecutor,
+        ActionListener<BatchExchangeStatusResponse> listener
+    ) {
+        transportService.sendRequest(
+            connection,
+            BATCH_EXCHANGE_STATUS_ACTION_NAME,
+            new BatchExchangeStatusRequest(exchangeId),
+            TransportRequestOptions.EMPTY,
+            new ActionListenerResponseHandler<>(listener, BatchExchangeStatusResponse::new, responseExecutor)
+        );
     }
 
     // For testing

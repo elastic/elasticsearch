@@ -56,6 +56,8 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
         int emitBatchSize
     ) {
         super(blockFactory);
+        assert specs.get(0).categorizeDef() != null;
+
         this.specs = specs;
         this.aggregatorMode = aggregatorMode;
         blocks = new Block[specs.size()];
@@ -68,7 +70,13 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
 
         boolean success = false;
         try {
-            categorizeBlockHash = new CategorizeBlockHash(blockFactory, specs.get(0).channel(), aggregatorMode, analysisRegistry);
+            categorizeBlockHash = new CategorizeBlockHash(
+                blockFactory,
+                specs.get(0).channel(),
+                aggregatorMode,
+                specs.get(0).categorizeDef(),
+                analysisRegistry
+            );
             packedValuesBlockHash = new PackedValuesBlockHash(delegateSpecs, blockFactory, emitBatchSize);
             success = true;
         } finally {
@@ -107,12 +115,13 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
     }
 
     @Override
-    public Block[] getKeys() {
-        Block[] keys = packedValuesBlockHash.getKeys();
+    public Block[] getKeys(IntVector selected) {
+        // Select is always nonEmpty because we don't support splitting pages from Categorize
+        Block[] keys = packedValuesBlockHash.getKeys(selected);
         if (aggregatorMode.isOutputPartial() == false) {
             // For final output, the keys are the category regexes.
             try (
-                BytesRefBlock regexes = (BytesRefBlock) categorizeBlockHash.getKeys()[0];
+                BytesRefBlock regexes = (BytesRefBlock) categorizeBlockHash.getKeys(selected)[0];
                 BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(keys[0].getPositionCount())
             ) {
                 IntVector idsVector = (IntVector) keys[0].asVector();
@@ -151,6 +160,11 @@ public class CategorizePackedValuesBlockHash extends BlockHash {
     @Override
     public IntVector nonEmpty() {
         return packedValuesBlockHash.nonEmpty();
+    }
+
+    @Override
+    public int numKeys() {
+        return packedValuesBlockHash.numKeys();
     }
 
     @Override

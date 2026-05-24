@@ -9,249 +9,162 @@
 
 package org.elasticsearch.http.netty4;
 
-import io.netty.buffer.Unpooled;
+import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.channel.ChannelInboundHandlerAdapter;
 import io.netty.handler.codec.DecoderResult;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.HttpObject;
 import io.netty.handler.codec.http.HttpRequest;
-import io.netty.handler.codec.http.LastHttpContent;
-import io.netty.util.ReferenceCountUtil;
+import io.netty.util.ReferenceCounted;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.http.netty4.internal.HttpValidator;
 import org.elasticsearch.transport.Transports;
 
 import java.util.ArrayDeque;
 
-import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.DROPPING_DATA_PERMANENTLY;
-import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.DROPPING_DATA_UNTIL_NEXT_REQUEST;
-import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.FORWARDING_DATA_UNTIL_NEXT_REQUEST;
-import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.QUEUEING_DATA;
-import static org.elasticsearch.http.netty4.Netty4HttpHeaderValidator.State.WAITING_TO_START;
-
-public class Netty4HttpHeaderValidator extends ChannelInboundHandlerAdapter {
+public class Netty4HttpHeaderValidator extends ChannelDuplexHandler {
 
     private final HttpValidator validator;
     private final ThreadContext threadContext;
-    private ArrayDeque<HttpObject> pending = new ArrayDeque<>(4);
-    private State state = WAITING_TO_START;
+    private State state = State.PASSING;
+    private final ArrayDeque<Object> buffer = new ArrayDeque<>();
 
     public Netty4HttpHeaderValidator(HttpValidator validator, ThreadContext threadContext) {
         this.validator = validator;
         this.threadContext = threadContext;
     }
 
-    State getState() {
-        return state;
-    }
-
-    @SuppressWarnings("fallthrough")
     @Override
     public void channelRead(ChannelHandlerContext ctx, Object msg) throws Exception {
-        assert msg instanceof HttpObject;
-        final HttpObject httpObject = (HttpObject) msg;
-
-        switch (state) {
-            case WAITING_TO_START:
-                assert pending.isEmpty();
-                pending.add(ReferenceCountUtil.retain(httpObject));
-                requestStart(ctx);
-                assert state == QUEUEING_DATA;
-                assert ctx.channel().config().isAutoRead() == false;
-                break;
-            case QUEUEING_DATA:
-                pending.add(ReferenceCountUtil.retain(httpObject));
-                break;
-            case FORWARDING_DATA_UNTIL_NEXT_REQUEST:
-                assert pending.isEmpty();
-                if (httpObject instanceof LastHttpContent) {
-                    state = WAITING_TO_START;
-                }
-                ctx.fireChannelRead(httpObject);
-                break;
-            case DROPPING_DATA_UNTIL_NEXT_REQUEST:
-                assert pending.isEmpty();
-                if (httpObject instanceof LastHttpContent) {
-                    state = WAITING_TO_START;
-                }
-                ReferenceCountUtil.release(httpObject);
-                break;
-            case DROPPING_DATA_PERMANENTLY:
-                assert pending.isEmpty();
-                ReferenceCountUtil.release(httpObject); // consume without enqueuing
-                ctx.channel().config().setAutoRead(false);
-                break;
-        }
-    }
-
-    private void requestStart(ChannelHandlerContext ctx) {
-        assert state == WAITING_TO_START;
-
-        if (pending.isEmpty()) {
+        if (state == State.VALIDATING || buffer.size() > 0) {
+            // there's already some buffered messages that need to be processed before this one, so queue this one up behind them
+            buffer.offerLast(msg);
             return;
         }
 
-        final HttpObject httpObject = pending.getFirst();
-        final HttpRequest httpRequest;
-        if (httpObject instanceof HttpRequest && httpObject.decoderResult().isSuccess()) {
-            // a properly decoded HTTP start message is expected to begin validation
-            // anything else is probably an error that the downstream HTTP message aggregator will have to handle
-            httpRequest = (HttpRequest) httpObject;
+        assert msg instanceof HttpObject;
+        final var httpObject = (HttpObject) msg;
+        if (httpObject.decoderResult().isFailure()) {
+            ctx.fireChannelRead(httpObject); // pass-through for decoding failures
+        } else if (msg instanceof HttpRequest httpRequest) {
+            validate(ctx, httpRequest);
+        } else if (state == State.PASSING) {
+            assert msg instanceof HttpContent;
+            ctx.fireChannelRead(msg);
         } else {
-            httpRequest = null;
+            assert state == State.DROPPING : state;
+            assert msg instanceof HttpContent;
+            final var httpContent = (HttpContent) msg;
+            httpContent.release();
+            ctx.read();
         }
-
-        state = QUEUEING_DATA;
-        ctx.channel().config().setAutoRead(false);
-
-        if (httpRequest == null) {
-            // this looks like a malformed request and will forward without validation
-            ctx.channel().eventLoop().execute(() -> forwardFullRequest(ctx));
-        } else {
-            assert Transports.assertDefaultThreadContext(threadContext);
-            ActionListener.run(
-                // this prevents thread-context changes to propagate to the validation listener
-                // atm, the validation listener submits to the event loop executor, which doesn't know about the ES thread-context,
-                // so this is just a defensive play, in case the code inside the listener changes to not use the event loop executor
-                ActionListener.assertOnce(
-                    new ContextPreservingActionListener<Void>(
-                        threadContext.wrapRestorable(threadContext.newStoredContext()),
-                        // Always explicitly dispatch back to the event loop to prevent reentrancy concerns if we are still on event loop
-                        new ActionListener<>() {
-                            @Override
-                            public void onResponse(Void unused) {
-                                assert Transports.assertDefaultThreadContext(threadContext);
-                                ctx.channel().eventLoop().execute(() -> forwardFullRequest(ctx));
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                assert Transports.assertDefaultThreadContext(threadContext);
-                                ctx.channel().eventLoop().execute(() -> forwardRequestWithDecoderExceptionAndNoContent(ctx, e));
-                            }
-                        }
-                    )
-                ),
-                listener -> {
-                    // this prevents thread-context changes to propagate beyond the validation, as netty worker threads are reused
-                    try (ThreadContext.StoredContext ignore = threadContext.newStoredContext()) {
-                        validator.validate(httpRequest, ctx.channel(), listener);
-                    }
-                }
-            );
-        }
-    }
-
-    private void forwardFullRequest(ChannelHandlerContext ctx) {
-        Transports.assertDefaultThreadContext(threadContext);
-        assert ctx.channel().eventLoop().inEventLoop();
-        assert ctx.channel().config().isAutoRead() == false;
-        assert state == QUEUEING_DATA;
-
-        ctx.channel().config().setAutoRead(true);
-        boolean fullRequestForwarded = forwardData(ctx, pending);
-
-        assert fullRequestForwarded || pending.isEmpty();
-        if (fullRequestForwarded) {
-            state = WAITING_TO_START;
-            requestStart(ctx);
-        } else {
-            state = FORWARDING_DATA_UNTIL_NEXT_REQUEST;
-        }
-
-        assert state == WAITING_TO_START || state == QUEUEING_DATA || state == FORWARDING_DATA_UNTIL_NEXT_REQUEST;
-    }
-
-    private void forwardRequestWithDecoderExceptionAndNoContent(ChannelHandlerContext ctx, Exception e) {
-        Transports.assertDefaultThreadContext(threadContext);
-        assert ctx.channel().eventLoop().inEventLoop();
-        assert ctx.channel().config().isAutoRead() == false;
-        assert state == QUEUEING_DATA;
-
-        HttpObject messageToForward = pending.getFirst();
-        boolean fullRequestDropped = dropData(pending);
-        if (messageToForward instanceof HttpContent toReplace) {
-            // if the request to forward contained data (which got dropped), replace with empty data
-            messageToForward = toReplace.replace(Unpooled.EMPTY_BUFFER);
-        }
-        messageToForward.setDecoderResult(DecoderResult.failure(e));
-
-        ctx.channel().config().setAutoRead(true);
-        ctx.fireChannelRead(messageToForward);
-
-        assert fullRequestDropped || pending.isEmpty();
-        if (fullRequestDropped) {
-            state = WAITING_TO_START;
-            requestStart(ctx);
-        } else {
-            state = DROPPING_DATA_UNTIL_NEXT_REQUEST;
-        }
-
-        assert state == WAITING_TO_START || state == QUEUEING_DATA || state == DROPPING_DATA_UNTIL_NEXT_REQUEST;
     }
 
     @Override
-    public void channelInactive(ChannelHandlerContext ctx) throws Exception {
-        state = DROPPING_DATA_PERMANENTLY;
-        while (true) {
-            if (dropData(pending) == false) {
-                break;
-            }
-        }
-        super.channelInactive(ctx);
+    public void channelReadComplete(ChannelHandlerContext ctx) {
+        if (buffer.size() == 0) {
+            ctx.fireChannelReadComplete();
+        } // else we're buffering messages so will manage the read-complete messages ourselves
     }
 
-    private static boolean forwardData(ChannelHandlerContext ctx, ArrayDeque<HttpObject> pending) {
-        final int pendingMessages = pending.size();
-        try {
-            HttpObject toForward;
-            while ((toForward = pending.poll()) != null) {
-                ctx.fireChannelRead(toForward);
-                ReferenceCountUtil.release(toForward); // reference cnt incremented when enqueued
-                if (toForward instanceof LastHttpContent) {
-                    return true;
+    @Override
+    public void read(ChannelHandlerContext ctx) throws Exception {
+        assert ctx.channel().eventLoop().inEventLoop();
+        if (state != State.VALIDATING) {
+            if (buffer.size() > 0) {
+                final var message = buffer.pollFirst();
+                if (message instanceof HttpRequest httpRequest) {
+                    if (httpRequest.decoderResult().isFailure()) {
+                        ctx.fireChannelRead(message); // pass-through for decoding failures
+                        ctx.fireChannelReadComplete(); // downstream will have to call read() again when it's ready
+                    } else {
+                        validate(ctx, httpRequest);
+                    }
+                } else {
+                    assert message instanceof HttpContent;
+                    assert state == State.PASSING : state; // DROPPING releases any buffered chunks up-front
+                    ctx.fireChannelRead(message);
+                    ctx.fireChannelReadComplete(); // downstream will have to call read() again when it's ready
                 }
+            } else {
+                ctx.read();
             }
-            return false;
-        } finally {
-            maybeResizePendingDown(pendingMessages, pending);
         }
     }
 
-    private static boolean dropData(ArrayDeque<HttpObject> pending) {
-        final int pendingMessages = pending.size();
-        try {
-            HttpObject toDrop;
-            while ((toDrop = pending.poll()) != null) {
-                ReferenceCountUtil.release(toDrop, 2); // 1 for enqueuing, 1 for consuming
-                if (toDrop instanceof LastHttpContent) {
-                    return true;
-                }
+    void validate(ChannelHandlerContext ctx, HttpRequest httpRequest) {
+        final var validationResultListener = new ValidationResultListener(ctx, httpRequest);
+        SubscribableListener.newForked(validationResultListener::doValidate)
+            .addListener(
+                validationResultListener,
+                // dispatch back to event loop unless validation completed already in which case we can just continue on this thread
+                // straight away, avoiding the need to buffer any subsequent messages
+                ctx.channel().eventLoop(),
+                null
+            );
+    }
+
+    private class ValidationResultListener implements ActionListener<Void> {
+
+        private final ChannelHandlerContext ctx;
+        private final HttpRequest httpRequest;
+
+        ValidationResultListener(ChannelHandlerContext ctx, HttpRequest httpRequest) {
+            this.ctx = ctx;
+            this.httpRequest = httpRequest;
+        }
+
+        void doValidate(ActionListener<Void> listener) {
+            assert Transports.assertDefaultThreadContext(threadContext);
+            assert ctx.channel().eventLoop().inEventLoop();
+            assert state == State.PASSING || state == State.DROPPING : state;
+            state = State.VALIDATING;
+            try (var ignore = threadContext.newEmptyContext()) {
+                validator.validate(
+                    httpRequest,
+                    ctx.channel(),
+                    new ContextPreservingActionListener<>(threadContext::newEmptyContext, listener)
+                );
             }
-            return false;
-        } finally {
-            maybeResizePendingDown(pendingMessages, pending);
+        }
+
+        @Override
+        public void onResponse(Void unused) {
+            assert Transports.assertDefaultThreadContext(threadContext);
+            assert ctx.channel().eventLoop().inEventLoop();
+            assert state == State.VALIDATING : state;
+            state = State.PASSING;
+            fireChannelRead();
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            assert Transports.assertDefaultThreadContext(threadContext);
+            assert ctx.channel().eventLoop().inEventLoop();
+            assert state == State.VALIDATING : state;
+            httpRequest.setDecoderResult(DecoderResult.failure(e));
+            state = State.DROPPING;
+            while (buffer.isEmpty() == false && buffer.peekFirst() instanceof HttpRequest == false) {
+                assert buffer.peekFirst() instanceof HttpContent;
+                ((ReferenceCounted) buffer.pollFirst()).release();
+            }
+            fireChannelRead();
+        }
+
+        private void fireChannelRead() {
+            ctx.fireChannelRead(httpRequest);
+            ctx.fireChannelReadComplete(); // downstream needs to read() again
         }
     }
 
-    private static void maybeResizePendingDown(int largeSize, ArrayDeque<HttpObject> pending) {
-        if (pending.size() <= 4 && largeSize > 32) {
-            // Prevent the ArrayDeque from becoming forever large due to a single large message.
-            ArrayDeque<HttpObject> old = pending;
-            pending = new ArrayDeque<>(4);
-            pending.addAll(old);
-        }
+    private enum State {
+        PASSING,
+        VALIDATING,
+        DROPPING
     }
 
-    enum State {
-        WAITING_TO_START,
-        QUEUEING_DATA,
-        FORWARDING_DATA_UNTIL_NEXT_REQUEST,
-        DROPPING_DATA_UNTIL_NEXT_REQUEST,
-        DROPPING_DATA_PERMANENTLY
-    }
 }

@@ -69,7 +69,9 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
                     ResultsPersisterService.PERSIST_RESULTS_MAX_RETRIES,
                     ClusterService.USER_DEFINED_METADATA,
                     ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
+                    ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
+                    ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME
                 )
             )
         );
@@ -137,7 +139,7 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
     public void testCreateWithExistingResultsDocs() {
         String jobId = "job-id-with-existing-docs";
         testCreateWithExistingDocs(
-            prepareIndex(".ml-anomalies-shared").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            prepareIndex(".ml-anomalies-shared-000001").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
                 .setId(jobId + "_1464739200000_1")
                 .setSource("{\"job_id\": \"" + jobId + "\"}", XContentType.JSON)
                 .request(),
@@ -147,14 +149,14 @@ public class AnomalyJobCRUDIT extends MlSingleNodeTestCase {
 
     public void testPutJobWithClosedResultsIndex() {
         String jobId = "job-with-closed-results-index";
-        client().admin().indices().prepareCreate(".ml-anomalies-shared").get();
-        client().admin().indices().prepareClose(".ml-anomalies-shared").get();
+        client().admin().indices().prepareCreate(".ml-anomalies-shared-000001").get();
+        client().admin().indices().prepareClose(".ml-anomalies-shared-000001").get();
         ElasticsearchStatusException ex = expectThrows(ElasticsearchStatusException.class, () -> createJob(jobId));
         assertThat(
             ex.getMessage(),
             containsString("Cannot create job [job-with-closed-results-index] as it requires closed index [.ml-anomalies-*]")
         );
-        client().admin().indices().prepareDelete(".ml-anomalies-shared").get();
+        client().admin().indices().prepareDelete(".ml-anomalies-shared-000001").get();
     }
 
     public void testPutJobWithClosedStateIndex() {

@@ -1,6 +1,0 @@
-pr: 126077
-summary: Preventing `ConcurrentModificationException` when updating settings for more
-  than one index
-area: Indices APIs
-type: bug
-issues: []

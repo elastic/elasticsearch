@@ -21,8 +21,8 @@ import org.bouncycastle.pkcs.PKCS10CertificationRequest;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.cli.ExitCodes;
 import org.elasticsearch.cli.ProcessInfo;
-import org.elasticsearch.cli.Terminal;
 import org.elasticsearch.cli.UserException;
+import org.elasticsearch.cli.terminal.Terminal;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.cli.EnvironmentAwareCommand;
 import org.elasticsearch.common.network.InetAddresses;
@@ -403,7 +403,7 @@ class CertificateGenerateTool extends EnvironmentAwareCommand {
         // generate the CA keys and cert
         X500Principal x500Principal = new X500Principal(dn);
         KeyPair keyPair = CertGenUtils.generateKeyPair(keysize);
-        Certificate caCert = CertGenUtils.generateCACertificate(x500Principal, keyPair, days);
+        Certificate caCert = CertGenUtils.generateCACertificate(x500Principal, keyPair, days, null);
         final char[] password;
         if (prompt) {
             password = terminal.readSecret("Enter password for CA private key: ");

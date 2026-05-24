@@ -19,7 +19,7 @@ import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequest;
@@ -125,7 +125,14 @@ public class ExpiredForecastsRemover implements MlDataRemover {
             return;
         }
 
-        DeleteByQueryRequest request = buildDeleteByQuery(forecastsToDelete).setRequestsPerSecond(requestsPerSec)
+        var indicesToQuery = WritableIndexExpander.getInstance().getWritableIndices(RESULTS_INDEX_PATTERN);
+        if (indicesToQuery.isEmpty()) {
+            LOGGER.info("No writable indices found for expired forecasts. No expired forecasts to remove.");
+            listener.onResponse(true);
+            return;
+        }
+
+        DeleteByQueryRequest request = buildDeleteByQuery(forecastsToDelete, indicesToQuery).setRequestsPerSecond(requestsPerSec)
             .setAbortOnVersionConflict(false);
         request.setParentTask(parentTaskId);
         client.execute(DeleteByQueryAction.INSTANCE, request, new ActionListener<>() {
@@ -199,12 +206,12 @@ public class ExpiredForecastsRemover implements MlDataRemover {
         return forecastsToDelete;
     }
 
-    private static DeleteByQueryRequest buildDeleteByQuery(List<JobForecastId> ids) {
+    private static DeleteByQueryRequest buildDeleteByQuery(List<JobForecastId> ids, ArrayList<String> indicesToQuery) {
         DeleteByQueryRequest request = new DeleteByQueryRequest();
-        request.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        request.setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
         request.setTimeout(DEFAULT_MAX_DURATION);
 
-        request.indices(RESULTS_INDEX_PATTERN);
+        request.indices(indicesToQuery.toArray(new String[0]));
         BoolQueryBuilder boolQuery = QueryBuilders.boolQuery().minimumShouldMatch(1);
         boolQuery.must(
             QueryBuilders.termsQuery(

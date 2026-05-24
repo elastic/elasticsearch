@@ -28,6 +28,15 @@ public class CaseInsensitiveTermQuery extends AutomatonQuery {
 
     @Override
     public String toString(String field) {
-        return this.getClass().getSimpleName() + "{" + field + ":" + term.text() + "}";
+        StringBuilder buffer = new StringBuilder();
+        buffer.append(getClass().getSimpleName());
+        buffer.append('{');
+        if (term.field().equals(field) == false) {
+            buffer.append(term.field());
+            buffer.append(':');
+        }
+        buffer.append(term.text());
+        buffer.append('}');
+        return buffer.toString();
     }
 }

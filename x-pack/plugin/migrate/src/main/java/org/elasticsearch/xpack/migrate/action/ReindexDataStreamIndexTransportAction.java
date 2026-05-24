@@ -40,6 +40,7 @@ import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Setting;
@@ -48,9 +49,9 @@ import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
+import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
-import org.elasticsearch.index.reindex.ScrollableHitSource;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.Task;
@@ -108,6 +109,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
     private final ClusterService clusterService;
     private final Client client;
     private final TransportService transportService;
+    private final ProjectResolver projectResolver;
     /*
      * The following is incremented in order to keep track of the current round-robin position for ingest nodes that we send sliced requests
      * to. We bound its random starting value to less than or equal to 2 ^ 30 (the default is Integer.MAX_VALUE or 2 ^ 31 - 1) only so that
@@ -121,7 +123,8 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         TransportService transportService,
         ClusterService clusterService,
         ActionFilters actionFilters,
-        Client client
+        Client client,
+        ProjectResolver projectResolver
     ) {
         super(
             ReindexDataStreamIndexAction.NAME,
@@ -134,6 +137,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         this.clusterService = clusterService;
         this.client = client;
         this.transportService = transportService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -142,11 +146,11 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         ReindexDataStreamIndexAction.Request request,
         ActionListener<ReindexDataStreamIndexAction.Response> listener
     ) {
-        var project = clusterService.state().projectState();
+        var projectMetadata = projectResolver.getProjectMetadata(clusterService.state());
         var sourceIndexName = request.getSourceIndex();
         var destIndexName = generateDestIndexName(sourceIndexName);
         TaskId taskId = new TaskId(clusterService.localNode().getId(), task.getId());
-        IndexMetadata sourceIndex = project.metadata().index(sourceIndexName);
+        IndexMetadata sourceIndex = projectMetadata.index(sourceIndexName);
         if (sourceIndex == null) {
             listener.onFailure(new ResourceNotFoundException("source index [{}] does not exist", sourceIndexName));
             return;
@@ -154,7 +158,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
 
         Settings settingsBefore = sourceIndex.getSettings();
 
-        var hasOldVersion = DeprecatedIndexPredicate.getReindexRequiredPredicate(project.metadata(), false);
+        var hasOldVersion = DeprecatedIndexPredicate.getReindexRequiredPredicate(projectMetadata, false, true);
         if (hasOldVersion.test(sourceIndex.getIndex()) == false) {
             logger.warn(
                 "Migrating index [{}] with version [{}] is unnecessary as its version is not before [{}]",
@@ -296,7 +300,7 @@ public class ReindexDataStreamIndexTransportAction extends HandledTransportActio
         // Since we delete the source index on success, we want to fail the whole job if there are _any_ documents that fail to reindex:
         ActionListener<BulkByScrollResponse> checkForFailuresListener = ActionListener.wrap(bulkByScrollResponse -> {
             if (bulkByScrollResponse.getSearchFailures().isEmpty() == false) {
-                ScrollableHitSource.SearchFailure firstSearchFailure = bulkByScrollResponse.getSearchFailures().get(0);
+                PaginatedSearchFailure firstSearchFailure = bulkByScrollResponse.getSearchFailures().get(0);
                 listener.onFailure(
                     new ElasticsearchException(
                         "Failure reading data from {} caused by {}",

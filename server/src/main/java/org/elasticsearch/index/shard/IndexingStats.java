@@ -10,28 +10,31 @@
 package org.elasticsearch.index.shard;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
-
-import static org.elasticsearch.TransportVersions.INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD;
-import static org.elasticsearch.TransportVersions.INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD;
 
 public class IndexingStats implements Writeable, ToXContentFragment {
 
     public static class Stats implements Writeable, ToXContentFragment {
-        private static final TransportVersion WRITE_LOAD_AVG_SUPPORTED_VERSION = TransportVersions.V_8_6_0;
+
+        private static final TransportVersion INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD = TransportVersion.fromName(
+            "indexing_stats_includes_recent_write_load"
+        );
+        private static final TransportVersion INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD = TransportVersion.fromName(
+            "index_stats_and_metadata_include_peak_write_load"
+        );
+        private static final TransportVersion WRITE_LOAD_INCLUDES_BUFFER_WRITES = TransportVersion.fromName(
+            "write_load_includes_buffer_writes"
+        );
 
         private long indexCount;
         private long indexTimeInMillis;
@@ -45,6 +48,10 @@ public class IndexingStats implements Writeable, ToXContentFragment {
         private long throttleTimeInMillis;
         private boolean isThrottled;
         private long totalIndexingTimeSinceShardStartedInNanos;
+        // This is different from totalIndexingTimeSinceShardStartedInNanos, as it also includes the time taken to write indexing buffers
+        // to disk on the same thread as the indexing thread. This happens when we are running low on memory and want to push
+        // back on indexing, see IndexingMemoryController#writePendingIndexingBuffers()
+        private long totalIndexingExecutionTimeSinceShardStartedInNanos;
         private long totalActiveTimeInNanos;
         private double recentIndexingLoad;
         private double peakIndexingLoad;
@@ -56,20 +63,16 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             indexTimeInMillis = in.readVLong();
             indexCurrent = in.readVLong();
             indexFailedCount = in.readVLong();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.TRACK_INDEX_FAILED_DUE_TO_VERSION_CONFLICT_METRIC)) {
-                indexFailedDueToVersionConflictCount = in.readVLong();
-            }
+            indexFailedDueToVersionConflictCount = in.readVLong();
             deleteCount = in.readVLong();
             deleteTimeInMillis = in.readVLong();
             deleteCurrent = in.readVLong();
             noopUpdateCount = in.readVLong();
             isThrottled = in.readBoolean();
             throttleTimeInMillis = in.readLong();
-            if (in.getTransportVersion().onOrAfter(WRITE_LOAD_AVG_SUPPORTED_VERSION)) {
-                totalIndexingTimeSinceShardStartedInNanos = in.readLong();
-                totalActiveTimeInNanos = in.readLong();
-            }
-            if (in.getTransportVersion().onOrAfter(INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD)) {
+            totalIndexingTimeSinceShardStartedInNanos = in.readLong();
+            totalActiveTimeInNanos = in.readLong();
+            if (in.getTransportVersion().supports(INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD)) {
                 recentIndexingLoad = in.readDouble();
             } else {
                 // When getting stats from an older version which doesn't have the recent indexing load, better to fall back to the
@@ -78,13 +81,22 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                     ? (double) totalIndexingTimeSinceShardStartedInNanos / totalActiveTimeInNanos
                     : 0;
             }
-            if (in.getTransportVersion().onOrAfter(INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD)) {
+            if (in.getTransportVersion().supports(INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD)) {
                 peakIndexingLoad = in.readDouble();
             } else {
                 // When getting stats from an older version which doesn't have the recent indexing load, better to fall back to the
                 // unweighted write load, rather that assuming zero load:
                 peakIndexingLoad = totalActiveTimeInNanos > 0
                     ? (double) totalIndexingTimeSinceShardStartedInNanos / totalActiveTimeInNanos
+                    : 0;
+            }
+            if (in.getTransportVersion().supports(WRITE_LOAD_INCLUDES_BUFFER_WRITES)) {
+                totalIndexingExecutionTimeSinceShardStartedInNanos = in.readLong();
+            } else {
+                // When getting stats from an older version which doesn't have the more accurate indexing execution time,
+                // better to fall back to the indexing time, rather that assuming zero load:
+                totalIndexingExecutionTimeSinceShardStartedInNanos = totalActiveTimeInNanos > 0
+                    ? totalIndexingTimeSinceShardStartedInNanos
                     : 0;
             }
         }
@@ -102,6 +114,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             boolean isThrottled,
             long throttleTimeInMillis,
             long totalIndexingTimeSinceShardStartedInNanos,
+            long totalIndexingExecutionTimeSinceShardStartedInNanos,
             long totalActiveTimeInNanos,
             double recentIndexingLoad,
             double peakIndexingLoad
@@ -119,6 +132,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             this.throttleTimeInMillis = throttleTimeInMillis;
             // We store the raw unweighted write load values in order to avoid losing precision when we combine the shard stats
             this.totalIndexingTimeSinceShardStartedInNanos = totalIndexingTimeSinceShardStartedInNanos;
+            this.totalIndexingExecutionTimeSinceShardStartedInNanos = totalIndexingExecutionTimeSinceShardStartedInNanos;
             this.totalActiveTimeInNanos = totalActiveTimeInNanos;
             // We store the weighted write load as a double because the calculation is inherently floating point
             this.recentIndexingLoad = recentIndexingLoad;
@@ -141,8 +155,9 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             if (isThrottled != stats.isThrottled) {
                 isThrottled = true; // When combining if one is throttled set result to throttled.
             }
-            // N.B. getWriteLoad() returns the ratio of these sums, which is the average of the ratios weighted by active time:
             totalIndexingTimeSinceShardStartedInNanos += stats.totalIndexingTimeSinceShardStartedInNanos;
+            // N.B. getWriteLoad() returns the ratio of these sums, which is the average of the ratios weighted by active time:
+            totalIndexingExecutionTimeSinceShardStartedInNanos += stats.totalIndexingExecutionTimeSinceShardStartedInNanos;
             totalActiveTimeInNanos += stats.totalActiveTimeInNanos;
             // We want getRecentWriteLoad() and getPeakWriteLoad() for the aggregated stats to also be the average weighted by active time,
             // so we use the updating formula for a weighted mean:
@@ -237,7 +252,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
          * the elapsed time for each shard.
          */
         public double getWriteLoad() {
-            return totalActiveTimeInNanos > 0 ? (double) totalIndexingTimeSinceShardStartedInNanos / totalActiveTimeInNanos : 0;
+            return totalActiveTimeInNanos > 0 ? (double) totalIndexingExecutionTimeSinceShardStartedInNanos / totalActiveTimeInNanos : 0;
         }
 
         /**
@@ -271,30 +286,36 @@ public class IndexingStats implements Writeable, ToXContentFragment {
             return TimeUnit.NANOSECONDS.toMillis(totalActiveTimeInNanos);
         }
 
+        /**
+         * The total amount of time spend on indexing plus writing indexing buffers.
+         */
+        public long getTotalIndexingExecutionTimeInMillis() {
+            return TimeUnit.NANOSECONDS.toMillis(totalIndexingExecutionTimeSinceShardStartedInNanos);
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeVLong(indexCount);
             out.writeVLong(indexTimeInMillis);
             out.writeVLong(indexCurrent);
             out.writeVLong(indexFailedCount);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.TRACK_INDEX_FAILED_DUE_TO_VERSION_CONFLICT_METRIC)) {
-                out.writeVLong(indexFailedDueToVersionConflictCount);
-            }
+            out.writeVLong(indexFailedDueToVersionConflictCount);
             out.writeVLong(deleteCount);
             out.writeVLong(deleteTimeInMillis);
             out.writeVLong(deleteCurrent);
             out.writeVLong(noopUpdateCount);
             out.writeBoolean(isThrottled);
             out.writeLong(throttleTimeInMillis);
-            if (out.getTransportVersion().onOrAfter(WRITE_LOAD_AVG_SUPPORTED_VERSION)) {
-                out.writeLong(totalIndexingTimeSinceShardStartedInNanos);
-                out.writeLong(totalActiveTimeInNanos);
-            }
-            if (out.getTransportVersion().onOrAfter(INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD)) {
+            out.writeLong(totalIndexingTimeSinceShardStartedInNanos);
+            out.writeLong(totalActiveTimeInNanos);
+            if (out.getTransportVersion().supports(INDEXING_STATS_INCLUDES_RECENT_WRITE_LOAD)) {
                 out.writeDouble(recentIndexingLoad);
             }
-            if (out.getTransportVersion().onOrAfter(INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD)) {
+            if (out.getTransportVersion().supports(INDEX_STATS_AND_METADATA_INCLUDE_PEAK_WRITE_LOAD)) {
                 out.writeDouble(peakIndexingLoad);
+            }
+            if (out.getTransportVersion().supports(WRITE_LOAD_INCLUDES_BUFFER_WRITES)) {
+                out.writeLong(totalIndexingExecutionTimeSinceShardStartedInNanos);
             }
         }
 
@@ -338,6 +359,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 && isThrottled == that.isThrottled
                 && throttleTimeInMillis == that.throttleTimeInMillis
                 && totalIndexingTimeSinceShardStartedInNanos == that.totalIndexingTimeSinceShardStartedInNanos
+                && totalIndexingExecutionTimeSinceShardStartedInNanos == that.totalIndexingExecutionTimeSinceShardStartedInNanos
                 && totalActiveTimeInNanos == that.totalActiveTimeInNanos
                 && recentIndexingLoad == that.recentIndexingLoad
                 && peakIndexingLoad == that.peakIndexingLoad;
@@ -358,6 +380,7 @@ public class IndexingStats implements Writeable, ToXContentFragment {
                 isThrottled,
                 throttleTimeInMillis,
                 totalIndexingTimeSinceShardStartedInNanos,
+                totalIndexingExecutionTimeSinceShardStartedInNanos,
                 totalActiveTimeInNanos
             );
         }
@@ -371,13 +394,6 @@ public class IndexingStats implements Writeable, ToXContentFragment {
 
     public IndexingStats(StreamInput in) throws IOException {
         totalStats = new Stats(in);
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            if (in.readBoolean()) {
-                Map<String, Stats> typeStats = in.readMap(Stats::new);
-                assert typeStats.size() == 1;
-                assert typeStats.containsKey(MapperService.SINGLE_MAPPING_NAME);
-            }
-        }
     }
 
     public IndexingStats(Stats totalStats) {
@@ -447,8 +463,5 @@ public class IndexingStats implements Writeable, ToXContentFragment {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         totalStats.writeTo(out);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeBoolean(false);
-        }
     }
 }

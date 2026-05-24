@@ -16,27 +16,26 @@ import org.elasticsearch.health.HealthService;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.health.metadata.HealthMetadata;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.InternalTestCluster;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED;
+import static org.elasticsearch.health.node.ShardsCapacityHealthIndicatorService.SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW;
 import static org.elasticsearch.indices.ShardLimitValidator.SETTING_CLUSTER_MAX_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 
-@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
 public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
 
     private static final String INDEX_NAME = "index-name";
-    private InternalTestCluster internalCluster;
 
     @Before
     public void setUp() throws Exception {
         super.setUp();
-        internalCluster = internalCluster();
         updateClusterSettings(Settings.builder().put(SETTING_CLUSTER_MAX_SHARDS_PER_NODE.getKey(), 30));
     }
 
@@ -53,7 +52,7 @@ public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
         // index: 4 shards + 1 replica = 8 shards used (30 - 8 = 22 > 10 available shards)
         createIndex(4, 1);
 
-        var result = fetchShardsCapacityIndicatorResult(internalCluster);
+        var result = fetchShardsCapacityIndicatorResult();
         assertEquals(result.status(), HealthStatus.GREEN);
         assertEquals(result.symptom(), "The cluster has enough room to add new shards.");
         assertThat(result.diagnosisList(), empty());
@@ -64,7 +63,7 @@ public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
         // index: 11 shards + 1 replica = 22 shards used (30 - 22 < 10 available shards)
         createIndex(10, 1);
 
-        var result = fetchShardsCapacityIndicatorResult(internalCluster);
+        var result = fetchShardsCapacityIndicatorResult();
         assertEquals(result.status(), HealthStatus.YELLOW);
         assertEquals(result.symptom(), "Cluster is close to reaching the configured maximum number of shards for data nodes.");
         assertThat(result.diagnosisList(), hasSize(1));
@@ -75,26 +74,57 @@ public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
         // index: 13 shards + 1 replica = 26 shards used (30 - 26 < 5 available shards)
         createIndex(13, 1);
 
-        var result = fetchShardsCapacityIndicatorResult(internalCluster);
+        var result = fetchShardsCapacityIndicatorResult();
         assertEquals(result.status(), HealthStatus.RED);
         assertEquals(result.symptom(), "Cluster is close to reaching the configured maximum number of shards for data nodes.");
         assertThat(result.diagnosisList(), hasSize(1));
         assertThat(result.impacts(), hasSize(2));
     }
 
+    public void testUnhealthyThresholds() throws Exception {
+        // baseline
+        assertEquals(HealthStatus.GREEN, fetchShardsCapacityIndicatorResult().status());
+
+        // set very large threshold to force the indicator to go yellow
+        updateClusterSettings(Settings.builder().put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey(), 100000000));
+        assertBusy(() -> {
+            // waits for settings to propagate to health metadata
+            assertEquals(HealthStatus.YELLOW, fetchShardsCapacityIndicatorResult().status());
+        });
+
+        // set very large threshold to force the indicator to go red
+        updateClusterSettings(Settings.builder().put(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey(), 90000000));
+        assertBusy(() -> {
+            // waits for settings to propagate to health metadata
+            assertEquals(HealthStatus.RED, fetchShardsCapacityIndicatorResult().status());
+        });
+
+        // reset thresholds to defaults
+        updateClusterSettings(
+            Settings.builder()
+                .putNull(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_YELLOW.getKey())
+                .putNull(SETTING_SHARD_CAPACITY_UNHEALTHY_THRESHOLD_RED.getKey())
+        );
+        assertBusy(() -> {
+            // waits for settings to propagate to health metadata
+            assertEquals(HealthStatus.GREEN, fetchShardsCapacityIndicatorResult().status());
+        });
+
+    }
+
     private void createIndex(int shards, int replicas) {
         createIndex(INDEX_NAME, indexSettings(shards, replicas).build());
     }
 
-    private HealthIndicatorResult fetchShardsCapacityIndicatorResult(InternalTestCluster internalCluster) throws Exception {
-        ensureStableCluster(internalCluster.getNodeNames().length);
-        var healthNode = ESIntegTestCase.waitAndGetHealthNode(internalCluster);
+    private HealthIndicatorResult fetchShardsCapacityIndicatorResult() throws Exception {
+        ensureStableCluster(internalCluster().getNodeNames().length);
+        var healthNode = ESIntegTestCase.waitAndGetHealthNode(internalCluster());
         assertNotNull(healthNode);
 
-        var randomNode = internalCluster.getRandomNodeName();
+        var randomNode = internalCluster().getRandomNodeName();
         waitForShardLimitsMetadata(randomNode);
 
-        var healthService = internalCluster.getInstance(HealthService.class, randomNode);
+        var healthService = internalCluster().getInstance(HealthService.class, randomNode);
         var healthIndicatorResults = getHealthServiceResults(healthService, randomNode);
         assertThat(healthIndicatorResults, hasSize(1));
         return healthIndicatorResults.get(0);
@@ -131,6 +161,14 @@ public class ShardsCapacityHealthIndicatorServiceIT extends ESIntegTestCase {
             assertTrue(
                 "max_shards_per_node.frozen setting must be greater than 0",
                 healthMetadata.getShardLimitsMetadata().maxShardsPerNodeFrozen() > 0
+            );
+            assertTrue(
+                "health.shard_capacity.unhealthy_threshold.yellow setting must be greater than 0",
+                healthMetadata.getShardLimitsMetadata().shardCapacityUnhealthyThresholdYellow() > 0
+            );
+            assertTrue(
+                "health.shard_capacity.unhealthy_threshold.red setting must be greater than 0",
+                healthMetadata.getShardLimitsMetadata().shardCapacityUnhealthyThresholdRed() > 0
             );
         });
     }

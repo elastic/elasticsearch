@@ -17,7 +17,7 @@ Separates a token stream into tokens and payloads based on a specified delimiter
 
 For example, you can use the `delimited_payload` filter with a `|` delimiter to split `the|1 quick|2 fox|3` into the tokens `the`, `quick`, and `fox` with respective payloads of `1`, `2`, and `3`.
 
-This filter uses Lucene’s [DelimitedPayloadTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/payloads/DelimitedPayloadTokenFilter.md).
+This filter uses Lucene’s [DelimitedPayloadTokenFilter](https://lucene.apache.org/core/10_0_0/analysis/common/org/apache/lucene/analysis/payloads/DelimitedPayloadTokenFilter.html).
 
 ::::{admonition} Payloads
 :class: note
@@ -166,6 +166,7 @@ POST text_payloads/_doc/1
   "text": "the|0 brown|3 fox|4 is|0 quick|10"
 }
 ```
+% TEST[continued]
 
 Use the [term vectors API](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-termvectors) to return the document’s tokens and base64-encoded payloads.
 
@@ -176,6 +177,7 @@ GET text_payloads/_termvectors/1
   "payloads": true
 }
 ```
+% TEST[continued]
 
 The API returns the following response:
 
@@ -244,5 +246,6 @@ The API returns the following response:
   }
 }
 ```
+% TESTRESPONSE[s/"took": 8/"took": "$body.took"/]
 
 

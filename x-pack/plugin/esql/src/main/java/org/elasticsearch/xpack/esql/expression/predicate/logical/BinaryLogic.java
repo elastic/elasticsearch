@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.ScoreOperator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
@@ -24,7 +25,8 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
-import org.elasticsearch.xpack.esql.core.util.PlanStreamInput;
+import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
 import org.elasticsearch.xpack.esql.score.ExpressionScoreMapper;
@@ -38,19 +40,15 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isBoo
 public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boolean, BinaryLogicOperation>
     implements
         TranslationAware,
-        ExpressionScoreMapper {
+        ExpressionScoreMapper,
+        EvaluatorMapper {
 
     protected BinaryLogic(Source source, Expression left, Expression right, BinaryLogicOperation operation) {
         super(source, left, right, operation);
     }
 
     protected BinaryLogic(StreamInput in, BinaryLogicOperation op) throws IOException {
-        this(
-            Source.readFrom((StreamInput & PlanStreamInput) in),
-            in.readNamedWriteable(Expression.class),
-            in.readNamedWriteable(Expression.class),
-            op
-        );
+        this(Source.readFrom((PlanStreamInput) in), in.readNamedWriteable(Expression.class), in.readNamedWriteable(Expression.class), op);
     }
 
     @Override
@@ -82,16 +80,18 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     }
 
     @Override
-    public boolean translatable(LucenePushdownPredicates pushdownPredicates) {
-        return left() instanceof TranslationAware leftAware
-            && leftAware.translatable(pushdownPredicates)
-            && right() instanceof TranslationAware rightAware
-            && rightAware.translatable(pushdownPredicates);
+    public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
+        return TranslationAware.translatable(left(), pushdownPredicates).merge(TranslationAware.translatable(right(), pushdownPredicates));
     }
 
     @Override
-    public Query asQuery(TranslatorHandler handler) {
-        return boolQuery(source(), handler.asQuery(left()), handler.asQuery(right()), this instanceof And);
+    public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        return boolQuery(
+            source(),
+            handler.asQuery(pushdownPredicates, left()),
+            handler.asQuery(pushdownPredicates, right()),
+            this instanceof And
+        );
     }
 
     public static Query boolQuery(Source source, Query left, Query right, boolean isAnd) {
@@ -121,6 +121,11 @@ public abstract class BinaryLogic extends BinaryOperator<Boolean, Boolean, Boole
     @Override
     public ScoreOperator.ExpressionScorer.Factory toScorer(ToScorer toScorer) {
         return context -> new BinaryLogicScorer(context, toScorer.toScorer(left()).get(context), toScorer.toScorer(right()).get(context));
+    }
+
+    @Override
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        return new BooleanLogicExpressionEvaluator.Factory(this, toEvaluator.apply(left()), toEvaluator.apply(right()));
     }
 
     /**

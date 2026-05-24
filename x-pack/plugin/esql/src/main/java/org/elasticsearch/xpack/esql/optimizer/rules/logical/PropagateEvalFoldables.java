@@ -7,16 +7,21 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
-import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.RuleUtils;
+import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.MMR;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.rule.ParameterizedRule;
+
+import java.util.List;
 
 /**
  * Replace any reference attribute with its source, if it does not affect the result.
@@ -26,33 +31,27 @@ public final class PropagateEvalFoldables extends ParameterizedRule<LogicalPlan,
 
     @Override
     public LogicalPlan apply(LogicalPlan plan, LogicalOptimizerContext ctx) {
-        AttributeMap.Builder<Expression> collectRefsBuilder = AttributeMap.builder();
-
-        java.util.function.Function<ReferenceAttribute, Expression> replaceReference = r -> collectRefsBuilder.build().resolve(r, r);
-
-        // collect aliases bottom-up
-        plan.forEachExpressionUp(Alias.class, a -> {
-            var c = a.child();
-            boolean shouldCollect = c.foldable();
-            // try to resolve the expression based on an existing foldables
-            if (shouldCollect == false) {
-                c = c.transformUp(ReferenceAttribute.class, replaceReference);
-                shouldCollect = c.foldable();
-            }
-            if (shouldCollect) {
-                collectRefsBuilder.put(a.toAttribute(), Literal.of(ctx.foldCtx(), c));
-            }
-        });
-        if (collectRefsBuilder.isEmpty()) {
+        AttributeMap<Expression> collectRefs = RuleUtils.foldableReferencesSkipMVGroupings(plan, ctx);
+        if (collectRefs.isEmpty()) {
             return plan;
         }
 
+        // Apply the replacement inside Filter, Eval, Row and LimitBy (groupings).
+        // TODO: also allow aggregates once aggs on constants are supported.
+        // C.f. https://github.com/elastic/elasticsearch/issues/100634
         plan = plan.transformUp(p -> {
-            // Apply the replacement inside Filter and Eval (which shouldn't make a difference)
-            // TODO: also allow aggregates once aggs on constants are supported.
-            // C.f. https://github.com/elastic/elasticsearch/issues/100634
-            if (p instanceof Filter || p instanceof Eval) {
-                p = p.transformExpressionsOnly(ReferenceAttribute.class, replaceReference);
+            if (p instanceof Filter || p instanceof Eval || p instanceof Row || p instanceof LimitBy || p instanceof MMR) {
+                p = p.transformExpressionsOnly(ReferenceAttribute.class, r -> collectRefs.resolve(r, r));
+            } else if (p instanceof ChangePoint cp) {
+                // Among ChangePoint's fields, only `groupings` accepts arbitrary expressions;
+                // Applying replacement to `groupings` only
+                List<Expression> newGroupings = cp.groupings()
+                    .stream()
+                    .map(g -> g.transformUp(ReferenceAttribute.class, r -> collectRefs.resolve(r, r)))
+                    .toList();
+                if (newGroupings.equals(cp.groupings()) == false) {
+                    p = new ChangePoint(cp.source(), cp.child(), cp.value(), cp.key(), cp.targetType(), cp.targetPvalue(), newGroupings);
+                }
             }
             return p;
         });

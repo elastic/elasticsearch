@@ -1,5 +1,0 @@
-pr: 125023
-summary: Fix `AlibabaCloudSearchCompletionAction` not accepting `ChatCompletionInputs`
-area: Machine Learning
-type: bug
-issues: []

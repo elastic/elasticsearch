@@ -7,14 +7,34 @@
 
 package org.elasticsearch.xpack.inference.external.request;
 
+import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.test.ESTestCase;
+
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class RequestTests {
-    public static Request mockRequest(String modelId) {
-        var request = mock(Request.class);
+
+    private RequestTests() {}
+
+    public static OutboundRequest mockRequest(String modelId) {
+        var request = mock(OutboundRequest.class);
         when(request.getInferenceEntityId()).thenReturn(modelId);
 
         return request;
+    }
+
+    /**
+     * Synchronously obtain the {@link HttpRequest} from {@code request} by calling
+     * {@link OutboundRequest#createHttpRequest} and blocking on the result. For use in tests that
+     * assert on the built HTTP request without restructuring to async.
+     *
+     * @param outboundRequest the request to build
+     * @return the built HTTP request
+     */
+    public static HttpRequest getHttpRequestSync(OutboundRequest outboundRequest) {
+        var future = new PlainActionFuture<HttpRequest>();
+        outboundRequest.createHttpRequest(future);
+        return future.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
     }
 }

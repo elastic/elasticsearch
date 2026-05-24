@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.core.security.action.role;
 
+import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.action.ActionRequestValidationException;
-import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.privilege.ApplicationPrivilege;
@@ -55,10 +55,8 @@ public class RoleDescriptorRequestValidator {
                 } catch (IllegalArgumentException ile) {
                     validationException = addValidationError(ile.getMessage(), validationException);
                 }
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                    for (final String indexName : idp.getIndices()) {
-                        validationException = validateIndexNameExpression(indexName, validationException);
-                    }
+                for (final String indexName : idp.getIndices()) {
+                    validationException = validateIndexNameExpression(indexName, validationException);
                 }
             }
         }
@@ -78,10 +76,8 @@ public class RoleDescriptorRequestValidator {
             } catch (IllegalArgumentException ile) {
                 validationException = addValidationError(ile.getMessage(), validationException);
             }
-            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-                for (String indexName : ridp.indicesPrivileges().getIndices()) {
-                    validationException = validateIndexNameExpression(indexName, validationException);
-                }
+            for (String indexName : ridp.indicesPrivileges().getIndices()) {
+                validationException = validateIndexNameExpression(indexName, validationException);
             }
         }
         if (roleDescriptor.hasRemoteClusterPermissions()) {
@@ -144,6 +140,24 @@ public class RoleDescriptorRequestValidator {
                     + "]",
                 validationException
             );
+        }
+        if (indexNameExpression != null) {
+            if (indexNameExpression.startsWith("/")) {
+                if (indexNameExpression.length() == 1 || indexNameExpression.endsWith("/") == false) {
+                    return addValidationError("invalid regular expression pattern [" + indexNameExpression + "]", validationException);
+                }
+                String regex = indexNameExpression.substring(1, indexNameExpression.length() - 1);
+                try {
+                    new RegExp(regex);
+                } catch (IllegalArgumentException e) {
+                    return addValidationError("invalid regular expression pattern [" + indexNameExpression + "]", validationException);
+                }
+            } else if (indexNameExpression.contains(",")) {
+                validationException = addValidationError(
+                    "commas [,] are not allowed in the index name expression [" + indexNameExpression + "]",
+                    validationException
+                );
+            }
         }
         return validationException;
     }

@@ -24,23 +24,35 @@ public enum AwsCredentialsUtils {
     ;
 
     /**
+     * Region supplier which matches any region.
+     */
+    // TODO: replace with DynamicRegionSupplier.
+    public static final Supplier<String> ANY_REGION = () -> "*";
+
+    /**
      * @return an authorization predicate that ensures the authorization header matches the given access key, region and service name.
      * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html">AWS v4 Signatures</a>
-     * @param region the name of the AWS region used to sign the request, or {@code *} to skip validation of the region parameter
+     * @param regionSupplier supplies the name of the AWS region used to sign the request, or {@code *} to skip validation of the region
+     *                       parameter
      */
-    public static BiPredicate<String, String> fixedAccessKey(String accessKey, String region, String serviceName) {
-        return mutableAccessKey(() -> accessKey, region, serviceName);
+    public static BiPredicate<String, String> fixedAccessKey(String accessKey, Supplier<String> regionSupplier, String serviceName) {
+        return mutableAccessKey(() -> accessKey, regionSupplier, serviceName);
     }
 
     /**
      * @return an authorization predicate that ensures the authorization header matches the access key supplied by the given supplier,
      *         and also matches the given region and service name.
      * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html">AWS v4 Signatures</a>
-     * @param region the name of the AWS region used to sign the request, or {@code *} to skip validation of the region parameter
+     * @param regionSupplier supplies the name of the AWS region used to sign the request, or {@code *} to skip validation of the region
+     *                       parameter
      */
-    public static BiPredicate<String, String> mutableAccessKey(Supplier<String> accessKeySupplier, String region, String serviceName) {
+    public static BiPredicate<String, String> mutableAccessKey(
+        Supplier<String> accessKeySupplier,
+        Supplier<String> regionSupplier,
+        String serviceName
+    ) {
         return (authorizationHeader, sessionTokenHeader) -> authorizationHeader != null
-            && isValidAwsV4SignedAuthorizationHeader(accessKeySupplier.get(), region, serviceName, authorizationHeader);
+            && isValidAwsV4SignedAuthorizationHeader(accessKeySupplier.get(), regionSupplier.get(), serviceName, authorizationHeader);
     }
 
     /**
@@ -72,16 +84,17 @@ public enum AwsCredentialsUtils {
     /**
      * @return an authorization predicate that ensures the access key, session token, region and service name all match the given values.
      * @see <a href="https://docs.aws.amazon.com/AmazonS3/latest/API/sigv4-auth-using-authorization-header.html">AWS v4 Signatures</a>
-     * @param region the name of the AWS region used to sign the request, or {@code *} to skip validation of the region parameter
+     * @param regionSupplier supplies the name of the AWS region used to sign the request, or {@code *} to skip validation of the region
+     *                       parameter
      */
     public static BiPredicate<String, String> fixedAccessKeyAndToken(
         String accessKey,
         String sessionToken,
-        String region,
+        Supplier<String> regionSupplier,
         String serviceName
     ) {
         Objects.requireNonNull(sessionToken);
-        final var accessKeyPredicate = fixedAccessKey(accessKey, region, serviceName);
+        final var accessKeyPredicate = fixedAccessKey(accessKey, regionSupplier, serviceName);
         return (authorizationHeader, sessionTokenHeader) -> accessKeyPredicate.test(authorizationHeader, sessionTokenHeader)
             && sessionToken.equals(sessionTokenHeader);
     }

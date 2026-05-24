@@ -9,15 +9,16 @@
 
 package org.elasticsearch.script.mustache;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
+import org.elasticsearch.action.LegacyActionRequest;
 import org.elasticsearch.action.search.MultiSearchRequest;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -30,12 +31,15 @@ import java.util.Objects;
 
 import static org.elasticsearch.action.ValidateActions.addValidationError;
 
-public class MultiSearchTemplateRequest extends ActionRequest implements CompositeIndicesRequest {
+public class MultiSearchTemplateRequest extends LegacyActionRequest implements CompositeIndicesRequest {
 
     private int maxConcurrentSearchRequests = 0;
     private List<SearchTemplateRequest> requests = new ArrayList<>();
 
     private IndicesOptions indicesOptions = IndicesOptions.strictExpandOpenAndForbidClosedIgnoreThrottled();
+
+    @Nullable
+    private String projectRouting;
 
     public MultiSearchTemplateRequest() {}
 
@@ -43,6 +47,11 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
         super(in);
         maxConcurrentSearchRequests = in.readVInt();
         requests = in.readCollectionAsList(SearchTemplateRequest::new);
+        if (in.getTransportVersion().supports(SearchTemplateRequest.SEARCH_TEMPLATE_PROJECT_ROUTING)) {
+            this.projectRouting = in.readOptionalString();
+        } else {
+            this.projectRouting = null;
+        }
     }
 
     /**
@@ -118,6 +127,9 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
         super.writeTo(out);
         out.writeVInt(maxConcurrentSearchRequests);
         out.writeCollection(requests);
+        if (out.getTransportVersion().supports(SearchTemplateRequest.SEARCH_TEMPLATE_PROJECT_ROUTING)) {
+            out.writeOptionalString(this.projectRouting);
+        }
     }
 
     @Override
@@ -151,6 +163,19 @@ public class MultiSearchTemplateRequest extends ActionRequest implements Composi
             output.write(xContent.bulkSeparator());
         }
         return output.toByteArray();
+    }
+
+    public void setProjectRouting(@Nullable String projectRouting) {
+        if (this.projectRouting != null) {
+            throw new IllegalArgumentException("project_routing already set");
+        }
+
+        this.projectRouting = projectRouting;
+    }
+
+    @Nullable
+    public String getProjectRouting() {
+        return projectRouting;
     }
 
 }

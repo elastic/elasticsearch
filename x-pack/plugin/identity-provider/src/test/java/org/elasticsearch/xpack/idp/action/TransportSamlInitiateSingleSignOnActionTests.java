@@ -43,6 +43,7 @@ import java.net.URL;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
 
 import static org.hamcrest.CoreMatchers.containsString;
@@ -172,7 +173,8 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
                             true
                         )
                     )
-                    .build()
+                    .build(),
+                Map.of()
             ).writeToContext(threadContext);
         }
 
@@ -190,7 +192,8 @@ public class TransportSamlInitiateSingleSignOnActionTests extends IdpSamlTestCas
                 "https://saml.elasticsearch.org/attributes/principal",
                 "https://saml.elasticsearch.org/attributes/name",
                 "https://saml.elasticsearch.org/attributes/email",
-                "https://saml.elasticsearch.org/attributes/roles"
+                "https://saml.elasticsearch.org/attributes/roles",
+                Set.of()
             ),
             null,
             false,

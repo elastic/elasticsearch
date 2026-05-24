@@ -28,7 +28,11 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
 import org.elasticsearch.test.index.IndexVersionUtils;
+import org.elasticsearch.threadpool.TestThreadPool;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.hamcrest.MatcherAssert;
+import org.junit.After;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -47,6 +51,19 @@ import static org.hamcrest.Matchers.startsWith;
 
 public class SynonymsAnalysisTests extends ESTestCase {
     private IndexAnalyzers indexAnalyzers;
+    private TestThreadPool threadPool;
+    private CommonAnalysisPlugin commonAnalysisPlugin;
+
+    @Before
+    public void configureCommonAnalysisPlugin() {
+        threadPool = new TestThreadPool(getTestName());
+        commonAnalysisPlugin = createCommonAnalysisPlugin(threadPool);
+    }
+
+    @After
+    public void cleanup() {
+        threadPool.shutdownNow();
+    }
 
     public void testSynonymsAnalysis() throws IOException {
         InputStream synonyms = getClass().getResourceAsStream("synonyms.txt");
@@ -65,7 +82,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .build();
 
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+        indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
 
         match("synonymAnalyzer", "kimchy is the dude abides", "shay is the elasticsearch man!");
         match("synonymAnalyzer_file", "kimchy is the dude abides", "shay is the elasticsearch man!");
@@ -96,7 +113,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
                 .put("index.analysis.filter.my_synonym.updateable", updateable)
                 .build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-            indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+            indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
             match("synonymAnalyzerWithStopSynonymBeforeSynonym", "kimchy is the dude abides", "is the dude man!");
         };
 
@@ -106,7 +123,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
                 .build();
             try {
                 IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-                indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+                indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
                 fail("fail! due to synonym word deleted by analyzer");
             } catch (Exception e) {
                 assertThat(e, instanceOf(IllegalArgumentException.class));
@@ -117,7 +134,6 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
         // Test with an index version where lenient should always be false by default
         IndexVersion randomNonLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersions.INDEX_SORTING_ON_NESTED
         );
@@ -126,7 +142,6 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
         // Test with an index version where the default lenient value is based on updateable
         IndexVersion randomLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.LENIENT_UPDATEABLE_SYNONYMS,
             IndexVersion.current()
         );
@@ -156,7 +171,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
                 .put("index.analysis.filter.my_synonym.updateable", updateable)
                 .build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-            indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+            indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
             match("synonymAnalyzerWithStopSynonymBeforeSynonym", "kimchy is the dude abides", "is the dude man!");
         };
 
@@ -166,7 +181,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
                 .build();
             try {
                 IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-                indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+                indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
                 fail("fail! due to synonym word deleted by analyzer");
             } catch (Exception e) {
                 assertThat(e, instanceOf(IllegalArgumentException.class));
@@ -176,7 +191,6 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
         // Test with an index version where lenient should always be false by default
         IndexVersion randomNonLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersions.INDEX_SORTING_ON_NESTED
         );
@@ -185,7 +199,6 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
         // Test with an index version where the default lenient value is based on updateable
         IndexVersion randomLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.LENIENT_UPDATEABLE_SYNONYMS,
             IndexVersion.current()
         );
@@ -209,7 +222,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
                 .put("index.analysis.filter.synonym_expand.updateable", updateable)
                 .build();
             IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-            indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+            indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
             match("synonymAnalyzerExpandWithStopBeforeSynonym", "kimchy is the dude abides", "is the dude abides man!");
         };
 
@@ -219,7 +232,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
                 .build();
             try {
                 IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-                indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+                indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
                 fail("fail! due to synonym word deleted by analyzer");
             } catch (Exception e) {
                 assertThat(e, instanceOf(IllegalArgumentException.class));
@@ -230,7 +243,6 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
         // Test with an index version where lenient should always be false by default
         IndexVersion randomNonLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.MINIMUM_READONLY_COMPATIBLE,
             IndexVersions.INDEX_SORTING_ON_NESTED
         );
@@ -239,7 +251,6 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
         // Test with an index version where the default lenient value is based on updateable
         IndexVersion randomLenientIndexVersion = IndexVersionUtils.randomVersionBetween(
-            random(),
             IndexVersions.LENIENT_UPDATEABLE_SYNONYMS,
             IndexVersion.current()
         );
@@ -261,7 +272,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .putList("index.analysis.analyzer.synonymAnalyzer.filter", "lowercase", "stem_repeat")
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+        indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
 
         BaseTokenStreamTestCase.assertAnalyzesTo(
             indexAnalyzers.get("synonymAnalyzer"),
@@ -281,7 +292,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .putList("index.analysis.analyzer.synonymAnalyzer.filter", "lowercase", "asciifolding", "synonyms")
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+        indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
 
         BaseTokenStreamTestCase.assertAnalyzesTo(
             indexAnalyzers.get("synonymAnalyzer"),
@@ -301,7 +312,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .putList("index.analysis.analyzer.my_analyzer.filter", "lowercase", "asciifolding", "synonyms")
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+        indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
 
         BaseTokenStreamTestCase.assertAnalyzesTo(
             indexAnalyzers.get("my_analyzer"),
@@ -323,7 +334,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
             .putList("index.analysis.analyzer.syn.filter", "lowercase", "synonyms1", "synonyms2")
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+        indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
 
         BaseTokenStreamTestCase.assertAnalyzesTo(
             indexAnalyzers.get("syn"),
@@ -333,12 +344,77 @@ public class SynonymsAnalysisTests extends ESTestCase {
         );
     }
 
+    public void testChainedSynonymGraphFilters() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.synonyms1.type", "synonym_graph")
+            .putList("index.analysis.filter.synonyms1.synonyms", "foo, bar")
+            .put("index.analysis.filter.synonyms2.type", "synonym_graph")
+            .putList("index.analysis.filter.synonyms2.synonyms", "baz, qux")
+            .put("index.analysis.filter.synonyms3.type", "synonym_graph")
+            .putList("index.analysis.filter.synonyms3.synonyms", "hello, world")
+            .put("index.analysis.analyzer.syn.tokenizer", "standard")
+            .putList("index.analysis.analyzer.syn.filter", "lowercase", "synonyms1", "synonyms2", "synonyms3")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
+
+        // Test single word - synonym_graph produces both original and synonym at same position
+        BaseTokenStreamTestCase.assertAnalyzesTo(
+            indexAnalyzers.get("syn"),
+            "foo",
+            new String[] { "bar", "foo" },
+            new int[] { 0, 0 }, // start offsets
+            new int[] { 3, 3 }, // end offsets
+            new int[] { 1, 0 }  // position increments
+        );
+
+        // Test multi-word query with all three filters active
+        BaseTokenStreamTestCase.assertAnalyzesTo(
+            indexAnalyzers.get("syn"),
+            "foo baz hello",
+            new String[] { "bar", "foo", "qux", "baz", "world", "hello" },
+            new int[] { 0, 0, 4, 4, 8, 8 },     // start offsets
+            new int[] { 3, 3, 7, 7, 13, 13 },  // end offsets
+            new int[] { 1, 0, 1, 0, 1, 0 }     // position increments: each synonym pair at same position
+        );
+    }
+
+    /**
+     * Test a fix for OOM when chaining synonym graph filters. Without the fix, A is active
+     * while B parses its rules, so A rewrites B's LHSes (cat/dog/bird → animal) and B's
+     * SynonymMap collapses to one phantom entry: {@code animal → [meows, barks, sings]}.
+     * At runtime that one input fans out to three outputs the user didn't intend,
+     * potentially leading to OOMs on large synonym sets.
+     */
+    public void testChainedSynonymGraphFilterBuildIsIsolated() throws IOException {
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put("path.home", createTempDir().toString())
+            .put("index.analysis.filter.syn_a.type", "synonym_graph")
+            .putList("index.analysis.filter.syn_a.synonyms", "cat => animal", "dog => animal", "bird => animal")
+            .put("index.analysis.filter.syn_b.type", "synonym_graph")
+            .putList("index.analysis.filter.syn_b.synonyms", "cat => meows", "dog => barks", "bird => sings")
+            .put("index.analysis.analyzer.chained.tokenizer", "standard")
+            .putList("index.analysis.analyzer.chained.filter", "lowercase", "syn_a", "syn_b")
+            .build();
+        IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
+        indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
+
+        // Without the IDENTITY_FILTER fix, syn_b's three rules would collapse to one phantom entry
+        // (animal → meows/barks/sings)
+        BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("chained"), "animal", new String[] { "animal" });
+        BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("chained"), "cat", new String[] { "animal" });
+        BaseTokenStreamTestCase.assertAnalyzesTo(indexAnalyzers.get("chained"), "dog", new String[] { "animal" });
+    }
+
     public void testShingleFilters() {
 
         Settings settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersion.current())
             )
             .put("path.home", createTempDir().toString())
             .put("index.analysis.filter.synonyms.type", "synonym")
@@ -350,7 +426,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
 
         expectThrows(IllegalArgumentException.class, () -> {
-            indexAnalyzers = createTestAnalysis(idxSettings, settings, new CommonAnalysisPlugin()).indexAnalyzers;
+            indexAnalyzers = createTestAnalysis(idxSettings, settings, commonAnalysisPlugin).indexAnalyzers;
         });
 
     }
@@ -367,7 +443,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
 
         String[] bypassingFactories = new String[] { "dictionary_decompounder" };
 
-        CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
+        CommonAnalysisPlugin plugin = createCommonAnalysisPlugin(threadPool);
         for (String factory : bypassingFactories) {
             TokenFilterFactory tff = plugin.getTokenFilters().get(factory).get(idxSettings, null, factory, settings);
             TokenizerFactory tok = new KeywordTokenizerFactory(idxSettings, null, "keyword", settings);
@@ -392,14 +468,14 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersion.current())
             )
             .put("path.home", createTempDir().toString())
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
         Set<String> disallowedFiltersTested = new HashSet<String>();
 
-        try (CommonAnalysisPlugin plugin = new CommonAnalysisPlugin()) {
+        try (CommonAnalysisPlugin plugin = createCommonAnalysisPlugin(threadPool)) {
             for (PreConfiguredTokenFilter tf : plugin.getPreConfiguredTokenFilters()) {
                 if (disallowedFilters.contains(tf.getName())) {
                     IllegalArgumentException e = expectThrows(
@@ -424,14 +500,14 @@ public class SynonymsAnalysisTests extends ESTestCase {
         Settings settings = Settings.builder()
             .put(
                 IndexMetadata.SETTING_VERSION_CREATED,
-                IndexVersionUtils.randomVersionBetween(random(), IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersion.current())
+                IndexVersionUtils.randomVersionBetween(IndexVersions.MINIMUM_READONLY_COMPATIBLE, IndexVersion.current())
             )
             .put("path.home", createTempDir().toString())
             .putList("common_words", "a", "b")
             .put("output_unigrams", "true")
             .build();
         IndexSettings idxSettings = IndexSettingsModule.newIndexSettings("index", settings);
-        CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
+        CommonAnalysisPlugin plugin = createCommonAnalysisPlugin(threadPool);
 
         String[] disallowedFactories = new String[] {
             "multiplexer",
@@ -472,4 +548,7 @@ public class SynonymsAnalysisTests extends ESTestCase {
         MatcherAssert.assertThat(sb.toString().trim(), equalTo(target));
     }
 
+    private static CommonAnalysisPlugin createCommonAnalysisPlugin(ThreadPool threadPool) {
+        return new TestCommonAnalysisPluginBuilder(threadPool).build();
+    }
 }

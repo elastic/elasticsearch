@@ -6,19 +6,13 @@
  */
 package org.elasticsearch.xpack.monitoring;
 
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
-import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicenseService;
@@ -27,7 +21,6 @@ import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
-import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -172,12 +165,12 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
     }
 
     @Override
-    public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        var usageAction = new ActionHandler<>(XPackUsageFeatureAction.MONITORING, MonitoringUsageTransportAction.class);
-        var infoAction = new ActionHandler<>(XPackInfoFeatureAction.MONITORING, MonitoringInfoTransportAction.class);
+    public List<ActionHandler> getActions() {
+        var usageAction = new ActionHandler(XPackUsageFeatureAction.MONITORING, MonitoringUsageTransportAction.class);
+        var infoAction = new ActionHandler(XPackInfoFeatureAction.MONITORING, MonitoringInfoTransportAction.class);
         return Arrays.asList(
-            new ActionHandler<>(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class),
-            new ActionHandler<>(MonitoringMigrateAlertsAction.INSTANCE, TransportMonitoringMigrateAlertsAction.class),
+            new ActionHandler(MonitoringBulkAction.INSTANCE, TransportMonitoringBulkAction.class),
+            new ActionHandler(MonitoringMigrateAlertsAction.INSTANCE, TransportMonitoringMigrateAlertsAction.class),
             usageAction,
             infoAction
         );
@@ -185,13 +178,7 @@ public class Monitoring extends Plugin implements ActionPlugin, ReloadablePlugin
 
     @Override
     public List<RestHandler> getRestHandlers(
-        Settings unused,
-        NamedWriteableRegistry namedWriteableRegistry,
-        RestController restController,
-        ClusterSettings clusterSettings,
-        IndexScopedSettings indexScopedSettings,
-        SettingsFilter settingsFilter,
-        IndexNameExpressionResolver indexNameExpressionResolver,
+        RestHandlersServices restHandlersServices,
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {

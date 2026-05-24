@@ -20,6 +20,7 @@ import org.elasticsearch.action.admin.cluster.repositories.put.TransportPutRepos
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.TransportCreateSnapshotAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.After;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequest;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsRequestBuilder;
 import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsResponse;
@@ -40,7 +41,9 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.RepositoryData;
+import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.repositories.RepositoryMissingException;
+import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.test.ESTestCase;
@@ -53,19 +56,23 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.empty;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
@@ -633,6 +640,112 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         expectThrows(RepositoryMissingException.class, multiRepoFuture::actionGet);
     }
 
+    public void testFilterByState() throws Exception {
+        final String repoName = "test-repo";
+        final Path repoPath = randomRepoPath();
+        createRepository(repoName, "mock", repoPath);
+
+        // Create a successful snapshot
+        createFullSnapshot(repoName, "snapshot-success");
+
+        final Function<EnumSet<SnapshotState>, List<SnapshotInfo>> getSnapshotsForStates = (states) -> {
+            return clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).setStates(states).get().getSnapshots();
+        };
+
+        // Fetch snapshots with state=SUCCESS
+        var snapshots = getSnapshotsForStates.apply(EnumSet.of(SnapshotState.SUCCESS));
+        assertThat(snapshots, hasSize(1));
+        assertThat(snapshots.getFirst().state(), is(SnapshotState.SUCCESS));
+
+        // Add some more state (so the next snapshot has some work to do)
+        indexRandomDocs(randomIdentifier(), 100);
+
+        // Create a snapshot in progress
+        blockAllDataNodes(repoName);
+        try {
+            startFullSnapshot(repoName, "snapshot-in-progress");
+            awaitNumberOfSnapshotsInProgress(1);
+
+            // Fetch snapshots with state=IN_PROGRESS
+            snapshots = getSnapshotsForStates.apply(EnumSet.of(SnapshotState.IN_PROGRESS));
+            assertThat(snapshots, hasSize(1));
+            assertThat(snapshots.getFirst().state(), is(SnapshotState.IN_PROGRESS));
+
+            // Fetch snapshots with multiple states (SUCCESS, IN_PROGRESS)
+            snapshots = getSnapshotsForStates.apply(EnumSet.of(SnapshotState.SUCCESS, SnapshotState.IN_PROGRESS));
+            assertThat(snapshots, hasSize(2));
+            var states = snapshots.stream().map(SnapshotInfo::state).collect(Collectors.toSet());
+            assertThat(states, hasItem(SnapshotState.SUCCESS));
+            assertThat(states, hasItem(SnapshotState.IN_PROGRESS));
+
+            // Fetch all snapshots (without state)
+            snapshots = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get().getSnapshots();
+            assertThat(snapshots, hasSize(2));
+
+            // Fetch snapshots with an invalid state
+            IllegalArgumentException e = expectThrows(
+                IllegalArgumentException.class,
+                () -> getSnapshotsForStates.apply(EnumSet.of(SnapshotState.valueOf("FOO")))
+            );
+            assertThat(e.getMessage(), is("No enum constant org.elasticsearch.snapshots.SnapshotState.FOO"));
+        } finally {
+            // Allow the IN_PROGRESS snapshot to finish, then verify GET using SUCCESS has results and IN_PROGRESS does not.
+            // Do this in a finally, so the block doesn't interfere with teardown in the event of a failure
+            unblockAllDataNodes(repoName);
+        }
+
+        awaitNumberOfSnapshotsInProgress(0);
+        snapshots = clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get().getSnapshots();
+        assertThat(snapshots, hasSize(2));
+        var states = snapshots.stream().map(SnapshotInfo::state).collect(Collectors.toSet());
+        assertThat(states, hasSize(1));
+        assertTrue(states.contains(SnapshotState.SUCCESS));
+        snapshots = getSnapshotsForStates.apply(EnumSet.of(SnapshotState.IN_PROGRESS));
+        assertThat(snapshots, hasSize(0));
+    }
+
+    public void testRetrievingSnapshotsWhenRepositoryIsUnreadable() throws Exception {
+        final String repoName = randomIdentifier();
+        final Path repoPath = randomRepoPath();
+        createRepository(
+            repoName,
+            "fs",
+            Settings.builder().put("location", repoPath).put(BlobStoreRepository.CACHE_REPOSITORY_DATA.getKey(), false)
+        );
+        createNSnapshots(repoName, randomIntBetween(1, 3));
+
+        try {
+            try (var directoryStream = Files.newDirectoryStream(repoPath)) {
+                for (final var directoryEntry : directoryStream) {
+                    if (Files.isRegularFile(directoryEntry) && directoryEntry.getFileName().toString().startsWith("index-")) {
+                        Files.writeString(directoryEntry, "invalid");
+                    }
+                }
+            }
+
+            final var repositoryException = safeAwaitAndUnwrapFailure(
+                RepositoryException.class,
+                GetSnapshotsResponse.class,
+                l -> clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName)
+                    .setSort(SnapshotSortKey.NAME)
+                    .setIgnoreUnavailable(randomBoolean())
+                    .execute(l)
+            );
+            assertEquals(
+                Strings.format("[%s] cannot retrieve snapshots list from this repository", repoName),
+                repositoryException.getMessage()
+            );
+            assertEquals(
+                Strings.format("[%s] Unexpected exception when loading repository data", repoName),
+                repositoryException.getCause().getMessage()
+            );
+        } finally {
+            safeAwait(
+                l -> clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).execute(l.map(v -> null))
+            );
+        }
+    }
+
     // Create a snapshot that is guaranteed to have a unique start time and duration for tests around ordering by either.
     // Don't use this with more than 3 snapshots on platforms with low-resolution clocks as the durations could always collide there
     // causing an infinite loop
@@ -714,7 +827,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 final GetSnapshotsResponse getSnapshotsResponse = sortedWithLimit(
                     repoNames,
                     sort,
-                    sort.encodeAfterQueryParam(after),
+                    After.fromSnapshotInfo(after, sort).toQueryParam(),
                     i,
                     order
                 );
@@ -786,9 +899,9 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         // in the expected order etc.
 
         // Create a few repositories and a few indices
-        final var repositories = randomList(1, 4, ESTestCase::randomIdentifier);
-        final var indices = randomList(1, 4, ESTestCase::randomIdentifier);
-        final var slmPolicies = randomList(1, 4, ESTestCase::randomIdentifier);
+        final var repositories = randomList(1, 4, ESTestCase::randomRepoName);
+        final var indices = randomList(1, 4, ESTestCase::randomIndexName);
+        final var slmPolicies = randomList(1, 4, () -> ESTestCase.randomIdentifier("slm-policy-"));
 
         safeAwait(l -> {
             try (var listeners = new RefCountingListener(l.map(v -> null))) {
@@ -823,7 +936,7 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                             TEST_REQUEST_TIMEOUT,
                             // at least one snapshot per repository to satisfy consistency checks
                             i < repositories.size() ? repositories.get(i) : randomFrom(repositories),
-                            randomIdentifier()
+                            randomSnapshotName()
                         ).indices(randomNonEmptySubsetOf(indices))
                             .userMetadata(
                                 randomBoolean() ? Map.of() : Map.of(SnapshotsService.POLICY_ID_METADATA_FIELD, randomFrom(slmPolicies))
@@ -876,21 +989,34 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                 .toArray(String[]::new);
         }
 
+        // ?sort and ?order parameters
+        final var sortKey = randomFrom(SnapshotSortKey.values());
+        final var order = randomFrom(SortOrder.values());
+        // NB we sometimes choose to sort by FAILED_SHARDS, but there are no failed shards in these snapshots. We're still testing the
+        // fallback sorting by snapshot ID in this case. We also have no multi-shard indices so there's no difference between sorting by
+        // INDICES and by SHARDS. The actual sorting behaviour for these cases is tested elsewhere, here we're just checking that sorting
+        // interacts correctly with the other parameters to the API.
+        final var getSnapshotsRequest = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, requestedRepositories, requestedSnapshots)
+            // apply sorting params
+            .sort(sortKey)
+            .order(order);
+
         // ?slm_policy_filter parameter
         final String[] requestedSlmPolicies;
-        switch (between(0, 3)) {
-            default -> requestedSlmPolicies = Strings.EMPTY_ARRAY;
+        switch (between(1, 4)) {
             case 1 -> {
                 requestedSlmPolicies = new String[] { "*" };
                 snapshotInfoPredicate = snapshotInfoPredicate.and(
                     si -> si.userMetadata().get(SnapshotsService.POLICY_ID_METADATA_FIELD) != null
                 );
+                getSnapshotsRequest.policies(requestedSlmPolicies);
             }
             case 2 -> {
                 requestedSlmPolicies = new String[] { "_none" };
                 snapshotInfoPredicate = snapshotInfoPredicate.and(
                     si -> si.userMetadata().get(SnapshotsService.POLICY_ID_METADATA_FIELD) == null
                 );
+                getSnapshotsRequest.policies(requestedSlmPolicies);
             }
             case 3 -> {
                 final var selectedPolicies = Set.copyOf(randomNonEmptySubsetOf(slmPolicies));
@@ -901,29 +1027,38 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                     si -> si.userMetadata().get(SnapshotsService.POLICY_ID_METADATA_FIELD) instanceof String policy
                         && selectedPolicies.contains(policy)
                 );
+                getSnapshotsRequest.policies(requestedSlmPolicies);
+            }
+            default -> {
+                requestedSlmPolicies = getSnapshotsRequest.policies();
+                if (randomBoolean()) {
+                    getSnapshotsRequest.policies(requestedSlmPolicies);
+                }
             }
         }
 
-        // ?sort and ?order parameters
-        final var sortKey = randomFrom(SnapshotSortKey.values());
-        final var order = randomFrom(SortOrder.values());
-        // NB we sometimes choose to sort by FAILED_SHARDS, but there are no failed shards in these snapshots. We're still testing the
-        // fallback sorting by snapshot ID in this case. We also have no multi-shard indices so there's no difference between sorting by
-        // INDICES and by SHARDS. The actual sorting behaviour for these cases is tested elsewhere, here we're just checking that sorting
-        // interacts correctly with the other parameters to the API.
+        // ?states parameter
+        final EnumSet<SnapshotState> requestedStates;
+        if (randomBoolean()) {
+            requestedStates = EnumSet.copyOf(randomNonEmptySubsetOf(Arrays.asList(SnapshotState.values())));
+            // Note: The selected state(s) may not match any existing snapshots.
+            // The actual filtering behaviour for such cases is tested in the dedicated test.
+            // Here we're just checking that states interacts correctly with the other parameters to the API.
+            snapshotInfoPredicate = snapshotInfoPredicate.and(si -> requestedStates.contains(si.state()));
+            getSnapshotsRequest.states(requestedStates);
+        } else {
+            requestedStates = getSnapshotsRequest.states();
+            if (randomBoolean()) {
+                getSnapshotsRequest.states(requestedStates);
+            }
+        }
 
         // compute the ordered sequence of snapshots which match the repository/snapshot name filters and SLM policy filter
+        // NB we do not include the ?from_sort_value predicate here because we must omit it when checking pagination with ?after later on.
         final var selectedSnapshots = snapshotInfos.stream()
             .filter(snapshotInfoPredicate)
             .sorted(sortKey.getSnapshotInfoComparator(order))
             .toList();
-
-        final var getSnapshotsRequest = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, requestedRepositories, requestedSnapshots).policies(
-            requestedSlmPolicies
-        )
-            // apply sorting params
-            .sort(sortKey)
-            .order(order);
 
         // sometimes use ?from_sort_value to skip some items; note that snapshots skipped in this way are subtracted from
         // GetSnapshotsResponse.totalCount whereas snapshots skipped by ?after and ?offset are not
@@ -1005,12 +1140,13 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
         while (nextRequestAfter != null) {
             final var nextSize = between(1, remaining);
             final var nextRequest = new GetSnapshotsRequest(TEST_REQUEST_TIMEOUT, requestedRepositories, requestedSnapshots)
-                // same name/policy filters, same ?sort and ?order params, new ?size, but no ?offset or ?from_sort_value because of ?after
+                // same name/policy/state filters, same ?sort/?order params, new ?size, but no ?offset or ?from_sort_value because of ?after
                 .policies(requestedSlmPolicies)
                 .sort(sortKey)
                 .order(order)
                 .size(nextSize)
-                .after(SnapshotSortKey.decodeAfterQueryParam(nextRequestAfter));
+                .after(After.decodeAfterQueryParam(nextRequestAfter))
+                .states(requestedStates);
             final GetSnapshotsResponse nextResponse = safeAwait(l -> client().execute(TransportGetSnapshotsAction.TYPE, nextRequest, l));
 
             assertEquals(
@@ -1083,10 +1219,15 @@ public class GetSnapshotsIT extends AbstractSnapshotIntegTestCase {
                         )
                     );
 
-                    // remove the optional details fields
-                    assertNotNull(snapshotMap.remove("start_time_millis"));
-                    assertNotNull(snapshotMap.remove("end_time_millis"));
-                    assertNotNull(snapshotMap.remove("slm_policy"));
+                    // remove some of the optional details fields
+                    final var fieldsToRemove = randomSubsetOf(List.of("slm_policy", "state"));
+                    for (final var fieldToRemove : fieldsToRemove) {
+                        assertNotNull(snapshotMap.remove(fieldToRemove));
+                    }
+                    if (fieldsToRemove.isEmpty() || randomBoolean()) {
+                        assertNotNull(snapshotMap.remove("start_time_millis"));
+                        assertNotNull(snapshotMap.remove("end_time_millis"));
+                    }
                 }
 
                 // overwrite the RepositoryData JSON blob with its new contents

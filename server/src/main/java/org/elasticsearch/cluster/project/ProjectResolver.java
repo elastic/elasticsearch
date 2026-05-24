@@ -9,12 +9,6 @@
 
 package org.elasticsearch.cluster.project;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.ActionRequest;
-import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.ActionType;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.client.internal.FilterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -90,35 +84,4 @@ public interface ProjectResolver extends ProjectIdResolver {
      *                               It is an error to attempt to override the active project-id
      */
     <E extends Exception> void executeOnProject(ProjectId projectId, CheckedRunnable<E> body) throws E;
-
-    /**
-     * Returns a client that executes every request in the context of the given project.
-     */
-    default Client projectClient(Client baseClient, ProjectId projectId) {
-        // We only take the shortcut when the given project ID matches the "current" project ID. If it doesn't, we'll let #executeOnProject
-        // take care of error handling.
-        if (supportsMultipleProjects() == false && projectId.equals(getProjectId())) {
-            return baseClient;
-        }
-        return new FilterClient(baseClient) {
-            @Override
-            protected <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
-                ActionType<Response> action,
-                Request request,
-                ActionListener<Response> listener
-            ) {
-                executeOnProject(projectId, () -> super.doExecute(action, request, listener));
-            }
-        };
-    }
-
-    /**
-     * Returns {@code false} if the cluster runs in a setup that always expects only a single default project (see also
-     * {@link Metadata#DEFAULT_PROJECT_ID}).
-     * Otherwise, it should return {@code true} to indicate the cluster can accommodate multiple projects regardless
-     * how many project it current has.
-     */
-    default boolean supportsMultipleProjects() {
-        return false;
-    }
 }

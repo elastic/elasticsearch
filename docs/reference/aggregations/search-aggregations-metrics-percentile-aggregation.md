@@ -7,7 +7,7 @@ mapped_pages:
 # Percentiles aggregation [search-aggregations-metrics-percentile-aggregation]
 
 
-A `multi-value` metrics aggregation that calculates one or more percentiles over numeric values extracted from the aggregated documents. These values can be extracted from specific numeric or [histogram fields](/reference/elasticsearch/mapping-reference/histogram.md) in the documents.
+A `multi-value` metrics aggregation that calculates one or more percentiles over numeric values extracted from the aggregated documents. These values can be extracted from specific numeric, [histogram](/reference/elasticsearch/mapping-reference/histogram.md) or [exponential histogram](/reference/elasticsearch/mapping-reference/exponential-histogram.md) {applies_to}`stack: ga 9.4` fields in the documents.
 
 Percentiles show the point at which a certain percentage of observed values occur. For example, the 95th percentile is the value which is greater than 95% of the observed values.
 
@@ -32,6 +32,7 @@ GET latency/_search
   }
 }
 ```
+% TEST[setup:latency]
 
 1. The field `load_time` must be a numeric field
 
@@ -57,10 +58,18 @@ By default, the `percentile` metric will generate a range of percentiles: `[ 1, 
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/"1.0": 10.0/"1.0": 9.9/]
+% TESTRESPONSE[s/"5.0": 30.0/"5.0": 29.5/]
+% TESTRESPONSE[s/"25.0": 170.0/"25.0": 167.5/]
+% TESTRESPONSE[s/"50.0": 445.0/"50.0": 445.0/]
+% TESTRESPONSE[s/"75.0": 720.0/"75.0": 722.5/]
+% TESTRESPONSE[s/"95.0": 940.0/"95.0": 940.5/]
+% TESTRESPONSE[s/"99.0": 980.0/"99.0": 980.1/]
 
 As you can see, the aggregation will return a calculated value for each percentile in the default range. If we assume response times are in milliseconds, it is immediately obvious that the webpage normally loads in 10-720ms, but occasionally spikes to 940-980ms.
 
-Often, administrators are only interested in outliers — the extreme percentiles. We can specify just the percents we are interested in (requested percentiles must be a value between 0-100 inclusive):
+Often, administrators are only interested in outliers — the extreme percentiles. We can specify just the percents we are interested in (requested percentiles must be a value between 0-100 inclusive):
 
 ```console
 GET latency/_search
@@ -76,6 +85,7 @@ GET latency/_search
   }
 }
 ```
+% TEST[setup:latency]
 
 1. Use the `percents` parameter to specify particular percentiles to calculate
 
@@ -98,6 +108,7 @@ GET latency/_search
   }
 }
 ```
+% TEST[setup:latency]
 
 Response:
 
@@ -141,7 +152,14 @@ Response:
   }
 }
 ```
-
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
+% TESTRESPONSE[s/"value": 10.0/"value": 9.9/]
+% TESTRESPONSE[s/"value": 30.0/"value": 29.5/]
+% TESTRESPONSE[s/"value": 170.0/"value": 167.5/]
+% TESTRESPONSE[s/"value": 445.0/"value": 445.0/]
+% TESTRESPONSE[s/"value": 720.0/"value": 722.5/]
+% TESTRESPONSE[s/"value": 940.0/"value": 940.5/]
+% TESTRESPONSE[s/"value": 980.0/"value": 980.1/]
 
 ## Script [_script_10]
 
@@ -171,12 +189,29 @@ GET latency/_search
   }
 }
 ```
-
+% TEST[setup:latency]
+% TEST[s/_search/_search?filter_path=aggregations/]
+% TEST[s/"timeUnit": 1000/"timeUnit": 10/]
 
 ## Percentiles are (usually) approximate [search-aggregations-metrics-percentile-aggregation-approximation]
 
-:::{include} /reference/aggregations/_snippets/search-aggregations-metrics-percentile-aggregation-approximate.md
-:::
+There are many different algorithms to calculate percentiles. The naive implementation simply stores all the values in a sorted array. To find the 50th percentile, you simply find the value that is at `my_array[count(my_array) * 0.5]`.
+
+Clearly, the naive implementation does not scale — the sorted array grows linearly with the number of values in your dataset. To calculate percentiles across potentially billions of values in an Elasticsearch cluster, *approximate* percentiles are calculated.
+
+The algorithm used by the `percentile` metric is called TDigest (introduced by Ted Dunning in [Computing Accurate Quantiles using T-Digests](https://github.com/tdunning/t-digest/blob/master/docs/t-digest-paper/histo.pdf)).
+
+When using this metric, there are a few guidelines to keep in mind:
+
+* Accuracy is proportional to `q(1-q)`. This means that extreme percentiles (e.g. 99%) are more accurate than less extreme percentiles, such as the median
+* For small sets of values, percentiles are highly accurate (and potentially 100% accurate if the data is small enough).
+* As the quantity of values in a bucket grows, the algorithm begins to approximate the percentiles. It is effectively trading accuracy for memory savings. The exact level of inaccuracy is difficult to generalize, since it depends on your data distribution and volume of data being aggregated
+
+The following chart shows the relative error on a uniform distribution depending on the number of collected values and the requested percentile:
+
+![percentiles error](images/percentiles_error.png "")
+
+It shows how precision is better for extreme percentiles. The reason why error diminishes for large number of values is that the law of large numbers makes the distribution of values more and more uniform and the t-digest tree can do a better job at summarizing it. It would not be the case on more skewed distributions.
 
 ::::{warning}
 Percentile aggregations are also [non-deterministic](https://en.wikipedia.org/wiki/Nondeterministic_algorithm). This means you can get slightly different results using the same data.
@@ -203,11 +238,12 @@ GET latency/_search
   }
 }
 ```
+% TEST[setup:latency]
 
 1. Compression controls memory usage and approximation error
 
 
-The TDigest algorithm uses a number of "nodes" to approximate percentiles — the more nodes available, the higher the accuracy (and large memory footprint) proportional to the volume of data. The `compression` parameter limits the maximum number of nodes to `20 * compression`.
+The TDigest algorithm uses a number of "nodes" to approximate percentiles — the more nodes available, the higher the accuracy (and large memory footprint) proportional to the volume of data. The `compression` parameter limits the maximum number of nodes to `20 * compression`.
 
 Therefore, by increasing the compression value, you can increase the accuracy of your percentiles at the cost of more memory. Larger compression values also make the algorithm slower since the underlying tree data structure grows in size, resulting in more expensive operations. The default compression value is `100`.
 
@@ -234,6 +270,7 @@ GET latency/_search
   }
 }
 ```
+% TEST[setup:latency]
 
 1. Optimize TDigest for accuracy, at the expense of performance
 
@@ -264,6 +301,7 @@ GET latency/_search
   }
 }
 ```
+% TEST[setup:latency]
 
 1. `hdr` object indicates that HDR Histogram should be used to calculate the percentiles and specific settings for this algorithm can be specified inside the object
 2. `number_of_significant_value_digits` specifies the resolution of values for the histogram in number of significant digits
@@ -290,6 +328,7 @@ GET latency/_search
   }
 }
 ```
+% TEST[setup:latency]
 
 1. Documents without a value in the `grade` field will fall into the same bucket as documents that have the value `10`.
 

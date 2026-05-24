@@ -9,7 +9,10 @@ package org.elasticsearch.xpack.esql.core.util;
 
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.escapeWildcardLiteral;
+import static org.elasticsearch.xpack.esql.core.util.StringUtils.luceneWildcardToRegExp;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.wildcardToJavaPattern;
+import static org.hamcrest.Matchers.is;
 
 public class StringUtilsTests extends ESTestCase {
 
@@ -54,5 +57,34 @@ public class StringUtilsTests extends ESTestCase {
 
     public void testEscapedEscape() {
         assertEquals("^\\\\\\\\$", wildcardToJavaPattern("\\\\\\\\", '\\'));
+    }
+
+    public void testEscapeWildcardLiteral() {
+        assertThat(escapeWildcardLiteral("foo"), is("foo"));
+        assertThat(escapeWildcardLiteral(""), is(""));
+        assertThat(escapeWildcardLiteral("foo*bar"), is("foo\\*bar"));
+        assertThat(escapeWildcardLiteral("foo?bar"), is("foo\\?bar"));
+        assertThat(escapeWildcardLiteral("foo\\bar"), is("foo\\\\bar"));
+        assertThat(escapeWildcardLiteral("*?\\"), is("\\*\\?\\\\"));
+    }
+
+    public void testLuceneWildcardToRegExp() {
+        assertThat(luceneWildcardToRegExp(""), is(""));
+        assertThat(luceneWildcardToRegExp("*"), is(".*"));
+        assertThat(luceneWildcardToRegExp("?"), is("."));
+        assertThat(luceneWildcardToRegExp("\\\\"), is("\\\\"));
+        assertThat(luceneWildcardToRegExp("foo?bar"), is("foo.bar"));
+        assertThat(luceneWildcardToRegExp("foo*bar"), is("foo.*bar"));
+        assertThat(luceneWildcardToRegExp("foo\\\\bar"), is("foo\\\\bar"));
+        assertThat(luceneWildcardToRegExp("foo*bar?baz"), is("foo.*bar.baz"));
+        assertThat(luceneWildcardToRegExp("foo\\*bar"), is("foo\\*bar"));
+        assertThat(luceneWildcardToRegExp("foo\\?bar\\?"), is("foo\\?bar\\?"));
+        assertThat(luceneWildcardToRegExp("foo\\?bar\\"), is("foo\\?bar\\\\"));
+        // reserved characters
+        assertThat(luceneWildcardToRegExp("\"[](){}^$.|+"), is("\\\"\\[\\]\\(\\)\\{\\}\\^\\$\\.\\|\\+"));
+        // reserved "optional" characters
+        assertThat(luceneWildcardToRegExp("#&<>"), is("\\#\\&\\<\\>"));
+        assertThat(luceneWildcardToRegExp("foo\\\uD83D\uDC14bar"), is("foo\uD83D\uDC14bar"));
+        assertThat(luceneWildcardToRegExp("foo\uD83D\uDC14bar"), is("foo\uD83D\uDC14bar"));
     }
 }

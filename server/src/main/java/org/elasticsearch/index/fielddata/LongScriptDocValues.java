@@ -13,11 +13,12 @@ import org.elasticsearch.script.AbstractLongFieldScript;
 
 import java.util.Arrays;
 
-public final class LongScriptDocValues extends AbstractSortedNumericDocValues {
+public final class LongScriptDocValues extends SortedNumericLongValues {
     private final AbstractLongFieldScript script;
     private int cursor;
 
     LongScriptDocValues(AbstractLongFieldScript script) {
+        super(null);
         this.script = script;
     }
 

@@ -121,7 +121,6 @@ public class OpenIdConnectAuthIT extends C2IdOpTestCase {
         verifyElasticsearchAccessTokenForCodeFlow(tokens.v1());
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/109871")
     public void testAuthenticateWithCodeFlowAndClientJwtPost() throws Exception {
         final PrepareAuthResponse prepareAuthResponse = getRedirectedFromFacilitator(REALM_NAME_CLIENT_JWT_AUTH);
         final String redirectUri = authenticateAtOP(prepareAuthResponse.getAuthUri());

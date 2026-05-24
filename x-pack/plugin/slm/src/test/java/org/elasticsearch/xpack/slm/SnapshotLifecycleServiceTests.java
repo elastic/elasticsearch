@@ -8,11 +8,14 @@
 package org.elasticsearch.xpack.slm;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
@@ -29,6 +32,7 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
@@ -62,6 +66,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 
 public class SnapshotLifecycleServiceTests extends ESTestCase {
+    private final ProjectId projectId = randomProjectIdOrDefault();
 
     public void testGetJobId() {
         String id = randomAlphaOfLengthBetween(1, 10) + (randomBoolean() ? "" : randomLong());
@@ -126,7 +131,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             ClusterService clusterService = ClusterServiceUtils.createClusterService(initialState, threadPool);
             SnapshotLifecycleService sls = new SnapshotLifecycleService(
                 Settings.EMPTY,
-                () -> new FakeSnapshotTask(e -> logger.info("triggered")),
+                (projectId) -> new FakeSnapshotTask(e -> logger.info("triggered"), new NoOpClient(threadPool)),
                 clusterService,
                 clock
             )
@@ -149,33 +154,33 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             sls.clusterChanged(new ClusterChangedEvent("1", state, emptyState));
 
             // Since the service does not think it is master, it should not be triggered or scheduled
-            assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
+            assertThat(sls.getScheduler(projectId).scheduledJobIds(), equalTo(Collections.emptySet()));
 
             ClusterState prevState = state;
             state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING, new SnapshotLifecycleStats()), true);
             sls.clusterChanged(new ClusterChangedEvent("2", state, prevState));
-            assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.singleton("foo-2")));
+            assertThat(sls.getScheduler(projectId).scheduledJobIds(), equalTo(Collections.singleton("foo-2")));
 
             prevState = state;
             state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.STOPPING, new SnapshotLifecycleStats()), true);
             sls.clusterChanged(new ClusterChangedEvent("3", state, prevState));
 
             // Since the service is stopping, jobs should have been cancelled
-            assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
+            assertThat(sls.getScheduler(projectId).scheduledJobIds(), equalTo(Collections.emptySet()));
 
             prevState = state;
             state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.STOPPED, new SnapshotLifecycleStats()), true);
             sls.clusterChanged(new ClusterChangedEvent("4", state, prevState));
 
             // Since the service is stopped, jobs should have been cancelled
-            assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
+            assertThat(sls.getScheduler(projectId).scheduledJobIds(), equalTo(Collections.emptySet()));
 
             // No jobs should be scheduled when service is closed
             prevState = state;
             state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING, new SnapshotLifecycleStats()), true);
             sls.close();
             sls.clusterChanged(new ClusterChangedEvent("5", state, prevState));
-            assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
+            assertThat(sls.getScheduler(projectId).scheduledJobIds(), equalTo(Collections.emptySet()));
         } finally {
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.SECONDS);
@@ -195,7 +200,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
             SnapshotLifecycleService sls = new SnapshotLifecycleService(
                 Settings.EMPTY,
-                () -> new FakeSnapshotTask(e -> trigger.get().accept(e)),
+                (projectId) -> new FakeSnapshotTask(e -> trigger.get().accept(e), new NoOpClient(threadPool)),
                 clusterService,
                 clock
             )
@@ -225,7 +230,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             sls.clusterChanged(event);
 
             // Since the service does not think it is master, it should not be triggered or scheduled
-            assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
+            assertThat(sls.getScheduler(projectId).scheduledJobIds(), equalTo(Collections.emptySet()));
 
             // Change the service to think it's on the master node, events should be scheduled now
             trigger.set(e -> triggerCount.incrementAndGet());
@@ -233,7 +238,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             state = createState(snapMeta, true);
             event = new ClusterChangedEvent("3", state, previousState);
             sls.clusterChanged(event);
-            assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.singleton("foo-1")));
+            assertThat(sls.getScheduler(projectId).scheduledJobIds(), equalTo(Collections.singleton("foo-1")));
 
             assertBusy(() -> assertThat(triggerCount.get(), greaterThan(0)));
 
@@ -250,7 +255,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             state = createState(new SnapshotLifecycleMetadata(policies, OperationMode.RUNNING, new SnapshotLifecycleStats()), true);
             event = new ClusterChangedEvent("4", state, previousState);
             sls.clusterChanged(event);
-            assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.singleton("foo-2")));
+            assertThat(sls.getScheduler(projectId).scheduledJobIds(), equalTo(Collections.singleton("foo-2")));
 
             CopyOnWriteArrayList<String> triggeredJobs = new CopyOnWriteArrayList<>();
             trigger.set(e -> {
@@ -280,7 +285,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             clock.fastForwardSeconds(2);
 
             // The existing job should be cancelled and no longer trigger
-            assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
+            assertThat(sls.getScheduler(projectId).scheduledJobIds(), equalTo(Collections.emptySet()));
 
             // When the service is no longer master, all jobs should be automatically cancelled
             policy = SnapshotLifecyclePolicyMetadata.builder()
@@ -300,14 +305,14 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
 
             // Make sure at least one triggers and the job is scheduled
             assertBusy(() -> assertThat(triggerCount.get(), greaterThan(currentCount2)));
-            assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.singleton("foo-3")));
+            assertThat(sls.getScheduler(projectId).scheduledJobIds(), equalTo(Collections.singleton("foo-3")));
 
             // Signify becoming non-master, the jobs should all be cancelled
             previousState = state;
             state = createState(snapMeta, false);
             event = new ClusterChangedEvent("7", state, previousState);
             sls.clusterChanged(event);
-            assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
+            assertThat(sls.getScheduler(projectId).scheduledJobIds(), equalTo(Collections.emptySet()));
         } finally {
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.SECONDS);
@@ -326,7 +331,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
             SnapshotLifecycleService sls = new SnapshotLifecycleService(
                 Settings.EMPTY,
-                () -> new FakeSnapshotTask(e -> trigger.get().accept(e)),
+                (projectId) -> new FakeSnapshotTask(e -> trigger.get().accept(e), new NoOpClient(threadPool)),
                 clusterService,
                 clock
             )
@@ -356,7 +361,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             event = new ClusterChangedEvent("2", state, previousState);
             sls.clusterChanged(event);
 
-            assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.singleton("foo-2-1")));
+            assertThat(sls.getScheduler(projectId).scheduledJobIds(), equalTo(Collections.singleton("foo-2-1")));
 
             SnapshotLifecyclePolicyMetadata secondPolicy = SnapshotLifecyclePolicyMetadata.builder()
                 .setPolicy(createPolicy("foo-1", randomBoolean() ? "45 * * * * ?" : "45s"))
@@ -371,13 +376,13 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
             event = new ClusterChangedEvent("3", state, previousState);
             sls.clusterChanged(event);
 
-            assertThat(sls.getScheduler().scheduledJobIds(), containsInAnyOrder("foo-2-1", "foo-1-2"));
+            assertThat(sls.getScheduler(projectId).scheduledJobIds(), containsInAnyOrder("foo-2-1", "foo-1-2"));
 
             previousState = state;
             state = createState(snapMeta, false);
             event = new ClusterChangedEvent("4", state, previousState);
             sls.clusterChanged(event);
-            assertThat(sls.getScheduler().scheduledJobIds(), equalTo(Collections.emptySet()));
+            assertThat(sls.getScheduler(projectId).scheduledJobIds(), equalTo(Collections.emptySet()));
         } finally {
             threadPool.shutdownNow();
             threadPool.awaitTermination(10, TimeUnit.SECONDS);
@@ -489,7 +494,9 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
                         OperationRouting.USE_ADAPTIVE_REPLICA_SELECTION_SETTING,
                         ClusterService.USER_DEFINED_METADATA,
                         ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_LOGGING_THRESHOLD_SETTING,
-                        ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING
+                        ClusterApplierService.CLUSTER_SERVICE_SLOW_TASK_THREAD_DUMP_TIMEOUT_SETTING,
+                        ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_INTERVAL,
+                        ClusterApplierService.CLUSTER_APPLIER_THREAD_WATCHDOG_QUIET_TIME
                     )
                 )
             );
@@ -506,7 +513,7 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
 
             SnapshotLifecycleService service = new SnapshotLifecycleService(
                 Settings.EMPTY,
-                () -> new SnapshotLifecycleTask(null, null, null),
+                (projectId) -> new SnapshotLifecycleTask(projectId, new NoOpClient(threadPool), null, null),
                 fakeService,
                 clock
             );
@@ -526,8 +533,8 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
     class FakeSnapshotTask extends SnapshotLifecycleTask {
         private final Consumer<SchedulerEngine.Event> onTriggered;
 
-        FakeSnapshotTask(Consumer<SchedulerEngine.Event> onTriggered) {
-            super(null, null, null);
+        FakeSnapshotTask(Consumer<SchedulerEngine.Event> onTriggered, Client client) {
+            super(projectId, client, null, null);
             this.onTriggered = onTriggered;
         }
 
@@ -543,7 +550,9 @@ public class SnapshotLifecycleServiceTests extends ESTestCase {
     }
 
     public ClusterState createState(SnapshotLifecycleMetadata snapMeta, boolean localNodeMaster) {
-        Metadata metadata = Metadata.builder().putCustom(SnapshotLifecycleMetadata.TYPE, snapMeta).build();
+        Metadata metadata = Metadata.builder()
+            .put(ProjectMetadata.builder(projectId).putCustom(SnapshotLifecycleMetadata.TYPE, snapMeta).build())
+            .build();
         final DiscoveryNodes.Builder discoveryNodesBuilder = DiscoveryNodes.builder()
             .add(DiscoveryNodeUtils.create("local", new TransportAddress(TransportAddress.META_ADDRESS, 9300)))
             .add(DiscoveryNodeUtils.create("remote", new TransportAddress(TransportAddress.META_ADDRESS, 9301)))

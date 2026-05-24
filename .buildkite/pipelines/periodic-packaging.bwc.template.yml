@@ -5,7 +5,7 @@
           setup:
             image:
               - rocky-8
-              - ubuntu-2004
+              - ubuntu-2404
         agents:
           provider: gcp
           image: family/elasticsearch-{{matrix.image}}

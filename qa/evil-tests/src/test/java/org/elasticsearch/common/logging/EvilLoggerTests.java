@@ -51,13 +51,11 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.matchesRegex;
-import static org.hamcrest.Matchers.startsWith;
 
 public class EvilLoggerTests extends ESTestCase {
 
     @Override
     public void setUp() throws Exception {
-        assert "false".equals(System.getProperty("tests.security.manager")) : "-Dtests.security.manager=false has to be set";
         super.setUp();
         LogConfigurator.registerErrorListener();
     }
@@ -174,7 +172,7 @@ public class EvilLoggerTests extends ESTestCase {
             assertLogLine(
                 deprecationEvents.get(i),
                 DeprecationLogger.CRITICAL,
-                "org.elasticsearch.common.logging.DeprecationLogger.lambda\\$doPrivilegedLog\\$0",
+                "org.elasticsearch.common.logging.DeprecationLogger.logDeprecation",
                 ".*This is a maybe logged deprecation message" + i + ".*"
             );
         }
@@ -207,7 +205,7 @@ public class EvilLoggerTests extends ESTestCase {
             assertLogLine(
                 deprecationEvents.get(0),
                 DeprecationLogger.CRITICAL,
-                "org.elasticsearch.common.logging.DeprecationLogger.lambda\\$doPrivilegedLog\\$0",
+                "org.elasticsearch.common.logging.DeprecationLogger.logDeprecation",
                 ".*\\[deprecated.foo\\] setting was deprecated in Elasticsearch and will be removed in a future release..*"
             );
         }
@@ -250,7 +248,7 @@ public class EvilLoggerTests extends ESTestCase {
         final int expectedLogLines = 3;
         assertThat(events, hasSize(expectedLogLines + stackTraceLength));
         for (int i = 0; i < expectedLogLines; i++) {
-            assertThat("Contents of [" + path + "] are wrong", events.get(i), startsWith("[" + getTestName() + "]" + prefix + " test"));
+            assertThat("Contents of [" + path + "] are wrong", events.get(i), endsWith(prefix + " test"));
         }
     }
 

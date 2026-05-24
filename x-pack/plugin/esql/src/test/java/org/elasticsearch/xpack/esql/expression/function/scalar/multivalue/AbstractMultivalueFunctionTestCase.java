@@ -12,6 +12,10 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.Geohash;
+import org.elasticsearch.h3.H3;
+import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -19,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
+import org.elasticsearch.xpack.esql.expression.function.FlattenedCases;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.hamcrest.Matcher;
 
@@ -158,6 +163,42 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
                     );
                 }));
             }
+        }
+    }
+
+    /**
+     * Build many test cases with {@link DataType#FLATTENED} values.
+     */
+    protected static void flattened(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        Function<DataType, DataType> expectedDataType,
+        BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
+    ) {
+        if (DataType.FLATTENED.supportedVersion().supportedLocally() == false) {
+            return;
+        }
+        cases.add(new TestCaseSupplier(name + "(flattened)", List.of(DataType.FLATTENED), () -> {
+            BytesRef data = FlattenedCases.RANDOM.get();
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(List.of(data), DataType.FLATTENED, "field")),
+                evaluatorName + "[field=Attribute[channel=0]]",
+                expectedDataType.apply(DataType.FLATTENED),
+                matcher.apply(1, Stream.of(data))
+            );
+        }));
+        for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
+            cases.add(new TestCaseSupplier(name + "(<flatteneds>) " + ordering, List.of(DataType.FLATTENED), () -> {
+                List<BytesRef> mvData = randomList(1, 100, FlattenedCases.RANDOM::get);
+                putInOrder(mvData, ordering);
+                return new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(mvData, DataType.FLATTENED, "field")),
+                    evaluatorName + "[field=Attribute[channel=0]]",
+                    expectedDataType.apply(DataType.FLATTENED),
+                    matcher.apply(mvData.size(), mvData.stream())
+                );
+            }));
         }
     }
 
@@ -560,6 +601,98 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
             cases.add(new TestCaseSupplier(name + "(<" + dataType.typeName() + "s>) " + ordering, List.of(dataType), () -> {
                 List<BytesRef> mvData = randomList(1, 100, () -> spatial.asWkb(randomGeometry.get()));
+                putInOrder(mvData, ordering);
+                return new TestCaseSupplier.TestCase(
+                    List.of(new TestCaseSupplier.TypedData(mvData, dataType, "field")),
+                    evaluatorName + "[field=Attribute[channel=0]]",
+                    expectedDataType,
+                    matcher.apply(mvData.size(), mvData.stream())
+                );
+            }));
+        }
+    }
+
+    /**
+     * Build many test cases with {@code geohash} values that are converted to another type.
+     * This assumes that the function consumes {@code geohash} values and produces another type.
+     * For example, mv_count() can consume geo-grid values and produce an integer count.
+     */
+    protected static void geohashGrid(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        DataType expectedDataType,
+        BiFunction<Integer, Stream<Long>, Matcher<Object>> matcher
+    ) {
+        Supplier<Long> supplier = () -> {
+            Point point = GeometryTestUtils.randomPoint();
+            return Geohash.longEncode(point.getX(), point.getY(), randomIntBetween(1, Geohash.PRECISION));
+        };
+        spatialGrid(cases, name, evaluatorName, DataType.GEOHASH, expectedDataType, supplier, matcher);
+    }
+
+    /**
+     * Build many test cases with {@code geotile} values that are converted to another type.
+     * This assumes that the function consumes {@code geotile} values and produces another type.
+     * For example, mv_count() can consume geo-grid values and produce an integer count.
+     */
+    protected static void geotileGrid(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        DataType expectedDataType,
+        BiFunction<Integer, Stream<Long>, Matcher<Object>> matcher
+    ) {
+        Supplier<Long> supplier = () -> {
+            Point point = GeometryTestUtils.randomPoint();
+            return GeoTileUtils.longEncode(point.getX(), point.getY(), randomIntBetween(1, GeoTileUtils.MAX_ZOOM));
+        };
+        spatialGrid(cases, name, evaluatorName, DataType.GEOTILE, expectedDataType, supplier, matcher);
+    }
+
+    /**
+     * Build many test cases with {@code geohex} values that are converted to another type.
+     * This assumes that the function consumes {@code geohex} values and produces another type.
+     * For example, mv_count() can consume geo-grid values and produce an integer count.
+     */
+    protected static void geohexGrid(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        DataType expectedDataType,
+        BiFunction<Integer, Stream<Long>, Matcher<Object>> matcher
+    ) {
+        Supplier<Long> supplier = () -> {
+            Point point = GeometryTestUtils.randomPoint();
+            return H3.geoToH3(point.getLat(), point.getLon(), randomIntBetween(1, H3.MAX_H3_RES));
+        };
+        spatialGrid(cases, name, evaluatorName, DataType.GEOHEX, expectedDataType, supplier, matcher);
+    }
+
+    /**
+     * Build many test cases for spatial grid values
+     */
+    protected static void spatialGrid(
+        List<TestCaseSupplier> cases,
+        String name,
+        String evaluatorName,
+        DataType dataType,
+        DataType expectedDataType,
+        Supplier<Long> randomGridId,
+        BiFunction<Integer, Stream<Long>, Matcher<Object>> matcher
+    ) {
+        cases.add(new TestCaseSupplier(name + "(" + dataType.typeName() + ")", List.of(dataType), () -> {
+            long gridId = randomGridId.get();
+            return new TestCaseSupplier.TestCase(
+                List.of(new TestCaseSupplier.TypedData(List.of(gridId), dataType, "field")),
+                evaluatorName + "[field=Attribute[channel=0]]",
+                expectedDataType,
+                matcher.apply(1, Stream.of(gridId))
+            );
+        }));
+        for (Block.MvOrdering ordering : Block.MvOrdering.values()) {
+            cases.add(new TestCaseSupplier(name + "(<" + dataType.typeName() + "s>) " + ordering, List.of(dataType), () -> {
+                List<Long> mvData = randomList(1, 100, randomGridId);
                 putInOrder(mvData, ordering);
                 return new TestCaseSupplier.TestCase(
                     List.of(new TestCaseSupplier.TypedData(mvData, dataType, "field")),

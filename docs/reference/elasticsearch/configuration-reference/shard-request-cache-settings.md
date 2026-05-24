@@ -13,7 +13,7 @@ The following settings affect the behavior of the [shard request cache](/referen
 ## Cache settings [_cache_settings]
 
 `indices.requests.cache.size`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The maximum size of the cache, as a percentage of the heap. Default: `1%`.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The maximum size of the cache, as a percentage of the heap. Default: `1%`.
 
 `indices.requests.cache.expire`
-:   ([Static](docs-content://deploy-manage/deploy/self-managed/configure-elasticsearch.md#static-cluster-setting)) The TTL for cached results. Stale results are automatically invalidated when the index is refreshed, so you shouldn’t need to use this setting.
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting)) The TTL for cached results. Stale results are automatically invalidated when the index is refreshed, so you shouldn’t need to use this setting.

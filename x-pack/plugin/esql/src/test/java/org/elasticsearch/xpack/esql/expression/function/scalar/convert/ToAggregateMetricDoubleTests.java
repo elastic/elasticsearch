@@ -84,8 +84,15 @@ public class ToAggregateMetricDoubleTests extends AbstractScalarFunctionTestCase
             Double.POSITIVE_INFINITY,
             emptyList()
         );
+        TestCaseSupplier.forUnaryAggregateMetricDouble(
+            suppliers,
+            evaluatorStringLeft + "AggregateMetricDouble" + evaluatorStringRight,
+            DataType.AGGREGATE_METRIC_DOUBLE,
+            agg -> agg,
+            emptyList()
+        );
 
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
 }

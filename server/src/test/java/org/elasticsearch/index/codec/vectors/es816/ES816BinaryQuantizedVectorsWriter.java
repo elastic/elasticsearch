@@ -45,10 +45,9 @@ import org.apache.lucene.util.IOUtils;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.apache.lucene.util.VectorUtil;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
-import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
+import org.apache.lucene.util.hnsw.UpdateableRandomVectorScorer;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.index.codec.vectors.BQSpaceUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 
 import java.io.Closeable;
@@ -352,7 +351,7 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
     ) throws IOException {
         DocsWithFieldSet docsWithField = new DocsWithFieldSet();
         byte[] toIndex = new byte[BQVectorUtils.discretize(floatVectorValues.dimension(), 64) / 8];
-        byte[] toQuery = new byte[(BQVectorUtils.discretize(floatVectorValues.dimension(), 64) / 8) * BQSpaceUtils.B_QUERY];
+        byte[] toQuery = new byte[(BQVectorUtils.discretize(floatVectorValues.dimension(), 64) / 8) * BinaryQuantizer.B_QUERY];
         int queryCorrectionCount = binaryQuantizer.getSimilarity() != EUCLIDEAN ? 5 : 3;
         final ByteBuffer queryCorrectionsBuffer = ByteBuffer.allocate(Float.BYTES * queryCorrectionCount + Short.BYTES)
             .order(ByteOrder.LITTLE_ENDIAN);
@@ -753,7 +752,7 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
             this.vectorSimilarityFunction = vectorSimilarityFunction;
             this.correctiveValuesSize = vectorSimilarityFunction != EUCLIDEAN ? 5 : 3;
             // 4x the quantized binary dimensions
-            int binaryDimensions = (BQVectorUtils.discretize(dimension, 64) / 8) * BQSpaceUtils.B_QUERY;
+            int binaryDimensions = (BQVectorUtils.discretize(dimension, 64) / 8) * BinaryQuantizer.B_QUERY;
             this.byteBuffer = ByteBuffer.allocate(binaryDimensions);
             this.binaryValue = byteBuffer.array();
             this.correctiveValues = new float[correctiveValuesSize];
@@ -820,6 +819,10 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
 
         public int dimension() {
             return dimension;
+        }
+
+        public int quantizedDimension() {
+            return byteBuffer.array().length;
         }
 
         public OffHeapBinarizedQueryVectorValues copy() throws IOException {
@@ -959,8 +962,8 @@ class ES816BinaryQuantizedVectorsWriter extends FlatVectorsWriter {
         }
 
         @Override
-        public RandomVectorScorer scorer(int ord) throws IOException {
-            return supplier.scorer(ord);
+        public UpdateableRandomVectorScorer scorer() throws IOException {
+            return supplier.scorer();
         }
 
         @Override

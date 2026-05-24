@@ -7,21 +7,32 @@
 
 package org.elasticsearch.compute.aggregation;
 
+// begin generated imports
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
-import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.common.util.LongHashTable;
+import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.HashImplFactory;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
+import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
+import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+// end generated imports
 
 /**
  * Aggregates field values for BytesRef.
@@ -52,35 +63,52 @@ class ValuesBytesRefAggregator {
         return state.toBlock(driverContext.blockFactory());
     }
 
-    public static GroupingState initGrouping(BigArrays bigArrays) {
-        return new GroupingState(bigArrays);
+    public static GroupingState initGrouping(DriverContext driverContext) {
+        return new GroupingState(driverContext);
+    }
+
+    public static GroupingAggregatorFunction.AddInput wrapAddInput(
+        GroupingAggregatorFunction.AddInput delegate,
+        GroupingState state,
+        BytesRefBlock values
+    ) {
+        return ValuesBytesRefAggregators.wrapAddInput(delegate, state, values);
+    }
+
+    public static GroupingAggregatorFunction.AddInput wrapAddInput(
+        GroupingAggregatorFunction.AddInput delegate,
+        GroupingState state,
+        BytesRefVector values
+    ) {
+        return ValuesBytesRefAggregators.wrapAddInput(delegate, state, values);
     }
 
     public static void combine(GroupingState state, int groupId, BytesRef v) {
-        state.values.add(groupId, BlockHash.hashOrdToGroup(state.bytes.add(v)));
+        state.addValue(groupId, v);
     }
 
-    public static void combineIntermediate(GroupingState state, int groupId, BytesRefBlock values, int valuesPosition) {
-        BytesRef scratch = new BytesRef();
-        int start = values.getFirstValueIndex(valuesPosition);
-        int end = start + values.getValueCount(valuesPosition);
-        for (int i = start; i < end; i++) {
-            combine(state, groupId, values.getBytesRef(i, scratch));
-        }
+    public static void combineIntermediate(GroupingState state, int positionOffset, IntVector groups, BytesRefBlock values) {
+        ValuesBytesRefAggregators.combineIntermediateInputValues(state, positionOffset, groups, values);
     }
 
-    public static void combineStates(GroupingState current, int currentGroupId, GroupingState state, int statePosition) {
-        BytesRef scratch = new BytesRef();
-        for (int id = 0; id < state.values.size(); id++) {
-            if (state.values.getKey1(id) == statePosition) {
-                long value = state.values.getKey2(id);
-                combine(current, currentGroupId, state.bytes.get(value, scratch));
-            }
-        }
+    public static void combineIntermediate(GroupingState state, int positionOffset, IntBlock groups, BytesRefBlock values) {
+        ValuesBytesRefAggregators.combineIntermediateInputValues(state, positionOffset, groups, values);
     }
 
-    public static Block evaluateFinal(GroupingState state, IntVector selected, DriverContext driverContext) {
-        return state.toBlock(driverContext.blockFactory(), selected);
+    public static GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
+        GroupingState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return state.prepareForEmitting(ctx.blockFactory(), selected);
+    }
+
+    public static GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateFinal(
+        GroupingState state,
+        IntVector selected,
+        GroupingAggregatorEvaluationContext ctx
+    ) {
+        return state.prepareForEmitting(ctx.blockFactory(), selected);
     }
 
     public static class SingleState implements AggregatorState {
@@ -121,166 +149,169 @@ class ValuesBytesRefAggregator {
 
     /**
      * State for a grouped {@code VALUES} aggregation. This implementation
-     * emphasizes collect-time performance over the performance of rendering
-     * results. That's good, but it's a pretty intensive emphasis, requiring
-     * an {@code O(n^2)} operation for collection to support a {@code O(1)}
-     * collector operation. But at least it's fairly simple.
+     * emphasizes collect-time performance over result rendering performance.
+     * The first value in each group is collected in the {@code firstValues}
+     * array, and subsequent values for each group are collected in {@code nextValues}.
      */
     public static class GroupingState implements GroupingAggregatorState {
-        private final LongLongHash values;
-        private final BytesRefHash bytes;
+        private final BlockFactory blockFactory;
+        BytesRefHash bytes;
+        private IntArray firstValues;
+        private final ValuesNextLong nextValues;
 
-        private GroupingState(BigArrays bigArrays) {
-            LongLongHash _values = null;
-            BytesRefHash _bytes = null;
+        private GroupingState(DriverContext driverContext) {
+            this.blockFactory = driverContext.blockFactory();
+            boolean success = false;
             try {
-                _values = new LongLongHash(1, bigArrays);
-                _bytes = new BytesRefHash(1, bigArrays);
-
-                values = _values;
-                bytes = _bytes;
-
-                _values = null;
-                _bytes = null;
+                this.bytes = new BytesRefHash(1, driverContext.bigArrays());
+                this.firstValues = driverContext.bigArrays().newIntArray(1, true);
+                this.nextValues = new ValuesNextLong(driverContext.blockFactory());
+                success = true;
             } finally {
-                Releasables.closeExpectNoException(_values, _bytes);
+                if (success == false) {
+                    this.close();
+                }
             }
         }
 
+        void addValueOrdinal(int groupId, int valueOrdinal) {
+            if (groupId < firstValues.size()) {
+                int current = firstValues.get(groupId) - 1;
+                if (current < 0) {
+                    firstValues.set(groupId, valueOrdinal + 1);
+                } else if (current != valueOrdinal) {
+                    nextValues.add(groupId, valueOrdinal);
+                }
+            } else {
+                firstValues = blockFactory.bigArrays().grow(firstValues, groupId + 1);
+                firstValues.set(groupId, valueOrdinal + 1);
+            }
+        }
+
+        void addValue(int groupId, BytesRef v) {
+            int valueOrdinal = Math.toIntExact(BlockHash.hashOrdToGroup(bytes.add(v)));
+            addValueOrdinal(groupId, valueOrdinal);
+        }
+
         @Override
-        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-            blocks[offset] = toBlock(driverContext.blockFactory(), selected);
+        public void enableGroupIdTracking(SeenGroupIds seen) {
+            // we figure out seen values from firstValues since ordinals are non-negative
         }
 
         /**
          * Builds a {@link Block} with the unique values collected for the {@code #selected}
          * groups. This is the implementation of the final and intermediate results of the agg.
          */
-        Block toBlock(BlockFactory blockFactory, IntVector selected) {
-            if (values.size() == 0) {
-                return blockFactory.newConstantNullBlock(selected.getPositionCount());
+        GroupingAggregatorFunction.PreparedForEvaluation prepareForEmitting(BlockFactory blockFactory, IntVector selected) {
+            return new PreparedForEmitting(selected, blockFactory);
+        }
+
+        private class PreparedForEmitting implements GroupingAggregatorFunction.PreparedForEvaluation {
+            private final IntVector selected;
+            private final BlockFactory blockFactory;
+            private final ValuesNextPreparedForEmitting next;
+
+            PreparedForEmitting(IntVector selected, BlockFactory blockFactory) {
+                this.selected = selected;
+                this.blockFactory = blockFactory;
+                this.next = nextValues.prepareForEmitting(blockFactory, selected);
             }
 
-            long selectedCountsSize = 0;
-            long idsSize = 0;
-            try {
+            @Override
+            public void evaluate(Block[] blocks, int offset, IntVector selectedInPage) {
                 /*
-                 * Get a count of all groups less than the maximum selected group. Count
-                 * *downwards* so that we can flip the sign on all of the actually selected
-                 * groups. Negative values in this array are always unselected groups.
+                 * When selected == selectedInPage we're building one block across the entire
+                 * selected region. So it's safe to run the ordinals optimization which *takes*
+                 * the ordinals.
                  */
-                int selectedCountsLen = selected.max() + 1;
-                long adjust = RamUsageEstimator.alignObjectSize(
-                    RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + selectedCountsLen * Integer.BYTES
-                );
-                blockFactory.adjustBreaker(adjust);
-                selectedCountsSize = adjust;
-                int[] selectedCounts = new int[selectedCountsLen];
-                for (int id = 0; id < values.size(); id++) {
-                    int group = (int) values.getKey1(id);
-                    if (group < selectedCounts.length) {
-                        selectedCounts[group]--;
-                    }
+                if (selected == selectedInPage && OrdinalBytesRefBlock.isDense(firstValues.size() + nextValues.size(), bytes.size())) {
+                    blocks[offset] = buildOrdinalOutputBlock(blockFactory, selectedInPage, next);
+                } else {
+                    blocks[offset] = buildOutputBlock(blockFactory, selectedInPage, next);
                 }
+            }
 
-                /*
-                 * Total the selected groups and turn the counts into the start index into a sort-of
-                 * off-by-one running count. It's really the number of values that have been inserted
-                 * into the results before starting on this group. Unselected groups will still
-                 * have negative counts.
-                 *
-                 * For example, if
-                 * | Group | Value Count | Selected |
-                 * |-------|-------------|----------|
-                 * |     0 | 3           | <-       |
-                 * |     1 | 1           | <-       |
-                 * |     2 | 2           |          |
-                 * |     3 | 1           | <-       |
-                 * |     4 | 4           | <-       |
-                 *
-                 * Then the total is 9 and the counts array will contain 0, 3, -2, 4, 5
-                 */
-                int total = 0;
+            @Override
+            public void close() {
+                next.close();
+            }
+        }
+
+        Block buildOutputBlock(BlockFactory blockFactory, IntVector selected, ValuesNextPreparedForEmitting next) {
+            /*
+             * Insert the ids in order.
+             */
+            BytesRef scratch = new BytesRef();
+            try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
                 for (int s = 0; s < selected.getPositionCount(); s++) {
                     int group = selected.getInt(s);
-                    int count = -selectedCounts[group];
-                    selectedCounts[group] = total;
-                    total += count;
-                }
-
-                /*
-                 * Build a list of ids to insert in order *and* convert the running
-                 * count in selectedCounts[group] into the end index (exclusive) in
-                 * ids for each group.
-                 * Here we use the negative counts to signal that a group hasn't been
-                 * selected and the id containing values for that group is ignored.
-                 *
-                 * For example, if
-                 * | Group | Value Count | Selected |
-                 * |-------|-------------|----------|
-                 * |     0 | 3           | <-       |
-                 * |     1 | 1           | <-       |
-                 * |     2 | 2           |          |
-                 * |     3 | 1           | <-       |
-                 * |     4 | 4           | <-       |
-                 *
-                 * Then the total is 9 and the counts array will start with 0, 3, -2, 4, 5.
-                 * The counts will end with 3, 4, -2, 5, 9.
-                 */
-                adjust = RamUsageEstimator.alignObjectSize(RamUsageEstimator.NUM_BYTES_ARRAY_HEADER + total * Integer.BYTES);
-                blockFactory.adjustBreaker(adjust);
-                idsSize = adjust;
-                int[] ids = new int[total];
-                for (int id = 0; id < values.size(); id++) {
-                    int group = (int) values.getKey1(id);
-                    if (group < selectedCounts.length && selectedCounts[group] >= 0) {
-                        ids[selectedCounts[group]++] = id;
+                    int firstValue = group >= firstValues.size() ? -1 : firstValues.get(group) - 1;
+                    if (firstValue < 0) {
+                        builder.appendNull();
+                        continue;
                     }
-                }
-
-                /*
-                 * Insert the ids in order.
-                 */
-                BytesRef scratch = new BytesRef();
-                try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(selected.getPositionCount())) {
-                    int start = 0;
-                    for (int s = 0; s < selected.getPositionCount(); s++) {
-                        int group = selected.getInt(s);
-                        int end = selectedCounts[group];
-                        int count = end - start;
-                        switch (count) {
-                            case 0 -> builder.appendNull();
-                            case 1 -> append(builder, ids[start], scratch);
-                            default -> {
-                                builder.beginPositionEntry();
-                                for (int i = start; i < end; i++) {
-                                    append(builder, ids[i], scratch);
-                                }
-                                builder.endPositionEntry();
-                            }
+                    final int nextValuesStart = next.nextValuesStart(group);
+                    final int nextValuesEnd = next.nextValuesEnd(group);
+                    if (nextValuesEnd == nextValuesStart) {
+                        builder.appendBytesRef(bytes.get(firstValue, scratch));
+                    } else {
+                        builder.beginPositionEntry();
+                        builder.appendBytesRef(bytes.get(firstValue, scratch));
+                        // append values from the nextValues
+                        for (int i = nextValuesStart; i < nextValuesEnd; i++) {
+                            var nextValue = nextValues.getInt(next, i);
+                            builder.appendBytesRef(bytes.get(nextValue, scratch));
                         }
-                        start = end;
+                        builder.endPositionEntry();
                     }
-                    return builder.build();
                 }
-            } finally {
-                blockFactory.adjustBreaker(-selectedCountsSize - idsSize);
+                return builder.build();
             }
         }
 
-        private void append(BytesRefBlock.Builder builder, int id, BytesRef scratch) {
-            BytesRef value = bytes.get(values.getKey2(id), scratch);
-            builder.appendBytesRef(value);
-        }
-
-        @Override
-        public void enableGroupIdTracking(SeenGroupIds seen) {
-            // we figure out seen values from nulls on the values block
+        Block buildOrdinalOutputBlock(BlockFactory blockFactory, IntVector selected, ValuesNextPreparedForEmitting next) {
+            BytesRefVector dict = null;
+            IntBlock ordinals = null;
+            BytesRefBlock result = null;
+            var dictArray = bytes.getBytesRefs();
+            dictArray.incRef();
+            int estimateSize = Math.toIntExact(firstValues.size() + nextValues.size());
+            try (var builder = blockFactory.newIntBlockBuilder(estimateSize)) {
+                for (int s = 0; s < selected.getPositionCount(); s++) {
+                    final int group = selected.getInt(s);
+                    final int firstValue = group >= firstValues.size() ? -1 : firstValues.get(group) - 1;
+                    if (firstValue < 0) {
+                        builder.appendNull();
+                        continue;
+                    }
+                    final int nextValuesStart = next.nextValuesStart(group);
+                    final int nextValuesEnd = next.nextValuesEnd(group);
+                    if (nextValuesEnd == nextValuesStart) {
+                        builder.appendInt(firstValue);
+                    } else {
+                        builder.beginPositionEntry();
+                        builder.appendInt(firstValue);
+                        for (int i = nextValuesStart; i < nextValuesEnd; i++) {
+                            builder.appendInt(nextValues.getInt(next, i));
+                        }
+                        builder.endPositionEntry();
+                    }
+                }
+                ordinals = builder.build();
+                dict = blockFactory.newBytesRefArrayVector(dictArray, Math.toIntExact(dictArray.size()));
+                dictArray = null; // transfer ownership to dict
+                result = new OrdinalBytesRefBlock(ordinals, dict);
+                return result;
+            } finally {
+                if (result == null) {
+                    Releasables.close(dictArray, dict, ordinals);
+                }
+            }
         }
 
         @Override
         public void close() {
-            Releasables.closeExpectNoException(values, bytes);
+            Releasables.closeExpectNoException(bytes, firstValues, nextValues);
         }
     }
 }

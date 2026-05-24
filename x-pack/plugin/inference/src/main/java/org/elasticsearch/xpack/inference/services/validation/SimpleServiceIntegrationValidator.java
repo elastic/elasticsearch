@@ -8,15 +8,14 @@
 
 package org.elasticsearch.xpack.inference.services.validation;
 
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.inference.validation.ServiceIntegrationValidator;
 
 import java.util.List;
 import java.util.Map;
@@ -26,7 +25,7 @@ public class SimpleServiceIntegrationValidator implements ServiceIntegrationVali
     private static final String QUERY = "test query";
 
     @Override
-    public void validate(InferenceService service, Model model, ActionListener<InferenceServiceResults> listener) {
+    public void validate(InferenceService service, Model model, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         service.infer(
             model,
             model.getTaskType().equals(TaskType.RERANK) ? QUERY : null,
@@ -36,27 +35,8 @@ public class SimpleServiceIntegrationValidator implements ServiceIntegrationVali
             false,
             Map.of(),
             InputType.INTERNAL_INGEST,
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            ActionListener.wrap(r -> {
-                if (r != null) {
-                    listener.onResponse(r);
-                } else {
-                    listener.onFailure(
-                        new ElasticsearchStatusException(
-                            "Could not complete inference endpoint creation as validation call to service returned null response.",
-                            RestStatus.BAD_REQUEST
-                        )
-                    );
-                }
-            }, e -> {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        "Could not complete inference endpoint creation as validation call to service threw an exception.",
-                        RestStatus.BAD_REQUEST,
-                        e
-                    )
-                );
-            })
+            timeout,
+            ServiceIntegrationValidator.wrapListenerForValidation(listener)
         );
     }
 }

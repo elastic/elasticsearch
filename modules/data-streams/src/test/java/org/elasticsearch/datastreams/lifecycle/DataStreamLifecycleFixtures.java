@@ -15,7 +15,9 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.downsample.DownsampleConfig;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamFailureStore;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.ResettableValue;
@@ -36,7 +38,9 @@ import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
 import static org.elasticsearch.test.ESIntegTestCase.client;
+import static org.elasticsearch.test.ESTestCase.between;
 import static org.elasticsearch.test.ESTestCase.frequently;
+import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.randomIntBetween;
 import static org.junit.Assert.assertTrue;
 
@@ -56,7 +60,7 @@ public class DataStreamLifecycleFixtures {
         @Nullable DataStreamLifecycle lifecycle,
         Long now
     ) {
-        return createDataStream(builder, dataStreamName, backingIndicesCount, 0, backingIndicesSettings, lifecycle, now);
+        return createDataStream(builder, dataStreamName, backingIndicesCount, 0, backingIndicesSettings, lifecycle, null, now);
     }
 
     public static DataStream createDataStream(
@@ -65,7 +69,8 @@ public class DataStreamLifecycleFixtures {
         int backingIndicesCount,
         int failureIndicesCount,
         Settings.Builder backingIndicesSettings,
-        @Nullable DataStreamLifecycle lifecycle,
+        @Nullable DataStreamLifecycle dataLifecycle,
+        @Nullable DataStreamLifecycle failuresLifecycle,
         Long now
     ) {
         final List<Index> backingIndices = new ArrayList<>();
@@ -100,7 +105,18 @@ public class DataStreamLifecycleFixtures {
             builder.put(indexMetadata, false);
             failureIndices.add(indexMetadata.getIndex());
         }
-        return newInstance(dataStreamName, backingIndices, backingIndicesCount, null, false, lifecycle, failureIndices);
+        return newInstance(
+            dataStreamName,
+            backingIndices,
+            backingIndicesCount,
+            null,
+            false,
+            dataLifecycle,
+            failureIndices,
+            new DataStreamOptions(
+                DataStreamFailureStore.builder().enabled(failureIndices.isEmpty() == false).lifecycle(failuresLifecycle).build()
+            )
+        );
     }
 
     static void putComposableIndexTemplate(
@@ -128,15 +144,19 @@ public class DataStreamLifecycleFixtures {
         assertTrue(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet().isAcknowledged());
     }
 
-    static DataStreamLifecycle.Template randomLifecycleTemplate() {
-        return new DataStreamLifecycle.Template(
-            frequently(),
-            randomResettable(ESTestCase::randomTimeValue),
-            randomResettable(DataStreamLifecycleFixtures::randomDownsamplingRounds)
+    static DataStreamLifecycle.Template randomDataLifecycleTemplate() {
+        ResettableValue<List<DataStreamLifecycle.DownsamplingRound>> downsampling = randomResettable(
+            DataStreamLifecycleFixtures::randomDownsamplingRounds
         );
+        return DataStreamLifecycle.dataLifecycleBuilder()
+            .enabled(frequently())
+            .dataRetention(randomResettable(ESTestCase::randomTimeValue))
+            .downsamplingRounds(downsampling)
+            .downsamplingMethod(randomResettable(() -> randomSamplingMethod(downsampling.get())))
+            .buildTemplate();
     }
 
-    private static <T> ResettableValue<T> randomResettable(Supplier<T> supplier) {
+    public static <T> ResettableValue<T> randomResettable(Supplier<T> supplier) {
         return switch (randomIntBetween(0, 2)) {
             case 0 -> ResettableValue.undefined();
             case 1 -> ResettableValue.reset();
@@ -150,7 +170,7 @@ public class DataStreamLifecycleFixtures {
         List<DataStreamLifecycle.DownsamplingRound> rounds = new ArrayList<>();
         var previous = new DataStreamLifecycle.DownsamplingRound(
             TimeValue.timeValueDays(randomIntBetween(1, 365)),
-            new DownsampleConfig(new DateHistogramInterval(randomIntBetween(1, 24) + "h"))
+            new DateHistogramInterval(randomIntBetween(1, 24) + "h")
         );
         rounds.add(previous);
         for (int i = 0; i < count; i++) {
@@ -163,9 +183,19 @@ public class DataStreamLifecycleFixtures {
 
     private static DataStreamLifecycle.DownsamplingRound nextRound(DataStreamLifecycle.DownsamplingRound previous) {
         var after = TimeValue.timeValueDays(previous.after().days() + randomIntBetween(1, 10));
-        var fixedInterval = new DownsampleConfig(
-            new DateHistogramInterval((previous.config().getFixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms")
-        );
+        var fixedInterval = new DateHistogramInterval((previous.fixedInterval().estimateMillis() * randomIntBetween(2, 5)) + "ms");
         return new DataStreamLifecycle.DownsamplingRound(after, fixedInterval);
+    }
+
+    /**
+     * In order to produce valid data stream lifecycle configurations, the sampling method can be defined only when
+     * the downsampling rounds are also defined.
+     */
+    public static DownsampleConfig.SamplingMethod randomSamplingMethod(List<DataStreamLifecycle.DownsamplingRound> downsamplingRounds) {
+        if (downsamplingRounds == null || between(0, DownsampleConfig.SamplingMethod.values().length) == 0) {
+            return null;
+        } else {
+            return randomFrom(DownsampleConfig.SamplingMethod.values());
+        }
     }
 }

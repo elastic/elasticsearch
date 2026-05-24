@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.license.License;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -34,6 +35,10 @@ public class CategorizeTests extends AbstractScalarFunctionTestCase {
         this.testCase = testCaseSupplier.get();
     }
 
+    public static License.OperationMode licenseRequirement(List<DataType> fieldTypes) {
+        return License.OperationMode.PLATINUM;
+    }
+
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
@@ -51,12 +56,12 @@ public class CategorizeTests extends AbstractScalarFunctionTestCase {
                 )
             );
         }
-        return parameterSuppliersFromTypedDataWithDefaultChecksNoErrors(true, suppliers);
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers);
     }
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Categorize(source, args.get(0));
+        return new Categorize(source, args.get(0), args.size() > 1 ? args.get(1) : null);
     }
 
     @Override

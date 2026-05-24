@@ -27,6 +27,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.BeforeClass;
 
 import java.io.InputStream;
@@ -43,10 +44,12 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
 @ESIntegTestCase.ClusterScope(minNumDataNodes = 2)
+@ESTestCase.WithoutEntitlements // requires entitlement delegation ES-10920
 public class ReloadSecureSettingsIT extends ESIntegTestCase {
 
     private static final String VALID_SECURE_SETTING_NAME = "some.setting.that.exists";
@@ -410,6 +413,10 @@ public class ReloadSecureSettingsIT extends ESIntegTestCase {
                     assertThat(nodesMap.size(), equalTo(cluster().size()));
                     for (final NodesReloadSecureSettingsResponse.NodeResponse nodeResponse : nodesReloadResponse.getNodes()) {
                         assertThat(nodeResponse.reloadException(), nullValue());
+                        assertThat(nodeResponse.keystorePath(), notNullValue());
+                        assertThat(nodeResponse.keystoreDigest(), notNullValue());
+                        assertThat(nodeResponse.keystoreLastModifiedTime(), notNullValue());
+                        assertThat(nodeResponse.secureSettingNames(), is(new String[] { "keystore.seed" }));
                     }
                 } catch (final AssertionError e) {
                     reloadSettingsError.set(e);

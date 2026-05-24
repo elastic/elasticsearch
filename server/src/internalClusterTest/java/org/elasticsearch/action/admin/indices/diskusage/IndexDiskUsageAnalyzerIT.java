@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.indices.diskusage;
 
 import org.apache.lucene.tests.util.English;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -36,6 +35,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
+import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
@@ -61,6 +61,11 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         return plugins;
     }
 
+    @Override
+    protected Settings.Builder setRandomIndexSettings(Random random, Settings.Builder builder) {
+        return super.setRandomIndexSettings(random, builder).remove(IndexSettings.SEQ_NO_INDEX_OPTIONS_SETTING.getKey());
+    }
+
     private static final Set<ShardId> failOnFlushShards = ConcurrentCollections.newConcurrentSet();
 
     public static class EngineTestPlugin extends Plugin implements EnginePlugin {
@@ -68,7 +73,7 @@ public class IndexDiskUsageAnalyzerIT extends ESIntegTestCase {
         public Optional<EngineFactory> getEngineFactory(IndexSettings indexSettings) {
             return Optional.of(config -> new InternalEngine(config) {
                 @Override
-                protected void flushHoldingLock(boolean force, boolean waitIfOngoing, ActionListener<FlushResult> listener) {
+                protected void flushHoldingLock(boolean force, boolean waitIfOngoing, FlushResultListener listener) {
                     final ShardId shardId = config.getShardId();
                     if (failOnFlushShards.contains(shardId)) {
                         listener.onFailure(new EngineException(shardId, "simulated IO"));

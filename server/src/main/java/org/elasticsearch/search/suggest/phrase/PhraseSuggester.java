@@ -19,7 +19,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.CharsRefBuilder;
 import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.common.text.Text;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -31,6 +30,7 @@ import org.elasticsearch.search.suggest.Suggest.Suggestion.Entry.Option;
 import org.elasticsearch.search.suggest.Suggester;
 import org.elasticsearch.search.suggest.SuggestionSearchContext.SuggestionContext;
 import org.elasticsearch.search.suggest.phrase.NoisyChannelSpellChecker.Result;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -135,8 +135,12 @@ public final class PhraseSuggester extends Suggester<PhraseSuggestionContext> {
                             .createParser(searchExecutionContext.getParserConfig(), querySource)
                     ) {
                         QueryBuilder innerQueryBuilder = AbstractQueryBuilder.parseTopLevelQuery(parser);
-                        final ParsedQuery parsedQuery = searchExecutionContext.toQuery(innerQueryBuilder);
-                        collateMatch = Lucene.exists(searcher, parsedQuery.query());
+                        try {
+                            final ParsedQuery parsedQuery = searchExecutionContext.toQuery(innerQueryBuilder);
+                            collateMatch = Lucene.exists(searcher, parsedQuery.query());
+                        } finally {
+                            searchExecutionContext.releaseQueryConstructionMemory();
+                        }
                     }
                 }
                 if (collateMatch == false && collatePrune == false) {

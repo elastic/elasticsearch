@@ -100,7 +100,7 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
                             public boolean advanceExact(int target) throws IOException {
                                 if (sorted.advanceExact(target)) {
                                     if (sorted.docValueCount() > 1) {
-                                        throw new IllegalStateException(
+                                        throw new IllegalArgumentException(
                                             "failed to extract doc:" + target + ", the grouping field must be single valued"
                                         );
                                     }
@@ -124,7 +124,7 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
                         };
                     }
                 }
-                default -> throw new IllegalStateException("unexpected doc values type " + type + "` for field `" + field + "`");
+                default -> throw new IllegalArgumentException("unexpected doc values type " + type + "` for field `" + field + "`");
             }
         }
 
@@ -200,7 +200,7 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
                             public boolean advanceExact(int target) throws IOException {
                                 if (sorted.advanceExact(target)) {
                                     if (sorted.docValueCount() > 1) {
-                                        throw new IllegalStateException(
+                                        throw new IllegalArgumentException(
                                             "failed to extract doc:" + target + ", the grouping field must be single valued"
                                         );
                                     }
@@ -233,7 +233,7 @@ abstract class GroupingDocValuesSelector<T> extends GroupSelector<T> {
                         };
                     }
                 }
-                default -> throw new IllegalStateException("unexpected doc values type " + type + "` for field `" + field + "`");
+                default -> throw new IllegalArgumentException("unexpected doc values type " + type + "` for field `" + field + "`");
             }
         }
 

@@ -105,7 +105,7 @@ public class StreamingTaskManager {
                             flowTask.addListener(TaskBackedProcessor.this::cancelTask);
                             return flowTask;
                         }
-                    });
+                    }, false);
                 }
             }
         }

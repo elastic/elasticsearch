@@ -302,6 +302,30 @@ join_keys = ["foo", "foo",
              "baz", "baz"]
 
 
+# Regression test for https://github.com/elastic/elasticsearch/issues/145402:
+# a key constraint in a negated rule must NOT be propagated to positive rules.
+# The condition k2 == "foo" in the negated rule is a key constraint (k2 is the per-rule key).
+# Before the fix it was propagated to positive rules, causing events with k2 == "baz" to be
+# silently excluded and the last sequence ([9, 10, -1, 12] / baz) to disappear.
+[[queries]]
+name = "withByKeyNegatedRuleKeyConstraintNotPropagated"
+query = '''
+  sequence by k1 with maxspan=1s
+    [ test5 where tag == "normal" ] by k2
+    [ test5 where tag == "normal" ] by k2
+   ![ test5 where tag == "missing" and k2 == "foo" ] by k2
+    [ test5 where tag == "normal" ] by k2
+'''
+expected_event_ids = [2, 4, -1, 5,
+                      4, 5, -1, 6,
+                      5, 6, -1, 8,
+                      9, 10, -1, 12]
+join_keys = ["foo", "foo",
+             "foo", "foo",
+             "foo", "foo",
+             "baz", "baz"]
+
+
 [[queries]]
 name = "withByKey_tail"
 query = '''

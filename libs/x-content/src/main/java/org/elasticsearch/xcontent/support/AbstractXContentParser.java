@@ -15,8 +15,10 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.DeprecationHandler;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.Text;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentString;
 
 import java.io.IOException;
 import java.math.BigDecimal;
@@ -85,7 +87,13 @@ public abstract class AbstractXContentParser implements XContentParser {
     public boolean isBooleanValue() throws IOException {
         return switch (currentToken()) {
             case VALUE_BOOLEAN -> true;
-            case VALUE_STRING -> Booleans.isBoolean(textCharacters(), textOffset(), textLength());
+            case VALUE_STRING -> {
+                if (hasTextCharacters()) {
+                    yield Booleans.isBoolean(textCharacters(), textOffset(), textLength());
+                } else {
+                    yield Booleans.isBoolean(text());
+                }
+            }
             default -> false;
         };
     }
@@ -94,7 +102,11 @@ public abstract class AbstractXContentParser implements XContentParser {
     public boolean booleanValue() throws IOException {
         Token token = currentToken();
         if (token == Token.VALUE_STRING) {
-            return Booleans.parseBoolean(textCharacters(), textOffset(), textLength(), false /* irrelevant */);
+            if (hasTextCharacters()) {
+                return Booleans.parseBoolean(textCharacters(), textOffset(), textLength(), false /* irrelevant */);
+            } else {
+                return Booleans.parseBoolean(text(), false /* irrelevant */);
+            }
         }
         return doBooleanValue();
     }
@@ -259,6 +271,19 @@ public abstract class AbstractXContentParser implements XContentParser {
     }
 
     @Override
+    public XContentString optimizedText() throws IOException {
+        return new Text(text());
+    }
+
+    @Override
+    public final XContentString optimizedTextOrNull() throws IOException {
+        if (currentToken() == Token.VALUE_NULL || currentToken() == Token.VALUE_EMBEDDED_OBJECT) {
+            return null;
+        }
+        return optimizedText();
+    }
+
+    @Override
     public CharBuffer charBufferOrNull() throws IOException {
         if (currentToken() == Token.VALUE_NULL) {
             return null;
@@ -266,14 +291,20 @@ public abstract class AbstractXContentParser implements XContentParser {
         return charBuffer();
     }
 
+    private void requireSupportsMap() {
+        if (supportsMap() == false) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
     @Override
     public Map<String, Object> map() throws IOException {
-        return readMapSafe(this, SIMPLE_MAP_FACTORY);
+        return readMapSafe(SIMPLE_MAP_FACTORY);
     }
 
     @Override
     public Map<String, Object> mapOrdered() throws IOException {
-        return readMapSafe(this, ORDERED_MAP_FACTORY);
+        return readMapSafe(ORDERED_MAP_FACTORY);
     }
 
     @Override
@@ -284,6 +315,7 @@ public abstract class AbstractXContentParser implements XContentParser {
     @Override
     public <T> Map<String, T> map(Supplier<Map<String, T>> mapFactory, CheckedFunction<XContentParser, T, IOException> mapValueParser)
         throws IOException {
+        requireSupportsMap();
         final Map<String, T> map = mapFactory.get();
         String fieldName = findNonEmptyMapStart(this);
         if (fieldName == null) {
@@ -298,14 +330,22 @@ public abstract class AbstractXContentParser implements XContentParser {
         return map;
     }
 
+    private void requireSupportsList() {
+        if (supportsList() == false) {
+            throw new UnsupportedOperationException();
+        }
+    }
+
     @Override
     public List<Object> list() throws IOException {
+        requireSupportsList();
         skipToListStart(this);
         return readListUnsafe(this, SIMPLE_MAP_FACTORY);
     }
 
     @Override
     public List<Object> listOrderedMap() throws IOException {
+        requireSupportsList();
         skipToListStart(this);
         return readListUnsafe(this, ORDERED_MAP_FACTORY);
     }
@@ -314,10 +354,11 @@ public abstract class AbstractXContentParser implements XContentParser {
 
     private static final Supplier<Map<String, Object>> ORDERED_MAP_FACTORY = LinkedHashMap::new;
 
-    private static Map<String, Object> readMapSafe(XContentParser parser, Supplier<Map<String, Object>> mapFactory) throws IOException {
+    private Map<String, Object> readMapSafe(Supplier<Map<String, Object>> mapFactory) throws IOException {
+        requireSupportsMap();
         final Map<String, Object> map = mapFactory.get();
-        final String firstKey = findNonEmptyMapStart(parser);
-        return firstKey == null ? map : readMapEntries(parser, mapFactory, map, firstKey);
+        final String firstKey = findNonEmptyMapStart(this);
+        return firstKey == null ? map : readMapEntries(this, mapFactory, map, firstKey);
     }
 
     private static Map<String, Object> readMapEntries(

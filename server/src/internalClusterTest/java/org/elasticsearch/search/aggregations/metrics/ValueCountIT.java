@@ -13,8 +13,7 @@ import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.bucket.filter.Filter;
-import org.elasticsearch.search.aggregations.bucket.global.Global;
+import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregation;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -94,7 +93,7 @@ public class ValueCountIT extends ESIntegTestCase {
 
                 assertHitCount(response, 10);
 
-                Global global = response.getAggregations().get("global");
+                SingleBucketAggregation global = response.getAggregations().get("global");
                 assertThat(global, notNullValue());
                 assertThat(global.getName(), equalTo("global"));
                 assertThat(global.getDocCount(), equalTo(10L));
@@ -304,7 +303,7 @@ public class ValueCountIT extends ESIntegTestCase {
                     assertThat(bucket, notNullValue());
                     assertThat(bucket.getKeyAsNumber(), equalTo((long) i + 1));
                     assertThat(bucket.getDocCount(), equalTo(1L));
-                    Filter filter = bucket.getAggregations().get("filter");
+                    SingleBucketAggregation filter = bucket.getAggregations().get("filter");
                     assertThat(filter, notNullValue());
                     assertThat(filter.getDocCount(), equalTo(0L));
                     ValueCount count = filter.getAggregations().get("count");

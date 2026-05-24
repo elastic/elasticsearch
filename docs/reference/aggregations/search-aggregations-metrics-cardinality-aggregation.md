@@ -23,6 +23,7 @@ POST /sales/_search?size=0
   }
 }
 ```
+% TEST[setup:sales]
 
 Response:
 
@@ -36,6 +37,7 @@ Response:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 ## Precision control [_precision_control]
 
@@ -54,6 +56,7 @@ POST /sales/_search?size=0
   }
 }
 ```
+% TEST[setup:sales]
 
 1. The `precision_threshold` options allows to trade memory for accuracy, and defines a unique count below which counts are expected to be close to accurate. Above this value, counts might become a bit more fuzzy. The maximum supported value is 40000, thresholds above this number will have the same effect as a threshold of 40000. The default value is `3000`.
 
@@ -65,9 +68,23 @@ Computing exact counts requires loading values into a hash set and returning its
 
 This `cardinality` aggregation is based on the [HyperLogLog++](https://static.googleusercontent.com/media/research.google.com/fr//pubs/archive/40671.pdf) algorithm, which counts based on the hashes of the values with some interesting properties:
 
-:::{include} _snippets/search-aggregations-metrics-cardinality-aggregation-explanation.md
-:::
+* configurable precision, which decides on how to trade memory for accuracy,
+* excellent accuracy on low-cardinality sets,
+* fixed memory usage: no matter if there are tens or billions of unique values, memory usage only depends on the configured precision.
 
+For a precision threshold of `c`, the implementation that we are using requires about `c * 8` bytes.
+
+The following chart shows how the error varies before and after the threshold:
+
+![cardinality error](/reference/aggregations/images/cardinality_error.png "")
+
+For all 3 thresholds, counts have been accurate up to the configured threshold. Although not guaranteed,
+this is likely to be the case. Accuracy in practice depends on the dataset in question. In general,
+most datasets show consistently good accuracy. Also note that even with a threshold as low as 100,
+the error remains very low (1-6% as seen in the above graph) even when counting millions of items.
+
+The HyperLogLog++ algorithm depends on the leading zeros of hashed values, the exact distributions of
+hashes in a dataset can affect the accuracy of the cardinality.
 
 ## Pre-computed hashes [_pre_computed_hashes]
 
@@ -101,7 +118,8 @@ POST /sales/_search?size=0
   }
 }
 ```
-
+% TEST[setup:sales]
+% TEST[s/size=0/size=0&filter_path=aggregations/]
 
 ## Missing value [_missing_value_8]
 
@@ -120,6 +138,7 @@ POST /sales/_search?size=0
   }
 }
 ```
+% TEST[setup:sales]
 
 1. Documents without a value in the `tag` field will fall into the same bucket as documents that have the value `N/A`.
 

@@ -7,15 +7,20 @@
 
 package org.elasticsearch.compute.data;
 
+// begin generated imports
+import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.BytesRefArray;
 import org.elasticsearch.core.ReleasableIterator;
+import org.elasticsearch.core.Releasables;
 
 import java.io.IOException;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+// end generated imports
 
 /**
  * Vector implementation that stores an array of boolean values.
@@ -74,6 +79,16 @@ final class BooleanArrayVector extends AbstractVector implements BooleanVector {
     }
 
     @Override
+    public void copyTo(int srcPosition, boolean[] dst, int dstPosition, int length) {
+        System.arraycopy(values, srcPosition, dst, dstPosition, length);
+    }
+
+    @Override
+    public int valueMaxByteSize() {
+        return Byte.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.BOOLEAN;
     }
@@ -84,7 +99,7 @@ final class BooleanArrayVector extends AbstractVector implements BooleanVector {
     }
 
     @Override
-    public BooleanVector filter(int... positions) {
+    public BooleanVector filter(boolean mayContainDuplicates, int... positions) {
         try (BooleanVector.Builder builder = blockFactory().newBooleanVectorBuilder(positions.length)) {
             for (int pos : positions) {
                 builder.appendBoolean(values[pos]);
@@ -126,6 +141,20 @@ final class BooleanArrayVector extends AbstractVector implements BooleanVector {
 
     public static long ramBytesEstimated(boolean[] values) {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
+    }
+
+    @Override
+    public BooleanVector slice(int beginInclusive, int endExclusive) {
+        if (beginInclusive == 0 && endExclusive == getPositionCount()) {
+            incRef();
+            return this;
+        }
+        try (BooleanVector.FixedBuilder builder = blockFactory().newBooleanVectorFixedBuilder(endExclusive - beginInclusive)) {
+            for (int i = beginInclusive; i < endExclusive; i++) {
+                builder.appendBoolean(getBoolean(i));
+            }
+            return builder.build();
+        }
     }
 
     /**

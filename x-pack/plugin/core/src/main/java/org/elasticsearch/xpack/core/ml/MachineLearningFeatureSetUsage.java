@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.ml;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -66,16 +65,12 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureUsage {
         this.analyticsUsage = in.readGenericMap();
         this.inferenceUsage = in.readGenericMap();
         this.nodeCount = in.readInt();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            this.memoryUsage = in.readGenericMap();
-        } else {
-            this.memoryUsage = Map.of();
-        }
+        this.memoryUsage = in.readGenericMap();
     }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ZERO;
+        return TransportVersion.zero();
     }
 
     @Override
@@ -86,9 +81,7 @@ public class MachineLearningFeatureSetUsage extends XPackFeatureUsage {
         out.writeGenericMap(analyticsUsage);
         out.writeGenericMap(inferenceUsage);
         out.writeInt(nodeCount);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_16_0)) {
-            out.writeGenericMap(memoryUsage);
-        }
+        out.writeGenericMap(memoryUsage);
     }
 
     @Override

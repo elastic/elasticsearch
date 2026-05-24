@@ -64,7 +64,15 @@ public class FsDirectoryFactoryTests extends ESTestCase {
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdi", newIOContext(random())));
             assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("foo.kdi", Store.READONCE_CHECKSUM));
             assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.tmp", newIOContext(random())));
-            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("foo.fdt__0.tmp", newIOContext(random())));
+            // Stored field tmp files that shouldn't preload:
+            assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("foo.fdt__0.tmp", newIOContext(random())));
+            assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("_0.fdt__1.tmp", newIOContext(random())));
+            // Stored field tmp files that should preload:
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("_0.fdm__0.tmp", newIOContext(random())));
+            assertTrue(FsDirectoryFactory.HybridDirectory.useDelegate("_0.fdx__4.tmp", newIOContext(random())));
+            // es819 tsdb doc values tmp files that shouldn't preload:
+            assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("foo.disi__0.tmp", newIOContext(random())));
+            assertFalse(FsDirectoryFactory.HybridDirectory.useDelegate("foo.address-data__0.tmp", newIOContext(random())));
             MMapDirectory delegate = hybridDirectory.getDelegate();
             assertThat(delegate, Matchers.instanceOf(MMapDirectory.class));
             var func = fsDirectoryFactory.preLoadFuncMap.get(delegate);
@@ -88,7 +96,7 @@ public class FsDirectoryFactoryTests extends ESTestCase {
         final Map<MMapDirectory, BiPredicate<String, IOContext>> preLoadFuncMap = new HashMap<>();
 
         @Override
-        public MMapDirectory setPreload(MMapDirectory mMapDirectory, Set<String> preLoadExtensions) {
+        public MMapDirectory setMMapFunctions(MMapDirectory mMapDirectory, Set<String> preLoadExtensions) {
             var preLoadFunc = FsDirectoryFactory.getPreloadFunc(preLoadExtensions);
             mMapDirectory.setPreload(preLoadFunc);
             preLoadFuncMap.put(mMapDirectory, preLoadFunc);

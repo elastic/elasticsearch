@@ -11,9 +11,9 @@ package org.elasticsearch.server.cli;
 
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.node.NodeRoleSettings;
 
-import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -37,23 +37,31 @@ public class MachineDependentHeap {
     protected static final long MAX_HEAP_SIZE = GB * 31; // 31GB
     protected static final long MIN_HEAP_SIZE = 1024 * 1024 * 128; // 128MB
 
+    private static final FeatureFlag NEW_ML_MEMORY_COMPUTATION_FEATURE_FLAG = new FeatureFlag("new_ml_memory_computation");
+
+    private boolean useNewMlMemoryComputation = false;
+
     public MachineDependentHeap() {}
 
     /**
      * Calculate heap options.
      *
      * @param nodeSettings the settings for the node
-     * @param userDefinedJvmOptions JVM arguments provided by the user
+     * @param finalJvmOptions the final JVM options as determined by the JVM
+     * @param userDefinedJvmOptions JVM arguments provided by the user, used for feature flag detection
      * @return final heap options, or an empty collection if user provided heap options are to be used
-     * @throws IOException if unable to load elasticsearch.yml
      */
     public final List<String> determineHeapSettings(
         Settings nodeSettings,
         SystemMemoryInfo systemMemoryInfo,
+        Map<String, JvmOption> finalJvmOptions,
         List<String> userDefinedJvmOptions
-    ) throws IOException, InterruptedException {
-        // TODO: this could be more efficient, to only parse final options once
-        final Map<String, JvmOption> finalJvmOptions = JvmOption.findFinalOptions(userDefinedJvmOptions);
+    ) {
+        if (userDefinedJvmOptions.contains("-Des.new_ml_memory_computation_feature_flag_enabled=true")
+            || NEW_ML_MEMORY_COMPUTATION_FEATURE_FLAG.isEnabled()) {
+            useNewMlMemoryComputation = true;
+        }
+
         if (isMaxHeapSpecified(finalJvmOptions) || isMinHeapSpecified(finalJvmOptions) || isInitialHeapSpecified(finalJvmOptions)) {
             // User has explicitly set memory settings so we use those
             return Collections.emptyList();
@@ -76,12 +84,16 @@ public class MachineDependentHeap {
             /*
              * Machine learning only node.
              *
-             * <p>Heap is computed as:
-             * <ul>
-             *     <li>40% of total system memory when total system memory 16 gigabytes or less.</li>
-             *     <li>40% of the first 16 gigabytes plus 10% of memory above that when total system memory is more than 16 gigabytes.</li>
-             *     <li>The absolute maximum heap size is 31 gigabytes.</li>
-             * </ul>
+             * The memory reserved for Java is computed as:
+             *   - 40% of total system memory when total system memory 16 gigabytes or less.
+             *   - 40% of the first 16 gigabytes plus 10% of memory above that when total system memory is more than 16 gigabytes.
+             *   - The absolute maximum heap size is 31 gigabytes.
+             *
+             * This Java memory is divided as follows:
+             *     - 2/3 of the Java memory is reserved for the Java heap.
+             *     - 1/3 of the Java memory is reserved for the Java direct memory.
+             *
+             * The direct memory being half of the heap is set by the JvmErgonomics class.
              *
              * In all cases the result is rounded down to the next whole multiple of 4 megabytes.
              * The reason for doing this is that Java will round requested heap sizes to a multiple
@@ -95,13 +107,22 @@ public class MachineDependentHeap {
              *
              * If this formula is changed then corresponding changes must be made to the {@code NativeMemoryCalculator} and
              * {@code MlAutoscalingDeciderServiceTests} classes in the ML plugin code. Failure to keep the logic synchronized
-             * could result in repeated autoscaling up and down.
+             * could result in ML processes crashing with OOM errors or repeated autoscaling up and down.
              */
             case ML_ONLY -> {
-                if (availableMemory <= (GB * 16)) {
-                    yield mb((long) (availableMemory * .4), 4);
+                double heapFractionBelow16GB = 0.4;
+                double heapFractionAbove16GB = 0.1;
+                if (useNewMlMemoryComputation) {
+                    heapFractionBelow16GB = 0.4 / (1.0 + JvmErgonomics.DIRECT_MEMORY_TO_HEAP_FACTOR);
+                    heapFractionAbove16GB = 0.1 / (1.0 + JvmErgonomics.DIRECT_MEMORY_TO_HEAP_FACTOR);
+                }
+                if (availableMemory <= GB * 16) {
+                    yield mb((long) (availableMemory * heapFractionBelow16GB), 4);
                 } else {
-                    yield mb((long) min((GB * 16) * .4 + (availableMemory - GB * 16) * .1, MAX_HEAP_SIZE), 4);
+                    yield mb(
+                        (long) min(GB * 16 * heapFractionBelow16GB + (availableMemory - GB * 16) * heapFractionAbove16GB, MAX_HEAP_SIZE),
+                        4
+                    );
                 }
             }
             /*

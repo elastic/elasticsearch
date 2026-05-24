@@ -202,6 +202,9 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
     }
 
     public CollapseContext build(SearchExecutionContext searchExecutionContext) {
+        if (field == null) {
+            throw new IllegalArgumentException("no collapse field specified");
+        }
         MappedFieldType fieldType = searchExecutionContext.getFieldType(field);
         if (fieldType == null) {
             throw new IllegalArgumentException("no mapping found for `" + field + "` in order to collapse on");
@@ -214,7 +217,7 @@ public class CollapseBuilder implements Writeable, ToXContentObject {
         if (fieldType.hasDocValues() == false) {
             throw new IllegalArgumentException("cannot collapse on field `" + field + "` without `doc_values`");
         }
-        if (fieldType.isIndexed() == false && (innerHits != null && innerHits.isEmpty() == false)) {
+        if (fieldType.indexType().hasDenseIndex() == false && (innerHits != null && innerHits.isEmpty() == false)) {
             throw new IllegalArgumentException(
                 "cannot expand `inner_hits` for collapse field `" + field + "`, " + "only indexed field can retrieve `inner_hits`"
             );

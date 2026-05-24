@@ -18,6 +18,7 @@ public class CliSessionConfiguration {
     private boolean debug;
     private boolean lenient;
     private boolean allowPartialResults;
+    private String projectRouting;
 
     public CliSessionConfiguration() {
         this.fetchSize = CoreProtocol.FETCH_SIZE;
@@ -66,5 +67,13 @@ public class CliSessionConfiguration {
 
     public void setAllowPartialResults(boolean allowPartialResults) {
         this.allowPartialResults = allowPartialResults;
+    }
+
+    public String projectRouting() {
+        return projectRouting;
+    }
+
+    public void setProjectRouting(String projectRouting) {
+        this.projectRouting = projectRouting;
     }
 }

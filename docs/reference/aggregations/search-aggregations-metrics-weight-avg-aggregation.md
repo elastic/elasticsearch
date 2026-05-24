@@ -9,7 +9,7 @@ mapped_pages:
 
 A `single-value` metrics aggregation that computes the weighted average of numeric values that are extracted from the aggregated documents. These values can be extracted either from specific numeric fields in the documents.
 
-When calculating a regular average, each datapoint has an equal "weight" …​ it contributes equally to the final value. Weighted averages, on the other hand, weight each datapoint differently. The amount that each datapoint contributes to the final value is extracted from the document.
+When calculating a regular average, each datapoint has an equal "weight" …  it contributes equally to the final value. Weighted averages, on the other hand, weight each datapoint differently. The amount that each datapoint contributes to the final value is extracted from the document.
 
 As a formula, a weighted average is the `∑(value * weight) / ∑(weight)`
 
@@ -61,6 +61,7 @@ POST /exams/_search
   }
 }
 ```
+% TEST[setup:exams]
 
 Which yields a response like:
 
@@ -74,6 +75,7 @@ Which yields a response like:
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 While multiple values-per-field are allowed, only one weight is allowed. If the aggregation encounters a document that has more than one weight (e.g. the weight field is a multi-valued field) it will abort the search. If you have this situation, you should build a [Runtime field](#search-aggregations-metrics-weight-avg-aggregation-runtime-field) to combine those values into a single weight.
 
@@ -105,6 +107,7 @@ POST /exams/_search
   }
 }
 ```
+% TEST
 
 The three values (`1`, `2`, and `3`) will be included as independent values, all with the weight of `2`:
 
@@ -118,6 +121,7 @@ The three values (`1`, `2`, and `3`) will be included as independent values, all
   }
 }
 ```
+% TESTRESPONSE[s/\.\.\./"took": $body.took,"timed_out": false,"_shards": $body._shards,"hits": $body.hits,/]
 
 The aggregation returns `2.0` as the result, which matches what we would expect when calculating by hand: `((1*2) + (2*2) + (3*2)) / (2+2+2) == 2`
 
@@ -205,5 +209,5 @@ POST /exams/_search
   }
 }
 ```
-
+% TEST[setup:exams]
 

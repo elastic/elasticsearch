@@ -43,7 +43,7 @@ public class TransportGetComponentTemplateAction extends TransportLocalProjectMe
      * NB prior to 9.0 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService until
      * we no longer need to support calling this action remotely.
      */
-    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    @UpdateForV10(owner = UpdateForV10.Owner.STORAGE_ENGINE)
     @SuppressWarnings("this-escape")
     @Inject
     public TransportGetComponentTemplateAction(
@@ -61,7 +61,6 @@ public class TransportGetComponentTemplateAction extends TransportLocalProjectMe
             projectResolver
         );
         clusterSettings = clusterService.getClusterSettings();
-
         transportService.registerRequestHandler(
             actionName,
             executor,
@@ -74,7 +73,7 @@ public class TransportGetComponentTemplateAction extends TransportLocalProjectMe
 
     @Override
     protected ClusterBlockException checkBlock(GetComponentTemplateAction.Request request, ProjectState state) {
-        return state.blocks().globalBlockedException(ClusterBlockLevel.METADATA_READ);
+        return state.blocks().globalBlockedException(state.projectId(), ClusterBlockLevel.METADATA_READ);
     }
 
     @Override

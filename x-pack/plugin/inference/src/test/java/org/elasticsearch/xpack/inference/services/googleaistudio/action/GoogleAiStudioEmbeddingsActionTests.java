@@ -21,17 +21,16 @@ import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.common.TruncatorTests;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.EmbeddingsInput;
-import org.elasticsearch.xpack.inference.external.http.sender.GoogleAiStudioEmbeddingsRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.googleaistudio.GoogleAiStudioEmbeddingsRequestManager;
 import org.junit.After;
 import org.junit.Before;
 
@@ -40,15 +39,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
-import static org.elasticsearch.xpack.core.inference.results.TextEmbeddingFloatResultsTests.buildExpectationFloat;
-import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
+import static org.elasticsearch.xpack.core.inference.results.DenseEmbeddingFloatResultsTests.buildExpectationFloat;
+import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
-import static org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleAiStudioEmbeddingsRequestEntity.convertToString;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
 import static org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsModelTests.createModel;
+import static org.elasticsearch.xpack.inference.services.googleaistudio.request.GoogleAiStudioEmbeddingsRequestEntity.convertToString;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -69,7 +68,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
     @Before
     public void init() throws Exception {
         webServer.start();
-        threadPool = createThreadPool(inferenceUtilityPool());
+        threadPool = createThreadPool(inferenceUtilityExecutors());
         clientManager = HttpClientManager.create(Settings.EMPTY, threadPool, mockClusterServiceEmpty(), mock(ThrottlerManager.class));
     }
 
@@ -87,8 +86,6 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var senderFactory = new HttpRequestSender.Factory(createWithEmptySettings(threadPool), clientManager, mockClusterServiceEmpty());
 
         try (var sender = senderFactory.createSender()) {
-            sender.start();
-
             String responseJson = """
                 {
                     "embeddings": [
@@ -108,7 +105,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
             var inputType = InputTypeTests.randomWithNull();
-            action.execute(new EmbeddingsInput(List.of(input), inputType), InferenceAction.Request.DEFAULT_TIMEOUT, listener);
+            action.execute(new EmbeddingsInput(List.of(input), inputType), null, listener);
 
             var result = listener.actionGet(TIMEOUT);
 
@@ -162,11 +159,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "api_key", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -186,11 +179,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "api_key", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 
@@ -204,11 +193,7 @@ public class GoogleAiStudioEmbeddingsActionTests extends ESTestCase {
         var action = createAction(getUrl(webServer), "api_key", "model", sender);
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
-        action.execute(
-            new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()),
-            InferenceAction.Request.DEFAULT_TIMEOUT,
-            listener
-        );
+        action.execute(new EmbeddingsInput(List.of("abc"), InputTypeTests.randomWithNull()), null, listener);
 
         var thrownException = expectThrows(ElasticsearchException.class, () -> listener.actionGet(TIMEOUT));
 

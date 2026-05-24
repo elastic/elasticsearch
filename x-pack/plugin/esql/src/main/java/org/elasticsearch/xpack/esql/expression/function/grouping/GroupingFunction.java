@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.LimitBy;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.List;
@@ -22,27 +23,61 @@ import java.util.function.BiConsumer;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 
-public abstract class GroupingFunction extends Function implements EvaluatorMapper, PostAnalysisPlanVerificationAware {
+public abstract sealed class GroupingFunction extends Function implements PostAnalysisPlanVerificationAware permits
+    GroupingFunction.NonEvaluatableGroupingFunction, GroupingFunction.EvaluatableGroupingFunction {
 
     protected GroupingFunction(Source source, List<Expression> fields) {
         super(source, fields);
     }
 
     @Override
-    public Object fold(FoldContext ctx) {
-        return EvaluatorMapper.super.fold(source(), ctx);
-    }
-
-    @Override
     public BiConsumer<LogicalPlan, Failures> postAnalysisPlanVerification() {
         return (p, failures) -> {
-            if (p instanceof Aggregate == false) {
+            if (p instanceof Aggregate) {
+                return;
+            }
+            // NonEvaluatableGroupingFunction (e.g. CATEGORIZE) is only allowed inside a STATS command,
+            // since it relies on aggregation-specific state to be evaluated.
+            p.forEachExpression(
+                NonEvaluatableGroupingFunction.class,
+                gf -> failures.add(fail(gf, "cannot use grouping function [{}] outside of a STATS command", gf.sourceText()))
+            );
+            // EvaluatableGroupingFunction (e.g. BUCKET) can be computed row-by-row, so it is also
+            // allowed as a LIMIT ... BY key on top of STATS.
+            if (p instanceof LimitBy == false) {
                 p.forEachExpression(
-                    GroupingFunction.class,
-                    gf -> failures.add(fail(gf, "cannot use grouping function [{}] outside of a STATS command", gf.sourceText()))
+                    EvaluatableGroupingFunction.class,
+                    gf -> failures.add(
+                        fail(gf, "cannot use grouping function [{}] outside of a STATS or LIMIT BY command", gf.sourceText())
+                    )
                 );
             }
         };
     }
 
+    /**
+     * This is a class of grouping functions that cannot be evaluated outside the context of an aggregation.
+     * They will have their evaluation implemented part of an aggregation, which may keep state for their execution, making them "stateful"
+     * grouping functions.
+     */
+    public abstract static non-sealed class NonEvaluatableGroupingFunction extends GroupingFunction {
+        protected NonEvaluatableGroupingFunction(Source source, List<Expression> fields) {
+            super(source, fields);
+        }
+    }
+
+    /**
+     * This is a class of grouping functions that can be evaluated independently within an EVAL operator, independent of the aggregation
+     * they're used by.
+     */
+    public abstract static non-sealed class EvaluatableGroupingFunction extends GroupingFunction implements EvaluatorMapper {
+        protected EvaluatableGroupingFunction(Source source, List<Expression> fields) {
+            super(source, fields);
+        }
+
+        @Override
+        public Object fold(FoldContext ctx) {
+            return EvaluatorMapper.super.fold(source(), ctx);
+        }
+    }
 }

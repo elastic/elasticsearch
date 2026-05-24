@@ -11,14 +11,12 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.compute.operator.EvalOperator;
-import org.elasticsearch.compute.operator.LongIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
-import org.elasticsearch.core.Releasables;
+import org.elasticsearch.compute.test.operator.blocksource.LongIntBlockSourceOperator;
 import org.elasticsearch.core.Tuple;
 import org.junit.After;
 
@@ -105,43 +103,6 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
         );
     }
 
-    /**
-     * Tests {@link GroupingAggregator#addIntermediateRow} by building results using the traditional
-     * add mechanism and using {@link GroupingAggregator#addIntermediateRow} then asserting that they
-     * produce the same output.
-     */
-    public void testAddIntermediateRowInput() {
-        DriverContext ctx = driverContext();
-        AggregatorFunctionSupplier supplier = aggregatorFunction();
-        List<Integer> channels = channels(AggregatorMode.SINGLE);
-        Block[] results = new Block[2];
-        try (
-            GroupingAggregatorFunction main = supplier.groupingAggregator(ctx, channels);
-            GroupingAggregatorFunction leaf = supplier.groupingAggregator(ctx, channels);
-            SourceOperator source = simpleInput(ctx.blockFactory(), 10);
-        ) {
-            Page p;
-            while ((p = source.getOutput()) != null) {
-                try (
-                    IntVector group = ctx.blockFactory().newConstantIntVector(0, p.getPositionCount());
-                    GroupingAggregatorFunction.AddInput addInput = leaf.prepareProcessPage(null, p)
-                ) {
-                    addInput.add(0, group);
-                } finally {
-                    p.releaseBlocks();
-                }
-            }
-            main.addIntermediateRowInput(0, leaf, 0);
-            try (IntVector selected = ctx.blockFactory().newConstantIntVector(0, 1)) {
-                main.evaluateFinal(results, 0, selected, ctx);
-                leaf.evaluateFinal(results, 1, selected, ctx);
-            }
-            assertThat(results[0], equalTo(results[1]));
-        } finally {
-            Releasables.close(results);
-        }
-    }
-
     @After
     public void checkUnclosed() {
         for (Exception tracker : unclosed) {
@@ -154,11 +115,9 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
      * This checks if *any* of the integers are > 0. If so we push the group to
      * the aggregation.
      */
-    record AnyGreaterThanFactory(List<Exception> unclosed, List<Integer> inputChannels)
-        implements
-            EvalOperator.ExpressionEvaluator.Factory {
+    record AnyGreaterThanFactory(List<Exception> unclosed, List<Integer> inputChannels) implements ExpressionEvaluator.Factory {
         @Override
-        public EvalOperator.ExpressionEvaluator get(DriverContext context) {
+        public ExpressionEvaluator get(DriverContext context) {
             Exception tracker = new Exception(Integer.toString(unclosed.size()));
             unclosed.add(tracker);
             return new AnyGreaterThan(context.blockFactory(), unclosed, tracker, inputChannels);
@@ -172,7 +131,7 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
 
     private record AnyGreaterThan(BlockFactory blockFactory, List<Exception> unclosed, Exception tracker, List<Integer> inputChannels)
         implements
-            EvalOperator.ExpressionEvaluator {
+            ExpressionEvaluator {
         @Override
         public Block eval(Page page) {
             IntBlock ints = page.getBlock(inputChannels.get(0));
@@ -190,6 +149,11 @@ public class FilteredGroupingAggregatorFunctionTests extends GroupingAggregatorF
                 }
                 return result.build().asBlock();
             }
+        }
+
+        @Override
+        public long baseRamBytesUsed() {
+            return 0;
         }
 
         @Override

@@ -1,38 +1,42 @@
 {
-  "autoscaling.delete_autoscaling_policy":{
-    "documentation":{
-      "url":"https://www.elastic.co/guide/en/elasticsearch/reference/current/autoscaling-delete-autoscaling-policy.html",
-      "description":"Deletes an autoscaling policy. Designed for indirect use by ECE/ESS and ECK. Direct use is not supported."
+  "autoscaling.delete_autoscaling_policy": {
+    "documentation": {
+      "url": "https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-autoscaling-delete-autoscaling-policy",
+      "description": "Delete an autoscaling policy"
     },
-    "stability":"stable",
-    "visibility":"private",
-    "headers":{
-      "accept": [ "application/json"]
+    "stability": "stable",
+    "visibility": "private",
+    "headers": {
+      "accept": [
+        "application/json"
+      ]
     },
-    "url":{
-      "paths":[
+    "url": {
+      "paths": [
         {
-          "path":"/_autoscaling/policy/{name}",
-          "methods":[
+          "path": "/_autoscaling/policy/{name}",
+          "methods": [
             "DELETE"
           ],
-          "parts":{
-            "name":{
-              "type":"string",
-              "description":"the name of the autoscaling policy"
+          "parts": {
+            "name": {
+              "type": "string",
+              "description": "the name of the autoscaling policy"
             }
           }
         }
       ]
     },
-    "params":{
-      "master_timeout":{
-        "type":"time",
-        "description":"Timeout for processing on master node"
+    "params": {
+      "master_timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Timeout for processing on master node"
       },
-      "timeout":{
-        "type":"time",
-        "description":"Timeout for acknowledgement of update from all nodes in cluster"
+      "timeout": {
+        "type": "time",
+        "default": "30s",
+        "description": "Timeout for acknowledgement of update from all nodes in cluster"
       }
     }
   }

@@ -16,7 +16,7 @@ import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.search.suggest.document.Completion101PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion104PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionAnalyzer;
 import org.apache.lucene.search.suggest.document.ContextSuggestField;
 import org.apache.lucene.search.suggest.document.FuzzyCompletionQuery;
@@ -30,8 +30,10 @@ import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
@@ -40,7 +42,6 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.codec.LegacyPerFieldMapperCodec;
-import org.elasticsearch.index.codec.PerFieldMapperCodec;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -124,10 +125,11 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         });
 
         checker.registerUpdateCheck(
+            "search_analyzer",
             b -> b.field("search_analyzer", "standard"),
             m -> assertEquals("standard", m.fieldType().getTextSearchInfo().searchAnalyzer().name())
         );
-        checker.registerUpdateCheck(b -> b.field("max_input_length", 30), m -> {
+        checker.registerUpdateCheck("max_input_length", b -> b.field("max_input_length", 30), m -> {
             CompletionFieldMapper cfm = (CompletionFieldMapper) m;
             assertEquals(30, cfm.getMaxInputLength());
         });
@@ -148,20 +150,15 @@ public class CompletionFieldMapperTests extends MapperTestCase {
     }
 
     public void testPostingsFormat() throws IOException {
-        final Class<?> latestLuceneCPClass = Completion101PostingsFormat.class;
+        final Class<?> latestLuceneCPClass = Completion104PostingsFormat.class;
         MapperService mapperService = createMapperService(fieldMapping(this::minimalMapping));
-        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE);
+        CodecService codecService = new CodecService(mapperService, BigArrays.NON_RECYCLING_INSTANCE, null);
         Codec codec = codecService.codec("default");
-        if (CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled()) {
-            assertThat(codec, instanceOf(PerFieldMapperCodec.class));
-            assertThat(((PerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(latestLuceneCPClass));
-        } else {
-            if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
-                codec = deduplicateFieldInfosCodec.delegate();
-            }
-            assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
-            assertThat(((LegacyPerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(latestLuceneCPClass));
+        if (codec instanceof CodecService.DeduplicateFieldInfosCodec deduplicateFieldInfosCodec) {
+            codec = deduplicateFieldInfosCodec.delegate();
         }
+        assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
+        assertThat(((LegacyPerFieldMapperCodec) codec).getPostingsFormatForField("field"), instanceOf(latestLuceneCPClass));
     }
 
     public void testDefaultConfiguration() throws IOException {
@@ -242,8 +239,8 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         Map<String, Object> configMap = (Map<String, Object>) serializedMap.get("field");
         assertThat(configMap.get("analyzer").toString(), is("simple"));
         assertThat(configMap.get("search_analyzer").toString(), is("standard"));
-        assertThat(Boolean.valueOf(configMap.get("preserve_separators").toString()), is(false));
-        assertThat(Boolean.valueOf(configMap.get("preserve_position_increments").toString()), is(true));
+        assertThat(Booleans.parseBoolean(configMap.get("preserve_separators").toString()), is(false));
+        assertThat(Booleans.parseBoolean(configMap.get("preserve_position_increments").toString()), is(true));
         assertThat(Integer.valueOf(configMap.get("max_input_length").toString()), is(14));
     }
 
@@ -641,6 +638,35 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         assertThat(fields, containsInAnyOrder(suggestField("suggestion1"), suggestField("suggestion2"), suggestField("suggestion3")));
     }
 
+    public void testArrayObjectsLimitDoesNotApplyToCompletionField() throws Exception {
+        int limit = 2;
+        MapperService mapperService = createMapperService(
+            Settings.builder().put(getIndexSettings()).put(MapperService.INDEX_MAPPING_ARRAY_OBJECTS_LIMIT_SETTING.getKey(), limit).build(),
+            fieldMapping(this::minimalMapping)
+        );
+        DocumentMapper defaultMapper = mapperService.documentMapper();
+        ParsedDocument parsedDocument = defaultMapper.parse(source(b -> {
+            b.startArray("field");
+            for (int i = 0; i < limit + 3; i++) {
+                b.startObject().field("input", "suggestion" + i).field("weight", i + 1).endObject();
+            }
+            b.endArray();
+        }));
+
+        Mapper fieldMapper = defaultMapper.mappers().getMapper("field");
+        List<IndexableField> fields = parsedDocument.rootDoc().getFields(fieldMapper.fullPath());
+        assertThat(
+            fields,
+            containsInAnyOrder(
+                suggestField("suggestion0"),
+                suggestField("suggestion1"),
+                suggestField("suggestion2"),
+                suggestField("suggestion3"),
+                suggestField("suggestion4")
+            )
+        );
+    }
+
     public void testParsingMixed() throws Exception {
         DocumentMapper defaultMapper = createDocumentMapper(fieldMapping(this::minimalMapping));
         Mapper fieldMapper = defaultMapper.mappers().getMapper("field");
@@ -843,7 +869,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             }
             b.endArray();
         }));
-        assertCriticalWarnings(
+        assertWarnings(
             "You have defined more than ["
                 + COMPLETION_CONTEXTS_LIMIT
                 + "] completion contexts"
@@ -889,6 +915,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
         // we don't check currentToken here because it returns START_OBJECT that is inconsistent with returning a value
         assertEquals("text", multiFieldParser.textOrNull());
         assertEquals(documentParser.getTokenLocation(), multiFieldParser.getTokenLocation());
+        assertEquals(documentParser.getTokenLocation(), multiFieldParser.getCurrentLocation());
         assertEquals(documentParser.currentName(), multiFieldParser.currentName());
     }
 
@@ -917,6 +944,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             assertEquals(expectedParser.currentToken(), token);
             assertEquals(expectedParser.currentToken(), multiFieldParser.currentToken());
             assertEquals(expectedTokenLocation, multiFieldParser.getTokenLocation());
+            assertEquals(expectedTokenLocation, multiFieldParser.getCurrentLocation());
             assertEquals(documentParser.nextToken(), multiFieldParser.currentToken());
             assertEquals(documentParser.currentName(), multiFieldParser.currentName());
         }
@@ -983,5 +1011,15 @@ public class CompletionFieldMapperTests extends MapperTestCase {
     @Override
     protected IngestScriptSupport ingestScriptSupport() {
         throw new AssumptionViolatedException("not supported");
+    }
+
+    @Override
+    protected List<SortShortcutSupport> getSortShortcutSupport() {
+        return List.of();
+    }
+
+    @Override
+    protected boolean supportsDocValuesSkippers() {
+        return false;
     }
 }

@@ -25,8 +25,8 @@ import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.AbstractTransportRequest;
 import org.elasticsearch.transport.LeakTracker;
-import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
@@ -87,7 +87,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
             .interval(request.requestOptions.interval())
             .threadElementsSnapshotCount(request.requestOptions.snapshots())
             .ignoreIdleThreads(request.requestOptions.ignoreIdleThreads());
-        final var out = transportService.newNetworkBytesStream();
+        final var out = transportService.newNetworkBytesStream(null);
         final var trackedResource = LeakTracker.wrap(out);
         var success = false;
         try {
@@ -106,7 +106,7 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
         }
     }
 
-    public static class NodeRequest extends TransportRequest {
+    public static class NodeRequest extends AbstractTransportRequest {
 
         final HotThreads.RequestOptions requestOptions;
 

@@ -13,13 +13,17 @@ import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.script.MockScriptEngine;
@@ -28,10 +32,16 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.script.ScriptModule;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.script.ScriptedMetricAggContexts;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
+import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregatorTestCase;
+import org.elasticsearch.search.aggregations.LeafBucketCollector;
 import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
+import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -41,6 +51,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Function;
 
@@ -285,7 +296,13 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
         MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS, Collections.emptyMap());
         Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
 
-        return new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
+        return new ScriptService(
+            Settings.EMPTY,
+            engines,
+            ScriptModule.CORE_CONTEXTS,
+            () -> 1L,
+            TestProjectResolvers.singleProject(randomProjectIdOrDefault())
+        );
     }
 
     @SuppressWarnings("unchecked")
@@ -441,10 +458,6 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
     }
 
     public void testAggParamsPassedToReduceScript() throws IOException {
-        MockScriptEngine scriptEngine = new MockScriptEngine(MockScriptEngine.NAME, SCRIPTS, Collections.emptyMap());
-        Map<String, ScriptEngine> engines = Collections.singletonMap(scriptEngine.getType(), scriptEngine);
-        ScriptService scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
-
         try (Directory directory = newDirectory()) {
             try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
                 for (int i = 0; i < 100; i++) {
@@ -596,5 +609,119 @@ public class ScriptedMetricAggregatorTests extends AggregatorTestCase {
             assertThat(oddMetric.aggregation(), equalTo(49));
         };
         testCase(buildIndex, verify, new AggTestConfig(aggregationBuilder, keywordField("t"), longField("number")));
+    }
+
+    public void testCancellationCheckWiredForInitMapCombineScripts() throws IOException {
+        AtomicReference<ScriptedMetricAggContexts.InitScript> capturedInit = new AtomicReference<>();
+        AtomicReference<ScriptedMetricAggContexts.MapScript> capturedMap = new AtomicReference<>();
+        AtomicReference<ScriptedMetricAggContexts.CombineScript> capturedCombine = new AtomicReference<>();
+
+        ScriptedMetricAggContexts.InitScript.Factory initFactory = (params, state) -> {
+            ScriptedMetricAggContexts.InitScript script = new ScriptedMetricAggContexts.InitScript(params, state) {
+                @Override
+                public void execute() {}
+            };
+            capturedInit.set(script);
+            return script;
+        };
+        ScriptedMetricAggContexts.MapScript.Factory mapFactory = (params, state, lookup) -> ctx -> {
+            ScriptedMetricAggContexts.MapScript script = new ScriptedMetricAggContexts.MapScript(params, state, lookup, ctx) {
+                @Override
+                public void execute() {}
+            };
+            capturedMap.set(script);
+            return script;
+        };
+        ScriptedMetricAggContexts.CombineScript.Factory combineFactory = (params, state) -> {
+            ScriptedMetricAggContexts.CombineScript script = new ScriptedMetricAggContexts.CombineScript(params, state) {
+                @Override
+                public Object execute() {
+                    return null;
+                }
+            };
+            capturedCombine.set(script);
+            return script;
+        };
+
+        try (Directory dir = newDirectory()) {
+            try (RandomIndexWriter w = new RandomIndexWriter(random(), dir)) {
+                w.addDocument(new Document());
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                ContextIndexSearcher contextSearcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true
+                );
+                SearchLookup lookup = new SearchLookup(null, null, (ctx, doc) -> null);
+                AggregationContext aggContext = mock(AggregationContext.class);
+                when(aggContext.searcher()).thenReturn(contextSearcher);
+                when(aggContext.lookup()).thenReturn(lookup);
+                when(aggContext.breaker()).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+                when(aggContext.bigArrays()).thenReturn(BigArrays.NON_RECYCLING_INSTANCE);
+
+                ScriptedMetricAggregator agg = new ScriptedMetricAggregator(
+                    "test",
+                    lookup,
+                    Map.of(),
+                    initFactory,
+                    Map.of(),
+                    mapFactory,
+                    Map.of(),
+                    combineFactory,
+                    Map.of(),
+                    null,
+                    aggContext,
+                    null,
+                    Map.of()
+                );
+                LeafReaderContext leaf = reader.leaves().get(0);
+                AggregationExecutionContext aggExecCtx = new AggregationExecutionContext(leaf, null, () -> 0L, null);
+                agg.getLeafCollector(aggExecCtx, LeafBucketCollector.NO_OP_COLLECTOR).collect(0, 0);
+
+                assertNotNull(capturedInit.get()._getCancellationCheck());
+                assertNotNull(capturedMap.get()._getCancellationCheck());
+
+                agg.buildAggregation(0);
+                assertNotNull(capturedCombine.get()._getCancellationCheck());
+                agg.close();
+
+                capturedInit.set(null);
+                capturedMap.set(null);
+                capturedCombine.set(null);
+
+                AggregationContext plainContext = mock(AggregationContext.class);
+                when(plainContext.searcher()).thenReturn(newSearcher(reader));
+                when(plainContext.lookup()).thenReturn(lookup);
+                when(plainContext.breaker()).thenReturn(new NoopCircuitBreaker(CircuitBreaker.REQUEST));
+                when(plainContext.bigArrays()).thenReturn(BigArrays.NON_RECYCLING_INSTANCE);
+
+                ScriptedMetricAggregator plainAgg = new ScriptedMetricAggregator(
+                    "test",
+                    lookup,
+                    Map.of(),
+                    initFactory,
+                    Map.of(),
+                    mapFactory,
+                    Map.of(),
+                    combineFactory,
+                    Map.of(),
+                    null,
+                    plainContext,
+                    null,
+                    Map.of()
+                );
+                plainAgg.getLeafCollector(aggExecCtx, LeafBucketCollector.NO_OP_COLLECTOR).collect(0, 0);
+
+                assertNull(capturedInit.get()._getCancellationCheck());
+                assertNull(capturedMap.get()._getCancellationCheck());
+
+                plainAgg.buildAggregation(0);
+                assertNull(capturedCombine.get()._getCancellationCheck());
+                plainAgg.close();
+            }
+        }
     }
 }

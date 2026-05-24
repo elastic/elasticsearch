@@ -1,7 +1,4 @@
 setup:
-  - skip:
-      awaits_fix: "TODO fix this test, the response with batched execution is not deterministic enough for the available matchers"
-
   - do:
       indices.create:
           index: test_1

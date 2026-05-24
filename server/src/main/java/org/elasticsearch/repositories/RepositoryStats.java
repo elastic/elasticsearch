@@ -9,7 +9,6 @@
 
 package org.elasticsearch.repositories;
 
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.blobstore.BlobStoreActionStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -32,14 +31,7 @@ public class RepositoryStats implements Writeable {
     }
 
     public RepositoryStats(StreamInput in) throws IOException {
-        if (in.getTransportVersion().onOrAfter(TransportVersions.RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS)) {
-            this.actionStats = in.readMap(BlobStoreActionStats::new);
-        } else {
-            this.actionStats = in.readMap(si -> {
-                long legacyValue = in.readLong();
-                return new BlobStoreActionStats(legacyValue, legacyValue);
-            });
-        }
+        this.actionStats = in.readMap(BlobStoreActionStats::new);
     }
 
     public RepositoryStats merge(RepositoryStats otherStats) {
@@ -52,11 +44,7 @@ public class RepositoryStats implements Writeable {
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS)) {
-            out.writeMap(actionStats, (so, v) -> v.writeTo(so));
-        } else {
-            out.writeMap(actionStats, (so, v) -> so.writeLong(v.requests()));
-        }
+        out.writeMap(actionStats, (so, v) -> v.writeTo(so));
     }
 
     @Override

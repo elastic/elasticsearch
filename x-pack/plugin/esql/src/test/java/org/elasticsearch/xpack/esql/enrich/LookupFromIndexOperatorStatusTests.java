@@ -30,6 +30,7 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
             randomNonNegativeLong(),
             randomLongBetween(0, TimeValue.timeValueHours(1).millis()),
             randomNonNegativeLong(),
+            randomNonNegativeLong(),
             randomNonNegativeLong()
         );
     }
@@ -38,31 +39,34 @@ public class LookupFromIndexOperatorStatusTests extends AbstractWireSerializingT
     protected LookupFromIndexOperator.Status mutateInstance(LookupFromIndexOperator.Status in) throws IOException {
         long receivedPages = in.receivedPages();
         long completedPages = in.completedPages();
-        long procesNanos = in.procesNanos();
-        long totalTerms = in.totalTerms();
+        long procesNanos = in.processNanos();
+        long totalRows = in.totalRows();
         long emittedPages = in.emittedPages();
-        switch (randomIntBetween(0, 4)) {
+        long emittedRows = in.emittedRows();
+        switch (randomIntBetween(0, 5)) {
             case 0 -> receivedPages = randomValueOtherThan(receivedPages, ESTestCase::randomNonNegativeLong);
             case 1 -> completedPages = randomValueOtherThan(completedPages, ESTestCase::randomNonNegativeLong);
             case 2 -> procesNanos = randomValueOtherThan(procesNanos, ESTestCase::randomNonNegativeLong);
-            case 3 -> totalTerms = randomValueOtherThan(totalTerms, ESTestCase::randomNonNegativeLong);
+            case 3 -> totalRows = randomValueOtherThan(totalRows, ESTestCase::randomNonNegativeLong);
             case 4 -> emittedPages = randomValueOtherThan(emittedPages, ESTestCase::randomNonNegativeLong);
+            case 5 -> emittedRows = randomValueOtherThan(emittedRows, ESTestCase::randomNonNegativeLong);
             default -> throw new UnsupportedOperationException();
         }
-        return new LookupFromIndexOperator.Status(receivedPages, completedPages, procesNanos, totalTerms, emittedPages);
+        return new LookupFromIndexOperator.Status(receivedPages, completedPages, procesNanos, totalRows, emittedPages, emittedRows);
     }
 
     public void testToXContent() {
-        var status = new LookupFromIndexOperator.Status(100, 50, TimeValue.timeValueSeconds(10).millis(), 120, 88);
+        var status = new LookupFromIndexOperator.Status(100, 50, TimeValue.timeValueNanos(10).nanos(), 120, 88, 800);
         String json = Strings.toString(status, true, true);
         assertThat(json, equalTo("""
             {
-              "process_nanos" : 10000,
-              "process_time" : "10micros",
-              "received_pages" : 100,
-              "completed_pages" : 50,
-              "emitted_pages" : 88,
-              "total_terms" : 120
+              "process_nanos" : 10,
+              "process_time" : "10nanos",
+              "pages_received" : 100,
+              "pages_completed" : 50,
+              "pages_emitted" : 88,
+              "rows_emitted" : 800,
+              "total_rows" : 120
             }"""));
     }
 }

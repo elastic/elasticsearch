@@ -26,11 +26,11 @@ import org.junit.rules.TestRule;
  */
 public class RemoteClusterSecurityBWCToRCS1ClusterRestIT extends AbstractRemoteClusterSecurityBWCRestIT {
 
-    private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
+    private static final String OLD_CLUSTER_VERSION = System.getProperty("tests.old_cluster_version");
 
     static {
         fulfillingCluster = ElasticsearchCluster.local()
-            .version(OLD_CLUSTER_VERSION)
+            .version(OLD_CLUSTER_VERSION, isOldClusterDetachedVersion())
             .distribution(DistributionType.DEFAULT)
             .name("fulfilling-cluster")
             .apply(commonClusterConfig)

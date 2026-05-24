@@ -17,6 +17,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.search.internal.ReaderContext;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
+import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationEngine;
@@ -34,10 +35,11 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.Authentication.getAuthenticationFromCrossClusterAccessMetadata;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.AUTHENTICATION_KEY;
-import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_KEY;
+import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.AUTHORIZATION_INFO_VALUE;
 
 /**
  * A lightweight utility that can find the current user and authentication information for the local thread.
@@ -92,7 +94,7 @@ public class SecurityContext {
     }
 
     public AuthorizationEngine.AuthorizationInfo getAuthorizationInfoFromContext() {
-        return Objects.requireNonNull(threadContext.getTransient(AUTHORIZATION_INFO_KEY), "authorization info is missing from context");
+        return Objects.requireNonNull(AUTHORIZATION_INFO_VALUE.get(threadContext), "authorization info is missing from context");
     }
 
     @Nullable
@@ -135,20 +137,22 @@ public class SecurityContext {
             if (indicesAccessControl.isGranted() == false) {
                 throw new IllegalStateException("Unexpected unauthorized access control :" + indicesAccessControl);
             }
-            threadContext.putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+            AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.set(threadContext, indicesAccessControl);
         }
     }
 
     public void copyIndicesAccessControlToReaderContext(ReaderContext readerContext) {
-        IndicesAccessControl indicesAccessControl = getThreadContext().getTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        IndicesAccessControl indicesAccessControl = AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.get(getThreadContext());
         assert indicesAccessControl != null : "thread context does not contain index access control";
-        readerContext.putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, indicesAccessControl);
+        readerContext.putInContext(AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.getKey(), indicesAccessControl);
     }
 
     public void copyIndicesAccessControlFromReaderContext(ReaderContext readerContext) {
-        IndicesAccessControl scrollIndicesAccessControl = readerContext.getFromContext(AuthorizationServiceField.INDICES_PERMISSIONS_KEY);
+        IndicesAccessControl scrollIndicesAccessControl = readerContext.getFromContext(
+            AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.getKey()
+        );
         assert scrollIndicesAccessControl != null : "scroll does not contain index access control";
-        getThreadContext().putTransient(AuthorizationServiceField.INDICES_PERMISSIONS_KEY, scrollIndicesAccessControl);
+        AuthorizationServiceField.INDICES_PERMISSIONS_VALUE.set(getThreadContext(), scrollIndicesAccessControl);
     }
 
     /**
@@ -192,12 +196,30 @@ public class SecurityContext {
     }
 
     /**
+     * Runs the consumer in a new context as the secondary authenticated user, restoring any transient headers
+     * captured during secondary authentication into the new context. When this method returns, the original context is restored.
+     */
+    public <T> T executeWithSecondaryAuthentication(SecondaryAuthentication secondaryAuth, Function<StoredContext, T> consumer) {
+        final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
+        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            setAuthentication(secondaryAuth.getAuthentication());
+            secondaryAuth.getTransientHeaders().forEach(threadContext::putTransient);
+            return consumer.apply(original);
+        }
+    }
+
+    /**
      * Runs the consumer in a new context after setting a new version of the authentication that is compatible with the version provided.
      * The original context is provided to the consumer. When this method returns, the original context is restored.
      */
     public void executeAfterRewritingAuthentication(Consumer<StoredContext> consumer, TransportVersion version) {
         // Preserve request headers other than authentication
         final Map<String, String> existingRequestHeaders = threadContext.getRequestHeadersOnly();
+        final Map<String, Object> authenticationTokens = threadContext.getTransientHeaders()
+            .entrySet()
+            .stream()
+            .filter(e -> e.getValue() instanceof AuthenticationToken)
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         final StoredContext original = threadContext.newStoredContextPreservingResponseHeaders();
         final Authentication authentication = getAuthentication();
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
@@ -207,6 +229,7 @@ public class SecurityContext {
                     threadContext.putHeader(k, v);
                 }
             });
+            authenticationTokens.forEach(threadContext::putTransient);
             consumer.accept(original);
         }
     }

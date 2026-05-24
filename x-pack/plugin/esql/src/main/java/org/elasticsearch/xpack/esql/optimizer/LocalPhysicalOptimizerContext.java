@@ -8,7 +8,32 @@
 package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.planner.PlannerSettings;
+import org.elasticsearch.xpack.esql.plugin.EsqlFlags;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
-public record LocalPhysicalOptimizerContext(Configuration configuration, FoldContext foldCtx, SearchStats searchStats) {}
+public record LocalPhysicalOptimizerContext(
+    PlannerSettings plannerSettings,
+    EsqlFlags flags,
+    Configuration configuration,
+    FoldContext foldCtx,
+    SearchStats searchStats,
+    ExternalOptimizerContext external
+) {
+    /**
+     * Convenience constructor without external-source state (for backward compatibility and tests
+     * that don't exercise external-source rules). External-source-aware rules must treat the
+     * resulting context as "no external information" and bail out cleanly.
+     */
+    public LocalPhysicalOptimizerContext(
+        PlannerSettings plannerSettings,
+        EsqlFlags flags,
+        Configuration configuration,
+        FoldContext foldCtx,
+        SearchStats searchStats
+    ) {
+        this(plannerSettings, flags, configuration, foldCtx, searchStats, ExternalOptimizerContext.NONE);
+    }
+
+}

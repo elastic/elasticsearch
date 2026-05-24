@@ -17,7 +17,6 @@ import org.elasticsearch.index.mapper.BlockLoaderTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 
 import java.nio.ByteOrder;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
@@ -30,33 +29,27 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
 
     @Override
     @SuppressWarnings("unchecked")
-    protected Object expected(Map<String, Object> fieldMapping, Object value, TestContext testContext) {
-        var extractedFieldValues = (ExtractedFieldValues) value;
-        var values = extractedFieldValues.values();
-
+    protected Object expected(Map<String, Object> fieldMapping, Object values, TestContext testContext) {
         var nullValue = switch (fieldMapping.get("null_value")) {
-            case String s -> convert(s, null);
+            case String s -> convert(s, null, false);
             case null -> null;
             default -> throw new IllegalStateException("Unexpected null_value format");
         };
 
-        if (params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES && hasDocValues(fieldMapping, true)) {
-            if (values instanceof List<?> == false) {
-                var point = convert(values, nullValue);
-                return point != null ? point.getEncoded() : null;
+        // read from doc_values
+        boolean preferToLoadFromDocValues = params.preference() == MappedFieldType.FieldExtractPreference.DOC_VALUES;
+        boolean noPreference = params.preference() == MappedFieldType.FieldExtractPreference.NONE;
+        if (hasDocValues(fieldMapping, true)) {
+            if (preferToLoadFromDocValues) {
+                return longValues(values, nullValue, testContext.isMultifield());
+            } else if (noPreference && params.syntheticSource()) {
+                return bytesRefWkbValues(values, nullValue, testContext.isMultifield());
             }
-
-            var resultList = ((List<Object>) values).stream()
-                .map(v -> convert(v, nullValue))
-                .filter(Objects::nonNull)
-                .map(GeoPoint::getEncoded)
-                .sorted()
-                .toList();
-            return maybeFoldList(resultList);
         }
 
+        // stored source is used
         if (params.syntheticSource() == false) {
-            return exactValuesFromSource(values, nullValue);
+            return exactValuesFromSource(values, nullValue, false);
         }
 
         // Usually implementation of block loader from source adjusts values read from source
@@ -67,110 +60,86 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
         // That is unless "synthetic_source_keep" forces fallback synthetic source again.
 
         if (testContext.forceFallbackSyntheticSource()) {
-            return exactValuesFromSource(values, nullValue);
+            return exactValuesFromSource(values, nullValue, false);
         }
 
         String syntheticSourceKeep = (String) fieldMapping.getOrDefault("synthetic_source_keep", "none");
         if (syntheticSourceKeep.equals("all")) {
-            return exactValuesFromSource(values, nullValue);
-        }
-        if (syntheticSourceKeep.equals("arrays") && extractedFieldValues.documentHasObjectArrays()) {
-            return exactValuesFromSource(values, nullValue);
+            return exactValuesFromSource(values, nullValue, false);
         }
 
         // synthetic source and doc_values are present
         if (hasDocValues(fieldMapping, true)) {
-            if (values instanceof List<?> == false) {
-                return toWKB(normalize(convert(values, nullValue)));
-            }
-
-            var resultList = ((List<Object>) values).stream()
-                .map(v -> convert(v, nullValue))
-                .filter(Objects::nonNull)
-                .sorted(Comparator.comparingLong(GeoPoint::getEncoded))
-                .map(p -> toWKB(normalize(p)))
-                .toList();
-            return maybeFoldList(resultList);
+            return bytesRefWkbValues(values, nullValue, false);
         }
 
-        // synthetic source but no doc_values so using fallback synthetic source
-        return exactValuesFromSource(values, nullValue);
+        // synthetic source is enabled, but no doc_values are present, so fallback to ignored source
+        return exactValuesFromSource(values, nullValue, false);
     }
 
+    /**
+     * Use when values are stored as points encoded as longs.
+     */
     @SuppressWarnings("unchecked")
-    private Object exactValuesFromSource(Object value, GeoPoint nullValue) {
-        if (value instanceof List<?> == false) {
-            return toWKB(convert(value, nullValue));
+    private Object longValues(Object values, GeoPoint nullValue, boolean needsMultifieldAdjustment) {
+        if (values instanceof List<?> == false) {
+            var point = convert(values, nullValue, needsMultifieldAdjustment);
+            return point != null ? point.getEncoded() : null;
         }
 
-        var resultList = ((List<Object>) value).stream().map(v -> convert(v, nullValue)).filter(Objects::nonNull).map(this::toWKB).toList();
+        var resultList = ((List<Object>) values).stream()
+            .map(v -> convert(v, nullValue, needsMultifieldAdjustment))
+            .filter(Objects::nonNull)
+            .map(GeoPoint::getEncoded)
+            .sorted()
+            .toList();
         return maybeFoldList(resultList);
     }
 
-    private record ExtractedFieldValues(Object values, boolean documentHasObjectArrays) {}
-
-    @Override
-    protected Object getFieldValue(Map<String, Object> document, String fieldName) {
-        var extracted = new ArrayList<>();
-        var documentHasObjectArrays = processLevel(document, fieldName, extracted, false);
-
-        if (extracted.size() == 1) {
-            return new ExtractedFieldValues(extracted.get(0), documentHasObjectArrays);
+    /**
+     * Use when values are stored as WKB encoded points.
+     */
+    @SuppressWarnings("unchecked")
+    private Object bytesRefWkbValues(Object values, GeoPoint nullValue, boolean needsMultifieldAdjustment) {
+        if (values instanceof List<?> == false) {
+            return toWKB(normalize(convert(values, nullValue, needsMultifieldAdjustment)));
         }
 
-        return new ExtractedFieldValues(extracted, documentHasObjectArrays);
+        var resultList = ((List<Object>) values).stream()
+            .map(v -> convert(v, nullValue, needsMultifieldAdjustment))
+            .filter(Objects::nonNull)
+            .sorted(Comparator.comparingLong(GeoPoint::getEncoded))
+            .map(p -> toWKB(normalize(p)))
+            .toList();
+        return maybeFoldList(resultList);
     }
 
     @SuppressWarnings("unchecked")
-    private boolean processLevel(Map<String, Object> level, String field, ArrayList<Object> extracted, boolean documentHasObjectArrays) {
-        if (field.contains(".") == false) {
-            var value = level.get(field);
-            processLeafLevel(value, extracted);
-            return documentHasObjectArrays;
+    private Object exactValuesFromSource(Object value, GeoPoint nullValue, boolean needsMultifieldAdjustment) {
+        if (value instanceof List<?> == false) {
+            return toWKB(convert(value, nullValue, needsMultifieldAdjustment));
         }
 
-        var nameInLevel = field.split("\\.")[0];
-        var entry = level.get(nameInLevel);
-        if (entry instanceof Map<?, ?> m) {
-            return processLevel((Map<String, Object>) m, field.substring(field.indexOf('.') + 1), extracted, documentHasObjectArrays);
-        }
-        if (entry instanceof List<?> l) {
-            for (var object : l) {
-                processLevel((Map<String, Object>) object, field.substring(field.indexOf('.') + 1), extracted, true);
-            }
-            return true;
-        }
-
-        assert false : "unexpected document structure";
-        return false;
-    }
-
-    private void processLeafLevel(Object value, ArrayList<Object> extracted) {
-        if (value instanceof List<?> l) {
-            if (l.size() > 0 && l.get(0) instanceof Double) {
-                // this must be a single point in array form
-                // we'll put it into a different form here to make our lives a bit easier while implementing `expected`
-                extracted.add(Map.of("type", "point", "coordinates", l));
-            } else {
-                // this is actually an array of points but there could still be points in array form inside
-                for (var arrayValue : l) {
-                    processLeafLevel(arrayValue, extracted);
-                }
-            }
-        } else {
-            extracted.add(value);
-        }
+        var resultList = ((List<Object>) value).stream()
+            .map(v -> convert(v, nullValue, needsMultifieldAdjustment))
+            .filter(Objects::nonNull)
+            .map(this::toWKB)
+            .toList();
+        return maybeFoldList(resultList);
     }
 
     @SuppressWarnings("unchecked")
-    private GeoPoint convert(Object value, GeoPoint nullValue) {
+    private GeoPoint convert(Object value, GeoPoint nullValue, boolean needsMultifieldAdjustment) {
         if (value == null) {
-            return nullValue;
+            if (nullValue == null) {
+                return null;
+            }
+            return possiblyAdjustMultifieldValue(nullValue, needsMultifieldAdjustment);
         }
 
         if (value instanceof String s) {
             try {
-                return new GeoPoint(s);
+                return possiblyAdjustMultifieldValue(new GeoPoint(s), needsMultifieldAdjustment);
             } catch (Exception e) {
                 return null;
             }
@@ -180,9 +149,9 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
             if (m.get("type") != null) {
                 var coordinates = (List<Double>) m.get("coordinates");
                 // Order is GeoJSON is lon,lat
-                return new GeoPoint(coordinates.get(1), coordinates.get(0));
+                return possiblyAdjustMultifieldValue(new GeoPoint(coordinates.get(1), coordinates.get(0)), needsMultifieldAdjustment);
             } else {
-                return new GeoPoint((Double) m.get("lat"), (Double) m.get("lon"));
+                return possiblyAdjustMultifieldValue(new GeoPoint((Double) m.get("lat"), (Double) m.get("lon")), needsMultifieldAdjustment);
             }
         }
 
@@ -190,6 +159,26 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
         return null;
     }
 
+    private GeoPoint possiblyAdjustMultifieldValue(GeoPoint point, boolean isMultifield) {
+        // geo_point multifields are parsed from a geohash representation of the original point (GeoPointFieldMapper#index)
+        // and it's not exact.
+        // So if this is a multifield we need another adjustment here.
+        // Note that this does not apply to block loader from source because in this case we parse raw original values.
+        // Same thing happens with synthetic source since it is generated from the parent field data that didn't go through multi field
+        // parsing logic.
+        if (isMultifield) {
+            return point.resetFromString(point.geohash());
+        }
+
+        return point;
+    }
+
+    /**
+     * Normalizes the given point by forcing it to be encoded and then decoded, similarly to how actual block loaders work when they read
+     * values. During encoding/decoding, some precision may be lost, so the lat/lon coordinates may change. Without this, the point returned
+     * by the block loader will be ever so slightly different from the original point. This will cause the tests to fail. This method
+     * exists to essentially mimic what happens to the point when it gets stored and then later loaded back.
+     */
     private GeoPoint normalize(GeoPoint point) {
         if (point == null) {
             return null;
@@ -204,4 +193,5 @@ public class GeoPointFieldBlockLoaderTests extends BlockLoaderTestCase {
 
         return new BytesRef(WellKnownBinary.toWKB(new Point(point.getX(), point.getY()), ByteOrder.LITTLE_ENDIAN));
     }
+
 }

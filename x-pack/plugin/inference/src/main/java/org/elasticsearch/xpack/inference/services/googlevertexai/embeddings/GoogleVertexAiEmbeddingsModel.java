@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
+import org.apache.http.client.methods.HttpPost;
 import org.apache.http.client.utils.URIBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.ChunkingSettings;
@@ -14,15 +15,18 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
-import org.elasticsearch.xpack.inference.external.request.googlevertexai.GoogleVertexAiUtils;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiModel;
+import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiRateLimitServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.action.GoogleVertexAiActionVisitor;
+import org.elasticsearch.xpack.inference.services.googlevertexai.request.GoogleVertexAiUtils;
 
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.BiConsumer;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -65,8 +69,7 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         super(model, taskSettings);
     }
 
-    // Should only be used directly for testing
-    GoogleVertexAiEmbeddingsModel(
+    public GoogleVertexAiEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
@@ -75,35 +78,41 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
         ChunkingSettings chunkingSettings,
         @Nullable GoogleVertexAiSecretSettings secrets
     ) {
-        super(
+        this(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
-            new ModelSecrets(secrets),
-            serviceSettings
+            new ModelSecrets(secrets)
         );
+    }
+
+    public GoogleVertexAiEmbeddingsModel(ModelConfigurations modelConfigurations, ModelSecrets modelSecrets) {
+        super(modelConfigurations, modelSecrets, (GoogleVertexAiRateLimitServiceSettings) modelConfigurations.getServiceSettings());
         try {
-            this.uri = buildUri(serviceSettings.location(), serviceSettings.projectId(), serviceSettings.modelId());
+            var serviceSettings = (GoogleVertexAiEmbeddingsServiceSettings) modelConfigurations.getServiceSettings();
+            this.nonStreamingUri = buildUri(serviceSettings.location(), serviceSettings.projectId(), serviceSettings.modelId());
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
     }
 
     // Should only be used directly for testing
-    protected GoogleVertexAiEmbeddingsModel(
+    public GoogleVertexAiEmbeddingsModel(
         String inferenceEntityId,
         TaskType taskType,
         String service,
         String uri,
         GoogleVertexAiEmbeddingsServiceSettings serviceSettings,
         GoogleVertexAiEmbeddingsTaskSettings taskSettings,
-        @Nullable GoogleVertexAiSecretSettings secrets
+        @Nullable GoogleVertexAiSecretSettings secrets,
+        BiConsumer<HttpPost, GoogleVertexAiModel> authHeaderDecorator
     ) {
         super(
             new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
             new ModelSecrets(secrets),
-            serviceSettings
+            serviceSettings,
+            authHeaderDecorator
         );
         try {
-            this.uri = new URI(uri);
+            this.nonStreamingUri = new URI(uri);
         } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
@@ -125,8 +134,8 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
     }
 
     @Override
-    public GoogleVertexAiEmbeddingsRateLimitServiceSettings rateLimitServiceSettings() {
-        return (GoogleVertexAiEmbeddingsRateLimitServiceSettings) super.rateLimitServiceSettings();
+    public GoogleVertexAiRateLimitServiceSettings rateLimitServiceSettings() {
+        return super.rateLimitServiceSettings();
     }
 
     @Override
@@ -149,5 +158,18 @@ public class GoogleVertexAiEmbeddingsModel extends GoogleVertexAiModel {
                 format("%s:%s", modelId, GoogleVertexAiUtils.PREDICT)
             )
             .build();
+    }
+
+    @Override
+    public int rateLimitGroupingHash() {
+        // In VertexAI rate limiting is scoped to the project, region, model and endpoint.
+        // API Key does not affect the quota
+        // https://ai.google.dev/gemini-api/docs/rate-limits
+        // https://cloud.google.com/vertex-ai/docs/quotas
+        var projectId = getServiceSettings().projectId();
+        var location = getServiceSettings().location();
+        var modelId = getServiceSettings().modelId();
+
+        return Objects.hash(projectId, location, modelId, GoogleVertexAiUtils.PREDICT);
     }
 }

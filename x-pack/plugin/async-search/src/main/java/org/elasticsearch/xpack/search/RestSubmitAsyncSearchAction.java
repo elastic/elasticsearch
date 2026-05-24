@@ -15,6 +15,7 @@ import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
+import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.usage.SearchUsageHolder;
 import org.elasticsearch.xpack.core.search.action.AsyncSearchResponse;
 import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchAction;
@@ -23,6 +24,7 @@ import org.elasticsearch.xpack.core.search.action.SubmitAsyncSearchRequest;
 import java.io.IOException;
 import java.util.Collections;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.IntConsumer;
 import java.util.function.Predicate;
@@ -37,10 +39,16 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
 
     private final SearchUsageHolder searchUsageHolder;
     private final Predicate<NodeFeature> clusterSupportsFeature;
+    private final CrossProjectModeDecider crossProjectModeDecider;
 
-    public RestSubmitAsyncSearchAction(SearchUsageHolder searchUsageHolder, Predicate<NodeFeature> clusterSupportsFeature) {
+    public RestSubmitAsyncSearchAction(
+        SearchUsageHolder searchUsageHolder,
+        Predicate<NodeFeature> clusterSupportsFeature,
+        CrossProjectModeDecider crossProjectModeDecider
+    ) {
         this.searchUsageHolder = searchUsageHolder;
         this.clusterSupportsFeature = clusterSupportsFeature;
+        this.crossProjectModeDecider = crossProjectModeDecider;
     }
 
     @Override
@@ -59,13 +67,27 @@ public final class RestSubmitAsyncSearchAction extends BaseRestHandler {
             client.threadPool().getThreadContext().setErrorTraceTransportHeader(request);
         }
         SubmitAsyncSearchRequest submit = new SubmitAsyncSearchRequest();
+
+        boolean crossProjectEnabled = crossProjectModeDecider.crossProjectEnabled();
+        if (crossProjectEnabled) {
+            submit.getSearchRequest().setCcsMinimizeRoundtrips(true);
+        }
+
         IntConsumer setSize = size -> submit.getSearchRequest().source().size(size);
         // for simplicity, we share parsing with ordinary search. That means a couple of unsupported parameters, like scroll
         // and pre_filter_shard_size get set to the search request although the REST spec don't list
         // them as supported. We rely on SubmitAsyncSearchRequest#validate to fail in case they are set.
         // Note that ccs_minimize_roundtrips is also set this way, which is a supported option.
         request.withContentOrSourceParamParserOrNull(
-            parser -> parseSearchRequest(submit.getSearchRequest(), request, parser, clusterSupportsFeature, setSize, searchUsageHolder)
+            parser -> parseSearchRequest(
+                submit.getSearchRequest(),
+                request,
+                parser,
+                clusterSupportsFeature,
+                setSize,
+                searchUsageHolder,
+                Optional.of(crossProjectEnabled)
+            )
         );
 
         if (request.hasParam("wait_for_completion_timeout")) {

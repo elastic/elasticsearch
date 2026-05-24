@@ -1596,7 +1596,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 try {
                     decompressed = codec.decompress(raw);
                 } catch (Exception e) {
-                    raw.close();
+                    try {
+                        obj.abortStream(raw);
+                    } catch (IOException abortEx) {
+                        e.addSuppressed(abortEx);
+                    }
                     throw e;
                 }
                 try {
@@ -1615,7 +1619,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         perFileReadSchema
                     );
                 } catch (Exception e) {
-                    decompressed.close();
+                    try {
+                        obj.abortStream(raw);
+                    } catch (IOException abortEx) {
+                        e.addSuppressed(abortEx);
+                    }
                     throw e;
                 }
             }

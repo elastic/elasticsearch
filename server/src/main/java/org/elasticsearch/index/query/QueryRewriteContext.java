@@ -43,6 +43,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -782,7 +783,7 @@ public class QueryRewriteContext {
      * Returns the collection of {@link SearchExtBuilder}s registered during query rewrite,
      * or an empty collection if none were registered.
      */
-    public java.util.Collection<SearchExtBuilder> getRewriteSearchExts() {
+    public Collection<SearchExtBuilder> getRewriteSearchExts() {
         return rewriteSearchExts == null ? List.of() : rewriteSearchExts.values();
     }
 }

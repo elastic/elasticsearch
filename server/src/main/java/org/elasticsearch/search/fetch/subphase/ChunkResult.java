@@ -23,6 +23,12 @@ import java.io.IOException;
  */
 public record ChunkResult(String text, int startOffset, int endOffset, float score) implements ToXContentObject, Writeable {
 
+    public ChunkResult {
+        if (endOffset < startOffset) {
+            throw new IllegalArgumentException("endOffset [" + endOffset + "] must be >= startOffset [" + startOffset + "]");
+        }
+    }
+
     public ChunkResult(StreamInput in) throws IOException {
         this(in.readString(), in.readVInt(), in.readVInt(), in.readFloat());
     }

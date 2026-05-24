@@ -15,7 +15,6 @@ import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.SearchExtBuilder;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesContext;
 import org.elasticsearch.search.fetch.subphase.FetchFieldsContext;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
@@ -158,14 +157,6 @@ public class FetchContext {
      */
     public List<RescoreContext> rescore() {
         return searchContext.rescore();
-    }
-
-    /**
-     * The original search source, or null if not available.
-     * Can be used by fetch sub-phases to inspect the original query builders before rewriting.
-     */
-    public SearchSourceBuilder searchSource() {
-        return searchContext.request().source();
     }
 
     /**

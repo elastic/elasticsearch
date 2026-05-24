@@ -152,6 +152,31 @@ public class SemanticChunkScoringIT extends ESIntegTestCase {
     }
 
     /**
+     * Search with a very high min_score that no chunk can satisfy.
+     * The document should still appear in hits but _chunks should be empty.
+     */
+    public void testMinScoreFiltersAllChunks() throws Exception {
+        createIndexWithSemanticField();
+        indexDocWithChunks("doc1", List.of("chunk about dogs", "chunk about cats"));
+
+        // min_score=0.99 is extremely high; the mock model won't produce scores that high
+        String queryJson = """
+            { "semantic": { "field": "content", "query": "animals", "min_score": 0.99, "chunks_per_doc": 10 } }
+            """;
+        SearchResponse response = search(queryJson);
+        try {
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
+            SearchHit hit = response.getHits().getAt(0);
+            Map<String, List<ChunkResult>> chunks = hit.getChunks();
+            // Either no "content" key or the list is empty — no chunks should pass the threshold
+            boolean noChunks = chunks.isEmpty() || chunks.getOrDefault("content", List.of()).isEmpty();
+            assertThat("all chunks should be filtered by min_score=0.99", noChunks, equalTo(true));
+        } finally {
+            response.decRef();
+        }
+    }
+
+    /**
      * Search with min_score=0 to verify chunks are returned when all chunks pass the threshold.
      */
     public void testMinScoreFiltersChunks() throws Exception {

@@ -157,6 +157,97 @@ public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testMinMaxKeywordColdThenWarmShortCircuits() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        int totalRows = 5;
+        Path csvFile = writeCsvFile(totalRows);
+        try {
+            String query = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS lo = MIN(name), hi = MAX(name)";
+
+            try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+                assertKeywordMinMax(response, "row_0", "row_4");
+                assertThat("cold execution must scan rows", response.documentsFound(), equalTo((long) totalRows));
+            }
+            try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+                assertKeywordMinMax(response, "row_0", "row_4");
+                assertNoPushdownBypass(response);
+                assertThat(response.documentsFound(), equalTo(0L));
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
+    public void testAllNullColumnMinMaxReturnsNull() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        // Column 'maybe' is keyword and all cells are empty. The optimizer cannot short-circuit
+        // here (cached min/max are null, so the rule bails to a regular scan), but the regular
+        // scan must still return null on both cold and warm runs.
+        StringBuilder sb = new StringBuilder("id:integer,maybe:keyword\n");
+        for (int i = 0; i < 4; i++) {
+            sb.append(i).append(',').append('\n');
+        }
+        Path csvFile = createTempDir().resolve("allnull.csv");
+        Files.writeString(csvFile, sb.toString(), StandardCharsets.UTF_8);
+        try {
+            String query = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS lo = MIN(maybe), hi = MAX(maybe)";
+
+            try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(rows.size(), equalTo(1));
+                assertNull("MIN(all-null) must be null on cold path", rows.get(0).get(0));
+                assertNull("MAX(all-null) must be null on cold path", rows.get(0).get(1));
+            }
+            try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(rows.size(), equalTo(1));
+                assertNull("MIN(all-null) must remain null on warm path", rows.get(0).get(0));
+                assertNull("MAX(all-null) must remain null on warm path", rows.get(0).get(1));
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
+    public void testFilteredAggregateDoesNotServeCachedStats() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        // 50 rows, value column ranges 0..490. WHERE narrows to 100..200 → MIN must be 100, not 0.
+        int totalRows = 50;
+        Path csvFile = writeCsvFile(totalRows);
+        try {
+            String prime = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS lo = MIN(value)";
+            // Prime the cache with whole-file stats (min=0).
+            try (var response = run(syncEsqlQueryRequest(prime).profile(true))) {
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(0L));
+            }
+            // Filtered query: MIN over rows where value >= 100 → 100, not the cached 0.
+            String filtered = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | WHERE value >= 100 | STATS lo = MIN(value)";
+            try (var response = run(syncEsqlQueryRequest(filtered).profile(true))) {
+                List<List<Object>> rows = getValuesList(response);
+                assertThat(
+                    "filtered MIN must reflect the filter, not the cached whole-file stats",
+                    ((Number) rows.get(0).get(0)).longValue(),
+                    equalTo(100L)
+                );
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
+    private static void assertKeywordMinMax(EsqlQueryResponse response, String expectedMin, String expectedMax) {
+        List<? extends ColumnInfo> columns = response.columns();
+        assertThat(columns.size(), equalTo(2));
+        List<List<Object>> rows = getValuesList(response);
+        assertThat(rows.size(), equalTo(1));
+        assertThat(rows.get(0).get(0).toString(), equalTo(expectedMin));
+        assertThat(rows.get(0).get(1).toString(), equalTo(expectedMax));
+    }
+
     private static void assertMinMax(EsqlQueryResponse response, long expectedMin, long expectedMax) {
         List<? extends ColumnInfo> columns = response.columns();
         assertThat(columns.size(), equalTo(2));

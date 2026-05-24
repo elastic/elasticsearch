@@ -90,21 +90,28 @@ public final class SynthesizeExternalSource {
     }
 
     private static Object valueAt(Block block, int row, BytesRef scratch) {
-        int valueIdx = block.getFirstValueIndex(row);
+        // {@code getFirstValueIndex} is resolved inside each supported arm so blocks whose
+        // implementation throws from {@code getFirstValueIndex} (e.g. {@link
+        // org.elasticsearch.compute.data.CompositeBlock}) hit the explicit "unsupported block
+        // type" branch below instead of leaking an implementation-internal exception message.
         return switch (block) {
-            case LongBlock l -> l.getLong(valueIdx);
-            case IntBlock i -> i.getInt(valueIdx);
-            case DoubleBlock d -> d.getDouble(valueIdx);
-            case BooleanBlock b -> b.getBoolean(valueIdx);
+            case LongBlock l -> l.getLong(l.getFirstValueIndex(row));
+            case IntBlock i -> i.getInt(i.getFirstValueIndex(row));
+            case DoubleBlock d -> d.getDouble(d.getFirstValueIndex(row));
+            case BooleanBlock b -> b.getBoolean(b.getFirstValueIndex(row));
             case BytesRefBlock br -> {
-                BytesRef out = br.getBytesRef(valueIdx, scratch);
+                BytesRef out = br.getBytesRef(br.getFirstValueIndex(row), scratch);
                 // Render BytesRef as String — fromMap will JSON-encode it.
                 yield out.utf8ToString();
             }
-            // Default arm intentional: any new Block subtype falls through to its toString().
-            // Not asserting because EsqlBlockTypes can introduce new types and we prefer a
-            // best-effort rendering over a hard failure on a producer-thread.
-            default -> block.toString();
+            // Future Block subtypes (DenseVector, AggregateMetricDouble, ...) have no defined
+            // _source rendering on this code path; falling through to toString() would emit
+            // implementation-specific debug text into user-visible JSON. Fail loud so the new
+            // type's handling is added here intentionally rather than discovered as corrupt
+            // _source in production.
+            default -> throw new UnsupportedOperationException(
+                "_source synthesis does not support block type [" + block.getClass().getName() + "]"
+            );
         };
     }
 }

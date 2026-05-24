@@ -11,6 +11,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.test.TestBlockFactory;
@@ -62,6 +63,30 @@ public class SynthesizeExternalSourceTests extends ESTestCase {
                 assertFalse(
                     "synthetic _rowPosition must be excluded from _source: " + json,
                     json.contains(ColumnExtractor.ROW_POSITION_COLUMN)
+                );
+            }
+        }
+    }
+
+    /**
+     * Block subtypes not enumerated by the value-rendering switch (here: {@link CompositeBlock})
+     * must fail loudly. Falling through to {@code toString()} would emit implementation-specific
+     * debug text into user-visible JSON; preferring an explicit failure forces the new type's
+     * handling to be added intentionally rather than discovered as corrupt {@code _source}.
+     */
+    public void testUnsupportedBlockTypeRejected() throws Exception {
+        try (IntBlock inner = intBlock(1)) {
+            inner.incRef();
+            try (CompositeBlock composite = new CompositeBlock(new Block[] { inner })) {
+                String[] names = { "weird" };
+                Block[] blocks = { composite };
+                UnsupportedOperationException thrown = expectThrows(
+                    UnsupportedOperationException.class,
+                    () -> SynthesizeExternalSource.composePage(names, blocks, 1, blockFactory)
+                );
+                assertTrue(
+                    "exception message must name the rejected block class: " + thrown.getMessage(),
+                    thrown.getMessage().contains("CompositeBlock")
                 );
             }
         }

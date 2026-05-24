@@ -72,7 +72,10 @@ public final class ExternalRowIdentity {
      *     <li>Allocate the backing {@code byte[]} once, then walk again to copy the prefix + the
      *         scratch decimal bytes for each row into the right slot.</li>
      * </ol>
-     * Single decimal encoding pass per row, no {@link Long#toString} allocation.
+     * Single decimal encoding pass per row, no {@link Long#toString} allocation. Note that the
+     * single producer-side allocation is the row-pos decoding scratch only — the vector builder
+     * copies the per-row bytes once into its own internal buffer on each {@code appendBytesRef},
+     * so the rendered output is not literally backed by the producer's {@code byte[]}.
      */
     public static BytesRefBlock composePage(BytesRef prefix, LongBlock rowPositionBlock, BlockFactory factory) {
         int positions = rowPositionBlock.getPositionCount();
@@ -127,7 +130,10 @@ public final class ExternalRowIdentity {
             }
         }
 
-        // Dense path: build a BytesRefVector backed by the single byte[] and wrap as a block.
+        // Dense path: feed every row to the vector builder via a scratch view over the producer
+        // backing array. The builder copies each appended BytesRef into its own internal buffer,
+        // so the rendered vector is not literally backed by `backing` — the single producer-side
+        // allocation here is the decoding scratch, not the vector's storage.
         try (BytesRefVector.Builder vectorBuilder = factory.newBytesRefVectorBuilder(positions)) {
             BytesRef scratch = new BytesRef();
             scratch.bytes = backing;

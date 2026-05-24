@@ -69,14 +69,12 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
 
     private final RestChannel channel;
     private final QueryMode mode;
-    private final String resultType;
     private final int limit;
 
-    PrometheusQueryResponseListener(RestChannel channel, QueryMode mode, String resultType, int limit) {
+    PrometheusQueryResponseListener(RestChannel channel, QueryMode mode, int limit) {
         this.channel = channel;
         this.mode = mode;
-        this.resultType = resultType;
-        this.limit = limit == 0 ? Integer.MAX_VALUE : limit;
+        this.limit = limit;
     }
 
     @Override
@@ -86,7 +84,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         // and crash the node.
         try {
             EsqlResponse response = queryResponse.response();
-            XContentBuilder builder = convertToPrometheusJson(response, mode, resultType, limit);
+            XContentBuilder builder = convertToPrometheusJson(response, mode, limit);
             channel.sendResponse(new RestResponse(RestStatus.OK, builder));
         } catch (Exception e) {
             sendErrorResponse(e);
@@ -115,11 +113,11 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
      *   <li>Column N-1 (last): {@code step} ({@code long} or {@code List<Long>}, epoch milliseconds)</li>
      * </ol>
      */
-    static XContentBuilder convertToPrometheusJson(EsqlResponse response, QueryMode mode, String resultType) throws IOException {
-        return convertToPrometheusJson(response, mode, resultType, Integer.MAX_VALUE);
+    static XContentBuilder convertToPrometheusJson(EsqlResponse response, QueryMode mode) throws IOException {
+        return convertToPrometheusJson(response, mode, Integer.MAX_VALUE);
     }
 
-    static XContentBuilder convertToPrometheusJson(EsqlResponse response, QueryMode mode, String resultType, int limit) throws IOException {
+    static XContentBuilder convertToPrometheusJson(EsqlResponse response, QueryMode mode, int limit) throws IOException {
         List<? extends ColumnInfo> columns = response.columns();
         if (columns.size() < 1 || VALUE_COLUMN.equals(columns.get(VALUE_COL_IDX).name()) == false) {
             throw new IllegalStateException("PROMQL response is missing required 'value' column at index " + VALUE_COL_IDX);
@@ -135,7 +133,7 @@ class PrometheusQueryResponseListener implements ActionListener<EsqlQueryRespons
         builder.startObject();
         builder.field("status", "success");
         builder.startObject("data");
-        builder.field("resultType", resultType);
+        builder.field("resultType", mode == QueryMode.RANGE ? "matrix" : "vector");
         builder.startArray("result");
         boolean truncated = writeResultArray(builder, response, mode, limit, columns, stepColIdx, useSeriesCol);
         builder.endArray(); // result

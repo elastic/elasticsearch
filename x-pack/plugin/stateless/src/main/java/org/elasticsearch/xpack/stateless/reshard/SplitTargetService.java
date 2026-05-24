@@ -348,8 +348,8 @@ public class SplitTargetService {
         }
 
         private boolean handoffReceivedAfterFailure(State newstate) {
-            if (newstate.getClass() == State.FailedInRecovery.class &&
-                currentState.getClass() == State.HandoffReceived.class) {
+            if (currentState.getClass() == State.FailedInRecovery.class &&
+                newstate.getClass() == State.HandoffReceived.class) {
                 return true;
             }
             return false;

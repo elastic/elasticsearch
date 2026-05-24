@@ -407,6 +407,16 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
                 );
             }
 
+            // Preserve chunk scoring config before this query builder is rewritten away.
+            // The fetch phase will read it from the search ext on the search context.
+            if (hasChunkConfig()) {
+                SemanticChunksExtBuilder newExt = new SemanticChunksExtBuilder(fieldName, minScore, chunksPerDoc);
+                SemanticChunksExtBuilder existing = (SemanticChunksExtBuilder) searchExecutionContext.getRewriteSearchExt(
+                    SemanticChunksExtBuilder.NAME
+                );
+                searchExecutionContext.addRewriteSearchExt(existing != null ? existing.merge(newExt) : newExt);
+            }
+
             return semanticFieldType.semanticQuery(inferenceResults, searchExecutionContext.requestSize(), boost(), queryName());
         } else if (lenient != null && lenient) {
             return new MatchNoneQueryBuilder();

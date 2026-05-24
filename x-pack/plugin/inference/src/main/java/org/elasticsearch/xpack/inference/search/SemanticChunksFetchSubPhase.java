@@ -9,13 +9,7 @@ package org.elasticsearch.xpack.inference.search;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.BoostingQueryBuilder;
-import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
-import org.elasticsearch.index.query.DisMaxQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.FetchContext;
 import org.elasticsearch.search.fetch.FetchSubPhase;
 import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
@@ -24,7 +18,7 @@ import org.elasticsearch.search.fetch.subphase.ChunkResult;
 import org.elasticsearch.search.fetch.subphase.highlight.DefaultHighlighter;
 import org.elasticsearch.search.fetch.subphase.highlight.HighlightUtils;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper.SemanticTextFieldType;
-import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
+import org.elasticsearch.xpack.inference.queries.SemanticChunksExtBuilder;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -45,20 +39,16 @@ import static org.elasticsearch.xpack.inference.common.chunks.SemanticTextChunkU
  * A {@link FetchSubPhase} that scores and returns individual semantic text chunks per hit
  * when a {@code semantic} query specifies {@code min_score} or {@code chunks_per_doc}.
  *
- * <p>Chunk configuration is extracted from {@link SemanticQueryBuilder} instances found in the
- * original (pre-rewrite) query tree. Chunk scoring reuses the same Lucene-level logic as
- * {@link org.elasticsearch.xpack.inference.highlight.SemanticTextHighlighter}.
+ * <p>Chunk configuration is read from {@link SemanticChunksExtBuilder} instances stored as
+ * search ext on the search context. These are registered by {@code SemanticQueryBuilder}
+ * during query rewrite, before it is replaced by a nested query. Chunk scoring reuses the
+ * same Lucene-level logic as the semantic text highlighter.
  */
 public class SemanticChunksFetchSubPhase implements FetchSubPhase {
 
-    /**
-     * Holds chunk configuration extracted from a single {@link SemanticQueryBuilder}.
-     */
-    record ChunkConfig(String fieldName, Float minScore, Integer chunksPerDoc) {}
-
     @Override
     public FetchSubPhaseProcessor getProcessor(FetchContext fetchContext) throws IOException {
-        List<ChunkConfig> configs = extractChunkConfigs(fetchContext);
+        List<SemanticChunksExtBuilder.ChunkConfig> configs = extractChunkConfigs(fetchContext);
         if (configs.isEmpty()) {
             return null;
         }
@@ -67,8 +57,8 @@ public class SemanticChunksFetchSubPhase implements FetchSubPhase {
         Query luceneQuery = fetchContext.query();
 
         // For each config, resolve the field type and extract the Lucene-level queries for scoring
-        Map<ChunkConfig, FieldQueryPair> fieldQueries = new LinkedHashMap<>();
-        for (ChunkConfig config : configs) {
+        Map<SemanticChunksExtBuilder.ChunkConfig, FieldQueryPair> fieldQueries = new LinkedHashMap<>();
+        for (SemanticChunksExtBuilder.ChunkConfig config : configs) {
             MappedFieldType mappedFieldType = searchExecutionContext.getFieldType(config.fieldName());
             if (mappedFieldType instanceof SemanticTextFieldType == false) {
                 continue;
@@ -98,7 +88,7 @@ public class SemanticChunksFetchSubPhase implements FetchSubPhase {
             public void process(HitContext hitContext) throws IOException {
                 Map<String, List<ChunkResult>> allChunks = new HashMap<>();
                 for (var entry : fieldQueries.entrySet()) {
-                    ChunkConfig config = entry.getKey();
+                    SemanticChunksExtBuilder.ChunkConfig config = entry.getKey();
                     FieldQueryPair fqp = entry.getValue();
                     SemanticTextFieldType fieldType = fqp.fieldType();
                     List<Query> queries = fqp.queries();
@@ -185,51 +175,16 @@ public class SemanticChunksFetchSubPhase implements FetchSubPhase {
     }
 
     /**
-     * Walks the original (pre-rewrite) query tree to find {@link SemanticQueryBuilder} instances
-     * that have chunk configuration.
+     * Extracts chunk configurations from the {@link SemanticChunksExtBuilder} stored as a
+     * search ext on the search context. Registered during query rewrite by
+     * {@code SemanticQueryBuilder} before it is rewritten away.
      */
-    private static List<ChunkConfig> extractChunkConfigs(FetchContext fetchContext) {
-        SearchSourceBuilder searchSource = fetchContext.searchSource();
-        if (searchSource == null) {
-            return List.of();
+    private static List<SemanticChunksExtBuilder.ChunkConfig> extractChunkConfigs(FetchContext fetchContext) {
+        var ext = fetchContext.getSearchExt(SemanticChunksExtBuilder.NAME);
+        if (ext instanceof SemanticChunksExtBuilder chunksExt) {
+            return chunksExt.configs();
         }
-        QueryBuilder queryBuilder = searchSource.query();
-        if (queryBuilder == null) {
-            return List.of();
-        }
-        List<ChunkConfig> configs = new ArrayList<>();
-        collectChunkConfigs(queryBuilder, configs);
-        return configs;
-    }
-
-    private static void collectChunkConfigs(QueryBuilder queryBuilder, List<ChunkConfig> configs) {
-        if (queryBuilder instanceof SemanticQueryBuilder sqb) {
-            if (sqb.hasChunkConfig()) {
-                configs.add(new ChunkConfig(sqb.getFieldName(), sqb.minScore(), sqb.chunksPerDoc()));
-            }
-        } else if (queryBuilder instanceof BoolQueryBuilder bqb) {
-            for (QueryBuilder clause : bqb.must()) {
-                collectChunkConfigs(clause, configs);
-            }
-            for (QueryBuilder clause : bqb.should()) {
-                collectChunkConfigs(clause, configs);
-            }
-            for (QueryBuilder clause : bqb.filter()) {
-                collectChunkConfigs(clause, configs);
-            }
-            for (QueryBuilder clause : bqb.mustNot()) {
-                collectChunkConfigs(clause, configs);
-            }
-        } else if (queryBuilder instanceof ConstantScoreQueryBuilder csqb) {
-            collectChunkConfigs(csqb.innerQuery(), configs);
-        } else if (queryBuilder instanceof DisMaxQueryBuilder dmqb) {
-            for (QueryBuilder clause : dmqb.innerQueries()) {
-                collectChunkConfigs(clause, configs);
-            }
-        } else if (queryBuilder instanceof BoostingQueryBuilder bqb) {
-            collectChunkConfigs(bqb.positiveQuery(), configs);
-            collectChunkConfigs(bqb.negativeQuery(), configs);
-        }
+        return List.of();
     }
 
     private static Function<OffsetAndScore, String> buildContentExtractor(

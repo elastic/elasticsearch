@@ -11,88 +11,97 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.search.SearchExtBuilder;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
-import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
-
 /**
- * Carries chunk-scoring configuration ({@code minScore} and {@code chunksPerDoc}) from the
- * search request to the fetch phase, where {@code SemanticChunksFetchSubPhase} uses it to
- * select and score individual semantic chunks per hit.
+ * Carries chunk-scoring configuration from the query rewrite phase to the fetch phase.
+ * Each entry holds the field name, optional {@code min_score}, and optional {@code chunks_per_doc}
+ * for a single semantic query. Multiple entries are supported for compound queries containing
+ * several semantic sub-queries.
+ *
+ * <p>Instances are registered on {@link org.elasticsearch.index.query.QueryRewriteContext#addRewriteSearchExt}
+ * during {@code SemanticQueryBuilder} rewrite, then propagated to the search context by
+ * {@code SearchService}. The fetch sub-phase reads them via
+ * {@link org.elasticsearch.search.fetch.FetchContext#getSearchExt}.
  */
 public class SemanticChunksExtBuilder extends SearchExtBuilder {
 
     public static final String NAME = "semantic_chunks";
 
-    private static final ParseField FIELD_NAME_FIELD = new ParseField("field_name");
-    private static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
-    private static final ParseField CHUNKS_PER_DOC_FIELD = new ParseField("chunks_per_doc");
+    private final List<ChunkConfig> configs;
 
-    private static final ConstructingObjectParser<SemanticChunksExtBuilder, Void> PARSER = new ConstructingObjectParser<>(
-        NAME,
-        false,
-        args -> new SemanticChunksExtBuilder((String) args[0], (Float) args[1], (Integer) args[2])
-    );
-
-    static {
-        PARSER.declareString(constructorArg(), FIELD_NAME_FIELD);
-        PARSER.declareFloat(optionalConstructorArg(), MIN_SCORE_FIELD);
-        PARSER.declareInt(optionalConstructorArg(), CHUNKS_PER_DOC_FIELD);
+    /**
+     * A single chunk-scoring configuration for one semantic field.
+     */
+    public record ChunkConfig(String fieldName, @Nullable Float minScore, @Nullable Integer chunksPerDoc) {
+        public ChunkConfig {
+            if (fieldName == null) {
+                throw new IllegalArgumentException("[" + NAME + "] requires a field_name value");
+            }
+            if (minScore != null && minScore < 0) {
+                throw new IllegalArgumentException("[" + NAME + "] min_score must be non-negative, got [" + minScore + "]");
+            }
+            if (chunksPerDoc != null && chunksPerDoc < 1) {
+                throw new IllegalArgumentException("[" + NAME + "] chunks_per_doc must be at least 1, got [" + chunksPerDoc + "]");
+            }
+        }
     }
 
-    private final String fieldName;
-    @Nullable
-    private final Float minScore;
-    @Nullable
-    private final Integer chunksPerDoc;
+    public SemanticChunksExtBuilder(List<ChunkConfig> configs) {
+        if (configs == null || configs.isEmpty()) {
+            throw new IllegalArgumentException("[" + NAME + "] requires at least one chunk config");
+        }
+        this.configs = List.copyOf(configs);
+    }
 
+    /**
+     * Creates an ext builder with a single chunk config. Used during query rewrite when a single
+     * {@code SemanticQueryBuilder} registers its config. Multiple single-config builders are
+     * merged via {@link #merge(SemanticChunksExtBuilder)}.
+     */
     public SemanticChunksExtBuilder(String fieldName, @Nullable Float minScore, @Nullable Integer chunksPerDoc) {
-        if (fieldName == null) {
-            throw new IllegalArgumentException("[" + NAME + "] requires a field_name value");
-        }
-        if (minScore != null && minScore < 0) {
-            throw new IllegalArgumentException("[" + NAME + "] min_score must be non-negative, got [" + minScore + "]");
-        }
-        if (chunksPerDoc != null && chunksPerDoc < 1) {
-            throw new IllegalArgumentException("[" + NAME + "] chunks_per_doc must be at least 1, got [" + chunksPerDoc + "]");
-        }
-        this.fieldName = fieldName;
-        this.minScore = minScore;
-        this.chunksPerDoc = chunksPerDoc;
+        this(List.of(new ChunkConfig(fieldName, minScore, chunksPerDoc)));
     }
 
     public SemanticChunksExtBuilder(StreamInput in) throws IOException {
-        this.fieldName = in.readString();
-        this.minScore = in.readOptionalFloat();
-        this.chunksPerDoc = in.readOptionalInt();
+        int size = in.readVInt();
+        List<ChunkConfig> list = new ArrayList<>(size);
+        for (int i = 0; i < size; i++) {
+            list.add(new ChunkConfig(in.readString(), in.readOptionalFloat(), in.readOptionalInt()));
+        }
+        this.configs = Collections.unmodifiableList(list);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeString(fieldName);
-        out.writeOptionalFloat(minScore);
-        out.writeOptionalInt(chunksPerDoc);
+        out.writeVInt(configs.size());
+        for (ChunkConfig config : configs) {
+            out.writeString(config.fieldName());
+            out.writeOptionalFloat(config.minScore());
+            out.writeOptionalInt(config.chunksPerDoc());
+        }
     }
 
-    public String fieldName() {
-        return fieldName;
+    public List<ChunkConfig> configs() {
+        return configs;
     }
 
-    @Nullable
-    public Float minScore() {
-        return minScore;
-    }
-
-    @Nullable
-    public Integer chunksPerDoc() {
-        return chunksPerDoc;
+    /**
+     * Returns a new ext builder that contains all configs from this builder and the other.
+     * Used to accumulate configs when multiple semantic queries register exts during rewrite.
+     */
+    public SemanticChunksExtBuilder merge(SemanticChunksExtBuilder other) {
+        List<ChunkConfig> merged = new ArrayList<>(this.configs.size() + other.configs.size());
+        merged.addAll(this.configs);
+        merged.addAll(other.configs);
+        return new SemanticChunksExtBuilder(merged);
     }
 
     @Override
@@ -103,19 +112,27 @@ public class SemanticChunksExtBuilder extends SearchExtBuilder {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject(NAME);
-        builder.field(FIELD_NAME_FIELD.getPreferredName(), fieldName);
-        if (minScore != null) {
-            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+        builder.startArray("configs");
+        for (ChunkConfig config : configs) {
+            builder.startObject();
+            builder.field("field_name", config.fieldName());
+            if (config.minScore() != null) {
+                builder.field("min_score", config.minScore());
+            }
+            if (config.chunksPerDoc() != null) {
+                builder.field("chunks_per_doc", config.chunksPerDoc());
+            }
+            builder.endObject();
         }
-        if (chunksPerDoc != null) {
-            builder.field(CHUNKS_PER_DOC_FIELD.getPreferredName(), chunksPerDoc);
-        }
+        builder.endArray();
         builder.endObject();
         return builder;
     }
 
     public static SemanticChunksExtBuilder fromXContent(XContentParser parser) throws IOException {
-        return PARSER.apply(parser, null);
+        // This ext builder is not expected to be parsed from XContent in the REST layer.
+        // It is only created internally during query rewrite.
+        throw new UnsupportedOperationException("[" + NAME + "] is not parseable from XContent");
     }
 
     @Override
@@ -123,13 +140,11 @@ public class SemanticChunksExtBuilder extends SearchExtBuilder {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SemanticChunksExtBuilder that = (SemanticChunksExtBuilder) o;
-        return Objects.equals(fieldName, that.fieldName)
-            && Objects.equals(minScore, that.minScore)
-            && Objects.equals(chunksPerDoc, that.chunksPerDoc);
+        return Objects.equals(configs, that.configs);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldName, minScore, chunksPerDoc);
+        return Objects.hash(configs);
     }
 }

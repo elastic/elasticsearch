@@ -1849,6 +1849,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             assert context.getQueryConstructionMemoryUsed() == 0
                 : "rewrite phase should not build queries; found " + context.getQueryConstructionMemoryUsed() + " bytes tracked";
 
+            // Propagate search ext builders registered during query rewrite (e.g. chunk scoring config
+            // from SemanticQueryBuilder that gets rewritten away before the fetch phase).
+            for (SearchExtBuilder ext : context.getRewriteSearchExts()) {
+                searchContext.addSearchExt(ext);
+            }
+
             if (context.getTimeRangeFilterFromMillis() != null) {
                 // range queries may get rewritten to match_all or a range with open bounds. Rewriting in that case is the only place
                 // where we parse the date and set it to the context. We need to propagate it back from the clone into the original context

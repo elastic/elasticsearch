@@ -17,9 +17,11 @@ import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Set;
 
 /**
  * Producer-side composition of the {@code _source} metadata column for external datasets.
@@ -39,14 +41,25 @@ import java.util.Map;
  */
 public final class SynthesizeExternalSource {
 
+    /**
+     * Framework-known synthetic / channel-bookkeeping column names that must never appear in the
+     * rendered {@code _source}. Restricted to columns the producer pipeline injects itself
+     * (currently only {@link ColumnExtractor#ROW_POSITION_COLUMN}). User data columns whose names
+     * happen to start with {@code _} (e.g. Spark's {@code _corrupt_record}, a user-supplied
+     * {@code _status}) are real data and pass through to the rendered object.
+     */
+    static final Set<String> SYNTHETIC_COLUMN_NAMES = Set.of(ColumnExtractor.ROW_POSITION_COLUMN);
+
     private SynthesizeExternalSource() {}
 
     /**
      * Build a {@code _source} block of length {@code positions} by composing one JSON object per
      * row from the supplied data columns. Each entry in {@code dataColumnNames} is paired
-     * positionally with the matching block in {@code dataColumnBlocks}; entries whose name
-     * starts with {@code _} (synthetic / metadata) are excluded so only user-facing data
-     * columns reach the rendered {@code _source}.
+     * positionally with the matching block in {@code dataColumnBlocks}; columns named in
+     * {@link #SYNTHETIC_COLUMN_NAMES} (framework-injected channels like
+     * {@link ColumnExtractor#ROW_POSITION_COLUMN}) are excluded. A leading underscore on its own
+     * is NOT a filter — user data columns named e.g. {@code _corrupt_record} or {@code _status}
+     * are legitimate data and pass through to the rendered object.
      */
     public static BytesRefBlock composePage(String[] dataColumnNames, Block[] dataColumnBlocks, int positions, BlockFactory factory) {
         if (positions == 0) {
@@ -58,8 +71,8 @@ public final class SynthesizeExternalSource {
                 Map<String, Object> map = new LinkedHashMap<>(dataColumnNames.length);
                 for (int c = 0; c < dataColumnNames.length; c++) {
                     String name = dataColumnNames[c];
-                    if (name.length() > 0 && name.charAt(0) == '_') {
-                        continue; // exclude synthetic / metadata channels (e.g. _rowPosition)
+                    if (SYNTHETIC_COLUMN_NAMES.contains(name)) {
+                        continue; // exclude framework-injected synthetic channels (e.g. _rowPosition)
                     }
                     Block block = dataColumnBlocks[c];
                     if (block == null || block.isNull(row)) {

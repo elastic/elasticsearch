@@ -11,10 +11,13 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -43,6 +46,22 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
     private final BlockFactory blockFactory;
     private final int[] dataColumnIndices;
     private final int[] partitionColumnIndices;
+    /**
+     * Per-file prefix bytes for {@code _id} composition, or {@code null} when {@code _id} is not
+     * projected. When non-null, the iterator finds the data-page channel holding
+     * {@link ColumnExtractor#ROW_POSITION_COLUMN} and composes {@code <prefix><rowPosition>}
+     * per row into the {@code _id} output slot, instead of looking up a constant value.
+     */
+    @Nullable
+    private final BytesRef idPrefix;
+    /**
+     * Index of {@link ColumnExtractor#ROW_POSITION_COLUMN} within {@link #dataColumnIndices}
+     * (i.e. position in the incoming data page's block list), or {@code -1} when not present.
+     * Required (non-negative) whenever {@link #idPrefix} is set.
+     */
+    private final int rowPositionDataChannel;
+    /** Index of {@code _id} within {@link #fullOutput}, or {@code -1} when not present. */
+    private final int idOutputIndex;
 
     VirtualColumnIterator(
         CloseableIterator<Page> delegate,
@@ -50,6 +69,25 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         Set<String> partitionColumnNames,
         Map<String, Object> partitionValues,
         BlockFactory blockFactory
+    ) {
+        this(delegate, fullOutput, partitionColumnNames, partitionValues, blockFactory, null);
+    }
+
+    /**
+     * Variant that wires {@code _id} composition. {@code idPrefix} must be non-null whenever the
+     * {@code _id} name is in {@code partitionColumnNames}; the source factory builds it once per
+     * file via {@link ExternalRowIdentity#prefix(org.elasticsearch.xpack.esql.datasources.spi.StoragePath)}
+     * and reuses it across every page of that file. When {@code _id} is not requested,
+     * {@code idPrefix} should be {@code null} and the iterator behaves identically to the
+     * legacy two-arg constructor.
+     */
+    VirtualColumnIterator(
+        CloseableIterator<Page> delegate,
+        List<Attribute> fullOutput,
+        Set<String> partitionColumnNames,
+        Map<String, Object> partitionValues,
+        BlockFactory blockFactory,
+        @Nullable BytesRef idPrefix
     ) {
         Check.notNull(delegate, "delegate cannot be null");
         Check.isTrue(fullOutput != null && fullOutput.isEmpty() == false, "fullOutput cannot be null or empty");
@@ -59,18 +97,36 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         this.fullOutput = fullOutput;
         this.partitionValues = partitionValues != null ? partitionValues : Map.of();
         this.blockFactory = blockFactory;
+        this.idPrefix = idPrefix;
 
         List<Integer> dataIdxList = new ArrayList<>();
         List<Integer> partIdxList = new ArrayList<>();
+        int idIdx = -1;
+        int rowPosChannelInData = -1;
+        int nextDataChannel = 0;
         for (int i = 0; i < fullOutput.size(); i++) {
-            if (partitionColumnNames.contains(fullOutput.get(i).name())) {
+            String name = fullOutput.get(i).name();
+            if (partitionColumnNames.contains(name)) {
                 partIdxList.add(i);
+                if (ExternalMetadataColumns.ID.equals(name)) {
+                    idIdx = i;
+                }
             } else {
                 dataIdxList.add(i);
+                if (ColumnExtractor.ROW_POSITION_COLUMN.equals(name)) {
+                    rowPosChannelInData = nextDataChannel;
+                }
+                nextDataChannel++;
             }
         }
         this.dataColumnIndices = toIntArray(dataIdxList);
         this.partitionColumnIndices = toIntArray(partIdxList);
+        this.idOutputIndex = idIdx;
+        this.rowPositionDataChannel = rowPosChannelInData;
+        Check.isTrue(
+            idPrefix == null || (idIdx >= 0 && rowPosChannelInData >= 0),
+            "idPrefix supplied but _id slot or _rowPosition data channel missing from fullOutput"
+        );
     }
 
     @Override
@@ -140,8 +196,14 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         try {
             for (int idx : partitionColumnIndices) {
                 Attribute attr = fullOutput.get(idx);
-                Object value = partitionValues.get(attr.name());
-                blocks[idx] = createConstantBlock(attr, value, positions);
+                if (idx == idOutputIndex && idPrefix != null) {
+                    // Compose <prefix>:<rowPosition> per row from the data page's _rowPosition block.
+                    Block rowPosBlock = dataPage.getBlock(rowPositionDataChannel);
+                    blocks[idx] = ExternalRowIdentity.composePage(idPrefix, (LongBlock) rowPosBlock, blockFactory);
+                } else {
+                    Object value = partitionValues.get(attr.name());
+                    blocks[idx] = createConstantBlock(attr, value, positions);
+                }
                 partitionBlocksAllocated++;
             }
             return new Page(positions, blocks);

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.SubscribableListener;
@@ -133,6 +134,14 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
      * separate operator steps.
      */
     private final Set<String> standardMetadataPerFileNames;
+    /**
+     * Whether the bound attributes include an {@link ExternalMetadataAttribute} named {@code _id}.
+     * When true, the producer pipeline must compose {@code _id} per row via
+     * {@link ExternalRowIdentity#composePage} and the optimizer must have injected
+     * {@link ColumnExtractor#ROW_POSITION_COLUMN} into the source's projection so the iterator
+     * has the input it needs.
+     */
+    private final boolean idColumnRequested;
     /**
      * Dataset name passed through from the planner for {@code _index} resolution. {@code null}
      * for bare-glob {@code FROM} queries (no dataset identity); the resulting {@code _index}
@@ -269,24 +278,35 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.schemaMap = schemaMap != null ? schemaMap : Map.of();
         // Derive standard ES metadata column names ({@code _index}, {@code _version}, ...) from
         // the bound attributes and merge them into the effective partition-column set so the
-        // existing VirtualColumnIterator path materialises them as per-file constants alongside
-        // {@code _file.*}. {@code _id} and {@code _source} are excluded — they are produced by
-        // separate operator steps and must reach the iterator through a different channel.
+        // existing VirtualColumnIterator path materialises them. {@code _id} also lands in the
+        // partition-column set so the iterator owns its output slot, but its block is composed
+        // per-row by the iterator's {@code _id} path (not a constant lookup). {@code _source} is
+        // out of scope for this constant-block path — handled by a separate operator wrapper.
         Set<String> stdMetaNames = new LinkedHashSet<>();
+        boolean idRequested = false;
         for (Attribute attr : attributes) {
-            if (attr instanceof ExternalMetadataAttribute && ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(attr.name())) {
-                stdMetaNames.add(attr.name());
+            if (attr instanceof ExternalMetadataAttribute) {
+                String n = attr.name();
+                if (ExternalMetadataColumns.PER_FILE_CONSTANT_NAMES.contains(n)) {
+                    stdMetaNames.add(n);
+                } else if (ExternalMetadataColumns.ID.equals(n)) {
+                    idRequested = true;
+                }
             }
         }
+        this.idColumnRequested = idRequested;
         this.standardMetadataPerFileNames = stdMetaNames.isEmpty() ? Set.of() : Set.copyOf(stdMetaNames);
-        if (stdMetaNames.isEmpty()) {
+        if (stdMetaNames.isEmpty() && idRequested == false) {
             this.partitionColumnNames = partitionColumnNames != null ? partitionColumnNames : Set.of();
         } else {
-            // Union the standard metadata names into the effective partition-column set so
-            // VirtualColumnIterator routes them through its constant-block path. Hive partition
-            // columns and {@code _file.*} always take precedence on key collision (they overlay
-            // last in per-file merge).
+            // Union the standard metadata names (plus {@code _id} when projected) into the
+            // effective partition-column set so VirtualColumnIterator routes them through its
+            // constant-block / id-composition path. Hive partition columns and {@code _file.*}
+            // always take precedence on key collision (they overlay last in per-file merge).
             Set<String> union = new LinkedHashSet<>(stdMetaNames);
+            if (idRequested) {
+                union.add(ExternalMetadataColumns.ID);
+            }
             if (partitionColumnNames != null) {
                 union.addAll(partitionColumnNames);
             }
@@ -704,15 +724,31 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         Map<String, Object> partitionValuesForFile,
         DriverContext driverContext
     ) {
+        return wrapWithVirtualColumns(pages, partitionValuesForFile, driverContext, this.path);
+    }
+
+    /**
+     * Variant that also wires the per-file {@code _id} prefix when {@code _id} is requested.
+     * Callers in multi-file paths pass the file's actual {@link StoragePath} so the rendered
+     * {@code _id} reflects which physical file each row came from.
+     */
+    private CloseableIterator<Page> wrapWithVirtualColumns(
+        CloseableIterator<Page> pages,
+        Map<String, Object> partitionValuesForFile,
+        DriverContext driverContext,
+        StoragePath filePath
+    ) {
         if (partitionColumnNames.isEmpty()) {
             return pages;
         }
+        BytesRef idPrefix = idColumnRequested ? ExternalRowIdentity.prefix(filePath) : null;
         return new VirtualColumnIterator(
             pages,
             attributes,
             partitionColumnNames,
             partitionValuesForFile,
-            producerBlockFactory(driverContext)
+            producerBlockFactory(driverContext),
+            idPrefix
         );
     }
 
@@ -1317,7 +1353,12 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, cols, state.driverContext);
             // Per-split virtual-column iterator: each slice-queue leaf has its own _file.* values
             // (different path/name/dir/size/mtime), so the wrapper is bound to *this* iterator's pages.
-            state.pages = wrapWithVirtualColumns(withEncoder, mergeStandardMetadata(fileSplit.partitionValues()), state.driverContext);
+            state.pages = wrapWithVirtualColumns(
+                withEncoder,
+                mergeStandardMetadata(fileSplit.partitionValues()),
+                state.driverContext,
+                fileSplit.path()
+            );
             return true;
         } catch (Exception e) {
             closeQuietly(pages);
@@ -1445,7 +1486,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             CloseableIterator<Page> withEncoder = wrapWithEncoderIfNeeded(adapted, perFileCols, state.driverContext);
             // Per-file virtual-column iterator (built with FileMetadataColumns.extractValues for
             // this file) so {@code _file.*} columns carry the right values for the current file.
-            state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext);
+            state.pages = wrapWithVirtualColumns(withEncoder, perFileValues, state.driverContext, files.path(fileIndex));
             return true;
         } catch (Exception e) {
             closeQuietly(pages);

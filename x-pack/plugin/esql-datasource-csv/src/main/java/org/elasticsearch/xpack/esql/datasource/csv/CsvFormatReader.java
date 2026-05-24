@@ -36,7 +36,9 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
-import org.elasticsearch.xpack.esql.datasources.cache.ExternalRowCountCache;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache;
+import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -74,6 +76,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 import java.util.StringJoiner;
@@ -566,19 +569,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             cachedSize = OptionalLong.empty();
         }
         final OptionalLong sizeInBytes = cachedSize;
-        OptionalLong cachedRowCount = ExternalRowCountCache.lookup(object);
-        SourceStatistics stats = new SourceStatistics() {
-            @Override
-            public OptionalLong rowCount() {
-                return cachedRowCount;
-            }
-
-            @Override
-            public OptionalLong sizeInBytes() {
-                return sizeInBytes;
-            }
-        };
-        Map<String, Object> sourceMetadata = Map.of(ExternalRowCountCache.MTIME_MILLIS_KEY, mtimeMillis);
+        Optional<ExternalStatsCache.Stats> cachedStats = ExternalStatsCache.lookup(object);
+        SourceStatistics stats = TextFormatStats.build(cachedStats, sizeInBytes, schema);
+        Map<String, Object> baseSourceMetadata = Map.of(ExternalStatsCache.MTIME_MILLIS_KEY, mtimeMillis);
+        Map<String, Object> sourceMetadata = SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats);
         return new SimpleSourceMetadata(schema, formatName(), location, stats, null, sourceMetadata, null);
     }
 
@@ -895,7 +889,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     @Override
     public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
-        InputStream stream = object.newStream();
+        InputStream rawStream = object.newStream();
+        // CountingInputStream tracks decompressed-byte consumption for stream-only sources whose
+        // length() throws UnsupportedOperationException. The byte count flows through {@link
+        // ExternalStatsCache} as sizeInBytes when the file lacks a publishable length.
+        org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream stream =
+            new org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream(rawStream);
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
         List<Attribute> effectiveSchema;
         List<Attribute> readSchema = context.readSchema();
@@ -946,7 +945,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // path always sets context.errorPolicy() explicitly.
         ErrorPolicy effective = context.errorPolicy() != null ? context.errorPolicy() : effectivePolicy;
         // Whole-file read: first + last split, no parallel slicing. Only iterators that drain a
-        // file from offset 0 to natural EOF qualify to populate ExternalRowCountCache.
+        // file from offset 0 to natural EOF qualify to populate ExternalStatsCache.
         boolean wholeFileRead = context.firstSplit() && context.recordAligned() == false && context.lastSplit();
         return new CsvBatchIterator(
             reader,
@@ -956,7 +955,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             effectiveSchema,
             effective,
             object.path().toString(),
-            wholeFileRead ? object : null
+            wholeFileRead ? object : null,
+            wholeFileRead ? stream : null
         );
     }
 
@@ -1189,6 +1189,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     @Override
     public List<String> fileExtensions() {
         return extensions;
+    }
+
+    @Override
+    public org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport aggregatePushdownSupport() {
+        return new org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport();
     }
 
     @Override
@@ -1646,11 +1651,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private long errorCount = 0;
         private long totalRowCount = 0;
         private String lastFieldError;
-        /** Non-null iff the iterator is eligible to populate {@link ExternalRowCountCache} on close (whole-file read). */
+        /** Non-null iff the iterator is eligible to populate {@link ExternalStatsCache} on close (whole-file read). */
         private final StorageObject cacheableObject;
+        /** Non-null iff stats capture is enabled. Wraps the underlying stream so bytesRead is available at close. */
+        private final org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream byteCounter;
         private long rowsEmittedForCache = 0;
         /** True only when {@link #hasNext()} returned false from natural exhaustion (not from close or an exception). */
         private boolean naturallyExhausted = false;
+        /** Lazily built once the schema and projection are known. {@code null} until the first batch resolves them. */
+        private org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator columnStats;
 
         CsvBatchIterator(
             BufferedReader reader,
@@ -1660,7 +1669,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List<Attribute> preResolvedSchema,
             ErrorPolicy errorPolicy,
             String sourceLocation,
-            StorageObject cacheableObject
+            StorageObject cacheableObject,
+            org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream byteCounter
         ) {
             this.reader = reader;
             this.stream = stream;
@@ -1677,6 +1687,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.bracketMultiValues = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS;
             this.sourceLocation = sourceLocation;
             this.cacheableObject = cacheableObject;
+            this.byteCounter = byteCounter;
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
                 "CSV read from ["
@@ -1715,7 +1726,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
             Page result = nextPage;
             nextPage = null;
             rowsEmittedForCache += result.getPositionCount();
+            captureBlockStats(result);
             return result;
+        }
+
+        private void captureBlockStats(Page page) {
+            if (cacheableObject == null || columnCount == 0 || projectedAttrs == null) {
+                return;
+            }
+            if (columnStats == null) {
+                columnStats = org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
+            }
+            for (int i = 0; i < columnCount; i++) {
+                columnStats.acceptBlockAt(i, page.getBlock(i));
+            }
         }
 
         @Override
@@ -1738,7 +1762,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // Cache only on clean whole-file drain. Same gate handles FAIL_FAST and SKIP_ROW:
                 // any observed errors suppress the write, so we never cache a policy-dependent count.
                 if (cacheableObject != null && naturallyExhausted && errorCount == 0) {
-                    ExternalRowCountCache.put(cacheableObject, rowsEmittedForCache);
+                    java.util.Map<String, ExternalStatsCache.ColumnStats> cols = columnStats == null
+                        ? java.util.Map.of()
+                        : columnStats.snapshot();
+                    OptionalLong bytesRead = byteCounter == null ? OptionalLong.empty() : OptionalLong.of(byteCounter.getBytesRead());
+                    ExternalStatsCache.put(cacheableObject, new ExternalStatsCache.Stats(rowsEmittedForCache, bytesRead, cols));
                 }
                 reader.close();
                 stream.close();

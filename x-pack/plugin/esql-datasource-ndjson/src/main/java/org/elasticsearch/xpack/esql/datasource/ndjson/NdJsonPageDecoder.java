@@ -86,6 +86,11 @@ public class NdJsonPageDecoder implements Closeable {
     private JsonParser parser;
     private final List<Attribute> projectedAttributes;
 
+    /** Page block layout: index {@code i} corresponds to {@code projectedAttributes().get(i)}. */
+    List<Attribute> projectedAttributes() {
+        return projectedAttributes;
+    }
+
     // What blocks got a value on the current line? Needed because Block.Builder doesn't provide
     // the number of positions that were added.
     private final BitSet blockTracker;

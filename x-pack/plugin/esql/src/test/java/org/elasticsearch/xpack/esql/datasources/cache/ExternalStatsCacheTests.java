@@ -15,30 +15,30 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.OptionalLong;
 
-/** Key semantics for {@link ExternalRowCountCache}: (path, mtime) — fresh mtime ⇒ fresh key. */
-public class ExternalRowCountCacheTests extends ESTestCase {
+/** Key semantics for {@link ExternalStatsCache}: (path, mtime) — fresh mtime ⇒ fresh key. */
+public class ExternalStatsCacheTests extends ESTestCase {
 
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        ExternalRowCountCache.clearForTests();
+        ExternalStatsCache.clearForTests();
     }
 
     @Override
     public void tearDown() throws Exception {
-        ExternalRowCountCache.clearForTests();
+        ExternalStatsCache.clearForTests();
         super.tearDown();
     }
 
     public void testMissReturnsEmpty() {
         StorageObject o = obj("memory://a.csv");
-        assertTrue(ExternalRowCountCache.lookup(o).isEmpty());
+        assertTrue(ExternalStatsCache.lookup(o).isEmpty());
     }
 
     public void testPutThenLookupReturnsValue() {
         StorageObject o = obj("memory://a.csv");
-        ExternalRowCountCache.put(o, 42L);
-        OptionalLong v = ExternalRowCountCache.lookup(o);
+        ExternalStatsCache.put(o, 42L);
+        OptionalLong v = ExternalStatsCache.lookupRowCount(o);
         assertTrue(v.isPresent());
         assertEquals(42L, v.getAsLong());
     }
@@ -46,9 +46,9 @@ public class ExternalRowCountCacheTests extends ESTestCase {
     public void testDifferentPathsAreDistinct() {
         StorageObject a = obj("memory://a.csv");
         StorageObject b = obj("memory://b.csv");
-        ExternalRowCountCache.put(a, 7L);
-        assertEquals(7L, ExternalRowCountCache.lookup(a).getAsLong());
-        assertTrue("different path must not see another path's entry", ExternalRowCountCache.lookup(b).isEmpty());
+        ExternalStatsCache.put(a, 7L);
+        assertEquals(7L, ExternalStatsCache.lookupRowCount(a).getAsLong());
+        assertTrue("different path must not see another path's entry", ExternalStatsCache.lookup(b).isEmpty());
     }
 
     public void testSamePathDifferentMtimesAreDistinct() {
@@ -57,24 +57,21 @@ public class ExternalRowCountCacheTests extends ESTestCase {
         Instant tLater = tNow.plusMillis(1);
         StorageObject before = objWithMtime("memory://mutated.csv", tNow);
         StorageObject after = objWithMtime("memory://mutated.csv", tLater);
-        ExternalRowCountCache.put(before, 50L);
-        assertEquals(50L, ExternalRowCountCache.lookup(before).getAsLong());
-        assertTrue(
-            "fresh mtime must produce a fresh key — no stale serve across a mutation",
-            ExternalRowCountCache.lookup(after).isEmpty()
-        );
+        ExternalStatsCache.put(before, 50L);
+        assertEquals(50L, ExternalStatsCache.lookupRowCount(before).getAsLong());
+        assertTrue("fresh mtime must produce a fresh key — no stale serve across a mutation", ExternalStatsCache.lookup(after).isEmpty());
     }
 
     public void testPathMtimeOverloadMatchesStorageObjectLookup() throws Exception {
         StorageObject o = obj("memory://c.csv");
-        ExternalRowCountCache.put(o, 13L);
+        ExternalStatsCache.put(o, 13L);
         long mtimeMillis = o.lastModified().toEpochMilli();
-        OptionalLong viaObject = ExternalRowCountCache.lookup(o);
-        OptionalLong viaPair = ExternalRowCountCache.lookup("memory://c.csv", mtimeMillis);
+        OptionalLong viaObject = ExternalStatsCache.lookupRowCount(o);
+        OptionalLong viaPair = ExternalStatsCache.lookupRowCount("memory://c.csv", mtimeMillis);
         assertTrue(viaObject.isPresent());
         assertTrue(viaPair.isPresent());
         assertEquals(viaObject.getAsLong(), viaPair.getAsLong());
-        assertTrue(ExternalRowCountCache.lookup("memory://c.csv", mtimeMillis + 1).isEmpty());
+        assertTrue(ExternalStatsCache.lookup("memory://c.csv", mtimeMillis + 1).isEmpty());
     }
 
     public void testStreamOnlySourceIsStillCacheable() {
@@ -112,8 +109,8 @@ public class ExternalRowCountCacheTests extends ESTestCase {
                 return StoragePath.of("memory://stream-only.csv.bz2");
             }
         };
-        ExternalRowCountCache.put(streamOnly, 99L);
-        OptionalLong v = ExternalRowCountCache.lookup(streamOnly);
+        ExternalStatsCache.put(streamOnly, 99L);
+        OptionalLong v = ExternalStatsCache.lookupRowCount(streamOnly);
         assertTrue("stream-only sources are cacheable: lookup must hit on the same mtime", v.isPresent());
         assertEquals(99L, v.getAsLong());
     }
@@ -151,8 +148,8 @@ public class ExternalRowCountCacheTests extends ESTestCase {
                 return StoragePath.of("memory://no-mtime");
             }
         };
-        ExternalRowCountCache.put(noMtime, 5L);
-        assertTrue("null-mtime sources must not produce a cache entry", ExternalRowCountCache.lookup(noMtime).isEmpty());
+        ExternalStatsCache.put(noMtime, 5L);
+        assertTrue("null-mtime sources must not produce a cache entry", ExternalStatsCache.lookup(noMtime).isEmpty());
     }
 
     public void testStorageObjectLastModifiedIOExceptionDegradesToMiss() {
@@ -187,7 +184,7 @@ public class ExternalRowCountCacheTests extends ESTestCase {
                 return StoragePath.of("memory://broken-mtime");
             }
         };
-        assertTrue(ExternalRowCountCache.lookup(throwsOnMtime).isEmpty());
+        assertTrue(ExternalStatsCache.lookup(throwsOnMtime).isEmpty());
     }
 
     private StorageObject obj(String pathStr) {

@@ -5,13 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.datasource.ndjson;
+package org.elasticsearch.xpack.esql.datasource.csv;
 
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.cache.ExternalRowCountCache;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -23,8 +23,8 @@ import java.time.Instant;
 import java.util.OptionalLong;
 import java.util.UUID;
 
-/** Lookup-side gate for NDJSON. Capture side is in {@code NdJsonRowCountCaptureTests}. */
-public class NdJsonRowCountMetadataLookupTests extends ESTestCase {
+/** Lookup-side gate for CSV. Capture side is in {@code CsvStatsCaptureTests}. */
+public class CsvStatsMetadataLookupTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
@@ -32,27 +32,27 @@ public class NdJsonRowCountMetadataLookupTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
-        ExternalRowCountCache.clearForTests();
+        ExternalStatsCache.clearForTests();
     }
 
     @Override
     public void tearDown() throws Exception {
-        ExternalRowCountCache.clearForTests();
+        ExternalStatsCache.clearForTests();
         super.tearDown();
     }
 
     public void testCacheMissPublishesSizeButNoRowCount() throws Exception {
-        StorageObject o = obj("{\"a\":1}\n{\"a\":2}\n");
-        SourceMetadata md = new NdJsonFormatReader(null, blockFactory).metadata(o);
+        StorageObject o = obj("id:integer,n:integer\n1,10\n2,20\n");
+        SourceMetadata md = new CsvFormatReader(blockFactory).metadata(o);
         assertTrue("statistics must be present (sizeInBytes is always known)", md.statistics().isPresent());
         assertFalse("rowCount must be absent on cache miss", md.statistics().get().rowCount().isPresent());
         assertTrue("sizeInBytes must be present on cache miss", md.statistics().get().sizeInBytes().isPresent());
     }
 
     public void testCacheHitPublishesRowCount() throws Exception {
-        StorageObject o = obj("{\"a\":1}\n{\"a\":2}\n{\"a\":3}\n");
-        ExternalRowCountCache.put(o, 3L);
-        SourceMetadata md = new NdJsonFormatReader(null, blockFactory).metadata(o);
+        StorageObject o = obj("id:integer,n:integer\n1,10\n2,20\n3,30\n");
+        ExternalStatsCache.put(o, 3L);
+        SourceMetadata md = new CsvFormatReader(blockFactory).metadata(o);
         assertTrue(md.statistics().isPresent());
         OptionalLong rc = md.statistics().get().rowCount();
         assertTrue(rc.isPresent());
@@ -60,25 +60,64 @@ public class NdJsonRowCountMetadataLookupTests extends ESTestCase {
     }
 
     public void testCacheHitAlsoPublishesSizeInBytes() throws Exception {
-        String content = "{\"a\":1}\n{\"a\":2}\n";
+        String content = "id:integer,n:integer\n1,10\n2,20\n";
         StorageObject o = obj(content);
-        ExternalRowCountCache.put(o, 2L);
-        SourceMetadata md = new NdJsonFormatReader(null, blockFactory).metadata(o);
+        ExternalStatsCache.put(o, 2L);
+        SourceMetadata md = new CsvFormatReader(blockFactory).metadata(o);
         assertTrue(md.statistics().isPresent());
         assertEquals(content.getBytes(StandardCharsets.UTF_8).length, md.statistics().get().sizeInBytes().getAsLong());
     }
 
-    /** Stream-only sources throw from length() — metadata() still flows mtime so the cache participates. */
+    public void testCacheHitPublishesColumnStats() throws Exception {
+        StorageObject o = obj("id:integer,name:keyword\n1,alpha\n2,beta\n");
+        java.util.Map<String, ExternalStatsCache.ColumnStats> cols = java.util.Map.of(
+            "id",
+            new ExternalStatsCache.ColumnStats(0L, 1, 2),
+            "name",
+            new ExternalStatsCache.ColumnStats(
+                0L,
+                new org.apache.lucene.util.BytesRef("alpha"),
+                new org.apache.lucene.util.BytesRef("beta")
+            )
+        );
+        ExternalStatsCache.put(o, new ExternalStatsCache.Stats(2L, java.util.OptionalLong.empty(), cols));
+        SourceMetadata md = new CsvFormatReader(blockFactory).metadata(o);
+        assertTrue(md.statistics().isPresent());
+        java.util.Optional<java.util.Map<String, org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics.ColumnStatistics>> colStats =
+            md.statistics().get().columnStatistics();
+        assertTrue("column stats must be published on cache hit", colStats.isPresent());
+        var idStats = colStats.get().get("id");
+        assertNotNull(idStats);
+        assertEquals(java.util.OptionalLong.of(0L), idStats.nullCount());
+        assertEquals(1, idStats.minValue().orElse(null));
+        assertEquals(2, idStats.maxValue().orElse(null));
+        var nameStats = colStats.get().get("name");
+        assertNotNull(nameStats);
+        assertEquals(new org.apache.lucene.util.BytesRef("alpha"), nameStats.minValue().orElse(null));
+        assertEquals(new org.apache.lucene.util.BytesRef("beta"), nameStats.maxValue().orElse(null));
+    }
+
+    public void testCacheHitWithBytesReadPopulatesSizeInBytesWhenLengthUnknown() throws Exception {
+        StorageObject streamOnly = streamOnlyObject("id:integer\n1\n2\n3\n");
+        ExternalStatsCache.put(streamOnly, new ExternalStatsCache.Stats(3L, java.util.OptionalLong.of(17L), java.util.Map.of()));
+        SourceMetadata md = new CsvFormatReader(blockFactory).metadata(streamOnly);
+        assertTrue(md.statistics().isPresent());
+        assertTrue("stream-only sizeInBytes must be served from cache.bytesRead", md.statistics().get().sizeInBytes().isPresent());
+        assertEquals(17L, md.statistics().get().sizeInBytes().getAsLong());
+    }
+
+    /** Stream-only sources throw from length() — metadata() still flows mtime + cache-served rowCount. */
     public void testLengthUnsupportedStillProducesStats() throws Exception {
-        StorageObject streamOnly = streamOnlyObject("{\"a\":1}\n{\"a\":2}\n");
-        SourceMetadata md = new NdJsonFormatReader(null, blockFactory).metadata(streamOnly);
+        StorageObject streamOnly = streamOnlyObject("id:integer,n:integer\n1,10\n2,20\n");
+        SourceMetadata md = new CsvFormatReader(blockFactory).metadata(streamOnly);
         assertTrue("stream-only compression must still produce stats keyed on mtime", md.statistics().isPresent());
         assertFalse("sizeInBytes must be absent when length() is unsupported", md.statistics().get().sizeInBytes().isPresent());
     }
 
-    private StorageObject streamOnlyObject(String ndjson) {
-        byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
-        String uniquePath = "memory://" + UUID.randomUUID() + ".ndjson.bz2";
+    /** StorageObject that mirrors a bzip2-wrapped source: stream-only, length() throws {@code UnsupportedOperationException}. */
+    private StorageObject streamOnlyObject(String csvContent) {
+        byte[] bytes = csvContent.getBytes(StandardCharsets.UTF_8);
+        String uniquePath = "memory://" + UUID.randomUUID() + ".csv.bz2";
         Instant fixedMtime = Instant.now();
         return new StorageObject() {
             @Override
@@ -113,9 +152,10 @@ public class NdJsonRowCountMetadataLookupTests extends ESTestCase {
         };
     }
 
-    private StorageObject obj(String ndjson) {
-        byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
-        String uniquePath = "memory://" + UUID.randomUUID() + ".ndjson";
+    /** Unique path + stable mtime per object — matches the cache key shape (path, mtime). */
+    private StorageObject obj(String csvContent) {
+        byte[] bytes = csvContent.getBytes(StandardCharsets.UTF_8);
+        String uniquePath = "memory://" + UUID.randomUUID() + ".csv";
         Instant fixedMtime = Instant.now();
         return new StorageObject() {
             @Override

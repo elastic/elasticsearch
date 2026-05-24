@@ -15,7 +15,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.datasources.cache.ExternalRowCountCache;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -44,10 +44,16 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     private long rowsEmitted;
     private boolean endOfFile = false;
     private Page nextPage;
-    /** Non-null iff the iterator is eligible to populate {@link ExternalRowCountCache} on close (whole-file read). */
+    /** Non-null iff the iterator is eligible to populate {@link ExternalStatsCache} on close (whole-file read). */
     private final StorageObject cacheableObject;
+    /** Stream-side byte counter for stream-only sources (length() throws). Null for byte-array fast path. */
+    private final org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream byteCounter;
     /** True only when the decoder returned a natural EOF (not on {@code rowLimit} truncation). */
     private boolean naturallyExhausted = false;
+    /** Lazily built once the first page emits, so we use the decoder's resolved projected attributes. */
+    private org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator columnStats;
+    /** Snapshotted at byte-array fast-path init; the streaming path queries {@link #byteCounter}. */
+    private final long byteArrayBytesRead;
 
     /**
      * Storage objects up to this size are eagerly slurped into a {@code byte[]} so the decoder can
@@ -85,6 +91,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
             try (InputStream toClose = inputStream) {
                 data = toClose.readAllBytes();
             }
+            this.byteCounter = null;
+            this.byteArrayBytesRead = data.length;
             this.pageDecoder = new NdJsonPageDecoder(
                 data,
                 0,
@@ -97,8 +105,14 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                 sourceLocation
             );
         } else {
+            // Wrap on the streaming path so close-time bytesRead works for stream-only sources
+            // (bzip2 / zstd-streamed) whose length() throws.
+            org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream counted =
+                new org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream(inputStream);
+            this.byteCounter = counted;
+            this.byteArrayBytesRead = -1;
             this.pageDecoder = new NdJsonPageDecoder(
-                inputStream,
+                counted,
                 resolvedAttributes,
                 projectedColumns,
                 batchSize,
@@ -182,14 +196,41 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         }
         Page result = nextPage;
         nextPage = null;
+        captureBlockStats(result);
         return result;
+    }
+
+    private void captureBlockStats(Page page) {
+        if (cacheableObject == null || page.getBlockCount() == 0) {
+            return;
+        }
+        if (columnStats == null) {
+            List<Attribute> projected = pageDecoder.projectedAttributes();
+            if (projected == null || projected.isEmpty()) {
+                return;
+            }
+            columnStats = org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator.forProjectedAttributes(
+                projected.toArray(new Attribute[0])
+            );
+        }
+        if (columnStats.isEmpty()) {
+            return;
+        }
+        int blocks = page.getBlockCount();
+        for (int i = 0; i < blocks; i++) {
+            columnStats.acceptBlockAt(i, page.getBlock(i));
+        }
     }
 
     @Override
     public void close() throws IOException {
         // Cache only on clean whole-file drain. Runs before closing the decoder so its errorCount is still readable.
         if (cacheableObject != null && naturallyExhausted && pageDecoder.errorCount() == 0) {
-            ExternalRowCountCache.put(cacheableObject, rowsEmitted);
+            java.util.Map<String, ExternalStatsCache.ColumnStats> cols = columnStats == null ? java.util.Map.of() : columnStats.snapshot();
+            java.util.OptionalLong bytesRead = byteCounter != null
+                ? java.util.OptionalLong.of(byteCounter.getBytesRead())
+                : (byteArrayBytesRead >= 0 ? java.util.OptionalLong.of(byteArrayBytesRead) : java.util.OptionalLong.empty());
+            ExternalStatsCache.put(cacheableObject, new ExternalStatsCache.Stats(rowsEmitted, bytesRead, cols));
         }
         IOUtils.close(pageDecoder);
     }

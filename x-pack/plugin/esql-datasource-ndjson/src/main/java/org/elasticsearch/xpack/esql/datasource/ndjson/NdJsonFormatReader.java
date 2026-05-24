@@ -16,7 +16,9 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.datasources.cache.ExternalRowCountCache;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache;
+import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -35,6 +37,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.OptionalLong;
 import java.util.Set;
 
@@ -296,19 +299,10 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             cachedSize = OptionalLong.empty();
         }
         final OptionalLong sizeInBytes = cachedSize;
-        OptionalLong cachedRowCount = ExternalRowCountCache.lookup(object);
-        SourceStatistics stats = new SourceStatistics() {
-            @Override
-            public OptionalLong rowCount() {
-                return cachedRowCount;
-            }
-
-            @Override
-            public OptionalLong sizeInBytes() {
-                return sizeInBytes;
-            }
-        };
-        Map<String, Object> sourceMetadata = Map.of(ExternalRowCountCache.MTIME_MILLIS_KEY, mtimeMillis);
+        Optional<ExternalStatsCache.Stats> cachedStats = ExternalStatsCache.lookup(object);
+        SourceStatistics stats = TextFormatStats.build(cachedStats, sizeInBytes, schema);
+        Map<String, Object> baseSourceMetadata = Map.of(ExternalStatsCache.MTIME_MILLIS_KEY, mtimeMillis);
+        Map<String, Object> sourceMetadata = SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats);
         return new SimpleSourceMetadata(schema, formatName(), location, stats, null, sourceMetadata, null);
     }
 
@@ -451,6 +445,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     @Override
     public List<String> fileExtensions() {
         return List.of(".ndjson", ".jsonl", ".json");
+    }
+
+    @Override
+    public org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport aggregatePushdownSupport() {
+        return new org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport();
     }
 
     @Override

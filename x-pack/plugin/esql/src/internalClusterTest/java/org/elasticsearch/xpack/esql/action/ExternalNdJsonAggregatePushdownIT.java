@@ -13,7 +13,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.cache.ExternalRowCountCache;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -30,8 +30,8 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
-/** NDJSON counterpart of {@link ExternalCsvCountPushdownIT}: same cold-then-warm short-circuit assertion shape. */
-public class ExternalNdJsonCountPushdownIT extends AbstractEsqlIntegTestCase {
+/** NDJSON counterpart of {@link ExternalCsvAggregatePushdownIT}: same cold-then-warm short-circuit assertion shape. */
+public class ExternalNdJsonAggregatePushdownIT extends AbstractEsqlIntegTestCase {
 
     public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
         @Override
@@ -59,12 +59,12 @@ public class ExternalNdJsonCountPushdownIT extends AbstractEsqlIntegTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        ExternalRowCountCache.clearForTests();
+        ExternalStatsCache.clearForTests();
     }
 
     @Override
     public void tearDown() throws Exception {
-        ExternalRowCountCache.clearForTests();
+        ExternalStatsCache.clearForTests();
         super.tearDown();
     }
 
@@ -108,6 +108,58 @@ public class ExternalNdJsonCountPushdownIT extends AbstractEsqlIntegTestCase {
         } finally {
             Files.deleteIfExists(ndjsonFile);
         }
+    }
+
+    public void testMinMaxColdThenWarmShortCircuits() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        int totalRows = 50;
+        Path ndjsonFile = writeNdJsonFile(totalRows);
+        try {
+            String query = "EXTERNAL \"" + StoragePath.fileUri(ndjsonFile) + "\" | STATS lo = MIN(value), hi = MAX(value)";
+
+            try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+                assertMinMax(response, 0L, (long) (totalRows - 1) * 10);
+                assertThat("cold execution must scan rows", response.documentsFound(), equalTo((long) totalRows));
+            }
+            try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+                assertMinMax(response, 0L, (long) (totalRows - 1) * 10);
+                assertNoPushdownBypass(response);
+                assertThat(response.documentsFound(), equalTo(0L));
+            }
+        } finally {
+            Files.deleteIfExists(ndjsonFile);
+        }
+    }
+
+    public void testCountColumnColdThenWarmShortCircuits() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        int totalRows = 30;
+        Path ndjsonFile = writeNdJsonFile(totalRows);
+        try {
+            String query = "EXTERNAL \"" + StoragePath.fileUri(ndjsonFile) + "\" | STATS c = COUNT(value)";
+
+            try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+                assertCount(response, totalRows);
+            }
+            try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+                assertCount(response, totalRows);
+                assertNoPushdownBypass(response);
+                assertThat(response.documentsFound(), equalTo(0L));
+            }
+        } finally {
+            Files.deleteIfExists(ndjsonFile);
+        }
+    }
+
+    private static void assertMinMax(EsqlQueryResponse response, long expectedMin, long expectedMax) {
+        List<? extends ColumnInfo> columns = response.columns();
+        assertThat(columns.size(), equalTo(2));
+        List<List<Object>> rows = getValuesList(response);
+        assertThat(rows.size(), equalTo(1));
+        assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(expectedMin));
+        assertThat(((Number) rows.get(0).get(1)).longValue(), equalTo(expectedMax));
     }
 
     private static void assertCount(EsqlQueryResponse response, long expected) {

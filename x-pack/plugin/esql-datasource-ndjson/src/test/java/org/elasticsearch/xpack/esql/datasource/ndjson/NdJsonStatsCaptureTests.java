@@ -13,7 +13,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.cache.ExternalRowCountCache;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -28,7 +28,7 @@ import java.util.OptionalLong;
 import java.util.UUID;
 
 /** NDJSON counterpart of {@code CsvRowCountCaptureTests}: the cache-write side on close. */
-public class NdJsonRowCountCaptureTests extends ESTestCase {
+public class NdJsonStatsCaptureTests extends ESTestCase {
 
     private BlockFactory blockFactory;
 
@@ -36,12 +36,12 @@ public class NdJsonRowCountCaptureTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
-        ExternalRowCountCache.clearForTests();
+        ExternalStatsCache.clearForTests();
     }
 
     @Override
     public void tearDown() throws Exception {
-        ExternalRowCountCache.clearForTests();
+        ExternalStatsCache.clearForTests();
         super.tearDown();
     }
 
@@ -63,7 +63,7 @@ public class NdJsonRowCountCaptureTests extends ESTestCase {
         ) {
             drain(it);
         }
-        OptionalLong cached = ExternalRowCountCache.lookup(o);
+        OptionalLong cached = ExternalStatsCache.lookupRowCount(o);
         assertTrue("clean whole-file drain must populate cache", cached.isPresent());
         assertEquals(3L, cached.getAsLong());
     }
@@ -80,7 +80,7 @@ public class NdJsonRowCountCaptureTests extends ESTestCase {
                 it.next().releaseBlocks();
             }
         }
-        assertTrue("close-before-EOF must not populate cache", ExternalRowCountCache.lookup(o).isEmpty());
+        assertTrue("close-before-EOF must not populate cache", ExternalStatsCache.lookup(o).isEmpty());
     }
 
     public void testNonFirstSplitDoesNotPopulateCache() throws Exception {
@@ -89,7 +89,7 @@ public class NdJsonRowCountCaptureTests extends ESTestCase {
         try (CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)) {
             drain(it);
         }
-        assertTrue("non-first split read must not populate cache", ExternalRowCountCache.lookup(o).isEmpty());
+        assertTrue("non-first split read must not populate cache", ExternalStatsCache.lookup(o).isEmpty());
     }
 
     public void testNonLastSplitDoesNotPopulateCache() throws Exception {
@@ -98,7 +98,7 @@ public class NdJsonRowCountCaptureTests extends ESTestCase {
         try (CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)) {
             drain(it);
         }
-        assertTrue("non-last split read must not populate cache", ExternalRowCountCache.lookup(o).isEmpty());
+        assertTrue("non-last split read must not populate cache", ExternalStatsCache.lookup(o).isEmpty());
     }
 
     public void testRecordAlignedDoesNotPopulateCache() throws Exception {
@@ -107,7 +107,7 @@ public class NdJsonRowCountCaptureTests extends ESTestCase {
         try (CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)) {
             drain(it);
         }
-        assertTrue("record-aligned (parallel-sliced) read must not populate cache", ExternalRowCountCache.lookup(o).isEmpty());
+        assertTrue("record-aligned (parallel-sliced) read must not populate cache", ExternalStatsCache.lookup(o).isEmpty());
     }
 
     /** SKIP_ROW with a malformed line → errorCount > 0 → gate suppresses the cache write. */
@@ -118,7 +118,7 @@ public class NdJsonRowCountCaptureTests extends ESTestCase {
         try (CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)) {
             drain(it);
         }
-        assertTrue("SKIP_ROW with errors must not populate cache (count is policy-dependent)", ExternalRowCountCache.lookup(o).isEmpty());
+        assertTrue("SKIP_ROW with errors must not populate cache (count is policy-dependent)", ExternalStatsCache.lookup(o).isEmpty());
     }
 
     /** rowLimit-cut iteration ends without natural EOF → cache write suppressed. */
@@ -128,7 +128,106 @@ public class NdJsonRowCountCaptureTests extends ESTestCase {
         try (CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)) {
             drain(it);
         }
-        assertTrue("rowLimit-truncated read must not populate cache", ExternalRowCountCache.lookup(o).isEmpty());
+        assertTrue("rowLimit-truncated read must not populate cache", ExternalStatsCache.lookup(o).isEmpty());
+    }
+
+    public void testWholeFileCleanDrainPopulatesColumnStats() throws Exception {
+        StorageObject o = obj("{\"id\":1,\"name\":\"alpha\"}\n{\"id\":2,\"name\":\"beta\"}\n{\"id\":3,\"name\":\"gamma\"}\n");
+        try (
+            CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(
+                o,
+                FormatReadContext.builder().batchSize(10).build()
+            )
+        ) {
+            drain(it);
+        }
+        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookup(o);
+        assertTrue("clean whole-file drain must populate cache", cached.isPresent());
+        assertEquals(3L, cached.get().rowCount());
+        java.util.Map<String, ExternalStatsCache.ColumnStats> cols = cached.get().columns();
+        assertFalse("at least one column must have captured stats", cols.isEmpty());
+        ExternalStatsCache.ColumnStats id = cols.get("id");
+        assertNotNull("id column stats expected", id);
+        assertEquals(0L, id.nullCount());
+        // NDJSON schema inference resolves integer literals as INTEGER, not LONG.
+        assertEquals(1, id.min());
+        assertEquals(3, id.max());
+        ExternalStatsCache.ColumnStats name = cols.get("name");
+        assertNotNull("name column stats expected", name);
+        assertEquals(new org.apache.lucene.util.BytesRef("alpha"), name.min());
+        assertEquals(new org.apache.lucene.util.BytesRef("gamma"), name.max());
+    }
+
+    public void testMissingJsonKeyIncrementsNullCount() throws Exception {
+        StorageObject o = obj("{\"id\":1,\"name\":\"a\"}\n{\"id\":2}\n{\"id\":3,\"name\":\"c\"}\n");
+        try (
+            CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(
+                o,
+                FormatReadContext.builder().batchSize(10).build()
+            )
+        ) {
+            drain(it);
+        }
+        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookup(o);
+        assertTrue(cached.isPresent());
+        ExternalStatsCache.ColumnStats name = cached.get().columns().get("name");
+        assertEquals("missing JSON key must increment nullCount", 1L, name.nullCount());
+        assertEquals(new org.apache.lucene.util.BytesRef("a"), name.min());
+        assertEquals(new org.apache.lucene.util.BytesRef("c"), name.max());
+    }
+
+    public void testStreamOnlyCaptureRecordsBytesRead() throws Exception {
+        String body = "{\"id\":1}\n{\"id\":2}\n";
+        StorageObject streamOnly = streamOnlyObj(body);
+        try (
+            CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(
+                streamOnly,
+                FormatReadContext.builder().batchSize(10).build()
+            )
+        ) {
+            drain(it);
+        }
+        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookup(streamOnly);
+        assertTrue("stream-only whole-file drain must populate cache", cached.isPresent());
+        assertTrue("bytesRead must be present for stream-only sources", cached.get().bytesRead().isPresent());
+        assertEquals(body.getBytes(StandardCharsets.UTF_8).length, cached.get().bytesRead().getAsLong());
+    }
+
+    private StorageObject streamOnlyObj(String ndjson) {
+        byte[] bytes = ndjson.getBytes(StandardCharsets.UTF_8);
+        String uniquePath = "memory://" + UUID.randomUUID() + ".ndjson.bz2";
+        Instant fixedMtime = Instant.now();
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                return new ByteArrayInputStream(bytes);
+            }
+
+            @Override
+            public InputStream newStream(long position, long length) {
+                throw new UnsupportedOperationException("Range reads not supported");
+            }
+
+            @Override
+            public long length() {
+                throw new UnsupportedOperationException("Decompressed length is unknown");
+            }
+
+            @Override
+            public Instant lastModified() {
+                return fixedMtime;
+            }
+
+            @Override
+            public boolean exists() {
+                return true;
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of(uniquePath);
+            }
+        };
     }
 
     private static void drain(CloseableIterator<Page> it) {

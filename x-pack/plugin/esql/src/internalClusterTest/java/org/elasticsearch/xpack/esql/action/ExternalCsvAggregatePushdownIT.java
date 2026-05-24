@@ -13,7 +13,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.cache.ExternalRowCountCache;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -31,7 +31,7 @@ import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQuery
 import static org.hamcrest.Matchers.equalTo;
 
 /** Cold-then-warm: first run populates the cache; second run is rewritten to LocalSourceExec. Mirrors {@link ExternalParquetCountPushdownIT}. */
-public class ExternalCsvCountPushdownIT extends AbstractEsqlIntegTestCase {
+public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
 
     public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {
         @Override
@@ -59,12 +59,12 @@ public class ExternalCsvCountPushdownIT extends AbstractEsqlIntegTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        ExternalRowCountCache.clearForTests();
+        ExternalStatsCache.clearForTests();
     }
 
     @Override
     public void tearDown() throws Exception {
-        ExternalRowCountCache.clearForTests();
+        ExternalStatsCache.clearForTests();
         super.tearDown();
     }
 
@@ -110,6 +110,60 @@ public class ExternalCsvCountPushdownIT extends AbstractEsqlIntegTestCase {
         } finally {
             Files.deleteIfExists(csvFile);
         }
+    }
+
+    public void testMinMaxColdThenWarmShortCircuits() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        int totalRows = 50;
+        Path csvFile = writeCsvFile(totalRows);
+        try {
+            String query = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS lo = MIN(value), hi = MAX(value)";
+
+            // Cold: scan + capture per-column stats for value.
+            try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+                assertMinMax(response, 0L, (long) (totalRows - 1) * 10);
+                assertThat("cold execution must scan rows", response.documentsFound(), equalTo((long) totalRows));
+            }
+            // Warm: cache hit → optimizer rewrites to LocalSourceExec → no data-node scan.
+            try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+                assertMinMax(response, 0L, (long) (totalRows - 1) * 10);
+                assertNoPushdownBypass(response);
+                assertThat(response.documentsFound(), equalTo(0L));
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
+    public void testCountColumnColdThenWarmShortCircuits() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        int totalRows = 30;
+        Path csvFile = writeCsvFile(totalRows);
+        try {
+            String query = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS c = COUNT(value)";
+
+            try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+                assertCount(response, totalRows);
+            }
+            try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+                assertCount(response, totalRows);
+                assertNoPushdownBypass(response);
+                assertThat(response.documentsFound(), equalTo(0L));
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
+    private static void assertMinMax(EsqlQueryResponse response, long expectedMin, long expectedMax) {
+        List<? extends ColumnInfo> columns = response.columns();
+        assertThat(columns.size(), equalTo(2));
+        List<List<Object>> rows = getValuesList(response);
+        assertThat(rows.size(), equalTo(1));
+        assertThat(((Number) rows.get(0).get(0)).longValue(), equalTo(expectedMin));
+        assertThat(((Number) rows.get(0).get(1)).longValue(), equalTo(expectedMax));
     }
 
     private static void assertCount(EsqlQueryResponse response, long expected) {

@@ -432,7 +432,12 @@ public final class DateFieldMapper extends FieldMapper {
             if (indexCreatedVersion.isLegacyIndexVersion()) {
                 return IndexType.archivedPoints();
             }
-            return IndexType.points(index.get(), docValuesParameters.get().enabled());
+            // The timestamp field needs to be indexed if skippers are disabled.
+            boolean isIndexed = index.get()
+                || (indexSettings.getMode().isStrictColumnar()
+                    && indexSettings.useDocValuesSkipper() == false
+                    && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName));
+            return IndexType.points(isIndexed, docValuesParameters.get().enabled());
         }
 
         @Override

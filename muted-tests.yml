@@ -603,3 +603,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPartiallyRetainedByCcrLease
   issue: https://github.com/elastic/elasticsearch/issues/149826
+- class: org.elasticsearch.index.seqno.SeqNoPruningIT
+  method: testWritesSucceedOnReplicaAfterSeqNoPruning
+  issue: https://github.com/elastic/elasticsearch/issues/149829

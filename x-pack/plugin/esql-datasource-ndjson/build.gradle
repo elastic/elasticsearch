@@ -36,6 +36,7 @@ dependencies {
 
   testImplementation project(':test:framework')
   testImplementation project(path: xpackModule('esql'))
+  testImplementation project(xpackModule('esql:qa:testFixtures'))
   testImplementation('commons-io:commons-io:2.15.1')
   testImplementation(testArtifact(project(xpackModule('core'))))
 }

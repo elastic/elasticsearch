@@ -2612,7 +2612,11 @@ public final class InternalTestCluster extends TestCluster {
                 try {
                     assertBusy(() -> {
                         CircuitBreaker reqBreaker = breakerService.getBreaker(CircuitBreaker.REQUEST);
-                        assertThat("Request breaker not reset to 0 on node: " + name, reqBreaker.getUsed(), equalTo(0L));
+                        assertThat(
+                            "Request breaker [" + reqBreaker.getName() + "] not reset to 0 on node: " + name,
+                            reqBreaker.getUsed(),
+                            equalTo(0L)
+                        );
                     });
                 } catch (Exception e) {
                     throw new AssertionError("Exception during check for request breaker reset to 0", e);

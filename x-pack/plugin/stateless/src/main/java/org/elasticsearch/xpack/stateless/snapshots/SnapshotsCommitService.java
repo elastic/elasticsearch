@@ -44,7 +44,6 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.repositories.SnapshotShardContextHelper.NOOP_RELEASABLE;
 import static org.elasticsearch.repositories.SnapshotShardContextHelper.acquireSnapshotIndexCommit;
 import static org.elasticsearch.repositories.SnapshotShardContextHelper.closeSnapshotIndexCommit;
 import static org.elasticsearch.repositories.SnapshotShardContextHelper.maybeEnsureNotAborted;
@@ -153,7 +152,6 @@ public class SnapshotsCommitService implements ClusterStateListener {
                 indexShard::isRelocatedPrimary
             )
         ) {
-            assert releasable != NOOP_RELEASABLE : "commit cannot be released by relocation since it is not registered yet";
             final var indexCommit = snapshotIndexCommit.indexCommit();
             maybeEnsureNotAborted(snapshotStatus);
             final Map<String, BlobLocation> blobLocations = indexCommit.getFileNames()

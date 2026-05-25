@@ -72,6 +72,27 @@ public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationT
         );
     }
 
+    public void testNewSecretSettings_EmptyClientSecretValue_ThrowsError() {
+        var initialSettings = createRandom();
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> initialSettings.newSecretSettings(new HashMap<>(Map.of(CLIENT_SECRET_FIELD, "")))
+        );
+        assertThat(
+            thrownException.getMessage(),
+            containsString(
+                Strings.format("[service_settings] Invalid value empty string. [%s] must be a non-empty string", CLIENT_SECRET_FIELD)
+            )
+        );
+    }
+
+    public void testNewSecretSettings_IgnoresUnknownFields() {
+        var initialSettings = createRandom();
+        var newSecrets = new HashMap<String, Object>();
+        newSecrets.put("some_unknown_field", "value");
+        assertThat(initialSettings.newSecretSettings(newSecrets), sameInstance(initialSettings));
+    }
+
     private static void assertRejected(AzureOpenAiOAuth2Secrets initialSettings, Map<String, Object> request, String expectedDisallowed) {
         var thrownException = expectThrows(ValidationException.class, () -> initialSettings.newSecretSettings(new HashMap<>(request)));
         assertThat(
@@ -105,7 +126,7 @@ public class AzureOpenAiOAuth2SecretsTests extends AbstractBWCWireSerializationT
         assertThat(
             thrownException.getMessage(),
             containsString(
-                Strings.format("[secret_settings] Invalid value empty string. [%s] must be a non-empty string", CLIENT_SECRET_FIELD)
+                Strings.format("[service_settings] Invalid value empty string. [%s] must be a non-empty string", CLIENT_SECRET_FIELD)
             )
         );
     }

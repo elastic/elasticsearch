@@ -120,6 +120,37 @@ public class AzureOpenAiEntraIdApiKeySecretsTests extends AbstractBWCWireSeriali
         assertRejected(initialSettings, ENTRA_ID, Map.of(API_KEY, randomAlphaOfLength(10), ENTRA_ID, randomAlphaOfLength(10)), "[api_key]");
     }
 
+    public void testNewSecretSettings_EmptyApiKeyValue_ThrowsError() {
+        var initialSettings = new AzureOpenAiEntraIdApiKeySecrets(randomSecureStringOfLength(15), null);
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> initialSettings.newSecretSettings(new HashMap<>(Map.of(API_KEY, "")))
+        );
+        assertThat(
+            thrownException.getMessage(),
+            containsString(Strings.format("[service_settings] Invalid value empty string. [%s] must be a non-empty string", API_KEY))
+        );
+    }
+
+    public void testNewSecretSettings_EmptyEntraIdValue_ThrowsError() {
+        var initialSettings = new AzureOpenAiEntraIdApiKeySecrets(null, randomSecureStringOfLength(15));
+        var thrownException = expectThrows(
+            ValidationException.class,
+            () -> initialSettings.newSecretSettings(new HashMap<>(Map.of(ENTRA_ID, "")))
+        );
+        assertThat(
+            thrownException.getMessage(),
+            containsString(Strings.format("[service_settings] Invalid value empty string. [%s] must be a non-empty string", ENTRA_ID))
+        );
+    }
+
+    public void testNewSecretSettings_IgnoresUnknownFields() {
+        var initialSettings = new AzureOpenAiEntraIdApiKeySecrets(randomSecureStringOfLength(15), null);
+        var newSecrets = new HashMap<String, Object>();
+        newSecrets.put("some_unknown_field", "value");
+        assertThat(initialSettings.newSecretSettings(newSecrets), sameInstance(initialSettings));
+    }
+
     private static void assertRejected(
         AzureOpenAiEntraIdApiKeySecrets initialSettings,
         String allowedField,

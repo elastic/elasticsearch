@@ -78,7 +78,7 @@ public class AwsSecretSettingsTests extends AbstractBWCWireSerializationTestCase
         assertValidationError(exception, mustBeUpdatedTogetherError(ACCESS_KEY_FIELD));
     }
 
-    public void testFromMap_CreatesSettings_ReturnsNullFromMap_null() {
+    public void testFromMap_NullMap_ReturnsNull() {
         assertThat(AwsSecretSettings.fromMap(null), is(nullValue()));
     }
 
@@ -184,12 +184,12 @@ public class AwsSecretSettingsTests extends AbstractBWCWireSerializationTestCase
     }
 
     private static String missingRequiredSettingError(String fieldName) {
-        return Strings.format("[secret_settings] does not contain the required setting [%s]", fieldName);
+        return Strings.format("[service_settings] does not contain the required setting [%s]", fieldName);
     }
 
     private static String mustBeUpdatedTogetherError(String missingField) {
         return Strings.format(
-            "[secret_settings] [%s] and [%s] must be updated together; missing: [%s]",
+            "[service_settings] [%s] and [%s] must be updated together; missing: [%s]",
             ACCESS_KEY_FIELD,
             SECRET_KEY_FIELD,
             missingField

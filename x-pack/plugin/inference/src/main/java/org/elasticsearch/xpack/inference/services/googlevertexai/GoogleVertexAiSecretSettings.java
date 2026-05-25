@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.inference.ModelSecrets;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
@@ -28,6 +27,7 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractRequiredSecureString;
 
@@ -48,7 +48,7 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
         SecureString secureServiceAccountJson = extractRequiredSecureString(
             map,
             SERVICE_ACCOUNT_JSON,
-            ModelSecrets.SECRET_SETTINGS,
+            SERVICE_SETTINGS,
             validationException
         );
 
@@ -113,7 +113,7 @@ public class GoogleVertexAiSecretSettings implements SecretSettings {
         var extractedServiceAccountJson = extractOptionalSecureString(
             newSecrets,
             SERVICE_ACCOUNT_JSON,
-            ModelSecrets.SECRET_SETTINGS,
+            SERVICE_SETTINGS,
             validationException
         );
         validationException.throwIfValidationErrorsExist();

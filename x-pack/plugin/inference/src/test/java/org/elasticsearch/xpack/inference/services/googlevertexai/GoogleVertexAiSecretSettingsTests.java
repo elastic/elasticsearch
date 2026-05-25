@@ -13,7 +13,7 @@ import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
@@ -130,7 +130,7 @@ public class GoogleVertexAiSecretSettingsTests extends AbstractBWCWireSerializat
     private static String missingServiceAccountJsonError() {
         return Strings.format(
             "[%s] does not contain the required setting [%s]",
-            ModelSecrets.SECRET_SETTINGS,
+            ModelConfigurations.SERVICE_SETTINGS,
             GoogleVertexAiSecretSettings.SERVICE_ACCOUNT_JSON
         );
     }
@@ -138,7 +138,7 @@ public class GoogleVertexAiSecretSettingsTests extends AbstractBWCWireSerializat
     private static String emptyServiceAccountJsonError() {
         return Strings.format(
             "[%s] Invalid value empty string. [%s] must be a non-empty string",
-            ModelSecrets.SECRET_SETTINGS,
+            ModelConfigurations.SERVICE_SETTINGS,
             GoogleVertexAiSecretSettings.SERVICE_ACCOUNT_JSON
         );
     }

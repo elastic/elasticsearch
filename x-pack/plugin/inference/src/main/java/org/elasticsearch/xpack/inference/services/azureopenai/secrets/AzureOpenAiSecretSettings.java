@@ -18,13 +18,13 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
-import java.util.TreeSet;
 import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.inference.ModelSecrets.SECRET_SETTINGS;
+import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalSecureString;
 
@@ -38,7 +38,7 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
     public static final String ENTRA_ID = "entra_id";
 
     public static final String EXACTLY_ONE_SECRETS_FIELD_ERROR = format(
-        "[secret_settings] must have exactly one of [%s], [%s], or [%s] field set",
+        "[service_settings] must have exactly one of [%s], [%s], or [%s] field set",
         API_KEY,
         ENTRA_ID,
         CLIENT_SECRET_FIELD
@@ -55,37 +55,23 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
             return null;
         }
 
-        ValidationException validationException = new ValidationException();
-        var secureApiToken = extractOptionalSecureString(map, API_KEY, SECRET_SETTINGS, validationException);
-        var secureEntraId = extractOptionalSecureString(map, ENTRA_ID, SECRET_SETTINGS, validationException);
-        var clientSecret = extractOptionalSecureString(map, CLIENT_SECRET_FIELD, SECRET_SETTINGS, validationException);
+        var provided = extractSecretsMap(map);
 
-        var provided = new HashMap<String, SecureString>();
-        if (secureApiToken != null) {
-            provided.put(API_KEY, secureApiToken);
-        }
-        if (secureEntraId != null) {
-            provided.put(ENTRA_ID, secureEntraId);
-        }
-        if (clientSecret != null) {
-            provided.put(CLIENT_SECRET_FIELD, clientSecret);
-        }
-
+        var validationException = new ValidationException();
         if (provided.isEmpty()) {
             validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR);
         } else if (provided.size() > 1) {
             validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR + ", received: " + provided.keySet());
         }
-
         validationException.throwIfValidationErrorsExist();
 
-        if (secureApiToken != null) {
-            return new AzureOpenAiEntraIdApiKeySecrets(secureApiToken, null);
+        if (provided.containsKey(API_KEY)) {
+            return new AzureOpenAiEntraIdApiKeySecrets(provided.get(API_KEY), null);
         }
-        if (secureEntraId != null) {
-            return new AzureOpenAiEntraIdApiKeySecrets(null, secureEntraId);
+        if (provided.containsKey(ENTRA_ID)) {
+            return new AzureOpenAiEntraIdApiKeySecrets(null, provided.get(ENTRA_ID));
         }
-        return new AzureOpenAiOAuth2Secrets(clientSecret);
+        return new AzureOpenAiOAuth2Secrets(provided.get(CLIENT_SECRET_FIELD));
     }
 
     public static Map<String, SettingsConfiguration> configurations(EnumSet<TaskType> supportedTaskTypes) {
@@ -116,10 +102,23 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
 
     @Override
     public AzureOpenAiSecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+        var extractedSecrets = extractSecretsMap(newSecrets);
+        if (extractedSecrets.isEmpty()) {
+            return this;
+        }
+        return updated(extractedSecrets);
+    }
+
+    /**
+     * Extracts the supported secret fields from {@code map} into a typed map of non-null values.
+     * Throws a {@link ValidationException} if any provided field is malformed (for example, an empty string).
+     * The caller is responsible for validating which combinations of fields are allowed for the current flow.
+     */
+    private static Map<String, SecureString> extractSecretsMap(Map<String, Object> map) {
         var validationException = new ValidationException();
-        var secureApiToken = extractOptionalSecureString(newSecrets, API_KEY, SECRET_SETTINGS, validationException);
-        var secureEntraId = extractOptionalSecureString(newSecrets, ENTRA_ID, SECRET_SETTINGS, validationException);
-        var clientSecret = extractOptionalSecureString(newSecrets, CLIENT_SECRET_FIELD, SECRET_SETTINGS, validationException);
+        var secureApiToken = extractOptionalSecureString(map, API_KEY, SERVICE_SETTINGS, validationException);
+        var secureEntraId = extractOptionalSecureString(map, ENTRA_ID, SERVICE_SETTINGS, validationException);
+        var clientSecret = extractOptionalSecureString(map, CLIENT_SECRET_FIELD, SERVICE_SETTINGS, validationException);
         validationException.throwIfValidationErrorsExist();
 
         var provided = new HashMap<String, SecureString>();
@@ -132,11 +131,7 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
         if (clientSecret != null) {
             provided.put(CLIENT_SECRET_FIELD, clientSecret);
         }
-
-        if (provided.isEmpty()) {
-            return this;
-        }
-        return updated(provided);
+        return provided;
     }
 
     /** Apply a non-empty update; subclasses enforce which fields they allow. */
@@ -153,10 +148,10 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
         Function<SecureString, AzureOpenAiSecretSettings> factory
     ) {
         if (provided.size() > 1 || provided.containsKey(allowedField) == false) {
-            var disallowed = new TreeSet<>(provided.keySet());
+            var disallowed = new HashSet<>(provided.keySet());
             disallowed.remove(allowedField);
             throw new ValidationException().addValidationError(
-                format("[secret_settings] only [%s] can be updated for this secret, received: %s", allowedField, disallowed)
+                format("[service_settings] only [%s] can be updated for this secret, received: %s", allowedField, disallowed)
             );
         }
         var newValue = provided.get(allowedField);

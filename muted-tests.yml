@@ -606,3 +606,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OtelMetricsIT
   method: testOTelHealthMetrics
   issue: https://github.com/elastic/elasticsearch/issues/149835
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:BASELINE}
+  issue: https://github.com/elastic/elasticsearch/issues/149746

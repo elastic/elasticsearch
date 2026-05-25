@@ -24,6 +24,7 @@ import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.IOSupplier;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfQueryConfigResolver;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -52,11 +53,11 @@ public class IVFKnnFloatSlicedVectorQuery extends IVFKnnFloatVectorQuery {
         int numCands,
         Query filter,
         float visitRatio,
-        boolean doPrecondition,
+        IvfQueryConfigResolver queryConfigResolver,
         String sliceField,
         BytesRef sliceId
     ) {
-        super(field, query, k, numCands, filter, visitRatio, doPrecondition, null);
+        super(field, query, k, numCands, filter, visitRatio, queryConfigResolver);
         this.sliceField = Objects.requireNonNull(sliceField);
         this.sliceId = Objects.requireNonNull(sliceId);
     }

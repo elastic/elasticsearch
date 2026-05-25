@@ -29,26 +29,4 @@ public interface IvfMergeConfigResolver {
         return (fieldInfo, floatVectorValues, mergeState, codecDefault) -> codecDefault;
     }
 
-    /*
-        IvfSegmentConfig resolve(
-        FieldInfo fieldInfo,
-        FloatVectorValues floatVectorValues,
-        CentroidSupplier centroidSupplier,
-        int[] assignments,
-        int[] overspillAssignments,
-        MergeState mergeState,
-        IvfSegmentConfig codecDefault
-    ) throws IOException;
-
-    static IvfMergeConfigResolver useCodecDefault() {
-        return (
-            fieldInfo,
-            floatVectorValues,
-            centroidSupplier,
-            assignments,
-            overspillAssignments,
-            mergeState,
-            codecDefault) -> codecDefault;
-    }
-     */
 }

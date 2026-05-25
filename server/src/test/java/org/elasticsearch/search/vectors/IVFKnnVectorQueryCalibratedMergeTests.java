@@ -9,27 +9,22 @@
 
 package org.elasticsearch.search.vectors;
 
-import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.DirectoryReader;
-import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.common.lucene.Lucene;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.CalibrationAwareReader;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextRescoreOversampleTestFixture;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfMergeConfigResolver;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfQueryConfigResolver;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
+import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.Random;
 
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -68,21 +63,7 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
                 }
                 VectorUtil.l2normalize(queryVector);
 
-                IvfQueryConfigResolver resolver = (fieldInfo, leafReader) -> {
-                    SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leafReader);
-                    assertNotNull(segmentReader);
-                    KnnVectorsReader vectorsReader = segmentReader.getVectorReader();
-                    if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
-                        vectorsReader = perField.getFieldReader(ESNextRescoreOversampleTestFixture.FIELD_NAME);
-                    }
-                    if (vectorsReader instanceof CalibrationAwareReader calibrationAwareReader) {
-                        float ov = calibrationAwareReader.getOversampleFactor(fieldInfo);
-                        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = calibrationAwareReader.getQuantEncoding(fieldInfo);
-                        boolean precondition = calibrationAwareReader.shouldPrecondition(fieldInfo);
-                        return new IvfSegmentConfig(encoding, precondition, ov);
-                    }
-                    throw new AssertionError("expected CalibrationAwareReader on vectors reader");
-                };
+                var resolver = IvfQueryConfigResolver.from(true, false, 4, DenseVectorFieldMapper.DEFAULT_OVERSAMPLE, null);
 
                 IVFKnnFloatVectorQuery ivfQuery = new IVFKnnFloatVectorQuery(
                     ESNextRescoreOversampleTestFixture.FIELD_NAME,
@@ -91,7 +72,6 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
                     500,
                     null,
                     1f,
-                    false,
                     resolver
                 );
 
@@ -100,6 +80,58 @@ public class IVFKnnVectorQueryCalibratedMergeTests extends ESTestCase {
 
                 assertThat(hits.scoreDocs.length, lessThanOrEqualTo(Math.min(expectedMergeK, reader.numDocs())));
                 assertThat(hits.scoreDocs.length, greaterThan(k));
+            }
+        }
+    }
+
+    public void testIvfRescoreQueryUsesCalibratedMergeCandidates() throws IOException {
+        Random rnd = random();
+        float oversampleA = 2f;
+        float oversampleB = 5f;
+        final int k = 10;
+
+        try (Directory dir = newDirectory()) {
+            try (
+                DirectoryReader reader = ESNextRescoreOversampleTestFixture.buildTwoCommitsTwoSegments(
+                    dir,
+                    rnd,
+                    4,
+                    64,
+                    oversampleA,
+                    oversampleB,
+                    IvfMergeConfigResolver.useCodecDefault()
+                )
+            ) {
+                IndexSearcher searcher = newSearcher(reader);
+
+                float[] queryVector = new float[4];
+                for (int i = 0; i < queryVector.length; i++) {
+                    queryVector[i] = rnd.nextFloat();
+                }
+                VectorUtil.l2normalize(queryVector);
+
+                var resolver = IvfQueryConfigResolver.from(true, false, 4, DenseVectorFieldMapper.DEFAULT_OVERSAMPLE, null);
+                IVFKnnFloatVectorQuery ivfQuery = new IVFKnnFloatVectorQuery(
+                    ESNextRescoreOversampleTestFixture.FIELD_NAME,
+                    queryVector,
+                    k,
+                    500,
+                    null,
+                    1f,
+                    resolver
+                );
+                RescoreKnnVectorQuery rescoreQuery = RescoreKnnVectorQuery.fromInnerQuery(
+                    ESNextRescoreOversampleTestFixture.FIELD_NAME,
+                    queryVector,
+                    k,
+                    k,
+                    ivfQuery
+                );
+                assertThat(rescoreQuery.k(), equalTo(k));
+
+                Query rewritten = rescoreQuery.rewrite(searcher);
+                TopDocs hits = searcher.search(rewritten, k);
+                assertThat(hits.scoreDocs.length, lessThanOrEqualTo(k));
             }
         }
     }

@@ -20,14 +20,11 @@
 
 package org.elasticsearch.test.knn;
 
-import org.apache.lucene.codecs.KnnVectorsReader;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.index.SegmentReader;
 import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
@@ -62,14 +59,10 @@ import org.apache.lucene.util.BitSet;
 import org.apache.lucene.util.BitSetIterator;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.CalibrationAwareReader;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfQueryConfigResolver;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
@@ -766,63 +759,46 @@ public class KnnSearcher {
     )
         throws IOException {
         Query knnQuery;
-        int overSampledTopK = searchParameters.topK();
+        final int resultK = searchParameters.topK();
+        int overSampledTopK = resultK;
         if (searchParameters.overSamplingFactor() > 1f) {
-            // oversample the topK results to get more candidates for the final result
-            overSampledTopK = (int) Math.ceil(overSampledTopK * searchParameters.overSamplingFactor());
+            overSampledTopK = (int) Math.ceil(resultK * searchParameters.overSamplingFactor());
         }
         int efSearch = Math.max(overSampledTopK, searchParameters.numCandidates());
         if (indexType == KnnIndexTester.IndexType.IVF) {
             float visitRatio = (float) (searchParameters.visitPercentage() / 100);
+            float mappingOversample = searchParameters.overSamplingFactor() > 0f
+                ? searchParameters.overSamplingFactor()
+                : DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
+            Float queryOversample = searchParameters.overSamplingFactor() > 1f ? searchParameters.overSamplingFactor() : null;
+            int quantBits = testConfiguration.quantizeBits() != null ? testConfiguration.quantizeBits() : 4;
+            var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
+                testConfiguration.autoCalibrate(),
+                doPrecondition,
+                quantBits,
+                mappingOversample,
+                queryOversample
+            );
             if (sliced) {
                 knnQuery = new IVFKnnFloatSlicedVectorQuery(
                     VECTOR_FIELD,
                     vector,
-                    overSampledTopK,
+                    resultK,
                     efSearch,
                     filterQuery,
                     visitRatio,
-                    doPrecondition,
+                    ivfQueryConfigResolver,
                     PARTITION_ID_FIELD,
                     partition
                 );
             } else {
-                IvfQueryConfigResolver ivfQueryConfigResolver = (fieldInfo, leafReader) -> {
-                    IvfSegmentConfig segmentConfig;
-                    if (testConfiguration.autoCalibrate()) {
-                        SegmentReader segmentReader = Lucene.tryUnwrapSegmentReader(leafReader);
-                        if (segmentReader != null) {
-                            KnnVectorsReader vectorsReader = segmentReader.getVectorReader();
-                            if (vectorsReader instanceof PerFieldKnnVectorsFormat.FieldsReader perField) {
-                                vectorsReader = perField.getFieldReader(VECTOR_FIELD);
-                            }
-                            if (vectorsReader instanceof CalibrationAwareReader calibrationAwareReader) {
-                                float oversampleFactor = searchParameters.overSamplingFactor() > 1.0
-                                    ? searchParameters.overSamplingFactor()
-                                    : calibrationAwareReader.getOversampleFactor(fieldInfo);
-                                ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding =
-                                    calibrationAwareReader.getQuantEncoding(fieldInfo);
-                                boolean precondition = calibrationAwareReader.shouldPrecondition(fieldInfo);
-                                segmentConfig = new IvfSegmentConfig(quantEncoding, precondition, oversampleFactor);
-                                return segmentConfig;
-                            }
-                        }
-                    }
-                    segmentConfig = new IvfSegmentConfig(
-                        ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) testConfiguration.quantizeBits().intValue()),
-                        doPrecondition,
-                        searchParameters.overSamplingFactor()
-                    );
-                    return segmentConfig;
-                };
                 knnQuery = new IVFKnnFloatVectorQuery(
                     VECTOR_FIELD,
                     vector,
-                    overSampledTopK,
+                    resultK,
                     efSearch,
                     filterQuery,
                     visitRatio,
-                    doPrecondition,
                     ivfQueryConfigResolver
                 );
             }
@@ -838,8 +814,7 @@ public class KnnSearcher {
             );
         }
         if (searchParameters.overSamplingFactor() > 1f) {
-            // oversample the topK results to get more candidates for the final result
-            knnQuery = RescoreKnnVectorQuery.fromInnerQuery(VECTOR_FIELD, vector, searchParameters.topK(), overSampledTopK, knnQuery);
+            knnQuery = RescoreKnnVectorQuery.fromInnerQuery(VECTOR_FIELD, vector, resultK, overSampledTopK, knnQuery);
         }
         QueryProfiler profiler = new QueryProfiler();
         TopDocs docs = searcher.search(knnQuery, searchParameters.topK());

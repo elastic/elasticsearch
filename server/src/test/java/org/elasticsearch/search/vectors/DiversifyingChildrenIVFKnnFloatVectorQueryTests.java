@@ -13,22 +13,18 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.TestIvfQueryConfigResolver;
 
 public class DiversifyingChildrenIVFKnnFloatVectorQueryTests extends AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase {
 
+    private static TestIvfQueryConfigResolver testResolver() {
+        return new TestIvfQueryConfigResolver(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, random().nextBoolean(), 3.0f);
+    }
+
     @Override
     Query getDiversifyingChildrenKnnQuery(String fieldName, float[] queryVector, Query childFilter, int k, BitSetProducer parentBitSet) {
-        return new DiversifyingChildrenIVFKnnFloatVectorQuery(
-            fieldName,
-            queryVector,
-            k,
-            k,
-            childFilter,
-            parentBitSet,
-            0,
-            random().nextBoolean(),
-            null
-        );
+        return new DiversifyingChildrenIVFKnnFloatVectorQuery(fieldName, queryVector, k, k, childFilter, parentBitSet, 0, testResolver());
     }
 
     @Override

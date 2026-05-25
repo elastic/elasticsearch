@@ -47,10 +47,9 @@ public class IVFKnnFloatVectorQuery extends AbstractIVFKnnVectorQuery {
         int numCands,
         Query filter,
         float visitRatio,
-        boolean doPrecondition,
         IvfQueryConfigResolver queryConfigResolver
     ) {
-        super(field, visitRatio, k, numCands, filter, doPrecondition, queryConfigResolver);
+        super(field, visitRatio, k, numCands, filter, queryConfigResolver);
         this.query = query;
     }
 

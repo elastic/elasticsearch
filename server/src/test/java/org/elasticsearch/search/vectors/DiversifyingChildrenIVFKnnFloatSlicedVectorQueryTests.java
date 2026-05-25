@@ -37,6 +37,7 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.TestIvfQueryConfigResolver;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.junit.Before;
@@ -56,6 +57,10 @@ import static org.hamcrest.Matchers.equalTo;
 public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends AbstractDiversifyingChildrenIVFKnnVectorQueryTestCase {
 
     private static final BytesRef SLICE_ZERO = new BytesRef("0");
+
+    private static TestIvfQueryConfigResolver testResolver() {
+        return new TestIvfQueryConfigResolver(ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY, random().nextBoolean(), 3.0f);
+    }
 
     private static void addRoutingSlice(Document doc, BytesRef sliceId) {
         doc.add(SortedDocValuesField.indexedField(RoutingFieldMapper.NAME, sliceId));
@@ -85,7 +90,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
             childFilter,
             parentBitSet,
             0,
-            random().nextBoolean(),
+            testResolver(),
             RoutingFieldMapper.NAME,
             SLICE_ZERO
         );
@@ -425,7 +430,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
                             filterQuery,
                             parents,
                             1.0f,
-                            random().nextBoolean(),
+                            testResolver(),
                             RoutingFieldMapper.NAME,
                             new BytesRef("" + slice)
                         );
@@ -447,7 +452,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
                         filterQuery,
                         parents,
                         1.0f,
-                        random().nextBoolean(),
+                        testResolver(),
                         RoutingFieldMapper.NAME,
                         new BytesRef("invalid")
                     );
@@ -476,7 +481,7 @@ public class DiversifyingChildrenIVFKnnFloatSlicedVectorQueryTests extends Abstr
             null,
             parent -> null,
             0.1f,
-            false,
+            testResolver(),
             RoutingFieldMapper.NAME,
             SLICE_ZERO
         );

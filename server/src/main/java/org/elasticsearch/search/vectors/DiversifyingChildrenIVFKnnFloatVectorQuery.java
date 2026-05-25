@@ -39,10 +39,9 @@ public class DiversifyingChildrenIVFKnnFloatVectorQuery extends IVFKnnFloatVecto
         Query childFilter,
         BitSetProducer parentsFilter,
         float visitRatio,
-        boolean doPrecondition,
         IvfQueryConfigResolver queryConfigResolver
     ) {
-        super(field, query, k, numCands, childFilter, visitRatio, doPrecondition, queryConfigResolver);
+        super(field, query, k, numCands, childFilter, visitRatio, queryConfigResolver);
         this.parentsFilter = parentsFilter;
     }
 

@@ -51,11 +51,9 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.diskbbq.es94.ES940DiskBBQVectorsFormat;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.CalibrationAwareReader;
+import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfQueryConfigResolver;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ESNextDiskBBQVectorsFormat;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfFlushConfigSource;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfQueryConfigResolver;
-import org.elasticsearch.index.codec.vectors.diskbbq.next.IvfSegmentConfig;
 import org.elasticsearch.index.codec.vectors.diskbbq.next.ManifoldErrorCalibrationSelector;
 import org.elasticsearch.index.codec.vectors.es93.ES93BinaryQuantizedVectorsFormat;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
@@ -3357,24 +3355,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 if (sliceEnabled && parentFilter != null) {
                     throw new IllegalArgumentException("[" + SliceIndexing.PARAM_NAME + "] is not supported for nested KNN queries");
                 }
-                // when auto_calibrate, prefer per-segment persisted config
-                IvfQueryConfigResolver ivfQueryConfigResolver = (fieldInfo, leafReader) -> {
-                    IvfSegmentConfig segmentConfig;
-                    if (bbqIndexOptions.autoCalibrate && leafReader instanceof CalibrationAwareReader calibrationAwareReader) {
-                        float calibratedOversample = calibrationAwareReader.getOversampleFactor(fieldInfo);
-                        float oversampleFactor = queryOversample != null ? queryOversample : calibratedOversample;
-                        ESNextDiskBBQVectorsFormat.QuantEncoding quantEncoding = calibrationAwareReader.getQuantEncoding(fieldInfo);
-                        boolean precondition = calibrationAwareReader.shouldPrecondition(fieldInfo);
-                        segmentConfig = new IvfSegmentConfig(quantEncoding, precondition, oversampleFactor);
-                    } else {
-                        segmentConfig = new IvfSegmentConfig(
-                            ESNextDiskBBQVectorsFormat.QuantEncoding.fromBits((byte) bbqIndexOptions.bits),
-                            bbqIndexOptions.doPrecondition(),
-                            queryOversample != null ? queryOversample : bbqIndexOptions.rescoreVector.oversample
-                        );
-                    }
-                    return segmentConfig;
-                };
+                float mappingOversample = bbqIndexOptions.rescoreVector != null
+                    ? bbqIndexOptions.rescoreVector.oversample
+                    : DEFAULT_OVERSAMPLE;
+                var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
+                    bbqIndexOptions.autoCalibrate,
+                    bbqIndexOptions.doPrecondition,
+                    bbqIndexOptions.bits,
+                    mappingOversample,
+                    queryOversample
+                );
 
                 final String singleSliceRouting = parentFilter == null ? extractSingleSliceRouting(sliceRouting, sliceEnabled) : null;
                 if (singleSliceRouting != null) {
@@ -3385,7 +3375,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         numCands,
                         filter,
                         visitRatio,
-                        bbqIndexOptions.doPrecondition(),
+                        ivfQueryConfigResolver,
                         RoutingFieldMapper.NAME,
                         new BytesRef(singleSliceRouting)
                     );
@@ -3394,24 +3384,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                         ? new DiversifyingChildrenIVFKnnFloatVectorQuery(
                             name(),
                             queryVector,
-                            adjustedK,
+                            k,
                             numCands,
                             filter,
                             parentFilter,
                             visitRatio,
-                            bbqIndexOptions.doPrecondition(),
                             ivfQueryConfigResolver
                         )
-                        : new IVFKnnFloatVectorQuery(
-                            name(),
-                            queryVector,
-                            adjustedK,
-                            numCands,
-                            filter,
-                            visitRatio,
-                            bbqIndexOptions.doPrecondition(),
-                            ivfQueryConfigResolver
-                        );
+                        : new IVFKnnFloatVectorQuery(name(), queryVector, k, numCands, filter, visitRatio, ivfQueryConfigResolver);
                 }
             } else {
                 knnQuery = parentFilter != null

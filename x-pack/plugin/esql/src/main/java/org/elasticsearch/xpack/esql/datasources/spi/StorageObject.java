@@ -63,6 +63,27 @@ public interface StorageObject {
     /** Returns the path of this object. */
     StoragePath path();
 
+    /**
+     * Closes a stream opened by this object, discarding any unread bytes without blocking.
+     * <p>
+     * The default implementation calls {@link InputStream#close()}, which is correct for local
+     * files and most providers (they simply close the connection). Override this for providers
+     * whose {@code close()} drains remaining bytes to reuse the connection pool — where closing
+     * a partially-read stream would block for the full remaining object transfer time.
+     * <p>
+     * Use this instead of closing directly when the caller intentionally reads only a prefix of
+     * the stream (e.g., schema detection), and connection reuse is not required.
+     * <p>
+     * <b>Contract:</b> {@code stream} must be the exact {@link InputStream} instance returned by
+     * {@link #newStream()} or {@link #newStream(long, long)} on this object — not a wrapper
+     * around it. Passing a wrapped stream (e.g. a {@link java.io.BufferedInputStream} layered on
+     * top) causes provider-specific overrides (e.g. the S3 {@code Abortable} cast) to fall back
+     * to a draining {@code close()}, silently defeating the abort.
+     */
+    default void abortStream(InputStream stream) throws IOException {
+        stream.close();
+    }
+
     // === ASYNC API (optional - default wraps sync) ===
 
     /**

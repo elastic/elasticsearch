@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.http.Abortable;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -19,6 +20,8 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
@@ -34,6 +37,8 @@ import java.util.concurrent.Executor;
  * Supports full and range reads, metadata retrieval, and optional native async via S3AsyncClient.
  */
 public final class S3StorageObject implements StorageObject {
+    private static final Logger logger = LogManager.getLogger(S3StorageObject.class);
+
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
     private final String bucket;
@@ -178,6 +183,22 @@ public final class S3StorageObject implements StorageObject {
             fetchMetadata();
         }
         return cachedExists;
+    }
+
+    @Override
+    public void abortStream(InputStream stream) throws IOException {
+        if (stream instanceof Abortable abortable) {
+            abortable.abort();
+        } else {
+            logger.trace(
+                () -> Strings.format(
+                    "abortStream received non-Abortable stream [%s] for [%s]; falling back to close() which may drain the body",
+                    stream.getClass().getName(),
+                    path
+                )
+            );
+            stream.close();
+        }
     }
 
     @Override

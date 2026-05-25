@@ -864,7 +864,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         sharedBytes.decRef();
     }
 
-    record RegionKey<KeyType>(KeyType file, int region) {
+    public record RegionKey<KeyType>(KeyType file, int region) {
         @Override
         public String toString() {
             return "Chunk{" + "file=" + file + ", region=" + region + '}';

@@ -127,7 +127,6 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         int clustersPerNeighborhood = 128;
         float soarLambda = 1.0f;
         int nVectors = 1000;
-
         List<float[]> vectors = new ArrayList<>();
         for (int i = 0; i < nVectors; i++) {
             float[] vector = new float[5];
@@ -180,7 +179,6 @@ public class BalancedKMeansLocalTests extends ESTestCase {
         // (this path is not use in production, just for the test).
         int clustersPerNeighborhood = random().nextInt(11, 512);
         float soarLambda = random().nextFloat(0.5f, 1.5f);
-
         KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters, 0.5f);
 
         float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, CentroidOps.FLOAT);
@@ -228,6 +226,7 @@ public class BalancedKMeansLocalTests extends ESTestCase {
             }
             vectors.add(vector);
         }
+
         return KMeansFloatVectorValues.build(vectors, null, nDims);
     }
 
@@ -273,5 +272,4 @@ public class BalancedKMeansLocalTests extends ESTestCase {
             assertEquals(minClusterSizes[0], minClusterSizes[1], 2e-1 * minClusterSizes[0]);
         }
     }
-
 }

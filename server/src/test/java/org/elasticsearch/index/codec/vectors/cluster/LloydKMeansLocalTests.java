@@ -49,7 +49,6 @@ public class LloydKMeansLocalTests extends ESTestCase {
         int maxIterations = random().nextInt(0, 100);
         int clustersPerNeighborhood = random().nextInt(2, 512);
         float soarLambda = random().nextFloat(0.5f, 1.5f);
-
         KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters);
 
         float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, CentroidOps.FLOAT);
@@ -249,5 +248,4 @@ public class LloydKMeansLocalTests extends ESTestCase {
             }
         }
     }
-
 }

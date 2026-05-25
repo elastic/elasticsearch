@@ -135,7 +135,6 @@ public class HierarchicalKMeansTests extends ESTestCase {
         int targetSize = random().nextInt(4, 64);
         int dims = random().nextInt(2, 20);
         int diffValues = randomIntBetween(1, 5);
-
         float[][] values = new float[diffValues][dims];
         for (int i = 0; i < diffValues; i++) {
             for (int j = 0; j < dims; j++) {
@@ -163,7 +162,19 @@ public class HierarchicalKMeansTests extends ESTestCase {
         int[] assignments = result.assignments();
         int[] soarAssignments = result.soarAssignments();
 
-        assertTrue("Expected at least 1 centroid", centroids.length >= 1);
+        int[] counts = new int[centroids.length];
+        for (int i = 0; i < assignments.length; i++) {
+            counts[assignments[i]]++;
+        }
+        assertArrayEquals(counts, result.clusterCounts());
+
+        int totalCount = 0;
+        for (int count : counts) {
+            totalCount += count;
+            assertTrue(count > 0);
+        }
+        assertEquals(nVectors, totalCount);
+
         assertEquals(nVectors, assignments.length);
 
         for (int assignment : assignments) {

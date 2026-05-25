@@ -72,7 +72,6 @@ public class MMROperatorTests extends OperatorTestCase {
                     throw new RuntimeException(e);
                 }
 
-                finish();
                 return new Page(blocks);
             }
         };
@@ -80,16 +79,16 @@ public class MMROperatorTests extends OperatorTestCase {
 
     @Override
     protected void assertSimpleOutput(List<Page> input, List<Page> results) {
-        assertEquals(1, input.size());
+        int totalInputPositions = input.stream().mapToInt(Page::getPositionCount).sum();
+        int expectedLimit = Math.min(totalInputPositions, testLimitValue);
 
-        int expectedLimit = Math.min(input.getFirst().getPositionCount(), testLimitValue);
+        int totalResultPositions = results.stream().mapToInt(Page::getPositionCount).sum();
+        assertEquals(expectedLimit, totalResultPositions);
 
-        var firstResultPage = results.getFirst();
-        assertEquals(expectedLimit, firstResultPage.getPositionCount());
-
-        assertEquals(1, firstResultPage.getBlockCount());
-
-        assertThat(firstResultPage.getBlock(0).elementType(), equalTo(ElementType.FLOAT));
+        for (Page page : results) {
+            assertEquals(1, page.getBlockCount());
+            assertThat(page.getBlock(0).elementType(), equalTo(ElementType.FLOAT));
+        }
     }
 
     @Override

@@ -212,17 +212,15 @@ final class RootFlattenedDocValuesBlockLoader implements BlockLoader {
 
             XContentBuilder jsonBuilder = XContentFactory.jsonBuilder();
             jsonBuilder.startObject();
-            if (hasFlattenedValues()) {
-                getWriter().write(jsonBuilder, FlattenedFieldSyntheticWriterHelper.OutputStructure.FLATTENED);
-            }
-            for (SourceLoader.SyntheticFieldLoader loader : getMappedSubFieldLoaders()) {
-                if (loader.hasValue()) {
-                    loader.write(jsonBuilder);
-                }
-            }
+            getWriter(getMappedSubFieldLoaders()).writeFlattened(jsonBuilder);
             jsonBuilder.endObject();
-
-            builder.appendBytesRef(BytesReference.bytes(jsonBuilder).toBytesRef());
+            BytesReference bytes = BytesReference.bytes(jsonBuilder);
+            if (bytes.length() == 2) {
+                // Just "{}" — no actual values were written
+                builder.appendNull();
+            } else {
+                builder.appendBytesRef(bytes.toBytesRef());
+            }
         }
     }
 }

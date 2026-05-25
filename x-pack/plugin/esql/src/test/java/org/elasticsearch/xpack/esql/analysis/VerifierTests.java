@@ -487,6 +487,10 @@ public class VerifierTests extends ESTestCase {
             equalTo("1:23: nested aggregations [max(salary)] not allowed inside other aggregations [max(max(salary))]")
         );
         defaultAnalyzer().error(
+            "from test | stats w_avg = weighted_avg(salary, count(*)) by first_name",
+            equalTo("1:48: nested aggregations [count(*)] not allowed inside other aggregations " + "[weighted_avg(salary, count(*))]")
+        );
+        defaultAnalyzer().error(
             "from test | stats count(avg(first_name)) by first_name",
             equalTo(
                 "1:25: argument of [avg(first_name)] must be [aggregate_metric_double,"
@@ -884,6 +888,22 @@ public class VerifierTests extends ESTestCase {
                 "FROM test | STATS count(*) BY dense_vector",
                 equalTo("1:31: cannot group by on [dense_vector] type for grouping [dense_vector]")
             );
+    }
+
+    public void testFlattenedAllowedInLimitBy() {
+        assumeTrue("requires GROUP_BY_FLATTENED capability", EsqlCapabilities.Cap.GROUP_BY_FLATTENED.isEnabled());
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | LIMIT 1 BY resource.attributes");
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | LIMIT 1 BY attributes");
+    }
+
+    public void testFlattenedAllowedInStatsBy() {
+        assumeTrue("requires GROUP_BY_FLATTENED capability", EsqlCapabilities.Cap.GROUP_BY_FLATTENED.isEnabled());
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | STATS count(*) BY attributes");
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | STATS count(*) BY resource.attributes");
     }
 
     public void testDoubleRenamingField() {
@@ -1700,6 +1720,13 @@ public class VerifierTests extends ESTestCase {
         tsdb().error(
             "TS test  | STATS COUNT(*)",
             equalTo("1:18: count_star [COUNT(*)] can't be used with TS command; use count on a field instead")
+        );
+
+        tsdb().error(
+            "TS test  | STATS SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")",
+            equalTo(
+                "1:18: sparkline [SPARKLINE(COUNT(*), @timestamp, 10, \"2024-01-01\", \"2024-02-01\")]" + " can't be used with TS command"
+            )
         );
     }
 

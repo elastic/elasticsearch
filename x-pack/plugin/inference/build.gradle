@@ -575,7 +575,8 @@ tasks.named('yamlRestTest') {
     def semanticFieldTests = [
       'inference/120_semantic_field_mapping/*',
       'inference/130_semantic_field_query/*',
-      "inference/140_semantic_field_query_vector_builder/*"
+      'inference/140_semantic_field_query_vector_builder/*',
+      'inference/150_semantic_field_inference/*',
     ]
     systemProperty 'tests.rest.blacklist', semanticFieldTests.join(',')
   }

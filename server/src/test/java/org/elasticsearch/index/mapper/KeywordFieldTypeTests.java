@@ -497,7 +497,7 @@ public class KeywordFieldTypeTests extends FieldTypeTestCase {
         // given
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB)
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1)
             .build();

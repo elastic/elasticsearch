@@ -283,6 +283,10 @@ public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValu
         // Here, x is the document, c is the nearest centroid, and c_1 is the first
         // centroid the document was assigned to. The document is assigned to the
         // cluster with the smallest soar(x, c).
+
+        // Caveat: because of removals of empty clusters before SOAR,
+        // we may have neighborhoods.length > centroids.length.
+        // We should always use centroids.length as the correct value.
         float[] diffs = new float[dimension()];
         final float[] distances = new float[4];
         for (int i = startOrd; i < endOrd; i++) {

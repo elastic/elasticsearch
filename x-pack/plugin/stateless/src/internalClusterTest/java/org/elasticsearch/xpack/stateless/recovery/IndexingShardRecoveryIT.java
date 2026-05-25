@@ -276,6 +276,15 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
         logger.info("--> deleting index {}", indexName);
         assertAcked(client().admin().indices().prepareDelete(indexName));
 
+        // Index into a throwaway index to advance the node-level TranslogReplicator maxUploadedGeneration.
+        // This ensures we always get expected commit in afterFilesRestoredFromRepository when totalDocs > 0.
+        if (totalDocs > 0) {
+            var tempIndex = "advance-translog";
+            createIndex(tempIndex, indexSettings(1, 0).build());
+            ensureGreen(tempIndex);
+            indexDocs(tempIndex, 10);
+        }
+
         logger.info("--> restoring snapshot of {}", indexName);
         var restore = clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, "snapshots", "snapshot").setWaitForCompletion(true).get();
         assertThat(restore.getRestoreInfo().successfulShards(), equalTo(getNumShards(indexName).numPrimaries));
@@ -369,7 +378,7 @@ public class IndexingShardRecoveryIT extends AbstractStatelessPluginIntegTestCas
 
             var excludedNode = indexNode;
             updateIndexSettings(Settings.builder().put(INDEX_ROUTING_EXCLUDE_GROUP_SETTING.getKey() + "_name", excludedNode), indexName);
-            assertBusy(() -> assertThat(internalCluster().nodesInclude(indexName), not(hasItem(excludedNode))));
+            internalCluster().awaitNodeVacated(indexName, excludedNode);
             assertNodeHasNoCurrentRecoveries(newIndexNode);
             internalCluster().stopNode(excludedNode);
             indexNode = newIndexNode;

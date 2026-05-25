@@ -43,12 +43,12 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
 public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
-    private BulkByScrollTask task;
+    private BulkByPaginatedSearchTask task;
     private WorkerBulkByScrollTaskState workerState;
 
     @Before
     public void createTask() {
-        task = new BulkByScrollTask(
+        task = new BulkByPaginatedSearchTask(
             new TaskId(randomAlphaOfLength(10), 1),
             "test_type",
             "test_action",
@@ -78,7 +78,7 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
         long versionConflicts = 0;
         long noops = 0;
         int batch = 0;
-        BulkByScrollTask.Status status = task.getStatus();
+        BulkByPaginatedSearchTask.Status status = task.getStatus();
         assertEquals(0, status.getTotal());
         assertEquals(created, status.getCreated());
         assertEquals(updated, status.getUpdated());
@@ -234,7 +234,7 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
             // Have the task use the thread pool to delay a task that does nothing
             workerState.delayPrepareBulkRequest(threadPool, 0, 1, new AbstractRunnable() {
                 @Override
-                protected void doRun() throws Exception {}
+                protected void doRun() {}
 
                 @Override
                 public void onFailure(Exception e) {
@@ -266,7 +266,7 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
 
     public void testRethrottleWithRelocationGuardSlicedChild() {
         final int sliceId = randomIntBetween(0, 100);
-        final BulkByScrollTask slicedTask = new BulkByScrollTask(
+        final BulkByPaginatedSearchTask slicedTask = new BulkByPaginatedSearchTask(
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -285,7 +285,7 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
         assertThat(slicedTask.getStatus().getRequestsPerSecond(), equalTo(newRps));
     }
 
-    public void testCaptureAndRethrottleRaceCondition() throws Exception {
+    public void testCaptureAndRethrottleRaceCondition() {
         final float initialRps = randomFloatBetween(0.1f, 500f, true);
         final float rethrottledRps = randomFloatBetween(501f, 1000f, true);
         workerState.rethrottleWithRelocationGuard(initialRps);
@@ -333,7 +333,7 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
 
     public void testRestoreStateDoesNotOverrideRequestRps() {
         final float requestRps = randomFloatBetween(0.1f, 1000f, true);
-        final BulkByScrollTask restoreTask = new BulkByScrollTask(
+        final BulkByPaginatedSearchTask restoreTask = new BulkByPaginatedSearchTask(
             new TaskId(randomAlphaOfLength(10), randomNonNegativeLong()),
             randomAlphaOfLength(10),
             randomAlphaOfLength(10),
@@ -346,7 +346,7 @@ public class WorkerBulkByScrollTaskStateTests extends ESTestCase {
         restoreTask.setWorker(requestRps, null);
         final WorkerBulkByScrollTaskState state = restoreTask.getWorkerState();
 
-        final BulkByScrollTask.Status statusWithDifferentRps = new BulkByScrollTask.Status(
+        final BulkByPaginatedSearchTask.Status statusWithDifferentRps = new BulkByPaginatedSearchTask.Status(
             null,
             randomNonNegativeLong(),
             randomNonNegativeLong(),

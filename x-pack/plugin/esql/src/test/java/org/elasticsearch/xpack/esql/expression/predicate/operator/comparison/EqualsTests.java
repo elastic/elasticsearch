@@ -93,7 +93,7 @@ public class EqualsTests extends AbstractScalarFunctionTestCase {
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "EqualsKeywordsEvaluator",
+                "EqualsBytesRefEvaluator",
                 "lhs",
                 "rhs",
                 Object::equals,
@@ -106,7 +106,7 @@ public class EqualsTests extends AbstractScalarFunctionTestCase {
         );
         suppliers.addAll(
             TestCaseSupplier.forBinaryNotCasting(
-                "EqualsKeywordsEvaluator",
+                "EqualsBytesRefEvaluator",
                 "lhs",
                 "rhs",
                 Object::equals,
@@ -177,7 +177,7 @@ public class EqualsTests extends AbstractScalarFunctionTestCase {
         suppliers.addAll(
             TestCaseSupplier.stringCases(
                 Object::equals,
-                (lhsType, rhsType) -> "EqualsKeywordsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
+                (lhsType, rhsType) -> "EqualsBytesRefEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 List.of(),
                 DataType.BOOLEAN
             )
@@ -258,7 +258,7 @@ public class EqualsTests extends AbstractScalarFunctionTestCase {
         if (DataType.FLATTENED.supportedVersion().supportedLocally()) {
             suppliers.addAll(
                 TestCaseSupplier.forBinaryNotCasting(
-                    "EqualsKeywordsEvaluator",
+                    "EqualsBytesRefEvaluator",
                     "lhs",
                     "rhs",
                     Object::equals,

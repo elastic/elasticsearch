@@ -100,14 +100,14 @@ public class SkipperSettingsTests extends ESTestCase {
         {
             IndexSettings indexSettings = settings(
                 IndexVersionUtils.randomVersionBetween(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB, IndexVersion.current()),
-                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName())
+                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
             );
             assertTrue(indexSettings.useDocValuesSkipper());
         }
         {
             IndexSettings indexSettings = settings(
                 IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SKIPPERS_ENABLED_BY_DEFAULT_IN_LOGSDB),
-                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName())
+                b -> b.put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
             );
             assertFalse(indexSettings.useDocValuesSkipper());
         }

@@ -832,7 +832,13 @@ public enum DataType implements Writeable {
     }
 
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE || isCounter(t) || isSpatialOrGrid(t) || t == AGGREGATE_METRIC_DOUBLE || t == FLATTENED);
+        return false == (t == SOURCE
+            || isCounter(t)
+            || isSpatialOrGrid(t)
+            || t == AGGREGATE_METRIC_DOUBLE
+            || t == FLATTENED
+            || t == HISTOGRAM
+            || t == TSID_DATA_TYPE);
     }
 
     public String nameUpper() {

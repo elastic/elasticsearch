@@ -125,7 +125,7 @@ public class FieldCapabilitiesNodeResponseTests extends AbstractWireSerializingT
         FieldCapabilitiesNodeResponse inNode = randomNodeResponse(indexResponses);
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion();
         final boolean hasColumnarMode = indexResponses.stream()
-            .anyMatch(r -> r.getIndexMode() == IndexMode.COLUMNAR || r.getIndexMode() == IndexMode.COLUMNAR_LOGSDB);
+            .anyMatch(r -> r.getIndexMode() == IndexMode.COLUMNAR || r.getIndexMode() == IndexMode.LOGSDB_COLUMNAR);
         assumeTrue(
             "columnar index modes require transport version " + IndexMode.COLUMNAR_INDEX_MODES_ADDED,
             hasColumnarMode == false || version.supports(IndexMode.COLUMNAR_INDEX_MODES_ADDED)

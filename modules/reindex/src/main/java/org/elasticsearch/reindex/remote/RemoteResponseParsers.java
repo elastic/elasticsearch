@@ -9,7 +9,6 @@
 
 package org.elasticsearch.reindex.remote;
 
-import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -108,16 +107,14 @@ final class RemoteResponseParsers {
         }, new ParseField("sort"), ValueType.VALUE_ARRAY);
     }
 
-    /**
-     * Parser for the {@code hits} element. Parsed to an array of {@code [total (Long), hits (List<Hit>)]}.
-     */
+    /// Parser for the `hits` element. Parsed to an array of `[total (Long, may be null), hits (List<Hit>)]`.
+    /// `total` is optional because reindex disables `track_total_hits` on follow-up PIT batches, and a remote
+    /// honouring that omits `hits.total` from the response.
     public static final ConstructingObjectParser<Object[], XContentType> HITS_PARSER = new ConstructingObjectParser<>("hits", true, a -> a);
     static {
-        HITS_PARSER.declareField(constructorArg(), (p, c) -> {
+        HITS_PARSER.declareField(optionalConstructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.START_OBJECT) {
-                final TotalHits totalHits = SearchHits.parseTotalHitsFragment(p);
-                assert totalHits.relation() == TotalHits.Relation.EQUAL_TO;
-                return totalHits.value();
+                return SearchHits.parseTotalHitsFragment(p).value();
             } else {
                 // For BWC with nodes pre 7.0
                 return p.longValue();
@@ -201,7 +198,8 @@ final class RemoteResponseParsers {
             // Pull apart the hits element if we got it
             if (hitsElement != null) {
                 int j = 0;
-                totalHits = (long) hitsElement[j++];
+                Long parsedTotal = (Long) hitsElement[j++];
+                totalHits = parsedTotal != null ? parsedTotal : 0L;
                 @SuppressWarnings("unchecked")
                 List<Hit> h = (List<Hit>) hitsElement[j++];
                 hits = h;

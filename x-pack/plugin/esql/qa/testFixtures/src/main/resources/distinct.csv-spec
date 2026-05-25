@@ -191,20 +191,6 @@ qa
 staging
 ;
 
-
-distinctTsCountField
-required_capability: distinct_command
-
-TS k8s
-| DISTINCT
-| STATS c = COUNT(@timestamp)
-;
-
-c:long
-9
-;
-
-
 distinctTsAfterStats
 required_capability: distinct_command
 

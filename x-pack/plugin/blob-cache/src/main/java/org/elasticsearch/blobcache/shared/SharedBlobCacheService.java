@@ -2017,6 +2017,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             } else {
                 initialDecayPollCount = 0;
             }
+            // If EvictionPolicy requires access to FreqLevel[] then we could use some factory here to pass down the freqs array while
+            // instantiating the EvictionPolicy, eg. this.evictionPolicy = evictionPolicyFactory.create(FreqLevel[], maxFreq);
             this.evictionPolicy = evictionPolicy;
         }
 

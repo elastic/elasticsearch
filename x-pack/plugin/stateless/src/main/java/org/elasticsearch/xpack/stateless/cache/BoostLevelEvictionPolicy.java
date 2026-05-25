@@ -17,7 +17,7 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
  * the expected quota for that level.
  * <p>
  * The boost level concept is internal to this implementation. It is derived from the region's
- * timestamp and the active `BoostConfiguration`}.
+ * timestamp and the active `BoostConfiguration`.
  */
 public class BoostLevelEvictionPolicy implements EvictionPolicy<FileCacheKey> {
 

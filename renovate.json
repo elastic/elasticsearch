@@ -47,6 +47,7 @@
       "rebaseWhen": "behind-base-branch",
       "branchTopic": "gradle-wrapper-{{{newMajor}}}.{{{newMinor}}}.x",
       "commitMessageTopic": "Gradle wrapper {{{newMajor}}}.{{{newMinor}}}.x",
+      "schedule": ["at any time"],
       "labels": [":Delivery/Build", ">non-issue", "auto-backport"]
     }
   ]

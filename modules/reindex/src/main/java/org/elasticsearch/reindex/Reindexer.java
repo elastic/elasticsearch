@@ -357,6 +357,9 @@ public class Reindexer {
             if (source.slice().getField() == null) {
                 source.slice(new SliceBuilder(IdFieldMapper.NAME, source.slice().getId(), source.slice().getMax()));
             }
+            // We also have to disable slicing by shard to maintain slice consistency in the presence of resharding, which can cause
+            // the set of documents on a shard to change between slices when PIT is not shared.
+            source.slice(SliceBuilder.withoutShardOptimization(source.slice()));
         }
     }
 

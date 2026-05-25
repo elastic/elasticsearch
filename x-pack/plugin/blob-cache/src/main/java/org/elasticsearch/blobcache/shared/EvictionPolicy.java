@@ -15,8 +15,6 @@ import org.elasticsearch.blobcache.shared.SharedBlobCacheService.CacheFileRegion
  * The cache service iterates entries from lowest to highest frequency and consults this policy
  * to decide whether each entry is eligible for eviction. Implementations may skip entries that
  * should be protected.
- * <p>
- * All methods are called under the cache service's monitor lock and must not perform I/O.
  *
  * @param <KeyType> the cache key type
  */
@@ -28,6 +26,8 @@ public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> 
      * A return value of {@code true} indicates the policy considers the region <em>eligible</em>
      * for eviction, but does not guarantee that eviction will succeed. The region may still be
      * retained if it is currently in use (e.g., held by an active writer or reader).
+     * <p>
+     * This method is called under the cache service's monitor lock and must not perform I/O.
      *
      * @param region   the existing cache region being considered for eviction
      * @param incoming the new cache region that needs a slot; eviction of {@code region} would free
@@ -47,6 +47,8 @@ public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> 
     /**
      * Called when a region is evicted from the cache.
      * Allows the policy to update its internal tracking if needed.
+     * <p>
+     * This method is called under the cache service's monitor lock and must not perform I/O.
      */
     void onEvicted(CacheFileRegion<KeyType> region);
 }

@@ -13,6 +13,7 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Flow;
@@ -87,8 +88,8 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
     }
 
     public void testSkipThenFillAcrossChunks() throws Exception {
-        byte[] fullBody = "0123456789ABCDEFGHIJ".getBytes();
-        byte[] expected = "56789".getBytes();
+        byte[] fullBody = "0123456789ABCDEFGHIJ".getBytes(StandardCharsets.UTF_8);
+        byte[] expected = "56789".getBytes(StandardCharsets.UTF_8);
         DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber subscriber =
             new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(5, expected.length);
         subscriber.onSubscribe(new TestSubscription());
@@ -101,7 +102,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
     }
 
     public void testSkipThenFillPositionBeyondBodyFails() {
-        byte[] fullBody = "0123456789".getBytes();
+        byte[] fullBody = "0123456789".getBytes(StandardCharsets.UTF_8);
         DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber subscriber =
             new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(20, 5);
         subscriber.onSubscribe(new TestSubscription());
@@ -118,7 +119,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         // silently return a short buffer, matching FixedLengthDirectSubscriber (206 path) and
         // KnownLengthAsyncResponseTransformer (S3). Downstream Parquet readers trust the
         // requested length when slicing the returned buffer.
-        byte[] fullBody = "01234567".getBytes();
+        byte[] fullBody = "01234567".getBytes(StandardCharsets.UTF_8);
         DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber subscriber =
             new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(2, 8);
         subscriber.onSubscribe(new TestSubscription());
@@ -133,7 +134,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
     }
 
     public void testSkipThenFillAtEofWithNoBytesRemainingFails() {
-        byte[] fullBody = "01234567".getBytes();
+        byte[] fullBody = "01234567".getBytes(StandardCharsets.UTF_8);
         DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber subscriber =
             new DirectByteBufferBodyHandlers.SkipThenFillDirectSubscriber(fullBody.length, 5);
         subscriber.onSubscribe(new TestSubscription());
@@ -150,7 +151,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
     }
 
     public void testRangeReadHandler206AccumulatesDirectBuffer() throws Exception {
-        byte[] payload = "hello".getBytes();
+        byte[] payload = "hello".getBytes(StandardCharsets.UTF_8);
         HttpResponse.ResponseInfo responseInfo = mock(HttpResponse.ResponseInfo.class);
         when(responseInfo.statusCode()).thenReturn(HttpStatus.SC_PARTIAL_CONTENT);
         HttpResponse.BodyHandler<ByteBuffer> handler = DirectByteBufferBodyHandlers.ofRangeRead(0, payload.length);
@@ -174,7 +175,7 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
         HttpResponse.BodyHandler<ByteBuffer> handler = DirectByteBufferBodyHandlers.ofRangeRead(0, 1024);
         HttpResponse.BodySubscriber<ByteBuffer> subscriber = handler.apply(responseInfo);
         subscriber.onSubscribe(new TestSubscription());
-        subscriber.onNext(List.of(ByteBuffer.wrap("error page body".getBytes())));
+        subscriber.onNext(List.of(ByteBuffer.wrap("error page body".getBytes(StandardCharsets.UTF_8))));
         subscriber.onComplete();
 
         ByteBuffer result = subscriber.getBody().toCompletableFuture().get();
@@ -182,8 +183,8 @@ public class DirectByteBufferBodyHandlersTests extends ESTestCase {
     }
 
     public void testRangeReadHandler200SkipsThenFills() throws Exception {
-        byte[] fullBody = "0123456789".getBytes();
-        byte[] expected = "345".getBytes();
+        byte[] fullBody = "0123456789".getBytes(StandardCharsets.UTF_8);
+        byte[] expected = "345".getBytes(StandardCharsets.UTF_8);
         HttpResponse.ResponseInfo responseInfo = mock(HttpResponse.ResponseInfo.class);
         when(responseInfo.statusCode()).thenReturn(HttpStatus.SC_OK);
         HttpResponse.BodyHandler<ByteBuffer> handler = DirectByteBufferBodyHandlers.ofRangeRead(3, expected.length);

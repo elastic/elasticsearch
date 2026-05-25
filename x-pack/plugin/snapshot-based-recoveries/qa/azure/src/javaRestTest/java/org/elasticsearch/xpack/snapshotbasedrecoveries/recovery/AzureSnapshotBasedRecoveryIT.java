@@ -65,7 +65,7 @@ public class AzureSnapshotBasedRecoveryIT extends AbstractSnapshotBasedRecoveryR
             s -> USE_FIXTURE
         )
         .setting("xpack.license.self_generated.type", "trial")
-        .apply(builder -> TEST_TRUST_STORE.apply(builder, true))
+        .apply(builder -> TEST_TRUST_STORE.apply(builder, USE_FIXTURE))
         .build();
 
     @ClassRule(order = 1)

@@ -97,7 +97,7 @@ public class AzureRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRes
                 ? Map.of("AZURE_FEDERATED_TOKEN_FILE", "${ES_PATH_CONF}/storage-azure/azure-federated-token")
                 : Map.of()
         )
-        .apply(builder -> TEST_TRUST_STORE.apply(builder, true))
+        .apply(builder -> TEST_TRUST_STORE.apply(builder, USE_FIXTURE))
         .build();
 
     @ClassRule(order = 1)

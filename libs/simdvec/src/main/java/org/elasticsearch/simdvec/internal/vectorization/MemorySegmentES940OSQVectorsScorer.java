@@ -45,12 +45,12 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         D4Q4_PACKED,
         D7Q7;
 
-        static QuantEncoding of(byte queryBits, byte indexBits, SymmetricInt4Encoding int4Encoding) {
+        static QuantEncoding of(byte queryBits, byte indexBits, BitEncoding bitEncoding) {
             return switch ((queryBits << 8) | indexBits) {
                 case (1 << 8) | 1 -> D1Q1;
                 case (4 << 8) | 1 -> D1Q4;
                 case (4 << 8) | 2 -> D2Q4;
-                case (4 << 8) | 4 -> int4Encoding == SymmetricInt4Encoding.PACKED_NIBBLE ? D4Q4_PACKED : D4Q4_STRIPED;
+                case (4 << 8) | 4 -> bitEncoding == BitEncoding.PACKED ? D4Q4_PACKED : D4Q4_STRIPED;
                 case (7 << 8) | 7 -> D7Q7;
                 default -> throw new IllegalArgumentException("Unsupported query/index bits combination: " + queryBits + "/" + indexBits);
             };
@@ -66,20 +66,12 @@ public final class MemorySegmentES940OSQVectorsScorer extends ES940OSQVectorsSco
         int dimensions,
         int dataLength,
         int bulkSize,
-        SymmetricInt4Encoding int4Encoding,
+        BitEncoding bitEncoding,
         boolean nativeEnabled
     ) {
-        super(
-            in,
-            queryBits,
-            indexBits,
-            dimensions,
-            dataLength,
-            bulkSize,
-            int4Encoding == null ? SymmetricInt4Encoding.STRIPED : int4Encoding
-        );
-        SymmetricInt4Encoding resolvedInt4 = int4Encoding == null ? SymmetricInt4Encoding.STRIPED : int4Encoding;
-        QuantEncoding enc = QuantEncoding.of(queryBits, indexBits, resolvedInt4);
+        super(in, queryBits, indexBits, dimensions, dataLength, bulkSize, bitEncoding == null ? BitEncoding.STRIPED : bitEncoding);
+        BitEncoding resolvedBitEncoding = bitEncoding == null ? BitEncoding.STRIPED : bitEncoding;
+        QuantEncoding enc = QuantEncoding.of(queryBits, indexBits, resolvedBitEncoding);
         this.scorer = USE_NATIVE && nativeEnabled
             ? createNativeScorer(enc, in, dimensions, dataLength, bulkSize)
             : createPanamaScorer(enc, in, dimensions, dataLength, bulkSize);

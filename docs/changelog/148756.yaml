@@ -1,0 +1,5 @@
+pr: 148756
+summary: Thread per-file planner-resolved read schema to runtime readers
+area: ES|QL
+type: bug
+issues: []

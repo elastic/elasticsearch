@@ -48,8 +48,7 @@ public class VoyageAIEmbeddingsRequest implements OutboundDenseEmbeddingRequest 
                     input,
                     inputType,
                     embeddingsModel.getServiceSettings(),
-                    embeddingsModel.getTaskSettings(),
-                    embeddingsModel.getServiceSettings().modelId()
+                    embeddingsModel.getTaskSettings()
                 )
             ).getBytes(StandardCharsets.UTF_8)
         );

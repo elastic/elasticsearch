@@ -27,6 +27,8 @@ import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Supplier;
 
@@ -168,7 +170,7 @@ public class StatelessRealTimeTermVectorsIT extends AbstractStatelessPluginInteg
 
         final int numDocs = randomIntBetween(1, 20);
         createIndexWithTermVectorMappings(1, 1);
-        indexTestDocuments(numDocs);
+        List<String> indexedDocumentIds = indexTestDocuments(numDocs);
 
         // If true, we test that the term vectors API will refresh appropriately depending on whether the second (not the first) version
         // of the updated documents is in the live version map (i.e., not yet searchable) of the indexing shard.
@@ -197,6 +199,10 @@ public class StatelessRealTimeTermVectorsIT extends AbstractStatelessPluginInteg
                 // No additional refreshes are expected in the test.
                 refresh(INDEX_NAME);
                 refresh(INDEX_NAME);
+                // Ensure that version map archive is empty because the test relies on this fact to assert there is no refreshes.
+                // The archive is cleared asynchronously via `IndexEngine.commitSuccess()`
+                // and can race with `TransportEnsureDocsSearchableAction` performed in scope of term vectors operation.
+                assertDocumentNotInLiveVersionMapArchive(indexedDocumentIds.getLast());
             }
         }
 
@@ -236,14 +242,7 @@ public class StatelessRealTimeTermVectorsIT extends AbstractStatelessPluginInteg
                     // After the expected number of refreshes from the first docs, wait to ensure that the async
                     // IndexEngine.commitSuccess() has been called to move out the docs from the live version map archive.
                     // That way, the next term request should not do any other refreshes.
-                    assertBusy(() -> assertTrue(findIndexShard(INDEX_NAME).withEngine(e -> {
-                        assertThat(e, instanceOf(IndexEngine.class));
-                        final var indexEngine = (IndexEngine) e;
-                        final var archive = getArchive(indexEngine.getLiveVersionMap());
-                        assertNotNull(archive);
-                        assertNull(archive.get(uid(termVectorsResponse.getId())));
-                        return true;
-                    })));
+                    assertDocumentNotInLiveVersionMapArchive(termVectorsResponse.getId());
                 }
             }
         }
@@ -383,11 +382,17 @@ public class StatelessRealTimeTermVectorsIT extends AbstractStatelessPluginInteg
         );
     }
 
-    protected void indexTestDocuments(int numDocs) {
+    protected List<String> indexTestDocuments(int numDocs) {
+        var indexedDocumentIds = new ArrayList<String>();
+
         for (int i = 0; i < numDocs; i++) {
-            final var response = prepareIndex(INDEX_NAME).setId(String.valueOf(i)).setSource("field", "foo bar " + i).get();
+            String id = String.valueOf(i);
+            final var response = prepareIndex(INDEX_NAME).setId(id).setSource("field", "foo bar " + i).get();
             assertEquals(1, response.getVersion());
+            indexedDocumentIds.add(id);
         }
+
+        return indexedDocumentIds;
     }
 
     protected void updateTestDocuments(int numDocs) {
@@ -395,5 +400,16 @@ public class StatelessRealTimeTermVectorsIT extends AbstractStatelessPluginInteg
             final var response = client().prepareUpdate(INDEX_NAME, String.valueOf(i)).setDoc("field", "foo bar " + (i + 1)).get();
             assertEquals(2, response.getVersion());
         }
+    }
+
+    private void assertDocumentNotInLiveVersionMapArchive(String documentId) throws Exception {
+        assertBusy(() -> assertTrue(findIndexShard(INDEX_NAME).withEngine(e -> {
+            assertThat(e, instanceOf(IndexEngine.class));
+            final var indexEngine = (IndexEngine) e;
+            final var archive = getArchive(indexEngine.getLiveVersionMap());
+            assertNotNull(archive);
+            assertNull(archive.get(uid(documentId)));
+            return true;
+        })));
     }
 }

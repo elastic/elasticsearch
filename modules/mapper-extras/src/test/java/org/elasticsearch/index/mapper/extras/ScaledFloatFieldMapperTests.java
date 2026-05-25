@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.index.DocValuesType;
+import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -135,7 +136,8 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         assertThat(e.getMessage(), containsString("[scaling_factor] must be a positive number, got [-1.0]"));
     }
 
-    public void testNotIndexed() throws Exception {
+    @Override
+    public void testNotIndexed() throws IOException {
         DocumentMapper mapper = createDocumentMapper(
             fieldMapping(b -> b.field("type", "scaled_float").field("index", false).field("scaling_factor", 10.0))
         );
@@ -151,6 +153,7 @@ public class ScaledFloatFieldMapperTests extends NumberFieldMapperTests {
         List<IndexableField> fields = doc.rootDoc().getFields("field");
         assertEquals(1, fields.size());
         IndexableField dvField = fields.get(0);
+        assertEquals(IndexOptions.NONE, dvField.fieldType().indexOptions());
         assertEquals(DocValuesType.SORTED_NUMERIC, dvField.fieldType().docValuesType());
         assertEquals(1230, dvField.numericValue().longValue());
     }

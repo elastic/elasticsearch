@@ -1,3 +1,3 @@
-ExchangeSinkExec[[$$s$value{r}#0, $$s$delta{r}#1, $$s$seen{r}#2, $$SUM$a$0$sum{r}#3, $$SUM$a$0$seen{r}#4],false]
-\_AggregateExec[[],[SUM($$sum(network.eth>$SUM$1{r$}#5,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS s#6, SUM($$avg(network.eth>$SUM$0{r$}#7,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS $$SUM$a$0#8],INTERMEDIATE,[$$s$value{r}#9, $$s$delta{r}#10, $$s$seen{r}#11, $$SUM$a$0$sum{r}#12, $$SUM$a$0$seen{r}#13],16]
-  \_ExchangeSourceExec[[$$s$value{r}#0, $$s$delta{r}#1, $$s$seen{r}#2, $$SUM$a$0$sum{r}#3, $$SUM$a$0$seen{r}#4],false]
+ExchangeSinkExec[[$$s$value{r}#0, $$s$delta{r}#1, $$s$seen{r}#2, $$SUM$a$0$sum{r}#3, $$SUM$a$1$seen{r}#4],false]
+\_AggregateExec[[],[SUM($$sum(network.eth>$SUM$2{r$}#5,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS s#6, SUM($$avg(network.eth>$SUM$3{r$}#7,true[BOOLEAN],PT0S[TIME_DURATION],compensated[KEYWORD],long_overflow_warn[KEYWORD]) AS $$SUM$a$4#8],INTERMEDIATE,[$$s$value{r}#9, $$s$delta{r}#10, $$s$seen{r}#11, $$SUM$a$0$sum{r}#12, $$SUM$a$1$seen{r}#13],16]
+  \_ExchangeSourceExec[[$$s$value{r}#0, $$s$delta{r}#1, $$s$seen{r}#2, $$SUM$a$0$sum{r}#3, $$SUM$a$1$seen{r}#4],false]

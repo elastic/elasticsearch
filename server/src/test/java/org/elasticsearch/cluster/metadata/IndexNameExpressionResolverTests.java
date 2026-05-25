@@ -9,7 +9,6 @@
 
 package org.elasticsearch.cluster.metadata;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -2489,12 +2488,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         String[] indexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
         assertThat(indexNames, arrayContainingInAnyOrder("some-other-index", ".ml-stuff", ".ml-meta", ".watches"));
         assertWarnings(
-            true,
-            new DeprecationWarning(
-                Level.WARN,
-                "this request accesses system indices: [.ml-meta, .ml-stuff, .watches], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
-            )
+            "this request accesses system indices: [.ml-meta, .ml-stuff, .watches], "
+                + "but in a future major version, direct access to system indices will be prevented by default"
         );
 
     }
@@ -2507,12 +2502,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         String[] indexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
         assertThat(indexNames, arrayContaining(".ml-meta"));
         assertWarnings(
-            true,
-            new DeprecationWarning(
-                Level.WARN,
-                "this request accesses system indices: [.ml-meta], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
-            )
+            "this request accesses system indices: [.ml-meta], "
+                + "but in a future major version, direct access to system indices will be prevented by default"
         );
     }
 
@@ -2524,12 +2515,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         String[] indexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
         assertThat(indexNames, arrayContainingInAnyOrder(".watches"));
         assertWarnings(
-            true,
-            new DeprecationWarning(
-                Level.WARN,
-                "this request accesses system indices: [.watches], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
-            )
+            "this request accesses system indices: [.watches], "
+                + "but in a future major version, direct access to system indices will be prevented by default"
         );
 
     }
@@ -2542,12 +2529,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         String[] indexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
         assertThat(indexNames, arrayContainingInAnyOrder(".ml-meta", ".ml-stuff"));
         assertWarnings(
-            true,
-            new DeprecationWarning(
-                Level.WARN,
-                "this request accesses system indices: [.ml-meta, .ml-stuff], "
-                    + "but in a future major version, direct access to system indices will be prevented by default"
-            )
+            "this request accesses system indices: [.ml-meta, .ml-stuff], "
+                + "but in a future major version, direct access to system indices will be prevented by default"
         );
 
     }
@@ -2596,12 +2579,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 String[] indexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
                 assertThat(indexNames, arrayContaining(".external-sys-idx"));
                 assertWarnings(
-                    true,
-                    new DeprecationWarning(
-                        Level.WARN,
-                        "this request accesses system indices: [.external-sys-idx], "
-                            + "but in a future major version, direct access to system indices will be prevented by default"
-                    )
+                    "this request accesses system indices: [.external-sys-idx], "
+                        + "but in a future major version, direct access to system indices will be prevented by default"
                 );
             }
         }
@@ -2613,12 +2592,8 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
                 String[] indexNames = indexNameExpressionResolver.concreteIndexNames(state, request);
                 assertThat(indexNames, arrayContaining(".external-sys-idx"));
                 assertWarnings(
-                    true,
-                    new DeprecationWarning(
-                        Level.WARN,
-                        "this request accesses system indices: [.external-sys-idx], "
-                            + "but in a future major version, direct access to system indices will be prevented by default"
-                    )
+                    "this request accesses system indices: [.external-sys-idx], "
+                        + "but in a future major version, direct access to system indices will be prevented by default"
                 );
             }
         }

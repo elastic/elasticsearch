@@ -16,6 +16,13 @@ public interface TelemetryProvider {
 
     String OTEL_METRICS_ENABLED_SYSTEM_PROPERTY = "telemetry.otel.metrics.enabled";
 
+    /**
+     * JVM system property that activates the OTel SDK trace export path.
+     * Set via {@code config/jvm.options} (or {@code -D} on the command line); not settable via
+     * {@code elasticsearch.yml} or the cluster settings API.
+     */
+    String OTEL_TRACES_ENABLED_SYSTEM_PROPERTY = "telemetry.otel.traces.enabled";
+
     Tracer getTracer();
 
     MeterRegistry getMeterRegistry();

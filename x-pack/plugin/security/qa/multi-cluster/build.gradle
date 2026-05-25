@@ -36,18 +36,27 @@ dependencies {
   clusterModules project(':test:external-modules:test-apm-integration')
 }
 
+// Tests that consume a BWC distribution. Run only in BWC-aware tasks; excluded from regular javaRestTest.
+def bwcAwareTests = [
+  '**/RemoteClusterSecurityBWCToRCS1ClusterRestIT.class',
+  '**/RemoteClusterSecurityBWCToRCS2ClusterRestIT.class'
+]
+
 tasks.named("javaRestTest") {
   enabled = true
-  // This is tested explicitly in bwc test tasks.
-  exclude '**/RemoteClusterSecurityBWCToRCS1ClusterRestIT.class'
-  exclude '**/RemoteClusterSecurityBWCToRCS2ClusterRestIT.class'
+  bwcAwareTests.each { exclude it }
+}
+
+tasks.named("bcUpgradeTest") {
+  // Other tests in this module build their own current-version clusters and would just rerun
+  // javaRestTest under bcUpgradeTest, doubling the failure surface for no extra coverage.
+  bwcAwareTests.each { include it }
 }
 
 buildParams.bwcVersions.withWireCompatible() { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)
-    include '**/RemoteClusterSecurityBWCToRCS1ClusterRestIT.class'
-    include '**/RemoteClusterSecurityBWCToRCS2ClusterRestIT.class'
+    bwcAwareTests.each { include it }
   }
 }

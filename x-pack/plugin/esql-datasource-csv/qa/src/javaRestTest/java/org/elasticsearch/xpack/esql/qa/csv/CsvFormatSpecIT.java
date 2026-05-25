@@ -21,7 +21,7 @@ import java.util.List;
 
 /**
  * Parameterized integration tests for standalone CSV files.
- * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL).
+ * Each csv-spec test is run against every configured storage backend.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class CsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
@@ -48,6 +48,6 @@ public class CsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests("/external-*.csv-spec");
+        return readExternalSpecTests("/external-*.csv-spec", "/csv-*.csv-spec");
     }
 }

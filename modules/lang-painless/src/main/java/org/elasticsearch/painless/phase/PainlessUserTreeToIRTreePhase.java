@@ -66,6 +66,8 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRDThisMethod;
 import org.elasticsearch.painless.symbol.IRDecorations.IRDTypeParameters;
 import org.elasticsearch.painless.symbol.ScriptScope;
 import org.elasticsearch.script.ScriptException;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.objectweb.asm.Opcodes;
 import org.objectweb.asm.commons.Method;
 
@@ -142,7 +144,7 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irFunctionNode.attachDecoration(new IRDReturnType(returnType));
             irFunctionNode.attachDecoration(new IRDTypeParameters(localFunction.getTypeParameters()));
             irFunctionNode.attachDecoration(new IRDParameterNames(parameterNames));
-            irFunctionNode.attachDecoration(new IRDMaxLoopCounter(scriptScope.getCompilerSettings().getMaxLoopCounter()));
+            attachLoopProtection(irFunctionNode, scriptScope);
 
             injectStaticFieldsAndGetters();
             injectGetsDeclarations(irBlockNode, scriptScope);
@@ -413,6 +415,21 @@ public class PainlessUserTreeToIRTreePhase extends DefaultUserTreeToIRTreePhase 
             irLoadVariableNode.attachDecoration(new IRDExpressionType(SecurityException.class));
             irLoadVariableNode.attachDecoration(new IRDName(getExceptionVariableName(SecurityException.class)));
             irThrowNode.setExpressionNode(irLoadVariableNode);
+
+            // Cancellation signals must propagate unwrapped so QueryPhase / the surrounding caller
+            // can convert them to the appropriate response (timed_out flag, task-cancelled status).
+            // Wrapping them in ScriptException would surface them to clients as runtime errors
+            // instead.
+            for (Class<? extends Throwable> rethrow : List.of(
+                ContextIndexSearcher.TimeExceededException.class,
+                TaskCancelledException.class
+            )) {
+                irThrowNode = createCatchAndThrow(rethrow, internalLocation, irTryNode);
+                irLoadVariableNode = new LoadVariableNode(internalLocation);
+                irLoadVariableNode.attachDecoration(new IRDExpressionType(rethrow));
+                irLoadVariableNode.attachDecoration(new IRDName(getExceptionVariableName(rethrow)));
+                irThrowNode.setExpressionNode(irLoadVariableNode);
+            }
 
             for (Class<? extends Throwable> throwable : List.of(
                 PainlessError.class,

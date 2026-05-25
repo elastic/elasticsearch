@@ -70,6 +70,7 @@ import org.elasticsearch.xpack.stateless.engine.HollowIndexEngine;
 import org.elasticsearch.xpack.stateless.engine.HollowShardsMetrics;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -120,6 +121,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
     private final IndexShardCacheWarmer indexShardCacheWarmer;
     private final HollowShardsService hollowShardsService;
     private final HollowShardsMetrics hollowShardsMetrics;
+    private final RecoveryMetricsCollector recoveryMetricsCollector;
 
     @Inject
     public TransportStatelessPrimaryRelocationAction(
@@ -131,7 +133,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         StatelessCommitService statelessCommitService,
         IndexShardCacheWarmer indexShardCacheWarmer,
         HollowShardsService hollowShardsService,
-        HollowShardsMetrics hollowShardsMetrics
+        HollowShardsMetrics hollowShardsMetrics,
+        RecoveryMetricsCollector recoveryMetricsCollector
     ) {
         super(TYPE.name(), actionFilters, transportService.getTaskManager(), EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.transportService = transportService;
@@ -146,6 +149,7 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
         this.recoveryExecutor = threadPool.generic();
         this.threadContext = threadPool.getThreadContext();
         this.hollowShardsMetrics = hollowShardsMetrics;
+        this.recoveryMetricsCollector = recoveryMetricsCollector;
 
         clusterService.getClusterSettings()
             .initializeAndWatch(SLOW_RELOCATION_THRESHOLD_SETTING, value -> this.slowRelocationWarningThreshold = value);
@@ -448,11 +452,16 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                         final var relocationDuration = getTimeSince(beforeRelocation);
 
                         logger.debug("[{}] primary context handoff succeeded", request.shardId());
+                        final TimeValue secondFlushDuration = getTimeBetween(beforeFinalFlush, beforeSendingContext.get());
+                        final TimeValue handOffDuration = getTimeSince(beforeSendingContext.get());
+                        recoveryMetricsCollector.recordRelocationInitialFlushDuration(initialFlushDuration.millis());
+                        recoveryMetricsCollector.recordRelocationAcquirePermitsDuration(acquirePermitsDuration.millis());
+                        recoveryMetricsCollector.recordRelocationSecondFlushDuration(secondFlushDuration.millis());
+                        recoveryMetricsCollector.recordRelocationHandoffDuration(handOffDuration.millis());
+
                         boolean aboveThreshold = relocationDuration.getMillis() >= slowRelocationWarningThreshold.getMillis();
                         if (aboveThreshold || logger.isDebugEnabled()) {
                             final var indexingStats = indexShard.indexingStats().getTotal();
-                            final TimeValue secondFlushDuration = getTimeBetween(beforeFinalFlush, beforeSendingContext.get());
-                            final TimeValue handOffDuration = getTimeSince(beforeSendingContext.get());
                             final var message = new ESLogMessage(
                                 "[{}] primary shard relocation took [{}] (shutting down={})"
                                     + "(including [{}] to flush, [{}] to acquire permits, [{}] to flush again and [{}] to handoff context) "
@@ -613,9 +622,14 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
             statelessCommitService.putRecoveryInfoFromSourceEntry(request.shardId(), recoveryHintsFromSource);
         }
 
+        final long preRecoveryStartMillis = threadPool.relativeTimeInMillis();
         ActionListener.run(
             ActionListener.releaseAfter(listener, Releasables.wrap(cleanUpStatelessCommitService, recoveryRef)),
             l -> indexShard.preRecovery(l.map(ignored -> {
+                final long preRecoveryEndMillis = threadPool.relativeTimeInMillis();
+                final long preRecoveryDuration = preRecoveryEndMillis - preRecoveryStartMillis;
+                recoveryMetricsCollector.recordRelocationTargetPreRecoveryDuration(preRecoveryDuration);
+
                 indexShard.updateRetentionLeasesOnReplica(request.retentionLeases());
                 indexShard.recoveryState().setStage(RecoveryState.Stage.VERIFY_INDEX);
                 indexShard.recoveryState().setStage(RecoveryState.Stage.TRANSLOG);
@@ -633,6 +647,8 @@ public class TransportStatelessPrimaryRelocationAction extends TransportAction<
                 recoveryState.getIndex().setFileDetailsComplete();
                 recoveryState.setStage(RecoveryState.Stage.FINALIZE);
                 indexShard.activateWithPrimaryContext(request.primaryContext());
+
+                recoveryMetricsCollector.recordRelocationTargetOpenEngineDuration(threadPool.relativeTimeInMillis() - preRecoveryEndMillis);
 
                 threadDumpListener.onResponse(null);
                 return null;

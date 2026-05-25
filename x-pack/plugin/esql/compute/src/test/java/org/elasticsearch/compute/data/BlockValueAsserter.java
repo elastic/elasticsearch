@@ -14,6 +14,7 @@ import java.util.List;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class BlockValueAsserter {
 
@@ -120,10 +121,16 @@ public class BlockValueAsserter {
     }
 
     private static void assertLongRangeValues(LongRangeBlock block, int firstValueIdx, int valueCount, List<Object> expectedRowValues) {
+        LongRangeBlockBuilder.LongRange scratch = new LongRangeBlockBuilder.LongRange();
         for (int idx = 0; idx < valueCount; idx++) {
             var expectedValue = (LongRangeBlockBuilder.LongRange) expectedRowValues.get(idx);
             assertThat(block.getFromBlock().getLong(firstValueIdx + idx), equalTo(expectedValue.from()));
             assertThat(block.getToBlock().getLong(firstValueIdx + idx), equalTo(expectedValue.to()));
+
+            LongRangeBlockBuilder.LongRange got = block.getLongRange(firstValueIdx + idx, scratch);
+            assertThat("getLongRange must return the scratch instance", got, sameInstance(scratch));
+            assertThat(got.from(), equalTo(expectedValue.from()));
+            assertThat(got.to(), equalTo(expectedValue.to()));
         }
     }
 }

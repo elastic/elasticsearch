@@ -1,0 +1,4 @@
+Limit[1000[INTEGER],false,false]
+\_Project[[cluster{f}#0, network.cost{f}#1]]
+  \_Filter[$$network.cost$converted_to$double{f(MultiTypeEsField)$}#2 > 10.0[DOUBLE]]
+    \_EsRelation[k8s,k8s_unmapped][@timestamp{f}#3, client.ip{f}#4, cluster{f}#0, event{f(PotentiallyUnmappedKeywordEsField)}#5, event_city{f}#6, event_city_boundary{f}#7, event_location{f}#8, event_log{f}#9, event_shape{f}#10, events_received{f}#11, network.bytes_in{f}#12, network.cost{f}#1, network.eth0.currently_connected_clients{f}#13, network.eth0.firmware_version{f}#14, network.eth0.last_up{f}#15, network.eth0.rx{f}#16, network.eth0.tx{f}#17, network.eth0.up{f}#18, network.total_bytes_in{f}#19, network.total_bytes_out{f}#20, network.total_cost{f}#21, pod{f}#22, region{f(PotentiallyUnmappedKeywordEsField)}#23, $$network.cost$converted_to$double{f(MultiTypeEsField)$}#2]

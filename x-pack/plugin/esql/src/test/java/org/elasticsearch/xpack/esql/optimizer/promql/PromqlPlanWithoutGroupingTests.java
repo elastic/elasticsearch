@@ -29,9 +29,9 @@ import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWitho
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.optimizer.TestLocalPhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.promql.TranslatePromqlToEsqlPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -161,15 +161,14 @@ public class PromqlPlanWithoutGroupingTests extends AbstractPromqlPlanOptimizerT
         assertThat(mappedLocalizedFragment.toString(), mappedPackedTimeSeriesValues, hasSize(1));
         assertThat(as(mappedPackedTimeSeriesValues.getFirst(), TimeSeriesMetadataAttribute.class).withoutFields(), hasItem("pod"));
 
-        var localPhysical = new TestLocalPhysicalPlanOptimizer(
+        var localPhysical = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(
                 PlannerSettings.DEFAULTS,
                 new EsqlFlags(true),
                 EsqlTestUtils.TEST_CFG,
                 FoldContext.small(),
                 SearchStats.EMPTY
-            ),
-            true
+            )
         );
         var localizedDataNodePlan = PlannerUtils.localPlan(deserializedDataNodePlan, localLogical, localPhysical, null);
 

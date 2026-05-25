@@ -22,9 +22,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ResumeInfo;
@@ -81,10 +80,9 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
             searchRequest.source().slice(null);
         }
         int times = between(2, 100);
-        String field = randomBoolean() ? IdFieldMapper.NAME : randomAlphaOfLength(5);
         int currentSliceId = 0;
-        for (SearchRequest slice : sliceIntoSubRequests(searchRequest, field, times)) {
-            assertEquals(field, slice.source().slice().getField());
+        for (SearchRequest slice : sliceIntoSubRequests(searchRequest, times)) {
+            assertNull(slice.source().slice().getField());
             assertEquals(currentSliceId, slice.source().slice().getId());
             assertEquals(times, slice.source().slice().getMax());
 
@@ -109,7 +107,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
         int times = randomIntBetween(2, 8);
         SearchRequest request = new SearchRequest();
         request.source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(keepAlive)));
-        SearchRequest[] slices = sliceIntoSubRequests(request, IdFieldMapper.NAME, times);
+        SearchRequest[] slices = sliceIntoSubRequests(request, times);
         assertThat(slices.length, equalTo(times));
         for (int i = 0; i < times; i++) {
             PointInTimeBuilder pit = slices[i].source().pointInTimeBuilder();
@@ -117,7 +115,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
             assertThat(pit.getEncodedId(), equalTo(pitId));
             assertThat(pit.getKeepAlive(), equalTo(keepAlive));
             SliceBuilder slice = slices[i].source().slice();
-            assertThat(slice.getField(), equalTo(IdFieldMapper.NAME));
+            assertThat(slice.getField(), nullValue());
             assertThat(slice.getId(), equalTo(i));
             assertThat(slice.getMax(), equalTo(times));
         }
@@ -128,7 +126,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
      */
     public void testExecuteSlicedActionWithWorkerAndNonNullVersion() {
         ReindexRequest request = new ReindexRequest();
-        BulkByScrollTask task = (BulkByScrollTask) taskManager.register("reindex", ReindexAction.NAME, request);
+        BulkByPaginatedSearchTask task = (BulkByPaginatedSearchTask) taskManager.register("reindex", ReindexAction.NAME, request);
         task.setWorker(request.getRequestsPerSecond(), null);
 
         Version version = Version.CURRENT;
@@ -147,7 +145,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
      */
     public void testExecuteSlicedActionWithWorkerAndNullVersion() {
         ReindexRequest request = new ReindexRequest();
-        BulkByScrollTask task = (BulkByScrollTask) taskManager.register("reindex", ReindexAction.NAME, request);
+        BulkByPaginatedSearchTask task = (BulkByPaginatedSearchTask) taskManager.register("reindex", ReindexAction.NAME, request);
         task.setWorker(request.getRequestsPerSecond(), null);
 
         AtomicReference<Version> capturedVersion = new AtomicReference<>(Version.CURRENT);
@@ -165,7 +163,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
      */
     public void testExecuteSlicedActionThrowsWhenTaskNotInitialized() {
         ReindexRequest request = new ReindexRequest();
-        BulkByScrollTask task = (BulkByScrollTask) taskManager.register("reindex", ReindexAction.NAME, request);
+        BulkByPaginatedSearchTask task = (BulkByPaginatedSearchTask) taskManager.register("reindex", ReindexAction.NAME, request);
         // Do not call setWorker or setWorkerCount
 
         ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
@@ -192,7 +190,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
         // Build resume info: slices 0,1 completed; slices 2,3 incomplete
         Map<Integer, ResumeInfo.SliceStatus> slices = new LinkedHashMap<>();
         for (int i = 0; i < completedSliceCount; i++) {
-            BulkByScrollTask.Status status = new BulkByScrollTask.Status(
+            BulkByPaginatedSearchTask.Status status = new BulkByPaginatedSearchTask.Status(
                 i,
                 0,
                 0,
@@ -215,7 +213,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
             ResumeInfo.ScrollWorkerResumeInfo workerInfo = new ResumeInfo.ScrollWorkerResumeInfo(
                 randomAlphaOfLength(10),
                 randomNonNegativeLong(),
-                new BulkByScrollTask.Status(i, 0, 0, 0, 0, 0, 0, 0, 0, 0, TimeValue.ZERO, 0f, null, TimeValue.ZERO),
+                new BulkByPaginatedSearchTask.Status(i, 0, 0, 0, 0, 0, 0, 0, 0, 0, TimeValue.ZERO, 0f, null, TimeValue.ZERO),
                 null
             );
             slices.put(i, new ResumeInfo.SliceStatus(i, workerInfo, null));
@@ -232,7 +230,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
         request.setSlices(totalSlices);
         request.setResumeInfo(resumeInfo);
 
-        BulkByScrollTask task = (BulkByScrollTask) taskManager.register("reindex", ReindexAction.NAME, request);
+        BulkByPaginatedSearchTask task = (BulkByPaginatedSearchTask) taskManager.register("reindex", ReindexAction.NAME, request);
         task.setWorkerCount(totalSlices, capturedRps);
 
         List<ReindexRequest> capturedChildRequests = new ArrayList<>();

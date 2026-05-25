@@ -37,7 +37,7 @@ public class MetricRecorder<I> {
         Map<String, Registration> registered,
         Map<String, List<Measurement>> called,
         Map<String, I> instruments,
-        List<Runnable> callbacks
+        Map<String, Runnable> callbacks
     ) {
         void register(String name, String description, String unit, I instrument) {
             assert registered.containsKey(name) == false
@@ -45,7 +45,7 @@ public class MetricRecorder<I> {
             registered.put(name, new Registration(name, description, unit));
             instruments.put(name, instrument);
             if (instrument instanceof Runnable callback) {
-                callbacks.add(callback);
+                callbacks.put(name, callback);
             }
         }
 
@@ -54,6 +54,13 @@ public class MetricRecorder<I> {
             called.computeIfAbsent(Objects.requireNonNull(name), k -> new CopyOnWriteArrayList<>()).add(call);
         }
 
+        void deregister(String name) {
+            assert registered.containsKey(name) : Strings.format("unexpected: metric with name [%s] is not registered", name);
+            registered.remove(name);
+            called.remove(name);
+            instruments.remove(name);
+            callbacks.remove(name);
+        }
     }
 
     /**
@@ -70,7 +77,7 @@ public class MetricRecorder<I> {
                     new ConcurrentHashMap<>(),
                     new ConcurrentHashMap<>(),
                     new ConcurrentHashMap<>(),
-                    new CopyOnWriteArrayList<>()
+                    new ConcurrentHashMap<>()
                 )
             );
         }
@@ -133,6 +140,10 @@ public class MetricRecorder<I> {
     }
 
     public void collect() {
-        metrics.forEach((it, rm) -> rm.callbacks().forEach(Runnable::run));
+        metrics.forEach((it, rm) -> rm.callbacks().values().forEach(Runnable::run));
+    }
+
+    void deregister(Instrument instrument) {
+        metrics.get(InstrumentType.fromInstrument(instrument)).deregister(instrument.getName());
     }
 }

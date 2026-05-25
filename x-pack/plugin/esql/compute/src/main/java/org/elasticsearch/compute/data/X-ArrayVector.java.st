@@ -150,6 +150,15 @@ $else$
 $endif$
 
     @Override
+    public int valueMaxByteSize() {
+$if(BytesRef)$
+        return values.valueMaxByteSize();
+$else$
+        return $BYTES$;
+$endif$
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.$TYPE$;
     }

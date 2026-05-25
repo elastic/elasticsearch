@@ -37,6 +37,7 @@ import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
+import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -53,10 +54,13 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.ResponseInjectingHttpHandler;
+import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.blobstore.AbstractBlobContainerRetriesTestCase;
 import org.elasticsearch.repositories.blobstore.ESMockAPIBasedRepositoryIntegTestCase;
 import org.elasticsearch.rest.RequestParams;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.telemetry.InstrumentType;
+import org.elasticsearch.telemetry.RecordingMeterRegistry;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.threeten.bp.Duration;
@@ -104,6 +108,7 @@ import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.startsWith;
+import static org.mockito.Mockito.mock;
 
 @SuppressForbidden(reason = "use a http server")
 public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobContainerRetriesTestCase {
@@ -720,5 +725,109 @@ public class GoogleCloudStorageBlobContainerRetriesTests extends AbstractBlobCon
                 exchange.close();
             }
         };
+    }
+
+    final RecordingMeterRegistry recordingMeterRegistry = new RecordingMeterRegistry();
+    final RepositoriesMetrics repositoriesMetrics = new RepositoriesMetrics(recordingMeterRegistry);
+
+    static class TestGoogleCloudStorageBlobContainer extends FilterBlobContainer {
+        private long attempts = 0;
+        private long expectedAttempts = 0;
+        private final BlobContainer delegate;
+
+        TestGoogleCloudStorageBlobContainer(BlobContainer delegate) {
+            super(delegate);
+            this.delegate = delegate;
+        }
+
+        public void clear() {
+            attempts = 0;
+        }
+
+        public void setExpectedAttempts(long expectedAttempts) {
+            this.expectedAttempts = expectedAttempts;
+        }
+
+        @Override
+        protected BlobContainer wrapChild(BlobContainer child) {
+            return new TestGoogleCloudStorageBlobContainer(child);
+        }
+
+        @Override
+        public Map<String, BlobContainer> children(OperationPurpose purpose) throws IOException {
+            attempts++;
+            if (attempts >= expectedAttempts) {
+                return Map.of("success", mock(BlobContainer.class), "takesTime", mock(BlobContainer.class));
+            }
+            return delegate.children(purpose);
+        }
+    }
+
+    class TestGcsTenaciousRetryBlobContainer extends GcsTenaciousRetryBlobContainer {
+        TestGcsTenaciousRetryBlobContainer(BlobContainer delegate, RepositoriesMetrics repositoriesMetrics) {
+            super(delegate, repositoriesMetrics);
+        }
+
+        @Override
+        protected BlobContainer wrapChild(BlobContainer child) {
+            return new TestGcsTenaciousRetryBlobContainer(child, repositoriesMetrics);
+        }
+
+        @Override
+        protected long getRetryDelayInMillis(int attempt) {
+            return 1;
+        }
+    }
+
+    private int getMeasurements(RecordingMeterRegistry meterRegistry) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL)
+            .size();
+    }
+
+    private Map<String, Object> getAttributes(RecordingMeterRegistry meterRegistry) {
+        return meterRegistry.getRecorder()
+            .getMeasurements(InstrumentType.LONG_COUNTER, RepositoriesMetrics.METRIC_TRANSIENT_ERROR_RETRY_ATTEMPTS_TOTAL)
+            .getFirst()
+            .attributes();
+    }
+
+    public void testShouldTenaciousRetryOnUnresolvableHost() throws IOException {
+        endpointUrlOverride = "http://unresolvable.invalid";
+
+        final int maxRetries = randomIntBetween(4, 5);
+        final BlobContainer blobContainer = blobContainerBuilder().maxRetries(maxRetries).build();
+
+        final TestGoogleCloudStorageBlobContainer testGoogleCloudStorageBlobContainer = new TestGoogleCloudStorageBlobContainer(
+            blobContainer
+        );
+        final TestGcsTenaciousRetryBlobContainer tenaciousRetryBlobContainer = new TestGcsTenaciousRetryBlobContainer(
+            testGoogleCloudStorageBlobContainer,
+            repositoriesMetrics
+        );
+
+        // No additional retries for NON INDICES purposes.
+        expectThrows(
+            StorageException.class,
+            () -> blobContainer.listBlobs(
+                randomFrom(Arrays.stream(OperationPurpose.values()).filter(v -> v != OperationPurpose.INDICES).toList())
+            )
+        );
+        assertEquals(maxRetries + 1, requestCounters.get("/storage/v1/b/bucket/o").get());
+
+        final int expectedAttempts = randomIntBetween(20, 30);
+        testGoogleCloudStorageBlobContainer.setExpectedAttempts(expectedAttempts);
+        Map<String, BlobContainer> result = tenaciousRetryBlobContainer.children(OperationPurpose.INDICES);
+
+        assertThat(result.size(), equalTo(2));
+        assertThat(result.containsKey("success"), is(true));
+        assertThat(result.containsKey("takesTime"), is(true));
+        recordingMeterRegistry.getRecorder().collect();
+        assertThat(getMeasurements(recordingMeterRegistry), greaterThanOrEqualTo(expectedAttempts - 1));
+        assertThat(getAttributes(recordingMeterRegistry).size(), equalTo(3));
+        assertThat(getAttributes(recordingMeterRegistry).get("repo_type"), equalTo("gcs"));
+        assertThat(getAttributes(recordingMeterRegistry).get("operation"), equalTo("ListObjects"));
+        assertThat(getAttributes(recordingMeterRegistry).get("purpose"), equalTo(OperationPurpose.INDICES.getKey()));
+
     }
 }

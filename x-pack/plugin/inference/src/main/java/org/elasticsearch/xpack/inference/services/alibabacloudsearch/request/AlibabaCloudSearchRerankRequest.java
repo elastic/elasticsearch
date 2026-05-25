@@ -67,7 +67,7 @@ public class AlibabaCloudSearchRerankRequest implements OutboundRerankRequest {
         httpSchema = rerankModel.getServiceSettings().getCommonSettings().getHttpSchema() != null
             ? rerankModel.getServiceSettings().getCommonSettings().getHttpSchema()
             : "https";
-        uri = buildUri(null, AlibabaCloudSearchUtils.SERVICE_NAME, this::buildDefaultUri);
+        uri = Objects.requireNonNullElse(rerankModel.uri(), buildUri(AlibabaCloudSearchUtils.SERVICE_NAME, this::buildDefaultUri));
         inferenceEntityId = rerankModel.getInferenceEntityId();
     }
 

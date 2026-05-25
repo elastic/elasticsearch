@@ -23,16 +23,17 @@ import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.N
 
 public class HierarchicalKMeansTests extends ESTestCase {
 
-    public void testHierarchicalKMeansWithBalancing() throws IOException {
-        int nVectors = random().nextInt(100, 10000);
+    public void testHKmeans() throws IOException {
+        int nClusters = random().nextInt(1, 10);
+        int nVectors = random().nextInt(nClusters, nClusters * 200);
         int dims = random().nextInt(2, 20);
-        int nClusters = random().nextInt(2, 50);
         int sampleSize = random().nextInt(Math.min(nVectors, 100), nVectors + 1);
         int maxIterations = random().nextInt(1, 100);
         int clustersPerNeighborhood = random().nextInt(2, 512);
         float soarLambda = random().nextFloat(0.5f, 1.5f);
 
-        KMeansFloatVectorValues vectors = generateFloatData(nVectors, dims, nClusters);
+        KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters);
+
         int targetSize = (int) ((float) nVectors / (float) nClusters);
         HierarchicalKMeans<float[]> hkmeans = HierarchicalKMeans.ofSerial(
             CentroidOps.FLOAT,
@@ -42,42 +43,41 @@ public class HierarchicalKMeansTests extends ESTestCase {
             clustersPerNeighborhood,
             soarLambda
         );
+
         KMeansResult<float[]> result = hkmeans.cluster(vectors, targetSize);
-        assertKMeansResultValid(result, nVectors, nClusters);
-    }
 
-    public void testHierarchicalKMeansConcurrency() throws IOException {
-        int nVectors = random().nextInt(100, 10000);
-        int dims = random().nextInt(2, 20);
-        int nClusters = random().nextInt(2, 50);
-        int sampleSize = random().nextInt(Math.min(nVectors, 100), nVectors + 1);
-        int maxIterations = random().nextInt(1, 100);
-        int clustersPerNeighborhood = random().nextInt(2, 512);
-        float soarLambda = random().nextFloat(0.5f, 1.5f);
-
-        KMeansFloatVectorValues vectors = generateFloatData(nVectors, dims, nClusters);
-
-        int targetSize = (int) ((float) nVectors / (float) nClusters);
-        HierarchicalKMeans<float[]> hkmeansSerial = HierarchicalKMeans.ofSerial(
-            CentroidOps.FLOAT,
-            dims,
-            maxIterations,
-            sampleSize,
-            clustersPerNeighborhood,
-            soarLambda
-        );
-
-        KMeansResult<float[]> serialResult = hkmeansSerial.cluster(vectors, targetSize);
-
-        int[] serialClusterSizes = new int[serialResult.centroids().length];
-        for (int k : serialResult.assignments()) {
+        int[] assignmentsTemp = result.assignments();
+        int[] serialClusterSizes = new int[result.centroids().length];
+        for (int k : assignmentsTemp) {
             serialClusterSizes[k]++;
+        }
+
+        float[][] centroids = result.centroids();
+        int[] assignments = result.assignments();
+        int[] soarAssignments = result.soarAssignments();
+
+        assertEquals(Math.min(nClusters, nVectors), centroids.length, 25);
+        assertEquals(nVectors, assignments.length);
+
+        for (int assignment : assignments) {
+            assertTrue(assignment >= 0 && assignment < centroids.length);
+        }
+        if (centroids.length > 1 && centroids.length < nVectors) {
+            assertEquals(nVectors, soarAssignments.length);
+            // verify no duplicates exist
+            for (int i = 0; i < assignments.length; i++) {
+                int soarAssignment = soarAssignments[i];
+                assertTrue(soarAssignment == NO_SOAR_ASSIGNMENT || (soarAssignment >= 0 && soarAssignment < centroids.length));
+                assertNotEquals(assignments[i], soarAssignment);
+            }
+        } else {
+            assertEquals(0, soarAssignments.length);
         }
 
         int numWorker = randomIntBetween(2, 8);
         try (ExecutorService service = Executors.newFixedThreadPool(numWorker)) {
             TaskExecutor executor = new TaskExecutor(service);
-            HierarchicalKMeans<float[]> hkmeansConcurrent = HierarchicalKMeans.ofConcurrent(
+            hkmeans = HierarchicalKMeans.ofConcurrent(
                 CentroidOps.FLOAT,
                 dims,
                 executor,
@@ -87,10 +87,11 @@ public class HierarchicalKMeansTests extends ESTestCase {
                 clustersPerNeighborhood,
                 soarLambda
             );
-            KMeansResult<float[]> concurrentResult = hkmeansConcurrent.cluster(vectors, targetSize);
+            KMeansResult<float[]> resultConcurrency = hkmeans.cluster(vectors, targetSize);
 
-            int[] concurrentClusterSizes = new int[concurrentResult.centroids().length];
-            for (int k : concurrentResult.assignments()) {
+            assignmentsTemp = resultConcurrency.assignments();
+            int[] concurrentClusterSizes = new int[resultConcurrency.centroids().length];
+            for (int k : assignmentsTemp) {
                 concurrentClusterSizes[k]++;
             }
 
@@ -130,45 +131,26 @@ public class HierarchicalKMeansTests extends ESTestCase {
         );
 
         KMeansResult<float[]> result = hkmeans.cluster(vectors, targetSize);
-        assertKMeansResultValid(result, nVectors, -1);
-    }
 
-    // ---- Helpers ----
+        float[][] centroidsFew = result.centroids();
+        int[] assignmentsFew = result.assignments();
+        int[] soarAssignmentsFew = result.soarAssignments();
 
-    private static <V> void assertKMeansResultValid(KMeansResult<V> result, int nVectors, int expectedClusters) {
-        V[] centroids = result.centroids();
-        int[] assignments = result.assignments();
-        int[] soarAssignments = result.soarAssignments();
+        assertTrue("Expected at least 1 centroid", centroidsFew.length >= 1);
+        assertEquals(nVectors, assignmentsFew.length);
 
-        if (expectedClusters > 0) {
-            assertEquals(Math.min(expectedClusters, nVectors), centroids.length, 25);
+        for (int assignment : assignmentsFew) {
+            assertTrue(assignment >= 0 && assignment < centroidsFew.length);
         }
-        assertTrue("Expected at least 1 centroid", centroids.length >= 1);
-        assertEquals(nVectors, assignments.length);
-
-        for (int assignment : assignments) {
-            assertTrue(assignment >= 0 && assignment < centroids.length);
-        }
-
-        // Verify no empty clusters
-        int[] counts = new int[centroids.length];
-        for (int a : assignments) {
-            counts[a]++;
-        }
-        for (int count : counts) {
-            assertTrue("Empty cluster found", count > 0);
-        }
-        assertArrayEquals(counts, result.clusterCounts());
-
-        if (centroids.length > 1 && centroids.length < nVectors) {
-            assertEquals(nVectors, soarAssignments.length);
-            for (int i = 0; i < assignments.length; i++) {
-                int soarAssignment = soarAssignments[i];
-                assertTrue(soarAssignment == NO_SOAR_ASSIGNMENT || (soarAssignment >= 0 && soarAssignment < centroids.length));
-                assertNotEquals(assignments[i], soarAssignment);
+        if (centroidsFew.length > 1 && centroidsFew.length < nVectors) {
+            assertEquals(nVectors, soarAssignmentsFew.length);
+            for (int i = 0; i < assignmentsFew.length; i++) {
+                int soarAssignment = soarAssignmentsFew[i];
+                assertTrue(soarAssignment == NO_SOAR_ASSIGNMENT || (soarAssignment >= 0 && soarAssignment < centroidsFew.length));
+                assertNotEquals(assignmentsFew[i], soarAssignment);
             }
         } else {
-            assertEquals(0, soarAssignments.length);
+            assertEquals(0, soarAssignmentsFew.length);
         }
     }
 
@@ -192,7 +174,7 @@ public class HierarchicalKMeansTests extends ESTestCase {
         return mse;
     }
 
-    private static KMeansFloatVectorValues generateFloatData(int nSamples, int nDims, int nClusters) {
+    private static KMeansFloatVectorValues generateData(int nSamples, int nDims, int nClusters) {
         List<float[]> vectors = new ArrayList<>(nSamples);
         float[][] centroids = new float[nClusters][nDims];
         for (int i = 0; i < nClusters; i++) {

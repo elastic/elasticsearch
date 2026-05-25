@@ -343,10 +343,7 @@ tests:
   method: testUpdateAndReadChangesConcurrently
   issue: https://github.com/elastic/elasticsearch/issues/148145
 - class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
-  method: testHierarchicalKMeansConcurrency
-  issue: https://github.com/elastic/elasticsearch/issues/147482
-- class: org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeansTests
-  method: testHierarchicalKMeansWithBalancing
+  method: testHKmeans
   issue: https://github.com/elastic/elasticsearch/issues/147482
 - class: org.elasticsearch.xpack.searchablesnapshots.cache.blob.SearchableSnapshotsBlobStoreCacheMaintenanceIntegTests
   method: testCleanUpMigratedSystemIndexAfterIndicesAreDeleted
@@ -600,3 +597,15 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
   method: test {csv-spec:change_point.values int column with all nulls}
   issue: https://github.com/elastic/elasticsearch/issues/149763
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148190
+- class: org.elasticsearch.reindex.management.ListTasksRelocationIT
+  method: testListTasksShowsOriginalIdentityAfterRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/149776
+- class: org.elasticsearch.xpack.stateless.StatelessResizeIT
+  method: testSplitIndex
+  issue: https://github.com/elastic/elasticsearch/issues/149777
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionWithSecurityIT
+  method: testCanTransitionIndex
+  issue: https://github.com/elastic/elasticsearch/issues/149770

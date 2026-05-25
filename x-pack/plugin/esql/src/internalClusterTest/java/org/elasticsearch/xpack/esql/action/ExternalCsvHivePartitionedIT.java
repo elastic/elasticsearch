@@ -61,7 +61,8 @@ public class ExternalCsvHivePartitionedIT extends AbstractEsqlIntegTestCase {
         Path root = createTempDir().resolve("hive_csv");
         writePartitionedCsvFiles(root);
 
-        // ** triggers recursive listing so LocalStorageProvider descends into year=/month= dirs.
+        // The '**' pattern triggers recursive listing so LocalStorageProvider descends into year=/month= dirs.
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // checkstyle thinks this is Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.csv";
         String query = "EXTERNAL \"" + glob + "\" WITH {\"hive_partitioning\": true} | LIMIT 1";
 
@@ -85,6 +86,7 @@ public class ExternalCsvHivePartitionedIT extends AbstractEsqlIntegTestCase {
         Path root = createTempDir().resolve("template_csv");
         writePartitionedCsvFiles(root);
 
+        @SuppressWarnings("checkstyle:EmptyJavadoc") // checkstyle thinks this is Javadoc
         String glob = StoragePath.fileUri(root) + "/**/*.csv";
         String query = "EXTERNAL \"" + glob + "\" WITH {\"partition_path\": \"year={year}/month={month}/*.csv\"}" + " | LIMIT 1";
 

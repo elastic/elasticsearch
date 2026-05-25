@@ -62,6 +62,7 @@ import java.util.Map;
 import java.util.Optional;
 
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
@@ -630,6 +631,35 @@ public class TransportUpdateInferenceModelActionTests extends ESTestCase {
             resultModelConfigurations.getChunkingSettings(),
             is(new WordBoundaryChunkingSettings(NEW_CHUNK_SIZE_VALUE, NEW_OVERLAP_VALUE))
         );
+    }
+
+    public void testCombineExistingModelConfigurationsWithNewSettings_NewChunkingSettingsEquivalentToExisting_StillReplacesInstance() {
+        // Guards the replace-not-merge contract: even with an equivalent map, the result must be
+        // a freshly built instance, not the existing one.
+        var existingChunkingSettings = new WordBoundaryChunkingSettings(NEW_CHUNK_SIZE_VALUE, NEW_OVERLAP_VALUE);
+        Map<String, Object> equivalentChunkingSettingsMap = new HashMap<>();
+        equivalentChunkingSettingsMap.put(ChunkingSettingsOptions.STRATEGY.toString(), "word");
+        equivalentChunkingSettingsMap.put(ChunkingSettingsOptions.MAX_CHUNK_SIZE.toString(), NEW_CHUNK_SIZE_VALUE);
+        equivalentChunkingSettingsMap.put(ChunkingSettingsOptions.OVERLAP.toString(), NEW_OVERLAP_VALUE);
+
+        var model = createMockedModel(
+            mock(ServiceSettings.class),
+            mock(TaskSettings.class),
+            existingChunkingSettings,
+            mock(SecretSettings.class)
+        );
+
+        var resultModelConfigurations = action.combineExistingModelConfigurationsWithNewSettings(
+            model,
+            null,
+            null,
+            equivalentChunkingSettingsMap,
+            SERVICE_NAME_VALUE
+        );
+
+        var resultChunkingSettings = resultModelConfigurations.getChunkingSettings();
+        assertThat(resultChunkingSettings, is(existingChunkingSettings));
+        assertThat(resultChunkingSettings, not(sameInstance(existingChunkingSettings)));
     }
 
     public void testCombineExistingModelConfigurationsWithNewSettings_PassesNewSettingsMapsThroughDirectlyToParsers() {

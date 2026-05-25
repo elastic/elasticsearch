@@ -242,7 +242,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
 
         TaskSettings mergedTaskSettings = existingTaskSettings;
         ServiceSettings mergedServiceSettings = existingServiceSettings;
-        ChunkingSettings mergedChunkingSettings = existingChunkingSettings;
+        ChunkingSettings replacementChunkingSettings = existingChunkingSettings;
 
         if (newServiceSettings != null) {
             mergedServiceSettings = mergedServiceSettings.updateServiceSettings(newServiceSettings);
@@ -251,7 +251,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             mergedTaskSettings = mergedTaskSettings.updatedTaskSettings(newTaskSettings);
         }
         if (newChunkingSettings != null) {
-            mergedChunkingSettings = ChunkingSettingsBuilder.fromMap(newChunkingSettings);
+            replacementChunkingSettings = ChunkingSettingsBuilder.fromMap(newChunkingSettings);
         }
 
         return new ModelConfigurations(
@@ -260,7 +260,7 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
             serviceName,
             mergedServiceSettings,
             mergedTaskSettings,
-            mergedChunkingSettings
+            replacementChunkingSettings
         );
     }
 
@@ -272,13 +272,13 @@ public class TransportUpdateInferenceModelAction extends TransportMasterNodeActi
      */
     ModelSecrets combineExistingSecretsWithNewSecrets(Model existingParsedModel, @Nullable Map<String, Object> newSettingsMap) {
         SecretSettings existingSecretSettings = existingParsedModel.getSecretSettings();
-        SecretSettings mergedSecretSettings = existingSecretSettings;
+        SecretSettings replacementSecretSettings = existingSecretSettings;
 
         if (newSettingsMap != null && existingSecretSettings != null) {
-            mergedSecretSettings = existingSecretSettings.newSecretSettings(newSettingsMap);
+            replacementSecretSettings = existingSecretSettings.newSecretSettings(newSettingsMap);
         }
 
-        return new ModelSecrets(mergedSecretSettings);
+        return new ModelSecrets(replacementSecretSettings);
     }
 
     private void updateInClusterEndpoint(

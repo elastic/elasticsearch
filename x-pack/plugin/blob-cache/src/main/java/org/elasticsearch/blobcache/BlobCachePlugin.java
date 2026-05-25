@@ -26,6 +26,9 @@ public class BlobCachePlugin extends Plugin implements ExtensiblePlugin {
             SharedBlobCacheService.SHARED_CACHE_MAX_FREQ_SETTING,
             SharedBlobCacheService.SHARED_CACHE_DECAY_INTERVAL_SETTING,
             SharedBlobCacheService.SHARED_CACHE_MIN_TIME_DELTA_SETTING,
+            SharedBlobCacheService.SHARED_CACHE_TIME_SLOTS_GRANULARITY_SETTING,
+            SharedBlobCacheService.SHARED_CACHE_TIME_SLOTS_PAST_COUNT_SETTING,
+            SharedBlobCacheService.SHARED_CACHE_TIME_SLOTS_FUTURE_COUNT_SETTING,
             SharedBlobCacheService.SHARED_CACHE_MMAP,
             SharedBlobCacheService.SHARED_CACHE_COUNT_READS,
             SharedBlobCacheService.SHARED_CACHE_CONCURRENT_EVICTIONS_SETTING

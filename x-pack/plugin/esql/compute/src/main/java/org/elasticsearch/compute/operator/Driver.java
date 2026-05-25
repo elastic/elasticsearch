@@ -214,6 +214,12 @@ public class Driver implements Releasable, Describable {
                     LOGGER.error(Strings.format("Error running driver [%s]", shortDescription), e);
                 }
                 throw e;
+            } catch (Error e) {
+                // Errors (e.g. AssertionError from assert statements) are not caught by AbstractRunnable,
+                // so onFailure() and drainAndCloseOperators() would never be called, leaking circuit
+                // breaker bytes. Wrap as RuntimeException so the standard cleanup path fires.
+                LOGGER.error(Strings.format("Fatal error running driver [%s]", shortDescription), e);
+                throw new RuntimeException(e);
             } finally {
                 assert driverContext.assertEndRunLoop();
             }

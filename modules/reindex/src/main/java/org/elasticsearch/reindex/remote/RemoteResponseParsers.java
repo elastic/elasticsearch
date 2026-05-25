@@ -27,7 +27,6 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentLocation;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -50,27 +49,31 @@ final class RemoteResponseParsers {
     /**
      * Parser for an individual {@code hit} element.
      */
-    public static final ConstructingObjectParser<BasicHit, XContentType> HIT_PARSER = new ConstructingObjectParser<>("hit", true, a -> {
-        int i = 0;
-        String index = (String) a[i++];
-        String id = (String) a[i++];
-        Long version = (Long) a[i++];
-        return new BasicHit(index, id, version == null ? -1 : version);
-    });
+    public static final ConstructingObjectParser<BasicHit, RemoteParseContext> HIT_PARSER = new ConstructingObjectParser<>(
+        "hit",
+        true,
+        a -> {
+            int i = 0;
+            String index = (String) a[i++];
+            String id = (String) a[i++];
+            Long version = (Long) a[i++];
+            return new BasicHit(index, id, version == null ? -1 : version);
+        }
+    );
     static {
         HIT_PARSER.declareString(constructorArg(), new ParseField("_index"));
         HIT_PARSER.declareString(constructorArg(), new ParseField("_id"));
         HIT_PARSER.declareLong(optionalConstructorArg(), new ParseField("_version"));
-        HIT_PARSER.declareObject(((basicHit, tuple) -> basicHit.setSource(tuple.v1(), tuple.v2())), (p, s) -> {
+        HIT_PARSER.declareObject(((basicHit, tuple) -> basicHit.setSource(tuple.v1(), tuple.v2())), (p, c) -> {
             try {
                 /*
                  * We spool the data from the remote back into xcontent so we can get bytes to send. There ought to be a better way but for
                  * now this should do.
                  */
-                try (XContentBuilder b = XContentBuilder.builder(s.xContent())) {
+                try (XContentBuilder b = XContentBuilder.builder(c.xContentType().xContent())) {
                     b.copyCurrentStructure(p);
                     // a hack but this lets us get the right xcontent type to go with the source
-                    return new Tuple<>(BytesReference.bytes(b), s);
+                    return new Tuple<>(BytesReference.bytes(b), c.xContentType());
                 }
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "[hit] failed to parse [_source]", e);
@@ -84,7 +87,7 @@ final class RemoteResponseParsers {
         class Fields {
             String routing;
         }
-        ObjectParser<Fields, XContentType> fieldsParser = new ObjectParser<>("fields", Fields::new);
+        ObjectParser<Fields, RemoteParseContext> fieldsParser = new ObjectParser<>("fields", Fields::new);
         HIT_PARSER.declareObject((hit, fields) -> hit.setRouting(fields.routing), fieldsParser, new ParseField("fields"));
         fieldsParser.declareString((fields, routing) -> fields.routing = routing, routingField);
         fieldsParser.declareLong((fields, ttl) -> {}, ttlField); // ignore ttls since they have been removed
@@ -110,7 +113,11 @@ final class RemoteResponseParsers {
     /// Parser for the `hits` element. Parsed to an array of `[total (Long, may be null), hits (List<Hit>)]`.
     /// `total` is optional because reindex disables `track_total_hits` on follow-up PIT batches, and a remote
     /// honouring that omits `hits.total` from the response.
-    public static final ConstructingObjectParser<Object[], XContentType> HITS_PARSER = new ConstructingObjectParser<>("hits", true, a -> a);
+    public static final ConstructingObjectParser<Object[], RemoteParseContext> HITS_PARSER = new ConstructingObjectParser<>(
+        "hits",
+        true,
+        a -> a
+    );
     static {
         HITS_PARSER.declareField(optionalConstructorArg(), (p, c) -> {
             if (p.currentToken() == XContentParser.Token.START_OBJECT) {
@@ -120,7 +127,14 @@ final class RemoteResponseParsers {
                 return p.longValue();
             }
         }, new ParseField("total"), ValueType.OBJECT_OR_NUMBER);
-        HITS_PARSER.declareObjectArray(constructorArg(), HIT_PARSER, new ParseField("hits"));
+        HITS_PARSER.declareObjectArray(constructorArg(), (p, c) -> {
+            BasicHit hit = HIT_PARSER.parse(p, c);
+            BytesReference source = hit.getSource();
+            if (source != null) {
+                c.accountHit(source.length());
+            }
+            return hit;
+        }, new ParseField("hits"));
     }
 
     /**
@@ -176,7 +190,7 @@ final class RemoteResponseParsers {
         SHARDS_PARSER.declareObjectArray(optionalConstructorArg(), SEARCH_FAILURE_PARSER, new ParseField("failures"));
     }
 
-    public static final ConstructingObjectParser<Response, XContentType> RESPONSE_PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<Response, RemoteParseContext> RESPONSE_PARSER = new ConstructingObjectParser<>(
         "search_response",
         true,
         a -> {
@@ -294,7 +308,7 @@ final class RemoteResponseParsers {
     /**
      * Parser for the open point-in-time response. Returns the PIT id as {@link BytesReference}.
      */
-    public static final ConstructingObjectParser<BytesReference, XContentType> OPEN_PIT_PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<BytesReference, RemoteParseContext> OPEN_PIT_PARSER = new ConstructingObjectParser<>(
         "open_pit_response",
         true,
         a -> {
@@ -312,13 +326,13 @@ final class RemoteResponseParsers {
     /**
      * Parses the main action to return just the {@linkplain Version} that it returns. We throw everything else out.
      */
-    public static final ConstructingObjectParser<Version, XContentType> MAIN_ACTION_PARSER = new ConstructingObjectParser<>(
+    public static final ConstructingObjectParser<Version, RemoteParseContext> MAIN_ACTION_PARSER = new ConstructingObjectParser<>(
         "/",
         true,
         a -> (Version) a[0]
     );
     static {
-        ConstructingObjectParser<Version, XContentType> versionParser = new ConstructingObjectParser<>(
+        ConstructingObjectParser<Version, RemoteParseContext> versionParser = new ConstructingObjectParser<>(
             "version",
             true,
             a -> Version.fromString(((String) a[0]).replace("-SNAPSHOT", "").replaceFirst("-(alpha\\d+|beta\\d+|rc\\d+)", ""))

@@ -32,16 +32,24 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
- * Verifies that reindex-from-remote charges the REQUEST circuit breaker for incoming search-response bytes
- * and surfaces a {@link CircuitBreakingException} when the response body exceeds the limit — without
- * writing any documents to the destination.
+ * Verifies that reindex-from-remote charges the REQUEST circuit breaker for the bytes of a parsed
+ * response and surfaces a {@link CircuitBreakingException} when the response exceeds the limit —
+ * without writing any documents to the destination.
+ *
+ * <p>Hits are accumulated locally and flushed to the breaker once {@code
+ * cluster.reindex.memory_accounting_threshold} is crossed (1 MiB default, also the minimum the
+ * setting allows). For modest batches like this one (5 docs × ~20 KiB ≈ 100 KiB total) the trip
+ * happens on the final {@code flushRemaining} call rather than mid-batch; the per-hit mechanics
+ * (incremental accumulation, mid-flush trip, release on close) are covered by unit tests in
+ * {@code RemoteParseContextTests}.
  *
  * <p>Uses {@link ESSingleNodeTestCase} so that shard and coordinator always run on the same node.
  * This avoids cross-node transport serialization (which would use {@code RecyclerBytesStreamOutput}
  * and trip the breaker server-side before the HTTP response reaches our client-side tracking).
  *
- * <p>The per-response reservation/release wiring is covered by unit tests; this class exercises the full
- * production path through a real HTTP endpoint with a shrunk REQUEST breaker limit.
+ * <p>Doc / batch sizing is intentionally kept small enough that the source-side {@code FetchPhase}
+ * does not trip the same REQUEST breaker on its own — we want the assertion below to be about the
+ * remote-response label specifically.
  */
 public class ReindexFromRemoteCircuitBreakerIT extends ESSingleNodeTestCase {
 
@@ -61,8 +69,9 @@ public class ReindexFromRemoteCircuitBreakerIT extends ESSingleNodeTestCase {
             .put(super.nodeSettings())
             .put(TransportReindexAction.REMOTE_CLUSTER_WHITELIST.getKey(), "*:*")
             // Sized above the version-lookup (~600 B) and open-PIT (~700 B) responses — both are
-            // immediately released — but below the first search response (~60 KB for 5 × 20 KB random docs
-            // after gzip compression on a-z text).
+            // immediately released — but below the first remote search response (≈ 100 KiB for
+            // 5 × 20 KiB random-alpha docs after JSON encoding) so the breaker trips when the
+            // RemoteParseContext flushes its accumulated bytes at the end of parsing.
             .put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "5kb")
             .build();
     }
@@ -71,11 +80,9 @@ public class ReindexFromRemoteCircuitBreakerIT extends ESSingleNodeTestCase {
         assertAcked(indicesAdmin().prepareCreate("dest"));
 
         // Single node: shard and coordinator are co-located, so the search response travels via
-        // DirectResponseChannel (in-memory, no RecyclerBytesStreamOutput serialization). The 5 KB
-        // REQUEST limit is therefore not tripped by shard serialization, only by our response tracking.
-        //
-        // 5 docs × ~20 KB of random source (a-z chars). After gzip compression at ~0.625 ratio for
-        // base-26 text the HTTP response body is roughly 60 KB — well above the 5 KB limit.
+        // DirectResponseChannel (in-memory, no RecyclerBytesStreamOutput serialization). The 5 KiB
+        // REQUEST limit is therefore not tripped by shard serialization, only by our remote-response
+        // accounting in RemoteParseContext.
         assertAcked(
             indicesAdmin().prepareCreate("source").setSettings(Settings.builder().put("number_of_shards", 1).put("number_of_replicas", 0))
         );
@@ -112,7 +119,8 @@ public class ReindexFromRemoteCircuitBreakerIT extends ESSingleNodeTestCase {
         assertThat("expected CircuitBreakingException in cause chain, got: " + thrown, circuitBreakingCause, notNullValue());
         assertThat(circuitBreakingCause.getMessage(), containsString("reindex_remote_response"));
 
-        // No documents should have been written to the destination.
+        // No documents should have been written to the destination — the breaker trip aborts the
+        // batch before any bulk request is sent.
         assertHitCount(client().prepareSearch("dest").setSize(0), 0);
     }
 }

@@ -51,7 +51,7 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
     private final Version remoteVersion;
     private final SearchContextKeepaliveDeadline keepaliveDeadline;
     private final CircuitBreaker circuitBreaker;
-    private final String breakerLabel;
+    private final long memoryAccountingThresholdBytes;
     /**
      * Keep-alive sent with the PIT search HTTP request currently in flight.
      * Cleared after each successful response.
@@ -71,7 +71,7 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
         Version remoteVersion,
         SearchContextKeepaliveDeadline keepaliveDeadline,
         CircuitBreaker circuitBreaker,
-        String breakerLabel
+        long memoryAccountingThresholdBytes
     ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.remote = remoteInfo;
@@ -80,7 +80,7 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
         this.remoteVersion = remoteVersion;
         this.keepaliveDeadline = keepaliveDeadline;
         this.circuitBreaker = circuitBreaker;
-        this.breakerLabel = breakerLabel;
+        this.memoryAccountingThresholdBytes = memoryAccountingThresholdBytes;
         SearchSourceBuilder source = searchRequest.source();
         if (source == null || source.pointInTimeBuilder() == null) {
             throw new IllegalArgumentException("SearchRequest must have pointInTimeBuilder set for PIT-based remote pagination");
@@ -102,7 +102,7 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
             threadPool,
             client,
             circuitBreaker,
-            breakerLabel
+            memoryAccountingThresholdBytes
         );
     }
 
@@ -156,7 +156,7 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
             threadPool,
             client,
             circuitBreaker,
-            breakerLabel
+            memoryAccountingThresholdBytes
         );
     }
 

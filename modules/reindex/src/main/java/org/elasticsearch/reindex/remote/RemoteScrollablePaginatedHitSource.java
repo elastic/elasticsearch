@@ -56,7 +56,7 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
     private final SearchRequest searchRequest;
     private final SearchContextKeepaliveDeadline keepaliveDeadline;
     private final CircuitBreaker circuitBreaker;
-    private final String breakerLabel;
+    private final long memoryAccountingThresholdBytes;
     /**
      * Keep-alive duration for the scroll HTTP request currently in flight, set before each execute and cleared after success.
      */
@@ -76,7 +76,7 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
         @Nullable Version initialRemoteVersion,
         SearchContextKeepaliveDeadline keepaliveDeadline,
         CircuitBreaker circuitBreaker,
-        String breakerLabel
+        long memoryAccountingThresholdBytes
     ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.remote = remoteInfo;
@@ -85,7 +85,7 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
         this.remoteVersion = initialRemoteVersion;
         this.keepaliveDeadline = keepaliveDeadline;
         this.circuitBreaker = circuitBreaker;
-        this.breakerLabel = breakerLabel;
+        this.memoryAccountingThresholdBytes = memoryAccountingThresholdBytes;
     }
 
     @Override
@@ -103,7 +103,7 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
                 threadPool,
                 client,
                 circuitBreaker,
-                breakerLabel
+                memoryAccountingThresholdBytes
             );
         } else {
             lookupRemoteVersion(RejectAwareActionListener.withResponseHandler(searchListener, version -> {
@@ -115,9 +115,9 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
                     threadPool,
                     client,
                     circuitBreaker,
-                    breakerLabel
+                    memoryAccountingThresholdBytes
                 );
-            }), threadPool, client, circuitBreaker, breakerLabel);
+            }), threadPool, client, circuitBreaker, memoryAccountingThresholdBytes);
         }
     }
 
@@ -156,7 +156,7 @@ public class RemoteScrollablePaginatedHitSource extends ScrollablePaginatedHitSo
             threadPool,
             client,
             circuitBreaker,
-            breakerLabel
+            memoryAccountingThresholdBytes
         );
     }
 

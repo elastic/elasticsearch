@@ -262,7 +262,7 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
                     Version.CURRENT,
                     keepaliveDeadline(),
                     new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                    "test"
+                    1024L
                 )
             );
         }
@@ -361,7 +361,7 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             Version.CURRENT,
             keepaliveDeadline(),
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            "test"
+            1024L
         );
         hitSource.cleanup(() -> cleanupCallbackCalled.set(true));
         verify(client).close();
@@ -387,7 +387,7 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             Version.CURRENT,
             keepaliveDeadline(),
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            "test"
+            1024L
         );
         hitSource.cleanup(() -> cleanupCallbackCalled.set(true));
         verify(client).close();
@@ -558,7 +558,7 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             Version.CURRENT,
             keepaliveDeadline(),
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            "test"
+            1024L
         );
     }
 
@@ -626,7 +626,7 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             Version.CURRENT,
             keepaliveDeadline(),
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            "test"
+            1024L
         );
     }
 

@@ -167,7 +167,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      */
     private static final Version REMOTE_SHARD_DOC_SUPPORTED = Version.V_7_12_0;
 
-    private final ReindexSettings reindexSettings;
+    protected final ReindexSettings reindexSettings;
     private final CircuitBreaker circuitBreaker;
     private final String breakerLabel;
 
@@ -265,6 +265,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         this.remoteVersion = remoteVersion;
         this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
         this.breakerLabel = Objects.requireNonNull(breakerLabel);
+        this.reindexSettings = Objects.requireNonNull(reindexSettings);
         paginatedHitSource = buildScrollableResultSource(
             backoffPolicy,
             prepareSearchRequest(
@@ -276,7 +277,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             )
         );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
-        this.reindexSettings = Objects.requireNonNull(reindexSettings);
     }
 
     /** Computes the minimum time a relocated task must run before it can be relocated again. Visible for testing. */

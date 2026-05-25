@@ -152,7 +152,6 @@ public class Reindexer {
     private final TaskResultsService taskResultsService;
     private final TimeValue reindexShutdownGracePeriod;
     private final CircuitBreaker requestBreaker;
-    private static final String REMOTE_RESPONSE_BREAKER_LABEL = "reindex_remote_response";
 
     Reindexer(
         ClusterService clusterService,
@@ -520,7 +519,7 @@ public class Reindexer {
         }, e -> {
             logger.warn("Failed to close remote PIT (rejected)", e);
             closeRestClientAndRun(restClient, () -> listener.onResponse(null));
-        }), threadPool, restClient, requestBreaker, REMOTE_RESPONSE_BREAKER_LABEL);
+        }), threadPool, restClient, requestBreaker, reindexSettings.getMemoryAccountingThresholdInBytes());
     }
 
     /**
@@ -586,7 +585,7 @@ public class Reindexer {
             restClient,
             rejectAwareListener,
             requestBreaker,
-            REMOTE_RESPONSE_BREAKER_LABEL
+            reindexSettings.getMemoryAccountingThresholdInBytes()
         );
     }
 
@@ -620,7 +619,7 @@ public class Reindexer {
         },
             e -> closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e)),
             e -> closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e))
-        ), threadPool, restClient, requestBreaker, REMOTE_RESPONSE_BREAKER_LABEL);
+        ), threadPool, restClient, requestBreaker, reindexSettings.getMemoryAccountingThresholdInBytes());
     }
 
     /**
@@ -1070,7 +1069,7 @@ public class Reindexer {
                         remoteVersion,
                         searchContextKeepaliveDeadline,
                         getCircuitBreaker(),
-                        REMOTE_RESPONSE_BREAKER_LABEL
+                        reindexSettings.getMemoryAccountingThresholdInBytes()
                     );
                 }
                 return new RemoteScrollablePaginatedHitSource(
@@ -1086,7 +1085,7 @@ public class Reindexer {
                     remoteVersion,
                     searchContextKeepaliveDeadline,
                     getCircuitBreaker(),
-                    REMOTE_RESPONSE_BREAKER_LABEL
+                    reindexSettings.getMemoryAccountingThresholdInBytes()
                 );
             }
             return super.buildScrollableResultSource(backoffPolicy, searchRequest);

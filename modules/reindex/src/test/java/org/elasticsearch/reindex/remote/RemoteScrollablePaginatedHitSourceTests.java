@@ -575,7 +575,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
                         threadPool,
                         restClient,
                         new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                        "test"
+                        1024L
                     );
                 } else {
                     super.doFirstSearch(searchListener);
@@ -668,7 +668,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
             initialRemoteVersion,
             keepaliveDeadline(),
             new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            "test"
+            1024L
         );
     }
 
@@ -710,7 +710,7 @@ public class RemoteScrollablePaginatedHitSourceTests extends ESTestCase {
                 randomBoolean() ? Version.CURRENT : null,
                 keepaliveDeadline(),
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-                "test"
+                1024L
             );
         }
     }

@@ -9,6 +9,15 @@
 
 package org.elasticsearch.snapshots;
 
+import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.ByteBuffersDirectory;
+import org.apache.lucene.store.IOContext;
+import org.apache.lucene.store.IndexInput;
+import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -18,6 +27,8 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.BlobContainer;
+import org.elasticsearch.common.lucene.store.ByteArrayIndexInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -25,6 +36,9 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.store.Store;
+import org.elasticsearch.index.store.StoreFileMetadata;
 import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -33,6 +47,7 @@ import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.index.IndexVersionUtils;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashSet;
@@ -46,6 +61,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
@@ -516,10 +532,11 @@ public class RestoreServiceTests extends ESTestCase {
             .build();
 
         // every shard quiesced — should pass silently
+        var quiescedShardSnapshot = buildShardSnapshot(snapshot.getSnapshotId().getUUID(), 42L, 42L);
+        var quiescedContainer = mock(BlobContainer.class);
         var quiescedRepo = mock(BlobStoreRepository.class);
-        when(quiescedRepo.loadShardSnapshotCommitInfo(eq(indexId), any(Integer.class), eq(snapshot.getSnapshotId()))).thenReturn(
-            new SequenceNumbers.CommitInfo(42L, 42L)
-        );
+        when(quiescedRepo.shardContainer(eq(indexId), anyInt())).thenReturn(quiescedContainer);
+        when(quiescedRepo.loadShardSnapshot(eq(quiescedContainer), eq(snapshot.getSnapshotId()))).thenReturn(quiescedShardSnapshot);
         RestoreService.verifyReadOnlyRestoreSafety(
             quiescedRepo,
             snapshot,
@@ -531,12 +548,18 @@ public class RestoreServiceTests extends ESTestCase {
 
         // one shard with lcp < max_seq_no — should throw
         var badShard = randomIntBetween(0, numberOfShards - 1);
-        var torn = new SequenceNumbers.CommitInfo(50L, 49L);
-        var safe = new SequenceNumbers.CommitInfo(42L, 42L);
+        var tornShardSnapshot = buildShardSnapshot(snapshot.getSnapshotId().getUUID(), 49L, 50L);
+        var safeShardSnapshot = buildShardSnapshot(snapshot.getSnapshotId().getUUID(), 42L, 42L);
+        var containers = new ArrayList<BlobContainer>(numberOfShards);
+        for (int i = 0; i < numberOfShards; i++) {
+            containers.add(mock(BlobContainer.class));
+        }
         var tornRepo = mock(BlobStoreRepository.class);
-        when(tornRepo.loadShardSnapshotCommitInfo(eq(indexId), any(Integer.class), eq(snapshot.getSnapshotId()))).thenAnswer(
-            invocation -> invocation.<Integer>getArgument(1) == badShard ? torn : safe
-        );
+        when(tornRepo.shardContainer(eq(indexId), anyInt())).thenAnswer(invocation -> containers.get(invocation.<Integer>getArgument(1)));
+        for (int i = 0; i < numberOfShards; i++) {
+            final var shardSnap = (i == badShard) ? tornShardSnapshot : safeShardSnapshot;
+            when(tornRepo.loadShardSnapshot(eq(containers.get(i)), eq(snapshot.getSnapshotId()))).thenReturn(shardSnap);
+        }
         var ex = expectThrows(
             SnapshotRestoreException.class,
             () -> RestoreService.verifyReadOnlyRestoreSafety(
@@ -552,6 +575,53 @@ public class RestoreServiceTests extends ESTestCase {
         assertThat(ex.getMessage(), containsString("shard [" + badShard + "]"));
         assertThat(ex.getMessage(), containsString("local_checkpoint=[49]"));
         assertThat(ex.getMessage(), containsString("max_seq_no=[50]"));
+    }
+
+    /**
+     * Builds a minimal {@link BlobStoreIndexShardSnapshot} whose only file is a {@code segments_N} written to an
+     * in-memory Lucene directory with the given sequence-number commit data. The file bytes are inlined in the
+     * {@link StoreFileMetadata} hash so that {@link RestoreService#readShardSnapshotCommitInfo} can read them without
+     * accessing a real repository.
+     */
+    private static BlobStoreIndexShardSnapshot buildShardSnapshot(String snapshotUUID, long localCheckpoint, long maxSeqNo)
+        throws IOException {
+        var dir = new ByteBuffersDirectory();
+        try (var writer = new IndexWriter(dir, new IndexWriterConfig())) {
+            writer.setLiveCommitData(
+                Map.of(
+                    SequenceNumbers.LOCAL_CHECKPOINT_KEY,
+                    Long.toString(localCheckpoint),
+                    SequenceNumbers.MAX_SEQ_NO,
+                    Long.toString(maxSeqNo)
+                ).entrySet()
+            );
+            writer.commit();
+        }
+        var si = SegmentInfos.readLatestCommit(dir);
+        var segmentsFileName = si.getSegmentsFileName();
+        int fileLength = (int) dir.fileLength(segmentsFileName);
+        var bytes = new byte[fileLength];
+        try (IndexInput input = dir.openInput(segmentsFileName, IOContext.READONCE)) {
+            input.readBytes(bytes, 0, fileLength);
+        }
+        var hash = new BytesRef(bytes);
+        var checksum = Store.digestToString(CodecUtil.retrieveChecksum(new ByteArrayIndexInput(segmentsFileName, bytes, 0, fileLength)));
+        var metadata = new StoreFileMetadata(
+            segmentsFileName,
+            fileLength,
+            checksum,
+            Version.LATEST.toString(),
+            hash,
+            StoreFileMetadata.UNAVAILABLE_WRITER_UUID
+        );
+        return new BlobStoreIndexShardSnapshot(
+            snapshotUUID,
+            List.of(new BlobStoreIndexShardSnapshot.FileInfo(segmentsFileName, metadata, null)),
+            0L,
+            0L,
+            0,
+            0L
+        );
     }
 
     private static SnapshotInfo createSnapshotInfo(Snapshot snapshot, Boolean includeGlobalState) {

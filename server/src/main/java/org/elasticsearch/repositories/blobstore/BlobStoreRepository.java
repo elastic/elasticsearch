@@ -15,7 +15,6 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
-import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.RateLimiter;
@@ -70,7 +69,6 @@ import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.TruncatedOutputStream;
-import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -94,7 +92,6 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardRestoreFailedException;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotFailedException;
@@ -4141,32 +4138,6 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 "failed to read shard snapshot file for [" + shardContainer.path() + ']',
                 ex
             );
-        }
-    }
-
-    /**
-     * Reads the {@link SequenceNumbers#LOCAL_CHECKPOINT_KEY} and {@link SequenceNumbers#MAX_SEQ_NO} values from the Lucene
-     * commit captured by a shard snapshot. Used at restore time to confirm the snapshot was taken on a quiesced shard
-     * (i.e. {@code local_checkpoint == max_seq_no}) before treating it as a verified read-only restore.
-     * <p>
-     * Performs a single blob read (the per-shard snapshot manifest); no segment data files are downloaded. The small
-     * files Lucene needs to construct {@code SegmentInfos} — {@code segments_N} and the per-segment {@code .si} files —
-     * are already inlined in the manifest's file metadata (see {@link StoreFileMetadata#hashEqualsContents()}).
-     */
-    public SequenceNumbers.CommitInfo loadShardSnapshotCommitInfo(IndexId indexId, int shardId, SnapshotId snapshotId) throws IOException {
-        final BlobContainer shardContainer = shardContainer(indexId, shardId);
-        final BlobStoreIndexShardSnapshot shardSnapshot = loadShardSnapshot(shardContainer, snapshotId);
-        try (var directory = new ByteBuffersDirectory()) {
-            for (BlobStoreIndexShardSnapshot.FileInfo fileInfo : shardSnapshot.indexFiles()) {
-                final StoreFileMetadata metadata = fileInfo.metadata();
-                if (metadata.hashEqualsContents()) {
-                    final BytesRef bytes = metadata.hash();
-                    try (var out = directory.createOutput(metadata.name(), IOContext.DEFAULT)) {
-                        out.writeBytes(bytes.bytes, bytes.offset, bytes.length);
-                    }
-                }
-            }
-            return SequenceNumbers.loadSeqNoInfoFromLuceneCommit(Lucene.readSegmentInfos(directory).userData.entrySet());
         }
     }
 

@@ -1197,7 +1197,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
     }
 
     /**
-     * Round-trip test for {@link BlobStoreRepository#loadShardSnapshotCommitInfo}: index a known number of docs,
+     * Round-trip test for {@link RestoreService#readShardSnapshotCommitInfo}: index a known number of docs,
      * snapshot, then read the per-shard commit userdata directly from the repository and assert the exact
      * {@code local_checkpoint} and {@code max_seq_no} values. Pins down that the helper used by
      * {@link RestoreService#verifyReadOnlyRestoreSafety} reflects reality, not just the surrounding logic.
@@ -1228,7 +1228,7 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
             .orElseThrow();
         final IndexId indexId = repositoryData.resolveIndexId(indexName);
 
-        final SequenceNumbers.CommitInfo commitInfo = repository.loadShardSnapshotCommitInfo(indexId, 0, snapshotId);
+        final SequenceNumbers.CommitInfo commitInfo = RestoreService.readShardSnapshotCommitInfo(repository, indexId, 0, snapshotId);
 
         // Single-shard index, no concurrent writers: every doc's seq_no is durable in the commit by snapshot time.
         // The first doc gets seq_no 0, so after numDocs writes both lcp and max_seq_no must equal numDocs - 1.

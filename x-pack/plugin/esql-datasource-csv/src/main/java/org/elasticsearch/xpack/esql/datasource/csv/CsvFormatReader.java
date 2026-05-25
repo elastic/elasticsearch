@@ -51,6 +51,7 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
@@ -556,10 +557,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     private List<Attribute> readSchema(StorageObject object) throws IOException {
-        try (
-            InputStream stream = object.newStream();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE)
-        ) {
+        InputStream stream = object.newStream();
+        // Abort rather than close: providers like S3 drain remaining bytes on close() to reuse
+        // the connection. We read only the schema prefix of what may be a multi-GB file, so
+        // draining would block for the full object transfer time. Schema results are cached,
+        // so discarding the connection here is acceptable. The abort is wrapped in a Closeable
+        // so try-with-resources attaches any abort-time error as a suppressed exception on the
+        // primary failure rather than replacing it.
+        try (Closeable abortOnExit = () -> object.abortStream(stream)) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
             if (options.headerRow() == false) {
                 return inferSchemaWithSyntheticNames(reader);
             }
@@ -1566,12 +1572,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
         if (inQuotes) {
-            throw new MalformedRowException("Unclosed quoted field in line [" + CsvErrorMessages.summarizeAround(line, quoteOpenAt) + "]");
+            throw MalformedRowException.unclosedQuotedField(line, quoteOpenAt);
         }
         if (bracketDepth > 0) {
-            throw new MalformedRowException(
-                "Unclosed bracket cell in line [" + CsvErrorMessages.summarizeAround(line, bracketOpenAt) + "]"
-            );
+            throw MalformedRowException.unclosedBracketCell(line, bracketOpenAt);
         }
         if (current.length() > 0) {
             entries.add(emitField(current));
@@ -2081,6 +2085,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             StringBuilder current = new StringBuilder();
             boolean inQuotes = false;
             int bracketDepth = 0;
+            // Remember where the parser entered the unclosed state so error messages can anchor on
+            // the actual fault site instead of head/tail-truncating a long line and hiding it.
+            // Mirrors the offset tracking in splitCommaDelimiterBracketAwareFields.
+            int quoteOpenAt = -1;
+            int bracketOpenAt = -1;
             int fieldIndex = 0;
             boolean fieldHasNonWhitespace = false;
             boolean trailingFieldHasContent = false;
@@ -2132,12 +2141,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 } else if (c == quote && fieldHasNonWhitespace == false) {
                     trailingFieldHasContent = true;
                     inQuotes = true;
+                    quoteOpenAt = i;
                     numericValid = false;
                     i++;
                 } else if (c == '[' && fieldHasNonWhitespace == false) {
                     trailingFieldHasContent = true;
                     if (hasMvcBracketClose(line, i)) {
                         bracketDepth = 1;
+                        bracketOpenAt = i;
                     }
                     if (isProjected) current.append(c);
                     numericValid = false;
@@ -2203,10 +2214,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
 
             if (inQuotes) {
-                throw new MalformedRowException("Unclosed quoted field in line [" + CsvErrorMessages.summarize(line) + "]");
+                throw MalformedRowException.unclosedQuotedField(line, quoteOpenAt);
             }
             if (bracketDepth > 0) {
-                throw new MalformedRowException("Unclosed bracket cell in line [" + CsvErrorMessages.summarize(line) + "]");
+                throw MalformedRowException.unclosedBracketCell(line, bracketOpenAt);
             }
 
             int totalFields = trailingFieldHasContent ? fieldIndex + 1 : fieldIndex;

@@ -25,6 +25,8 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 public class QueryBudgetedStorageObjectTests extends ESTestCase {
@@ -129,5 +131,71 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
         QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
         expectThrows(IOException.class, obj::newStream);
         assertEquals(0, budget.inFlight());
+    }
+
+    /**
+     * Regression guard: {@code abortStream} must (a) unwrap the {@code PermitReleasingInputStream}
+     * and forward the abort to the delegate with the inner stream, and (b) release the budget
+     * permit. Forwarding the wrapper would cascade through {@code FilterInputStream.close()} and
+     * trigger close-time drain on providers like S3.
+     */
+    public void testAbortStreamForwardsInnerStreamAndReleasesBudget() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
+        StorageObject delegate = mock(StorageObject.class);
+        InputStream inner = new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8));
+        when(delegate.newStream()).thenReturn(inner);
+        when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
+
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
+        InputStream wrapper = obj.newStream();
+        assertEquals(1, budget.inFlight());
+
+        obj.abortStream(wrapper);
+
+        verify(delegate).abortStream(inner);
+        assertEquals("permit must be released by abortStream", 0, budget.inFlight());
+    }
+
+    /**
+     * Regression guard: {@code close()} on a wrapper that was already aborted must not
+     * re-release the budget permit. Two releases for one acquire would leak budget and
+     * eventually starve other queries.
+     */
+    public void testCloseAfterAbortDoesNotDoubleReleaseBudget() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
+        StorageObject delegate = mock(StorageObject.class);
+        when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+        when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
+
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
+        InputStream wrapper = obj.newStream();
+        assertEquals(1, budget.inFlight());
+
+        obj.abortStream(wrapper);
+        assertEquals(0, budget.inFlight());
+
+        wrapper.close();
+        assertEquals("close after abort must not re-release the permit", 0, budget.inFlight());
+    }
+
+    /**
+     * Regression guard: if the delegate's {@code abortStream} throws, the permit must still
+     * be released — otherwise a single I/O failure during abort would leak a budget slot
+     * for the lifetime of the query.
+     */
+    public void testAbortStreamReleasesBudgetEvenIfDelegateThrows() throws Exception {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
+        StorageObject delegate = mock(StorageObject.class);
+        when(delegate.newStream()).thenReturn(new ByteArrayInputStream("hello".getBytes(StandardCharsets.UTF_8)));
+        when(delegate.path()).thenReturn(StoragePath.of("s3://bucket/key"));
+        doAnswer(inv -> { throw new IOException("abort failed"); }).when(delegate).abortStream(any(InputStream.class));
+
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
+        InputStream wrapper = obj.newStream();
+        assertEquals(1, budget.inFlight());
+
+        expectThrows(IOException.class, () -> obj.abortStream(wrapper));
+        assertEquals("permit must be released even if delegate.abortStream throws", 0, budget.inFlight());
+        verify(delegate, times(1)).abortStream(any(InputStream.class));
     }
 }

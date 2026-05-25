@@ -67,9 +67,9 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
     private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofKb(256);
     private static final long BOOST_WINDOW_MILLIS = TimeValue.timeValueDays(7).millis();
     private static final long ONE_DAY_MILLIS = TimeValue.timeValueDays(1).millis();
+    private static final long BOOST_WINDOW_END = Instant.parse("2026-01-01T00:00:00Z").toEpochMilli();
     private final String BOOSTED_IDX = randomIdentifier();
     private final String NON_BOOSTED_IDX = randomIdentifier();
-    private String masterAndIndexNode;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -92,22 +92,34 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
     }
 
     public void testNonBoostedSearchesEvictBoostedData() {
-        startNodes();
-        createIndexes(BOOSTED_IDX, NON_BOOSTED_IDX);
+        final Settings cacheSettings = Settings.builder()
+            .put(SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE)
+            .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE)
+            .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE)
+            .build();
+        final String masterAndIndexNodeName = startMasterAndIndexNode(cacheSettings);
+        startSearchNode(cacheSettings);
+        final Settings idxSettings = ESTestCase.indexSettings(1, 1)
+            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), MINUS_ONE)
+            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
+            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, "false")
+            .build();
+
+        assertAcked(prepareCreate(BOOSTED_IDX).setSettings(idxSettings).setMapping(TIMESTAMP_MAPPING));
+        assertAcked(prepareCreate(NON_BOOSTED_IDX).setSettings(idxSettings).setMapping(TIMESTAMP_MAPPING));
+        ensureGreen(BOOSTED_IDX, NON_BOOSTED_IDX);
 
         // Fixed reference point + seeded random offset so failures are reproducible from the test seed,
         // and so the boost-window bounds can be asserted against compound-commit metadata below.
-        final long boostWindowEndInMillis = Instant.parse("2026-01-01T00:00:00Z").toEpochMilli() + randomLongBetween(
-            0,
-            TimeValue.timeValueDays(365).millis()
-        );
+        final long boostWindowEndInMillis = BOOST_WINDOW_END + randomLongBetween(0, TimeValue.timeValueDays(365).millis());
         final long boostWindowStartInMillis = boostWindowEndInMillis - BOOST_WINDOW_MILLIS + ONE_DAY_MILLIS;
         final long preBoostWindowEndInMillis = boostWindowEndInMillis - BOOST_WINDOW_MILLIS - 2 * ONE_DAY_MILLIS;
         final long preBoostWindowStartInMillis = preBoostWindowEndInMillis - 30L * ONE_DAY_MILLIS;
         // Non-boosted index is sized to exceed the cache: many segments ensure non-boosted searches
         // span more cache regions than the cache holds, so LFU eviction must displace every boosted region.
-        indexDocuments(10, NON_BOOSTED_IDX, 10_000, preBoostWindowStartInMillis, preBoostWindowEndInMillis);
-        indexDocuments(10, BOOSTED_IDX, 1_000, boostWindowStartInMillis, boostWindowEndInMillis);
+        indexDocuments(masterAndIndexNodeName, 10, NON_BOOSTED_IDX, 10_000, preBoostWindowStartInMillis, preBoostWindowEndInMillis);
+        indexDocuments(masterAndIndexNodeName, 10, BOOSTED_IDX, 1_000, boostWindowStartInMillis, boostWindowEndInMillis);
 
         final StatelessSharedBlobCacheService cacheService = getCacheService();
         logger.info(
@@ -167,41 +179,18 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         }
     }
 
-    private void startNodes() {
-        Settings cacheSettings = Settings.builder()
-            .put(SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE)
-            .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE)
-            .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE)
-            .build();
-        masterAndIndexNode = startMasterAndIndexNode(cacheSettings);
-        startSearchNode(cacheSettings);
-    }
-
-    private void createIndexes(String boostedIdx, String nonBoostedIdx) {
-        final Settings idxSettings = ESTestCase.indexSettings(1, 1)
-            .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), MINUS_ONE)
-            .put(IndexSettings.MODE.getKey(), IndexMode.TIME_SERIES)
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "hostname")
-            .put(MergePolicyConfig.INDEX_MERGE_ENABLED, "false")
-            .build();
-
-        assertAcked(prepareCreate(boostedIdx).setSettings(idxSettings).setMapping(TIMESTAMP_MAPPING));
-        assertAcked(prepareCreate(nonBoostedIdx).setSettings(idxSettings).setMapping(TIMESTAMP_MAPPING));
-        ensureGreen(boostedIdx, nonBoostedIdx);
-    }
-
-    private void indexDocuments(int numBatches, String indexName, int numDocs, long startInMillis, long endInMillis) {
+    private void indexDocuments(String nodeName, int numBatches, String indexName, int numDocs, long startInMillis, long endInMillis) {
         range(0, numBatches).forEach(i -> indexDocumentsWithTimestamp(indexName, numDocs, startInMillis, endInMillis));
         // Verify the @timestamp values we generated actually propagate down to the compound commit metadata
         // (StatelessCompoundCommit#timestampFieldValueRange) — that range is what a future boost feature on
         // the search node will consult, so this asserts the test's "boost window" label is real, not just doc source.
-        assertTimestampRangePropagatedToCommits(indexName, startInMillis, endInMillis);
+        assertTimestampRangePropagatedToCommits(nodeName, indexName, startInMillis, endInMillis);
         flush(indexName);
     }
 
-    private void assertTimestampRangePropagatedToCommits(String indexName, long minBound, long maxBound) {
+    private void assertTimestampRangePropagatedToCommits(String nodeName, String indexName, long minBound, long maxBound) {
         final var shardId = findIndexShard(indexName).shardId();
-        final var commitService = internalCluster().getInstance(StatelessCommitService.class, masterAndIndexNode);
+        final var commitService = internalCluster().getInstance(StatelessCommitService.class, nodeName);
         final var virtualBcc = commitService.getCurrentVirtualBcc(shardId);
         assertThat("expected a pending virtual BCC for shard " + shardId, virtualBcc, notNullValue());
         final var pendingCommits = virtualBcc.getPendingCompoundCommits();

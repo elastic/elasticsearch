@@ -53,11 +53,11 @@ abstract class KMeansLocal<V> {
      * Uses a Reservoir Sampling approach to picking the initial centroids which are subsequently expected
      * to be used by a clustering algorithm.
      *
-     * @param vectors the vector values to sample from
+     * @param vectors used to pick an initial set of random centroids
      * @param centroidCount the total number of centroids to pick
      * @param ops the centroid operations for creating/copying centroids
-     * @return randomly selected centroids
-     * @throws IOException if vectors are inaccessible
+     * @return randomly selected centroids that are the min of centroidCount and sampleSize
+     * @throws IOException is thrown if vectors is inaccessible
      */
     static <V> V[] pickInitialCentroids(ClusteringVectorValues<V> vectors, int centroidCount, CentroidOps<V> ops) throws IOException {
         Random random = new Random(42L);

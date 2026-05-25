@@ -137,11 +137,4 @@ public class KMeansResult<V> {
         }
         return new KMeansResult<>(centroids, assignments, spillAssignments);
     }
-
-    /**
-     * Float-only convenience overload for backward compatibility with callers that don't have a {@link CentroidOps}.
-     */
-    public static KMeansResult<float[]> merge(List<KMeansResult<float[]>> results) {
-        return merge(results, CentroidOps.FLOAT);
-    }
 }

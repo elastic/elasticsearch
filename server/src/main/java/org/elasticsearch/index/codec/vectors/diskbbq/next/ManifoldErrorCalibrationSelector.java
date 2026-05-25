@@ -609,6 +609,9 @@ public class ManifoldErrorCalibrationSelector implements AutoCalibrationSelector
         Map<Integer, RepErrorStdModel> errorModelCache = new HashMap<>();
         boolean[] preconditionValues = new boolean[] { false, true };
 
+        // TODO : precondition might be superseeded by larger bits, it needs to either get part of the cosst model
+        // or deserve an iteration mechanism that works better in both the extreme cases: 1) preconditioning is useless,
+        // 2) preconditioning is very helpful and allows to meet the target recall with much cheaper quantization parameters
         for (boolean precondition : preconditionValues) {
             for (CalibrationSweep sweep : COST_ORDERED_SWEEPS) {
                 CandidateEncoding candidate = sweep.candidate();

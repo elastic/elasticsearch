@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.workloadidentity.http;
+package org.elasticsearch.workloadidentity;
 
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.elasticsearch.common.settings.Settings;

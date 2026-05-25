@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.workloadidentity.http;
+package org.elasticsearch.workloadidentity;
 
 import org.apache.http.config.Registry;
 import org.apache.http.config.RegistryBuilder;
@@ -27,8 +27,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.workloadidentity.WorkloadIdentityHttpSettings;
-import org.elasticsearch.workloadidentity.common.HttpConnectionEvictor;
 
 import java.io.Closeable;
 import java.io.IOException;

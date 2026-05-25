@@ -21,8 +21,7 @@ import java.util.List;
  *
  * <p>The pool-size pair drives the underlying
  * {@link org.apache.http.impl.nio.conn.PoolingNHttpClientConnectionManager}; the
- * eviction-interval/max-idle pair drives
- * {@link org.elasticsearch.workloadidentity.common.HttpConnectionEvictor}; connect
+ * eviction-interval/max-idle pair drives {@link HttpConnectionEvictor}; connect
  * and request timeouts are applied per-request via Apache HC's
  * {@link org.apache.http.client.config.RequestConfig}.
  */
@@ -83,8 +82,8 @@ public final class WorkloadIdentityHttpSettings {
     private static final TimeValue DEFAULT_EVICTION_INTERVAL = TimeValue.timeValueMinutes(1);
 
     /**
-     * Interval at which {@link org.elasticsearch.workloadidentity.common.HttpConnectionEvictor}
-     * runs to close expired and idle connections in the pool.
+     * Interval at which {@link HttpConnectionEvictor} runs to close expired and idle connections
+     * in the pool.
      */
     public static final Setting<TimeValue> CONNECTION_EVICTION_INTERVAL = Setting.timeSetting(
         HTTP_PREFIX + "connection_eviction_interval",

@@ -7,11 +7,10 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.workloadidentity.http;
+package org.elasticsearch.workloadidentity;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.workloadidentity.WorkloadIdentityIssuerClient;
-import org.elasticsearch.workloadidentity.WorkloadIdentityIssuerSettings;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 
 /**
  * Null-object {@link WorkloadIdentityIssuerClient} registered when the workload-identity feature

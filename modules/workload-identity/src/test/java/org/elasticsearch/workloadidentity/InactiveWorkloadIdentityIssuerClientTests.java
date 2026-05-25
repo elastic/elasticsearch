@@ -7,14 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.workloadidentity.http;
+package org.elasticsearch.workloadidentity;
 
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.workloadidentity.WorkloadIdentityIssuerClient.IssueTokenRequest;
-import org.elasticsearch.workloadidentity.WorkloadIdentityIssuerClient.IssueTokenResponse;
-import org.elasticsearch.workloadidentity.WorkloadIdentityIssuerClient.WorkloadIdentityNotEnabledException;
-import org.elasticsearch.workloadidentity.WorkloadIdentityIssuerSettings;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient.IssueTokenRequest;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient.IssueTokenResponse;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient.WorkloadIdentityNotEnabledException;
 
 import java.util.concurrent.ExecutionException;
 

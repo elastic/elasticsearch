@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.workloadidentity.common;
+package org.elasticsearch.workloadidentity;
 
 import org.apache.http.nio.conn.NHttpClientConnectionManager;
 import org.elasticsearch.core.TimeValue;

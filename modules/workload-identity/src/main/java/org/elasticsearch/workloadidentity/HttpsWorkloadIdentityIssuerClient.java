@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.workloadidentity.http;
+package org.elasticsearch.workloadidentity;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.HttpResponse;
@@ -28,10 +28,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.workloadidentity.WorkloadIdentityHttpSettings;
-import org.elasticsearch.workloadidentity.WorkloadIdentityIssuerClient;
-import org.elasticsearch.workloadidentity.WorkloadIdentityIssuerSettings;
-import org.elasticsearch.workloadidentity.common.SizeLimitInputStream;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;

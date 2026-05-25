@@ -13,6 +13,7 @@ module org.elasticsearch.workloadidentity {
     requires org.elasticsearch.sslconfig;
     requires org.elasticsearch.xcontent;
     requires org.elasticsearch.logging;
+    requires org.elasticsearch.workloadidentity.spi;
 
     requires org.apache.httpcomponents.httpclient;
     requires org.apache.httpcomponents.httpcore;
@@ -21,6 +22,7 @@ module org.elasticsearch.workloadidentity {
     requires org.apache.logging.log4j;
     requires org.apache.lucene.core;
 
-    // Only the central abstraction is exported; HTTP transport classes remain internal.
-    exports org.elasticsearch.workloadidentity;
+    // The public extension surface (WorkloadIdentityIssuerClient and WorkloadIdentityRegistry)
+    // lives in the org.elasticsearch.workloadidentity.spi module, bundled under the plugin's
+    // spi/ directory; the impl-side packages here are intentionally not exported.
 }

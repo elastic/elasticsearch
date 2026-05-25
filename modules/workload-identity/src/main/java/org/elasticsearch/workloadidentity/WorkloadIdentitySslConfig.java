@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.workloadidentity.http;
+package org.elasticsearch.workloadidentity;
 
 import org.apache.http.conn.ssl.DefaultHostnameVerifier;
 import org.apache.http.conn.ssl.NoopHostnameVerifier;
@@ -21,7 +21,6 @@ import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.ssl.SslConfigurationKeys;
 import org.elasticsearch.common.ssl.SslConfigurationLoader;
 import org.elasticsearch.env.Environment;
-import org.elasticsearch.workloadidentity.WorkloadIdentityIssuerSettings;
 
 import java.util.ArrayList;
 import java.util.HashMap;

@@ -9,17 +9,15 @@
 
 package org.elasticsearch.workloadidentity;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.node.PluginComponentBinding;
+import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.workloadidentity.http.HttpsWorkloadIdentityIssuerClient;
-import org.elasticsearch.workloadidentity.http.InactiveWorkloadIdentityIssuerClient;
-import org.elasticsearch.workloadidentity.http.WorkloadIdentityHttpClientManager;
-import org.elasticsearch.workloadidentity.http.WorkloadIdentitySslConfig;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -28,23 +26,23 @@ import java.util.List;
 /**
  * Module entry point. Registers the {@code workload_identity.*} settings and constructs a
  * singleton {@link WorkloadIdentityIssuerClient}, exposed both as an injectable component via
- * {@link PluginComponentBinding} and through {@link #getSharedIssuerClient()} for consumers
- * that are not built by the DI container.
+ * {@link PluginComponentBinding} and through {@link WorkloadIdentityRegistry#getSharedIssuerClient()}
+ * for consumers that are not built by the DI container.
  *
  * <p>The module is loaded into every distribution but only activates the network transport when
  * {@link WorkloadIdentityIssuerSettings#isEnabled(Settings)} reports {@code true}. When the
  * feature is disabled, the registered client is the inactive null-object stub
  * ({@link InactiveWorkloadIdentityIssuerClient}); consumers should gate workload-identity-backed
  * code paths on {@link WorkloadIdentityIssuerClient#isEnabled()}.
+ *
+ * <p>Implements {@link ExtensiblePlugin} as an opt-in marker so other plugins can name
+ * {@code workload-identity} in their {@code extendedPlugins}. The default
+ * {@link ExtensiblePlugin#loadExtensions} no-op is sufficient; this plugin does not consume
+ * extender-contributed extensions.
  */
-public class WorkloadIdentityPlugin extends Plugin {
+public class WorkloadIdentityPlugin extends Plugin implements ExtensiblePlugin {
 
     private static final Logger logger = LogManager.getLogger(WorkloadIdentityPlugin.class);
-
-    // non-final so each new plugin instance (e.g. a fresh node in a JVM that already constructed
-    // one, as happens in sequential test setups and full-cluster-restart helpers) can reset the
-    // slot; mirrors the pattern used by XPackPlugin's static SetOnce fields.
-    private static SetOnce<WorkloadIdentityIssuerClient> issuerClient = new SetOnce<>();
 
     // Captured in createComponents when workload-identity is enabled on this node so that
     // close() can tear it down on node shutdown. Null when the feature is disabled (in which
@@ -54,26 +52,8 @@ public class WorkloadIdentityPlugin extends Plugin {
     private volatile WorkloadIdentityHttpClientManager httpClientManager;
 
     public WorkloadIdentityPlugin() {
-        issuerClient = new SetOnce<>();
-    }
-
-    /**
-     * @return the node-wide {@link WorkloadIdentityIssuerClient} instance. Always non-null after
-     *         {@link #createComponents} has run; callers should consult
-     *         {@link WorkloadIdentityIssuerClient#isEnabled()} to know whether token issuance is
-     *         actually available on this node.
-     * @throws IllegalStateException if invoked before {@link #createComponents} has wired the client.
-     */
-    public static WorkloadIdentityIssuerClient getSharedIssuerClient() {
-        final WorkloadIdentityIssuerClient client = issuerClient.get();
-        if (client == null) {
-            throw new IllegalStateException("WorkloadIdentityIssuerClient is not constructed yet");
-        }
-        return client;
-    }
-
-    protected void setIssuerClient(WorkloadIdentityIssuerClient client) {
-        WorkloadIdentityPlugin.issuerClient.set(client);
+        // Clear any prior instance's slot; see WorkloadIdentityRegistry#reset.
+        WorkloadIdentityRegistry.reset();
     }
 
     // Test-only access to the manager wired in createComponents; the manager is intentionally not
@@ -112,7 +92,7 @@ public class WorkloadIdentityPlugin extends Plugin {
             client = InactiveWorkloadIdentityIssuerClient.INSTANCE;
         }
 
-        setIssuerClient(client);
+        WorkloadIdentityRegistry.setIssuerClient(client);
         components.add(new PluginComponentBinding<>(WorkloadIdentityIssuerClient.class, client));
         return components;
     }

@@ -7,10 +7,9 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.workloadidentity.http;
+package org.elasticsearch.workloadidentity;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.workloadidentity.WorkloadIdentityIssuerSettings;
 
 import java.net.URI;
 import java.net.URISyntaxException;

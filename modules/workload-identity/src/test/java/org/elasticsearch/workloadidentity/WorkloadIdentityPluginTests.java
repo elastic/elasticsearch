@@ -16,8 +16,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.workloadidentity.http.InactiveWorkloadIdentityIssuerClient;
-import org.elasticsearch.workloadidentity.http.WorkloadIdentityHttpClientManager;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityRegistry;
 import org.junit.After;
 import org.junit.Before;
 
@@ -42,19 +41,33 @@ public class WorkloadIdentityPluginTests extends ESTestCase {
     }
 
     /**
-     * Guards the static-SetOnce slot used by {@link WorkloadIdentityPlugin} to publish the
-     * node-wide {@link WorkloadIdentityIssuerClient}. The plugin is loaded into every node of a
-     * multi-node JVM test through a single classloader (see {@code MockPluginsService}), which
-     * means the static slot is shared. Constructing a second plugin instance must reset the slot
-     * so the second node's {@code createComponents} can set the client without throwing
-     * {@code SetOnce.AlreadySetException}.
+     * Guards the {@link WorkloadIdentityRegistry} static slot used by
+     * {@link WorkloadIdentityPlugin} to publish the node-wide issuer client. The plugin is
+     * loaded into every node of a multi-node JVM test through a single classloader (see
+     * {@code MockPluginsService}), which means the registry slot is shared. Constructing a
+     * second plugin instance must reset the slot so the second node's {@code createComponents}
+     * can publish its client without the previous instance's value lingering.
      */
     public void testSecondPluginInstanceCanSetIssuerClient() {
-        new WorkloadIdentityPlugin().setIssuerClient(InactiveWorkloadIdentityIssuerClient.INSTANCE);
+        new WorkloadIdentityPlugin();
+        WorkloadIdentityRegistry.setIssuerClient(InactiveWorkloadIdentityIssuerClient.INSTANCE);
         // A second plugin instance models a second node in the same JVM (or a subsequent test
-        // class in the same Gradle fork). It must not see the first instance's already-set slot.
-        new WorkloadIdentityPlugin().setIssuerClient(InactiveWorkloadIdentityIssuerClient.INSTANCE);
-        assertSame(InactiveWorkloadIdentityIssuerClient.INSTANCE, WorkloadIdentityPlugin.getSharedIssuerClient());
+        // class in the same Gradle fork). The constructor must reset the slot so this second
+        // setIssuerClient publishes successfully.
+        new WorkloadIdentityPlugin();
+        WorkloadIdentityRegistry.setIssuerClient(InactiveWorkloadIdentityIssuerClient.INSTANCE);
+        assertSame(InactiveWorkloadIdentityIssuerClient.INSTANCE, WorkloadIdentityRegistry.getSharedIssuerClient());
+    }
+
+    /**
+     * Before any plugin instance has published, the registry must throw rather than silently
+     * return null. This is the contract extender plugins rely on to distinguish "issuer client
+     * not yet wired" from "issuer client wired but disabled".
+     */
+    public void testGetSharedIssuerClientThrowsBeforeFirstSet() {
+        WorkloadIdentityRegistry.reset();
+        final IllegalStateException ex = expectThrows(IllegalStateException.class, WorkloadIdentityRegistry::getSharedIssuerClient);
+        assertThat(ex.getMessage(), containsString("not constructed"));
     }
 
     /**

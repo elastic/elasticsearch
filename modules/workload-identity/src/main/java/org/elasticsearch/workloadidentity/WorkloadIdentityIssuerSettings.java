@@ -20,8 +20,8 @@ import java.util.List;
  * Node-scope settings for the workload-identity-issuer client.
  *
  * <p>SSL material is configured under the {@code workload_identity.ssl.*} prefix via
- * {@link org.elasticsearch.workloadidentity.http.WorkloadIdentitySslConfig}; HTTP transport
- * tuning lives under {@code workload_identity.http.*} in {@link WorkloadIdentityHttpSettings}.
+ * {@link WorkloadIdentitySslConfig}; HTTP transport tuning lives under
+ * {@code workload_identity.http.*} in {@link WorkloadIdentityHttpSettings}.
  */
 public final class WorkloadIdentityIssuerSettings {
 

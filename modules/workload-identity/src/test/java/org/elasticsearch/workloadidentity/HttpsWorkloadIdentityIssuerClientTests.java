@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.workloadidentity.http;
+package org.elasticsearch.workloadidentity;
 
 import com.sun.net.httpserver.HttpsConfigurator;
 import com.sun.net.httpserver.HttpsExchange;
@@ -34,10 +34,9 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.workloadidentity.WorkloadIdentityIssuerClient.IssueTokenRequest;
-import org.elasticsearch.workloadidentity.WorkloadIdentityIssuerClient.IssueTokenResponse;
-import org.elasticsearch.workloadidentity.WorkloadIdentityIssuerClient.WorkloadIdentityIssuerException;
-import org.elasticsearch.workloadidentity.WorkloadIdentityIssuerSettings;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient.IssueTokenRequest;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient.IssueTokenResponse;
+import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient.WorkloadIdentityIssuerException;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -771,10 +770,9 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
     /**
      * Test {@link ThreadPool} whose 3-argument {@link ThreadPool#schedule(Runnable, TimeValue, Executor)
      * schedule} overload conditionally rejects with an {@link EsRejectedExecutionException}. Only that
-     * overload is intercepted; {@code scheduleWithFixedDelay(...)} (used by
-     * {@link org.elasticsearch.workloadidentity.common.HttpConnectionEvictor}) is left alone so the
-     * connection-evictor startup in {@link ClientHarness} is unaffected. Used to exercise the catch
-     * branch in {@code HttpsWorkloadIdentityIssuerClient#scheduleEviction}.
+     * overload is intercepted; {@code scheduleWithFixedDelay(...)} (used by {@link HttpConnectionEvictor})
+     * is left alone so the connection-evictor startup in {@link ClientHarness} is unaffected. Used to
+     * exercise the catch branch in {@code HttpsWorkloadIdentityIssuerClient#scheduleEviction}.
      */
     private static final class ThrowingScheduleThreadPool extends TestThreadPool {
         final AtomicBoolean rejecting = new AtomicBoolean(false);

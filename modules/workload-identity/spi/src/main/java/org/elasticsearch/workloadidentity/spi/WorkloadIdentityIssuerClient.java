@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.workloadidentity;
+package org.elasticsearch.workloadidentity.spi;
 
 import org.elasticsearch.action.ActionListener;
 
@@ -19,9 +19,16 @@ import java.util.Objects;
  * Elasticsearch exchanges with a cloud provider's workload identity federation for access to
  * customer-owned resources.
  *
+ * <p>This interface is the public extension surface of the workload-identity module: it lives
+ * in {@code modules/workload-identity/spi} and is published to extending plugins through the
+ * plugin bundle's {@code spi/} directory, while the Apache HttpComponents transport that
+ * implements it stays private to the module's own classloader. Plugins that depend on
+ * workload-identity should declare {@code extendedPlugins = ['workload-identity']} and
+ * compile against this jar only.
+ *
  * <p>Implementations connect to the issuer's HTTPS token endpoint using mTLS and are safe for
  * concurrent use by multiple threads. Resource ownership (HTTP client, IO reactor, SSL config)
- * lives with the {@link WorkloadIdentityPlugin}, which closes those components on node shutdown;
+ * lives with the workload-identity plugin, which closes those components on node shutdown;
  * the client itself does not need to be closed.
  */
 public interface WorkloadIdentityIssuerClient {
@@ -46,11 +53,10 @@ public interface WorkloadIdentityIssuerClient {
 
     /**
      * Activation predicate for the workload-identity feature on this node. The module is always
-     * loaded; this method indicates whether it has been activated by configuration (most notably
-     * {@link WorkloadIdentityIssuerSettings#ISSUER_URL_SETTING}). When {@code false}, every
-     * call to {@link #issueToken} fails the listener with {@link WorkloadIdentityNotEnabledException},
-     * letting consumers gate workload-identity-backed code paths and fall back to alternative
-     * auth where applicable.
+     * loaded; this method indicates whether it has been activated by configuration. When
+     * {@code false}, every call to {@link #issueToken} fails the listener with
+     * {@link WorkloadIdentityNotEnabledException}, letting consumers gate workload-identity-backed
+     * code paths and fall back to alternative auth where applicable.
      *
      * @return {@code true} when this client can issue tokens.
      */

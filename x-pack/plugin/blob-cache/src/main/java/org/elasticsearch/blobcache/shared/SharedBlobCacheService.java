@@ -2404,16 +2404,15 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          */
         private SharedBytes.IO maybeEvictAndTake(final LFUCacheEntry incoming, final Runnable evictedNotification) {
             assert Thread.holdsLock(SharedBlobCacheService.this);
-            final long currentEpoch = epoch.get(); // must be captured before attempting to evict a freq 0
 
             // First pass: respect policy quotas (degraded = false)
-            SharedBytes.IO result = maybeEvictAndTakeWithPolicy(incoming, evictedNotification, currentEpoch, false);
+            SharedBytes.IO result = maybeEvictAndTakeWithPolicy(incoming, evictedNotification, epoch.get(), false);
             if (result != null) {
                 return result;
             }
 
             // Second pass: graceful degradation (degraded = true)
-            return maybeEvictAndTakeWithPolicy(incoming, evictedNotification, currentEpoch, true);
+            return maybeEvictAndTakeWithPolicy(incoming, evictedNotification, epoch.get(), true);
         }
 
         private SharedBytes.IO maybeEvictAndTakeWithPolicy(

@@ -29,8 +29,6 @@ import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObjec
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
-import java.util.Arrays;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 
@@ -79,15 +77,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         }
 
         void setEmbeddingType(String embeddingType) {
-            try {
-                if (context == ConfigurationParseContext.REQUEST) {
-                    this.embeddingType = CohereEmbeddingType.fromString(embeddingType);
-                } else {
-                    this.embeddingType = fromCohereOrDenseVectorEnumValues(embeddingType);
-                }
-            } catch (IllegalArgumentException e) {
-                throwInvalidEmbeddingType(embeddingType);
-            }
+            this.embeddingType = CohereEmbeddingType.fromCohereOrElementType(embeddingType);
         }
 
         @Override
@@ -160,34 +150,6 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     public static CohereEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
         return CohereCommonServiceSettings.fromMap(map, context, parser);
-    }
-
-    /**
-     * Before TransportVersions::ML_INFERENCE_COHERE_EMBEDDINGS_ADDED element
-     * type was persisted as a CohereEmbeddingType enum. After
-     * DenseVectorFieldMapper.ElementType was used.
-     * <p>
-     * Parse either and convert to a CohereEmbeddingType.
-     */
-    static CohereEmbeddingType fromCohereOrDenseVectorEnumValues(String enumString) {
-        if (enumString == null) {
-            return CohereEmbeddingType.FLOAT;
-        }
-
-        try {
-            return CohereEmbeddingType.fromString(enumString);
-        } catch (IllegalArgumentException ae) {
-            return CohereEmbeddingType.fromElementType(DenseVectorFieldMapper.ElementType.fromString(enumString));
-        }
-    }
-
-    private static void throwInvalidEmbeddingType(String enumString) {
-        var validValuesAsStrings = CohereEmbeddingType.SUPPORTED_ELEMENT_TYPES.stream()
-            .map(value -> value.toString().toLowerCase(Locale.ROOT))
-            .toArray(String[]::new);
-        throw new IllegalArgumentException(
-            Strings.format("Invalid value [%s]; expected one of %s", enumString, Arrays.toString(validValuesAsStrings))
-        );
     }
 
     private final CohereCommonServiceSettings commonSettings;

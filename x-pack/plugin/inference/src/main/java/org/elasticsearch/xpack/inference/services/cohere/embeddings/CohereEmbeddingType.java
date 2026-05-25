@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
+import java.lang.annotation.ElementType;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Locale;
@@ -92,24 +93,38 @@ public enum CohereEmbeddingType {
         return valueOf(name.trim().toUpperCase(Locale.ROOT));
     }
 
-    public static CohereEmbeddingType fromElementType(DenseVectorFieldMapper.ElementType elementType) {
-        var embedding = ELEMENT_TYPE_TO_COHERE_EMBEDDING.get(elementType);
-
-        if (embedding == null) {
-            var validElementTypes = SUPPORTED_ELEMENT_TYPES.stream()
-                .map(value -> value.toString().toLowerCase(Locale.ROOT))
-                .toArray(String[]::new);
-            Arrays.sort(validElementTypes);
-
-            throw new IllegalArgumentException(
-                Strings.format(
-                    "Element type [%s] does not map to a Cohere embedding value, must be one of [%s]",
-                    elementType,
-                    String.join(", ", validElementTypes)
-                )
-            );
+    /**
+     * Before TransportVersions::ML_INFERENCE_COHERE_EMBEDDINGS_ADDED element
+     * type was persisted as a CohereEmbeddingType enum. After
+     * DenseVectorFieldMapper.ElementType was used.
+     * <p>
+     * Parse either and convert to a CohereEmbeddingType.
+     *
+     * @param value the value to parse
+     */
+    public static CohereEmbeddingType fromCohereOrElementType(String value) {
+        try {
+            return fromString(value);
+        } catch (IllegalArgumentException fallback) {
+            try {
+                return fromElementType(value);
+            } catch (IllegalArgumentException e) {
+                var validValuesAsStrings = CohereEmbeddingType.SUPPORTED_ELEMENT_TYPES.stream()
+                    .map(v -> v.toString().toLowerCase(Locale.ROOT))
+                    .toArray(String[]::new);
+                throw new IllegalArgumentException(
+                    Strings.format("Invalid value [%s]; expected one of %s", value, Arrays.toString(validValuesAsStrings))
+                );
+            }
         }
+    }
 
+    private static CohereEmbeddingType fromElementType(String value) {
+        var elementType = DenseVectorFieldMapper.ElementType.fromString(value);
+        var embedding = ELEMENT_TYPE_TO_COHERE_EMBEDDING.get(elementType);
+        if (embedding == null) {
+            throw new IllegalArgumentException("Unsupported element type [" + value + "]");
+        }
         return embedding;
     }
 

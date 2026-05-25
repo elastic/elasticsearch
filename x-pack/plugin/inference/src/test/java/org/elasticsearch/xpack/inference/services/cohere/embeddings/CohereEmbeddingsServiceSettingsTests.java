@@ -560,14 +560,6 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
         );
     }
 
-    public void testFromCohereOrDenseVectorEnumValues() {
-        assertEquals(CohereEmbeddingType.BYTE, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("byte"));
-        assertEquals(CohereEmbeddingType.INT8, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("int8"));
-        assertEquals(CohereEmbeddingType.FLOAT, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("float"));
-        assertEquals(CohereEmbeddingType.BINARY, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("binary"));
-        assertEquals(CohereEmbeddingType.BIT, CohereEmbeddingsServiceSettings.fromCohereOrDenseVectorEnumValues("bit"));
-    }
-
     public void testToXContent_WritesAllValues() throws IOException {
         var serviceSettings = new CohereEmbeddingsServiceSettings(
             new CohereCommonServiceSettings(

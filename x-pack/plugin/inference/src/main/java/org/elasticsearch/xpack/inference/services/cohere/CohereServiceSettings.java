@@ -7,10 +7,9 @@
 
 package org.elasticsearch.xpack.inference.services.cohere;
 
-import org.elasticsearch.inference.FilteredXContent;
 import org.elasticsearch.inference.ServiceSettings;
 
-public interface CohereServiceSettings extends ServiceSettings, FilteredXContent {
+public interface CohereServiceSettings extends ServiceSettings {
 
     CohereCommonServiceSettings commonSettings();
 }

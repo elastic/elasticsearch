@@ -370,7 +370,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
         );
 
         assertThat(thrownException.getMessage(), containsString("failed to parse field [embedding_type]"));
-        assertThat(thrownException.getCause().getMessage(), containsString("invalid value []; expected one of [byte, float, bit]"));
+        assertThat(thrownException.getCause().getMessage(), containsString("Invalid value []; expected one of [byte, float, bit]"));
     }
 
     public void testFromMap_InvalidEmbeddingType_ThrowsError_ForRequest() {
@@ -383,7 +383,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
         );
 
         assertThat(thrownException.getMessage(), containsString("failed to parse field [embedding_type]"));
-        assertThat(thrownException.getCause().getMessage(), containsString("invalid value [abc]; expected one of [byte, float, bit]"));
+        assertThat(thrownException.getCause().getMessage(), containsString("Invalid value [abc]; expected one of [byte, float, bit]"));
     }
 
     public void testFromMap_InvalidEmbeddingType_ThrowsError_ForPersistent() {
@@ -396,7 +396,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
         );
 
         assertThat(thrownException.getMessage(), containsString("failed to parse field [embedding_type]"));
-        assertThat(thrownException.getCause().getMessage(), containsString("invalid value [abc]; expected one of [byte, float, bit]"));
+        assertThat(thrownException.getCause().getMessage(), containsString("Invalid value [abc]; expected one of [byte, float, bit]"));
     }
 
     public void testFromMap_ReturnsFailure_WhenEmbeddingTypesAreNotValid() {
@@ -465,7 +465,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
         );
 
         assertThat(thrownException.getMessage(), containsString("failed to parse field [embedding_type]"));
-        assertThat(thrownException.getCause().getMessage(), containsString("invalid value [bfloat16]; expected one of [byte, float, bit]"));
+        assertThat(thrownException.getCause().getMessage(), containsString("Invalid value [bfloat16]; expected one of [byte, float, bit]"));
     }
 
     public void testFromMap_ConvertsInt8_ToCohereEmbeddingTypeInt8() {

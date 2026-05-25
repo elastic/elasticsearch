@@ -67,7 +67,7 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
         assertThat(thrownException.getMessage(), containsString(CohereCommonServiceSettings.MODEL_REQUIRED_FOR_V2_API));
     }
 
-    public void testFromMap_Request_DeprecatedModelField() {
+    public void testFromMap_Persistent_DeprecatedModelField() {
         var serviceSettings = createGivenCommonSettings(
             new HashMap<>(Map.of(CohereCommonServiceSettings.OLD_MODEL_ID_FIELD, "old-model")),
             ConfigurationParseContext.PERSISTENT

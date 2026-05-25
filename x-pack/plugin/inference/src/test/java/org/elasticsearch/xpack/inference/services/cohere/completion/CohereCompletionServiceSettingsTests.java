@@ -63,9 +63,7 @@ public class CohereCompletionServiceSettingsTests extends AbstractCohereServiceS
         return instance.toXContentFragmentOfExposedFields(builder, null);
     }
 
-    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
-        var settingsMap = buildServiceSettingsMap(CohereCommonServiceSettings.CohereApiVersion.V2.toString());
-
+    public void testUpdateServiceSettings_AllUpdatableFields() {
         var originalServiceSettings = new CohereCompletionServiceSettings(
             new CohereCommonServiceSettings(
                 INITIAL_TEST_MODEL_ID,
@@ -73,7 +71,9 @@ public class CohereCompletionServiceSettingsTests extends AbstractCohereServiceS
                 CohereCommonServiceSettings.CohereApiVersion.V1
             )
         );
-        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(settingsMap);
+        var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
+            Map.of(RateLimitSettings.FIELD_NAME, Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT))
+        );
 
         assertThat(
             updatedServiceSettings,

@@ -186,7 +186,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
             .map(value -> value.toString().toLowerCase(Locale.ROOT))
             .toArray(String[]::new);
         throw new IllegalArgumentException(
-            Strings.format("invalid value [%s]; expected one of %s", enumString, Arrays.toString(validValuesAsStrings))
+            Strings.format("Invalid value [%s]; expected one of %s", enumString, Arrays.toString(validValuesAsStrings))
         );
     }
 

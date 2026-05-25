@@ -183,6 +183,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         return builder;
     }
 
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalString(uri != null ? uri.toString() : null);
         out.writeOptionalString(modelId);

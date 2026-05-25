@@ -23,9 +23,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectoryTestUtils;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 
+import java.time.Instant;
 import java.util.Collection;
 
 import static java.util.stream.IntStream.range;
@@ -40,6 +42,9 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFa
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase {
 
@@ -64,10 +69,18 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
     private static final long ONE_DAY_MILLIS = TimeValue.timeValueDays(1).millis();
     private final String BOOSTED_IDX = randomIdentifier();
     private final String NON_BOOSTED_IDX = randomIdentifier();
+    private String masterAndIndexNode;
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         return appendToCopy(super.nodePlugins(), InternalSettingsPlugin.class);
+    }
+
+    @Override
+    public int getUploadMaxCommits() {
+        // Keep compound commits in the virtual BCC's pending list until we explicitly flush, so the
+        // timestampFieldValueRange assertion in indexDocuments has something to inspect.
+        return Integer.MAX_VALUE;
     }
 
     @Override
@@ -82,7 +95,10 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         startNodes();
         createIndexes(BOOSTED_IDX, NON_BOOSTED_IDX);
 
-        final long boostWindowEndInMillis = System.currentTimeMillis();
+        // Fixed reference point + seeded random offset so failures are reproducible from the test seed,
+        // and so the boost-window bounds can be asserted against compound-commit metadata below.
+        final long boostWindowEndInMillis = Instant.parse("2026-01-01T00:00:00Z").toEpochMilli()
+            + randomLongBetween(0, TimeValue.timeValueDays(365).millis());
         final long boostWindowStartInMillis = boostWindowEndInMillis - BOOST_WINDOW_MILLIS + ONE_DAY_MILLIS;
         final long preBoostWindowEndInMillis = boostWindowEndInMillis - BOOST_WINDOW_MILLIS - 2 * ONE_DAY_MILLIS;
         final long preBoostWindowStartInMillis = preBoostWindowEndInMillis - 30L * ONE_DAY_MILLIS;
@@ -155,7 +171,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
             .put(SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE)
             .put(SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE)
             .build();
-        startMasterAndIndexNode(cacheSettings);
+        masterAndIndexNode = startMasterAndIndexNode(cacheSettings);
         startSearchNode(cacheSettings);
     }
 
@@ -174,7 +190,26 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
 
     private void indexDocuments(int numBatches, String indexName, int numDocs, long startInMillis, long endInMillis) {
         range(0, numBatches).forEach(i -> indexDocumentsWithTimestamp(indexName, numDocs, startInMillis, endInMillis));
+        // Verify the @timestamp values we generated actually propagate down to the compound commit metadata
+        // (StatelessCompoundCommit#timestampFieldValueRange) — that range is what a future boost feature on
+        // the search node will consult, so this asserts the test's "boost window" label is real, not just doc source.
+        assertTimestampRangePropagatedToCommits(indexName, startInMillis, endInMillis);
         flush(indexName);
+    }
+
+    private void assertTimestampRangePropagatedToCommits(String indexName, long minBound, long maxBound) {
+        final var shardId = findIndexShard(indexName).shardId();
+        final var commitService = internalCluster().getInstance(StatelessCommitService.class, masterAndIndexNode);
+        final var virtualBcc = commitService.getCurrentVirtualBcc(shardId);
+        assertThat("expected a pending virtual BCC for shard " + shardId, virtualBcc, notNullValue());
+        final var pendingCommits = virtualBcc.getPendingCompoundCommits();
+        assertThat("expected at least one pending compound commit", pendingCommits.size(), greaterThan(0));
+        for (final var pendingCC : pendingCommits) {
+            final var range = pendingCC.getStatelessCompoundCommit().timestampFieldValueRange();
+            assertThat("compound commit must carry a @timestamp range", range, notNullValue());
+            assertThat(range.minMillis(), greaterThanOrEqualTo(minBound));
+            assertThat(range.maxMillis(), lessThanOrEqualTo(maxBound));
+        }
     }
 
     private void indexDocumentsWithTimestamp(String indexName, int numDocs, long minTimestamp, long maxTimestamp) {

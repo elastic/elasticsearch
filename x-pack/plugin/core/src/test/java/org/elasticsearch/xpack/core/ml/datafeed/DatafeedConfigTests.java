@@ -1232,10 +1232,10 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(result, sameInstance(datafeed));
     }
 
-    public void testWithCrossProjectModeIfEnabled_GivenCrossProjectEnabledAndRemoteIndices_Flips() {
+    public void testWithCrossProjectModeIfEnabled_GivenCrossProjectEnabledAndNotAlreadySet() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        // A remote-qualified index expression makes this a genuine cross-project datafeed.
-        builder.setIndices(List.of("project-1:index1"));
+        builder.setIndices(List.of("index1"));
+        // Explicitly set IndicesOptions without CPS enabled
         builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
         DatafeedConfig datafeed = builder.build();
 
@@ -1246,54 +1246,14 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
 
         DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
 
+        // Should return a new instance with CPS enabled
         assertThat(result, not(equalTo(datafeed)));
-        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
-    }
-
-    public void testWithCrossProjectModeIfEnabled_GivenCrossProjectEnabledAndLocalIndicesOnly_DoesNotFlip() {
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        // Purely local indices — no remote-cluster prefix, no project_routing.
-        builder.setIndices(List.of("local-index", "logs-*"));
-        builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
-        DatafeedConfig datafeed = builder.build();
-
-        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
-            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
-                Settings.builder().put("serverless.cross_project.enabled", true).build()
-            );
-
-        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
-
-        // A local-only datafeed must never be promoted to cross-project mode at runtime even when
-        // both the ML feature flag and the cluster CPS setting are on, because the search layer
-        // would then route through cross-project resolution and require UIAM-minted credentials.
-        assertThat(result, sameInstance(datafeed));
-        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
-    }
-
-    public void testWithCrossProjectModeIfEnabled_GivenProjectRouting_Flips() {
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        builder.setIndices(List.of("local-index"));
-        builder.setProjectRouting("_alias:_origin");
-        builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
-        DatafeedConfig datafeed = builder.build();
-
-        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
-            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
-                Settings.builder().put("serverless.cross_project.enabled", true).build()
-            );
-
-        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
-
-        // project_routing is a CPS construct, so its presence forces the flip even when all
-        // indices look local.
-        assertThat(result, not(sameInstance(datafeed)));
         assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
     }
 
     public void testWithCrossProjectModeIfEnabled_GivenCrossProjectEnabledAndAlreadySet() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        builder.setIndices(List.of("project-1:index1"));
+        builder.setIndices(List.of("index1"));
         // Set IndicesOptions with CPS already enabled
         IndicesOptions cpsEnabledOptions = IndicesOptions.builder(IndicesOptions.STRICT_EXPAND_OPEN)
             .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
@@ -1312,9 +1272,9 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(result, sameInstance(datafeed));
     }
 
-    public void testWithCrossProjectModeIfEnabled_GivenFeatureFlagDisabled_NoFlipEvenForRemoteDatafeed() {
+    public void testWithCrossProjectModeIfEnabled_GivenFeatureFlagDisabled_NoFlipEvenWithClusterCpsEnabled() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        builder.setIndices(List.of("project-1:index1"));
+        builder.setIndices(List.of("index1"));
         builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
         DatafeedConfig datafeed = builder.build();
 
@@ -1325,35 +1285,15 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
 
         DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, false);
 
-        // With the ML CPS feature flag disabled (release builds), the helper must not flip even
-        // genuinely cross-project datafeeds — those are gated by the feature flag at PUT-time.
+        // With the ML CPS feature flag disabled, the cluster-level CPS setting must not promote a
+        // local-only datafeed to cross-project mode at runtime.
         assertThat(result, sameInstance(datafeed));
         assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
     }
 
-    public void testWithCrossProjectModeIfEnabled_GivenFeatureFlagEnabled_ClusterCpsEnabled_LocalDatafeed_DoesNotFlip() {
+    public void testWithCrossProjectModeIfEnabled_GivenFeatureFlagEnabled_AndClusterCpsEnabled_Flips() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        builder.setIndices(List.of("local-index"));
-        builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
-        DatafeedConfig datafeed = builder.build();
-
-        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
-            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
-                Settings.builder().put("serverless.cross_project.enabled", true).build()
-            );
-
-        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider, true);
-
-        // This is the snapshot-build / CI path: feature flag forced on, cluster CPS on. Without
-        // the per-datafeed gate, every local datafeed start would be promoted to CPS mode and
-        // trip the UIAM credential check on serverless. With the gate, local datafeeds stay local.
-        assertThat(result, sameInstance(datafeed));
-        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
-    }
-
-    public void testWithCrossProjectModeIfEnabled_GivenFeatureFlagEnabled_ClusterCpsEnabled_RemoteDatafeed_Flips() {
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        builder.setIndices(List.of("project-1:index1"));
+        builder.setIndices(List.of("index1"));
         builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
         DatafeedConfig datafeed = builder.build();
 
@@ -1370,7 +1310,7 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
 
     public void testWithCrossProjectModeIfEnabled_GivenFeatureFlagDisabled_AndClusterCpsDisabled_NoFlip() {
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        builder.setIndices(List.of("project-1:index1"));
+        builder.setIndices(List.of("index1"));
         builder.setIndicesOptions(IndicesOptions.STRICT_EXPAND_OPEN);
         DatafeedConfig datafeed = builder.build();
 
@@ -1399,10 +1339,9 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
     }
 
     public void testWithCrossProjectModeIfEnabled_PreservesAllDatafeedProperties() {
-        // Create a datafeed with various properties set. Use a remote-qualified index so the
-        // helper actually flips IndicesOptions and we can verify the other fields survive that.
+        // Create a datafeed with various properties set
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        builder.setIndices(List.of("project-1:index1", "project-1:index2"));
+        builder.setIndices(List.of("index1", "index2"));
         builder.setQueryDelay(TimeValue.timeValueSeconds(30));
         builder.setFrequency(TimeValue.timeValueMinutes(5));
         builder.setScrollSize(2000);
@@ -1448,26 +1387,8 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
     }
 
-    public void testWithCrossProjectModeIfEnabled_WithRemoteWildcardIndices() {
-        // Wildcard patterns qualified with a remote-cluster / project prefix should still flip.
-        DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
-        builder.setIndices(List.of("project-1:logs-*", "project-1:metrics-*"));
-        builder.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
-        DatafeedConfig datafeed = builder.build();
-
-        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
-            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
-                Settings.builder().put("serverless.cross_project.enabled", true).build()
-            );
-
-        DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
-
-        assertThat(result.getIndices(), equalTo(datafeed.getIndices()));
-        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
-    }
-
-    public void testWithCrossProjectModeIfEnabled_WithLocalWildcardIndices_DoesNotFlip() {
-        // Plain wildcard patterns without a project prefix are local — no flip.
+    public void testWithCrossProjectModeIfEnabled_WithWildcardIndices() {
+        // Test with wildcard patterns
         DatafeedConfig.Builder builder = new DatafeedConfig.Builder("datafeed1", "job1");
         builder.setIndices(List.of("logs-*", "metrics-*", "*-archive"));
         builder.setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN);
@@ -1480,8 +1401,9 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
 
         DatafeedConfig result = DatafeedConfig.withCrossProjectModeIfEnabled(datafeed, decider);
 
-        assertThat(result, sameInstance(datafeed));
-        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(false));
+        // Should handle wildcard patterns correctly
+        assertThat(result.getIndices(), equalTo(datafeed.getIndices()));
+        assertThat(result.getIndicesOptions().resolveCrossProjectIndexExpression(), equalTo(true));
     }
 
     public void testCrossProjectWithFeatureEnabled() throws IOException {

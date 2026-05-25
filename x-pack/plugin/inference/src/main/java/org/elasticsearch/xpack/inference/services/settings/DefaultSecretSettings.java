@@ -114,7 +114,7 @@ public record DefaultSecretSettings(SecureString apiKey) implements SecretSettin
     @Override
     public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
         var validationException = new ValidationException();
-        var extractedApiKey = extractOptionalSecureString(newSecrets, API_KEY, SECRET_SETTINGS, validationException);
+        var extractedApiKey = extractOptionalSecureString(newSecrets, API_KEY, SERVICE_SETTINGS, validationException);
         validationException.throwIfValidationErrorsExist();
 
         if (extractedApiKey == null || extractedApiKey.equals(apiKey)) {

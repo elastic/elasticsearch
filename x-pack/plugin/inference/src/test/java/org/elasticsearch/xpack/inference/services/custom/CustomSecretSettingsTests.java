@@ -56,8 +56,10 @@ public class CustomSecretSettingsTests extends AbstractBWCWireSerializationTestC
     }
 
     public void testNewSecretSettings_SameSecretParameters_DoesNotChangeSettings() {
-        var initialSettings = new CustomSecretSettings(Map.of("key", new SecureString("value".toCharArray())));
-        assertThat(initialSettings.newSecretSettings(secretSettingsMap(Map.of("key", "value"))), sameInstance(initialSettings));
+        var initialKey = "key";
+        var initialValue = "value";
+        var initialSettings = new CustomSecretSettings(Map.of(initialKey, new SecureString(initialValue.toCharArray())));
+        assertThat(initialSettings.newSecretSettings(secretSettingsMap(Map.of(initialKey, initialValue))), sameInstance(initialSettings));
     }
 
     public void testNewSecretSettings_InvalidValue_ThrowsError() {

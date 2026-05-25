@@ -55,23 +55,23 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
             return null;
         }
 
-        var provided = extractSecretsMap(map);
+        var extractedSecretsMap = extractSecretsMap(map);
 
         var validationException = new ValidationException();
-        if (provided.isEmpty()) {
+        if (extractedSecretsMap.isEmpty()) {
             validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR);
-        } else if (provided.size() > 1) {
-            validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR + ", received: " + provided.keySet());
+        } else if (extractedSecretsMap.size() > 1) {
+            validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR + ", received: " + extractedSecretsMap.keySet());
         }
         validationException.throwIfValidationErrorsExist();
 
-        if (provided.containsKey(API_KEY)) {
-            return new AzureOpenAiEntraIdApiKeySecrets(provided.get(API_KEY), null);
+        if (extractedSecretsMap.containsKey(API_KEY)) {
+            return new AzureOpenAiEntraIdApiKeySecrets(extractedSecretsMap.get(API_KEY), null);
         }
-        if (provided.containsKey(ENTRA_ID)) {
-            return new AzureOpenAiEntraIdApiKeySecrets(null, provided.get(ENTRA_ID));
+        if (extractedSecretsMap.containsKey(ENTRA_ID)) {
+            return new AzureOpenAiEntraIdApiKeySecrets(null, extractedSecretsMap.get(ENTRA_ID));
         }
-        return new AzureOpenAiOAuth2Secrets(provided.get(CLIENT_SECRET_FIELD));
+        return new AzureOpenAiOAuth2Secrets(extractedSecretsMap.get(CLIENT_SECRET_FIELD));
     }
 
     public static Map<String, SettingsConfiguration> configurations(EnumSet<TaskType> supportedTaskTypes) {

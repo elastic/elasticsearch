@@ -62,7 +62,7 @@ public class DefaultSecretSettingsTests extends AbstractWireSerializingTestCase<
             thrownException.validationErrors().getFirst(),
             is(
                 Strings.format(
-                    "[secret_settings] Invalid value empty string. [%s] must be a non-empty string",
+                    "[service_settings] Invalid value empty string. [%s] must be a non-empty string",
                     DefaultSecretSettings.API_KEY
                 )
             )

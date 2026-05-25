@@ -40,13 +40,6 @@ public class DisableSimulationRebalancingDeciderTests extends ESAllocationTestCa
         assertCanRebalance(decider, simulatingAllocation(), searchOnlyShard(), Decision.Type.YES);
     }
 
-    // During simulation, INDEXING_TIER_ONLY permits index shards, blocks search shards
-    public void testSimulation_indexingTierOnly_allowsIndexBlocksSearch() {
-        var decider = createDecider(DisableSimulationRebalancingDecider.RebalancingEnabled.INDEXING_TIER_ONLY);
-        assertCanRebalance(decider, simulatingAllocation(), indexOnlyShard(), Decision.Type.YES);
-        assertCanRebalance(decider, simulatingAllocation(), searchOnlyShard(), Decision.Type.NO);
-    }
-
     // During simulation, SEARCH_TIER_ONLY permits search shards, blocks index shards
     public void testSimulation_searchTierOnly_allowsSearchBlocksIndex() {
         var decider = createDecider(DisableSimulationRebalancingDecider.RebalancingEnabled.SEARCH_TIER_ONLY);

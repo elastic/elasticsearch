@@ -381,9 +381,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testCacheIsWarmedBeforeSearchShardRecovery
   issue: https://github.com/elastic/elasticsearch/issues/148275
-- class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
-  method: testCacheIsWarmedBeforeIndexingShardRelocation_AfterHandoff
-  issue: https://github.com/elastic/elasticsearch/issues/149177
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithoutFailures
   issue: https://github.com/elastic/elasticsearch/issues/148310
@@ -606,3 +603,6 @@ tests:
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionWithSecurityIT
   method: testCanTransitionIndex
   issue: https://github.com/elastic/elasticsearch/issues/149770
+- class: org.elasticsearch.index.seqno.SeqNoPruningIT
+  method: testSeqNoPartiallyPrunedWithRetentionLease
+  issue: https://github.com/elastic/elasticsearch/issues/149823

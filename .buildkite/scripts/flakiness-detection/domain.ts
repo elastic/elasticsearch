@@ -137,12 +137,10 @@ export interface AgentConfig {
   agents: typeof AGENTS;
   timeoutInMinutes: number;
   groupName: string;
-  softFail: boolean;
 }
 
 export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   agents: AGENTS,
   timeoutInMinutes: 60,
   groupName: "flakiness-detection",
-  softFail: true,
 };

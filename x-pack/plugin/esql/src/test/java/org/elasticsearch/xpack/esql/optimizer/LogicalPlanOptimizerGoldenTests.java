@@ -39,4 +39,23 @@ public class LogicalPlanOptimizerGoldenTests extends UnmappedGoldenTestCase {
             | INLINE STATS s = MAX(salary) BY does_not_exist
             """, STAGES);
     }
+
+    public void testDistinctRewritesToLimitByOverAllColumns() throws Exception {
+        assumeTrue("requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
+        runGoldenTest("""
+            FROM employees
+            | KEEP first_name, last_name
+            | DISTINCT
+            """, STAGES);
+    }
+
+    public void testDistinctCombinedWithLimit() throws Exception {
+        assumeTrue("requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
+        runGoldenTest("""
+            FROM employees
+            | KEEP first_name, last_name
+            | DISTINCT
+            | LIMIT 10
+            """, STAGES);
+    }
 }

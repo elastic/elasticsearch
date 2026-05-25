@@ -1242,7 +1242,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testDistinctNotInReleaseBuild() {
         assumeFalse("only runs on release build", Build.current().isSnapshot());
-        expectThrows(ParsingException.class, containsString("mismatched input 'distinct'"), () -> query("FROM foo | DISTINCT"));
+        expectThrows(ParsingException.class, containsString("mismatched input 'DISTINCT'"), () -> query("FROM foo | DISTINCT"));
     }
 
     public void testBasicSortCommand() {

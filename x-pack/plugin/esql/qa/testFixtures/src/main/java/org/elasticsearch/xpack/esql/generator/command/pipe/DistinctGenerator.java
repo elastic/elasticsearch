@@ -13,7 +13,6 @@ import org.elasticsearch.xpack.esql.generator.Column;
 import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
-import org.elasticsearch.xpack.esql.plan.logical.Distinct;
 
 import java.util.List;
 import java.util.Map;
@@ -36,10 +35,16 @@ public class DistinctGenerator implements CommandGenerator {
         }
         // DISTINCT runs over every column in scope, so any column with a type the runtime group-key
         // encoder can't handle would produce a VerificationException. Skip rather than emit a
-        // query we know would be rejected.
+        // query we know would be rejected. Must stay in sync with Aggregate.checkUnsupportedGroupingType.
         for (Column c : previousOutput) {
             DataType dt = DataType.fromTypeName(c.type());
-            if (dt != null && Distinct.UNSUPPORTED_GROUPING_TYPES.contains(dt)) {
+            if (dt != null
+                && (dt == DataType.AGGREGATE_METRIC_DOUBLE
+                    || dt == DataType.DATE_RANGE
+                    || dt == DataType.EXPONENTIAL_HISTOGRAM
+                    || dt == DataType.TDIGEST
+                    || dt == DataType.PARTIAL_AGG
+                    || dt.isCounter())) {
                 return EMPTY_DESCRIPTION;
             }
         }

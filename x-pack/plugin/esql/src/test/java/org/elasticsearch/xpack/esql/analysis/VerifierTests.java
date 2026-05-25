@@ -4225,13 +4225,13 @@ public class VerifierTests extends ESTestCase {
         assumeTrue("requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
         k8sDownsampled().error(
             "FROM k8s | KEEP network.eth0.tx | DISTINCT",
-            containsString("DISTINCT does not support fields of type [aggregate_metric_double], found field [network.eth0.tx]")
+            containsString("cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]")
         );
     }
 
     public void testDistinctRejectsAggregateMetricDoubleWhenInSchema() {
         assumeTrue("requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
-        k8sDownsampled().error("FROM k8s | DISTINCT", containsString("DISTINCT does not support fields of type [aggregate_metric_double]"));
+        k8sDownsampled().error("FROM k8s | DISTINCT", containsString("cannot group by on [aggregate_metric_double] type for grouping"));
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

@@ -11118,38 +11118,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(defaultLimit.child(), LocalRelation.class);
     }
 
-    public void testDistinctIsRewrittenToLimitByOneOverChildOutput() {
-        assumeTrue("Requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
-        var plan = optimizedPlan("FROM test | DISTINCT");
-
-        plan.forEachDown(p -> assertThat(p, not(instanceOf(Distinct.class))));
-
-        var limit = as(plan, Limit.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1000));
-        var limitBy = as(limit.child(), LimitBy.class);
-        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(1));
-        var relation = as(limitBy.child(), EsRelation.class);
-
-        assertThat(limitBy.groupings(), equalTo(relation.output().stream().map(a -> (Expression) a).toList()));
-    }
-
-    public void testDistinctAfterKeepLimitsToProjectedColumns() {
-        assumeTrue("Requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
-        var plan = optimizedPlan("FROM test | KEEP first_name, last_name | DISTINCT");
-
-        plan.forEachDown(p -> assertThat(p, not(instanceOf(Distinct.class))));
-
-        var project = as(plan, Project.class);
-        var limit = as(project.child(), Limit.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(1000));
-        var limitBy = as(limit.child(), LimitBy.class);
-        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(1));
-        assertThat(limitBy.groupings(), hasSize(2));
-        assertThat(limitBy.groupings().get(0), instanceOf(FieldAttribute.class));
-        assertThat(((FieldAttribute) limitBy.groupings().get(0)).name(), equalTo("first_name"));
-        assertThat(((FieldAttribute) limitBy.groupings().get(1)).name(), equalTo("last_name"));
-    }
-
     /**
      * METRICS_INFO injects a {@code _doc} {@code MetadataAttribute} into the underlying
      * {@code EsRelation} so it can address Lucene rows directly. Placing DISTINCT between the TS
@@ -11190,18 +11158,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         }
         var relation = as(limitBy.child(), EsRelation.class);
         assertThat(relation.output().stream().anyMatch(a -> a instanceof UnsupportedAttribute), equalTo(true));
-    }
-
-    public void testDistinctChainedWithLimit() {
-        assumeTrue("Requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
-        var plan = optimizedPlan("FROM test | DISTINCT | LIMIT 10");
-
-        plan.forEachDown(p -> assertThat(p, not(instanceOf(Distinct.class))));
-
-        var limit = as(plan, Limit.class);
-        assertThat(((Literal) limit.limit()).value(), equalTo(10));
-        var limitBy = as(limit.child(), LimitBy.class);
-        assertThat(((Literal) limitBy.limitPerGroup()).value(), equalTo(1));
     }
 
     public void testTopSnippetsQueryMustBeFoldable() {

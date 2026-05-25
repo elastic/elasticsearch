@@ -103,6 +103,33 @@ public class HierarchicalKMeansTests extends ESTestCase {
         }
     }
 
+    static float clusterSizesStandardDeviation(int[] clusterSizes) {
+        double avgSize = Arrays.stream(clusterSizes).asDoubleStream().sum() / clusterSizes.length;
+        double varSize = Arrays.stream(clusterSizes).asDoubleStream().map(e -> Math.pow(e - avgSize, 2)).sum() / clusterSizes.length;
+        return (float) Math.sqrt(varSize);
+    }
+
+    private static KMeansFloatVectorValues generateData(int nSamples, int nDims, int nClusters) {
+        List<float[]> vectors = new ArrayList<>(nSamples);
+        float[][] centroids = new float[nClusters][nDims];
+        // Generate random centroids
+        for (int i = 0; i < nClusters; i++) {
+            for (int j = 0; j < nDims; j++) {
+                centroids[i][j] = random().nextFloat() * 100;
+            }
+        }
+        // Generate data points around centroids
+        for (int i = 0; i < nSamples; i++) {
+            int cluster = random().nextInt(nClusters);
+            float[] vector = new float[nDims];
+            for (int j = 0; j < nDims; j++) {
+                vector[j] = centroids[cluster][j] + (float) random().nextGaussian() * 10 - 5;
+            }
+            vectors.add(vector);
+        }
+        return KMeansFloatVectorValues.build(vectors, null, nDims);
+    }
+
     public void testFewDifferentValues() throws IOException {
         int nVectors = random().nextInt(100, 1000);
         int targetSize = random().nextInt(4, 64);
@@ -132,64 +159,26 @@ public class HierarchicalKMeansTests extends ESTestCase {
 
         KMeansResult<float[]> result = hkmeans.cluster(vectors, targetSize);
 
-        float[][] centroidsFew = result.centroids();
-        int[] assignmentsFew = result.assignments();
-        int[] soarAssignmentsFew = result.soarAssignments();
+        float[][] centroids = result.centroids();
+        int[] assignments = result.assignments();
+        int[] soarAssignments = result.soarAssignments();
 
-        assertTrue("Expected at least 1 centroid", centroidsFew.length >= 1);
-        assertEquals(nVectors, assignmentsFew.length);
+        assertTrue("Expected at least 1 centroid", centroids.length >= 1);
+        assertEquals(nVectors, assignments.length);
 
-        for (int assignment : assignmentsFew) {
-            assertTrue(assignment >= 0 && assignment < centroidsFew.length);
+        for (int assignment : assignments) {
+            assertTrue(assignment >= 0 && assignment < centroids.length);
         }
-        if (centroidsFew.length > 1 && centroidsFew.length < nVectors) {
-            assertEquals(nVectors, soarAssignmentsFew.length);
-            for (int i = 0; i < assignmentsFew.length; i++) {
-                int soarAssignment = soarAssignmentsFew[i];
-                assertTrue(soarAssignment == NO_SOAR_ASSIGNMENT || (soarAssignment >= 0 && soarAssignment < centroidsFew.length));
-                assertNotEquals(assignmentsFew[i], soarAssignment);
+        if (centroids.length > 1 && centroids.length < nVectors) {
+            assertEquals(nVectors, soarAssignments.length);
+            // verify no duplicates exist
+            for (int i = 0; i < assignments.length; i++) {
+                int soarAssignment = soarAssignments[i];
+                assertTrue(soarAssignment == NO_SOAR_ASSIGNMENT || (soarAssignment >= 0 && soarAssignment < centroids.length));
+                assertNotEquals(assignments[i], soarAssignment);
             }
         } else {
-            assertEquals(0, soarAssignmentsFew.length);
+            assertEquals(0, soarAssignments.length);
         }
-    }
-
-    static float clusterSizesStandardDeviation(int[] clusterSizes) {
-        double avgSize = Arrays.stream(clusterSizes).asDoubleStream().sum() / clusterSizes.length;
-        double varSize = Arrays.stream(clusterSizes).asDoubleStream().map(e -> Math.pow(e - avgSize, 2)).sum() / clusterSizes.length;
-        return (float) Math.sqrt(varSize);
-    }
-
-    static float kMeansMeanInertia(KMeansFloatVectorValues vectors, KMeansResult<float[]> kMeansIntermediate) throws IOException {
-        int[] assignments = kMeansIntermediate.assignments();
-        float[][] centroids = kMeansIntermediate.centroids();
-
-        float mse = 0;
-        for (int i = 0; i < vectors.size(); i++) {
-            float[] vec = vectors.vectorValue(i);
-            float[] cent = centroids[assignments[i]];
-            float dist = VectorUtil.squareDistance(vec, cent);
-            mse += dist / vectors.size();
-        }
-        return mse;
-    }
-
-    private static KMeansFloatVectorValues generateData(int nSamples, int nDims, int nClusters) {
-        List<float[]> vectors = new ArrayList<>(nSamples);
-        float[][] centroids = new float[nClusters][nDims];
-        for (int i = 0; i < nClusters; i++) {
-            for (int j = 0; j < nDims; j++) {
-                centroids[i][j] = random().nextFloat() * 100;
-            }
-        }
-        for (int i = 0; i < nSamples; i++) {
-            int cluster = random().nextInt(nClusters);
-            float[] vector = new float[nDims];
-            for (int j = 0; j < nDims; j++) {
-                vector[j] = centroids[cluster][j] + (float) random().nextGaussian() * 10 - 5;
-            }
-            vectors.add(vector);
-        }
-        return KMeansFloatVectorValues.build(vectors, null, nDims);
     }
 }

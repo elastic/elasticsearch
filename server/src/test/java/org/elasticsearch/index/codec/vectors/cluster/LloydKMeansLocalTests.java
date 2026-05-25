@@ -50,7 +50,8 @@ public class LloydKMeansLocalTests extends ESTestCase {
         int clustersPerNeighborhood = random().nextInt(2, 512);
         float soarLambda = random().nextFloat(0.5f, 1.5f);
 
-        KMeansFloatVectorValues vectors = generateFloatData(nVectors, dims, nClusters);
+        KMeansFloatVectorValues vectors = generateData(nVectors, dims, nClusters);
+
         float[][] centroids = KMeansLocal.pickInitialCentroids(vectors, nClusters, CentroidOps.FLOAT);
         LloydKMeansLocal.cluster(vectors, CentroidOps.FLOAT, centroids, sampleSize, maxIterations);
 
@@ -84,10 +85,10 @@ public class LloydKMeansLocalTests extends ESTestCase {
         int clustersPerNeighborhood = 128;
         float soarLambda = 1.0f;
         int nVectors = 1000;
-
         List<float[]> vectors = new ArrayList<>();
         for (int i = 0; i < nVectors; i++) {
-            vectors.add(new float[5]);
+            float[] vector = new float[5];
+            vectors.add(vector);
         }
         int sampleSize = vectors.size();
         KMeansFloatVectorValues fvv = KMeansFloatVectorValues.build(vectors, null, 5);
@@ -126,6 +127,27 @@ public class LloydKMeansLocalTests extends ESTestCase {
         }
     }
 
+    private static KMeansFloatVectorValues generateData(int nSamples, int nDims, int nClusters) {
+        List<float[]> vectors = new ArrayList<>(nSamples);
+        float[][] centroids = new float[nClusters][nDims];
+        // Generate random centroids
+        for (int i = 0; i < nClusters; i++) {
+            for (int j = 0; j < nDims; j++) {
+                centroids[i][j] = random().nextFloat() * 100;
+            }
+        }
+        // Generate data points around centroids
+        for (int i = 0; i < nSamples; i++) {
+            int cluster = random().nextInt(nClusters);
+            float[] vector = new float[nDims];
+            for (int j = 0; j < nDims; j++) {
+                vector[j] = centroids[cluster][j] + random().nextFloat() * 10 - 5;
+            }
+            vectors.add(vector);
+        }
+        return KMeansFloatVectorValues.build(vectors, null, nDims);
+    }
+
     public void testComputeNeighbours() throws IOException {
         int numCentroids = randomIntBetween(1000, 2000);
         int dims = randomIntBetween(10, 200);
@@ -145,6 +167,7 @@ public class LloydKMeansLocalTests extends ESTestCase {
             double recall = (double) matched / neighborHoodsGraph[i].neighbors().length;
             assertThat(recall, greaterThanOrEqualTo(0.5));
             if (recall == 1.0) {
+                // we cannot assert on array equality as there can be small differences due to numerical errors
                 assertEquals(neighborHoodsBruteForce[i].maxIntraDistance(), neighborHoodsGraph[i].maxIntraDistance(), 1e-4f);
             }
         }
@@ -194,8 +217,10 @@ public class LloydKMeansLocalTests extends ESTestCase {
         }
         int clustersPerNeighbour = randomIntBetween(32, 64);
 
+        // sequential version
         NeighborHood[] neighborHoodsGraph = NeighborHood.computeNeighborhoodsGraph(vectors, clustersPerNeighbour);
 
+        // multiple concurrent executions for consistency
         for (int iter = 0; iter < 50; iter++) {
             int numThreads = randomIntBetween(2, 8);
             try (ExecutorService executorService = Executors.newFixedThreadPool(numThreads)) {
@@ -223,27 +248,6 @@ public class LloydKMeansLocalTests extends ESTestCase {
                 }
             }
         }
-    }
-
-    // ---- Data generators ----
-
-    private static KMeansFloatVectorValues generateFloatData(int nSamples, int nDims, int nClusters) {
-        List<float[]> vectors = new ArrayList<>(nSamples);
-        float[][] centroids = new float[nClusters][nDims];
-        for (int i = 0; i < nClusters; i++) {
-            for (int j = 0; j < nDims; j++) {
-                centroids[i][j] = random().nextFloat() * 100;
-            }
-        }
-        for (int i = 0; i < nSamples; i++) {
-            int cluster = random().nextInt(nClusters);
-            float[] vector = new float[nDims];
-            for (int j = 0; j < nDims; j++) {
-                vector[j] = centroids[cluster][j] + random().nextFloat() * 10 - 5;
-            }
-            vectors.add(vector);
-        }
-        return KMeansFloatVectorValues.build(vectors, null, nDims);
     }
 
 }

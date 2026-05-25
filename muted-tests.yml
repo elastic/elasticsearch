@@ -354,24 +354,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardIT
   method: testTermVectorsApiRealtimeGet
   issue: https://github.com/elastic/elasticsearch/issues/148175
-- class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
-  method: testDatasetCrudForbiddenWithoutIndexManage
-  issue: https://github.com/elastic/elasticsearch/issues/148182
-- class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
-  method: testDataSourceAdminListEmpty
-  issue: https://github.com/elastic/elasticsearch/issues/148183
-- class: org.elasticsearch.xpack.esql.EsqlAsyncSecurityIT
-  method: testDataSourceCrudForbiddenWithoutClusterManage
-  issue: https://github.com/elastic/elasticsearch/issues/148184
-- class: org.elasticsearch.xpack.esql.EsqlSecurityIT
-  method: testDatasetCrudForbiddenWithoutIndexManage
-  issue: https://github.com/elastic/elasticsearch/issues/148185
-- class: org.elasticsearch.xpack.esql.EsqlSecurityIT
-  method: testDataSourceAdminListEmpty
-  issue: https://github.com/elastic/elasticsearch/issues/148186
-- class: org.elasticsearch.xpack.esql.EsqlSecurityIT
-  method: testDataSourceCrudForbiddenWithoutClusterManage
-  issue: https://github.com/elastic/elasticsearch/issues/148187
 - class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsIntegTests
   method: testCreateAndRestoreSearchableSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/148217
@@ -462,9 +444,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
   method: testRandomActivitiesStatelessSnapshotEnabled
   issue: https://github.com/elastic/elasticsearch/issues/149215
-- class: org.elasticsearch.reindex.management.ReindexRelocationIT
-  method: testNonSlicedRemoteReindexRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/149222
 - class: org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundToTests
   method: testRightClosedBucketIsNotSubstituted
   issue: https://github.com/elastic/elasticsearch/issues/149133
@@ -606,3 +585,6 @@ tests:
 - class: org.elasticsearch.test.apmintegration.OtelMetricsIT
   method: testOTelHealthMetrics
   issue: https://github.com/elastic/elasticsearch/issues/149835
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
+  method: test {feature:BASELINE}
+  issue: https://github.com/elastic/elasticsearch/issues/149746

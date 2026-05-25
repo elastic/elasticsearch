@@ -25,7 +25,7 @@ public class EsqlBaseParser extends ParserConfig {
   protected static final PredictionContextCache _sharedContextCache =
     new PredictionContextCache();
   public static final int
-    LINE_COMMENT=1, MULTILINE_COMMENT=2, WS=3, CHANGE_POINT=4, DEV_DISTINCT=5, 
+    LINE_COMMENT=1, MULTILINE_COMMENT=2, WS=3, CHANGE_POINT=4, DEV_DEDUP=5, 
     ENRICH=6, DEV_EXPLAIN=7, COMPLETION=8, DISSECT=9, EVAL=10, GROK=11, LIMIT=12, 
     RERANK=13, ROW=14, SAMPLE=15, SORT=16, STATS=17, WHERE=18, URI_PARTS=19, 
     METRICS_INFO=20, REGISTERED_DOMAIN=21, TS_INFO=22, USER_AGENT=23, TS_COLLAPSE=24, 
@@ -87,7 +87,7 @@ public class EsqlBaseParser extends ParserConfig {
     RULE_rerankCommand = 65, RULE_completionCommand = 66, RULE_inlineStatsCommand = 67, 
     RULE_fuseCommand = 68, RULE_fuseConfiguration = 69, RULE_fuseKeyByFields = 70, 
     RULE_metricsInfoCommand = 71, RULE_tsInfoCommand = 72, RULE_tsCollapseCommand = 73, 
-    RULE_lookupCommand = 74, RULE_insistCommand = 75, RULE_distinctCommand = 76, 
+    RULE_lookupCommand = 74, RULE_insistCommand = 75, RULE_dedupCommand = 76, 
     RULE_uriPartsCommand = 77, RULE_registeredDomainCommand = 78, RULE_userAgentCommand = 79, 
     RULE_setCommand = 80, RULE_setField = 81, RULE_mmrCommand = 82, RULE_mmrQueryVectorParams = 83, 
     RULE_booleanExpression = 84, RULE_regexBooleanExpression = 85, RULE_matchBooleanExpression = 86, 
@@ -120,7 +120,7 @@ public class EsqlBaseParser extends ParserConfig {
       "forkSubQuery", "forkSubQueryCommand", "forkSubQueryProcessingCommand", 
       "rerankCommand", "completionCommand", "inlineStatsCommand", "fuseCommand", 
       "fuseConfiguration", "fuseKeyByFields", "metricsInfoCommand", "tsInfoCommand", 
-      "tsCollapseCommand", "lookupCommand", "insistCommand", "distinctCommand", 
+      "tsCollapseCommand", "lookupCommand", "insistCommand", "dedupCommand", 
       "uriPartsCommand", "registeredDomainCommand", "userAgentCommand", "setCommand", 
       "setField", "mmrCommand", "mmrQueryVectorParams", "booleanExpression", 
       "regexBooleanExpression", "matchBooleanExpression", "valueExpression", 
@@ -161,7 +161,7 @@ public class EsqlBaseParser extends ParserConfig {
   private static final String[] _LITERAL_NAMES = makeLiteralNames();
   private static String[] makeSymbolicNames() {
     return new String[] {
-      null, "LINE_COMMENT", "MULTILINE_COMMENT", "WS", "CHANGE_POINT", "DEV_DISTINCT", 
+      null, "LINE_COMMENT", "MULTILINE_COMMENT", "WS", "CHANGE_POINT", "DEV_DEDUP", 
       "ENRICH", "DEV_EXPLAIN", "COMPLETION", "DISSECT", "EVAL", "GROK", "LIMIT", 
       "RERANK", "ROW", "SAMPLE", "SORT", "STATS", "WHERE", "URI_PARTS", "METRICS_INFO", 
       "REGISTERED_DOMAIN", "TS_INFO", "USER_AGENT", "TS_COLLAPSE", "FROM", 
@@ -698,8 +698,8 @@ public class EsqlBaseParser extends ParserConfig {
     public InsistCommandContext insistCommand() {
       return getRuleContext(InsistCommandContext.class,0);
     }
-    public DistinctCommandContext distinctCommand() {
-      return getRuleContext(DistinctCommandContext.class,0);
+    public DedupCommandContext dedupCommand() {
+      return getRuleContext(DedupCommandContext.class,0);
     }
     @SuppressWarnings("this-escape")
     public ProcessingCommandContext(ParserRuleContext parent, int invokingState) {
@@ -941,7 +941,7 @@ public class EsqlBaseParser extends ParserConfig {
         setState(299);
         if (!(this.isDevVersion())) throw new FailedPredicateException(this, "this.isDevVersion()");
         setState(300);
-        distinctCommand();
+        dedupCommand();
         }
         break;
       }
@@ -5750,36 +5750,36 @@ public class EsqlBaseParser extends ParserConfig {
   }
 
   @SuppressWarnings("CheckReturnValue")
-  public static class DistinctCommandContext extends ParserRuleContext {
-    public TerminalNode DEV_DISTINCT() { return getToken(EsqlBaseParser.DEV_DISTINCT, 0); }
+  public static class DedupCommandContext extends ParserRuleContext {
+    public TerminalNode DEV_DEDUP() { return getToken(EsqlBaseParser.DEV_DEDUP, 0); }
     @SuppressWarnings("this-escape")
-    public DistinctCommandContext(ParserRuleContext parent, int invokingState) {
+    public DedupCommandContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
     }
-    @Override public int getRuleIndex() { return RULE_distinctCommand; }
+    @Override public int getRuleIndex() { return RULE_dedupCommand; }
     @Override
     public void enterRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterDistinctCommand(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).enterDedupCommand(this);
     }
     @Override
     public void exitRule(ParseTreeListener listener) {
-      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitDistinctCommand(this);
+      if ( listener instanceof EsqlBaseParserListener ) ((EsqlBaseParserListener)listener).exitDedupCommand(this);
     }
     @Override
     public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
-      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitDistinctCommand(this);
+      if ( visitor instanceof EsqlBaseParserVisitor ) return ((EsqlBaseParserVisitor<? extends T>)visitor).visitDedupCommand(this);
       else return visitor.visitChildren(this);
     }
   }
 
-  public final DistinctCommandContext distinctCommand() throws RecognitionException {
-    DistinctCommandContext _localctx = new DistinctCommandContext(_ctx, getState());
-    enterRule(_localctx, 152, RULE_distinctCommand);
+  public final DedupCommandContext dedupCommand() throws RecognitionException {
+    DedupCommandContext _localctx = new DedupCommandContext(_ctx, getState());
+    enterRule(_localctx, 152, RULE_dedupCommand);
     try {
       enterOuterAlt(_localctx, 1);
       {
       setState(756);
-      match(DEV_DISTINCT);
+      match(DEV_DEDUP);
       }
     }
     catch (RecognitionException re) {

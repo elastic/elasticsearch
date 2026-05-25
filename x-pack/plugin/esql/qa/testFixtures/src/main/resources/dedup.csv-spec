@@ -1,14 +1,14 @@
 //
-// DISTINCT command - integration tests
+// DEDUP command - integration tests
 //
 
-distinctSingleColumn
-required_capability: distinct_command
+dedupSingleColumn
+required_capability: dedup_command
 
 FROM employees
 | WHERE emp_no IN (10001, 10002, 10003, 10005, 10006)
 | KEEP gender
-| DISTINCT
+| DEDUP
 | SORT gender
 ;
 
@@ -18,13 +18,13 @@ M
 ;
 
 
-distinctSingleColumnWithNulls
-required_capability: distinct_command
+dedupSingleColumnWithNulls
+required_capability: dedup_command
 
 FROM employees
 | WHERE emp_no IN (10001, 10002, 10010, 10011)
 | KEEP gender
-| DISTINCT
+| DEDUP
 | SORT gender NULLS LAST
 ;
 
@@ -35,13 +35,13 @@ null
 ;
 
 
-distinctMultipleColumns
-required_capability: distinct_command
+dedupMultipleColumns
+required_capability: dedup_command
 
 FROM employees
 | WHERE emp_no IN (10001, 10002, 10010, 10011)
 | KEEP gender, languages
-| DISTINCT
+| DEDUP
 | SORT gender NULLS LAST, languages
 ;
 
@@ -53,14 +53,14 @@ null           | 5
 ;
 
 
-distinctAfterEval
-required_capability: distinct_command
+dedupAfterEval
+required_capability: dedup_command
 
 FROM employees
 | WHERE emp_no IN (10001, 10002, 10003)
 | EVAL high_languages = languages > 3
 | KEEP high_languages
-| DISTINCT
+| DEDUP
 | SORT high_languages
 ;
 
@@ -70,12 +70,12 @@ true
 ;
 
 
-distinctChainedWithLimit
-required_capability: distinct_command
+dedupChainedWithLimit
+required_capability: dedup_command
 
 FROM employees
 | KEEP gender
-| DISTINCT
+| DEDUP
 | SORT gender NULLS LAST
 | LIMIT 2
 ;
@@ -86,13 +86,13 @@ M
 ;
 
 
-distinctRemovesDuplicateRows
-required_capability: distinct_command
+dedupRemovesDuplicateRows
+required_capability: dedup_command
 
 ROW a = 1
 | EVAL b = 2
 | KEEP a, b
-| DISTINCT
+| DEDUP
 ;
 
 a:integer | b:integer
@@ -100,13 +100,13 @@ a:integer | b:integer
 ;
 
 
-distinctMultivalueGroupKey
-required_capability: distinct_command
+dedupMultivalueGroupKey
+required_capability: dedup_command
 
 FROM employees
 | WHERE emp_no IN (10001, 10009)
 | KEEP job_positions
-| DISTINCT
+| DEDUP
 | SORT job_positions
 ;
 
@@ -116,11 +116,11 @@ job_positions:keyword
 ;
 
 
-distinctOverFullRowCountStar
-required_capability: distinct_command
+dedupOverFullRowCountStar
+required_capability: dedup_command
 
 FROM employees
-| DISTINCT
+| DEDUP
 | STATS c = COUNT(*)
 ;
 
@@ -129,13 +129,13 @@ c:long
 ;
 
 
-distinctWithMetadataIndex
-required_capability: distinct_command
+dedupWithMetadataIndex
+required_capability: dedup_command
 
 FROM employees METADATA _index
 | WHERE emp_no IN (10001, 10002, 10010, 10011)
 | KEEP _index, gender
-| DISTINCT
+| DEDUP
 | SORT gender NULLS LAST
 ;
 
@@ -146,13 +146,13 @@ employees      | null
 ;
 
 
-distinctWithMetadataIdParticipatesInDedup
-required_capability: distinct_command
+dedupWithMetadataIdParticipatesInDedup
+required_capability: dedup_command
 
 FROM employees METADATA _id
 | WHERE emp_no IN (10001, 10002, 10010, 10011)
 | KEEP _id, gender
-| DISTINCT
+| DEDUP
 | STATS c = COUNT(*)
 ;
 
@@ -161,13 +161,13 @@ c:long
 ;
 
 
-distinctAfterDroppingAllColumns
-required_capability: distinct_command
+dedupAfterDroppingAllColumns
+required_capability: dedup_command
 
 FROM employees
 | KEEP gender
 | DROP gender
-| DISTINCT
+| DEDUP
 | EVAL marker = 1
 ;
 
@@ -176,12 +176,12 @@ marker:integer
 ;
 
 
-distinctTsSingleDimension
-required_capability: distinct_command
+dedupTsSingleDimension
+required_capability: dedup_command
 
 TS k8s
 | KEEP cluster
-| DISTINCT
+| DEDUP
 | SORT cluster
 ;
 
@@ -191,13 +191,13 @@ qa
 staging
 ;
 
-distinctTsAfterStats
-required_capability: distinct_command
+dedupTsAfterStats
+required_capability: dedup_command
 
 TS k8s
 | STATS c = COUNT(events_received) BY cluster, pod
 | KEEP cluster, pod
-| DISTINCT
+| DEDUP
 | SORT cluster, pod
 ;
 
@@ -214,14 +214,14 @@ staging         | two
 ;
 
 
-distinctOverUnionTypeWithCast
-required_capability: distinct_command
+dedupOverUnionTypeWithCast
+required_capability: dedup_command
 
 FROM employees, employees_incompatible METADATA _index
 | EVAL emp_no_long = emp_no::long
 | KEEP _index, emp_no_long
 | WHERE emp_no_long IN (10001, 10002)
-| DISTINCT
+| DEDUP
 | SORT _index, emp_no_long
 ;
 
@@ -233,13 +233,13 @@ employees_incompatible  | 10002
 ;
 
 
-distinctOverUnionTypesFullSchemaCount
-required_capability: distinct_command
+dedupOverUnionTypesFullSchemaCount
+required_capability: dedup_command
 
 FROM employees, employees_incompatible METADATA _index
 | EVAL emp_no_long = emp_no::long
 | WHERE emp_no_long IN (10001, 10002)
-| DISTINCT
+| DEDUP
 | STATS c = COUNT(emp_no_long)
 ;
 
@@ -248,12 +248,12 @@ c:long
 ;
 
 
-distinctOverDenseVector
-required_capability: distinct_command
+dedupOverDenseVector
+required_capability: dedup_command
 
 FROM all_types
 | KEEP dense_vector
-| DISTINCT
+| DEDUP
 | STATS c = COUNT(*)
 ;
 
@@ -262,13 +262,13 @@ c:long
 ;
 
 
-distinctWithMetadataSourceParticipatesInDedup
-required_capability: distinct_command
+dedupWithMetadataSourceParticipatesInDedup
+required_capability: dedup_command
 
 FROM employees METADATA _source
 | WHERE emp_no IN (10001, 10005)
 | KEEP _source, gender
-| DISTINCT
+| DEDUP
 | STATS c = COUNT(*)
 ;
 

@@ -128,8 +128,8 @@ import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.GeneratingPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
-import org.elasticsearch.xpack.esql.plan.logical.Distinct;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -11118,12 +11118,12 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(defaultLimit.child(), LocalRelation.class);
     }
 
-    public void testDistinctSurrogateExcludesUnsupportedAttribute() {
-        assumeTrue("Requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
+    public void testDedupSurrogateExcludesUnsupportedAttribute() {
+        assumeTrue("Requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
         var analyzer = analyzerWithEnrichPolicies().addIndex("test_with_unsupported", "mapping-multi-field-with-nested.json");
-        var plan = optimize(analyzer.query("FROM test_with_unsupported | DISTINCT"));
+        var plan = optimize(analyzer.query("FROM test_with_unsupported | DEDUP"));
 
-        plan.forEachDown(p -> assertThat(p, not(instanceOf(Distinct.class))));
+        plan.forEachDown(p -> assertThat(p, not(instanceOf(Dedup.class))));
 
         Holder<LimitBy> found = new Holder<>();
         plan.forEachDown(LimitBy.class, found::set);

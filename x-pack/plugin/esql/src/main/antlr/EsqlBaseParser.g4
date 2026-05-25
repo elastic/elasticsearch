@@ -79,7 +79,7 @@ processingCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
-    | {this.isDevVersion()}? distinctCommand
+    | {this.isDevVersion()}? dedupCommand
     ;
 
 whereCommand
@@ -392,8 +392,8 @@ insistCommand
     : DEV_INSIST qualifiedNamePatterns
     ;
 
-distinctCommand
-    : DEV_DISTINCT
+dedupCommand
+    : DEV_DEDUP
     ;
 
 uriPartsCommand

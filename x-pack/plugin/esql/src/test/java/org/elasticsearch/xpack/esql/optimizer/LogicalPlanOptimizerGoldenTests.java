@@ -40,21 +40,21 @@ public class LogicalPlanOptimizerGoldenTests extends UnmappedGoldenTestCase {
             """, STAGES);
     }
 
-    public void testDistinctRewritesToLimitByOverAllColumns() throws Exception {
-        assumeTrue("requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
+    public void testDedupRewritesToLimitByOverAllColumns() throws Exception {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees
             | KEEP first_name, last_name
-            | DISTINCT
+            | DEDUP
             """, STAGES);
     }
 
-    public void testDistinctCombinedWithLimit() throws Exception {
-        assumeTrue("requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
+    public void testDedupCombinedWithLimit() throws Exception {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
         runGoldenTest("""
             FROM employees
             | KEEP first_name, last_name
-            | DISTINCT
+            | DEDUP
             | LIMIT 10
             """, STAGES);
     }

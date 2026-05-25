@@ -2880,10 +2880,10 @@ public class EsqlCapabilities {
         FIRST_AGG_EXTENDED_TYPES,
 
         /**
-         * Support for the {@code DISTINCT} command, which removes duplicate rows from the result set.
+         * Support for the {@code DEDUP} command, which removes duplicate rows from the result set.
          * Snapshot-only.
          */
-        DISTINCT_COMMAND(Build.current().isSnapshot()),
+        DEDUP_COMMAND(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

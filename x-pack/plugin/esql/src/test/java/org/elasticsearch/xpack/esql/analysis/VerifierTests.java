@@ -1815,10 +1815,10 @@ public class VerifierTests extends ESTestCase {
                     containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
                 )
             );
-        if (EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled()) {
+        if (EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled()) {
             fullText().error(
-                "from test | distinct | where " + functionInvocation,
-                containsString("[" + functionName + "] " + functionType + " cannot be used after DISTINCT")
+                "from test | dedup | where " + functionInvocation,
+                containsString("[" + functionName + "] " + functionType + " cannot be used after DEDUP")
             );
         }
 
@@ -4221,17 +4221,17 @@ public class VerifierTests extends ESTestCase {
         k8s().error("TS k8s | SORT @timestamp | TS_INFO", containsString("TS_INFO cannot be used after SORT command"));
     }
 
-    public void testDistinctRejectsAggregateMetricDouble() {
-        assumeTrue("requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
+    public void testDedupRejectsAggregateMetricDouble() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
         k8sDownsampled().error(
-            "FROM k8s | KEEP network.eth0.tx | DISTINCT",
+            "FROM k8s | KEEP network.eth0.tx | DEDUP",
             containsString("cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]")
         );
     }
 
-    public void testDistinctRejectsAggregateMetricDoubleWhenInSchema() {
-        assumeTrue("requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
-        k8sDownsampled().error("FROM k8s | DISTINCT", containsString("cannot group by on [aggregate_metric_double] type for grouping"));
+    public void testDedupRejectsAggregateMetricDoubleWhenInSchema() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        k8sDownsampled().error("FROM k8s | DEDUP", containsString("cannot group by on [aggregate_metric_double] type for grouping"));
     }
 
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {

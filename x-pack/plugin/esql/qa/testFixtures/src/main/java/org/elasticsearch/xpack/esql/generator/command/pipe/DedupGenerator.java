@@ -17,10 +17,10 @@ import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import java.util.List;
 import java.util.Map;
 
-public class DistinctGenerator implements CommandGenerator {
+public class DedupGenerator implements CommandGenerator {
 
-    public static final String DISTINCT = "distinct";
-    public static final CommandGenerator INSTANCE = new DistinctGenerator();
+    public static final String DEDUP = "dedup";
+    public static final CommandGenerator INSTANCE = new DedupGenerator();
 
     @Override
     public CommandDescription generate(
@@ -30,10 +30,10 @@ public class DistinctGenerator implements CommandGenerator {
         QueryExecutor executor,
         GenerationContext context
     ) {
-        if (EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled() == false) {
+        if (EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled() == false) {
             return EMPTY_DESCRIPTION;
         }
-        // DISTINCT runs over every column in scope, so any column with a type the runtime group-key
+        // DEDUP runs over every column in scope, so any column with a type the runtime group-key
         // encoder can't handle would produce a VerificationException. Skip rather than emit a
         // query we know would be rejected. Must stay in sync with Aggregate.checkUnsupportedGroupingType.
         for (Column c : previousOutput) {
@@ -48,7 +48,7 @@ public class DistinctGenerator implements CommandGenerator {
                 return EMPTY_DESCRIPTION;
             }
         }
-        return new CommandDescription(DISTINCT, this, " | DISTINCT ", Map.of());
+        return new CommandDescription(DEDUP, this, " | DEDUP ", Map.of());
     }
 
     @Override

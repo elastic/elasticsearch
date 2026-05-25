@@ -182,7 +182,7 @@ LINE_COMMENT
 MULTILINE_COMMENT
 WS
 CHANGE_POINT
-DEV_DISTINCT
+DEV_DEDUP
 ENRICH
 DEV_EXPLAIN
 COMPLETION
@@ -431,7 +431,7 @@ tsInfoCommand
 tsCollapseCommand
 lookupCommand
 insistCommand
-distinctCommand
+dedupCommand
 uriPartsCommand
 registeredDomainCommand
 userAgentCommand

@@ -1,3 +1,4 @@
 FROM employees
 | KEEP first_name, last_name
-| DISTINCT
+| DEDUP
+| LIMIT 10

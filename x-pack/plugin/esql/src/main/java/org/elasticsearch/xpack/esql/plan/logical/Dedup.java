@@ -23,22 +23,22 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Removes duplicate rows from the result set, like SQL {@code DISTINCT}.
+ * Removes duplicate rows from the result set (similar in spirit to SQL {@code DISTINCT}).
  * <p>
  * Implemented as a {@link SurrogateLogicalPlan} that rewrites to
  * {@code LIMIT 1 BY <child.output()>} during the optimizer's substitutions phase.
  * The node itself does not need to escape the coordinator, so it is not registered
  * with the {@code NamedWriteableRegistry}.
  */
-public class Distinct extends UnaryPlan implements SurrogateLogicalPlan, TelemetryAware, PostAnalysisVerificationAware {
+public class Dedup extends UnaryPlan implements SurrogateLogicalPlan, TelemetryAware, PostAnalysisVerificationAware {
 
-    public Distinct(Source source, LogicalPlan child) {
+    public Dedup(Source source, LogicalPlan child) {
         super(source, child);
     }
 
     @Override
-    public Distinct replaceChild(LogicalPlan newChild) {
-        return new Distinct(source(), newChild);
+    public Dedup replaceChild(LogicalPlan newChild) {
+        return new Dedup(source(), newChild);
     }
 
     @Override
@@ -47,13 +47,13 @@ public class Distinct extends UnaryPlan implements SurrogateLogicalPlan, Telemet
     }
 
     @Override
-    protected NodeInfo<Distinct> info() {
-        return NodeInfo.create(this, Distinct::new, child());
+    protected NodeInfo<Dedup> info() {
+        return NodeInfo.create(this, Dedup::new, child());
     }
 
     @Override
     public String telemetryLabel() {
-        return "DISTINCT";
+        return "DEDUP";
     }
 
     @Override

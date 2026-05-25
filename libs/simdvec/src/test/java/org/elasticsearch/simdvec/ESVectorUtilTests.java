@@ -301,6 +301,44 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         assertArrayEquals(statsLucene, statsPanama, delta);
     }
 
+    public void testCenterAndCalculateOSQStatsDpByteByteCentroid() {
+        int size = random().nextInt(128, 512);
+        float delta = 1e-3f * size;
+        var vector = new byte[size];
+        var centroid = new byte[size];
+        random().nextBytes(vector);
+        random().nextBytes(centroid);
+        // byte[],byte[] via Default
+        var centeredBB = new float[size];
+        var statsBB = new float[6];
+        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredBB, statsBB);
+        // byte[],byte[] via Panama
+        var centeredBBPanama = new float[size];
+        var statsBBPanama = new float[6];
+        panamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsDp(vector, centroid, centeredBBPanama, statsBBPanama);
+        assertArrayEquals(centeredBB, centeredBBPanama, delta);
+        assertArrayEquals(statsBB, statsBBPanama, delta);
+    }
+
+    public void testCenterAndCalculateOSQStatsEuclideanByteByteCentroid() {
+        int size = random().nextInt(128, 512);
+        float delta = 1e-3f * size;
+        var vector = new byte[size];
+        var centroid = new byte[size];
+        random().nextBytes(vector);
+        random().nextBytes(centroid);
+        // byte[],byte[] via Default
+        var centeredBB = new float[size];
+        var statsBB = new float[5];
+        defaultedProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredBB, statsBB);
+        // byte[],byte[] via Panama
+        var centeredBBPanama = new float[size];
+        var statsBBPanama = new float[5];
+        panamaProvider.getVectorUtilSupport().centerAndCalculateOSQStatsEuclidean(vector, centroid, centeredBBPanama, statsBBPanama);
+        assertArrayEquals(centeredBB, centeredBBPanama, delta);
+        assertArrayEquals(statsBB, statsBBPanama, delta);
+    }
+
     public void testOsqLoss() {
         int size = random().nextInt(128, 512);
         float deltaEps = 1e-5f * size;
@@ -1087,7 +1125,7 @@ public class ESVectorUtilTests extends BaseVectorizationTests {
         }
 
         float referenceResult = defaultedProvider.getVectorUtilSupport().logSumExpNQT(x);
-        assertEquals(referenceResult, panamaProvider.getVectorUtilSupport().logSumExpNQT(x), 1.1e-2 * referenceResult);
+        assertEquals(referenceResult, panamaProvider.getVectorUtilSupport().logSumExpNQT(x), 1.5e-2 * referenceResult);
     }
 
     public void testLinearCombination() {

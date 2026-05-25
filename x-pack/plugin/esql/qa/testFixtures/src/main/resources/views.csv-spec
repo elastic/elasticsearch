@@ -670,7 +670,7 @@ required_capability: views_false_circular_reference_fix
 
 // Reproduces https://github.com/elastic/elasticsearch/issues/146208
 // FROM *,-employees* should not trigger a false circular view reference error.
-FROM *,-employees*
+FROM *,-employees*, -view*row*
 | STATS total = COUNT(*)
 | EVAL at_least_one = total > 0
 | KEEP at_least_one
@@ -687,7 +687,7 @@ required_capability: views_false_circular_reference_fix
 
 // Reproduces https://github.com/elastic/elasticsearch/issues/146208
 // FROM *,-employees_extra,-employees_all should not trigger a false circular view reference error.
-FROM *,-employees_extra,-employees_all
+FROM *,-employees_extra,-employees_all, -view*row*
 | STATS total = COUNT(*)
 | EVAL at_least_one = total > 0
 | KEEP at_least_one
@@ -720,4 +720,258 @@ FROM view_with_subquery, addresses
 
 c:long
 103
+;
+
+// Views whose definition uses ROW as the source command (and ROW inside a FROM subquery)
+// mirror subquery ROW coverage in subquery.csv-spec — validate parse-time acceptance on PUT view
+// and correct resolution when querying BY VIEW NAME.
+
+viewRowConstantsBody
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+FROM view_row_constants
+| SORT seed, label
+;
+
+seed:integer | label:keyword
+1            | row_view_constants
+;
+
+viewRowEvalBody
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+FROM view_row_eval
+| SORT multiplier
+;
+
+multiplier:integer | triple:integer
+3                  | 9
+;
+
+viewEmployeesRowSubqueryBody
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_in_from_command
+required_capability: subquery_with_row
+
+FROM view_employees_row_subquery
+;
+
+emp_no:integer | languages:integer
+10001          | 2
+99997          | 77
+;
+
+
+// The following tests exercise `view_employees_row_subquery` (whose body is
+// `FROM employees, (ROW ...)`, combining an index pattern, a ROW source subquery and a
+// FROM source subquery) in queries that also reference index patterns via LOOKUP JOIN
+// or wrap the view in an outer `(FROM ...)` subquery. They cannot be expressed by
+// putting the view as a sibling of another subquery in the outer FROM clause because
+// that would leave a nested UnionAll after view expansion (rejected by the
+// "Nested subqueries are not supported" verification, see UnionAll#checkNestedUnionAlls).
+
+viewEmployeesRowSubqueryWithLookupJoin
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_with_row
+required_capability: join_lookup_v12
+
+// The view body resolves to the `employees` index pattern and a `(ROW ...)` subquery;
+// the outer pipeline LOOKUP JOINs against the `languages_lookup` index pattern. The
+// matching employee row (10001, languages=2) resolves to French; the synthesised ROW
+// row (99997, languages=77) has no matching lookup value, so its language_name is null.
+FROM view_employees_row_subquery
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT emp_no
+| KEEP emp_no, languages, language_name
+;
+
+emp_no:integer | languages:integer | language_name:keyword
+10001          | 2                 | French
+99997          | 77                | null
+;
+
+
+viewEmployeesRowSubqueryInFromSubquery
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_with_row
+
+// Wrap the view in an outer `(FROM ...)` subquery so the query references the
+// row-subquery view, an index pattern (`employees`, expanded from the view body) and a
+// FROM subquery at the outer level.
+FROM (FROM view_employees_row_subquery | WHERE languages > 1)
+| SORT emp_no
+;
+
+emp_no:integer | languages:integer
+10001          | 2
+99997          | 77
+;
+
+
+viewEmployeesRowSubqueryInFromSubqueryWithLookupJoin
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_with_row
+required_capability: join_lookup_v12
+
+// Combine all three: a FROM subquery wraps the row-subquery view, and the outer
+// pipeline LOOKUP JOINs against an index pattern.
+FROM (FROM view_employees_row_subquery | EVAL language_code = languages)
+| LOOKUP JOIN languages_lookup ON language_code
+| SORT emp_no
+| KEEP emp_no, languages, language_name
+;
+
+emp_no:integer | languages:integer | language_name:keyword
+10001          | 2                 | French
+99997          | 77                | null
+;
+
+
+viewEmployeesRowSubqueryInFromSubqueryWithStats
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_with_row
+required_capability: join_lookup_v12
+
+// FROM subquery around the row-subquery view, LOOKUP JOIN against an index pattern,
+// then aggregate. The matching employee row contributes to the "French" bucket; the
+// synthesised ROW row falls into the null-language_name bucket.
+FROM (FROM view_employees_row_subquery | EVAL language_code = languages)
+| LOOKUP JOIN languages_lookup ON language_code
+| STATS c = COUNT(*), max_emp = MAX(emp_no), max_lang = MAX(languages) BY language_name
+| SORT language_name NULLS LAST
+;
+
+c:long | max_emp:integer | max_lang:integer | language_name:keyword
+1      | 10001           | 2                | French
+1      | 99997           | 77               | null
+;
+
+
+viewRowConstantsAndViewRowEval
+required_capability: subquery_in_from_command
+required_capability: views_with_no_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_with_row
+
+// Compose two row-body views as siblings in FROM. Each view contributes a single row
+// with its own (disjoint) schema, so the UnionAll output has all four columns with
+// nulls filling the rows from the other view.
+FROM view_row_constants, view_row_eval
+| SORT seed
+;
+
+seed:integer | label:keyword      | multiplier:integer | triple:integer
+1            | row_view_constants | null               | null
+null         | null               | 3                  | 9
+;
+
+
+// The following tests mix an index pattern and a view whose body uses ROW as the
+// source command in a single FROM clause. The merged schema includes the columns
+// from both sides; index documents have nulls for the row-body view columns and
+// the synthesised ROW row has nulls for the index-only columns.
+
+mixedIndexWithViewRowConstants
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_with_row
+
+FROM sample_data, view_row_constants
+| STATS sd = COUNT(client_ip), vrc = COUNT(seed), total = COUNT()
+;
+
+sd:long | vrc:long | total:long
+7       | 1        | 8
+;
+
+
+mixedIndexWithViewRowEval
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_with_row
+
+// The view body is `ROW multiplier = 3 | EVAL triple = multiplier * 3`, so both
+// `multiplier` and the EVAL-derived `triple` are visible at the outer level.
+FROM sample_data, view_row_eval
+| STATS sd = COUNT(client_ip), vre = COUNT(multiplier), tr = COUNT(triple), total = COUNT()
+;
+
+sd:long | vre:long | tr:long | total:long
+7       | 1        | 1       | 8
+;
+
+
+mixedIndexWithMultipleViewRows
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_with_row
+
+// An index pattern combined with two ROW-body views as siblings: each view
+// contributes a single synthesised row, so the total is sample_data + 2.
+FROM sample_data, view_row_constants, view_row_eval
+| STATS sd = COUNT(client_ip), vrc = COUNT(seed), vre = COUNT(multiplier), total = COUNT()
+;
+
+sd:long | vrc:long | vre:long | total:long
+7       | 1        | 1        | 9
+;
+
+
+mixedIndexWithViewRowProjected
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_with_row
+
+// Project columns from both sides to confirm the schema union: the synthesised
+// ROW row carries `seed`/`label` with nulls for the index-only fields, while
+// sample_data rows have nulls for the row-body view columns.
+FROM sample_data, view_row_constants
+| KEEP client_ip, message, seed, label
+| SORT seed NULLS LAST, message ASC
+| LIMIT 4
+;
+
+client_ip:ip | message:keyword       | seed:integer | label:keyword
+null         | null                  | 1            | row_view_constants
+172.21.3.15  | Connected to 10.1.0.1 | null         | null
+172.21.2.113 | Connected to 10.1.0.2 | null         | null
+172.21.2.162 | Connected to 10.1.0.3 | null         | null
+;
+
+
+mixedIndexWithViewRowInFromSubquery
+required_capability: subquery_in_from_command
+required_capability: views_with_branching
+required_capability: views_crud_as_index_actions
+required_capability: subquery_with_row
+
+// Wrap the mix of an index pattern and a ROW-body view in an outer `(FROM ...)`
+// subquery so the row-body view participates in nested subquery resolution.
+FROM (FROM sample_data, view_row_eval | WHERE multiplier IS NOT NULL OR client_ip IS NOT NULL)
+| STATS total = COUNT(), tr = COUNT(triple)
+;
+
+total:long | tr:long
+8          | 1
 ;

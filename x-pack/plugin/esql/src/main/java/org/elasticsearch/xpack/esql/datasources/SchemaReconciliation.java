@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -35,6 +37,19 @@ import java.util.Set;
  * <p>
  * Type widening is intentionally conservative: only lossless promotions are allowed.
  * This is NOT {@code EsqlDataTypeConverter.commonType()}, which allows LONG→DOUBLE (lossy above 2^53).
+ * <p>
+ * Under {@code UNION_BY_NAME}, any pair the lossless table cannot widen falls back to
+ * {@link DataType#KEYWORD} (the cross-type join): values from numerically-typed files are stringified
+ * via {@code ColumnMapping}'s per-block cast and a single response {@code Warning} header per
+ * affected column tells the user what happened. This matches the industry baseline (DuckDB,
+ * ClickHouse, Spark all widen to string as the cross-type floor) and turns "samplers disagreed"
+ * — the normal steady state for sampling-based readers — from a hard error into a benign
+ * widening. Users who want the strict-mismatch error can opt into {@code schema_resolution =
+ * "strict"} which still throws.
+ * <p>
+ * The lossy {@code LONG + DOUBLE} pair is *not* covered by the lossless table on purpose
+ * (precision loss above 2^53). Under UBN it goes to {@code KEYWORD}, which is louder and safer
+ * than silent precision loss; the lossless table itself stays unchanged.
  *
  * <h2>The four schemas in an external-source query</h2>
  *
@@ -105,7 +120,7 @@ public final class SchemaReconciliation {
 
     /**
      * Safe type widening for schema reconciliation.
-     * Only lossless promotions are allowed; returns null if no safe supertype exists.
+     * Only lossless promotions are allowed; returns {@code null} if no safe supertype exists.
      * <p>
      * Widening rules:
      * <ul>
@@ -113,7 +128,11 @@ public final class SchemaReconciliation {
      *   <li>INTEGER + DOUBLE → DOUBLE (lossless: int32 ≤ 2^31 &lt; 2^53)</li>
      *   <li>DATETIME + DATE_NANOS → DATE_NANOS (more precise type wins)</li>
      * </ul>
-     * All other cross-type pairs return null (incompatible).
+     * All other cross-type pairs return null (no lossless supertype). UBN reconciliation
+     * additionally falls back to {@link DataType#KEYWORD} for those — see
+     * {@link #widenToCommonOrKeyword} and {@link #reconcileUnionByName}. LONG + DOUBLE
+     * deliberately stays out of this table (precision loss above 2^53) and is therefore one of
+     * the pairs that goes to {@code KEYWORD} under UBN.
      *
      * @return the widened type, or null if no safe supertype exists
      */
@@ -141,6 +160,23 @@ public final class SchemaReconciliation {
             return DataType.DATE_NANOS;
         }
         return null;
+    }
+
+    /**
+     * UNION_BY_NAME widening: returns {@link #schemaWiden}'s result when one exists, otherwise
+     * falls back to {@link DataType#KEYWORD} as the cross-type join (lossy for numerics — but
+     * the lossy path is the one that triggers a response {@code Warning} so users see when
+     * stringification happened). Never returns null: every cross-type pair has a defined UBN
+     * answer.
+     * <p>
+     * This is the UBN-specific entry point; {@link #schemaWiden} is intentionally kept as a
+     * separate {@code @Nullable}-returning method so callers that want the strict lossless-only
+     * semantic still have it. The two stay aligned by construction — the KEYWORD branch here
+     * fires only on inputs where {@code schemaWiden} would have returned null.
+     */
+    private static DataType widenToCommonOrKeyword(DataType a, DataType b) {
+        DataType widened = schemaWiden(a, b);
+        return widened != null ? widened : DataType.KEYWORD;
     }
 
     /**
@@ -243,14 +279,22 @@ public final class SchemaReconciliation {
 
     /**
      * UNION_BY_NAME reconciliation: merge schemas from all files into a superset.
-     * Missing columns are NULL-filled; type differences are resolved by safe widening.
+     * Missing columns are NULL-filled; type differences are resolved by safe widening or, when no
+     * lossless supertype exists, by falling back to {@link DataType#KEYWORD} with a per-column
+     * {@code Warning} response header. See the class javadoc for the rationale and the lattice
+     * picture.
      *
      * @param fileMetadata ordered map of file path → metadata (insertion order = file sort order)
      * @return reconciliation result with unified schema and per-file mappings
-     * @throws IllegalArgumentException if types are incompatible
      */
     public static Result reconcileUnionByName(Map<StoragePath, SourceMetadata> fileMetadata) {
         LinkedHashMap<String, MergeEntry> unified = new LinkedHashMap<>();
+        // Per-column accumulator. We record *every* file's inferred type for every column up
+        // front (it's cheap and gives the warning emitter a complete contributor list), then
+        // decide at the end whether the column actually degraded to KEYWORD and a warning is
+        // warranted. Building this lazily inside the merge branch would lose pre-merge files
+        // when a column finally degrades on its third or later file.
+        LinkedHashMap<String, KeywordFallback> contributions = new LinkedHashMap<>();
 
         for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
             StoragePath filePath = entry.getKey();
@@ -260,36 +304,22 @@ public final class SchemaReconciliation {
 
             for (Attribute attr : fileSchema) {
                 String name = attr.name();
+                contributions.computeIfAbsent(name, KeywordFallback::new).add(filePath, attr.dataType());
                 MergeEntry existing = unified.get(name);
                 if (existing == null) {
                     boolean attrNullable = attr.nullable() == Nullability.TRUE || attr.nullable() == Nullability.UNKNOWN;
                     unified.put(name, new MergeEntry(attr.dataType(), attrNullable, filePath));
                 } else {
                     if (existing.type != attr.dataType()) {
-                        DataType widened = schemaWiden(existing.type, attr.dataType());
-                        if (widened == null) {
-                            throw new IllegalArgumentException(
-                                "Cannot merge schemas for column ["
-                                    + name
-                                    + "]: file ["
-                                    + existing.firstSeenIn
-                                    + "] has type ["
-                                    + existing.type.typeName()
-                                    + "], file ["
-                                    + filePath
-                                    + "] has type ["
-                                    + attr.dataType().typeName()
-                                    + "]. No compatible supertype exists."
-                                    + " Consider using an explicit CAST in your query."
-                            );
-                        }
-                        existing.type = widened;
+                        existing.type = widenToCommonOrKeyword(existing.type, attr.dataType());
                     }
                     boolean fileIsNullable = attr.nullable() == Nullability.TRUE || attr.nullable() == Nullability.UNKNOWN;
                     existing.nullable = existing.nullable || fileIsNullable;
                 }
             }
         }
+
+        emitKeywordFallbackWarnings(unified, contributions);
 
         // Mark columns as nullable when missing from any file
         for (Map.Entry<StoragePath, SourceMetadata> entry : fileMetadata.entrySet()) {
@@ -377,6 +407,119 @@ public final class SchemaReconciliation {
             this.type = type;
             this.nullable = nullable;
             this.firstSeenIn = firstSeenIn;
+        }
+    }
+
+    private static boolean isStringType(DataType type) {
+        return type == DataType.KEYWORD || type == DataType.TEXT;
+    }
+
+    /**
+     * Maximum number of contributing file paths quoted in a single per-column warning detail.
+     * Keeps the warning header from blowing up on glob-of-thousands queries; the "+N more" suffix
+     * preserves the cardinality so users know the warning applies to more files than shown.
+     */
+    private static final int MAX_FILES_IN_WARNING_DETAIL = 3;
+
+    private static void emitKeywordFallbackWarnings(
+        LinkedHashMap<String, MergeEntry> unified,
+        LinkedHashMap<String, KeywordFallback> contributions
+    ) {
+        // Decide which columns warrant a warning: column degraded to KEYWORD *and* at least one
+        // contributing file inferred a non-string type. A column that was KEYWORD in every file
+        // (and stayed KEYWORD) is not a degradation — the user-visible type matches the on-disk
+        // inferences and nothing was stringified.
+        List<KeywordFallback> warned = new ArrayList<>();
+        for (Map.Entry<String, MergeEntry> e : unified.entrySet()) {
+            if (e.getValue().type != DataType.KEYWORD) {
+                continue;
+            }
+            KeywordFallback fb = contributions.get(e.getKey());
+            if (fb != null && fb.hasNonStringContributor()) {
+                warned.add(fb);
+            }
+        }
+        if (warned.isEmpty()) {
+            return;
+        }
+        // Fire-and-forget: SkipWarnings#add deposits headers on the current thread context via
+        // HeaderWarning.addWarning. The local is not stored anywhere — the side effect *is* the
+        // emit. Same pattern as other SkipWarnings callers (e.g. format readers under non-strict
+        // error policy).
+        SkipWarnings warnings = new SkipWarnings(
+            "Schema reconciliation widened columns to keyword due to cross-file type disagreement;"
+                + " values are returned as strings. Hint: use schema_resolution = \"strict\" to fail instead."
+        );
+        for (KeywordFallback fb : warned) {
+            warnings.add(fb.buildDetail());
+        }
+    }
+
+    /**
+     * Per-column accumulator: every file that contributed a value for the column, together with
+     * that file's inferred type. Insertion-ordered so the emitted message reflects the user's
+     * glob order. Recording is unconditional during merge; the emit step decides whether the
+     * column actually degraded to {@code KEYWORD} and only then turns this into a warning.
+     */
+    private static final class KeywordFallback {
+        private final String columnName;
+        private final LinkedHashMap<StoragePath, DataType> contributions = new LinkedHashMap<>();
+
+        KeywordFallback(String columnName) {
+            this.columnName = columnName;
+        }
+
+        void add(StoragePath file, DataType inferredType) {
+            // First inference wins per (column, file). A single file can't contribute two
+            // different types for the same column (validateNoDuplicateColumns guarantees
+            // unique names within a file), so putIfAbsent and put are equivalent here — use
+            // putIfAbsent for clarity-of-intent.
+            contributions.putIfAbsent(file, inferredType);
+        }
+
+        boolean hasNonStringContributor() {
+            for (DataType type : contributions.values()) {
+                if (isStringType(type) == false) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        String buildDetail() {
+            // Pair each file with its inferred type — "file (type), file (type), …" — so users
+            // can tell at a glance which file disagreed instead of cross-referencing two lists.
+            // Long file lists are truncated with a "+N more" suffix; the distinct-type roll-up
+            // at the end preserves the legacy summary so users get an at-a-glance type picture
+            // even when files are truncated.
+            StringBuilder sb = new StringBuilder("Column [").append(columnName).append("] widened to keyword: ");
+            int shown = 0;
+            int total = contributions.size();
+            for (Map.Entry<StoragePath, DataType> e : contributions.entrySet()) {
+                if (shown == MAX_FILES_IN_WARNING_DETAIL && total > MAX_FILES_IN_WARNING_DETAIL) {
+                    sb.append(", +").append(total - shown).append(" more");
+                    break;
+                }
+                if (shown > 0) {
+                    sb.append(", ");
+                }
+                sb.append(e.getKey()).append(" (").append(e.getValue().typeName()).append(")");
+                shown++;
+            }
+            LinkedHashSet<DataType> distinctTypes = new LinkedHashSet<>(contributions.values());
+            if (distinctTypes.size() > 1) {
+                sb.append("; distinct types: [");
+                int t = 0;
+                for (DataType type : distinctTypes) {
+                    if (t > 0) {
+                        sb.append(", ");
+                    }
+                    sb.append(type.typeName());
+                    t++;
+                }
+                sb.append("]");
+            }
+            return sb.toString();
         }
     }
 

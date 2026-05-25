@@ -612,3 +612,6 @@ tests:
 - class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
   method: testSeqNoPrunedOnLeaderAfterFollowerCatchesUp
   issue: https://github.com/elastic/elasticsearch/issues/149834
+- class: org.elasticsearch.test.apmintegration.OtelMetricsIT
+  method: testOTelHealthMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/149835

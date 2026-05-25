@@ -213,8 +213,4 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
         return "[" + parsedDocument.id() + "]";
     }
 
-    @Override
-    public String reindexId(String id) {
-        return id;
-    }
 }

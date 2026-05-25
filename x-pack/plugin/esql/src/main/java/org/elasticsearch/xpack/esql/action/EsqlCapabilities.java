@@ -425,9 +425,24 @@ public class EsqlCapabilities {
         FLATTENED_DATATYPE_SORTED_KEYS(Build.current().isSnapshot()),
 
         /**
+         * Flattened fields apply {@code null_value} replacement when loading from {@code _source},
+         * matching the doc-values behaviour applied at index time.
+         */
+        FLATTENED_DATATYPE_NULL_VALUE(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code field_extract} function, which reads a sub-key from a {@code flattened} field root.
          */
         FIELD_EXTRACT_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Pushdown optimizations for {@code field_extract(<flattened root>, "<literal key>")}: block-loader
+         * fusion that reads the keyed sub-field's doc values directly, and Lucene query pushdown for
+         * {@code ==}, {@code !=}, and {@code IN} against the same shape. Tests that depend on the fused
+         * multi-value output or on the {@code SingleValueQuery} warning text must require this capability
+         * so they skip on mixed clusters where any data node still runs the per-row evaluator.
+         */
+        FIELD_EXTRACT_FLATTENED_PUSHDOWN(Build.current().isSnapshot()),
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -1294,6 +1309,11 @@ public class EsqlCapabilities {
         WHERE_IN_SUBQUERY(Build.current().isSnapshot()),
 
         /**
+         * Support ROW as a source command inside subquery in the from command.
+         */
+        SUBQUERY_WITH_ROW(Build.current().isSnapshot()),
+
+        /**
          * Support for views in cluster state (and REST API).
          */
         VIEWS_IN_CLUSTER_STATE,
@@ -2151,6 +2171,12 @@ public class EsqlCapabilities {
         PROMQL_ABSENT_LABEL_MATCHING,
 
         /**
+         * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
+         * into one multi-valued row per series.
+         */
+        TS_COLLAPSE,
+
+        /**
          * Support for`WITHOUT` grouping function
          * that excludes specific dimensions from time-series grouping.
          */
@@ -2432,6 +2458,35 @@ public class EsqlCapabilities {
         EXTERNAL_SOURCE_READ_SCHEMA(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * Always-on {@code _file.*} virtual columns ({@code _file.path}, {@code _file.name}, {@code _file.directory},
+         * {@code _file.size}, {@code _file.modified}) added to every external-source schema. Older coordinators do
+         * not know these columns and fail verification with {@code Unknown column [_file.*]} when CCQ routes a query
+         * against a remote cluster on a pre-feature build, so {@code fileMetadata*} csv-spec tests must be gated on
+         * this capability rather than on {@link #EXTERNAL_COMMAND}.
+         */
+        EXTERNAL_SOURCE_FILE_METADATA_COLUMNS(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
+         * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
+         * Parquet (Java) and ORC external sources. Gated so format readers that do not yet
+         * implement nested support (parquet-rs, csv, ndjson, etc.) skip the csv-spec tests
+         * until they catch up.
+         *
+         * <p>Tracks: elastic/esql-planning#435 (this PR) and elastic/esql-planning#320
+         * (correctness gap for Parquet-Java MAP/STRUCT/nested LIST).
+         */
+        EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
+         * Multi-file external UNION_BY_NAME widens cross-file type disagreements to KEYWORD
+         * instead of throwing at planning time. The reconciler emits a warning header per
+         * affected column, the per-file ColumnMapping carries a stringification cast, and the
+         * reader's output is adapted via SchemaAdaptingIterator. STRICT mode still throws.
+         * See esql-planning#794.
+         */
+        EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
          * Gated on the same flag as {@link #EXTERNAL_COMMAND}.
          */
@@ -2586,7 +2641,7 @@ public class EsqlCapabilities {
         /**
          * TSDB Temporality support which is guarded by a feature flag.
          */
-        TSDB_TEMPORALITY_SUPPORT_V6(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+        TSDB_TEMPORALITY_SUPPORT_V7(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
 
         /**
          * Support the null column type for the CHANGE_POINT command
@@ -2715,7 +2770,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation with LOOKUP JOIN
          */
-        APPROXIMATION_LOOKUP_JOIN(Build.current().isSnapshot()),
+        APPROXIMATION_LOOKUP_JOIN_V2(Build.current().isSnapshot()),
 
         /**
          * Support query approximation with INLINE STATS
@@ -2799,6 +2854,12 @@ public class EsqlCapabilities {
         FN_NOT_EQUALS_FLATTENED(Build.current().isSnapshot()),
 
         /**
+         * Support for using a {@code flattened} field as a grouping key in
+         * {@code STATS … BY} and {@code LIMIT N BY}.
+         */
+        GROUP_BY_FLATTENED(Build.current().isSnapshot()),
+
+        /**
          * Fix for {@code ReorderLimitProjectAndOrderBy} unconditionally lifting an {@code OrderBy} above a renaming/dropping
          * {@code Project}: it now rewrites the {@code OrderBy}'s references through the {@code Project}'s aliases (so a sort on
          * a renamed column stays valid) and bails out of the swap if a referenced column is dropped altogether.
@@ -2807,6 +2868,17 @@ public class EsqlCapabilities {
          * </p>
          */
         FIX_REORDER_LIMIT_PROJECT_AND_ORDER_BY_PRESERVES_REFS,
+
+        /**
+         * Support query approximation with FORK and subqueries.
+         */
+        APPROXIMATION_FORK(Build.current().isSnapshot()),
+
+        /**
+         * Support FIRST aggregation on extended types: version, unsigned_long, geo_point,
+         * cartesian_point, geo_shape, cartesian_shape, geohash, geotile, geohex.
+         */
+        FIRST_AGG_EXTENDED_TYPES,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

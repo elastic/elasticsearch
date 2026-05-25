@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.DimensionValues;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.TimeSeriesAggregateFunction;
@@ -167,7 +168,8 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
     }
 
     @Override
-    protected LogicalPlan rule(TimeSeriesAggregate aggregate, LogicalOptimizerContext context) {
+    protected LogicalPlan rule(TimeSeriesAggregate inputAggregate, LogicalOptimizerContext context) {
+        TimeSeriesAggregate aggregate = replaceSurrogateTimeseriesAggs(inputAggregate);
         Holder<Attribute> tsid = new Holder<>();
         aggregate.forEachDown(EsRelation.class, r -> {
             for (Attribute attr : r.output()) {
@@ -338,8 +340,7 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             mergeExpressions(firstPassAggs, firstPassGroupings),
             internalBucket != null ? internalBucket : userBucket,
             userBucket,
-            aggregate.timestamp(),
-            aggregate.isCollapsed()
+            aggregate.timestamp()
         );
         checkWindow(firstPhase);
         if (packDimensions.isEmpty()) {
@@ -372,6 +373,18 @@ public final class TranslateTimeSeriesAggregate extends OptimizerRules.Parameter
             }
             return new Project(newChild.source(), unpackValues, projects);
         }
+    }
+
+    private TimeSeriesAggregate replaceSurrogateTimeseriesAggs(TimeSeriesAggregate aggregate) {
+        return (TimeSeriesAggregate) aggregate.transformExpressionsOnly(TimeSeriesAggregateFunction.class, aggFunc -> {
+            if (aggFunc instanceof SurrogateExpression) {
+                Expression replacement = ((SurrogateExpression) aggFunc).surrogate();
+                if (replacement != null) {
+                    return replacement;
+                }
+            }
+            return aggFunc;
+        });
     }
 
     private void addBucket(

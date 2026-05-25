@@ -18,6 +18,7 @@ public final class GeoPointScriptDocValues extends SortedNumericLongValues {
     private int cursor;
 
     GeoPointScriptDocValues(GeoPointFieldScript script) {
+        super(null);
         this.script = script;
     }
 

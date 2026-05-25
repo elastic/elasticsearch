@@ -16,9 +16,11 @@ import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
 import org.apache.parquet.filter2.predicate.Operators;
 import org.apache.parquet.io.api.Binary;
+import org.apache.parquet.schema.GroupType;
 import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
+import org.apache.parquet.schema.Type;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -27,6 +29,7 @@ import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -34,7 +37,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.datasources.pushdown.ByteMatchers;
+import org.elasticsearch.xpack.esql.core.util.ByteMatchers;
 import org.elasticsearch.xpack.esql.datasources.pushdown.StringPrefixUtils;
 import org.elasticsearch.xpack.esql.datasources.pushdown.WildcardLikeShape;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -395,7 +398,12 @@ final class ParquetPushedExpressions {
         return switch (dataType) {
             case INTEGER -> orderedPredicate(FilterApi.intColumn(columnName), value != null ? ((Number) value).intValue() : null, op);
             case LONG -> orderedPredicate(FilterApi.longColumn(columnName), value != null ? ((Number) value).longValue() : null, op);
-            case DOUBLE -> orderedPredicate(FilterApi.doubleColumn(columnName), value != null ? ((Number) value).doubleValue() : null, op);
+            case DOUBLE -> {
+                if (isPhysicalDouble(schema, columnName)) {
+                    yield orderedPredicate(FilterApi.doubleColumn(columnName), value != null ? ((Number) value).doubleValue() : null, op);
+                }
+                yield null;
+            }
             case KEYWORD -> orderedPredicate(FilterApi.binaryColumn(columnName), value != null ? toBinary(value) : null, op);
             case BOOLEAN -> {
                 var col = FilterApi.booleanColumn(columnName);
@@ -411,11 +419,77 @@ final class ParquetPushedExpressions {
         };
     }
 
+    /**
+     * Returns {@code true} when the file's physical primitive at {@code columnName} (which may be
+     * a dotted path into a nested STRUCT) is {@link PrimitiveType.PrimitiveTypeName#DOUBLE}.
+     */
+    private static boolean isPhysicalDouble(MessageType schema, String columnName) {
+        PrimitiveType primitive = resolveNestedPrimitive(schema, columnName);
+        if (primitive == null) {
+            return false;
+        }
+        return primitive.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.DOUBLE;
+    }
+
+    /**
+     * Resolves a (possibly dotted) {@code name} to the leaf {@link PrimitiveType} in {@code schema}.
+     * Applies the same D2 precedence as the prior PR's projection-time flattener: a literal
+     * top-level field named exactly {@code "a.b.c"} wins over the dotted-path traversal
+     * {@code a -> b -> c}. Returns {@code null} when the path is missing or lands on a group
+     * (e.g. an intermediate STRUCT, MAP, or LIST) rather than a primitive — predicate pushdown
+     * is only meaningful at primitive leaves.
+     *
+     * <p>This is the single dotted-path resolver used by {@link #isPhysicalDouble} and
+     * {@link #buildDatetimePredicate} (and {@link #translateDatetimeIn}). Translation of the
+     * raw column name into a parquet-mr {@link Operators.Column} happens via
+     * {@link FilterApi#binaryColumn(String)} etc. which internally build a multi-segment
+     * {@link org.apache.parquet.hadoop.metadata.ColumnPath} via
+     * {@code ColumnPath.fromDotString} — so the dotted name flows end-to-end through the row
+     * group filter without any additional wrapping here.
+     */
+    @Nullable
+    static PrimitiveType resolveNestedPrimitive(MessageType schema, String dottedName) {
+        if (schema.containsField(dottedName)) {
+            Type leaf = schema.getType(dottedName);
+            return leaf.isPrimitive() ? leaf.asPrimitiveType() : null;
+        }
+        // Walk left-to-right, allowing literal-dot top-level prefixes to compose with nested
+        // children — the exact-name fast path above already handled the no-dot case. Probe each
+        // prefix via substring rather than re-joining segments on every iteration; when
+        // {@code dottedName} has no dot at all the loop is skipped and we return null below.
+        String[] segments = dottedName.split("\\.");
+        int probeDot = dottedName.indexOf('.');
+        int prefixLen = 1;
+        while (probeDot >= 0) {
+            String topLevel = dottedName.substring(0, probeDot);
+            if (schema.containsField(topLevel)) {
+                Type field = schema.getType(topLevel);
+                for (int i = prefixLen; i < segments.length; i++) {
+                    if (field.isPrimitive()) {
+                        return null;
+                    }
+                    GroupType group = field.asGroupType();
+                    if (group.containsField(segments[i]) == false) {
+                        field = null;
+                        break;
+                    }
+                    field = group.getType(segments[i]);
+                }
+                if (field != null && field.isPrimitive()) {
+                    return field.asPrimitiveType();
+                }
+            }
+            probeDot = dottedName.indexOf('.', probeDot + 1);
+            prefixLen++;
+        }
+        return null;
+    }
+
     private static FilterPredicate buildDatetimePredicate(String columnName, Object value, PredicateOp op, MessageType schema) {
-        if (schema.containsField(columnName) == false) {
+        PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
+        if (ptype == null) {
             return null;
         }
-        PrimitiveType ptype = schema.getType(columnName).asPrimitiveType();
         LogicalTypeAnnotation logical = ptype.getLogicalTypeAnnotation();
 
         if (value == null) {
@@ -492,7 +566,12 @@ final class ParquetPushedExpressions {
         return switch (dataType) {
             case INTEGER -> inPredicate(FilterApi.intColumn(columnName), rawValues, v -> ((Number) v).intValue());
             case LONG -> inPredicate(FilterApi.longColumn(columnName), rawValues, v -> ((Number) v).longValue());
-            case DOUBLE -> inPredicate(FilterApi.doubleColumn(columnName), rawValues, v -> ((Number) v).doubleValue());
+            case DOUBLE -> {
+                if (isPhysicalDouble(schema, columnName)) {
+                    yield inPredicate(FilterApi.doubleColumn(columnName), rawValues, v -> ((Number) v).doubleValue());
+                }
+                yield null;
+            }
             case KEYWORD -> inPredicate(FilterApi.binaryColumn(columnName), rawValues, ParquetPushedExpressions::toBinary);
             case BOOLEAN -> inPredicate(FilterApi.booleanColumn(columnName), rawValues, v -> (Boolean) v);
             case DATETIME -> translateDatetimeIn(columnName, rawValues, schema);
@@ -501,10 +580,10 @@ final class ParquetPushedExpressions {
     }
 
     private static FilterPredicate translateDatetimeIn(String columnName, List<Object> rawValues, MessageType schema) {
-        if (schema.containsField(columnName) == false) {
+        PrimitiveType ptype = resolveNestedPrimitive(schema, columnName);
+        if (ptype == null) {
             return null;
         }
-        PrimitiveType ptype = schema.getType(columnName).asPrimitiveType();
         LogicalTypeAnnotation logical = ptype.getLogicalTypeAnnotation();
         try {
             return switch (ptype.getPrimitiveTypeName()) {
@@ -1468,7 +1547,7 @@ final class ParquetPushedExpressions {
      */
     private static boolean[] matchingDictionaryEntries(BytesRefVector dictionary, Predicate<BytesRef> matcher) {
         int size = dictionary.getPositionCount();
-        boolean[] matches = new boolean[size];
+        boolean[] matches = UninitializedArrays.newBooleanArray(size);
         BytesRef scratch = new BytesRef();
         for (int i = 0; i < size; i++) {
             matches[i] = matcher.test(dictionary.getBytesRef(i, scratch));

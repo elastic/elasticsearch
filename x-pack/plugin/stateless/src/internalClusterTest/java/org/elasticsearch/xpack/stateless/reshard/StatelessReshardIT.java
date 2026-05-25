@@ -52,11 +52,14 @@ import org.elasticsearch.action.termvectors.TermVectorsResponse;
 import org.elasticsearch.action.termvectors.TransportShardMultiTermsVectorAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateObserver;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.coordination.PublicationTransportHandler;
+import org.elasticsearch.cluster.health.ClusterHealthStatus;
+import org.elasticsearch.cluster.health.ClusterStateHealth;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
@@ -4553,6 +4556,45 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
 
             doneBlocked.countDown();
             waitForReshardCompletion(indexName);
+        }
+    }
+
+    public void testHealthNeverGoesRedDuringResharding() {
+        var indexNode = startMasterAndIndexNode();
+        startSearchNode();
+        ensureStableCluster(2);
+
+        final String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        int numShards = randomIntBetween(1, 5);
+        createIndex(indexName, indexSettings(numShards, 1).build());
+        ensureGreen(indexName);
+
+        final ClusterService clusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var projectId = clusterService.state().metadata().getProject().id();
+        final AtomicReference<AssertionError> failure = new AtomicReference<>();
+        ClusterStateListener listener = event -> {
+            var health = new ClusterStateHealth(event.state(), new String[] { indexName }, projectId);
+            if (health.getStatus() == ClusterHealthStatus.RED) {
+                failure.compareAndSet(null, new AssertionError("cluster turned red during reshard:\n" + event.state().routingTable()));
+            }
+        };
+        clusterService.addListener(listener);
+
+        try {
+            int numDocs = randomIntBetween(10, 100);
+            indexDocs(indexName, numDocs);
+            refresh(indexName);
+            assertHitCount(prepareSearchAll(indexName), numDocs);
+
+            client(indexNode).execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName)).actionGet();
+            waitForReshardCompletion(indexName);
+            ensureGreen(indexName);
+            assertHitCount(prepareSearchAll(indexName), numDocs);
+        } finally {
+            clusterService.removeListener(listener);
+        }
+        if (failure.get() != null) {
+            throw failure.get();
         }
     }
 

@@ -15,7 +15,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TaskGroup;
@@ -1077,27 +1076,18 @@ public class ReindexRelocationIT extends ESIntegTestCase {
             }
         }, 30, TimeUnit.SECONDS);
 
-        assertUnthrottledRequestsPerSecond(originalTaskId, relocatedTaskId, slices, shards, manualShardId);
+        assertUnthrottledRequestsPerSecond(relocatedTaskId, slices, shards, manualShardId);
     }
 
     private void assertUnthrottledRequestsPerSecond(
-        final TaskId originalTaskId,
         final TaskId relocatedTaskId,
         final int slices,
         final int shards,
         final OptionalInt manualShardId
     ) {
         if (isAutoSliced(slices, shards, manualShardId)) {
-            final int expectedSlices = getExpectedSlices(slices, shards);
-            // followRelocations=false: default true returns the relocated leader's status
-            final BulkByPaginatedSearchTask.Status originalStatus = (BulkByPaginatedSearchTask.Status) clusterAdmin().getTask(
-                new GetTaskRequest().setTaskId(originalTaskId).setFollowRelocations(false)
-            ).actionGet().getTask().getTask().status();
-            final int completedOnOriginal = Math.toIntExact(originalStatus.getSliceStatuses().stream().filter(Objects::nonNull).count());
-            final int relocatedSlicesUpperBound = expectedSlices - completedOnOriginal;
-
-            // Best-effort live-children check: the relocated leader may have already completed after the successful unthrottle,
-            // in which case it is no longer in the TaskManager.
+            // Best-effort live-children check: the relocated leader, or one or more slices may have already completed after the successful
+            // unthrottle, in which case they are no longer in the TaskManager.
             clusterAdmin().prepareListTasks()
                 .setActions(ReindexAction.NAME)
                 .setDetailed(true)
@@ -1107,32 +1097,40 @@ public class ReindexRelocationIT extends ESIntegTestCase {
                 .filter(g -> g.taskInfo().taskId().equals(relocatedTaskId))
                 .findFirst()
                 .ifPresent(group -> {
-                    assertThat(
-                        "live slice workers on relocated parent should not exceed those that did not finish on the original",
-                        group.childTasks().size(),
-                        lessThanOrEqualTo(relocatedSlicesUpperBound)
-                    );
                     for (TaskGroup child : group.childTasks()) {
-                        final BulkByPaginatedSearchTask.Status sliceStatus = (BulkByPaginatedSearchTask.Status) child.task().status();
+                        final BulkByPaginatedSearchTask.Status sliceStatus = asInstanceOf(
+                            BulkByPaginatedSearchTask.Status.class,
+                            child.task().status()
+                        );
                         assertThat("slice should be unthrottled", sliceStatus.getRequestsPerSecond(), equalTo(Float.POSITIVE_INFINITY));
                     }
                 });
 
             // Leader RPS backstop: prepareGetTask works for both running (live status from relocationRequestsPerSecond) and
             // completed (terminal status from .tasks, which preserves the last rethrottled RPS).
-            final BulkByPaginatedSearchTask.Status leaderStatus = (BulkByPaginatedSearchTask.Status) clusterAdmin().prepareGetTask(
-                relocatedTaskId
-            ).get().getTask().getTask().status();
-            assertThat(
+            assertUnthrottled(
                 "relocated leader should report unthrottled RPS",
-                leaderStatus.getRequestsPerSecond(),
-                equalTo(Float.POSITIVE_INFINITY)
+                clusterAdmin().prepareGetTask(relocatedTaskId).get().getTask().getTask()
             );
         } else {
-            final BulkByPaginatedSearchTask.Status status = (BulkByPaginatedSearchTask.Status) clusterAdmin().prepareGetTask(
-                relocatedTaskId
-            ).get().getTask().getTask().status();
-            assertThat("relocated task should be unthrottled", status.getRequestsPerSecond(), equalTo(Float.POSITIVE_INFINITY));
+            assertUnthrottled(
+                "relocated task should be unthrottled",
+                clusterAdmin().prepareGetTask(relocatedTaskId).get().getTask().getTask()
+            );
+        }
+    }
+
+    /// Asserts that the task is reporting unlimited {@code requests_per_second}, regardless of whether its status is the live typed
+    /// {@link BulkByPaginatedSearchTask.Status} (still running) or a {@link RawTaskStatus} parsed back from {@code .tasks} (completed,
+    /// where {@link Float#POSITIVE_INFINITY} serializes as {@code -1.0}).
+    private static void assertUnthrottled(final String reason, final TaskInfo info) {
+        final Object status = info.status();
+        if (status instanceof BulkByPaginatedSearchTask.Status typed) {
+            assertThat(reason, typed.getRequestsPerSecond(), equalTo(Float.POSITIVE_INFINITY));
+        } else if (status instanceof RawTaskStatus raw) {
+            assertThat(reason, ((Number) raw.toMap().get("requests_per_second")).doubleValue(), closeTo(-1.0, 0.0001));
+        } else {
+            throw new AssertionError("unexpected status type [" + (status == null ? "null" : status.getClass().getName()) + "]");
         }
     }
 

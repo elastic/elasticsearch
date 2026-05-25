@@ -14,11 +14,30 @@ interface PipelineStep {
   // Optional so the analyze step can inherit the parent PR pipeline's default
   // agent (which has npm). Batch steps still set this to the gradle-tuned image.
   agents?: AgentConfig["agents"];
-  soft_fail: boolean;
   parallelism?: number;
   env?: Record<string, string>;
   depends_on?: { step: string; allow_failure: boolean }[];
   artifact_paths?: string;
+}
+
+// Wraps a shell command so it always exits 0. If the wrapped command exits
+// non-zero, a Buildkite warning annotation is appended so the failure is still
+// visible on the build, but the step's state stays "passed" so that Buildkite's
+// per-step and group-aggregate GitHub commit statuses report success.
+//
+// soft_fail is not used because Buildkite's GitHub commit-status integration
+// mirrors step.state ("failed") and ignores the soft_failed flag, so a
+// soft_fail step that exits non-zero still surfaces as a red check on the PR.
+function wrapNeverFail(command: string, contextKey: string): string {
+  return [
+    "set +e",
+    command,
+    "rc=$?",
+    `if [ "$rc" -ne 0 ]; then`,
+    `  buildkite-agent annotate --style warning --context "${contextKey}-failures" --append "[$BUILDKITE_LABEL] (job $BUILDKITE_JOB_ID) exited with $rc - see job log"`,
+    "fi",
+    "exit 0",
+  ].join("\n");
 }
 
 // Each BK step runs on its own fresh agent — workspaces are not shared. To get
@@ -58,17 +77,16 @@ export function toBuildkitePipeline(
     const step: PipelineStep = {
       label: head.label,
       key,
-      command: head.command,
+      command: wrapNeverFail(head.command, key),
       timeout_in_minutes: cfg.timeoutInMinutes,
       agents: { ...cfg.agents },
-      soft_fail: cfg.softFail,
       artifact_paths: TEST_RESULTS_ARTIFACTS,
     };
 
     if (batches.length > 1) {
       const env: Record<string, string> = {};
       for (let i = 0; i < batches.length; i++) {
-        env[`BATCH_COMMAND_${i}`] = batches[i].command;
+        env[`BATCH_COMMAND_${i}`] = wrapNeverFail(batches[i].command, key);
       }
       step.command = 'VARNAME="BATCH_COMMAND_${BUILDKITE_PARALLEL_JOB}"; eval "$${!VARNAME}"';
       step.parallelism = batches.length;
@@ -86,17 +104,19 @@ export function toBuildkitePipeline(
       // then run the analyzer. The download preserves the upload paths so
       // the analyzer finds files at the same `*/build/test-results/...`
       // locations a local run would see.
-      command: [
-        "npm install -g bun@1.3.13",
-        `buildkite-agent artifact download "${TEST_RESULTS_ARTIFACTS}" .`,
-        "bun .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts",
-      ].join("\n"),
+      command: wrapNeverFail(
+        [
+          "npm install -g bun@1.3.13",
+          `buildkite-agent artifact download "${TEST_RESULTS_ARTIFACTS}" .`,
+          "bun .buildkite/scripts/flakiness-detection/entrypoints/analyze.ts",
+        ].join("\n"),
+        "flakiness-detection:analyze"
+      ),
       timeout_in_minutes: 10,
       // Intentionally no `agents:` — the analyze step is lightweight markdown
       // rendering and should not pin to the gradle-tuned `cfg.agents` image
       // (that image lacks npm). Letting BK pick the parent pipeline default
       // gives us an agent with the standard Node toolchain available.
-      soft_fail: true,
       depends_on: deps,
     });
   }

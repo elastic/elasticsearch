@@ -629,7 +629,7 @@ public class IndexResolver {
             }
         }
         if (indexDedupCache != null) {
-            return new CompactInvalidMappedField(name, typesToIndices, indexDedupCache);
+            return CompactInvalidMappedField.mappedEverywhere(name, typesToIndices, indexDedupCache);
         }
         Map<String, Set<String>> stringKeyed = new TreeMap<>();
         typesToIndices.forEach((type, indices) -> stringKeyed.put(type.typeName(), indices));

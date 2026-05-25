@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.core.type;
 import org.checkerframework.checker.nullness.qual.NonNull;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 import java.io.IOException;
@@ -31,12 +32,17 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
     private final Map<DataType, Set<String>> typesToIndices;
     private final boolean isPotentiallyUnmapped;
 
-    public CompactInvalidMappedField(
+    public static CompactInvalidMappedField mappedEverywhere(
         String name,
         Map<DataType, Set<String>> typesToIndices,
         Map<Set<String>, Set<String>> indexDedupCache
     ) {
-        this(name, buildErrorMessage(typesToIndices, false), truncate(typesToIndices), indexDedupCache, false);
+        return new CompactInvalidMappedField(
+            name,
+            buildErrorMessage(typesToIndices, false),
+            truncatedAndDedup(typesToIndices, indexDedupCache),
+            false
+        );
     }
 
     public static CompactInvalidMappedField potentiallyUnmapped(
@@ -47,24 +53,29 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         return new CompactInvalidMappedField(
             name,
             buildErrorMessage(typesToIndices, true),
-            truncate(typesToIndices),
-            indexDedupCache,
+            truncatedAndDedup(typesToIndices, indexDedupCache),
             true
         );
+    }
+
+    private static Map<DataType, Set<String>> truncatedAndDedup(
+        Map<DataType, Set<String>> typesToIndices,
+        Map<Set<String>, Set<String>> indexDedupCache
+    ) {
+        return Maps.transformValues(typesToIndices, indices -> {
+            Set<String> truncated = indices.size() <= MAX_INDICES_PER_TYPE ? Set.copyOf(indices) : truncate(indices);
+            return indexDedupCache.computeIfAbsent(truncated, unused -> truncated);
+        });
     }
 
     private CompactInvalidMappedField(
         String name,
         String errorMessage,
         Map<DataType, Set<String>> typesToIndices,
-        Map<Set<String>, Set<String>> dedupCache,
         boolean isPotentiallyUnmapped
     ) {
         super(name, DataType.UNSUPPORTED, new TreeMap<>(), false, TimeSeriesFieldType.UNKNOWN);
 
-        for (var entry : typesToIndices.entrySet()) {
-            entry.setValue(dedupCache.computeIfAbsent(entry.getValue(), unused -> entry.getValue()));
-        }
         this.errorMessage = errorMessage;
         this.typesToIndices = typesToIndices;
         this.isPotentiallyUnmapped = isPotentiallyUnmapped;
@@ -124,16 +135,6 @@ public final class CompactInvalidMappedField extends TypeConflictedField {
         }
         CompactInvalidMappedField other = (CompactInvalidMappedField) obj;
         return Objects.equals(errorMessage, other.errorMessage);
-    }
-
-    /** Cap each per-type index set at {@value #MAX_INDICES_PER_TYPE} entries. */
-    private static Map<DataType, Set<String>> truncate(Map<DataType, Set<String>> typesToIndices) {
-        Map<DataType, Set<String>> result = new TreeMap<>();
-        for (Map.Entry<DataType, Set<String>> entry : typesToIndices.entrySet()) {
-            Set<String> indices = entry.getValue();
-            result.put(entry.getKey(), indices.size() <= MAX_INDICES_PER_TYPE ? Set.copyOf(indices) : truncate(indices));
-        }
-        return result;
     }
 
     private static @NonNull Set<String> truncate(Set<String> indices) {

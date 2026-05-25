@@ -26,10 +26,8 @@ import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -121,7 +119,6 @@ import org.elasticsearch.transport.netty4.SharedGroupFactory;
 import org.elasticsearch.transport.netty4.TLSConfig;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -352,9 +349,6 @@ import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
-import org.elasticsearch.xpack.security.crypto.EncryptionComponents;
-import org.elasticsearch.xpack.security.crypto.PrimaryEncryptionKeyMetadata;
-import org.elasticsearch.xpack.security.crypto.PrimaryEncryptionKeyService;
 import org.elasticsearch.xpack.security.ingest.SetSecurityUserProcessor;
 import org.elasticsearch.xpack.security.operator.DefaultOperatorOnlyRegistry;
 import org.elasticsearch.xpack.security.operator.FileOperatorUsersStore;
@@ -428,7 +422,6 @@ import org.elasticsearch.xpack.security.rest.action.user.RestProfileHasPrivilege
 import org.elasticsearch.xpack.security.rest.action.user.RestPutUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestQueryUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
-import org.elasticsearch.xpack.security.spi.encryption.EncryptedDataHandlerProvider;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
 import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesProviderFactory;
@@ -628,7 +621,6 @@ public class Security extends Plugin
     private final SetOnce<DocumentSubsetBitsetCache> dlsBitsetCache = new SetOnce<>();
     private final SetOnce<List<BootstrapCheck>> bootstrapChecks = new SetOnce<>();
     private final List<SecurityExtension> securityExtensions = new ArrayList<>();
-    private final List<EncryptedDataHandlerProvider> encryptedDataHandlerProviders = new ArrayList<>();
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
     private final SetOnce<OperatorOnlyRegistry> operatorOnlyRegistry = new SetOnce<>();
@@ -1286,19 +1278,6 @@ public class Security extends Plugin
 
         cacheInvalidatorRegistry.validate();
 
-        if (PrimaryEncryptionKeyService.PRIMARY_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
-            components.addAll(
-                EncryptionComponents.create(
-                    clusterService,
-                    threadPool,
-                    projectResolver,
-                    featureService,
-                    settings,
-                    encryptedDataHandlerProviders
-                )
-            );
-        }
-
         setClosableAndReloadableComponents(components);
         return components;
     }
@@ -1701,9 +1680,6 @@ public class Security extends Plugin
         // hide settings
         settingsList.add(Setting.stringListSetting(SecurityField.setting("hide_settings"), Property.NodeScope, Property.Filtered));
 
-        if (PrimaryEncryptionKeyService.PRIMARY_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled()) {
-            settingsList.addAll(EncryptionComponents.settings());
-        }
         return settingsList;
     }
 
@@ -2598,7 +2574,6 @@ public class Security extends Plugin
     @Override
     public void loadExtensions(ExtensionLoader loader) {
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
-        encryptedDataHandlerProviders.addAll(loader.loadExtensions(EncryptedDataHandlerProvider.class));
         loadSingletonExtensionAndSetOnce(loader, operatorOnlyRegistry, OperatorOnlyRegistry.class);
         loadSingletonExtensionAndSetOnce(loader, putRoleRequestBuilderFactory, PutRoleRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, bulkPutRoleRequestBuilderFactory, BulkPutRoleRequestBuilderFactory.class);
@@ -2665,29 +2640,6 @@ public class Security extends Plugin
     @Override
     public Collection<SystemIndexDescriptor> getSystemIndexDescriptors(Settings settings) {
         return systemIndices.getSystemIndexDescriptors();
-    }
-
-    @Override
-    public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            new NamedWriteableRegistry.Entry(
-                Metadata.ProjectCustom.class,
-                PrimaryEncryptionKeyMetadata.TYPE,
-                PrimaryEncryptionKeyMetadata::new
-            ),
-            new NamedWriteableRegistry.Entry(NamedDiff.class, PrimaryEncryptionKeyMetadata.TYPE, PrimaryEncryptionKeyMetadata::readDiffFrom)
-        );
-    }
-
-    @Override
-    public List<NamedXContentRegistry.Entry> getNamedXContent() {
-        return List.of(
-            new NamedXContentRegistry.Entry(
-                Metadata.ProjectCustom.class,
-                new ParseField(PrimaryEncryptionKeyMetadata.TYPE),
-                PrimaryEncryptionKeyMetadata::fromXContent
-            )
-        );
     }
 
     @Override

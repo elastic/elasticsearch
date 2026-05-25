@@ -20,3 +20,6 @@
 
 :::{include} ../examples/to_gauge.md
 :::
+
+:::{include} ../appendix/to_gauge.md
+:::

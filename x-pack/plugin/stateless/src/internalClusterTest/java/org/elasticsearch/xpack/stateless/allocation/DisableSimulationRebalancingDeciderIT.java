@@ -24,7 +24,6 @@ import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
-import org.jspecify.annotations.NonNull;
 import org.junit.Before;
 
 import java.util.Collection;
@@ -108,7 +107,7 @@ public class DisableSimulationRebalancingDeciderIT extends AbstractStatelessPlug
         });
     }
 
-    private @NonNull TestHarness setupClusterWithSingleShard() {
+    private TestHarness setupClusterWithSingleShard() {
         final var rebalancingDisabled = Settings.builder().put(SIMULATION_REBALANCING_ENABLED.getKey(), RebalancingEnabled.NEVER).build();
         final var indexNode1 = startMasterAndIndexNode(rebalancingDisabled);
         // Create the index, it'll be allocated to indexNode1

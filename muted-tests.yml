@@ -597,9 +597,12 @@ tests:
 - class: org.elasticsearch.reindex.management.ListTasksRelocationIT
   method: testListTasksShowsOriginalIdentityAfterRelocation
   issue: https://github.com/elastic/elasticsearch/issues/149776
-- class: org.elasticsearch.xpack.stateless.StatelessResizeIT
-  method: testSplitIndex
-  issue: https://github.com/elastic/elasticsearch/issues/149777
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionWithSecurityIT
   method: testCanTransitionIndex
   issue: https://github.com/elastic/elasticsearch/issues/149770
+- class: org.elasticsearch.index.seqno.SeqNoPruningIT
+  method: testSeqNoPartiallyPrunedWithRetentionLease
+  issue: https://github.com/elastic/elasticsearch/issues/149823
+- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
+  method: testSeqNoPartiallyRetainedByCcrLease
+  issue: https://github.com/elastic/elasticsearch/issues/149826

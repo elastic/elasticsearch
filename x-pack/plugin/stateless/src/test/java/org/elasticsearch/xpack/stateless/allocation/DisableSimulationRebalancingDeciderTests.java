@@ -27,7 +27,7 @@ import static org.hamcrest.Matchers.equalTo;
 public class DisableSimulationRebalancingDeciderTests extends ESAllocationTestCase {
 
     // During reconciliation (not simulating), rebalancing is always allowed regardless of setting
-    public void testReconciliationAlwaysAllows_settingAlways() {
+    public void testReconciliationAlwaysAllows() {
         var decider = createDecider(randomFrom(DisableSimulationRebalancingDecider.RebalancingEnabled.values()));
         assertCanRebalance(decider, reconciliationAllocation(), indexOnlyShard(), Decision.Type.YES);
         assertCanRebalance(decider, reconciliationAllocation(), searchOnlyShard(), Decision.Type.YES);

@@ -315,9 +315,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessMergeIT
   method: testOnlyForceMergesAreAllowedDuringRelocation
   issue: https://github.com/elastic/elasticsearch/issues/147880
-- class: org.elasticsearch.reindex.management.ReindexCancelIT
-  method: testCancellingChildTaskRejected
-  issue: https://github.com/elastic/elasticsearch/issues/147925
 - class: org.elasticsearch.xpack.sql.qa.single_node.RestSqlIT
   method: testNextPageText
   issue: https://github.com/elastic/elasticsearch/issues/147950
@@ -435,12 +432,6 @@ tests:
 - class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
   method: testNestedArrayExceeded
   issue: https://github.com/elastic/elasticsearch/issues/148747
-- class: org.elasticsearch.index.reindex.ReindexRelocationOnShutdownIT
-  method: testReindexFailsWhenPitRelocationFails
-  issue: https://github.com/elastic/elasticsearch/issues/148748
-- class: org.elasticsearch.xpack.stateless.StatelessIndexCommitListenerIT
-  method: testRefIsNotReleasedUponNotificationFailure
-  issue: https://github.com/elastic/elasticsearch/issues/148471
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexWhileNodeStopping
   issue: https://github.com/elastic/elasticsearch/issues/148807
@@ -534,9 +525,6 @@ tests:
 - class: org.elasticsearch.gateway.PersistedClusterStateServiceTests
   method: testLimitsFileCount
   issue: https://github.com/elastic/elasticsearch/issues/149557
-- class: org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReaderTests
-  method: testMalformedRowErrorAnchorsOnQuoteOffset
-  issue: https://github.com/elastic/elasticsearch/issues/149567
 - class: org.elasticsearch.xpack.esql.CsvIT
   method: test {csv-spec:stats.sumWithOverflowRow}
   issue: https://github.com/elastic/elasticsearch/issues/149574
@@ -570,12 +558,54 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
-- class: org.elasticsearch.reindex.management.CancelTasksRelocationIT
-  method: testCancelByOriginalTaskIdAfterRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/149688
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeIT
   method: test {feature:SUBQUERIES}
   issue: https://github.com/elastic/elasticsearch/issues/149681
 - class: org.elasticsearch.index.reindex.LocalReindexResumeIT
   method: testResumeReindexFromPit_slicedN
   issue: https://github.com/elastic/elasticsearch/issues/149698
+- class: org.elasticsearch.index.reindex.ReindexRequestWireSerializingTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/149720
+- class: org.elasticsearch.index.reindex.ResumeBulkByScrollRequestWireSerializingTests
+  method: testEqualsAndHashcode
+  issue: https://github.com/elastic/elasticsearch/issues/149721
+- class: org.elasticsearch.indices.memory.breaker.AccountableQueryCircuitBreakerIT
+  method: testRegexpQueryMemoryReleased
+  issue: https://github.com/elastic/elasticsearch/issues/149727
+- class: org.elasticsearch.xpack.stateless.StatelessCommitServiceIT
+  method: testRetainCommitForReadersAfterShardReplicasSetToZero
+  issue: https://github.com/elastic/elasticsearch/issues/149740
+- class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeIT
+  method: test {feature:BASELINE}
+  issue: https://github.com/elastic/elasticsearch/issues/149746
+- class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotStressTestsIT
+  method: testRandomActivitiesStatelessSnapshotAndRelocationEnabled
+  issue: https://github.com/elastic/elasticsearch/issues/149751
+- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
+  method: testSourceNodeQueuesRecoveriesPastConcurrencyLimit
+  issue: https://github.com/elastic/elasticsearch/issues/149753
+- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
+  method: testQueuedRecoveryCancelledWhenTargetNodeLeaves
+  issue: https://github.com/elastic/elasticsearch/issues/149753
+- class: org.elasticsearch.indices.recovery.IndexRecoveryIT
+  method: testQueuedRecoveryCancelledWhenSourceShardClosed
+  issue: https://github.com/elastic/elasticsearch/issues/149753
+- class: org.elasticsearch.reindex.management.ReindexRethrottleRelocationIT
+  method: testRethrottleByOriginalTaskIdAfterRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/149759
+- class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecIT
+  method: test {csv-spec:change_point.values int column with all nulls}
+  issue: https://github.com/elastic/elasticsearch/issues/149763
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148190
+- class: org.elasticsearch.reindex.management.ListTasksRelocationIT
+  method: testListTasksShowsOriginalIdentityAfterRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/149776
+- class: org.elasticsearch.xpack.stateless.StatelessResizeIT
+  method: testSplitIndex
+  issue: https://github.com/elastic/elasticsearch/issues/149777
+- class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionWithSecurityIT
+  method: testCanTransitionIndex
+  issue: https://github.com/elastic/elasticsearch/issues/149770

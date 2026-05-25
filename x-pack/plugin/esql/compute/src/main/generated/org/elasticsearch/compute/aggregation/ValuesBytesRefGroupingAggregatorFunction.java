@@ -299,6 +299,11 @@ public final class ValuesBytesRefGroupingAggregatorFunction implements GroupingA
   }
 
   @Override
+  public void presizeGroupingStates(int maxPossibleGroupId) {
+    state.presizeGroupingStates(maxPossibleGroupId);
+  }
+
+  @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
       IntVector selected, GroupingAggregatorEvaluationContext ctx) {
     return ValuesBytesRefAggregator.prepareEvaluateIntermediate(state, selected, ctx);

@@ -447,6 +447,11 @@ public final class TopLongDoubleGroupingAggregatorFunction implements GroupingAg
   }
 
   @Override
+  public void presizeGroupingStates(int maxPossibleGroupId) {
+    state.presizeGroupingStates(maxPossibleGroupId);
+  }
+
+  @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
       IntVector selected, GroupingAggregatorEvaluationContext ctx) {
     return this::evaluateIntermediate;

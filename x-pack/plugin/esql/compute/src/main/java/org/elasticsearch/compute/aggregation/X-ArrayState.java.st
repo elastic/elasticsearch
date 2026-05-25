@@ -78,14 +78,12 @@ $endif$
     }
 
     void set(int groupId, $type$ value) {
-        ensureCapacity(groupId);
         values.set(groupId, value);
         trackGroupId(groupId);
     }
 
 $if(long||double)$
     void increment(int groupId, $type$ value) {
-        ensureCapacity(groupId);
         values.increment(groupId, value);
         trackGroupId(groupId);
     }
@@ -111,6 +109,11 @@ $endif$
             }
             return builder.build();
         }
+    }
+
+    @Override
+    public void presizeGroupingStates(int maxPossibleGroupId) {
+        ensureCapacity(maxPossibleGroupId);
     }
 
     private void ensureCapacity(int groupId) {

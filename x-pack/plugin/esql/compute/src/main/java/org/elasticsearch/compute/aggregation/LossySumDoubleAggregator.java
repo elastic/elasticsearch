@@ -199,9 +199,13 @@ class LossySumDoubleAggregator {
         }
 
         void add(double valueToAdd, int groupId) {
-            values = bigArrays.grow(values, groupId + 1);
             values.increment(groupId, valueToAdd);
             trackGroupId(groupId);
+        }
+
+        @Override
+        public void presizeGroupingStates(int maxPossibleGroupId) {
+            values = bigArrays.grow(values, maxPossibleGroupId + 1);
         }
 
         public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {

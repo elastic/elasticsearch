@@ -394,11 +394,17 @@ public class HashAggregationOperator implements Operator {
                 long hashStart = System.nanoTime();
                 long aggStart;
 
+                private int possibleMaxGroupId() {
+                    return blockHash.numKeys() + 1; // some block hash use zero for null
+                }
+
                 @Override
                 public void add(int positionOffset, IntArrayBlock groupIds) {
                     startAggEndHash();
-                    for (GroupingAggregatorFunction.AddInput p : prepared) {
-                        p.add(positionOffset, groupIds);
+                    final int possibleMaxGroupId = possibleMaxGroupId();
+                    for (int i = 0; i < prepared.size(); i++) {
+                        aggregators.get(i).presizeGroupingStates(possibleMaxGroupId);
+                        prepared.get(i).add(positionOffset, groupIds);
                     }
                     end();
                 }
@@ -406,8 +412,10 @@ public class HashAggregationOperator implements Operator {
                 @Override
                 public void add(int positionOffset, IntBigArrayBlock groupIds) {
                     startAggEndHash();
-                    for (GroupingAggregatorFunction.AddInput p : prepared) {
-                        p.add(positionOffset, groupIds);
+                    final int possibleMaxGroupId = possibleMaxGroupId();
+                    for (int i = 0; i < prepared.size(); i++) {
+                        aggregators.get(i).presizeGroupingStates(possibleMaxGroupId);
+                        prepared.get(i).add(positionOffset, groupIds);
                     }
                     end();
                 }
@@ -415,8 +423,10 @@ public class HashAggregationOperator implements Operator {
                 @Override
                 public void add(int positionOffset, IntVector groupIds) {
                     startAggEndHash();
-                    for (GroupingAggregatorFunction.AddInput p : prepared) {
-                        p.add(positionOffset, groupIds);
+                    final int possibleMaxGroupId = possibleMaxGroupId();
+                    for (int i = 0; i < prepared.size(); i++) {
+                        aggregators.get(i).presizeGroupingStates(possibleMaxGroupId);
+                        prepared.get(i).add(positionOffset, groupIds);
                     }
                     end();
                 }
@@ -488,11 +498,18 @@ public class HashAggregationOperator implements Operator {
 
     private void maybeReinitializeAfterPeriodicallyEmitted() {
         if (rowsReceived > 0 && rowsAddedInCurrentBatch == 0) {
+            final int previousNumKeys = Math.min(blockHash.numKeys(), partialEmitKeysThreshold) / 2;
             blockHash.close();
             blockHash = null;
             blockHash = blockHashSupplier.get();
             for (int i = 0; i < aggregators.size(); i++) {
-                Releasables.close(aggregators.set(i, aggregatorFactories.get(i).apply(driverContext)));
+                GroupingAggregator aggregator = aggregators.set(i, aggregatorFactories.get(i).apply(driverContext));
+                Releasables.close(aggregator);
+            }
+            if (previousNumKeys > 0) {
+                for (GroupingAggregator aggregator : aggregators) {
+                    aggregator.presizeGroupingStates(previousNumKeys);
+                }
             }
         }
     }

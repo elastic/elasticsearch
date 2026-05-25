@@ -11,4 +11,10 @@ import org.elasticsearch.core.Releasable;
 
 public interface GroupingAggregatorState extends Releasable {
     void enableGroupIdTracking(SeenGroupIds seenGroupIds);
+
+    /**
+     * Optionally pre-size aggregation state to handle incoming groups up to {@code maxPossibleGroupId}.
+     * Implement this to avoid resizing for each input row.
+     */
+    default void presizeGroupingStates(int maxPossibleGroupId) {}
 }

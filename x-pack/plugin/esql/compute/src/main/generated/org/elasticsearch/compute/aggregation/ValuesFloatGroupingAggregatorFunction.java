@@ -316,6 +316,11 @@ public final class ValuesFloatGroupingAggregatorFunction implements GroupingAggr
   }
 
   @Override
+  public void presizeGroupingStates(int maxPossibleGroupId) {
+    state.presizeGroupingStates(maxPossibleGroupId);
+  }
+
+  @Override
   public GroupingAggregatorFunction.PreparedForEvaluation prepareEvaluateIntermediate(
       IntVector selected, GroupingAggregatorEvaluationContext ctx) {
     return ValuesFloatAggregator.prepareEvaluateIntermediate(state, selected, ctx);

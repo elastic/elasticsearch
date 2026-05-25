@@ -33,6 +33,11 @@ public record WindowGroupingAggregatorFunction(GroupingAggregatorFunction next, 
     }
 
     @Override
+    public void presizeGroupingStates(int maxPossibleGroupId) {
+        next.presizeGroupingStates(maxPossibleGroupId);
+    }
+
+    @Override
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
         next.selectedMayContainUnseenGroups(seenGroupIds);
     }

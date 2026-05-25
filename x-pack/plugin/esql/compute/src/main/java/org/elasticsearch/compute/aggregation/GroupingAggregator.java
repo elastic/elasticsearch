@@ -30,6 +30,10 @@ public record GroupingAggregator(GroupingAggregatorFunction aggregatorFunction, 
         return mode.isOutputPartial() ? aggregatorFunction.intermediateBlockCount() : 1;
     }
 
+    public void presizeGroupingStates(int maxPossibleGroupId) {
+        aggregatorFunction.presizeGroupingStates(maxPossibleGroupId);
+    }
+
     /**
      * Prepare to process a single page of results.
      */

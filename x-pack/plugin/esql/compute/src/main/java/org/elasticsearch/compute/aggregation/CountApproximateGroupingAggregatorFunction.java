@@ -55,6 +55,11 @@ public class CountApproximateGroupingAggregatorFunction implements GroupingAggre
     }
 
     @Override
+    public void presizeGroupingStates(int maxPossibleGroupId) {
+        state.presizeGroupingStates(maxPossibleGroupId);
+    }
+
+    @Override
     public AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page) {
         Block valuesBlock = page.getBlock(blockIndex());
         if (countAll == false) {

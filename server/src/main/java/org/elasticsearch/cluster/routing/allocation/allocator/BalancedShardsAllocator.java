@@ -53,6 +53,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -884,6 +885,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         public boolean moveShards() {
             boolean shardMoved = false;
             final BestShardMovementsTracker bestNonPreferredShardMovementsTracker = new BestShardMovementsTracker();
+            final Set<String> nodesWithDeferredNoRemainNotPreferredMoves = new HashSet<>();
             // Iterate over the started shards interleaving between nodes, and check if they can remain. In the presence of throttling
             // shard movements, the goal of this iteration order is to achieve a fairer movement of shards from the nodes that are
             // offloading the shards.
@@ -913,6 +915,10 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     // Defer moving of not-preferred until we've moved the NOs
                     if (moveDecision.getCanRemainDecision().type() == Type.NOT_PREFERRED) {
                         bestNonPreferredShardMovementsTracker.putBestMoveDecision(shardRouting, moveDecision);
+                    } else if (moveDecision.getAllocationDecision() == AllocationDecision.NOT_PREFERRED) {
+                        // canRemain:NO but only NOT_PREFERRED targets available; note the node so we can re-evaluate after YES moves.
+                        // Moving YES shards first may resolve the root cause (e.g. heap pressure) and make NOT_PREFERRED moves unnecessary.
+                        nodesWithDeferredNoRemainNotPreferredMoves.add(shardRouting.currentNodeId());
                     } else {
                         executeMove(shardRouting, index, moveDecision, MOVE_CANNOT_REMAIN_REASON);
                         if (completeEarlyOnShardAssignmentChange) {
@@ -922,6 +928,30 @@ public class BalancedShardsAllocator implements ShardsAllocator {
                     }
                 } else if (moveDecision.isDecisionTaken() && moveDecision.cannotRemain()) {
                     logger.trace("[{}][{}] can't move: [{}]", shardRouting.index(), shardRouting.id(), moveDecision);
+                }
+            }
+
+            // Re-evaluate shards on nodes where we deferred canRemain:NO + NOT_PREFERRED moves. Earlier YES moves may have resolved
+            // the root cause (e.g. reduced heap pressure), changing some targets from NOT_PREFERRED to YES, or making canRemain YES.
+            if (nodesWithDeferredNoRemainNotPreferredMoves.isEmpty() == false) {
+                for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext();) {
+                    final ShardRouting shardRouting = it.next();
+                    if (nodesWithDeferredNoRemainNotPreferredMoves.contains(shardRouting.currentNodeId()) == false) {
+                        continue;
+                    }
+                    final ProjectIndex index = projectIndex(shardRouting);
+                    final MoveDecision moveDecision = decideMove(index, shardRouting);
+                    if (moveDecision.isDecisionTaken()
+                        && moveDecision.getCanRemainDecision().type() == Type.NO
+                        && moveDecision.cannotRemainAndCanMove()) {
+                        executeMove(shardRouting, index, moveDecision, MOVE_CANNOT_REMAIN_REASON);
+                        if (completeEarlyOnShardAssignmentChange) {
+                            return true;
+                        }
+                        shardMoved = true;
+                    } else if (moveDecision.isDecisionTaken() && moveDecision.cannotRemain()) {
+                        logger.trace("[{}][{}] can't move: [{}]", shardRouting.index(), shardRouting.id(), moveDecision);
+                    }
                 }
             }
 

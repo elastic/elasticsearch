@@ -12,6 +12,8 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
 import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
@@ -38,6 +40,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
 
     private final Executor shardReadThreadPoolExecutor;
     private final PluggableDirectoryMetricsHolder<BlobStoreCacheDirectoryMetrics> metricsHolder;
+    private final boolean hasSearchRole;
 
     // TODO Merge the two constructors
     public StatelessSharedBlobCacheService(
@@ -50,6 +53,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics);
         this.shardReadThreadPoolExecutor = threadPool.executor(StatelessPlugin.SHARD_READ_THREAD_POOL);
         this.metricsHolder = metricsHolder;
+        this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
     }
 
     // for tests
@@ -64,12 +68,13 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         super(environment, settings, threadPool, IO_EXECUTOR, blobCacheMetrics, relativeTimeInNanosSupplier);
         this.shardReadThreadPoolExecutor = IO_EXECUTOR;
         this.metricsHolder = metricsHolder;
+        this.hasSearchRole = DiscoveryNode.hasRole(settings, DiscoveryNodeRole.SEARCH_ROLE);
     }
 
     /**
      * Fetches and writes in cache a blob byte range, given the {@link CacheBlobReader} and the blob's associated {@link FileCacheKey}.
      */
-    void fetchRange(
+    private void fetchRange(
         FileCacheKey cacheKey,
         ByteRange byteRange,
         CacheBlobReader cacheBlobReader,
@@ -78,7 +83,8 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
         IntConsumer bytesCopiedConsumer,
         Executor fetchExecutor,
         boolean force,
-        ActionListener<Void> listener
+        ActionListener<Void> listener,
+        String... threadPools
     ) {
         var startRegion = getRegion(byteRange.start());
         var endRegion = getEndingRegion(byteRange.end());
@@ -105,8 +111,7 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
                             cacheBlobReader,
                             () -> writeBufferSupplier.get().clear(),
                             bytesCopiedConsumer,
-                            StatelessPlugin.PREWARM_THREAD_POOL,
-                            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+                            threadPools
                         )
                     ),
                     fetchExecutor,
@@ -115,6 +120,36 @@ public class StatelessSharedBlobCacheService extends SharedBlobCacheService<File
                 );
             }
         }
+    }
+
+    void fetchRange(
+        FileCacheKey cacheKey,
+        ByteRange byteRange,
+        CacheBlobReader cacheBlobReader,
+        Object initiator,
+        Supplier<ByteBuffer> writeBufferSupplier,
+        IntConsumer bytesCopiedConsumer,
+        Executor fetchExecutor,
+        boolean force,
+        ActionListener<Void> listener
+    ) {
+        fetchRange(
+            cacheKey,
+            byteRange,
+            cacheBlobReader,
+            initiator,
+            writeBufferSupplier,
+            bytesCopiedConsumer,
+            fetchExecutor,
+            force,
+            listener,
+            StatelessPlugin.PREWARM_THREAD_POOL,
+            StatelessPlugin.FILL_VIRTUAL_BATCHED_COMPOUND_COMMIT_CACHE_THREAD_POOL
+        );
+    }
+
+    public boolean hasSearchRole() {
+        return hasSearchRole;
     }
 
     public void assertInvariants() {

@@ -247,7 +247,7 @@ public final class LookupQueryOperator implements Operator {
              * There each path tests for termination in its own way.
              *
              * But here in the LookupQueryOperator, getMatches() and getBulkMatches() share
-             * the getOutput() termination condition so they must follow the same convention 
+             * the getOutput() termination condition so they must follow the same convention
              * and increment queryPosition before doing the comparison.
              *
              * This way getOutput() may always safely assume (queryPosition >= positionCount - 1)

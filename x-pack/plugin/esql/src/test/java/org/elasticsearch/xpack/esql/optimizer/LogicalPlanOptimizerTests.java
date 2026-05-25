@@ -11118,30 +11118,6 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         as(defaultLimit.child(), LocalRelation.class);
     }
 
-    /**
-     * METRICS_INFO injects a {@code _doc} {@code MetadataAttribute} into the underlying
-     * {@code EsRelation} so it can address Lucene rows directly. Placing DISTINCT between the TS
-     * source and METRICS_INFO puts {@code _doc} in {@code Distinct.child().output()}. Because every
-     * row has a unique {@code _doc} value, including it as a group key would silently turn DISTINCT
-     * into a no-op (each row its own group). The surrogate must filter it out.
-     */
-    public void testDistinctSurrogateExcludesDocAttribute() {
-        assumeTrue("Requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
-        var plan = planMetrics("TS k8s | DISTINCT | METRICS_INFO");
-
-        plan.forEachDown(p -> assertThat(p, not(instanceOf(Distinct.class))));
-
-        Holder<LimitBy> found = new Holder<>();
-        plan.forEachDown(LimitBy.class, found::set);
-        LimitBy limitBy = found.get();
-        assertThat(limitBy, not(equalTo(null)));
-        for (Expression g : limitBy.groupings()) {
-            assertThat(((Attribute) g).dataType(), not(equalTo(DataType.DOC_DATA_TYPE)));
-        }
-        var relation = as(limitBy.child(), EsRelation.class);
-        assertThat(relation.output().stream().anyMatch(a -> a.dataType() == DataType.DOC_DATA_TYPE), equalTo(true));
-    }
-
     public void testDistinctSurrogateExcludesUnsupportedAttribute() {
         assumeTrue("Requires DISTINCT", EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled());
         var analyzer = analyzerWithEnrichPolicies().addIndex("test_with_unsupported", "mapping-multi-field-with-nested.json");

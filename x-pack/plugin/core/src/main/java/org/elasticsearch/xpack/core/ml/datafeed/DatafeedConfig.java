@@ -351,23 +351,40 @@ public class DatafeedConfig implements SimpleDiffable<DatafeedConfig>, ToXConten
         Objects.requireNonNull(datafeed, "datafeed must not be null");
         Objects.requireNonNull(crossProjectModeDecider, "crossProjectModeDecider must not be null");
 
-        // The ML CPS feature flag gates the runtime IndicesOptions flip in addition to the cluster-level
-        // serverless.cross_project.enabled setting. Without this guard, every datafeed start on a CPS-enabled
-        // cluster — including ones targeting only local indices — would be promoted to cross-project mode,
-        // which violates the "off by default on main" contract of the ML CPS scaffolding.
+        // The ML CPS feature flag gates the runtime IndicesOptions flip. Note that FeatureFlag is
+        // auto-enabled in snapshot builds, so this guard only takes effect in release builds; CI/test
+        // environments must rely on the per-datafeed gate below.
         if (featureEnabled == false) {
             return datafeed;
         }
 
-        if (crossProjectModeDecider.crossProjectEnabled()) {
-            IndicesOptions baseOptions = datafeed.getIndicesOptions();
-            // Only rebuild if CPS mode is not already enabled to avoid unnecessary object creation
-            if (baseOptions.resolveCrossProjectIndexExpression() == false) {
-                IndicesOptions modifiedOptions = IndicesOptions.builder(baseOptions)
-                    .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
-                    .build();
-                return new DatafeedConfig.Builder(datafeed).setIndicesOptions(modifiedOptions).build();
-            }
+        if (crossProjectModeDecider.crossProjectEnabled() == false) {
+            return datafeed;
+        }
+
+        // Per-datafeed gate: only flip IndicesOptions into cross-project mode when the datafeed
+        // actually targets cross-project / remote-qualified indices, or carries an explicit
+        // project_routing expression. A datafeed with purely local indices and no project_routing
+        // must never be promoted to CPS mode, even on a CPS-enabled cluster — otherwise the search
+        // layer would route through cross-project resolution, which on serverless requires
+        // UIAM-minted credentials (see elastic/elasticsearch#142209). Without this gate,
+        // CrossProjectMlSmokeTestRestIT.testDatafeedWorksLocallyWithCpsEnabled fails on
+        // `field_caps` / `_start` with "User is cloud-managed, but there is no cloud credential
+        // in thread context".
+        boolean hasRemoteIndices = RemoteClusterAware.getRemoteIndexExpressions(datafeed.getIndices().toArray(new String[0]))
+            .isEmpty() == false;
+        boolean hasProjectRouting = datafeed.getProjectRouting() != null;
+        if (hasRemoteIndices == false && hasProjectRouting == false) {
+            return datafeed;
+        }
+
+        IndicesOptions baseOptions = datafeed.getIndicesOptions();
+        // Only rebuild if CPS mode is not already enabled to avoid unnecessary object creation
+        if (baseOptions.resolveCrossProjectIndexExpression() == false) {
+            IndicesOptions modifiedOptions = IndicesOptions.builder(baseOptions)
+                .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+                .build();
+            return new DatafeedConfig.Builder(datafeed).setIndicesOptions(modifiedOptions).build();
         }
         return datafeed;
     }

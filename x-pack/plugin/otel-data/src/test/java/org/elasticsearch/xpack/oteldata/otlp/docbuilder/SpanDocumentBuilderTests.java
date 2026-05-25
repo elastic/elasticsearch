@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
 import java.util.Base64;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.oteldata.otlp.OtlpUtils.keyValue;
@@ -141,6 +142,34 @@ public class SpanDocumentBuilderTests extends ESTestCase {
         assertThat(doc.evaluate("duration"), nullValue());
         assertThat(doc.evaluate("status"), nullValue());
         assertThat(doc.evaluate("links"), nullValue());
+    }
+
+    public void testGeoLocationAttributesAreMerged() throws IOException {
+        Resource resource = Resource.newBuilder()
+            .addAttributes(keyValue("resource.geo.location.lon", 9.9))
+            .addAttributes(keyValue("resource.geo.location.lat", 10.1))
+            .build();
+        InstrumentationScope scope = InstrumentationScope.newBuilder()
+            .addAttributes(keyValue("scope.geo.location.lon", 11.1))
+            .addAttributes(keyValue("scope.geo.location.lat", 12.2))
+            .build();
+        Span span = Span.newBuilder()
+            .setStartTimeUnixNano(2_000_000_000L)
+            .addAttributes(keyValue("client.geo.location.lon", 1.1))
+            .addAttributes(keyValue("client.geo.location.lat", 2.2))
+            .addLinks(
+                Span.Link.newBuilder()
+                    .addAttributes(keyValue("peer.geo.location.lon", 3.3))
+                    .addAttributes(keyValue("peer.geo.location.lat", 4.4))
+            )
+            .build();
+
+        ObjectPath doc = buildDocument(resource, scope, span);
+
+        assertThat(doc.evaluate("attributes.client\\.geo\\.location"), equalTo(List.of(1.1, 2.2)));
+        assertThat(doc.evaluate("links.0.attributes.peer\\.geo\\.location"), equalTo(List.of(3.3, 4.4)));
+        assertThat(doc.evaluate("resource.attributes.resource\\.geo\\.location"), equalTo(List.of(9.9, 10.1)));
+        assertThat(doc.evaluate("scope.attributes.scope\\.geo\\.location"), equalTo(List.of(11.1, 12.2)));
     }
 
     public void testTimestampPreservesSubMillisecondPrecision() throws IOException {

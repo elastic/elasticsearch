@@ -15,6 +15,7 @@ import org.gradle.api.GradleException;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFileProperty;
+import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.services.ServiceReference;
 import org.gradle.api.tasks.CacheableTask;
@@ -87,6 +88,11 @@ public abstract class NativeImageBuildTask extends DefaultTask {
     @Optional
     public abstract Property<Boolean> getStatic();
 
+    /** Extra arguments passed verbatim to {@code native-image}, inserted after {@code --no-fallback}. */
+    @Input
+    @Optional
+    public abstract ListProperty<String> getExtraArgs();
+
     @OutputFile
     public abstract RegularFileProperty getOutputFile();
 
@@ -105,6 +111,7 @@ public abstract class NativeImageBuildTask extends DefaultTask {
             params.getPlatform().set(getPlatform());
             params.getMainClass().set(getMainClass());
             params.getStatic().set(getStatic().getOrElse(false));
+            params.getExtraArgs().set(getExtraArgs().getOrElse(List.of()));
             params.getOutputFile().set(getOutputFile());
             params.getDockerExecutable().set(dockerExecutable);
         });
@@ -120,6 +127,8 @@ public abstract class NativeImageBuildTask extends DefaultTask {
         Property<String> getMainClass();
 
         Property<Boolean> getStatic();
+
+        ListProperty<String> getExtraArgs();
 
         RegularFileProperty getOutputFile();
 
@@ -186,6 +195,7 @@ public abstract class NativeImageBuildTask extends DefaultTask {
             if (params.getStatic().get()) {
                 args.add("--static");
             }
+            args.addAll(params.getExtraArgs().get());
             args.add("-cp");
             args.add(cpString);
             args.add("-o");

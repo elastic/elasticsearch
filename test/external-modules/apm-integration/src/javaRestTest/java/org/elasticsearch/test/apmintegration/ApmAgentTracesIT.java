@@ -23,13 +23,20 @@ import org.junit.rules.TestRule;
  */
 public class ApmAgentTracesIT extends AbstractTracesIT {
 
+    public static RecordingApmServer recordingApmServer = new RecordingApmServer();
+
     public static ElasticsearchCluster cluster = baseTracesClusterBuilder().systemProperty("telemetry.otel.traces.enabled", "false")
         .setting("telemetry.agent.metrics_interval", "1s")
         .setting("telemetry.agent.server_url", () -> "http://" + recordingApmServer.getHttpAddress())
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = buildTracesRuleChain(recordingApmServer, cluster);
+    public static TestRule ruleChain = buildRuleChain(recordingApmServer, cluster);
+
+    @Override
+    protected RecordingApmServer apmServer() {
+        return recordingApmServer;
+    }
 
     @Override
     protected String getTestRestCluster() {

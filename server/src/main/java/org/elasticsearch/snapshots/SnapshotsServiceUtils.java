@@ -214,7 +214,7 @@ public class SnapshotsServiceUtils {
                         : "Found shard snapshot actively executing in ["
                             + entry
                             + "] when it should be blocked by a running delete ["
-                            + Strings.toString(snapshotDeletionsInProgress)
+                            + Strings.toTruncatedString(snapshotDeletionsInProgress)
                             + "]";
                 }
             }

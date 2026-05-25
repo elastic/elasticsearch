@@ -10,12 +10,17 @@
 package org.elasticsearch.common;
 
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
+import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
 import java.util.Locale;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -38,6 +43,7 @@ import static org.elasticsearch.common.Strings.trimLeadingCharacter;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.emptyArray;
+import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasToString;
 import static org.hamcrest.Matchers.is;
@@ -266,6 +272,105 @@ public class StringsTests extends ESTestCase {
         assertThat(Strings.format1Decimals(100.0 / 3, "%"), equalTo("33.3%"));
     }
 
+    public void testToTruncatedStringWithChunkedXContentUnderLimit() {
+        ChunkedToXContent chunkedToXContent = __ -> List.of(new TestToXContent(1, false), new TestToXContent(2, false)).iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContent, 1024);
+
+        assertFalse(result.truncated());
+        assertEquals("""
+            {"field1":"value1","field2":"value2"}""", result.string());
+    }
+
+    public void testToTruncatedStringWithChunkedXContentOverLimit() {
+        ChunkedToXContent chunkedToXContent = __ -> IntStream.range(1, 1_000_000).mapToObj(i -> new TestToXContent(i, false)).iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContent, 100);
+
+        assertTrue(result.truncated());
+        assertEquals("""
+            {"field1":"value1","field2":"value2","field3":"value3","field4":"value4","field5":"value5","field6":""", result.string());
+    }
+
+    public void testToTruncatedStringWithChunkedXContentObjectUnderLimit() {
+        ChunkedToXContentObject chunkedToXContentObject = __ -> List.of(new TestToXContent(1, true), new TestToXContent(2, true))
+            .iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContentObject, 1024);
+
+        assertFalse(result.truncated());
+        assertEquals("""
+            {"field1":"value1"} {"field2":"value2"}""", result.string());
+    }
+
+    public void testToTruncatedStringWithChunkedXContentObjectOverLimit() {
+        ChunkedToXContentObject chunkedToXContentObject = __ -> IntStream.range(1, 1_000_000)
+            .mapToObj(i -> new TestToXContent(i, true))
+            .iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContentObject, 100);
+
+        assertTrue(result.truncated());
+        assertEquals(
+            "{\"field1\":\"value1\"} {\"field2\":\"value2\"} {\"field3\":\"value3\"} {\"field4\":\"value4\"} {\"field5\":\"value5\"} ",
+            result.string()
+        );
+    }
+
+    public void testToTruncatedStringPrettyHumanReadableOutput() {
+        ChunkedToXContent chunkedToXContent = __ -> List.of(new TestToXContent(1, false), new TestToXContent(2, false)).iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContent, 1024, true, true);
+
+        assertFalse(result.truncated());
+        assertEquals("""
+            {
+              "field1" : "this is a value number 1",
+              "field2" : "this is a value number 2"
+            }""", result.string());
+    }
+
+    public void testToTruncatedStringEndsWithEllipsis() {
+        ChunkedToXContent chunkedToXContent = __ -> IntStream.range(1, 1_000_000).mapToObj(i -> new TestToXContent(i, false)).iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContent);
+
+        assertThat(result, endsWith("[...]"));
+        assertEquals(1024 * 1024 + "[...]".length(), result.length());
+    }
+
+    public void testToTruncatedStringPrettyHumanReadableOutputWithDefaultLimit() {
+        ChunkedToXContent chunkedToXContent = __ -> List.of(new TestToXContent(1, false), new TestToXContent(2, false)).iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContent, true, true);
+
+        assertFalse(result.endsWith("[...]"));
+        assertEquals("""
+            {
+              "field1" : "this is a value number 1",
+              "field2" : "this is a value number 2"
+            }""", result);
+    }
+
+    public void testToTruncatedStringPrettyHumanReadableOutputWithDefaultLimitEndsWithEllipsis() {
+        ChunkedToXContent chunkedToXContent = __ -> IntStream.range(1, 1_000_000).mapToObj(i -> new TestToXContent(i, false)).iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContent, true, false);
+
+        assertThat(result, endsWith("[...]"));
+        assertEquals(1024 * 1024 + "[...]".length(), result.length());
+    }
+
+    public void testToTruncatedStringException() {
+        ToXContent chunk = (b, p) -> { throw new IOException("boom!"); };
+        ChunkedToXContent chunkedToXContent = __ -> List.of(chunk).iterator();
+
+        var result = Strings.toTruncatedString(chunkedToXContent, 1024, true, true);
+
+        assertFalse(result.truncated());
+        assertThat(result.string(), containsString("error building toString out of XContent:"));
+    }
+
     private static String lowercaseAsciiOnly(String s) {
         // explicitly lowercase just ascii characters
         StringBuilder sb = new StringBuilder(s);
@@ -276,5 +381,24 @@ public class StringsTests extends ESTestCase {
             }
         }
         return sb.toString();
+    }
+
+    private record TestToXContent(int counter, boolean isObject) implements ToXContent {
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            if (isObject) {
+                builder.startObject();
+            }
+            if (builder.humanReadable()) {
+                builder.field("field" + counter, "this is a value number " + counter);
+            } else {
+                builder.field("field" + counter, "value" + counter);
+            }
+            if (isObject) {
+                builder.endObject();
+            }
+            return builder;
+        }
     }
 }

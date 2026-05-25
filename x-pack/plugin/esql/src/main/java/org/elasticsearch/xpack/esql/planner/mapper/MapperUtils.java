@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.plan.logical.SampledAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.SparklineGenerateEmptyBuckets;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.logical.UserAgent;
@@ -56,6 +57,7 @@ import org.elasticsearch.xpack.esql.plan.physical.SampledAggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SparklineGenerateEmptyBucketsExec;
 import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesAggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.TimeSeriesCollapseExec;
 import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 import org.elasticsearch.xpack.esql.plan.physical.UserAgentExec;
 import org.elasticsearch.xpack.esql.plan.physical.inference.CompletionExec;
@@ -150,6 +152,19 @@ public class MapperUtils {
             return new MvExpandExec(mvExpand.source(), child, mvExpand.target(), mvExpand.expanded());
         }
 
+        if (p instanceof TimeSeriesCollapse collapse) {
+            return new TimeSeriesCollapseExec(
+                collapse.source(),
+                child,
+                collapse.value(),
+                collapse.step(),
+                collapse.dimensions(),
+                collapse.start(),
+                collapse.end(),
+                collapse.stepMillis()
+            );
+        }
+
         if (p instanceof ChangePoint changePoint) {
             return new ChangePointExec(
                 changePoint.source(),
@@ -157,7 +172,8 @@ public class MapperUtils {
                 changePoint.value(),
                 changePoint.key(),
                 changePoint.targetType(),
-                changePoint.targetPvalue()
+                changePoint.targetPvalue(),
+                changePoint.groupings()
             );
         }
 
@@ -236,8 +252,7 @@ public class MapperUtils {
                 intermediateAttributes,
                 null,
                 ts.timeBucket(),
-                ts.outputTimeBucket(),
-                ts.isCollapsed()
+                ts.outputTimeBucket()
             );
             case SampledAggregate sample -> new SampledAggregateExec(
                 sample.source(),

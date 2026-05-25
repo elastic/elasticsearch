@@ -21,8 +21,7 @@ template:
             type: keyword
             ignore_above: 1024
           exception.message:
-            type: keyword
-            ignore_above: 1024
+            type: match_only_text
           exception.stacktrace:
             type: wildcard
             fields:

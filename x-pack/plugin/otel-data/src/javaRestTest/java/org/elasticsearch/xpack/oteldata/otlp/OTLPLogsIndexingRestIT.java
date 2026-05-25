@@ -19,11 +19,14 @@ import org.junit.Before;
 
 import java.io.IOException;
 
+import static io.opentelemetry.api.common.AttributeKey.doubleKey;
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
 import static io.opentelemetry.api.logs.Severity.INFO;
 import static io.opentelemetry.api.logs.Severity.WARN;
 import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class OTLPLogsIndexingRestIT extends AbstractOTLPIndexingRestIT {
 
@@ -89,6 +92,40 @@ public class OTLPLogsIndexingRestIT extends AbstractOTLPIndexingRestIT {
         assertThat(source.evaluate("attributes.http\\.method"), equalTo("GET"));
         assertThat(source.evaluate("attributes.http\\.status_code"), equalTo(404));
         assertThat(source.evaluate("resource.attributes.service\\.name"), equalTo("elasticsearch"));
+    }
+
+    public void testGeoLocationAttributesAreMerged() throws Exception {
+        logger.logRecordBuilder()
+            .setBody("geo log")
+            .setSeverity(INFO)
+            .setAttribute(doubleKey("client.geo.location.lon"), 143.2104)
+            .setAttribute(doubleKey("client.geo.location.lat"), -33.494)
+            .setAttribute(doubleKey("server.geo.location.lon"), 1.1)
+            .emit();
+        indexLogs();
+
+        ObjectPath search = search("logs-generic.otel-default", """
+            {
+              "fields": ["attributes.client.geo.location"]
+            }
+            """);
+        assertThat(search.evaluate("hits.total.value"), equalTo(1));
+        var source = new ObjectPath(search.evaluate("hits.hits.0._source"));
+        assertThat(search.evaluate("hits.hits.0.fields.attributes\\.client\\.geo\\.location.0.type"), equalTo("Point"));
+        assertThat(
+            search.<Number>evaluate("hits.hits.0.fields.attributes\\.client\\.geo\\.location.0.coordinates.0").doubleValue(),
+            closeTo(143.2104, 0.001)
+        );
+        assertThat(
+            search.<Number>evaluate("hits.hits.0.fields.attributes\\.client\\.geo\\.location.0.coordinates.1").doubleValue(),
+            closeTo(-33.494, 0.001)
+        );
+        assertThat(
+            getIndexMappingPath("logs-generic.otel-default").evaluate("properties.attributes.properties.client\\.geo\\.location.type"),
+            equalTo("geo_point")
+        );
+        assertThat(source.evaluate("attributes.server\\.geo\\.location\\.lon"), equalTo(1.1));
+        assertThat(source.evaluate("attributes.server\\.geo\\.location\\.lat"), nullValue());
     }
 
     public void testDataStreamRouting() throws Exception {

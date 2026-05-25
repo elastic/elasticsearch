@@ -1,0 +1,285 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.icu_collation_keyword.supports_binary_dv" ]
+      reason: "binary doc values are under test"
+---
+"icu_collation_keyword get mapping":
+  - do:
+      indices.create:
+        index: test_icu_collation_mapping
+        body:
+          mappings:
+            properties:
+              collate:
+                type: icu_collation_keyword
+                language: es
+                strength: primary
+              collate_binary:
+                type: icu_collation_keyword
+                language: es
+                strength: primary
+                doc_values:
+                  cardinality: high
+  - do:
+      indices.get_field_mapping:
+        index: test_icu_collation_mapping
+        fields: [ collate, collate_binary ]
+        include_defaults: true
+  - match: { test_icu_collation_mapping.mappings.collate.mapping.collate.type: icu_collation_keyword }
+  - match: { test_icu_collation_mapping.mappings.collate.mapping.collate.language: es }
+  - match: { test_icu_collation_mapping.mappings.collate.mapping.collate.strength: primary }
+  - match: { test_icu_collation_mapping.mappings.collate.mapping.collate.doc_values.cardinality: low }
+  - match: { test_icu_collation_mapping.mappings.collate_binary.mapping.collate_binary.type: icu_collation_keyword }
+  - match: { test_icu_collation_mapping.mappings.collate_binary.mapping.collate_binary.language: es }
+  - match: { test_icu_collation_mapping.mappings.collate_binary.mapping.collate_binary.strength: primary }
+  - match: { test_icu_collation_mapping.mappings.collate_binary.mapping.collate_binary.doc_values.cardinality: high }
+
+
+---
+"Test basic field retrieval for icu_collation_keyword (multi-value)":
+  - do:
+      indices.create:
+        index: test_icu_field_multi
+        body:
+          mappings:
+            properties:
+              collate:
+                type: icu_collation_keyword
+                language: en
+              collate_binary:
+                type: icu_collation_keyword
+                language: en
+                doc_values:
+                  cardinality: high
+  - do:
+      index:
+        refresh: true
+        index: test_icu_field_multi
+        id: "1"
+        body:
+          collate: [ "a", "b" ]
+          collate_binary: [ "a", "b" ]
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_icu_field_multi
+        body:
+          fields: [ collate, collate_binary ]
+  - is_true: hits.hits.0._id
+  - is_true: hits.hits.0._source
+  - match: { hits.hits.0.fields.collate.0: a }
+  - match: { hits.hits.0.fields.collate.1: b }
+  - match: { hits.hits.0.fields.collate_binary.0: a }
+  - match: { hits.hits.0.fields.collate_binary.1: b }
+
+---
+"icu_collation_keyword ignore_above omits value from field retrieval":
+  - do:
+      indices.create:
+        index: test_icu_ignore_above
+        body:
+          mappings:
+            properties:
+              collate:
+                type: icu_collation_keyword
+                language: en
+                ignore_above: 5
+              collate_binary:
+                type: icu_collation_keyword
+                language: en
+                ignore_above: 5
+                doc_values:
+                  cardinality: high
+  - do:
+      index:
+        index: test_icu_ignore_above
+        id: "1"
+        body:
+          collate: "foo"
+          collate_binary: "foo"
+        refresh: true
+  - do:
+      index:
+        index: test_icu_ignore_above
+        id: "2"
+        body:
+          collate: "foo bar"
+          collate_binary: "foo bar"
+        refresh: true
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_icu_ignore_above
+        body:
+          fields: [ collate, collate_binary ]
+          query:
+            match_all: {}
+  - match: { hits.total: 2 }
+  - match: { hits.hits.0._source.collate: "foo" }
+  - match: { hits.hits.0.fields.collate.0: "foo" }
+  - match: { hits.hits.0.fields.collate_binary.0: "foo" }
+  - match: { hits.hits.1._source.collate: "foo bar" }
+  - match: { hits.hits.1.fields.collate.0: null }
+  - match: { hits.hits.1.fields.collate_binary.0: null }
+
+---
+"Test exists query on icu_collation_keyword field":
+  - do:
+      indices.create:
+        index: test_icu_exists
+        body:
+          mappings:
+            properties:
+              collate:
+                type: icu_collation_keyword
+                language: en
+              collate_binary:
+                type: icu_collation_keyword
+                language: en
+                doc_values:
+                  cardinality: high
+  - do:
+      index:
+        index: test_icu_exists
+        id: "1"
+        body:
+          collate: "bar"
+          collate_binary: "bar"
+  - do:
+      index:
+        index: test_icu_exists
+        id: "2"
+        body: {}
+  - do:
+      indices.refresh: {}
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_icu_exists
+        body:
+          query:
+            exists:
+              field: collate
+  - match: { hits.total: 1 }
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_icu_exists
+        body:
+          query:
+            exists:
+              field: collate_binary
+  - match: { hits.total: 1 }
+
+---
+"sort on icu_collation_keyword":
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            dynamic: false
+            properties:
+              collate:
+                type: icu_collation_keyword
+                language: en
+                strength: primary
+                index: false
+              collate_binary:
+                type: icu_collation_keyword
+                language: en
+                strength: primary
+                index: false
+                doc_values:
+                  cardinality: high
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          collate: "key1"
+          collate_binary: "key1"
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          collate: "key2"
+          collate_binary: "key2"
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        index: test
+        body: { sort: [ { collate: { "order": "desc" } } ] }
+  - length:   { hits.hits: 2  }
+  - match: { hits.hits.0._id: "2"}
+  - match: { hits.hits.1._id: "1" }
+
+  - do:
+      search:
+        index: test
+        body: { sort: [ { collate_binary: { "order": "desc" } } ] }
+  - length: { hits.hits: 2 }
+  - match: { hits.hits.0._id: "2"}
+  - match: { hits.hits.1._id: "1" }
+
+---
+"sort with numeric option on icu_collation_keyword":
+  - do:
+      indices.create:
+        index: test_icu_numeric_sort
+        body:
+          mappings:
+            properties:
+              collate:
+                type: icu_collation_keyword
+                language: en
+                numeric: true
+              collate_binary:
+                type: icu_collation_keyword
+                language: en
+                numeric: true
+                doc_values:
+                  cardinality: high
+  - do:
+      index:
+        index: test_icu_numeric_sort
+        id: "1"
+        body:
+          collate: "foobar-10"
+          collate_binary: "foobar-10"
+  - do:
+      index:
+        index: test_icu_numeric_sort
+        id: "2"
+        body:
+          collate: "foobar-9"
+          collate_binary: "foobar-9"
+  - do:
+      indices.refresh: {}
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_icu_numeric_sort
+        body:
+          sort: [ { collate: "asc" } ]
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test_icu_numeric_sort
+        body:
+          sort: [ { collate_binary: "asc" } ]
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.1._id: "1" }
+
+

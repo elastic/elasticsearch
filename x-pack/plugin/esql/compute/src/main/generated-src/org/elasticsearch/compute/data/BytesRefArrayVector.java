@@ -83,6 +83,11 @@ final class BytesRefArrayVector extends AbstractVector implements BytesRefVector
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return values.valueMaxByteSize();
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.BYTES_REF;
     }

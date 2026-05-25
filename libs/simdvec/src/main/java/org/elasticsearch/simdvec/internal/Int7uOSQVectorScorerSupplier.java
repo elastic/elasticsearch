@@ -39,6 +39,8 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
     protected final long vectorPitch;
     final FixedSizeScratch firstScratch;
     final FixedSizeScratch secondScratch;
+    final AddressesScratch addrsScratch = new AddressesScratch();
+    final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     Int7uOSQVectorScorerSupplier(IndexInput input, QuantizedByteVectorValues values) {
         this.input = input;
@@ -109,13 +111,13 @@ public abstract sealed class Int7uOSQVectorScorerSupplier implements RandomVecto
         long queryByteOffset = (long) query.ord * vectorPitch;
         input.seek(queryByteOffset);
         return IndexInputUtils.withSlice(input, dims, firstScratch::getScratch, querySeg -> {
-            long[] offsets = new long[numNodes];
+            long[] offsets = offsetsScratch.get(numNodes);
             for (int i = 0; i < numNodes; i++) {
                 offsets[i] = (long) ordinals[i] * vectorPitch;
             }
 
             float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
-            boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, dims, numNodes, addrs -> {
+            boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, dims, numNodes, addrsScratch::get, addrs -> {
                 var scoresSeg = MemorySegment.ofArray(scores);
                 dotProductI7uBulkSparse(addrs, querySeg, dims, numNodes, scoresSeg);
                 maxScore[0] = applyCorrectionsBulk(scoresSeg, ordinals, numNodes, query);

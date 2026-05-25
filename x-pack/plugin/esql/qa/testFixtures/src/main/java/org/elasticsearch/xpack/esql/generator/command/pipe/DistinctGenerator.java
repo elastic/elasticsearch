@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.generator.command.pipe;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.generator.Column;
+import org.elasticsearch.xpack.esql.generator.GenerationContext;
 import org.elasticsearch.xpack.esql.generator.QueryExecutor;
 import org.elasticsearch.xpack.esql.generator.command.CommandGenerator;
 import org.elasticsearch.xpack.esql.plan.logical.Distinct;
@@ -27,7 +28,8 @@ public class DistinctGenerator implements CommandGenerator {
         List<CommandDescription> previousCommands,
         List<Column> previousOutput,
         QuerySchema schema,
-        QueryExecutor executor
+        QueryExecutor executor,
+        GenerationContext context
     ) {
         if (EsqlCapabilities.Cap.DISTINCT_COMMAND.isEnabled() == false) {
             return EMPTY_DESCRIPTION;

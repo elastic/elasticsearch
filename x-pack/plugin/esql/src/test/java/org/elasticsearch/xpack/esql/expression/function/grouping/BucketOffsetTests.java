@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.grouping;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -26,12 +27,13 @@ public class BucketOffsetTests extends ESTestCase {
             null,
             null,
             ConfigurationAware.CONFIGURATION_MARKER,
-            Duration.ofMinutes(30).toMillis()
+            Duration.ofMinutes(30).toMillis(),
+            Rounding.RoundingConvention.UP
         );
 
         long value = Instant.parse("2024-01-01T01:20:00Z").toEpochMilli();
         long rounded = bucket.getDateRounding(FoldContext.small(), null, null).round(value);
-        assertEquals(Instant.parse("2024-01-01T00:30:00Z").toEpochMilli(), rounded);
+        assertEquals(Instant.parse("2024-01-01T01:30:00Z").toEpochMilli(), rounded);
     }
 
     public void testAutoSpanIgnoresOffset() {
@@ -44,11 +46,12 @@ public class BucketOffsetTests extends ESTestCase {
             Literal.dateTime(Source.EMPTY, Instant.parse("2024-01-01T00:00:00Z")),
             Literal.dateTime(Source.EMPTY, Instant.parse("2024-01-01T04:00:00Z")),
             ConfigurationAware.CONFIGURATION_MARKER,
-            Duration.ofMinutes(30).toMillis()
+            Duration.ofMinutes(30).toMillis(),
+            Rounding.RoundingConvention.UP
         );
 
         long value = Instant.parse("2024-01-01T01:20:00Z").toEpochMilli();
         long rounded = bucket.getDateRounding(FoldContext.small(), null, null).round(value);
-        assertEquals(Instant.parse("2024-01-01T01:00:00Z").toEpochMilli(), rounded);
+        assertEquals(Instant.parse("2024-01-01T02:00:00Z").toEpochMilli(), rounded);
     }
 }

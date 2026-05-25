@@ -89,8 +89,8 @@ public class JinaAIActionCreator implements JinaAIActionVisitor {
             overriddenModel,
             RERANK_HANDLER,
             (rerankInput) -> new JinaAIRerankRequest(
-                rerankInput.getQuery(),
-                rerankInput.getChunks(),
+                rerankInput.getQueryAsString(),
+                rerankInput.getDocsAsStrings(),
                 rerankInput.getReturnDocuments(),
                 rerankInput.getTopN(),
                 overriddenModel

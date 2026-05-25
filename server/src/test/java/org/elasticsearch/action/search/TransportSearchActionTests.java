@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.activity.ActivityLogWriterProvider;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -58,6 +59,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -74,12 +77,18 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.aggregations.InternalAggregations;
+import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.profile.ProfileResult;
+import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
+import org.elasticsearch.search.profile.SearchProfileResults;
+import org.elasticsearch.search.profile.SearchProfileShardResult;
+import org.elasticsearch.search.profile.aggregation.AggregationProfileShardResult;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.search.suggest.SuggestBuilder;
 import org.elasticsearch.search.suggest.term.TermSuggestionBuilder;
@@ -1102,6 +1111,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
+                    null,
+                    false,
                     new MatchAllQueryBuilder(),
                     randomBoolean(),
                     null,
@@ -1136,6 +1147,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     IndicesOptions.lenientExpandOpen(),
                     "index_not_found",
                     null,
+                    null,
+                    false,
                     new MatchAllQueryBuilder(),
                     randomBoolean(),
                     null,
@@ -1193,6 +1206,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
+                    null,
+                    false,
                     new MatchAllQueryBuilder(),
                     randomBoolean(),
                     null,
@@ -1228,6 +1243,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
+                    null,
+                    false,
                     new MatchAllQueryBuilder(),
                     randomBoolean(),
                     null,
@@ -1279,6 +1296,8 @@ public class TransportSearchActionTests extends ESTestCase {
                     IndicesOptions.lenientExpandOpen(),
                     null,
                     null,
+                    null,
+                    false,
                     new MatchAllQueryBuilder(),
                     randomBoolean(),
                     null,
@@ -1322,7 +1341,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
                     source,
                     timeProvider,
-                    emptyReduceContextBuilder()
+                    emptyReduceContextBuilder(),
+                    SearchCoordinatorContext.none()
                 )
             ) {
                 assertEquals(0, merger.from);
@@ -1338,7 +1358,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
                     null,
                     timeProvider,
-                    emptyReduceContextBuilder()
+                    emptyReduceContextBuilder(),
+                    SearchCoordinatorContext.none()
                 )
             ) {
                 assertEquals(0, merger.from);
@@ -1358,7 +1379,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 SearchResponseMerger merger = TransportSearchAction.createSearchResponseMerger(
                     source,
                     timeProvider,
-                    emptyReduceContextBuilder()
+                    emptyReduceContextBuilder(),
+                    SearchCoordinatorContext.none()
                 )
             ) {
                 assertEquals(0, source.from());
@@ -1369,6 +1391,118 @@ public class TransportSearchActionTests extends ESTestCase {
                 assertEquals(trackTotalHitsUpTo, merger.trackTotalHitsUpTo);
             }
         }
+    }
+
+    public void testGetSearchProfileResultsReturnsNullWhenResponseHasNoProfile() {
+        SearchCoordinatorContext context = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(
+            new SearchRequest("idx").source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).profile(true))
+        );
+        SearchResponse response = newTestSearchResponse(null);
+        try {
+            assertNull(TransportSearchAction.getSearchProfileResults(response, context));
+        } finally {
+            response.decRef();
+        }
+    }
+
+    public void testGetSearchProfileResultsReturnsNullWhenProfileMapIsEmpty() {
+        SearchCoordinatorContext context = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(
+            new SearchRequest("idx").source(new SearchSourceBuilder().query(QueryBuilders.matchAllQuery()).profile(true))
+        );
+        SearchResponse response = newTestSearchResponse(new SearchProfileResults(Map.of()));
+        try {
+            assertNull(TransportSearchAction.getSearchProfileResults(response, context));
+        } finally {
+            response.decRef();
+        }
+    }
+
+    public void testGetSearchProfileResultsAppliesCoordinatorMetadataWhenProfilePresent() {
+        SearchSourceBuilder coordinatorSource = new SearchSourceBuilder().query(QueryBuilders.termQuery("f", "v")).profile(true).size(11);
+        SearchSourceBuilder expectedSnapshot = new SearchSourceBuilder().query(QueryBuilders.termQuery("f", "v")).profile(true).size(11);
+        String[] coordinatorIndices = new String[] { "wildcard-*", "alias" };
+        SearchCoordinatorContext context = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(
+            new SearchRequest(coordinatorIndices).source(coordinatorSource)
+        );
+        Map<String, SearchProfileShardResult> shardResults = newProfileShardResults();
+        SearchResponse response = newTestSearchResponse(new SearchProfileResults(shardResults));
+        try {
+            SearchProfileResults result = TransportSearchAction.getSearchProfileResults(response, context);
+            assertNotNull(result);
+            assertEquals(shardResults, result.getShardResults());
+            assertEquals(expectedSnapshot, result.getOriginalSource());
+            assertArrayEquals(coordinatorIndices, result.getRequestIndices());
+        } finally {
+            response.decRef();
+        }
+    }
+
+    public void testGetSearchProfileResultsLeavesMetadataNullForNoneContext() {
+        Map<String, SearchProfileShardResult> shardResults = newProfileShardResults();
+        SearchResponse response = newTestSearchResponse(new SearchProfileResults(shardResults));
+        try {
+            SearchProfileResults result = TransportSearchAction.getSearchProfileResults(response, SearchCoordinatorContext.none());
+            assertNotNull(result);
+            assertEquals(shardResults, result.getShardResults());
+            assertNull(result.getOriginalSource());
+            assertNull(result.getRequestIndices());
+        } finally {
+            response.decRef();
+        }
+    }
+
+    /**
+     * The helper must always return a {@link SearchProfileResults} that is independent of the input response's profile object so the
+     * coordinator metadata is only attached to the merged output (the source is mutated by snapshotting before this point).
+     */
+    public void testGetSearchProfileResultsReturnsFreshInstance() {
+        Map<String, SearchProfileShardResult> shardResults = newProfileShardResults();
+        SearchProfileResults inputProfile = new SearchProfileResults(shardResults);
+        SearchResponse response = newTestSearchResponse(inputProfile);
+        try {
+            SearchCoordinatorContext context = SearchCoordinatorContext.snapshotProfileCoordinatorMetadata(
+                new SearchRequest("idx").source(new SearchSourceBuilder().profile(true))
+            );
+            SearchProfileResults result = TransportSearchAction.getSearchProfileResults(response, context);
+            assertNotNull(result);
+            assertNotSame("helper should not mutate the input response's profile object", inputProfile, result);
+            assertNull("input profile metadata must remain unchanged", inputProfile.getOriginalSource());
+            assertNull("input profile indices must remain unchanged", inputProfile.getRequestIndices());
+        } finally {
+            response.decRef();
+        }
+    }
+
+    private static SearchResponse newTestSearchResponse(SearchProfileResults profile) {
+        return new SearchResponse(
+            SearchHits.empty(new TotalHits(0, TotalHits.Relation.EQUAL_TO), Float.NaN),
+            null,
+            null,
+            false,
+            null,
+            profile,
+            1,
+            null,
+            1,
+            1,
+            0,
+            100L,
+            ShardSearchFailure.EMPTY_ARRAY,
+            SearchResponse.Clusters.EMPTY
+        );
+    }
+
+    private static Map<String, SearchProfileShardResult> newProfileShardResults() {
+        SearchShardTarget target = new SearchShardTarget(
+            "node-" + randomAlphaOfLength(6),
+            new ShardId("idx-" + randomAlphaOfLength(4), randomUUID(), 0),
+            null
+        );
+        SearchProfileShardResult shardResult = new SearchProfileShardResult(
+            new SearchProfileQueryPhaseResult(List.of(), new AggregationProfileShardResult(List.of())),
+            randomBoolean() ? null : new ProfileResult("fetch", "", Map.of(), Map.of(), 1, List.of())
+        );
+        return Map.of(target.toString(), shardResult);
     }
 
     public void testShouldMinimizeRoundtrips() throws Exception {
@@ -1991,6 +2125,165 @@ public class TransportSearchActionTests extends ESTestCase {
         } finally {
             assertTrue(ESTestCase.terminate(threadPool));
         }
+    }
+
+    public void testValidateAndResolveSearchSliceRoutingRequiresSliceWhenEnabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest("slice-enabled-index");
+        IndexMetadata metadata = IndexMetadata.builder("slice-enabled-index")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "slice-enabled-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.slice.enabled", true)
+            )
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
+                request,
+                Map.of(metadata.getIndex(), metadata),
+                request.indices(),
+                false
+            )
+        );
+        assertThat(e.getMessage(), containsString("[_slice] is required when [index.slice.enabled] is true"));
+    }
+
+    public void testValidateAndResolveSearchSliceRoutingRejectsRoutingWhenSliceEnabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest("slice-enabled-index");
+        request.routing("r1");
+        IndexMetadata metadata = IndexMetadata.builder("slice-enabled-index")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "slice-enabled-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.slice.enabled", true)
+            )
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
+                request,
+                Map.of(metadata.getIndex(), metadata),
+                request.indices(),
+                false
+            )
+        );
+        assertThat(e.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
+        assertThat(e.getMessage(), containsString("use [_slice] instead"));
+    }
+
+    public void testValidateAndResolveSearchSliceRoutingRejectsSliceWhenDisabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest("slice-disabled-index");
+        request.routing("s1");
+        request.searchSlice("s1");
+        IndexMetadata metadata = IndexMetadata.builder("slice-disabled-index")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "slice-disabled-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
+                request,
+                Map.of(metadata.getIndex(), metadata),
+                request.indices(),
+                false
+            )
+        );
+        assertThat(e.getMessage(), containsString("[_slice] is not allowed when [index.slice.enabled] is false"));
+    }
+
+    public void testValidateAndResolveSearchSliceRoutingAcceptsMixedTargets() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest("slice-enabled-index", "slice-disabled-index");
+        request.routing("s1,s2");
+        request.searchSlice("s1,s2");
+        IndexMetadata enabled = IndexMetadata.builder("slice-enabled-index")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "slice-enabled-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.slice.enabled", true)
+            )
+            .build();
+        IndexMetadata disabled = IndexMetadata.builder("slice-disabled-index")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "slice-disabled-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            )
+            .build();
+        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
+            request,
+            Map.of(enabled.getIndex(), enabled, disabled.getIndex(), disabled),
+            request.indices(),
+            false
+        );
+        assertEquals("s1,s2", requestedSlice);
+        assertEquals("s1,s2", request.routing());
+    }
+
+    public void testValidateAndResolveSearchSliceRoutingNormalizesAllToNullRouting() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest("slice-enabled-index");
+        request.searchSlice(SliceIndexing.SLICE_ALL);
+        IndexMetadata enabled = IndexMetadata.builder("slice-enabled-index")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "slice-enabled-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.slice.enabled", true)
+            )
+            .build();
+        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(
+            request,
+            Map.of(enabled.getIndex(), enabled),
+            request.indices(),
+            false
+        );
+        assertEquals(SliceIndexing.SLICE_ALL, requestedSlice);
+        assertNull(request.routing());
+    }
+
+    public void testValidateAndResolveSearchSliceRoutingAllowsSliceForRemoteResolution() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest("remote:idx");
+        request.routing("s1");
+        request.searchSlice("s1");
+        String requestedSlice = TransportSearchAction.validateAndResolveSearchSliceRouting(request, Map.of(), request.indices(), true);
+        assertEquals("s1", requestedSlice);
+        assertEquals("s1", request.routing());
+    }
+
+    public void testValidateAndResolveSearchSliceRoutingRejectsPitWhenSliceEnabled() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        SearchRequest request = new SearchRequest("slice-enabled-index").source(
+            new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY))
+        );
+        IndexMetadata enabled = IndexMetadata.builder("slice-enabled-index")
+            .settings(
+                settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, "slice-enabled-uuid")
+                    .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+                    .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+                    .put("index.slice.enabled", true)
+            )
+            .build();
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> TransportSearchAction.validateAndResolveSearchSliceRouting(
+                request,
+                Map.of(enabled.getIndex(), enabled),
+                request.indices(),
+                false
+            )
+        );
+        assertThat(e.getMessage(), containsString("[point in time] is not supported when [index.slice.enabled] is true"));
     }
 
     public void testIgnoreIndicesWithIndexRefreshBlock() {

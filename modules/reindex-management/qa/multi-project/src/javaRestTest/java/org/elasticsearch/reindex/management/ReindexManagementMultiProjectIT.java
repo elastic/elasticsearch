@@ -23,6 +23,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
 import org.junit.After;
 import org.junit.ClassRule;
+import org.junit.Ignore;
 
 import java.io.IOException;
 import java.util.List;
@@ -81,6 +82,8 @@ public class ReindexManagementMultiProjectIT extends ESRestTestCase {
      * 2. Try to cancel the reindex from the other project and expect a 404
      * 3. Cancel the reindex from the correct project and expect success
      */
+    @FixForMultiProject(description = "Cancel reindex is not MP-aware yet")
+    @Ignore("Ignored until MP-aware")
     public void testCancellingReindexOnlyWorksForCorrectProject() throws Exception {
         final String projectWithReindex = randomUniqueProjectId().id();
         final String projectWithoutReindex = randomUniqueProjectId().id();

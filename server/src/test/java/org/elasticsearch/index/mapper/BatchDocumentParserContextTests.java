@@ -10,7 +10,10 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 
@@ -55,5 +58,22 @@ public class BatchDocumentParserContextTests extends MapperServiceTestCase {
         SourceToParse source = new SourceToParse("id1", new BytesArray("{}"), XContentType.JSON);
         BatchDocumentParserContext ctx = new BatchDocumentParserContext(ms.mappingLookup(), ms.parserContext(), source);
         assertSame(ms.mappingLookup(), ctx.mappingLookup());
+    }
+
+    public void testParserThrowsWhenNotSet() throws IOException {
+        BatchDocumentParserContext ctx = newContext();
+        IllegalStateException e = expectThrows(IllegalStateException.class, ctx::parser);
+        assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("XContentParser is not available"));
+    }
+
+    public void testParserReturnsValueOnceSetAndThrowsAgainAfterCleared() throws IOException {
+        BatchDocumentParserContext ctx = newContext();
+        try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, "{}")) {
+            ctx.setParser(parser);
+            assertSame(parser, ctx.parser());
+
+            ctx.setParser(null);
+            expectThrows(IllegalStateException.class, ctx::parser);
+        }
     }
 }

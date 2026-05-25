@@ -63,7 +63,8 @@ public class AlibabaCloudSearchCompletionModel extends AlibabaCloudSearchModel {
         super(
             modelConfigurations,
             modelSecrets,
-            ((AlibabaCloudSearchCompletionServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
+            ((AlibabaCloudSearchCompletionServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings(),
+            null
         );
     }
 

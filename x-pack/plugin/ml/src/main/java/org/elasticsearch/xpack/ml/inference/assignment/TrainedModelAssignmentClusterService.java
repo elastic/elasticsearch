@@ -184,7 +184,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                 rebalanceReason.get(),
                 ActionListener.wrap(
                     newMetadata -> logger.debug(
-                        () -> format("rebalanced model assignments [%s]", Strings.toString(newMetadata, false, true))
+                        () -> format("rebalanced model assignments [%s]", Strings.toTruncatedString(newMetadata, false, true))
                     ),
                     e -> {
                         List<String> deploymentIdsBeforeRebalance = TrainedModelAssignmentMetadata.fromState(event.state())
@@ -258,7 +258,7 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
                     logger.debug(
                         () -> format(
                             "updated model assignments based on node changes in the cluster; new metadata [%s]",
-                            Strings.toString(TrainedModelAssignmentMetadata.fromState(newState), false, true)
+                            Strings.toTruncatedString(TrainedModelAssignmentMetadata.fromState(newState), false, true)
                         )
                     );
                 }
@@ -1086,7 +1086,9 @@ public class TrainedModelAssignmentClusterService implements ClusterStateListene
         final String deploymentId = request.getDeploymentId();
         final String nodeId = request.getNodeId();
         TrainedModelAssignmentMetadata metadata = TrainedModelAssignmentMetadata.fromState(currentState);
-        logger.trace(() -> format("[%s] [%s] current metadata before update %s", deploymentId, nodeId, Strings.toString(metadata)));
+        logger.trace(
+            () -> format("[%s] [%s] current metadata before update %s", deploymentId, nodeId, Strings.toTruncatedString(metadata))
+        );
         final TrainedModelAssignment existingAssignment = metadata.getDeploymentAssignment(deploymentId);
         final TrainedModelAssignmentMetadata.Builder builder = TrainedModelAssignmentMetadata.builder(currentState);
         // If state is stopped, this indicates the node process is closed, remove the node from the assignment

@@ -426,6 +426,7 @@ public class BulkRequestParserTests extends ESTestCase {
     }
 
     public void testIndexRequestRejectsRoutingAndSliceMetadataTogether() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         BytesArray request = new BytesArray("""
             { "index":{ "_id": "bar", "routing": "r1", "_slice": "s1" } }
             {}

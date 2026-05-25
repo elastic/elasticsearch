@@ -286,7 +286,7 @@ final class RequestDispatcher {
                             nowInMillis,
                             AliasFilter.EMPTY,
                             clusterAlias,
-                            searchShardRouting.reshardSplitShardCountSummary()
+                            searchShardRouting.splitShardCountSummary()
                         );
                         shardRequest.source(new SearchSourceBuilder().query(indexFilter));
                         try {

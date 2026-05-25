@@ -18,7 +18,6 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.nvidia.NvidiaService;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaServiceSettings;
 import org.elasticsearch.xpack.inference.services.nvidia.NvidiaUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -164,7 +163,6 @@ public class NvidiaEmbeddingsServiceSettings extends NvidiaServiceSettings {
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            NvidiaService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

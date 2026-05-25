@@ -11,6 +11,8 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -34,11 +36,21 @@ import java.util.NoSuchElementException;
  */
 final class NdJsonPageIterator implements CloseableIterator<Page> {
 
+    private static final Logger logger = LogManager.getLogger(NdJsonPageIterator.class);
+
     private final NdJsonPageDecoder pageDecoder;
     private final int rowLimit;
     private long rowsEmitted;
     private boolean endOfFile = false;
     private Page nextPage;
+
+    /**
+     * Storage objects up to this size are eagerly slurped into a {@code byte[]} so the decoder can
+     * use Jackson's {@code createParser(byte[])} fast path instead of the {@code InputStream}
+     * dispatch. Streaming-parallel chunks are ~1 MiB, single-file reads are usually well under
+     * this; very large files fall back to streaming so they do not pin a multi-hundred-MiB array.
+     */
+    static final int BYTE_ARRAY_FAST_PATH_MAX_SIZE = 16 * 1024 * 1024;
 
     NdJsonPageIterator(
         StorageObject object,
@@ -61,15 +73,55 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
             inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation);
         }
         this.rowLimit = rowLimit;
-        this.pageDecoder = new NdJsonPageDecoder(
-            inputStream,
-            resolvedAttributes,
-            projectedColumns,
-            batchSize,
-            blockFactory,
-            errorPolicy,
-            sourceLocation
-        );
+        if (canUseByteArrayFastPath(object)) {
+            byte[] data;
+            try (InputStream toClose = inputStream) {
+                data = toClose.readAllBytes();
+            }
+            this.pageDecoder = new NdJsonPageDecoder(
+                data,
+                0,
+                data.length,
+                resolvedAttributes,
+                projectedColumns,
+                batchSize,
+                blockFactory,
+                errorPolicy,
+                sourceLocation
+            );
+        } else {
+            this.pageDecoder = new NdJsonPageDecoder(
+                inputStream,
+                resolvedAttributes,
+                projectedColumns,
+                batchSize,
+                blockFactory,
+                errorPolicy,
+                sourceLocation
+            );
+        }
+    }
+
+    /**
+     * The byte-array fast path is available for storage objects with a known, bounded length;
+     * decompressing wrappers throw {@link UnsupportedOperationException} from {@link StorageObject#length()}
+     * and stay on the streaming path. Transient {@link IOException}s from {@link StorageObject#length()}
+     * also fall back to streaming so a metadata hiccup does not abort an open call; the streaming
+     * read will surface the same condition if the data itself is unreachable.
+     */
+    private static boolean canUseByteArrayFastPath(StorageObject object) {
+        try {
+            long len = object.length();
+            return len >= 0 && len <= BYTE_ARRAY_FAST_PATH_MAX_SIZE;
+        } catch (UnsupportedOperationException e) {
+            return false;
+        } catch (IOException e) {
+            // Surface the metadata hiccup at DEBUG so a transient S3 head-object failure is not
+            // completely invisible during diagnosis. The streaming path will surface the same
+            // condition on read if the data itself is unreachable.
+            logger.debug(() -> "byte-array fast path disabled for [" + object.path() + "]: object length unavailable", e);
+            return false;
+        }
     }
 
     @Override

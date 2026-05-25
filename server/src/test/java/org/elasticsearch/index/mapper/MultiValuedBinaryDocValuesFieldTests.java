@@ -16,7 +16,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.mapper.FieldMapper.DocValuesParameter.Values.MultiValue;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.IntegratedCount;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.SeparateCount;
 import org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.ValueOrdering;
@@ -370,16 +369,16 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
     }
 
     // =====================================================================================================================================
-    // multi_value=no tests
+    // multi_value=false tests
     // =====================================================================================================================================
 
-    public void testMultiValueNoUsesBinaryDocValuesFieldWithRawBytes() {
+    public void testMultiValueFalseUsesBinaryDocValuesFieldWithRawBytes() {
         // given
         LuceneDocument doc = new LuceneDocument();
         BytesRef value = new BytesRef(randomAlphanumericOfLength(10));
 
-        // when — use DocValuesFieldFactory which handles multi_value=no branching
-        DocValuesFieldFactory factory = new DocValuesFieldFactory(MultiValue.NO, false, IndexVersion.current());
+        // when — use DocValuesFieldFactory which handles multi_value=false branching
+        DocValuesFieldFactory factory = new DocValuesFieldFactory(false, false, IndexVersion.current());
         factory.addBinaryField(doc, "field", value, ValueOrdering.SORTED_UNIQUE);
 
         // then — field is stored as a plain BinaryDocValuesField with the raw value
@@ -393,12 +392,12 @@ public class MultiValuedBinaryDocValuesFieldTests extends ESTestCase {
      * This test verifies that we're not double storing field names in keyedFields ({@link LuceneDocument}) and singleValuedFields
      * ({@link DocumentParserContext}). This ensures that we're not double storing.
      */
-    public void testMultiValueNoDoesNotStoreInKeyedFields() {
+    public void testMultiValueFalseDoesNotStoreInKeyedFields() {
         // given
         LuceneDocument doc = new LuceneDocument();
 
         // when
-        DocValuesFieldFactory factory = new DocValuesFieldFactory(MultiValue.NO, false, IndexVersion.current());
+        DocValuesFieldFactory factory = new DocValuesFieldFactory(false, false, IndexVersion.current());
         factory.addBinaryField(doc, "field", new BytesRef(randomAlphanumericOfLength(10)), ValueOrdering.SORTED_UNIQUE);
 
         // then — field is NOT registered in keyedFields; only in the Lucene fields list. Single-value enforcement is handled at the

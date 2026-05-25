@@ -48,7 +48,6 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
 
     // Accumulate hits with sequence numbers for ordering
     private final Queue<SequencedHit> queue = new ConcurrentLinkedQueue<>();
-    private volatile boolean ownershipTransferred = false;
 
     // Circuit breaker accounting
     private final CircuitBreaker circuitBreaker;
@@ -119,11 +118,11 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
             logger.debug("Building final result for shard [{}] with [{}] hits", shardIndex, queue.size());
         }
 
-        // Convert queue to list and sort by sequence number to restore correct order
-        List<SequencedHit> sequencedHits = new ArrayList<>(queue);
+        // Drain the queue: ownership of every hit moves to the final result.
+        List<SequencedHit> sequencedHits = drainQueue();
+        // Restore correct order (chunks may have arrived out of order).
         sequencedHits.sort(Comparator.comparingLong(sh -> sh.sequence));
 
-        // Extract hits in correct order and calculate maxScore
         List<SearchHit> orderedHits = new ArrayList<>(sequencedHits.size());
         float maxScore = Float.NEGATIVE_INFINITY;
 
@@ -139,8 +138,6 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
         if (maxScore == Float.NEGATIVE_INFINITY) {
             maxScore = Float.NaN;
         }
-
-        ownershipTransferred = true;
 
         SearchHits searchHits = new SearchHits(
             orderedHits.toArray(SearchHit[]::new),
@@ -185,12 +182,10 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
             );
         }
 
-        if (ownershipTransferred == false) {
-            for (SequencedHit sequencedHit : queue) {
-                sequencedHit.hit.decRef();
-            }
+        // Release any hits still queued
+        for (SequencedHit pending : drainQueue()) {
+            pending.hit.decRef();
         }
-        queue.clear();
 
         // Release circuit breaker bytes added during accumulation when hits are released from memory
         if (totalBreakerBytes.get() > 0) {
@@ -205,6 +200,18 @@ class FetchPhaseResponseStream extends AbstractRefCounted {
             }
             totalBreakerBytes.set(0);
         }
+    }
+
+    /**
+     * Polls and returns every hit currently in the queue.
+     */
+    private List<SequencedHit> drainQueue() {
+        List<SequencedHit> drained = new ArrayList<>();
+        SequencedHit polled;
+        while ((polled = queue.poll()) != null) {
+            drained.add(polled);
+        }
+        return drained;
     }
 
     /**

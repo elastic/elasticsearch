@@ -92,6 +92,11 @@ public final class BytesRefArrayBlock extends AbstractArrayBlock implements Byte
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public OrdinalBytesRefBlock asOrdinals() {
         return null;
     }

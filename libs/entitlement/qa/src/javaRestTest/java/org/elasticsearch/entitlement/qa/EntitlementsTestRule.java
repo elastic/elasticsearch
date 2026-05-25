@@ -62,13 +62,28 @@ class EntitlementsTestRule implements TestRule {
     final TemporaryFolder testDir;
     final ElasticsearchCluster cluster;
     final TestRule ruleChain;
+    private final String overrideDescriptorName;
 
     EntitlementsTestRule(boolean modular, PolicyBuilder policyBuilder) {
-        this(modular, policyBuilder, tempDir -> Map.of());
+        this(modular, policyBuilder, tempDir -> Map.of(), null);
     }
 
-    @SuppressWarnings("this-escape")
     EntitlementsTestRule(boolean modular, PolicyBuilder policyBuilder, TempDirSystemPropertyProvider tempDirSystemPropertyProvider) {
+        this(modular, policyBuilder, tempDirSystemPropertyProvider, null);
+    }
+
+    /**
+     * @param overrideDescriptorName if non-null, rewrites the test plugin's descriptor {@code name=}
+     *                               to this value (the install directory stays {@link #ENTITLEMENT_TEST_PLUGIN_NAME}).
+     */
+    @SuppressWarnings("this-escape")
+    EntitlementsTestRule(
+        boolean modular,
+        PolicyBuilder policyBuilder,
+        TempDirSystemPropertyProvider tempDirSystemPropertyProvider,
+        String overrideDescriptorName
+    ) {
+        this.overrideDescriptorName = overrideDescriptorName;
         testDir = new TemporaryFolder();
         var tempDirSetup = new ExternalResource() {
             @Override
@@ -124,9 +139,17 @@ class EntitlementsTestRule implements TestRule {
             buildEntitlements(spec, moduleName, policyBuilder);
         }
 
-        if (modular == false) {
+        boolean rewriteModulename = (modular == false);
+        boolean rewriteName = overrideDescriptorName != null;
+        if (rewriteModulename || rewriteName) {
             spec.withPropertiesOverride(old -> {
-                String props = old.replace("modulename=" + ENTITLEMENT_QA_TEST_MODULE_NAME, "");
+                String props = old;
+                if (rewriteModulename) {
+                    props = props.replace("modulename=" + ENTITLEMENT_QA_TEST_MODULE_NAME, "");
+                }
+                if (rewriteName) {
+                    props = props.replaceAll("(?m)^name=.*$", "name=" + overrideDescriptorName);
+                }
                 System.out.println("Using plugin properties:\n" + props);
                 return Resource.fromString(props);
             });

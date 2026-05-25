@@ -8,7 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.core.ResponseInputStream;
-import software.amazon.awssdk.core.async.AsyncResponseTransformer;
+import software.amazon.awssdk.http.Abortable;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -20,6 +20,8 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
@@ -35,6 +37,8 @@ import java.util.concurrent.Executor;
  * Supports full and range reads, metadata retrieval, and optional native async via S3AsyncClient.
  */
 public final class S3StorageObject implements StorageObject {
+    private static final Logger logger = LogManager.getLogger(S3StorageObject.class);
+
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
     private final String bucket;
@@ -182,11 +186,65 @@ public final class S3StorageObject implements StorageObject {
     }
 
     @Override
+    public void abortStream(InputStream stream) throws IOException {
+        if (stream instanceof Abortable abortable) {
+            abortable.abort();
+        } else {
+            logger.trace(
+                () -> Strings.format(
+                    "abortStream received non-Abortable stream [%s] for [%s]; falling back to close() which may drain the body",
+                    stream.getClass().getName(),
+                    path
+                )
+            );
+            stream.close();
+        }
+    }
+
+    @Override
     public StoragePath path() {
         return path;
     }
 
     private void fetchMetadata() throws IOException {
+        try {
+            // Suffix range: bytes=-1 returns the last byte + Content-Range with total size.
+            // Avoids a separate HEAD request for file size discovery.
+            GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range("bytes=-1").build();
+            try (var response = s3Client.getObject(request)) {
+                // Drain the 1-byte body so the HTTP connection returns to the pool
+                // instead of being aborted on close.
+                response.readAllBytes();
+                GetObjectResponse metadata = response.response();
+                cachedExists = true;
+                cachedLastModified = metadata.lastModified();
+                Long total = ContentRangeParser.parseTotalLength(metadata.contentRange());
+                if (total != null) {
+                    cachedLength = total;
+                    return;
+                }
+            }
+            // Content-Range missing (unexpected for S3) — fall back to HEAD for length
+            fetchMetadataViaHead();
+        } catch (NoSuchKeyException e) {
+            setNotFound();
+        } catch (S3Exception e) {
+            if (e.statusCode() == 416) {
+                // 416 Range Not Satisfiable: object exists but is empty (0 bytes)
+                cachedExists = true;
+                cachedLength = 0L;
+            } else if (e.statusCode() == 403) {
+                // GET denied — try the existing bytes=0-0 fallback which extracts
+                // size from Content-Range; HEAD uses the same s3:GetObject permission
+                // so would also be denied.
+                fetchMetadataViaRangeGet();
+            } else {
+                fetchMetadataViaHead();
+            }
+        }
+    }
+
+    private void fetchMetadataViaHead() throws IOException {
         try {
             HeadObjectRequest request = HeadObjectRequest.builder().bucket(bucket).key(key).build();
             HeadObjectResponse response = s3Client.headObject(request);
@@ -260,36 +318,56 @@ public final class S3StorageObject implements StorageObject {
             listener.onFailure(new IllegalArgumentException("length must be positive, got: " + length));
             return;
         }
+        if (length > Integer.MAX_VALUE) {
+            // The async path materializes the response into a single byte[]; ranges larger than 2 GiB
+            // are not supportable here. Callers needing larger reads must split the range or fall
+            // back to the streaming sync path via newStream(position, length).
+            listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
+            return;
+        }
 
         long endPosition = position + length - 1;
         String rangeHeader = Strings.format("bytes=%d-%d", position, endPosition);
 
         GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
 
-        s3AsyncClient.getObject(request, AsyncResponseTransformer.toBytes()).whenComplete((responseBytes, throwable) -> {
-            if (throwable != null) {
-                Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
-                if (cause instanceof NoSuchKeyException) {
-                    listener.onFailure(new IOException("Object not found: " + path, cause));
-                } else {
-                    listener.onFailure(cause instanceof Exception ex ? ex : new RuntimeException(cause));
+        // Use a custom transformer instead of AsyncResponseTransformer.toBytes() so each chunk is
+        // copied straight into the final pre-sized byte[] (single chunk-to-destination copy),
+        // rather than the SDK's default BAOS-based pipeline which materializes the body 3+ times.
+        // See KnownLengthAsyncResponseTransformer for the full rationale.
+        s3AsyncClient.getObject(request, new KnownLengthAsyncResponseTransformer<>((int) length))
+            .whenComplete((responseBytes, throwable) -> {
+                if (throwable != null) {
+                    Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
+                    if (cause instanceof NoSuchKeyException) {
+                        listener.onFailure(new IOException("Object not found: " + path, cause));
+                    } else {
+                        listener.onFailure(cause instanceof Exception ex ? ex : new RuntimeException(cause));
+                    }
+                    return;
                 }
-                return;
-            }
 
-            GetObjectResponse response = responseBytes.response();
-            if (cachedLastModified == null) {
-                cachedLastModified = response.lastModified();
-            }
-            if (cachedLength == null) {
-                Long total = ContentRangeParser.parseTotalLength(response.contentRange());
-                if (total != null) {
-                    cachedLength = total;
+                GetObjectResponse response = responseBytes.response();
+                if (cachedLastModified == null) {
+                    cachedLastModified = response.lastModified();
                 }
-            }
+                if (cachedLength == null) {
+                    Long total = ContentRangeParser.parseTotalLength(response.contentRange());
+                    if (total != null) {
+                        cachedLength = total;
+                    }
+                }
 
-            listener.onResponse(ByteBuffer.wrap(responseBytes.asByteArray()));
-        });
+                // Copy into a direct ByteBuffer so both the input and output sides of decompression
+                // are direct — enabling the JNI-free direct-to-direct fast path in PlainCompressionCodecFactory
+                // and avoiding GetPrimitiveArrayCritical heap-region pinning during G1GC.
+                // Use asByteArrayUnsafe() to skip the SDK's defensive Arrays.copyOf; safe because the byte[]
+                // was allocated by our KnownLengthAsyncResponseTransformer above and is not retained elsewhere.
+                byte[] data = responseBytes.asByteArrayUnsafe();
+                ByteBuffer direct = ByteBuffer.allocateDirect(data.length);
+                direct.put(data).flip();
+                listener.onResponse(direct);
+            });
     }
 
     @Override

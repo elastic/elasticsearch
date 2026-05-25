@@ -13,8 +13,8 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.test.ESTestCase;
 
@@ -26,7 +26,6 @@ import java.util.stream.IntStream;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
-import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 
 public class BulkIndexByScrollResponseTests extends ESTestCase {
@@ -45,7 +44,7 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
             TimeValue thisTook = timeValueMillis(i == tookIndex ? took : between(0, took));
             // The actual status doesn't matter too much - we test merging those elsewhere
             String thisReasonCancelled = rarely() ? randomAlphaOfLength(5) : null;
-            BulkByScrollTask.Status status = new BulkByScrollTask.Status(
+            BulkByPaginatedSearchTask.Status status = new BulkByPaginatedSearchTask.Status(
                 i,
                 0,
                 0,
@@ -76,7 +75,7 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
             responses.add(new BulkByScrollResponse(thisTook, status, bulkFailures, searchFailures, thisTimedOut));
         }
 
-        BulkByScrollResponse merged = new BulkByScrollResponse(responses, reasonCancelled);
+        BulkByScrollResponse merged = new BulkByScrollResponse(responses, reasonCancelled, null, 0f);
 
         assertEquals(timeValueMillis(took), merged.getTook());
         assertEquals(allBulkFailures, merged.getBulkFailures());
@@ -85,12 +84,12 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
         assertEquals(reasonCancelled, merged.getReasonCancelled());
     }
 
-    /** Verifies the 3-arg merge constructor with pitId preserves the pitId in the merged response. */
+    /** Verifies the merge constructor with pitId preserves the pitId in the merged response. */
     public void testMergeConstructorWithPitId() {
         BytesReference pitId = new BytesArray("merged-pit-id".getBytes(StandardCharsets.UTF_8));
         List<BulkByScrollResponse> responses = new ArrayList<>();
         for (int i = 0; i < between(2, 5); i++) {
-            BulkByScrollTask.Status status = new BulkByScrollTask.Status(
+            BulkByPaginatedSearchTask.Status status = new BulkByPaginatedSearchTask.Status(
                 i,
                 0,
                 0,
@@ -109,7 +108,7 @@ public class BulkIndexByScrollResponseTests extends ESTestCase {
             responses.add(new BulkByScrollResponse(timeValueMillis(100), status, emptyList(), emptyList(), false));
         }
 
-        BulkByScrollResponse merged = new BulkByScrollResponse(responses, null, pitId);
+        BulkByScrollResponse merged = new BulkByScrollResponse(responses, null, pitId, 0f);
 
         assertTrue(merged.getPitId().isPresent());
         assertThat(merged.getPitId().get(), equalTo(pitId));

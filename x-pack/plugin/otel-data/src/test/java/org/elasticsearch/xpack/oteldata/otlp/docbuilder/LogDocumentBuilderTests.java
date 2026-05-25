@@ -25,6 +25,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.oteldata.otlp.DocumentMetadata;
 import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
@@ -109,6 +110,58 @@ public class LogDocumentBuilderTests extends ESTestCase {
 
         assertThat(doc.evaluate("body.structured.outer"), equalTo("value"));
         assertThat(doc.evaluate("body.structured.nested"), equalTo(Map.of("inner_key", "inner_value")));
+    }
+
+    public void testBodyMapDocument() throws IOException {
+        byte[] bytes = new byte[] { 0x2a, 0x2b };
+        LogRecord logRecord = LogRecord.newBuilder()
+            .setTimeUnixNano(1_000_000_000L)
+            .setSeverityText("ignored")
+            .setBody(
+                AnyValue.newBuilder()
+                    .setKvlistValue(
+                        KeyValueList.newBuilder()
+                            .addValues(keyValue("@timestamp", "2024-03-12T20:00:41.123456789Z"))
+                            .addValues(keyValue("id", 1L))
+                            .addValues(keyValue("key", "value"))
+                            .addValues(keyValue("key.a", "a"))
+                            .addValues(keyValue("pi", 3.14))
+                            .addValues(
+                                keyValue("nested", KeyValueList.newBuilder().addValues(keyValue("inner_key", "inner_value")).build())
+                            )
+                            .addValues(
+                                KeyValue.newBuilder()
+                                    .setKey("bytes")
+                                    .setValue(AnyValue.newBuilder().setBytesValue(ByteString.copyFrom(bytes)).build())
+                                    .build()
+                            )
+                    )
+                    .build()
+            )
+            .build();
+
+        ObjectPath doc = buildBodyMapDocument(logRecord);
+
+        assertThat(doc.evaluate("@timestamp"), equalTo("2024-03-12T20:00:41.123456789Z"));
+        assertThat(doc.evaluate("id"), equalTo(1));
+        assertThat(doc.evaluate("key"), equalTo("value"));
+        assertThat(doc.evaluate("key\\.a"), equalTo("a"));
+        assertThat(doc.evaluate("pi"), equalTo(3.14));
+        assertThat(doc.evaluate("nested.inner_key"), equalTo("inner_value"));
+        assertThat(doc.evaluate("bytes"), equalTo(Base64.getEncoder().encodeToString(bytes)));
+        assertThat(doc.evaluate("body"), nullValue());
+        assertThat(doc.evaluate("severity_text"), nullValue());
+    }
+
+    public void testBodyMapDocumentRequiresMapBody() {
+        LogRecord logRecord = LogRecord.newBuilder()
+            .setTimeUnixNano(1_000_000_000L)
+            .setBody(AnyValue.newBuilder().setStringValue("msg").build())
+            .build();
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> buildBodyMapDocument(logRecord));
+
+        assertThat(e.getMessage(), equalTo("invalid log record body type for 'bodymap' mapping mode: STRING_VALUE"));
     }
 
     public void testArrayBodyAllMaps() throws IOException {
@@ -246,6 +299,19 @@ public class LogDocumentBuilderTests extends ESTestCase {
         assertThat(doc.evaluate("attributes.my_bytes"), equalTo(Base64.getEncoder().encodeToString(bytes)));
     }
 
+    public void testGeoLocationAttributesAreMerged() throws IOException {
+        LogRecord logRecord = LogRecord.newBuilder()
+            .setTimeUnixNano(1_000_000_000L)
+            .setBody(AnyValue.newBuilder().setStringValue("msg").build())
+            .addAttributes(keyValue("client.geo.location.lon", 1.1))
+            .addAttributes(keyValue("client.geo.location.lat", 2.2))
+            .build();
+
+        ObjectPath doc = buildDocument(logRecord);
+
+        assertThat(doc.evaluate("attributes.client\\.geo\\.location"), equalTo(List.of(1.1, 2.2)));
+    }
+
     public void testSpanAndTraceIdsAreHexEncoded() throws IOException {
         LogRecord logRecord = LogRecord.newBuilder()
             .setTimeUnixNano(1_000_000_000L)
@@ -354,6 +420,7 @@ public class LogDocumentBuilderTests extends ESTestCase {
             .addAttributes(keyValue("keep", "value"))
             .addAttributes(keyValue("data_stream.type", "logs"))
             .addAttributes(keyValue("elasticsearch.document_id", "doc-id"))
+            .addAttributes(keyValue(DocumentMetadata.INGEST_PIPELINE_ATTRIBUTE, "logs-pipeline"))
             .build();
 
         ObjectPath doc = buildDocument(resource, scope, logRecord);
@@ -361,6 +428,7 @@ public class LogDocumentBuilderTests extends ESTestCase {
         assertThat(doc.evaluate("attributes.keep"), equalTo("value"));
         assertThat(doc.evaluate("attributes.data_stream\\.type"), nullValue());
         assertThat(doc.evaluate("attributes.elasticsearch\\.document_id"), nullValue());
+        assertThat(doc.evaluate("attributes.elasticsearch\\.ingest_pipeline"), nullValue());
         assertThat(doc.evaluate("scope.attributes.scope\\.keep"), equalTo("value"));
         assertThat(doc.evaluate("resource.attributes.service\\.name"), equalTo("test-service"));
         assertThat(doc.evaluate("resource.attributes.elastic\\.mapping\\.mode"), nullValue());
@@ -374,6 +442,7 @@ public class LogDocumentBuilderTests extends ESTestCase {
             .setBody(AnyValue.newBuilder().setStringValue("msg").build())
             .addAttributes(keyValue("data_stream.type", "logs"))
             .addAttributes(keyValue("elasticsearch.document_id", "doc-id"))
+            .addAttributes(keyValue(DocumentMetadata.INGEST_PIPELINE_ATTRIBUTE, "logs-pipeline"))
             .build();
 
         ObjectPath doc = buildDocument(resource, scope, logRecord);
@@ -394,6 +463,12 @@ public class LogDocumentBuilderTests extends ESTestCase {
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         documentBuilder.buildLogDocument(builder, resource, ByteString.EMPTY, scope, ByteString.EMPTY, targetIndex, logRecord);
+        return ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
+    }
+
+    private ObjectPath buildBodyMapDocument(LogRecord logRecord) throws IOException {
+        XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
+        documentBuilder.buildBodyMapLogDocument(builder, logRecord);
         return ObjectPath.createFromXContent(JsonXContent.jsonXContent, BytesReference.bytes(builder));
     }
 }

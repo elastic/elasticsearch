@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.oteldata.otlp.datapoint.TargetIndex;
 import org.elasticsearch.xpack.oteldata.otlp.proto.BufferedByteStringAccessor;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -44,11 +45,15 @@ public class SpanEventDocumentBuilderTests extends ESTestCase {
         Resource resource = Resource.newBuilder()
             .setDroppedAttributesCount(1)
             .addAttributes(OtlpUtils.keyValue("service.name", "checkout-service"))
+            .addAttributes(OtlpUtils.keyValue("resource.geo.location.lon", 9.9))
+            .addAttributes(OtlpUtils.keyValue("resource.geo.location.lat", 10.1))
             .build();
         InstrumentationScope scope = InstrumentationScope.newBuilder()
             .setName("checkout-tracer")
             .setVersion("1.0.0")
             .addAttributes(OtlpUtils.keyValue("scope_attr", "value"))
+            .addAttributes(OtlpUtils.keyValue("scope.geo.location.lon", 11.1))
+            .addAttributes(OtlpUtils.keyValue("scope.geo.location.lat", 12.2))
             .build();
         Span span = Span.newBuilder().setTraceId(traceId).setSpanId(spanId).build();
         Span.Event event = Span.Event.newBuilder()
@@ -56,6 +61,8 @@ public class SpanEventDocumentBuilderTests extends ESTestCase {
             .setTimeUnixNano(2_000_000_000L)
             .setDroppedAttributesCount(3)
             .addAttributes(OtlpUtils.keyValue("event.attr.foo", "event.attr.bar"))
+            .addAttributes(OtlpUtils.keyValue("client.geo.location.lon", 1.1))
+            .addAttributes(OtlpUtils.keyValue("client.geo.location.lat", 2.2))
             .addAttributes(OtlpUtils.keyValue("event.name", "ignored-original-name"))
             .build();
 
@@ -70,14 +77,16 @@ public class SpanEventDocumentBuilderTests extends ESTestCase {
         assertThat(doc.evaluate("data_stream.dataset"), equalTo("generic.otel"));
         assertThat(doc.evaluate("data_stream.namespace"), equalTo("default"));
         assertThat(doc.evaluate("attributes.event\\.attr\\.foo"), equalTo("event.attr.bar"));
+        assertThat(doc.evaluate("attributes.client\\.geo\\.location"), equalTo(List.of(1.1, 2.2)));
         assertThat(doc.evaluate("attributes.event\\.name"), equalTo("exception"));
         assertThat(doc.evaluate("resource.schema_url"), equalTo("https://opentelemetry.io/schemas/1.0.0"));
         assertThat(doc.evaluate("resource.attributes.service\\.name"), equalTo("checkout-service"));
+        assertThat(doc.evaluate("resource.attributes.resource\\.geo\\.location"), equalTo(List.of(9.9, 10.1)));
         assertThat(doc.evaluate("resource.dropped_attributes_count"), equalTo(1));
         assertThat(doc.evaluate("scope.schema_url"), equalTo("https://opentelemetry.io/schemas/1.0.0"));
         assertThat(doc.evaluate("scope.name"), equalTo("checkout-tracer"));
         assertThat(doc.evaluate("scope.version"), equalTo("1.0.0"));
-        assertThat(doc.evaluate("scope.attributes"), equalTo(Map.of("scope_attr", "value")));
+        assertThat(doc.evaluate("scope.attributes"), equalTo(Map.of("scope_attr", "value", "scope.geo.location", List.of(11.1, 12.2))));
     }
 
     private ObjectPath buildDocument(Resource resource, InstrumentationScope scope, Span span, Span.Event event) throws IOException {

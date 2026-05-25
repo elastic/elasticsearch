@@ -57,10 +57,10 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     protected String index;
 
     /**
-     * The reshardSplitShardCountSummary has been added to support in-place resharding.
+     * The splitShardCountSummary has been added to support in-place resharding.
      * See {@link SplitShardCountSummary} for details.
      */
-    protected final SplitShardCountSummary reshardSplitShardCountSummary;
+    protected final SplitShardCountSummary splitShardCountSummary;
 
     /**
      * The number of shard copies that must be active before proceeding with the replication action.
@@ -77,8 +77,7 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         this(shardId, SplitShardCountSummary.UNSET, in);
     }
 
-    public ReplicationRequest(@Nullable ShardId shardId, SplitShardCountSummary reshardSplitShardCountSummary, StreamInput in)
-        throws IOException {
+    public ReplicationRequest(@Nullable ShardId shardId, SplitShardCountSummary splitShardCountSummary, StreamInput in) throws IOException {
         super(in);
         final boolean thinRead = shardId != null;
         if (thinRead) {
@@ -99,14 +98,14 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         }
         routedBasedOnClusterVersion = in.readVLong();
         if (thinRead) {
-            this.reshardSplitShardCountSummary = reshardSplitShardCountSummary;
+            this.splitShardCountSummary = splitShardCountSummary;
         } else {
             if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SMALL)) {
-                this.reshardSplitShardCountSummary = new SplitShardCountSummary(in);
+                this.splitShardCountSummary = new SplitShardCountSummary(in);
             } else if (in.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SUMMARY)) {
-                this.reshardSplitShardCountSummary = SplitShardCountSummary.fromInt(in.readInt());
+                this.splitShardCountSummary = SplitShardCountSummary.fromInt(in.readInt());
             } else {
-                this.reshardSplitShardCountSummary = SplitShardCountSummary.UNSET;
+                this.splitShardCountSummary = SplitShardCountSummary.UNSET;
             }
         }
     }
@@ -119,13 +118,13 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
     }
 
     /**
-     * Creates a new request with resolved shard id and reshardSplitShardCountSummary
+     * Creates a new request with resolved shard id and splitShardCountSummary
      */
-    public ReplicationRequest(@Nullable ShardId shardId, SplitShardCountSummary reshardSplitShardCountSummary) {
+    public ReplicationRequest(@Nullable ShardId shardId, SplitShardCountSummary splitShardCountSummary) {
         this.index = shardId == null ? null : shardId.getIndexName();
         this.shardId = shardId;
         this.timeout = DEFAULT_TIMEOUT;
-        this.reshardSplitShardCountSummary = reshardSplitShardCountSummary;
+        this.splitShardCountSummary = splitShardCountSummary;
     }
 
     /**
@@ -178,8 +177,8 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
      * @return The effective shard count as seen by the coordinator when creating this request.
      * can be 0 if this has not yet been resolved.
      */
-    public SplitShardCountSummary reshardSplitShardCountSummary() {
-        return reshardSplitShardCountSummary;
+    public SplitShardCountSummary splitShardCountSummary() {
+        return splitShardCountSummary;
     }
 
     /**
@@ -237,15 +236,15 @@ public abstract class ReplicationRequest<Request extends ReplicationRequest<Requ
         out.writeString(index);
         out.writeVLong(routedBasedOnClusterVersion);
         if (out.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SMALL)) {
-            reshardSplitShardCountSummary.writeTo(out);
+            splitShardCountSummary.writeTo(out);
         } else if (out.getTransportVersion().supports(INDEX_RESHARD_SHARDCOUNT_SUMMARY)) {
-            out.writeInt(reshardSplitShardCountSummary.asInt());
+            out.writeInt(splitShardCountSummary.asInt());
         }
     }
 
     /**
      * Thin serialization that does not write {@link #shardId} and will only write {@link #index} if it is different from the index name in
-     * {@link #shardId}. Since we do not write {@link #shardId}, we also do not write {@link #reshardSplitShardCountSummary}.
+     * {@link #shardId}. Since we do not write {@link #shardId}, we also do not write {@link #splitShardCountSummary}.
      */
     public void writeThin(StreamOutput out) throws IOException {
         super.writeTo(out);

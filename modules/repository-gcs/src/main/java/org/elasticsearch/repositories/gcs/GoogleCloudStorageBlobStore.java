@@ -118,6 +118,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     private final BigArrays bigArrays;
     private final BackoffPolicy casBackoffPolicy;
     private volatile boolean closed = false;
+    private final boolean tenaciousRetriesEnabled;
 
     GoogleCloudStorageBlobStore(
         ProjectId projectId,
@@ -139,6 +140,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
         this.statsCollector = statsCollector;
         this.bufferSize = bufferSize;
         this.casBackoffPolicy = casBackoffPolicy;
+        this.tenaciousRetriesEnabled = storageService.clientSettings(projectId, clientName).getTenaciousRetriesEnabled();
     }
 
     /**
@@ -169,6 +171,10 @@ class GoogleCloudStorageBlobStore implements BlobStore {
 
     @Override
     public BlobContainer blobContainer(BlobPath path) {
+        if (tenaciousRetriesEnabled && storageService.isServerless()) {
+            return new GcsTenaciousRetryBlobContainer(new GoogleCloudStorageBlobContainer(path, this), getRepositoriesMetrics());
+        }
+
         return new GoogleCloudStorageBlobContainer(path, this);
     }
 

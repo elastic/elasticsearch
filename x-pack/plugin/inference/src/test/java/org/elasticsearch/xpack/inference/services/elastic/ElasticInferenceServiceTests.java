@@ -580,7 +580,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 thrownException.getMessage(),
                 is(
                     "Inference entity [model_id] does not support task type [chat_completion] "
-                        + "for inference, the task type must be one of [text_embedding, sparse_embedding, completion]. "
+                        + "for inference, the task type must be one of [text_embedding, sparse_embedding, rerank, completion]. "
                         + "The task type for the inference entity is chat_completion, "
                         + "please use the _inference/chat_completion/model_id/_stream URL."
                 )

@@ -29,10 +29,12 @@ import org.elasticsearch.xcontent.json.JsonXContent;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.index.mapper.DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
 import static org.hamcrest.Matchers.equalTo;
@@ -396,6 +398,22 @@ public class IndicesMetricsIT extends ESIntegTestCase {
         verifyStatsPerIndexMode(
             Map.of(IndexMode.STANDARD, numStandardDocs, IndexMode.LOGSDB, numLogsdbDocs, IndexMode.TIME_SERIES, numTimeSeriesDocs)
         );
+    }
+
+    public void testStatsResponseIncludesOnlyAvailableModes() {
+        String indexNode = internalCluster().startNode();
+        ensureStableCluster(1);
+        createIndex("standard-test", Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1).build());
+        indexDoc("standard-test", "1", "f", "1");
+        flush("standard-test");
+        refresh("standard-test");
+
+        final var nodes = clusterService().state().nodes().stream().toArray(DiscoveryNode[]::new);
+        final var request = new IndexModeStatsActionType.StatsRequest(nodes);
+        final var response = client(indexNode).execute(IndexModeStatsActionType.TYPE, request).actionGet();
+        final var stats = response.stats();
+        final Set<IndexMode> expectedModes = Set.copyOf(Arrays.asList(IndexMode.availableModes()));
+        assertThat(stats.keySet(), equalTo(expectedModes));
     }
 
     void collectThenAssertMetrics(TestTelemetryPlugin telemetry, int times, Map<String, Matcher<Long>> matchers) {

@@ -59,17 +59,18 @@ public class ToCounter extends AbstractConvertFunction {
         (source, field) -> field
     );
 
-    @FunctionInfo(
-        returnType = { "counter_long", "counter_integer", "counter_double" },
-        description = """
-            Converts a numeric value to its counter equivalent. The output type is determined by the input:
-            `long` converts to `counter_long`, `integer` to `counter_integer`, and `double` to `counter_double`.
-            No values are modified; only the type annotation changes. If the input is already a counter, the \
-            function is a no-op. This is useful when a metric field was misclassified as a plain numeric type \
-            instead of a counter in the index mapping.
-            This function is also available as the `::counter` cast operator.""",
-        examples = @Example(file = "k8s-timeseries-rate", tag = "toCounter")
-    )
+    @FunctionInfo(returnType = { "counter_long", "counter_integer", "counter_double" }, description = """
+        Converts a numeric value to its counter equivalent. The output type is determined by the input:
+        `long` converts to `counter_long`, `integer` to `counter_integer`, and `double` to `counter_double`.
+        No values are modified; only the type annotation changes. If the input is already a counter, the \
+        function is a no-op. This is useful when a metric field was misclassified as a plain numeric type \
+        instead of a counter in the index mapping.
+        This function is also available as the `::counter` cast operator.""", appendix = """
+        ::::{warning}
+        Applying `TO_COUNTER` to a field that is a genuine gauge, rather than a misclassified counter, \
+        will produce raw gauge values with counter semantics. Results from aggregations on such values \
+        are not meaningful.
+        ::::""", examples = @Example(file = "k8s-timeseries-rate", tag = "toCounter"))
     public ToCounter(
         Source source,
         @Param(

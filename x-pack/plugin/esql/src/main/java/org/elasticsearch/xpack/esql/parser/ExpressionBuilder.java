@@ -797,12 +797,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         if (dataTypeCtx instanceof EsqlBaseParser.ToDataTypeContext toDataType) {
             String typeName = visitIdentifier(toDataType.identifier()).toLowerCase(Locale.ROOT);
             if (DataType.COUNTER_CAST_NAME.equals(typeName)) {
-                Expression expr = expression(parseTree);
-                ToCounter convertFunction = new ToCounter(source, expr);
-                if (Build.current().isSnapshot() == false && EsqlFunctionRegistry.isSnapshotOnly(ToCounter.class)) {
-                    throw new ParsingException(source, "Unsupported conversion to type [{}]", DataType.COUNTER_CAST_NAME);
-                }
-                return convertFunction;
+                return new ToCounter(source, expression(parseTree));
             }
         }
         DataType dataType = typedParsing(this, dataTypeCtx, DataType.class);

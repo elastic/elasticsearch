@@ -20,3 +20,6 @@
 
 :::{include} ../examples/to_counter.md
 :::
+
+:::{include} ../appendix/to_counter.md
+:::

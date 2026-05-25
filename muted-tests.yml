@@ -417,15 +417,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
   method: testGenerationalFileBlobReferenceIsRetainedCorrectly
   issue: https://github.com/elastic/elasticsearch/issues/148723
-- class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
-  method: testDynamicSettingUpdateAffectsSubsequentDocuments
-  issue: https://github.com/elastic/elasticsearch/issues/148745
-- class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
-  method: testBulkPartialFailureOnArrayObjectsLimit
-  issue: https://github.com/elastic/elasticsearch/issues/148746
-- class: org.elasticsearch.index.mapper.ArrayObjectsLimitIT
-  method: testNestedArrayExceeded
-  issue: https://github.com/elastic/elasticsearch/issues/148747
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexWhileNodeStopping
   issue: https://github.com/elastic/elasticsearch/issues/148807
@@ -609,3 +600,9 @@ tests:
 - class: org.elasticsearch.index.seqno.SeqNoPruningIT
   method: testSeqNoPrunedAfterMerge
   issue: https://github.com/elastic/elasticsearch/issues/149830
+- class: org.elasticsearch.xpack.ccr.CcrSeqNoPruningIT
+  method: testSeqNoPrunedOnLeaderAfterFollowerCatchesUp
+  issue: https://github.com/elastic/elasticsearch/issues/149834
+- class: org.elasticsearch.test.apmintegration.OtelMetricsIT
+  method: testOTelHealthMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/149835

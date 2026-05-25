@@ -42,8 +42,6 @@ public class DisableSimulationRebalancingDeciderIT extends AbstractStatelessPlug
     private static final Set<String> CAN_REMAIN_NO_IN_SIMULATION = ConcurrentCollections.newConcurrentSet();
     /** Node ids in this set make {@link TestAllocationDecider#canRemain} return NOT_PREFERRED during simulation only. */
     private static final Set<String> CAN_REMAIN_NOT_PREFERRED_IN_SIMULATION = ConcurrentCollections.newConcurrentSet();
-    /** Node ids in this set make {@link TestAllocationDecider#canRemain} return THROTTLE in both simulation and reconciliation. */
-    private static final Set<String> CAN_REMAIN_THROTTLE_NODE_IDS = ConcurrentCollections.newConcurrentSet();
     /** Node ids in this set make {@link TestAllocationDecider#canAllocate} return THROTTLE during reconciliation only. */
     private static final Set<String> CAN_ALLOCATE_THROTTLE_IN_RECONCILIATION = ConcurrentCollections.newConcurrentSet();
 
@@ -51,7 +49,6 @@ public class DisableSimulationRebalancingDeciderIT extends AbstractStatelessPlug
     public void clearDeciderState() {
         CAN_REMAIN_NO_IN_SIMULATION.clear();
         CAN_REMAIN_NOT_PREFERRED_IN_SIMULATION.clear();
-        CAN_REMAIN_THROTTLE_NODE_IDS.clear();
         CAN_ALLOCATE_THROTTLE_IN_RECONCILIATION.clear();
     }
 
@@ -146,9 +143,6 @@ public class DisableSimulationRebalancingDeciderIT extends AbstractStatelessPlug
 
         @Override
         public Decision canRemain(IndexMetadata indexMetadata, ShardRouting shardRouting, RoutingNode node, RoutingAllocation allocation) {
-            if (CAN_REMAIN_THROTTLE_NODE_IDS.contains(node.nodeId())) {
-                return Decision.THROTTLE;
-            }
             if (allocation.isSimulating()) {
                 if (CAN_REMAIN_NO_IN_SIMULATION.contains(node.nodeId())) {
                     return Decision.NO;

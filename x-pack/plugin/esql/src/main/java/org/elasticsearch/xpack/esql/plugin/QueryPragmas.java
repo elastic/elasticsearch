@@ -301,6 +301,13 @@ public final class QueryPragmas implements Writeable {
         return defaultThreshold;
     }
 
+    public double partialAggregationEmitBreakerHeadroomRatio(double defaultRatio) {
+        if (settings.hasValue(PlannerSettings.PARTIAL_AGGREGATION_EMIT_BREAKER_HEADROOM_RATIO.getKey())) {
+            return PlannerSettings.PARTIAL_AGGREGATION_EMIT_BREAKER_HEADROOM_RATIO.get(settings);
+        }
+        return defaultRatio;
+    }
+
     public int docsThresholdForAutoPartitioning(int defaultThreshold) {
         if (settings.hasValue(PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.getKey())) {
             return PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.get(settings);

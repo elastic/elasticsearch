@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -165,6 +166,12 @@ public class HashAggregationOperator implements Operator {
 
     public static final int DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD = 100_000;
     public static final double DEFAULT_PARTIAL_EMIT_UNIQUENESS_THRESHOLD = 0.1;
+    /**
+     * Default ratio of {@code breaker.getUsed() / breaker.getLimit()} above which partial emission
+     * is allowed. Below this ratio the operator keeps accumulating regardless of key count, avoiding
+     * unnecessary hash-table rebuilds when the circuit breaker has ample headroom.
+     */
+    public static final double DEFAULT_PARTIAL_EMIT_BREAKER_HEADROOM_RATIO = 0.7;
 
     /**
      * Builder for {@link HashAggregationOperator}. {@link #groups(List)}, {@link #mode(AggregatorMode)},
@@ -177,6 +184,7 @@ public class HashAggregationOperator implements Operator {
         private List<GroupingAggregator.Factory> aggregators;
         private int partialEmitKeysThreshold = DEFAULT_PARTIAL_EMIT_KEYS_THRESHOLD;
         private double partialEmitUniquenessThreshold = DEFAULT_PARTIAL_EMIT_UNIQUENESS_THRESHOLD;
+        private double partialEmitBreakerHeadroomRatio = DEFAULT_PARTIAL_EMIT_BREAKER_HEADROOM_RATIO;
         private int maxPageSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
         private int aggregationBatchSize = Operator.TARGET_PAGE_SIZE / Long.SIZE;
         private AnalysisRegistry analysisRegistry;
@@ -199,6 +207,11 @@ public class HashAggregationOperator implements Operator {
         public Builder partialEmit(int keysThreshold, double uniquenessThreshold) {
             this.partialEmitKeysThreshold = keysThreshold;
             this.partialEmitUniquenessThreshold = uniquenessThreshold;
+            return this;
+        }
+
+        public Builder partialEmitBreakerHeadroomRatio(double ratio) {
+            this.partialEmitBreakerHeadroomRatio = ratio;
             return this;
         }
 
@@ -228,6 +241,7 @@ public class HashAggregationOperator implements Operator {
         private final List<GroupingAggregator.Factory> aggregators;
         private final int partialEmitKeysThreshold;
         private final double partialEmitUniquenessThreshold;
+        private final double partialEmitBreakerHeadroomRatio;
         private final int maxPageSize;
         private final int aggregationBatchSize;
         private final AnalysisRegistry analysisRegistry;
@@ -238,6 +252,7 @@ public class HashAggregationOperator implements Operator {
             this.aggregators = requireNonNull(builder.aggregators, "aggregators");
             this.partialEmitKeysThreshold = builder.partialEmitKeysThreshold;
             this.partialEmitUniquenessThreshold = builder.partialEmitUniquenessThreshold;
+            this.partialEmitBreakerHeadroomRatio = builder.partialEmitBreakerHeadroomRatio;
             this.maxPageSize = builder.maxPageSize;
             this.aggregationBatchSize = builder.aggregationBatchSize;
             this.analysisRegistry = builder.analysisRegistry;
@@ -261,6 +276,7 @@ public class HashAggregationOperator implements Operator {
                     ),
                     Integer.MAX_VALUE, // disable partial emit for CATEGORIZE. it doesn't support it.
                     1.0,
+                    DEFAULT_PARTIAL_EMIT_BREAKER_HEADROOM_RATIO,
                     Integer.MAX_VALUE, // disable splitting aggs pages for CATEGORIZE. it doesn't support it.
                     driverContext
                 );
@@ -271,6 +287,7 @@ public class HashAggregationOperator implements Operator {
                 () -> wrapBlockHash(driverContext, BlockHash.build(groups, driverContext.blockFactory(), aggregationBatchSize, false)),
                 partialEmitKeysThreshold,
                 partialEmitUniquenessThreshold,
+                partialEmitBreakerHeadroomRatio,
                 maxPageSize,
                 driverContext
             );
@@ -296,6 +313,7 @@ public class HashAggregationOperator implements Operator {
     protected final List<GroupingAggregator> aggregators;
     protected final int partialEmitKeysThreshold;
     protected final double partialEmitUniquenessThreshold;
+    protected final double partialEmitBreakerHeadroomRatio;
 
     protected final DriverContext driverContext;
 
@@ -350,6 +368,7 @@ public class HashAggregationOperator implements Operator {
         Supplier<BlockHash> blockHashSupplier,
         int partialEmitKeysThreshold,
         double partialEmitUniquenessThreshold,
+        double partialEmitBreakerHeadroomRatio,
         int maxPageSize,
         DriverContext driverContext
     ) {
@@ -359,6 +378,7 @@ public class HashAggregationOperator implements Operator {
         this.aggregatorMode = aggregatorMode;
         this.partialEmitKeysThreshold = partialEmitKeysThreshold;
         this.partialEmitUniquenessThreshold = partialEmitUniquenessThreshold;
+        this.partialEmitBreakerHeadroomRatio = partialEmitBreakerHeadroomRatio;
         this.maxPageSize = maxPageSize;
         this.driverContext = driverContext;
         this.aggregatorFactories = aggregatorFactories;
@@ -539,6 +559,16 @@ public class HashAggregationOperator implements Operator {
         }
         final int numKeys = blockHash.numKeys();
         if (numKeys < partialEmitKeysThreshold) {
+            return false;
+        }
+        // Only emit when the circuit breaker indicates meaningful memory pressure.
+        // When the breaker has ample headroom, suppressing periodic emits avoids
+        // unnecessary hash-table rebuilds for high-cardinality GROUP BY queries.
+        // NoopCircuitBreaker returns limit=-1; fall through to the uniqueness predicate
+        // in that case so behavior remains conservative when there is no breaker signal.
+        CircuitBreaker breaker = driverContext.breaker();
+        long limit = breaker.getLimit();
+        if (limit > 0 && (double) breaker.getUsed() / limit < partialEmitBreakerHeadroomRatio) {
             return false;
         }
         return rowsAddedInCurrentBatch * partialEmitUniquenessThreshold <= numKeys;

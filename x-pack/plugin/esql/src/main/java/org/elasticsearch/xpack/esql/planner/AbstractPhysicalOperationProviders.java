@@ -203,6 +203,9 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                         pragmas.partialAggregationEmitKeysThreshold(context.plannerSettings().partialEmitKeysThreshold()),
                         pragmas.partialAggregationEmitUniquenessThreshold(context.plannerSettings().partialEmitUniquenessThreshold())
                     )
+                    .partialEmitBreakerHeadroomRatio(
+                        pragmas.partialAggregationEmitBreakerHeadroomRatio(context.plannerSettings().partialEmitBreakerHeadroomRatio())
+                    )
                     .maxPageSize(maxPageSize)
                     .aggregationBatchSize(aggregationBatchSize)
                     .analysisRegistry(analysisRegistry)

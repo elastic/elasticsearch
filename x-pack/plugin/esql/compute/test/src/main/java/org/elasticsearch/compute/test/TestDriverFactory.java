@@ -9,6 +9,7 @@ package org.elasticsearch.compute.test;
 
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.util.LimitedBreaker;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.LocalCircuitBreaker;
 import org.elasticsearch.compute.operator.Driver;
@@ -44,9 +45,13 @@ public class TestDriverFactory {
         SinkOperator sink,
         Releasable releasable
     ) {
+        final DriverContext callerDriverContext = driverContext;
         // Do not wrap the local breaker for small local breakers, as the output mights not match expectations.
+        // Do not wrap LimitedBreaker instances: they track headroom accurately themselves and wrapping
+        // would break callers that compare early-termination or block-factory state across the swap.
         if (driverContext.breaker() instanceof CrankyCircuitBreakerService.CrankyCircuitBreaker == false
             && driverContext.breaker() instanceof LocalCircuitBreaker == false
+            && driverContext.breaker() instanceof LimitedBreaker == false
             && driverContext.breaker().getLimit() >= ByteSizeValue.ofMb(100).getBytes()
             && Randomness.get().nextBoolean()) {
             final int overReservedBytes = Randomness.get().nextInt(1024 * 1024);
@@ -58,6 +63,10 @@ public class TestDriverFactory {
         }
         if (driverContext.breaker() instanceof LocalCircuitBreaker localBreaker) {
             releasable = Releasables.wrap(releasable, localBreaker);
+        }
+        if (driverContext != callerDriverContext) {
+            // The driver will finish its own driverContext; also finish the caller's so assertDriverContext passes.
+            releasable = Releasables.wrap(releasable, callerDriverContext::finish);
         }
         return new Driver(
             "unset",

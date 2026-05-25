@@ -149,6 +149,20 @@ public class PlannerSettings {
     );
 
     /**
+     * The circuit-breaker usage ratio above which partial aggregation is allowed to emit intermediate
+     * results early. Below this ratio the operator keeps accumulating regardless of key count, avoiding
+     * unnecessary hash-table rebuilds when the node has ample memory headroom.
+     */
+    public static final Setting<Double> PARTIAL_AGGREGATION_EMIT_BREAKER_HEADROOM_RATIO = Setting.doubleSetting(
+        "esql.partial_agg_emit_breaker_headroom_ratio",
+        HashAggregationOperator.DEFAULT_PARTIAL_EMIT_BREAKER_HEADROOM_RATIO,
+        0.0,
+        1.0,
+        Setting.Property.NodeScope,
+        Setting.Property.Dynamic
+    );
+
+    /**
      * If we're loading more than this many fields at a time we discard column loaders after each
      * page regardless of whether we can reuse them. They have significant per-field memory overhead
      * so discarding them between pages allows some queries that would have OOMed to succeed. Usually
@@ -240,6 +254,7 @@ public class PlannerSettings {
             REDUCTION_LATE_MATERIALIZATION,
             PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD,
             PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD,
+            PARTIAL_AGGREGATION_EMIT_BREAKER_HEADROOM_RATIO,
             REUSE_COLUMN_LOADERS_THRESHOLD,
             BLOCK_LOADER_SIZE_ORDINALS,
             BLOCK_LOADER_SIZE_SCRIPT,
@@ -276,6 +291,10 @@ public class PlannerSettings {
                 v -> settings.updateAndGet(s -> s.partialEmitUniquenessThreshold(v))
             );
             clusterSettings.initializeAndWatch(
+                PARTIAL_AGGREGATION_EMIT_BREAKER_HEADROOM_RATIO,
+                v -> settings.updateAndGet(s -> s.partialEmitBreakerHeadroomRatio(v))
+            );
+            clusterSettings.initializeAndWatch(
                 REUSE_COLUMN_LOADERS_THRESHOLD,
                 v -> settings.updateAndGet(s -> s.reuseColumnLoadersThreshold(v))
             );
@@ -309,6 +328,7 @@ public class PlannerSettings {
     private final ByteSizeValue intermediateLocalRelationMaxSize;
     private final int partialEmitKeysThreshold;
     private final double partialEmitUniquenessThreshold;
+    private final double partialEmitBreakerHeadroomRatio;
     private final int reuseColumnLoadersThreshold;
     private final ByteSizeValue blockLoaderSizeOrdinals;
     private final ByteSizeValue blockLoaderSizeScript;
@@ -329,6 +349,7 @@ public class PlannerSettings {
         INTERMEDIATE_LOCAL_RELATION_MAX_SIZE.getDefault(Settings.EMPTY),
         PARTIAL_AGGREGATION_EMIT_KEYS_THRESHOLD.getDefault(Settings.EMPTY),
         PARTIAL_AGGREGATION_EMIT_UNIQUENESS_THRESHOLD.getDefault(Settings.EMPTY),
+        PARTIAL_AGGREGATION_EMIT_BREAKER_HEADROOM_RATIO.getDefault(Settings.EMPTY),
         REUSE_COLUMN_LOADERS_THRESHOLD.getDefault(Settings.EMPTY),
         BLOCK_LOADER_SIZE_ORDINALS.getDefault(Settings.EMPTY),
         BLOCK_LOADER_SIZE_SCRIPT.getDefault(Settings.EMPTY),
@@ -350,6 +371,7 @@ public class PlannerSettings {
         ByteSizeValue intermediateLocalRelationMaxSize,
         int partialEmitKeysThreshold,
         double partialEmitUniquenessThreshold,
+        double partialEmitBreakerHeadroomRatio,
         int reuseColumnLoadersThreshold,
         ByteSizeValue blockLoaderSizeOrdinals,
         ByteSizeValue blockLoaderSizeScript,
@@ -366,6 +388,7 @@ public class PlannerSettings {
         this.intermediateLocalRelationMaxSize = intermediateLocalRelationMaxSize;
         this.partialEmitKeysThreshold = partialEmitKeysThreshold;
         this.partialEmitUniquenessThreshold = partialEmitUniquenessThreshold;
+        this.partialEmitBreakerHeadroomRatio = partialEmitBreakerHeadroomRatio;
         this.reuseColumnLoadersThreshold = reuseColumnLoadersThreshold;
         this.blockLoaderSizeOrdinals = blockLoaderSizeOrdinals;
         this.blockLoaderSizeScript = blockLoaderSizeScript;
@@ -385,6 +408,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
+            partialEmitBreakerHeadroomRatio,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -409,6 +433,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
+            partialEmitBreakerHeadroomRatio,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -433,6 +458,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
+            partialEmitBreakerHeadroomRatio,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -471,6 +497,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
+            partialEmitBreakerHeadroomRatio,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -495,6 +522,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
+            partialEmitBreakerHeadroomRatio,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -519,6 +547,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
+            partialEmitBreakerHeadroomRatio,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -534,6 +563,31 @@ public class PlannerSettings {
         return partialEmitUniquenessThreshold;
     }
 
+    public PlannerSettings partialEmitBreakerHeadroomRatio(double partialEmitBreakerHeadroomRatio) {
+        return new PlannerSettings(
+            defaultDataPartitioning,
+            docsThresholdForAutoPartitioning,
+            valuesLoadingJumboSize,
+            luceneTopNLimit,
+            intermediateLocalRelationMaxSize,
+            partialEmitKeysThreshold,
+            partialEmitUniquenessThreshold,
+            partialEmitBreakerHeadroomRatio,
+            reuseColumnLoadersThreshold,
+            blockLoaderSizeOrdinals,
+            blockLoaderSizeScript,
+            maxKeywordSortFields,
+            sourceReservationFactor,
+            bytesRefRamOverestimateThreshold,
+            bytesRefRamOverestimateFactor,
+            docSequenceBytesRefFieldThreshold
+        );
+    }
+
+    public double partialEmitBreakerHeadroomRatio() {
+        return partialEmitBreakerHeadroomRatio;
+    }
+
     public PlannerSettings reuseColumnLoadersThreshold(int reuseColumnLoadersThreshold) {
         return new PlannerSettings(
             defaultDataPartitioning,
@@ -543,6 +597,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
+            partialEmitBreakerHeadroomRatio,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -574,6 +629,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
+            partialEmitBreakerHeadroomRatio,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -601,6 +657,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
+            partialEmitBreakerHeadroomRatio,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -628,6 +685,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
+            partialEmitBreakerHeadroomRatio,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -652,6 +710,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
+            partialEmitBreakerHeadroomRatio,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -676,6 +735,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
+            partialEmitBreakerHeadroomRatio,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -700,6 +760,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
+            partialEmitBreakerHeadroomRatio,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -724,6 +785,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
+            partialEmitBreakerHeadroomRatio,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,
@@ -748,6 +810,7 @@ public class PlannerSettings {
             intermediateLocalRelationMaxSize,
             partialEmitKeysThreshold,
             partialEmitUniquenessThreshold,
+            partialEmitBreakerHeadroomRatio,
             reuseColumnLoadersThreshold,
             blockLoaderSizeOrdinals,
             blockLoaderSizeScript,

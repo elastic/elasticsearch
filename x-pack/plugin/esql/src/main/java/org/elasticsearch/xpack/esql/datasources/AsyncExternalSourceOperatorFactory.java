@@ -1126,6 +1126,26 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         FileSplit fileSplit = (FileSplit) leaf;
         List<String> cols = dataProjectedColumns();
 
+        // PR 2 / RO4 — async-read I/O scheduling callsite.
+        //
+        // This block is the scheduling point where the next file split is about to dispatch its
+        // read against the storage backend (S3 GET, local FS read, etc.). PR 2's
+        // {@code SharedNumericThreshold} mechanism will inject its row-group / column-range skip
+        // check HERE — before the {@code rangeReader.readRange(...)} call below and before the
+        // {@code fileReader.read(...)} fallback — so the skip avoids the I/O cost rather than
+        // paying for the read and discarding the result.
+        //
+        // The threshold itself lives on the operator factory (parked on
+        // {@code AsyncExternalSourceOperatorFactory}, not on the immutable {@link FormatReadContext};
+        // see RV3 in the numeric-topn-external plan) and is published by the
+        // {@code NumericTopNOperator}'s heap-root as it tightens. The reader consults it via the
+        // {@code RangeReadContext} / {@code FormatReadContext} passed below.
+        //
+        // Any change that moves the read dispatch out of this block must also update PR 2's
+        // injection point. The integration tests in
+        // {@code ExternalParquetNumericTopNIT#testSortLongAscPinsAsyncReadCallsite()} pin the
+        // shape of the query (SORT longCol ASC | LIMIT N over external Parquet) that PR 2 will
+        // benchmark against.
         CloseableIterator<Page> pages = null;
         try {
             FormatReader fileReader = readerForFile(fileSplit);

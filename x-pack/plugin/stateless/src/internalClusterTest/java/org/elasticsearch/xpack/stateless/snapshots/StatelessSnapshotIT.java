@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.stateless.snapshots;
 
+import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.SnapshotsInProgress;
@@ -21,19 +22,25 @@ import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.index.snapshots.blobstore.BlobStoreIndexShardSnapshot;
+import org.elasticsearch.index.snapshots.blobstore.SnapshotFiles;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.IndexStorePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
+import org.elasticsearch.repositories.IndexId;
 import org.elasticsearch.repositories.RepositoriesService;
+import org.elasticsearch.repositories.RepositoryData;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotException;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.ClusterServiceUtils;
+import org.elasticsearch.test.InternalSettingsPlugin;
 import org.elasticsearch.test.NodeShutdownTestUtils;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -74,6 +81,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.UnaryOperator;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_INTERVAL_SETTING;
 import static org.elasticsearch.cluster.coordination.FollowersChecker.FOLLOWER_CHECK_RETRY_COUNT_SETTING;
@@ -103,6 +111,7 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         plugins.add(StatelessMockRepositoryPlugin.class);
         plugins.add(TestTelemetryPlugin.class);
         plugins.add(ShutdownPlugin.class);
+        plugins.add(InternalSettingsPlugin.class);
         return List.copyOf(plugins);
     }
 
@@ -111,13 +120,17 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         return false;
     }
 
-    public void testStatelessSnapshotReadsFromObjectStore() {
+    public void testStatelessSnapshotReadsFromObjectStore() throws IOException {
+        // Create the node and index with disabled background refresh, flush and merge
+        // so that we get expected number and layout for generated commits.
         final var indexNodeName = startMasterAndIndexNode(
-            Settings.builder().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK).build()
+            Settings.builder()
+                .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK)
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                .build()
         );
-
         final String indexName = randomIdentifier();
-        createIndex(indexName, 1, 0);
+        createIndex(indexName, indexSettings(1, 0).put(MergePolicyConfig.INDEX_MERGE_ENABLED, false).build());
         indexAndMaybeFlush(indexName);
 
         final var repoName = randomIdentifier();
@@ -159,7 +172,9 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
 
         // 2. Enable stateless snapshot and take another snapshot. The object store should see reads with SNAPSHOT_DATA operation purpose
         indexAndMaybeFlush(indexName);
-        updateClusterSettings(Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "read_from_object_store"));
+        updateClusterSettings(
+            Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), randomFrom("read_from_object_store", "enabled"))
+        );
         createSnapshot(repoName, "snap-2", List.of(indexName), List.of());
         assertTrue(snapshotReadSeen.get());
 
@@ -170,6 +185,50 @@ public class StatelessSnapshotIT extends AbstractStatelessPluginIntegTestCase {
         updateClusterSettings(Settings.builder().put(STATELESS_SNAPSHOT_ENABLED_SETTING.getKey(), "disabled"));
         createSnapshot(repoName, "snap-3", List.of(indexName), List.of());
         assertFalse(snapshotReadSeen.get());
+
+        // Verify the snapshots should have expected deduplication, i.e. the later snapshot should reference files from the earlier
+        // ones without re-creating them. Note this assumes no merge happens between snapshots which is true in this test since it is
+        // disabled when creating the index earlier.
+        final var repositoriesService = internalCluster().getInstance(RepositoriesService.class, indexNodeName);
+        final var repositoryData = safeAwait(
+            (ActionListener<RepositoryData> l) -> repositoriesService.getRepositoryData(ProjectId.DEFAULT, repoName, l)
+        );
+        final IndexId indexId = repositoryData.resolveIndexId(indexName);
+        final var repo = (BlobStoreRepository) repositoriesService.repository(ProjectId.DEFAULT, repoName);
+        final var blobStoreIndexShardSnapshots = repo.getBlobStoreIndexShardSnapshots(
+            indexId,
+            0,
+            repositoryData.shardGenerations().getShardGen(indexId, 0)
+        );
+
+        // Build a map of snapshot names to their corresponding file names, excluding the segment_N file since it is
+        // unique to each snapshot due to new commit being created in between.
+        final Map<String, List<String>> snapshotToFiles = blobStoreIndexShardSnapshots.snapshots()
+            .stream()
+            .collect(
+                Collectors.toUnmodifiableMap(
+                    SnapshotFiles::snapshot,
+                    snapshotFiles -> snapshotFiles.indexFiles()
+                        .stream()
+                        .map(BlobStoreIndexShardSnapshot.FileInfo::name)
+                        .filter(
+                            physicalName -> blobStoreIndexShardSnapshots.findNameFile(physicalName)
+                                .metadata()
+                                .name()
+                                .startsWith(IndexFileNames.SEGMENTS + "_") == false
+                        )
+                        .collect(Collectors.toList())
+                )
+            );
+
+        assertTrue(
+            "unmatched snapshot files: " + snapshotToFiles,
+            snapshotToFiles.get("snap-2").containsAll(snapshotToFiles.get("snap-1"))
+        );
+        assertTrue(
+            "unmatched snapshot files: " + snapshotToFiles,
+            snapshotToFiles.get("snap-3").containsAll(snapshotToFiles.get("snap-2"))
+        );
     }
 
     public void testStatelessSnapshotBasic() throws Exception {

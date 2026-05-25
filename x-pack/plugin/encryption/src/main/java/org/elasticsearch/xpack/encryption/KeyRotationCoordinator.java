@@ -18,6 +18,8 @@ import org.elasticsearch.cluster.LocalNodeMasterListener;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
@@ -44,23 +46,27 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 
 /**
- * Owns the project encryption key (PEK) lifecycle on the elected master: installs the initial key, rotates the active key on a timer,
- * drives registered {@link EncryptedDataHandler}s to re-encrypt their owned data, and retires non-active keys once their grace window
- * expires.
+ * Owns the project encryption key (PEK) lifecycle on the elected master, fanned out across every project in cluster state. Per project,
+ * the coordinator installs the initial key, rotates the active key on a timer, drives registered {@link EncryptedDataHandler}s to
+ * re-encrypt their owned data, and retires non-active keys once their grace window expires.
  *
- * <p>Re-encryption follows a two-phase compute-then-CAS pattern:
+ * <p>Every task that flows through the coordinator's task queue carries a {@link ProjectId} so the executor mutates exactly the named
+ * project's slice — never relying on a {@link ProjectResolver} fallback to pick which project to operate on.
+ *
+ * <p>Re-encryption follows a two-phase compute-then-CAS pattern (per project, per handler):
  * <ol>
- *     <li>For each handler whose {@code handlerKeyIds} entry is not yet on the current {@code activeKeyId}, the coordinator forks to
+ *     <li>For each project whose {@code handlerKeyIds} entry is not yet on the project's {@code activeKeyId}, the coordinator forks to
  *     the generic thread pool, snapshots cluster state, and asks the handler to produce a re-encrypted copy of its
- *     {@link Metadata.ProjectCustom} slice.</li>
- *     <li>The result is submitted as a {@link ReEncryptApplyTask} which, on the master thread, atomically swaps the handler's custom
- *     and updates {@code handlerKeyIds} — but only if the snapshot the compute phase ran against is still current
+ *     {@link Metadata.ProjectCustom} slice. The handler is invoked inside {@link ProjectResolver#executeOnProject} so any calls it
+ *     makes back into {@link EncryptionService} resolve to the correct project.</li>
+ *     <li>The result is submitted as a {@link ReEncryptApplyTask} which, on the master thread, atomically swaps the project's
+ *     handler custom and updates {@code handlerKeyIds} — but only if the snapshot the compute phase ran against is still current
  *     (slice unchanged and {@code activeKeyId} unchanged). On conflict the task is a no-op and the next tick re-attempts.</li>
  * </ol>
  */
@@ -135,9 +141,10 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
 
     private Scheduler.Cancellable scheduledTask;
     private volatile boolean closed = false;
-    private final AtomicBoolean rotating = new AtomicBoolean(false);
-    // Used for logging when a rotation is in progress for an unexpectedly long time. Same access pattern as `rotating`.
-    private final AtomicLong rotatingSince = new AtomicLong(0L);
+    // Tracks which projects currently have an in-flight re-encrypt fan-out and when that fan-out started (millis since epoch). Per-project
+    // gating means a slow project does not block other projects' ticks. The value is purely diagnostic (used in the "rotation in progress
+    // for X ms" warn log).
+    private final ConcurrentHashMap<ProjectId, Long> rotatingSinceByProject = new ConcurrentHashMap<>();
 
     public static KeyRotationCoordinator create(
         ClusterService clusterService,
@@ -181,11 +188,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         this.featureService = featureService;
         this.encryptionService = encryptionService;
         this.handlers = new CopyOnWriteArrayList<>(handlers);
-        this.taskQueue = clusterService.createTaskQueue(
-            "project-encryption-key",
-            Priority.NORMAL,
-            new KeyRotationExecutor(projectResolver, threadPool)
-        );
+        this.taskQueue = clusterService.createTaskQueue("project-encryption-key", Priority.NORMAL, new KeyRotationExecutor(threadPool));
         this.rotationInterval = rotationInterval;
         this.checkInterval = checkInterval;
     }
@@ -197,8 +200,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
 
     @Override
     public void offMaster() {
-        rotating.set(false);
-        rotatingSince.set(0L);
+        rotatingSinceByProject.clear();
         stopSchedule();
     }
 
@@ -211,9 +213,14 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         if (event.localNodeMaster() == false) {
             return;
         }
-        // Install runs regardless of whether rotation is enabled — we always want a key once the cluster is ready.
-        if (getCurrentMetadata(state) == null && checkPekFeatureAvailable(state)) {
-            submitInstallKey();
+        if (checkPekFeatureAvailable(state) == false) {
+            return;
+        }
+        // Install runs regardless of whether rotation is enabled — we always want a key once the cluster is ready, for every project.
+        for (ProjectMetadata project : state.metadata().projects().values()) {
+            if (project.custom(ProjectEncryptionKeyMetadata.TYPE) == null) {
+                submitInstallKey(project.id());
+            }
         }
     }
 
@@ -246,70 +253,89 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
             return;
         }
 
-        ProjectEncryptionKeyMetadata metadata = getCurrentMetadata(state);
+        long now = threadPool.absoluteTimeInMillis();
+        for (ProjectMetadata project : state.metadata().projects().values()) {
+            tickProject(project, now);
+        }
+    }
+
+    private void tickProject(ProjectMetadata project, long now) {
+        ProjectId projectId = project.id();
+        ProjectEncryptionKeyMetadata metadata = project.custom(ProjectEncryptionKeyMetadata.TYPE);
         if (metadata == null) {
             return;
         }
 
-        long now = threadPool.absoluteTimeInMillis();
         long activeKeyAge = now - metadata.getGeneratedAt(metadata.getActiveKeyId());
 
-        rotate(metadata, now);
+        rotate(projectId, metadata, now);
 
         if (activeKeyAge >= rotationInterval.millis()) {
-            logger.info("project encryption key due for rotation (active key generated {} ago)", TimeValue.timeValueMillis(activeKeyAge));
-            submitBeginRotation();
+            logger.info(
+                "project [{}] encryption key due for rotation (active key generated {} ago)",
+                projectId,
+                TimeValue.timeValueMillis(activeKeyAge)
+            );
+            submitBeginRotation(projectId);
         }
 
         long retireCutoff = now - GRACE_TICKS * checkInterval.millis();
         if (metadata.findRetireableKeyIds(retireCutoff).isEmpty() == false) {
-            submitRetireKeys(retireCutoff);
+            submitRetireKeys(projectId, retireCutoff);
         }
     }
 
-    private void rotate(ProjectEncryptionKeyMetadata metadata, long now) {
+    private void rotate(ProjectId projectId, ProjectEncryptionKeyMetadata metadata, long now) {
         String activeKeyId = metadata.getActiveKeyId();
         List<EncryptedDataHandler<?>> pending = handlers.stream().filter(h -> metadata.isHandlerOnActive(h.customName()) == false).toList();
         if (pending.isEmpty()) {
             return;
         }
-        if (rotating.compareAndSet(false, true) == false) {
+        Long existingStart = rotatingSinceByProject.putIfAbsent(projectId, now);
+        if (existingStart != null) {
             logger.warn(
-                "rotation already in progress, skipping this tick (in progress for {})",
-                TimeValue.timeValueMillis(now - rotatingSince.get())
+                "rotation already in progress for project [{}], skipping this tick (in progress for {})",
+                projectId,
+                TimeValue.timeValueMillis(now - existingStart)
             );
             return;
         }
-        rotatingSince.set(now);
         try (
             var listeners = new RefCountingListener(
                 ActionListener.runAfter(
-                    ActionListener.wrap(unused -> {}, e -> logger.warn("re-encryption failed; will retry on next tick", e)),
-                    () -> {
-                        rotatingSince.set(0L);
-                        rotating.set(false);
-                    }
+                    ActionListener.wrap(
+                        unused -> {},
+                        e -> logger.warn(() -> "re-encryption failed for project [" + projectId + "]; will retry on next tick", e)
+                    ),
+                    () -> rotatingSinceByProject.remove(projectId)
                 )
             )
         ) {
             for (EncryptedDataHandler<?> handler : pending) {
                 ActionListener<Void> l = listeners.acquire();
-                threadPool.generic().execute(() -> dispatchOne(handler, activeKeyId, l));
+                threadPool.generic().execute(() -> dispatchOne(projectId, handler, activeKeyId, l));
             }
         }
     }
 
     private <T extends Metadata.ProjectCustom> void dispatchOne(
+        ProjectId projectId,
         EncryptedDataHandler<T> handler,
         String expectedActiveKeyId,
         ActionListener<Void> listener
     ) {
         try {
             ClusterState snapshot = clusterService.state();
-            ProjectState projectState = projectResolver.getProjectState(snapshot);
-
-            T oldCustom = projectState.metadata().custom(handler.customName());
-            T newCustom = handler.reEncrypt(oldCustom, encryptionService, expectedActiveKeyId);
+            ProjectMetadata project = snapshot.metadata().projects().get(projectId);
+            if (project == null) {
+                // Project vanished between schedule and dispatch. Drop and let the next tick reconcile.
+                listener.onResponse(null);
+                return;
+            }
+            T oldCustom = project.custom(handler.customName());
+            // Wrap the handler invocation so any encrypt/decrypt the handler issues resolves keys for `projectId`. The generic-thread we
+            // forked to has no project header in its ThreadContext, so the resolver would otherwise fall back to the default project.
+            T newCustom = invokeHandler(projectId, handler, oldCustom, expectedActiveKeyId);
             if (newCustom == null || newCustom == oldCustom) {
                 // Nothing to do — handler signaled no change.
                 listener.onResponse(null);
@@ -323,13 +349,25 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
                     + " does not match returned custom getWriteableName="
                     + newCustom.getWriteableName();
             taskQueue.submitTask(
-                "re-encrypt-" + handler.customName(),
-                new ReEncryptApplyTask(handler.customName(), oldCustom, newCustom, expectedActiveKeyId, listener),
+                "re-encrypt-" + handler.customName() + "[" + projectId + "]",
+                new ReEncryptApplyTask(projectId, handler.customName(), oldCustom, newCustom, expectedActiveKeyId, listener),
                 null
             );
         } catch (Exception e) {
             listener.onFailure(e);
         }
+    }
+
+    private <T extends Metadata.ProjectCustom> T invokeHandler(
+        ProjectId projectId,
+        EncryptedDataHandler<T> handler,
+        T oldCustom,
+        String expectedActiveKeyId
+    ) {
+        // Single-slot holder lets us return the handler's result out of the executeOnProject lambda without losing the generic type.
+        AtomicReference<T> result = new AtomicReference<>();
+        projectResolver.executeOnProject(projectId, () -> result.set(handler.reEncrypt(oldCustom, encryptionService, expectedActiveKeyId)));
+        return result.get();
     }
 
     @Override
@@ -346,8 +384,9 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
     }
 
     @Nullable
-    public ProjectEncryptionKeyMetadata getCurrentMetadata(ClusterState state) {
-        return projectResolver.getProjectState(state).metadata().custom(ProjectEncryptionKeyMetadata.TYPE);
+    public ProjectEncryptionKeyMetadata getCurrentMetadata(ClusterState state, ProjectId projectId) {
+        ProjectMetadata project = state.metadata().projects().get(projectId);
+        return project != null ? project.custom(ProjectEncryptionKeyMetadata.TYPE) : null;
     }
 
     private boolean checkPekFeatureAvailable(ClusterState state) {
@@ -358,23 +397,30 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         return true;
     }
 
-    void submitInstallKey() {
-        taskQueue.submitTask("install-project-encryption-key", new InstallKeyTask(), null);
+    void submitInstallKey(ProjectId projectId) {
+        taskQueue.submitTask("install-project-encryption-key[" + projectId + "]", new InstallKeyTask(projectId), null);
     }
 
-    void submitBeginRotation() {
-        taskQueue.submitTask("begin-project-encryption-key-rotation", new BeginRotationTask(), null);
+    void submitBeginRotation(ProjectId projectId) {
+        taskQueue.submitTask("begin-project-encryption-key-rotation[" + projectId + "]", new BeginRotationTask(projectId), null);
     }
 
-    void submitRetireKeys(long cutoffDeactivationMillis) {
-        taskQueue.submitTask("retire-project-encryption-keys", new RetireKeysTask(cutoffDeactivationMillis), null);
+    void submitRetireKeys(ProjectId projectId, long cutoffDeactivationMillis) {
+        taskQueue.submitTask(
+            "retire-project-encryption-keys[" + projectId + "]",
+            new RetireKeysTask(projectId, cutoffDeactivationMillis),
+            null
+        );
     }
 
     /**
-     * Hierarchy of cluster-state tasks that flow through the PEK task queue. {@link KeyRotationExecutor} dispatches on the concrete type.
+     * Hierarchy of cluster-state tasks that flow through the PEK task queue. Each task carries the {@link ProjectId} it targets;
+     * {@link KeyRotationExecutor} dispatches on the concrete type.
      */
     sealed interface KeyRotationTask extends ClusterStateTaskListener permits InstallKeyTask, BeginRotationTask, RetireKeysTask,
         ReEncryptApplyTask {
+
+        ProjectId projectId();
 
         String description();
 
@@ -384,33 +430,34 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         }
     }
 
-    static final class InstallKeyTask implements KeyRotationTask {
+    record InstallKeyTask(ProjectId projectId) implements KeyRotationTask {
         @Override
         public String description() {
-            return "project encryption key initial install";
+            return "project encryption key initial install [" + projectId + "]";
         }
     }
 
-    static final class BeginRotationTask implements KeyRotationTask {
+    record BeginRotationTask(ProjectId projectId) implements KeyRotationTask {
         @Override
         public String description() {
-            return "project encryption key rotation begin";
+            return "project encryption key rotation begin [" + projectId + "]";
         }
     }
 
-    record RetireKeysTask(long cutoffDeactivationMillis) implements KeyRotationTask {
+    record RetireKeysTask(ProjectId projectId, long cutoffDeactivationMillis) implements KeyRotationTask {
         @Override
         public String description() {
-            return "project encryption key retire (cutoff=" + cutoffDeactivationMillis + ")";
+            return "project encryption key retire [" + projectId + "] (cutoff=" + cutoffDeactivationMillis + ")";
         }
     }
 
     /**
-     * Atomically swap a handler's {@link Metadata.ProjectCustom} for a re-encrypted copy and record progress in
-     * {@code handlerKeyIds}. Conflict cases (slice changed, or a new rotation began since compute) are turned into no-ops; the next
-     * tick will re-dispatch.
+     * Atomically swap a project's handler {@link Metadata.ProjectCustom} for a re-encrypted copy and record progress in
+     * {@code handlerKeyIds}. Conflict cases (project gone, slice changed, or a new rotation began since compute) are turned into no-ops;
+     * the next tick will re-dispatch.
      */
     record ReEncryptApplyTask(
+        ProjectId projectId,
         String customName,
         Metadata.ProjectCustom expectedOld,
         Metadata.ProjectCustom newCustom,
@@ -419,7 +466,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
     ) implements KeyRotationTask {
         @Override
         public String description() {
-            return "project encryption key re-encrypt [" + customName + "]";
+            return "project encryption key re-encrypt [" + projectId + "][" + customName + "]";
         }
 
         @Override
@@ -432,22 +479,25 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
     static class KeyRotationExecutor extends SimpleBatchedExecutor<KeyRotationTask, Void> {
         private static final SecureRandom RANDOM = new SecureRandom();
 
-        private final ProjectResolver projectResolver;
         private final ThreadPool threadPool;
 
-        KeyRotationExecutor(ProjectResolver projectResolver, ThreadPool threadPool) {
-            this.projectResolver = projectResolver;
+        KeyRotationExecutor(ThreadPool threadPool) {
             this.threadPool = threadPool;
         }
 
         @Override
         public Tuple<ClusterState, Void> executeTask(KeyRotationTask task, ClusterState clusterState) {
-            ProjectState projectState = projectResolver.getProjectState(clusterState);
+            if (clusterState.metadata().hasProject(task.projectId()) == false) {
+                // Project was deleted between submission and execution. Drop the task as a no-op.
+                logger.debug("dropping [{}]: project no longer present in cluster state", task.description());
+                return Tuple.tuple(clusterState, null);
+            }
+            ProjectState projectState = clusterState.projectState(task.projectId());
             ProjectEncryptionKeyMetadata existing = projectState.metadata().custom(ProjectEncryptionKeyMetadata.TYPE);
 
             return switch (task) {
-                case InstallKeyTask ignored -> executeInstallInitial(clusterState, projectState, existing);
-                case BeginRotationTask ignored -> executeBeginRotation(clusterState, projectState, existing);
+                case InstallKeyTask install -> executeInstallInitial(clusterState, projectState, existing);
+                case BeginRotationTask begin -> executeBeginRotation(clusterState, projectState, existing);
                 case RetireKeysTask retireKeysTask -> executeRetireKeys(
                     clusterState,
                     projectState,
@@ -474,7 +524,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
                 Map.of(keyId, new ProjectEncryptionKeyMetadata.KeyEntry(keyBytes, threadPool.absoluteTimeInMillis())),
                 keyId
             );
-            logger.info("installing project encryption key [{}]", keyId);
+            logger.info("installing project encryption key [{}] for project [{}]", keyId, projectState.projectId());
             return Tuple.tuple(putMetadata(clusterState, projectState, metadata), null);
         }
 
@@ -484,7 +534,10 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
             ProjectEncryptionKeyMetadata existing
         ) {
             if (existing == null) {
-                logger.warn("ignoring begin-rotation task because no project encryption key is installed");
+                logger.warn(
+                    "ignoring begin-rotation task because no project encryption key is installed for project [{}]",
+                    projectState.projectId()
+                );
                 return Tuple.tuple(clusterState, null);
             }
             byte[] keyBytes = randomKey();
@@ -492,7 +545,11 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
             Map<String, ProjectEncryptionKeyMetadata.KeyEntry> newEntries = new HashMap<>(existing.getKeys());
             newEntries.put(newKeyId, new ProjectEncryptionKeyMetadata.KeyEntry(keyBytes, threadPool.absoluteTimeInMillis()));
             ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(newEntries, newKeyId, existing.getHandlerKeyIds());
-            logger.info("beginning project encryption key rotation: new active key [{}]", newKeyId);
+            logger.info(
+                "beginning project encryption key rotation for project [{}]: new active key [{}]",
+                projectState.projectId(),
+                newKeyId
+            );
             return Tuple.tuple(putMetadata(clusterState, projectState, metadata), null);
         }
 
@@ -513,7 +570,12 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
             Map<String, ProjectEncryptionKeyMetadata.KeyEntry> retained = new HashMap<>(existing.getKeys());
             retained.keySet().removeAll(retiredIds);
             ProjectEncryptionKeyMetadata metadata = new ProjectEncryptionKeyMetadata(retained, activeKeyId, existing.getHandlerKeyIds());
-            logger.info("project encryption key retire: retained active key [{}], retired keys {}", activeKeyId, new TreeSet<>(retiredIds));
+            logger.info(
+                "project encryption key retire for project [{}]: retained active key [{}], retired keys {}",
+                projectState.projectId(),
+                activeKeyId,
+                new TreeSet<>(retiredIds)
+            );
             return Tuple.tuple(putMetadata(clusterState, projectState, metadata), null);
         }
 
@@ -525,14 +587,14 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
         ) {
             if (existing == null) {
                 // PEK metadata vanished. Drop and let next tick re-attempt.
-                logger.debug("dropping re-encrypt task for [{}]: no PEK metadata installed", task.customName());
+                logger.debug("dropping re-encrypt task for [{}]: no PEK metadata installed", task.description());
                 return Tuple.tuple(clusterState, null);
             }
             if (existing.getActiveKeyId().equals(task.expectedActiveKeyId()) == false) {
                 // A new rotation began since the compute phase. The re-encrypted custom is stale; drop and re-tick.
                 logger.debug(
                     "dropping re-encrypt task for [{}]: activeKeyId drifted from [{}] to [{}]",
-                    task.customName(),
+                    task.description(),
                     task.expectedActiveKeyId(),
                     existing.getActiveKeyId()
                 );
@@ -541,7 +603,7 @@ public class KeyRotationCoordinator implements LocalNodeMasterListener, Closeabl
             Metadata.ProjectCustom current = projectState.metadata().custom(task.customName());
             if (current != task.expectedOld()) {
                 // Slice was modified between snapshot and apply. Drop and re-tick.
-                logger.debug("dropping re-encrypt task for [{}]: slice mutated between compute and apply", task.customName());
+                logger.debug("dropping re-encrypt task for [{}]: slice mutated between compute and apply", task.description());
                 return Tuple.tuple(clusterState, null);
             }
             ProjectEncryptionKeyMetadata updatedPek = existing.withHandlerKeyId(task.customName(), task.expectedActiveKeyId());

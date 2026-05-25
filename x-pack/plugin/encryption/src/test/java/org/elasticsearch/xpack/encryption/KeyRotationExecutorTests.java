@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.encryption;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
-import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -27,10 +27,7 @@ public class KeyRotationExecutorTests extends ESTestCase {
 
     private static final ClusterName CLUSTER_NAME = new ClusterName("test");
     private final ThreadPool threadPool = mockThreadPool();
-    private final KeyRotationCoordinator.KeyRotationExecutor executor = new KeyRotationCoordinator.KeyRotationExecutor(
-        DefaultProjectResolver.INSTANCE,
-        threadPool
-    );
+    private final KeyRotationCoordinator.KeyRotationExecutor executor = new KeyRotationCoordinator.KeyRotationExecutor(threadPool);
 
     private static ThreadPool mockThreadPool() {
         ThreadPool tp = mock(ThreadPool.class);
@@ -49,22 +46,41 @@ public class KeyRotationExecutorTests extends ESTestCase {
     }
 
     private static ClusterState stateWith(ProjectEncryptionKeyMetadata metadata) {
-        ProjectMetadata.Builder project = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID);
+        return stateWith(Metadata.DEFAULT_PROJECT_ID, metadata);
+    }
+
+    private static ClusterState stateWith(ProjectId projectId, ProjectEncryptionKeyMetadata metadata) {
+        ProjectMetadata.Builder project = ProjectMetadata.builder(projectId);
         if (metadata != null) {
             project.putCustom(ProjectEncryptionKeyMetadata.TYPE, metadata);
         }
         return ClusterState.builder(CLUSTER_NAME).metadata(Metadata.builder().put(project.build()).build()).build();
     }
 
-    private static ProjectEncryptionKeyMetadata metadataOf(ClusterState state) {
-        return state.metadata().getProject(Metadata.DEFAULT_PROJECT_ID).custom(ProjectEncryptionKeyMetadata.TYPE);
+    private static ClusterState stateWithProjects(Map<ProjectId, ProjectEncryptionKeyMetadata> projects) {
+        Metadata.Builder metadata = Metadata.builder();
+        for (var entry : projects.entrySet()) {
+            ProjectMetadata.Builder project = ProjectMetadata.builder(entry.getKey());
+            if (entry.getValue() != null) {
+                project.putCustom(ProjectEncryptionKeyMetadata.TYPE, entry.getValue());
+            }
+            metadata.put(project.build());
+        }
+        return ClusterState.builder(CLUSTER_NAME).metadata(metadata.build()).build();
+    }
+
+    private static ProjectEncryptionKeyMetadata metadataOf(ClusterState state, ProjectId projectId) {
+        return state.metadata().getProject(projectId).custom(ProjectEncryptionKeyMetadata.TYPE);
     }
 
     public void testInstallInitialKeyOnEmptyState() {
         ClusterState state = stateWith(null);
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.InstallKeyTask(), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(
+            new KeyRotationCoordinator.InstallKeyTask(Metadata.DEFAULT_PROJECT_ID),
+            state
+        );
 
-        ProjectEncryptionKeyMetadata metadata = metadataOf(result.v1());
+        ProjectEncryptionKeyMetadata metadata = metadataOf(result.v1(), Metadata.DEFAULT_PROJECT_ID);
         assertNotNull(metadata);
         assertEquals(1, metadata.getKeys().size());
         String activeKeyId = metadata.getActiveKeyId();
@@ -75,17 +91,40 @@ public class KeyRotationExecutorTests extends ESTestCase {
     public void testInstallInitialKeyIsNoopWhenKeyExists() {
         ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(42L)), "k1");
         ClusterState state = stateWith(existing);
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.InstallKeyTask(), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(
+            new KeyRotationCoordinator.InstallKeyTask(Metadata.DEFAULT_PROJECT_ID),
+            state
+        );
         assertSame(state, result.v1());
+    }
+
+    public void testInstallOnlyMutatesNamedProject() {
+        ProjectId p1 = ProjectId.fromId("p1");
+        ProjectId p2 = ProjectId.fromId("p2");
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(42L)), "k1");
+        Map<ProjectId, ProjectEncryptionKeyMetadata> projects = new HashMap<>();
+        projects.put(p1, null);
+        projects.put(p2, existing);
+        ClusterState state = stateWithProjects(projects);
+
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.InstallKeyTask(p1), state);
+
+        ProjectEncryptionKeyMetadata p1Metadata = metadataOf(result.v1(), p1);
+        ProjectEncryptionKeyMetadata p2Metadata = metadataOf(result.v1(), p2);
+        assertNotNull("p1 should have been installed", p1Metadata);
+        assertEquals("p2 must not be mutated", existing, p2Metadata);
     }
 
     public void testBeginRotationAddsKeyAndAdvancesActive() {
         long activeBornAt = System.currentTimeMillis() - 60_000L;
         ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(activeBornAt)), "k1");
         ClusterState state = stateWith(existing);
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.BeginRotationTask(), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(
+            new KeyRotationCoordinator.BeginRotationTask(Metadata.DEFAULT_PROJECT_ID),
+            state
+        );
 
-        ProjectEncryptionKeyMetadata metadata = metadataOf(result.v1());
+        ProjectEncryptionKeyMetadata metadata = metadataOf(result.v1(), Metadata.DEFAULT_PROJECT_ID);
         assertEquals(2, metadata.getKeys().size());
         assertNotEquals("k1", metadata.getActiveKeyId());
         assertTrue("k1 should remain in the map", metadata.getKeys().containsKey("k1"));
@@ -95,8 +134,29 @@ public class KeyRotationExecutorTests extends ESTestCase {
 
     public void testBeginRotationIsNoopWhenNoMetadata() {
         ClusterState state = stateWith(null);
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.BeginRotationTask(), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(
+            new KeyRotationCoordinator.BeginRotationTask(Metadata.DEFAULT_PROJECT_ID),
+            state
+        );
         assertSame(state, result.v1());
+    }
+
+    public void testBeginRotationOnlyMutatesNamedProject() {
+        ProjectId p1 = ProjectId.fromId("p1");
+        ProjectId p2 = ProjectId.fromId("p2");
+        ProjectEncryptionKeyMetadata p1Metadata = new ProjectEncryptionKeyMetadata(Map.of("a", entry(10L)), "a");
+        ProjectEncryptionKeyMetadata p2Metadata = new ProjectEncryptionKeyMetadata(Map.of("b", entry(20L)), "b");
+        Map<ProjectId, ProjectEncryptionKeyMetadata> projects = new HashMap<>();
+        projects.put(p1, p1Metadata);
+        projects.put(p2, p2Metadata);
+        ClusterState state = stateWithProjects(projects);
+
+        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.BeginRotationTask(p1), state);
+
+        ProjectEncryptionKeyMetadata p1After = metadataOf(result.v1(), p1);
+        ProjectEncryptionKeyMetadata p2After = metadataOf(result.v1(), p2);
+        assertNotEquals("p1 should have a new active key", "a", p1After.getActiveKeyId());
+        assertEquals("p2 must not be mutated", p2Metadata, p2After);
     }
 
     public void testRetireKeysDropsOnlyKeysBelowCutoff() {
@@ -108,9 +168,12 @@ public class KeyRotationExecutorTests extends ESTestCase {
         ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(entries, "active");
         ClusterState state = stateWith(existing);
 
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(450L), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(
+            new KeyRotationCoordinator.RetireKeysTask(Metadata.DEFAULT_PROJECT_ID, 450L),
+            state
+        );
 
-        ProjectEncryptionKeyMetadata metadata = metadataOf(result.v1());
+        ProjectEncryptionKeyMetadata metadata = metadataOf(result.v1(), Metadata.DEFAULT_PROJECT_ID);
         assertEquals("only 'old' should have been retired", Set.of("active", "recent"), metadata.getKeys().keySet());
         assertEquals("active", metadata.getActiveKeyId());
     }
@@ -124,9 +187,12 @@ public class KeyRotationExecutorTests extends ESTestCase {
         ClusterState state = stateWith(existing);
 
         long cutoff = 200L;
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(cutoff), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(
+            new KeyRotationCoordinator.RetireKeysTask(Metadata.DEFAULT_PROJECT_ID, cutoff),
+            state
+        );
 
-        ProjectEncryptionKeyMetadata metadata = metadataOf(result.v1());
+        ProjectEncryptionKeyMetadata metadata = metadataOf(result.v1(), Metadata.DEFAULT_PROJECT_ID);
         assertEquals(Set.of("active"), metadata.getKeys().keySet());
         assertEquals("active", metadata.getActiveKeyId());
     }
@@ -135,13 +201,29 @@ public class KeyRotationExecutorTests extends ESTestCase {
         ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(Map.of("active", entry(1000L)), "active");
         ClusterState state = stateWith(existing);
 
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(500L), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(
+            new KeyRotationCoordinator.RetireKeysTask(Metadata.DEFAULT_PROJECT_ID, 500L),
+            state
+        );
         assertSame(state, result.v1());
     }
 
     public void testRetireKeysIsNoopWhenNoMetadata() {
         ClusterState state = stateWith(null);
-        Tuple<ClusterState, Void> result = executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(100L), state);
+        Tuple<ClusterState, Void> result = executor.executeTask(
+            new KeyRotationCoordinator.RetireKeysTask(Metadata.DEFAULT_PROJECT_ID, 100L),
+            state
+        );
         assertSame(state, result.v1());
+    }
+
+    public void testTaskForVanishedProjectIsNoop() throws Exception {
+        ProjectId vanished = ProjectId.fromId("vanished");
+        ProjectEncryptionKeyMetadata existing = new ProjectEncryptionKeyMetadata(Map.of("k1", entry(50L)), "k1");
+        ClusterState state = stateWith(Metadata.DEFAULT_PROJECT_ID, existing);
+
+        assertSame(state, executor.executeTask(new KeyRotationCoordinator.InstallKeyTask(vanished), state).v1());
+        assertSame(state, executor.executeTask(new KeyRotationCoordinator.BeginRotationTask(vanished), state).v1());
+        assertSame(state, executor.executeTask(new KeyRotationCoordinator.RetireKeysTask(vanished, 100L), state).v1());
     }
 }

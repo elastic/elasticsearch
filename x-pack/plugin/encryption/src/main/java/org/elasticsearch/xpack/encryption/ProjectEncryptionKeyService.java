@@ -10,7 +10,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -19,15 +20,27 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
 
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Map;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 import javax.crypto.SecretKey;
 
 /**
  * Owns the in-memory cache of the project encryption key (PEK) material and serves it to {@link AesGcmEncryptionService}.
  *
- * <p>This service listens to cluster-state changes and rebuilds its local cache whenever {@link ProjectEncryptionKeyMetadata} changes.
- * Installation, rotation, and retirement of PEK material are owned by {@link KeyRotationCoordinator}; this class is read-only with
+ * <p>The cache is keyed by {@link ProjectId} — one slot per project. On every cluster-state change the service iterates all projects
+ * whose {@link ProjectEncryptionKeyMetadata} actually changed (using {@link ClusterChangedEvent#customMetadataChanged(ProjectId, String)})
+ * and rebuilds only the affected slots. Cache slots for deleted projects are removed.
+ *
+ * <p>Read access through the {@link AesGcmEncryptionService.KeyProvider} accessors resolves the caller's project via the injected
+ * {@link ProjectResolver}: callers (e.g. ES|QL) must already operate inside a project context (set explicitly via
+ * {@link ProjectResolver#executeOnProject(ProjectId, org.elasticsearch.core.CheckedRunnable)} or implicitly via the request thread
+ * context). If no slot exists for the resolved project id the accessors return {@code null}, which the encryption service surfaces as
+ * an {@link org.elasticsearch.xpack.encryption.spi.EncryptionKeyNotYetAvailableException}. We never fall back to another project's slot.
+ *
+ * <p>Installation, rotation, and retirement of PEK material are owned by {@link KeyRotationCoordinator}; this class is read-only with
  * respect to cluster state.
  */
 public class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyProvider {
@@ -43,7 +56,7 @@ public class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyP
     public static final NodeFeature PROJECT_ENCRYPTION_KEY_FEATURE = new NodeFeature("security.primary_encryption_key");
 
     private final ProjectResolver projectResolver;
-    private volatile KeyCache cache = KeyCache.EMPTY;
+    private final ConcurrentHashMap<ProjectId, KeyCache> cacheByProject = new ConcurrentHashMap<>();
 
     private ProjectEncryptionKeyService(ProjectResolver projectResolver) {
         this.projectResolver = projectResolver;
@@ -63,49 +76,63 @@ public class ProjectEncryptionKeyService implements AesGcmEncryptionService.KeyP
             return;
         }
 
-        if (event.changedCustomProjectMetadataSet().contains(ProjectEncryptionKeyMetadata.TYPE) == false) {
-            return;
-        }
+        // Refresh each project whose PEK metadata actually changed in this event. We do not rely on a single "current" project
+        // resolved from the cluster-applier thread's (empty) ThreadContext — that's the bug class fixed by this listener.
+        Set<ProjectId> projectsToCheck = new HashSet<>(state.metadata().projects().keySet());
+        projectsToCheck.addAll(event.previousState().metadata().projects().keySet());
 
-        ProjectState projectState = projectResolver.getProjectState(state);
-        ProjectEncryptionKeyMetadata metadata = projectState.metadata().custom(ProjectEncryptionKeyMetadata.TYPE);
-
-        if (metadata == null) {
-            if (this.cache != KeyCache.EMPTY) {
-                logger.debug("project encryption key cache cleared after snapshot restore");
-                this.cache = KeyCache.EMPTY;
+        for (ProjectId projectId : projectsToCheck) {
+            if (event.customMetadataChanged(projectId, ProjectEncryptionKeyMetadata.TYPE) == false) {
+                continue;
             }
-            return;
-        }
+            ProjectMetadata project = state.metadata().projects().get(projectId);
+            ProjectEncryptionKeyMetadata metadata = project != null ? project.custom(ProjectEncryptionKeyMetadata.TYPE) : null;
 
-        Map<String, SecretKey> keysByKeyId = HashMap.newHashMap(metadata.getKeys().size());
-        for (String keyId : metadata.getKeys().keySet()) {
-            SecretKey secretKey = metadata.toSecretKey(keyId);
-            assert secretKey != null : "key [" + keyId + "] present in metadata but toSecretKey returned null";
-            keysByKeyId.put(keyId, secretKey);
+            if (metadata == null) {
+                if (cacheByProject.remove(projectId) != null) {
+                    logger.debug("project encryption key cache cleared for project [{}]", projectId);
+                }
+                continue;
+            }
+
+            Map<String, SecretKey> keysByKeyId = HashMap.newHashMap(metadata.getKeys().size());
+            for (String keyId : metadata.getKeys().keySet()) {
+                SecretKey secretKey = metadata.toSecretKey(keyId);
+                assert secretKey != null : "key [" + keyId + "] present in metadata but toSecretKey returned null";
+                keysByKeyId.put(keyId, secretKey);
+            }
+            cacheByProject.put(projectId, new KeyCache(metadata.getActiveKeyId(), keysByKeyId));
+            logger.debug("project encryption key cache updated for project [{}]: activeKeyId={}", projectId, metadata.getActiveKeyId());
         }
-        this.cache = new KeyCache(metadata.getActiveKeyId(), keysByKeyId);
-        logger.debug("project encryption key cache updated: activeKeyId={}", metadata.getActiveKeyId());
     }
 
     @Override
     @Nullable
     public AesGcmEncryptionService.ActiveKey getActiveKey() {
-        KeyCache snapshot = cache;
-        if (snapshot.activeKeyId() == null) {
+        ProjectId projectId = projectResolver.getProjectId();
+        assert projectId != null : "ProjectResolver returned null project id";
+        KeyCache slot = cacheByProject.get(projectId);
+        if (slot == null || slot.activeKeyId() == null) {
+            logger.debug("no encryption key available for project [{}]", projectId);
             return null;
         }
-        return new AesGcmEncryptionService.ActiveKey(snapshot.activeKeyId(), snapshot.activeKey());
+        return new AesGcmEncryptionService.ActiveKey(slot.activeKeyId(), slot.activeKey());
     }
 
     @Override
     @Nullable
     public SecretKey getKey(String keyId) {
-        return cache.keysByKeyId().get(keyId);
+        ProjectId projectId = projectResolver.getProjectId();
+        assert projectId != null : "ProjectResolver returned null project id";
+        KeyCache slot = cacheByProject.get(projectId);
+        if (slot == null) {
+            logger.debug("no encryption key cache slot for project [{}]", projectId);
+            return null;
+        }
+        return slot.keysByKeyId().get(keyId);
     }
 
     private record KeyCache(String activeKeyId, Map<String, SecretKey> keysByKeyId) {
-        static final KeyCache EMPTY = new KeyCache(null, Map.of());
 
         KeyCache {
             assert activeKeyId == null || keysByKeyId.containsKey(activeKeyId);

@@ -1452,6 +1452,28 @@ public class RoutingNodes implements Iterable<RoutingNode> {
                 queue.add(Iterators.forArray(shards));
             }
         }
+        return interleavedIterator(queue);
+    }
+
+    /**
+     * Returns an iterator that interleaves shards across the given subset of nodes, visiting one shard per node
+     * in round-robin order. Only nodes present in {@code nodeIds} are included; unknown node IDs are silently skipped.
+     */
+    public Iterator<ShardRouting> nodeInterleavedShardIterator(Set<String> nodeIds) {
+        final Queue<Iterator<ShardRouting>> queue = new ArrayDeque<>(nodeIds.size());
+        for (final var nodeId : nodeIds) {
+            final var routingNode = nodesToShards.get(nodeId);
+            if (routingNode != null) {
+                final var shards = routingNode.copyShards();
+                if (shards.length > 0) {
+                    queue.add(Iterators.forArray(shards));
+                }
+            }
+        }
+        return interleavedIterator(queue);
+    }
+
+    private static Iterator<ShardRouting> interleavedIterator(Queue<Iterator<ShardRouting>> queue) {
         return new Iterator<>() {
             public boolean hasNext() {
                 return queue.isEmpty() == false;

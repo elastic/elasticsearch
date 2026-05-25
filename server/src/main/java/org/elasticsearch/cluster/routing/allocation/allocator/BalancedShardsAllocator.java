@@ -934,11 +934,9 @@ public class BalancedShardsAllocator implements ShardsAllocator {
             // Re-evaluate shards on nodes where we deferred canRemain:NO + NOT_PREFERRED moves. Earlier YES moves may have resolved
             // the root cause (e.g. reduced heap pressure), changing some targets from NOT_PREFERRED to YES, or making canRemain YES.
             if (nodesWithDeferredNoRemainNotPreferredMoves.isEmpty() == false) {
-                for (Iterator<ShardRouting> it = allocation.routingNodes().nodeInterleavedShardIterator(); it.hasNext();) {
+                for (Iterator<ShardRouting> it = allocation.routingNodes()
+                    .nodeInterleavedShardIterator(nodesWithDeferredNoRemainNotPreferredMoves); it.hasNext();) {
                     final ShardRouting shardRouting = it.next();
-                    if (nodesWithDeferredNoRemainNotPreferredMoves.contains(shardRouting.currentNodeId()) == false) {
-                        continue;
-                    }
                     final ProjectIndex index = projectIndex(shardRouting);
                     final MoveDecision moveDecision = decideMove(index, shardRouting);
                     if (moveDecision.isDecisionTaken()

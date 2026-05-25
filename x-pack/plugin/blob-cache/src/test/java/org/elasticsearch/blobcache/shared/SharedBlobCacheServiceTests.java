@@ -1219,7 +1219,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             final Map<TestCacheKey, CacheFileRegion<TestCacheKey>> cacheEntries = new HashMap<>();
 
             assertThat("All regions are free", cacheService.freeRegionCount(), equalTo(numRegions));
-            assertThat("Cache has no entries", cacheService.maybeEvictLeastUsed(), is(false));
+            assertThat("Cache has no entries", cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0), is(false));
 
             // use all regions in cache
             for (int i = 0; i < numRegions; i++) {
@@ -1239,12 +1239,20 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             }
 
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
-            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
+            assertThat(
+                "Cache entries are not old enough to be evicted",
+                cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0),
+                is(false)
+            );
 
             taskQueue.runAllRunnableTasks();
 
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
-            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
+            assertThat(
+                "Cache entries are not old enough to be evicted",
+                cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0),
+                is(false)
+            );
 
             cacheService.maybeScheduleDecayAndNewEpoch();
             taskQueue.runAllRunnableTasks();
@@ -1262,7 +1270,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             );
 
             assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
-            assertThat("Cache entries are not old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
+            assertThat(
+                "Cache entries are not old enough to be evicted",
+                cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0),
+                is(false)
+            );
 
             cacheService.maybeScheduleDecayAndNewEpoch();
             taskQueue.runAllRunnableTasks();
@@ -1275,11 +1287,19 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             var zeroFrequencyCacheEntries = cacheEntries.size() - usedCacheKeys.size();
             for (int i = 0; i < zeroFrequencyCacheEntries; i++) {
                 assertThat(cacheService.freeRegionCount(), equalTo(i));
-                assertThat("Cache entry is old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(true));
+                assertThat(
+                    "Cache entry is old enough to be evicted",
+                    cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0),
+                    is(true)
+                );
                 assertThat(cacheService.freeRegionCount(), equalTo(i + 1));
             }
 
-            assertThat("No more cache entries old enough to be evicted", cacheService.maybeEvictLeastUsed(), is(false));
+            assertThat(
+                "No more cache entries old enough to be evicted",
+                cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0),
+                is(false)
+            );
             assertThat(cacheService.freeRegionCount(), equalTo(zeroFrequencyCacheEntries));
         }
     }
@@ -1384,10 +1404,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 assertEquals(0, cacheService.freeRegionCount());
                 final var cacheKey = generateCacheKey();
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
+                final int region = randomIntBetween(0, 10);
                 cacheService.maybeFetchRegion(
                     cacheKey,
-                    randomIntBetween(0, 10),
-                    randomLongBetween(1L, regionSize),
+                    region,
+                    regionSize * (region + 1),
                     (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
                         completionListener,
                         () -> {
@@ -1751,7 +1772,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
                 cacheService.maybeFetchRange(
                     cacheKey,
-                    randomIntBetween(0, 10),
+                    0, // first region since blobLength fits in the size of a region
                     ByteRange.of(0L, blobLength),
                     blobLength,
                     (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(
@@ -1924,7 +1945,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 final PlainActionFuture<Boolean> future = new PlainActionFuture<>();
                 cacheService.fetchRange(
                     cacheKey,
-                    randomIntBetween(0, 10),
+                    0, // first region since blobLength fits in the size of a region
                     ByteRange.of(0L, blobLength),
                     blobLength,
                     (channel, channelPos, streamFactory, relativePos, length, progressUpdater, completionListener) -> completeWith(

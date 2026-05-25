@@ -624,11 +624,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final boolean force,
         final ActionListener<Boolean> listener
     ) {
-        if (force == false && freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
-            // no free page available and no old enough unused region to be evicted
-            logger.info("No free regions, skipping loading region [{}]", region);
-            listener.onResponse(false);
-            return;
+        if (force == false && freeRegions.isEmpty()) {
+            var incoming = new CacheFileRegion<>(this, new RegionKey<>(cacheKey, region), computeCacheFileRegionSize(blobLength, region));
+            if (maybeEvictLeastUsed(incoming) == false) {
+                // no free page available and no old enough unused region to be evicted
+                logger.info("No free regions, skipping loading region [{}]", region);
+                listener.onResponse(false);
+                return;
+            }
         }
         try {
             ByteRange regionRange = ByteRange.of(0, computeCacheFileRegionSize(blobLength, region));
@@ -710,11 +713,14 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         final boolean force,
         final ActionListener<Boolean> listener
     ) {
-        if (force == false && freeRegions.isEmpty() && maybeEvictLeastUsed() == false) {
-            // no free page available and no old enough unused region to be evicted
-            logger.debug("No free regions, skipping loading region [{}]", region);
-            listener.onResponse(false);
-            return;
+        if (force == false && freeRegions.isEmpty()) {
+            var incoming = new CacheFileRegion<>(this, new RegionKey<>(cacheKey, region), computeCacheFileRegionSize(blobLength, region));
+            if (maybeEvictLeastUsed(incoming) == false) {
+                // no free page available and no old enough unused region to be evicted
+                logger.debug("No free regions, skipping loading region [{}]", region);
+                listener.onResponse(false);
+                return;
+            }
         }
         try {
             var regionRange = mapSubRangeToRegion(range, region);
@@ -784,9 +790,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     // used by tests
-    boolean maybeEvictLeastUsed() {
+    boolean maybeEvictLeastUsed(KeyType cacheKey, long length, int region) {
         if (cache instanceof LFUCache lfuCache) {
-            return lfuCache.maybeEvictLeastUsed();
+            var incoming = new CacheFileRegion<>(this, new RegionKey<>(cacheKey, region), computeCacheFileRegionSize(length, region));
+            return lfuCache.maybeEvictLeastUsed(incoming);
+        }
+        return false;
+    }
+
+    private boolean maybeEvictLeastUsed(final CacheFileRegion<KeyType> incoming) {
+        if (cache instanceof LFUCache lfuCache) {
+            return lfuCache.maybeEvictLeastUsed(incoming);
         }
         return false;
     }
@@ -2499,9 +2513,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          *
          * @return true if an entry was evicted, false otherwise.
          */
-        public boolean maybeEvictLeastUsed() {
+        private boolean maybeEvictLeastUsed(final CacheFileRegion<KeyType> incoming) {
             synchronized (SharedBlobCacheService.this) {
                 for (LFUCacheEntry entry = freqs[0].head; entry != null; entry = entry.next) {
+                    if (evictionPolicy.canEvict(entry.chunk, incoming, false) == false) {
+                        continue;
+                    }
+
                     boolean evicted = entry.chunk.tryEvict();
                     if (evicted && entry.chunk.volatileIO() != null) {
                         unlink(entry);

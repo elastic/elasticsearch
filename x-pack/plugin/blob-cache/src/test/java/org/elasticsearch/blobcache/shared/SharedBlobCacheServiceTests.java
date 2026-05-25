@@ -3164,7 +3164,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 CacheFileRegion<TimestampCacheKey> incoming,
                 boolean degraded
             ) {
-                boolean isRecent = isRecent(region.regionKey.file());
+                boolean isRecent = isRecent(region.regionKey().file());
                 if (degraded) {
                     return isRecent == false; // evict old data only
                 }
@@ -3178,7 +3178,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             @Override
             public void onCached(CacheFileRegion<TimestampCacheKey> region) {
                 assert Thread.holdsLock(region);
-                if (isRecent(region.regionKey.file())) {
+                if (isRecent(region.regionKey().file())) {
                     recentCount.incrementAndGet();
                 } else {
                     oldCount.incrementAndGet();
@@ -3187,7 +3187,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             @Override
             public void onEvicted(CacheFileRegion<TimestampCacheKey> region) {
-                if (isRecent(region.regionKey.file())) {
+                if (isRecent(region.regionKey().file())) {
                     recentCount.decrementAndGet();
                 } else {
                     oldCount.decrementAndGet();

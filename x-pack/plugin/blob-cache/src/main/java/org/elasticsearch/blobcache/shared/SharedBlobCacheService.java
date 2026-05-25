@@ -792,7 +792,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     // used by tests
-    public long countCachedRegions(Predicate<KeyType> predicate) {
+    long countCachedRegions(Predicate<KeyType> predicate) {
         if (cache instanceof LFUCache lfuCache) {
             return lfuCache.countCachedRegions(predicate);
         }
@@ -1065,6 +1065,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         // for use in tests *only*
         SharedBytes.IO testOnlyNonVolatileIO() {
             return io;
+        }
+
+        public RegionKey<KeyType> regionKey() {
+            return regionKey;
         }
 
         /**

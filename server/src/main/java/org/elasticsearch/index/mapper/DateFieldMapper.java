@@ -308,7 +308,15 @@ public final class DateFieldMapper extends FieldMapper {
             IndexSettings indexSettings
         ) {
             super(name);
-            this.index = Parameter.indexParam(m -> toType(m).indexed, indexSettings.isIndexDisabledByDefault() == false);
+            this.index = Parameter.indexParam(m -> toType(m).indexed, () -> {
+                if (DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(name)) {
+                    // The timestamp field needs to be indexed or configured with a skipper, as it's heavily used in range filters.
+                    // Strict columnar modes uses index for timestamp only when skippers are disabled.
+                    // Other modes use them by default, with special override logic for certain versions and sort configurations.
+                    return indexSettings.getMode().isStrictColumnar() == false || indexSettings.useDocValuesSkipper() == false;
+                }
+                return indexSettings.isIndexDisabledByDefault() == false;
+            });
             this.resolution = resolution;
             this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
@@ -424,8 +432,7 @@ public final class DateFieldMapper extends FieldMapper {
             if (indexCreatedVersion.isLegacyIndexVersion()) {
                 return IndexType.archivedPoints();
             }
-            boolean isIndexed = index.get() || (indexSettings.getMode().isStrictColumnar() && indexSettings.useDocValuesSkipper() == false);
-            return IndexType.points(isIndexed, docValuesParameters.get().enabled());
+            return IndexType.points(index.get(), docValuesParameters.get().enabled());
         }
 
         @Override

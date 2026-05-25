@@ -82,12 +82,15 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
      * log warning when encountered in request context.
      */
     public static <B extends Builder<? extends CohereServiceSettings>> void declareCommonFields(
-        AbstractObjectParser<B, ConfigurationParseContext> parser
+        AbstractObjectParser<B, ConfigurationParseContext> parser,
+        ConfigurationParseContext context
     ) {
         parser.declareString(Builder::setDeprecatedModelId, new ParseField(OLD_MODEL_ID_FIELD));
         parser.declareString(Builder::setModelId, new ParseField(ServiceFields.MODEL_ID));
         parser.declareString(Builder::setUrl, new ParseField(URL));
-        parser.declareString(Builder::setApiVersion, new ParseField(API_VERSION));
+        if (context == ConfigurationParseContext.PERSISTENT) {
+            parser.declareString(Builder::setApiVersion, new ParseField(API_VERSION));
+        }
         parser.declareObject(
             Builder::setRateLimitSettings,
             (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT).parse(p, null),

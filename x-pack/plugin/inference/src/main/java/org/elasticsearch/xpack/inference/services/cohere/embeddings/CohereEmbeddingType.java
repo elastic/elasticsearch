@@ -11,7 +11,6 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
-import java.lang.annotation.ElementType;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.Locale;

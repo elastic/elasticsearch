@@ -7,15 +7,16 @@
 
 package org.elasticsearch.xpack.inference.services.cohere;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.test.AbstractWireSerializingTestCase;
+import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.services.ServiceUtils;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTests;
 
 import java.io.IOException;
 import java.net.URI;
 
-public class CohereCommonServiceSettingsTests extends AbstractWireSerializingTestCase<CohereCommonServiceSettings> {
+public class CohereCommonServiceSettingsTests extends AbstractBWCWireSerializationTestCase<CohereCommonServiceSettings> {
 
     public static CohereCommonServiceSettings createRandom() {
         return new CohereCommonServiceSettings(
@@ -59,5 +60,10 @@ public class CohereCommonServiceSettingsTests extends AbstractWireSerializingTes
         }
 
         return new CohereCommonServiceSettings(uri, modelId, rateLimitSettings, apiVersion);
+    }
+
+    @Override
+    protected CohereCommonServiceSettings mutateInstanceForVersion(CohereCommonServiceSettings instance, TransportVersion version) {
+        return instance;
     }
 }

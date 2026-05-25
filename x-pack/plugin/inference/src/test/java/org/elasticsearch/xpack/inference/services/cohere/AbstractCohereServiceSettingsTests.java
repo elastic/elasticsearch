@@ -15,6 +15,7 @@ import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.CohereApiVersion;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -26,6 +27,10 @@ import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractCohereServiceSettingsTests<T extends CohereServiceSettings> extends AbstractBWCSerializationTestCase<T> {
 
+    /**
+     * We always use the {@link ConfigurationParseContext#PERSISTENT} context for tests because api_version gets
+     * serialized regardless of the context but we can only deserialize it in the {@link ConfigurationParseContext#PERSISTENT} context.
+     */
     protected static final ConfigurationParseContext PARSE_CONTEXT = ConfigurationParseContext.PERSISTENT;
 
     protected boolean ignoreUnknownFields = randomBoolean();
@@ -55,13 +60,25 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
         );
 
         assertThat(serviceSettings.commonSettings().modelId(), is("my-model"));
-        assertThat(serviceSettings.commonSettings().apiVersion(), is(CohereCommonServiceSettings.CohereApiVersion.V2));
+        assertThat(serviceSettings.commonSettings().apiVersion(), is(CohereApiVersion.V2));
     }
 
     public void testFromMap_Request_V2_RequiresModelId() {
         var thrownException = expectThrows(
             IllegalArgumentException.class,
             () -> createGivenCommonSettings(new HashMap<>(), ConfigurationParseContext.REQUEST)
+        );
+
+        assertThat(thrownException.getMessage(), containsString(CohereCommonServiceSettings.MODEL_REQUIRED_FOR_V2_API));
+    }
+
+    public void testFromMap_Persistent_V2_RequiresModelId() {
+        var thrownException = expectThrows(
+            IllegalArgumentException.class,
+            () -> createGivenCommonSettings(
+                Map.of(CohereCommonServiceSettings.API_VERSION, CohereApiVersion.V2),
+                ConfigurationParseContext.PERSISTENT
+            )
         );
 
         assertThat(thrownException.getMessage(), containsString(CohereCommonServiceSettings.MODEL_REQUIRED_FOR_V2_API));
@@ -79,7 +96,7 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
     public void testFromMap_Persistent_EmptyMap_DefaultsToV1() {
         var serviceSettings = createGivenCommonSettings(new HashMap<>(), ConfigurationParseContext.PERSISTENT);
 
-        assertThat(serviceSettings.commonSettings().apiVersion(), is(CohereCommonServiceSettings.CohereApiVersion.V1));
+        assertThat(serviceSettings.commonSettings().apiVersion(), is(CohereApiVersion.V1));
         assertThat(serviceSettings.commonSettings().modelId(), is((String) null));
     }
 
@@ -89,8 +106,19 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
             ConfigurationParseContext.PERSISTENT
         );
 
-        assertThat(serviceSettings.commonSettings().apiVersion(), is(CohereCommonServiceSettings.CohereApiVersion.V2));
+        assertThat(serviceSettings.commonSettings().apiVersion(), is(CohereApiVersion.V2));
         assertThat(serviceSettings.commonSettings().modelId(), is("m"));
+    }
+
+    public void testFromMap_Request_WithApiVersion() {
+        var e = expectThrows(
+            XContentParseException.class,
+            () -> createGivenCommonSettings(
+                new HashMap<>(Map.of(CohereCommonServiceSettings.API_VERSION, "v2", ServiceFields.MODEL_ID, "m")),
+                ConfigurationParseContext.REQUEST
+            )
+        );
+        assertThat(e.getMessage(), containsString("unknown field [api_version]"));
     }
 
     public void testFromMap_GivenBothDeprecatedAndNewModelId_UsesNewModelId() {
@@ -100,7 +128,7 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
         );
 
         assertThat(serviceSettings.commonSettings().modelId(), is("new-model"));
-        assertThat(serviceSettings.commonSettings().apiVersion(), is(CohereCommonServiceSettings.CohereApiVersion.V2));
+        assertThat(serviceSettings.commonSettings().apiVersion(), is(CohereApiVersion.V2));
     }
 
     public void testToXContent_ExposedFields_DoesNotContainApiVersion() throws IOException {

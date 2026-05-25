@@ -132,7 +132,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
             ignoreUnknownFields,
             () -> new Builder(context)
         );
-        CohereCommonServiceSettings.declareCommonFields(parser);
+        CohereCommonServiceSettings.declareCommonFields(parser, context);
         parser.declareString(Builder::setSimilarity, SimilarityMeasure::fromString, new ParseField(SIMILARITY));
         parser.declareInt(Builder::setDimensions, new ParseField(DIMENSIONS));
         parser.declareInt(Builder::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));

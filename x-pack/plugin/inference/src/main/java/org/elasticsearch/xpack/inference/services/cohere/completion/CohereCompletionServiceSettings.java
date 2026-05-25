@@ -67,7 +67,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
             ignoreUnknownFields,
             () -> new Builder(context)
         );
-        CohereCommonServiceSettings.declareCommonFields(parser);
+        CohereCommonServiceSettings.declareCommonFields(parser, context);
         return parser;
     }
 

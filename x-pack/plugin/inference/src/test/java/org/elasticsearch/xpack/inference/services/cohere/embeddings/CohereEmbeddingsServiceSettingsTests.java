@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.inference.MlInferenceNamedXContentProvider;
 import org.elasticsearch.xpack.inference.InferenceNamedWriteablesProvider;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -219,7 +218,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
             TEST_MODEL_ID,
             null,
             CohereCommonServiceSettings.CohereApiVersion.V2,
-            randomFrom(ConfigurationParseContext.values()),
+            ConfigurationParseContext.PERSISTENT,
             TEST_MODEL_ID,
             CohereCommonServiceSettings.CohereApiVersion.V2
         );
@@ -252,7 +251,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
             null,
             TEST_LEGACY_MODEL_ID,
             CohereCommonServiceSettings.CohereApiVersion.V2,
-            randomFrom(ConfigurationParseContext.values()),
+            ConfigurationParseContext.PERSISTENT,
             TEST_LEGACY_MODEL_ID,
             CohereCommonServiceSettings.CohereApiVersion.V2
         );
@@ -327,37 +326,6 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
                 )
             )
         );
-    }
-
-    public void testFromMap_Request_V2_NoModelIdFields_ThrowsMissingModelIdError() {
-        assertFromMap_ThrowsMissingModelIdError(CohereCommonServiceSettings.CohereApiVersion.V2, ConfigurationParseContext.REQUEST);
-    }
-
-    public void testFromMap_Persistent_V2_NoModelIdFields_ThrowsMissingModelIdError() {
-        var thrownException = expectThrows(
-            IllegalArgumentException.class,
-            () -> CohereEmbeddingsServiceSettings.fromMap(
-                buildServiceSettingsMap(null, null, TEST_EMBEDDING_TYPE.toString(), CohereCommonServiceSettings.CohereApiVersion.V2),
-                ConfigurationParseContext.PERSISTENT
-            )
-        );
-
-        assertThat(thrownException.getMessage(), is(CohereCommonServiceSettings.MODEL_REQUIRED_FOR_V2_API));
-    }
-
-    public void assertFromMap_ThrowsMissingModelIdError(
-        CohereCommonServiceSettings.CohereApiVersion apiVersion,
-        ConfigurationParseContext context
-    ) {
-        var thrownException = expectThrows(
-            IllegalArgumentException.class,
-            () -> CohereEmbeddingsServiceSettings.fromMap(
-                buildServiceSettingsMap(null, null, TEST_EMBEDDING_TYPE.toString(), apiVersion),
-                context
-            )
-        );
-
-        assertThat(thrownException.getMessage(), is(CohereCommonServiceSettings.MODEL_REQUIRED_FOR_V2_API));
     }
 
     public void testFromMap_EmptyEmbeddingType_ThrowsError() {
@@ -608,38 +576,27 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
         );
     }
 
-    public void testParse_GivenDimensionsIsNegativeInt() throws IOException {
-        String json = Strings.format("""
-            {
-              "model_id": "test-model-id",
-              "dimensions": %d
-            }
-            """, randomNegativeInt());
-
-        testParse_GivenExpectedParseException(json, "dimensions", "dimensions must be a positive integer");
+    public void testFromMap_GivenDimensionsIsNegativeInt() {
+        testFromMap_GivenExpectedParseException(
+            Map.of(ServiceFields.MODEL_ID, "test-model-id", ServiceFields.DIMENSIONS, randomNegativeInt()),
+            "dimensions",
+            "dimensions must be a positive integer"
+        );
     }
 
-    public void testParse_GivenMaxInputTokensIsNegativeInt() throws IOException {
-        String json = Strings.format("""
-            {
-              "model_id": "test-model-id",
-              "max_input_tokens": %d
-            }
-            """, randomNegativeInt());
-
-        testParse_GivenExpectedParseException(json, "max_input_tokens", "max_input_tokens must be a positive integer");
+    public void testParse_GivenMaxInputTokensIsNegativeInt() {
+        testFromMap_GivenExpectedParseException(
+            Map.of(ServiceFields.MODEL_ID, "test-model-id", ServiceFields.MAX_INPUT_TOKENS, randomNegativeInt()),
+            "max_input_tokens",
+            "max_input_tokens must be a positive integer"
+        );
     }
 
-    private void testParse_GivenExpectedParseException(String json, String field, String expectedMessage) throws IOException {
+    private void testFromMap_GivenExpectedParseException(Map<String, Object> serviceSettings, String field, String expectedMessage) {
         final ConfigurationParseContext context = randomFrom(ConfigurationParseContext.values());
-        try (var parser = createParser(JsonXContent.jsonXContent, json)) {
-            var e = expectThrows(
-                XContentParseException.class,
-                () -> CohereEmbeddingsServiceSettings.createParser(randomBoolean(), context).apply(parser, context)
-            );
-            assertThat(e.getMessage(), containsString("failed to parse field [" + field + "]"));
-            assertThat(e.getCause().getMessage(), containsString(expectedMessage));
-        }
+        var e = expectThrows(XContentParseException.class, () -> CohereEmbeddingsServiceSettings.fromMap(serviceSettings, context));
+        assertThat(e.getMessage(), containsString("failed to parse field [" + field + "]"));
+        assertThat(e.getCause().getMessage(), containsString(expectedMessage));
     }
 
     @Override

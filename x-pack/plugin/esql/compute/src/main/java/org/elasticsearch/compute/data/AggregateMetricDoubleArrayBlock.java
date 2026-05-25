@@ -20,9 +20,7 @@ import java.util.function.IntFunction;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-public final class AggregateMetricDoubleArrayBlock extends AbstractDelegatingCompoundBlock<AggregateMetricDoubleBlock>
-    implements
-        AggregateMetricDoubleBlock {
+public final class AggregateMetricDoubleArrayBlock extends AbstractNonThreadSafeRefCounted implements AggregateMetricDoubleBlock {
     public static final TransportVersion WRITE_TYPED_BLOCK = TransportVersion.fromName("aggregate_metric_double_typed_block");
 
     private final DoubleBlock minBlock;
@@ -69,6 +67,10 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractDelegatingCom
         return new CompositeBlock(blocks);
     }
 
+    private List<Block> getSubBlocks() {
+        return List.of(minBlock, maxBlock, sumBlock, countBlock);
+    }
+
     @Override
     public int valueMaxByteSize() {
         // Three dense-double sub-blocks (min, max, sum) plus one dense-int sub-block (count).
@@ -81,6 +83,11 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractDelegatingCom
     }
 
     @Override
+    public int getPositionCount() {
+        return minBlock.getPositionCount();
+    }
+
+    @Override
     public int getFirstValueIndex(int position) {
         return minBlock.getFirstValueIndex(position);
     }
@@ -88,7 +95,7 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractDelegatingCom
     @Override
     public int getTotalValueCount() {
         int totalValueCount = 0;
-        for (Block b : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
+        for (Block b : getSubBlocks()) {
             totalValueCount += b.getTotalValueCount();
         }
         return totalValueCount;
@@ -97,7 +104,7 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractDelegatingCom
     @Override
     public int getValueCount(int position) {
         int max = 0;
-        for (Block b : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
+        for (Block b : getSubBlocks()) {
             max = Math.max(max, b.getValueCount(position));
         }
         return max;
@@ -109,23 +116,32 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractDelegatingCom
     }
 
     @Override
-    protected List<Block> getSubBlocks() {
-        return List.of(minBlock, maxBlock, sumBlock, countBlock);
+    public BlockFactory blockFactory() {
+        return minBlock.blockFactory();
     }
 
     @Override
-    protected AggregateMetricDoubleArrayBlock buildFromSubBlocks(List<Block> subBlocks) {
-        return new AggregateMetricDoubleArrayBlock(
-            (DoubleBlock) subBlocks.get(0),
-            (DoubleBlock) subBlocks.get(1),
-            (DoubleBlock) subBlocks.get(2),
-            (IntBlock) subBlocks.get(3)
-        );
+    public void allowPassingToDifferentDriver() {
+        getSubBlocks().forEach(Block::allowPassingToDifferentDriver);
+    }
+
+    @Override
+    public long ramBytesUsed() {
+        long bytes = 0;
+        for (Block b : getSubBlocks()) {
+            bytes += b.ramBytesUsed();
+        }
+        return bytes;
+    }
+
+    @Override
+    protected void closeInternal() {
+        Releasables.close(getSubBlocks());
     }
 
     @Override
     public boolean isNull(int position) {
-        for (Block block : List.of(minBlock, maxBlock, sumBlock, countBlock)) {
+        for (Block block : getSubBlocks()) {
             if (block.isNull(position) == false) {
                 return false;
             }
@@ -172,6 +188,52 @@ public final class AggregateMetricDoubleArrayBlock extends AbstractDelegatingCom
     public AggregateMetricDoubleBlock expand() {
         this.incRef();
         return this;
+    }
+
+    @Override
+    public AggregateMetricDoubleArrayBlock filter(boolean mayContainDuplicates, int... positions) {
+        return applyOperationToSubBlocks(b -> b.filter(mayContainDuplicates, positions));
+    }
+
+    @Override
+    public AggregateMetricDoubleArrayBlock slice(int beginInclusive, int endExclusive) {
+        return applyOperationToSubBlocks(b -> b.slice(beginInclusive, endExclusive));
+    }
+
+    @Override
+    public AggregateMetricDoubleArrayBlock keepMask(BooleanVector mask) {
+        return applyOperationToSubBlocks(b -> b.keepMask(mask));
+    }
+
+    @Override
+    public AggregateMetricDoubleArrayBlock deepCopy(BlockFactory blockFactory) {
+        return applyOperationToSubBlocks(b -> b.deepCopy(blockFactory));
+    }
+
+    private AggregateMetricDoubleArrayBlock applyOperationToSubBlocks(java.util.function.Function<Block, Block> operation) {
+        DoubleBlock newMinBlock = null;
+        DoubleBlock newMaxBlock = null;
+        DoubleBlock newSumBlock = null;
+        IntBlock newCountBlock = null;
+        boolean success = false;
+        try {
+            newMinBlock = (DoubleBlock) operation.apply(minBlock);
+            newMaxBlock = (DoubleBlock) operation.apply(maxBlock);
+            newSumBlock = (DoubleBlock) operation.apply(sumBlock);
+            newCountBlock = (IntBlock) operation.apply(countBlock);
+            AggregateMetricDoubleArrayBlock result = new AggregateMetricDoubleArrayBlock(
+                newMinBlock,
+                newMaxBlock,
+                newSumBlock,
+                newCountBlock
+            );
+            success = true;
+            return result;
+        } finally {
+            if (success == false) {
+                Releasables.close(newMinBlock, newMaxBlock, newSumBlock, newCountBlock);
+            }
+        }
     }
 
     @Override

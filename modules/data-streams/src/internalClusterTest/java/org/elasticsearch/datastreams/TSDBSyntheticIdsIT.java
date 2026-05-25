@@ -152,7 +152,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
 
     public void testInvalidIndexMode() {
         final var indexName = randomIdentifier();
-        var randomNonTsdbIndexMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.values()));
+        var randomNonTsdbIndexMode = randomValueOtherThan(IndexMode.TIME_SERIES, () -> randomFrom(IndexMode.availableModes()));
 
         var exception = expectThrows(
             IllegalArgumentException.class,
@@ -387,6 +387,7 @@ public class TSDBSyntheticIdsIT extends ESIntegTestCase {
         if (randomBoolean()) {
             logger.info("--> restarting the cluster");
             internalCluster().rollingRestart(new InternalTestCluster.RestartCallback());
+            ensureGreen(dataStreamName);
         } else {
             // Move all the shards to a new node to force relocations
             var newNodeName = internalCluster().startDataOnlyNode();

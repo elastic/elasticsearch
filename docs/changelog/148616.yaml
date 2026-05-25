@@ -1,0 +1,5 @@
+area: SQL
+issues: []
+pr: 148616
+summary: Fix REPLACE with empty pattern
+type: bug

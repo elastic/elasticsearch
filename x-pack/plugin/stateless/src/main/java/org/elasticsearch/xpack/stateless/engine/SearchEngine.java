@@ -18,6 +18,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.index.ElasticsearchDirectoryReader;
@@ -127,11 +128,18 @@ public class SearchEngine extends Engine {
     // Guarded by the openReaders monitor
     private final Map<DirectoryReader, OpenReaderInfo> openReaders = new HashMap<>();
     private final RelocatedPITReaderTracker relocatedPITReaderTracker = new RelocatedPITReaderTracker(
-        (wrapper, referenceManager) -> acquireSearcherSupplier(
-            wrapper,
+        relocatedPITReader -> acquireSearcherSupplier(
+            relocatedPITReader.wrapper,
             SearcherScope.EXTERNAL,
-            SplitShardCountSummary.UNSET,
-            referenceManager
+            r -> ReshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
+                r,
+                shardId,
+                engineConfig.getIndexSettings().getIndexMetadata(),
+                engineConfig.getMapperService(),
+                relocatedPITReader.reshardingMetadata,
+                relocatedPITReader.splitShardCountSummary
+            ),
+            relocatedPITReader.pitReaderManager
         )
     );
 
@@ -1207,6 +1215,8 @@ public class SearchEngine extends Engine {
         String segmentsFileName,
         Map<String, BlobLocation> metadata,
         Function<Searcher, Searcher> wrapper,
+        IndexReshardingMetadata relocatedReshardingMetadata,
+        SplitShardCountSummary relocatedSplitShardCountSummary,
         ActionListener<SearcherSupplier> listener
     ) {
         // we use a task queue to serialize opening readers for old commits with processing commit notifications
@@ -1270,7 +1280,13 @@ public class SearchEngine extends Engine {
                 // when the engine closes, even if the returned SearcherSupplier is never used (e.g.
                 // because the shard closes before the PIT context is registered with SearchService).
                 var searcherSupplier = relocatedPITReaderTracker.addRelocatedPitReader(
-                    new RelocatedPITReader(pitReaderManager, wrapper, store::decRef)
+                    new RelocatedPITReader(
+                        pitReaderManager,
+                        wrapper,
+                        relocatedReshardingMetadata,
+                        relocatedSplitShardCountSummary,
+                        store::decRef
+                    )
                 );
                 // From now on, the relocated PIT reader is owned by the relocatedPITReaderTracker
                 storeRef = null;
@@ -1316,7 +1332,7 @@ public class SearchEngine extends Engine {
 
         @FunctionalInterface
         interface SearcherSupplierFactory {
-            SearcherSupplier create(Function<Searcher, Searcher> wrapper, ReferenceManager<ElasticsearchDirectoryReader> referenceManager);
+            SearcherSupplier create(RelocatedPITReader relocatedPITReader);
         }
 
         private final SearcherSupplierFactory searcherSupplierFactory;
@@ -1367,7 +1383,7 @@ public class SearchEngine extends Engine {
             var storeRef = relocatedPITReader.storeRef();
 
             try (storeRef) {
-                SearcherSupplier delegate = searcherSupplierFactory.create(relocatedPITReader.wrapper, pitReaderManager);
+                SearcherSupplier delegate = searcherSupplierFactory.create(relocatedPITReader);
                 // searcherSupplierFactory.create() acquires its own store ref for the delegate's
                 // lifetime, so we can release ours (via the try-with-resources block) here.
                 return new SearcherSupplier(Function.identity()) {
@@ -1411,6 +1427,8 @@ public class SearchEngine extends Engine {
     private record RelocatedPITReader(
         ElasticsearchReaderManager pitReaderManager,
         Function<Searcher, Searcher> wrapper,
+        IndexReshardingMetadata reshardingMetadata,
+        SplitShardCountSummary splitShardCountSummary,
         Releasable storeRef
     ) implements Closeable {
         @Override

@@ -14,7 +14,6 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.LongField;
 import org.apache.lucene.document.LongPoint;
-import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.StoredField;
 import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.IndexReader;
@@ -52,6 +51,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.fn.RoundToLongsFromD
 import org.elasticsearch.index.query.DateRangeIncludingNowQuery;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.queries.SortedNumericDocValuesRangeQuery;
 import org.elasticsearch.script.DateFieldScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptCompiler;
@@ -260,13 +260,13 @@ public final class DateFieldMapper extends FieldMapper {
     public static final DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new DocValuesParameter.Values(
         true,
         DocValuesParameter.Values.Cardinality.LOW,
-        DocValuesParameter.Values.MultiValue.SORTED
+        true
     );
 
     public static final class Builder extends FieldMapper.Builder {
 
-        private final Parameter<Boolean> index = Parameter.indexParam(m -> toType(m).indexed, true);
-        private final DocValuesParameter docValuesParameters = DocValuesParameter.sorted(
+        private final Parameter<Boolean> index;
+        private final DocValuesParameter docValuesParameters = DocValuesParameter.of(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> toType(m).docValuesParameters()
         );
@@ -308,6 +308,15 @@ public final class DateFieldMapper extends FieldMapper {
             IndexSettings indexSettings
         ) {
             super(name);
+            this.index = Parameter.indexParam(m -> toType(m).indexed, () -> {
+                if (DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(name)) {
+                    // The timestamp field needs to be indexed or configured with a skipper, as it's heavily used in range filters.
+                    // Strict columnar modes uses index for timestamp only when skippers are disabled.
+                    // Other modes use them by default, with special override logic for certain versions and sort configurations.
+                    return indexSettings.getMode().isStrictColumnar() == false || indexSettings.useDocValuesSkipper() == false;
+                }
+                return indexSettings.isIndexDisabledByDefault() == false;
+            });
             this.resolution = resolution;
             this.indexCreatedVersion = indexSettings.getIndexVersionCreated();
             this.scriptCompiler = Objects.requireNonNull(scriptCompiler);
@@ -688,11 +697,11 @@ public final class DateFieldMapper extends FieldMapper {
                     if (indexType.hasPoints()) {
                         query = LongPoint.newRangeQuery(name(), l, u);
                         if (hasDocValues()) {
-                            Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                            Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
                             query = new IndexOrDocValuesQuery(query, dvQuery);
                         }
                     } else {
-                        query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                        query = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
                     }
                     if (hasDocValues() && context.indexSortedOnField(name())) {
                         query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
@@ -805,11 +814,11 @@ public final class DateFieldMapper extends FieldMapper {
             if (indexType.hasPoints()) {
                 query = LongPoint.newRangeQuery(name(), l, u);
                 if (hasDocValues()) {
-                    Query dvQuery = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                    Query dvQuery = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
                     query = new IndexOrDocValuesQuery(query, dvQuery);
                 }
             } else {
-                query = SortedNumericDocValuesField.newSlowRangeQuery(name(), l, u);
+                query = SortedNumericDocValuesRangeQuery.newRangeQuery(name(), l, u);
             }
             if (hasDocValues() && context.indexSortedOnField(name())) {
                 query = new IndexSortSortedNumericDocValuesRangeQuery(name(), l, u, query);
@@ -1155,8 +1164,8 @@ public final class DateFieldMapper extends FieldMapper {
      * <p>
      * The doc values skipper is enabled only if {@code index.mapping.use_doc_values_skipper} is set to {@code true},
      * the index was created on or after {@link IndexVersions#SKIPPERS_ENABLED_BY_DEFAULT}, and the
-     * field has doc values enabled. Additionally, the index mode must be {@link IndexMode#LOGSDB} or {@link IndexMode#TIME_SERIES}, and
-     * the index sorting configuration must include the {@code @timestamp} field.
+     * field has doc values enabled. Additionally, the index mode must be columnar, and the index sorting
+     * configuration must include the {@code @timestamp} field.
      *
      * @param indexSettings  The index settings of the parent index
      * @param hasDocValues   Whether the field has doc values enabled.
@@ -1166,7 +1175,7 @@ public final class DateFieldMapper extends FieldMapper {
     private static boolean shouldUseDocValuesSkipper(IndexSettings indexSettings, boolean hasDocValues, final String fullFieldName) {
         return indexSettings.useDocValuesSkipper()
             && hasDocValues
-            && (IndexMode.LOGSDB.equals(indexSettings.getMode()) || IndexMode.TIME_SERIES.equals(indexSettings.getMode()))
+            && (indexSettings.getMode() == IndexMode.TIME_SERIES || indexSettings.getMode() == IndexMode.LOGSDB)
             && indexSettings.getIndexSortConfig() != null
             && indexSettings.getIndexSortConfig().hasSortOnField(fullFieldName)
             && DataStreamTimestampFieldMapper.DEFAULT_PATH.equals(fullFieldName);
@@ -1183,7 +1192,7 @@ public final class DateFieldMapper extends FieldMapper {
 
     @Override
     protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue().isSingleValued();
+        return docValuesParameters.multiValue() == false;
     }
 
     @Override
@@ -1287,9 +1296,9 @@ public final class DateFieldMapper extends FieldMapper {
         } else if (indexed && docValuesParameters.enabled()) {
             context.doc()
                 .add(
-                    docValuesParameters.multiValue().isSingleValued()
-                        ? new SingleValuedLongField(fieldType().name(), timestamp)
-                        : new LongField(fieldType().name(), timestamp, Field.Store.NO)
+                    docValuesParameters.multiValue()
+                        ? new LongField(fieldType().name(), timestamp, Field.Store.NO)
+                        : new SingleValuedLongField(fieldType().name(), timestamp)
                 );
         } else if (docValuesParameters.enabled()) {
             dvFactory.addNumericField(context.doc(), fieldType().name(), timestamp);

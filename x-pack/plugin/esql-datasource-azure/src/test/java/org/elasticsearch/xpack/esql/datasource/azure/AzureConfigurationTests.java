@@ -9,10 +9,13 @@ package org.elasticsearch.xpack.esql.datasource.azure;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 
 /**
@@ -179,11 +182,13 @@ public class AzureConfigurationTests extends ESTestCase {
         raw.put("header_row", false);
         raw.put("column_prefix", "f");
 
-        AzureConfiguration config = AzureConfiguration.fromQueryConfig(raw);
+        Configured<AzureConfiguration> result = AzureConfiguration.fromQueryConfig(raw);
+        AzureConfiguration config = result.value();
         assertNotNull(config);
         assertEquals("myaccount", config.account());
         assertEquals("mykey", config.key());
         assertEquals("https://ep", config.endpoint());
+        assertThat(result.consumedKeys(), containsInAnyOrder("account", "key", "endpoint"));
     }
 
     public void testFromQueryConfigStillEnforcesAuthConflict() {
@@ -199,10 +204,14 @@ public class AzureConfigurationTests extends ESTestCase {
         Map<String, Object> raw = new HashMap<>();
         raw.put("header_row", false);
         raw.put("column_prefix", "f");
-        assertNull(AzureConfiguration.fromQueryConfig(raw));
+        Configured<AzureConfiguration> result = AzureConfiguration.fromQueryConfig(raw);
+        assertNull(result.value());
+        assertEquals(Set.of(), result.consumedKeys());
     }
 
     public void testFromQueryConfigWithNullReturnsNull() {
-        assertNull(AzureConfiguration.fromQueryConfig(null));
+        Configured<AzureConfiguration> result = AzureConfiguration.fromQueryConfig(null);
+        assertNull(result.value());
+        assertEquals(Set.of(), result.consumedKeys());
     }
 }

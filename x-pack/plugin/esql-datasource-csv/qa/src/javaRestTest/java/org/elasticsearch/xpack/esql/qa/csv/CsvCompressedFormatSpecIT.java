@@ -21,7 +21,7 @@ import java.util.List;
 
 /**
  * Parameterized integration tests for compressed CSV files (.csv.gz, .csv.zst, .csv.zstd, .csv.bz2, .csv.bz).
- * Each csv-spec test is run against every configured storage backend (S3, HTTP, LOCAL, GCS) and compression format.
+ * Each csv-spec test is run against every configured storage backend and compression format.
  */
 @ThreadLeakFilters(filters = { TestClustersThreadFilter.class, AzureReactorThreadFilter.class })
 public class CsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCase {
@@ -51,6 +51,12 @@ public class CsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCas
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsWithFormats(COMPRESSED_FORMATS, "/external-basic.csv-spec");
+        return readExternalSpecTestsWithFormats(
+            COMPRESSED_FORMATS,
+            "/external-basic.csv-spec",
+            "/csv-headerless.csv-spec",
+            "/external-multifile.csv-spec",
+            "/external-multifile-resolution.csv-spec"
+        );
     }
 }

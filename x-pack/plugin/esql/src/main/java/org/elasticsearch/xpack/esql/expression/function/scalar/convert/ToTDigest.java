@@ -151,7 +151,7 @@ public class ToTDigest extends AbstractConvertFunction {
             in.zeroBucket(),
             in.positiveBuckets()
         );
-        double sum = in.valueCount() > 0 ? in.sum() : Double.NaN;
+        double sum = in.isEmpty() == false ? in.sum() : Double.NaN;
         scratch.set(convertedCentroids, sum, in.min(), in.max());
         return scratch.accessor();
     }

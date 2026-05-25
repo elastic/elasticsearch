@@ -311,12 +311,26 @@ public class SharedBlobCacheWarmingService {
         Setting.Property.Dynamic
     );
 
+    /**
+     * Sizes the throttled task runner used by {@link AbstractWarmer.WarmBlobByteRangeTask} to fetch byte ranges into the cache, relative to
+     * the size of the prewarm thread pool. The resulting throttle limit is rounded down and capped to a minimum of 1, so even with a value
+     * of 0 we still allow one in-flight fetch. Throttling these fetches prevents the byte-range warming path from saturating the prewarm
+     * thread pool and starving other prewarming work.
+     */
+    public static final Setting<Double> WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING = Setting.doubleSetting(
+        "stateless.blob_cache_warming.warm_byte_range_throttle_ratio",
+        0.5,
+        0.0,
+        Setting.Property.NodeScope
+    );
+
     private final StatelessSharedBlobCacheService cacheService;
     private final ThreadPool threadPool;
     private final Executor fetchExecutor;
     private final Executor uploadPrewarmFetchExecutor;
     private final ThrottledTaskRunner throttledTaskRunner;
     private final ThrottledTaskRunner cfeThrottledTaskRunner;
+    private final ThrottledTaskRunner warmByteRangeThrottledTaskRunner;
     private final LongCounter cacheWarmingPageAlignedBytesTotalMetric;
     private final LongCounter idLookupPrewarmReqsTotalMetric;
     private final long prewarmingRangeMinimizationStep;
@@ -357,6 +371,17 @@ public class SharedBlobCacheWarmingService {
         // since their completion can also happen on that pool (and it is sized only for copying prefilled buffers to disk).
         // We have to throttle it, so we do not potentially overload the generic pool with I/O tasks.
         this.cfeThrottledTaskRunner = new ThrottledTaskRunner("cfe-prewarming-cache", 2, threadPool.generic());
+        // Throttle byte-range warming fetches so they don't saturate the PREWARM_THREAD_POOL and starve other prewarming work.
+        final int prewarmMax = threadPool.info(StatelessPlugin.PREWARM_THREAD_POOL).getMax();
+        final int warmByteRangeThrottleLimit = Math.max(
+            1,
+            (int) (prewarmMax * clusterSettings.get(WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING))
+        );
+        this.warmByteRangeThrottledTaskRunner = new ThrottledTaskRunner(
+            "warm-byte-range-prewarming-cache",
+            warmByteRangeThrottleLimit,
+            fetchExecutor
+        );
         this.cacheWarmingPageAlignedBytesTotalMetric = telemetryProvider.getMeterRegistry()
             .registerLongCounter(BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC, "Total bytes warmed in cache", "bytes");
         this.idLookupPrewarmReqsTotalMetric = telemetryProvider.getMeterRegistry()
@@ -1554,7 +1579,7 @@ public class SharedBlobCacheWarmingService {
                     WarmBlobByteRangeTask.this,
                     writeBuffer::get,
                     totalBytesCopied::addAndGet,
-                    fetchExecutor,
+                    warmByteRangeThrottledTaskRunner.asExecutor(),
                     true,
                     l
                 );

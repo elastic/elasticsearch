@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `AVG` function [esql-avg]
 
-:::{include} ../../_snippets/functions/layout/avg.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/avg.md
 :::

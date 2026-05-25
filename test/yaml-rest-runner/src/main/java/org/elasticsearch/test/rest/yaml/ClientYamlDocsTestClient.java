@@ -58,7 +58,10 @@ public final class ClientYamlDocsTestClient extends ClientYamlTestClient {
         if ("raw".equals(apiName)) {
             // Raw requests don't use the rest spec at all and are configured entirely by their parameters
             Map<String, String> queryStringParams = new HashMap<>(params);
-            String rawMethod = Objects.requireNonNull(queryStringParams.remove("method"), "Method must be set to use raw request");
+            String rawMethod = Objects.requireNonNullElseGet(
+                queryStringParams.remove("method"),
+                () -> Objects.requireNonNull(method, "Method must be set to use raw request")
+            );
             String rawPath = "/" + Objects.requireNonNull(queryStringParams.remove("path"), "Path must be set to use raw request");
             Request request = new Request(rawMethod, rawPath);
             // All other parameters are url parameters

@@ -234,8 +234,8 @@ public class SenderServiceTests extends ESTestCase {
                 ActionListener<InferenceServiceResults> listener
             ) {
                 var queryDocs = inputs.castTo(QueryAndDocsInputs.class);
-                assertThat(queryDocs.getQuery(), is(queryString));
-                assertThat(queryDocs.getChunks(), is(List.of(testInput)));
+                assertThat(queryDocs.getQueryAsString(), is(queryString));
+                assertThat(queryDocs.getDocsAsStrings(), is(List.of(testInput)));
                 doInferCalled.set(true);
                 listener.onResponse(mock(InferenceServiceResults.class));
             }

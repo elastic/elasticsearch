@@ -171,6 +171,8 @@ public class HierarchicalKMeansTests extends ESTestCase {
         for (int i = 0; i < assignments.length; i++) {
             counts[assignments[i]]++;
         }
+        assertArrayEquals(counts, result.clusterCounts());
+
         int totalCount = 0;
         for (int count : counts) {
             totalCount += count;

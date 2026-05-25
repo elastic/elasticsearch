@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
@@ -487,7 +488,24 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
 
     private boolean isSecurityIndexClosed(final ClusterState state) {
         final IndexMetadata indexMetadata = resolveSecurityIndexMetadata(state.metadata());
-        return indexMetadata != null && indexMetadata.getState() == IndexMetadata.State.CLOSE;
+        return indexMetadata != null && isClosedOrClosing(state, indexMetadata);
+    }
+
+    /**
+     * Returns true if the given index is closed or is in the process of being closed. The close API installs
+     * {@link MetadataIndexStateService#INDEX_CLOSED_BLOCK} before flipping {@link IndexMetadata#getState()} to
+     * {@link IndexMetadata.State#CLOSE}, so checking the state field alone misses the in-progress window.
+     */
+    private static boolean isClosedOrClosing(final ClusterState state, final IndexMetadata indexMetadata) {
+        if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
+            return true;
+        }
+        return state.blocks()
+            .hasIndexBlockWithId(
+                state.metadata().projectFor(indexMetadata.getIndex()).id(),
+                indexMetadata.getIndex().getName(),
+                MetadataIndexStateService.INDEX_CLOSED_BLOCK_ID
+            );
     }
 
     /**
@@ -504,12 +522,13 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
         final Map<String, String> newRolesDigests,
         final ActionListener<Void> listener
     ) {
-        final IndexMetadata securityIndexMetadata = resolveSecurityIndexMetadata(clusterService.state().metadata());
+        final ClusterState currentState = clusterService.state();
+        final IndexMetadata securityIndexMetadata = resolveSecurityIndexMetadata(currentState.metadata());
         if (securityIndexMetadata == null) {
             listener.onFailure(new IndexNotFoundException(SECURITY_MAIN_ALIAS));
             return;
         }
-        if (securityIndexMetadata.getState() == IndexMetadata.State.CLOSE) {
+        if (isClosedOrClosing(currentState, securityIndexMetadata)) {
             listener.onFailure(new IndexClosedException(securityIndexMetadata.getIndex()));
             return;
         }
@@ -580,11 +599,9 @@ public final class QueryableBuiltInRolesSynchronizer implements ClusterStateList
             if (indexMetadata == null) {
                 throw new IndexNotFoundException(concreteSecurityIndexName);
             }
-            if (indexMetadata.getState() == IndexMetadata.State.CLOSE) {
-                // Index was closed between when the sync started and when this task runs. Do not update the
-                // synced-roles digest in metadata, since the actual role documents could not have been
-                // updated/deleted in a closed index. IndexClosedException is treated as an expected failure
-                // and does not count toward failedSyncAttempts.
+            if (isClosedOrClosing(state, indexMetadata)) {
+                // Bail if the index closed (or began closing) since the sync started. IndexClosedException is
+                // in isExpectedFailure, so this does not count against failedSyncAttempts.
                 throw new IndexClosedException(indexMetadata.getIndex());
             }
             Map<String, String> existingRoleDigests = indexMetadata.getCustomData(METADATA_QUERYABLE_BUILT_IN_ROLES_DIGEST_KEY);

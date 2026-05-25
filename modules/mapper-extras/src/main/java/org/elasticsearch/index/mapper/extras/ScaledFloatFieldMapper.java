@@ -10,8 +10,6 @@
 package org.elasticsearch.index.mapper.extras;
 
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.search.DoubleValues;
-import org.apache.lucene.search.LongValues;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.settings.Setting;
@@ -19,7 +17,6 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexNumericFieldData;
@@ -92,13 +89,13 @@ public class ScaledFloatFieldMapper extends FieldMapper {
     public static final FieldMapper.DocValuesParameter.Values DEFAULT_DOC_VALUES_PARAMS = new FieldMapper.DocValuesParameter.Values(
         true,
         FieldMapper.DocValuesParameter.Values.Cardinality.LOW,
-        FieldMapper.DocValuesParameter.Values.MultiValue.SORTED
+        true
     );
 
     public static class Builder extends FieldMapper.Builder {
 
         private final Parameter<Boolean> indexed;
-        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.sorted(
+        private final FieldMapper.DocValuesParameter docValuesParameters = FieldMapper.DocValuesParameter.of(
             DEFAULT_DOC_VALUES_PARAMS,
             m -> toType(m).docValuesParameters()
         );
@@ -159,6 +156,10 @@ public class ScaledFloatFieldMapper extends FieldMapper {
                 COERCE_SETTING.get(indexSettings.getSettings())
             );
             this.indexed = Parameter.indexParam(m -> toType(m).indexed, () -> {
+                if (indexSettings.isIndexDisabledByDefault()) {
+                    return false;
+                }
+
                 if (indexSettings.getMode() == IndexMode.TIME_SERIES) {
                     var metricType = getMetric().getValue();
                     return metricType != TimeSeriesParams.MetricType.COUNTER && metricType != TimeSeriesParams.MetricType.GAUGE;
@@ -649,7 +650,7 @@ public class ScaledFloatFieldMapper extends FieldMapper {
 
     @Override
     protected boolean isSingleValueEnforced() {
-        return docValuesParameters.multiValue().isSingleValued();
+        return docValuesParameters.multiValue() == false;
     }
 
     @Override
@@ -841,38 +842,12 @@ public class ScaledFloatFieldMapper extends FieldMapper {
         @Override
         public SortedNumericDoubleValues getDoubleValues() {
             final SortedNumericLongValues values = scaledFieldData.getLongValues();
-            final LongValues singleValues = SortedNumericLongValues.unwrapSingleton(values);
-            if (singleValues != null) {
-                return FieldData.singleton(new DoubleValues() {
-                    @Override
-                    public boolean advanceExact(int doc) throws IOException {
-                        return singleValues.advanceExact(doc);
-                    }
-
-                    @Override
-                    public double doubleValue() throws IOException {
-                        return singleValues.longValue() * scalingFactorInverse;
-                    }
-                });
-            } else {
-                return new SortedNumericDoubleValues() {
-
-                    @Override
-                    public boolean advanceExact(int target) throws IOException {
-                        return values.advanceExact(target);
-                    }
-
-                    @Override
-                    public double nextValue() throws IOException {
-                        return values.nextValue() * scalingFactorInverse;
-                    }
-
-                    @Override
-                    public int docValueCount() {
-                        return values.docValueCount();
-                    }
-                };
-            }
+            return new SortedNumericDoubleValues.SortedNumericLongWrapper(values) {
+                @Override
+                public double nextValue() throws IOException {
+                    return values.nextValue() * scalingFactorInverse;
+                }
+            };
         }
     }
 

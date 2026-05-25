@@ -152,15 +152,6 @@ public class ICUCollationKeywordFieldMapperTests extends MapperTestCase {
         assertTrue(fields.get(0).fieldType().stored());
     }
 
-    public void testDisableIndex() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(fieldMapping(b -> b.field("type", FIELD_TYPE).field("index", false)));
-        ParsedDocument doc = mapper.parse(source(b -> b.field("field", "1234")));
-        List<IndexableField> fields = doc.rootDoc().getFields("field");
-        assertEquals(1, fields.size());
-        assertEquals(IndexOptions.NONE, fields.get(0).fieldType().indexOptions());
-        assertEquals(DocValuesType.SORTED_SET, fields.get(0).fieldType().docValuesType());
-    }
-
     public void testHighCardinality() throws IOException {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         DocumentMapper mapper = createDocumentMapper(

@@ -17,7 +17,6 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.search.RescoreDocIds;
-import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.transport.TransportRequest;
 
@@ -37,7 +36,6 @@ import java.util.concurrent.atomic.AtomicLong;
  * can be guarded by a reference count and fail if it's been closed by an external event.
  */
 public class ReaderContext implements Releasable {
-    private static final long CONTEXT_RELOCATION_GRACE_TIME = 1000;
     private final ShardSearchContextId id;
     private final IndexService indexService;
     private final IndexShard indexShard;
@@ -55,7 +53,13 @@ public class ReaderContext implements Releasable {
     private final long startTimeInNano = System.nanoTime();
 
     private Map<String, Object> context;
-    private boolean isRelocating = false;
+
+    // Id of the task that opened this reader context, captured for diagnostic logging on close.
+    // {@code 0L} sentinel means "not available" (e.g. relocated PIT contexts where the original
+    // creator is not recoverable, or test instantiations). Task ids issued by {@code TaskManager}
+    // start at 1, so 0 is unambiguous. The owning node id is the local SearchService node id, so
+    // it isn't stored here. See https://github.com/elastic/elasticsearch/issues/112680.
+    private final long creatorTaskId;
 
     @SuppressWarnings("this-escape")
     public ReaderContext(
@@ -64,13 +68,15 @@ public class ReaderContext implements Releasable {
         IndexShard indexShard,
         Engine.SearcherSupplier searcherSupplier,
         long keepAliveInMillis,
-        boolean singleSession
+        boolean singleSession,
+        long creatorTaskId
     ) {
         this.id = id;
         this.indexService = indexService;
         this.indexShard = indexShard;
         this.searcherSupplier = searcherSupplier;
         this.singleSession = singleSession;
+        this.creatorTaskId = creatorTaskId;
         this.keepAlive = new AtomicLong(keepAliveInMillis);
         this.lastAccessTime = new AtomicLong(nowInMillis());
         this.refCounted = AbstractRefCounted.of(this::doClose);
@@ -80,7 +86,7 @@ public class ReaderContext implements Releasable {
         indexShard.getSearchOperationListener().validateReaderContext(this, request);
     }
 
-    private long nowInMillis() {
+    protected final long nowInMillis() {
         return indexShard.getThreadPool().relativeTimeInMillis();
     }
 
@@ -138,34 +144,29 @@ public class ReaderContext implements Releasable {
     }
 
     public boolean isExpired() {
-        if (refCounted.refCount() > 1) {
+        if (hasOutstandingRefs()) {
             return false; // being used by markAsUsed
         }
-        if (isRelocating()) {
-            // Only for PIT contexts that are relocating away. We don't want to close immediately to
-            // prevent running searches from failing. Refcounting via #markAsUsed protects against this
-            // while search phases are running but also need to protect against closing too soon during
-            // phase transitions. The grace period is long enough to allow for search phase transitions
-            // of running searches before they complete.
-            return nowInMillis() - lastAccessTime.get() > CONTEXT_RELOCATION_GRACE_TIME;
-        }
+
         final long elapsed = nowInMillis() - lastAccessTime.get();
         return elapsed > keepAlive.get();
     }
 
+    protected final boolean hasOutstandingRefs() {
+        return refCounted.refCount() > 1;
+    }
+
     public boolean isRelocating() {
-        return isRelocating;
+        return false;
     }
 
     /**
-     * Indicate that this context is in the process of relocating.
-     * We check this to prevent new search requests from using this context,
-     * while running searches can still use it. Also this marks the context for cleanup
-     * in one of the next {@link  SearchService} Reaper runs.
+     * Returns the id of the task that opened this reader context, or {@code 0L} if it was
+     * not captured (relocated PIT contexts and test instantiations). The owning node id is
+     * the local node id at open time and is formatted by the caller for logging.
      */
-    public void relocate() {
-        this.lastAccessTime.accumulateAndGet(nowInMillis(), Math::max);
-        isRelocating = true;
+    public long creatorTaskId() {
+        return creatorTaskId;
     }
 
     // BWC

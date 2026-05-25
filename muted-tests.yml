@@ -606,3 +606,6 @@ tests:
 - class: org.elasticsearch.index.seqno.SeqNoPruningIT
   method: testWritesSucceedOnReplicaAfterSeqNoPruning
   issue: https://github.com/elastic/elasticsearch/issues/149829
+- class: org.elasticsearch.index.seqno.SeqNoPruningIT
+  method: testSeqNoPrunedAfterMerge
+  issue: https://github.com/elastic/elasticsearch/issues/149830

@@ -95,13 +95,13 @@ public class IndexAbstractionResolver {
 
             assert indexRewriteResult.includedProjects().isEmpty() || indexRewriteResult.excludedProjects().isEmpty()
                 : "a single expression cannot both include and exclude projects";
-            if (originProjectAlias != null && indexRewriteResult.excludedProjects().contains(originProjectAlias)) {
-                resolvedExpressionsBuilder.setAllLocalExpressionsToNone();
-                originProjectExcluded = true;
-            }
-
-            if (originProjectExcluded && indexRewriteResult.includedProjects().contains(originProjectAlias)) {
-                originProjectExcluded = false;
+            if (originProjectAlias != null) {
+                if (indexRewriteResult.excludedProjects().contains(originProjectAlias)) {
+                    resolvedExpressionsBuilder.setAllLocalExpressionsToNone();
+                    originProjectExcluded = true;
+                } else if (originProjectExcluded && indexRewriteResult.includedProjects().contains(originProjectAlias)) {
+                    originProjectExcluded = false;
+                }
             }
 
             final String localIndexExpression = originProjectExcluded ? null : indexRewriteResult.localExpression();

@@ -30,7 +30,7 @@ import org.elasticsearch.common.settings.Setting;
  */
 public class DisableSimulationRebalancingDecider extends AllocationDecider {
 
-    public static final String NAME = "stateless-rebalance-disabler";
+    private static final String NAME = "disable_simulation_rebalancing";
     private static final Decision ALWAYS_REBALANCE = new Decision.Single(Decision.Type.YES, NAME, "All rebalancing is enabled");
 
     private static final Decision RECONCILIATION_BALANCING_ALLOWED = new Decision.Single(

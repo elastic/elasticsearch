@@ -97,8 +97,10 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
 
         // Fixed reference point + seeded random offset so failures are reproducible from the test seed,
         // and so the boost-window bounds can be asserted against compound-commit metadata below.
-        final long boostWindowEndInMillis = Instant.parse("2026-01-01T00:00:00Z").toEpochMilli()
-            + randomLongBetween(0, TimeValue.timeValueDays(365).millis());
+        final long boostWindowEndInMillis = Instant.parse("2026-01-01T00:00:00Z").toEpochMilli() + randomLongBetween(
+            0,
+            TimeValue.timeValueDays(365).millis()
+        );
         final long boostWindowStartInMillis = boostWindowEndInMillis - BOOST_WINDOW_MILLIS + ONE_DAY_MILLIS;
         final long preBoostWindowEndInMillis = boostWindowEndInMillis - BOOST_WINDOW_MILLIS - 2 * ONE_DAY_MILLIS;
         final long preBoostWindowStartInMillis = preBoostWindowEndInMillis - 30L * ONE_DAY_MILLIS;

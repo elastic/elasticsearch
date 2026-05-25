@@ -48,7 +48,8 @@ public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> 
      * Called when a region is evicted from the cache.
      * Allows the policy to update its internal tracking if needed.
      * <p>
-     * This method is called under the cache service's monitor lock and must not perform I/O.
+     * This method is called under the cache service's monitor lock and must not perform I/O, and after the region and associated key have
+     * both been removed and unlinked in the cache.
      */
     void onEvicted(CacheFileRegion<KeyType> region);
 }

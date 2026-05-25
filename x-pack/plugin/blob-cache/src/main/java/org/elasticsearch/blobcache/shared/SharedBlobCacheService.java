@@ -2105,6 +2105,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         if (evicted && entry.chunk.volatileIO() != null) {
                             unlink(entry);
                             keyMapping.remove(entry.chunk.regionKey.file.shardId(), entry.chunk.regionKey, entry);
+                            evictionPolicy.onEvicted(entry.chunk);
                             evictedCount++;
                             if (frequency > 0) {
                                 nonZeroFrequencyEvictedCount++;
@@ -2161,6 +2162,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                             unlink(entry);
                             assert shard.equals(entry.chunk.regionKey.file.shardId());
                             keyMapping.remove(shard, entry.chunk.regionKey, entry);
+                            evictionPolicy.onEvicted(entry.chunk);
                             evictedCount++;
                             if (frequency > 0) {
                                 nonZeroFrequencyEvictedCount++;
@@ -2462,12 +2464,12 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                     // grab io, rely on incref'ers also checking evicted field.
                                     entry.chunk.volatileIO(null);
                                     assert regionOwners.remove(ioRef) == entry.chunk;
-                                    evictionPolicy.onEvicted(entry.chunk);
                                     return ioRef;
                                 }
                             } finally {
                                 unlink(entry);
                                 removeKeyMappingForEntry(entry);
+                                evictionPolicy.onEvicted(entry.chunk);
                             }
                         }
                     } finally {
@@ -2503,6 +2505,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     if (evicted && entry.chunk.volatileIO() != null) {
                         unlink(entry);
                         removeKeyMappingForEntry(entry);
+                        evictionPolicy.onEvicted(entry.chunk);
                         return true;
                     }
                 }

@@ -2012,7 +2012,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
     }
 
     // TODO: use named privileges when available — https://github.com/elastic/elasticsearch/issues/147017
-    public void testDataSourceCrudForbiddenWithoutClusterManage() {
+    public void testDataSourceCrudForbiddenWithoutClusterManage() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
         // user2 has cluster: []. All three data source actions are cluster-level → 403.
         for (String path : List.of("/_query/data_source/ds_x", "/_query/data_source")) {
             Request get = new Request("GET", path);
@@ -2033,7 +2034,8 @@ public class EsqlSecurityIT extends ESRestTestCase {
         assertThat(ex.getResponse().getStatusLine().getStatusCode(), equalTo(403));
     }
 
-    public void testDatasetCrudForbiddenWithoutIndexManage() {
+    public void testDatasetCrudForbiddenWithoutIndexManage() throws IOException {
+        assumeTrue("data_sources REST API not supported by cluster", dataSourcesApiSupported());
         // user3 has only `read` on `index`. Dataset actions need index `manage`.
         Request put = new Request("PUT", "/_query/dataset/index");
         put.setJsonEntity("{\"data_source\":\"parent\",\"resource\":\"s3://b/\"}");

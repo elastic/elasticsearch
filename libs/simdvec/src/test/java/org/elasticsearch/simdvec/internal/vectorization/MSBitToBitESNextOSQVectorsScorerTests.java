@@ -93,7 +93,7 @@ public class MSBitToBitESNextOSQVectorsScorerTests extends ESTestCase {
                     dims,
                     length,
                     ES940OSQVectorsScorer.BULK_SIZE,
-                    ES940OSQVectorsScorer.SymmetricInt4Encoding.STRIPED,
+                    ES940OSQVectorsScorer.BitEncoding.STRIPED,
                     true
                 );
                 assertEquals(expected, nativeScorer.quantizeScore(query));

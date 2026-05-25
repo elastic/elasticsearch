@@ -715,3 +715,66 @@ ROW a = TO_DATETIME("2024-06-15"),
 same:boolean | different:boolean
 true         | false
 ;
+
+###############################################
+# COALESCE tests
+###############################################
+
+// COALESCE returns the first non-null date_range when the first arg is non-null.
+coalesceDateRange
+required_capability: date_range_field_type_v5
+required_capability: coalesce_date_range
+
+FROM decades
+| WHERE decade == 1900
+| EVAL c = COALESCE(date_range, TO_DATE_RANGE("2000-01-01..2001-01-01"))
+| KEEP decade, c
+;
+
+decade:integer | c:date_range
+1900           | 1900-01-01..1910-01-01
+;
+
+// COALESCE skips null and returns the second date_range argument.
+coalesceDateRangeNullFirst
+required_capability: date_range_field_type_v5
+required_capability: coalesce_date_range
+
+ROW a = TO_DATE_RANGE("2022-01-01T00:00:00.000Z..2023-01-01T00:00:00.000Z")
+| EVAL r = COALESCE(null, a)
+| KEEP r
+;
+
+r:date_range
+2022-01-01T00:00:00.000Z..2023-01-01T00:00:00.000Z
+;
+
+// COALESCE with a single date_range argument returns that value unchanged.
+coalesceDateRangeSingleArg
+required_capability: date_range_field_type_v5
+required_capability: coalesce_date_range
+
+FROM decades
+| WHERE decade == 1900
+| EVAL c = COALESCE(date_range)
+| KEEP decade, c
+;
+
+decade:integer | c:date_range
+1900           | 1900-01-01..1910-01-01
+;
+
+// COALESCE over multiple date_range fields; the first non-null wins.
+coalesceDateRangeMultipleArgs
+required_capability: date_range_field_type_v5
+required_capability: coalesce_date_range
+
+ROW a = TO_DATE_RANGE("2020-01-01..2021-01-01"),
+    b = TO_DATE_RANGE("2022-01-01..2023-01-01")
+| EVAL r = COALESCE(a, b)
+| KEEP r
+;
+
+r:date_range
+2020-01-01..2021-01-01
+;

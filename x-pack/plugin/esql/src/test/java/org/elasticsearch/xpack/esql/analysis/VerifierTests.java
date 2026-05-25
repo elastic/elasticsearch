@@ -1485,6 +1485,13 @@ public class VerifierTests extends ESTestCase {
         index.error("FROM flattened_otel_logs | SORT resource.attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
     }
 
+    public void testDateRangeSorting() {
+        assumeTrue("Requires DATE_RANGE_FIELD_TYPE_V5 capability", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V5.isEnabled());
+        analyzer().addIndex("decades", "mapping-decades.json")
+            .stripErrorPrefix(true)
+            .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));
+    }
+
     public void testFieldExtractFirstArgumentMustBeFlattened() {
         assumeTrue("Requires FIELD_EXTRACT_FUNCTION capability", EsqlCapabilities.Cap.FIELD_EXTRACT_FUNCTION.isEnabled());
         var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);

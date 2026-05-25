@@ -461,7 +461,7 @@ public abstract class AbstractScopedSettings {
     }
 
     /**
-     * If setting exist (is registered in {@link org.elasticsearch.cluster.ClusterModule}) and is dynamic, this call
+     * If setting exists (is registered in {@link org.elasticsearch.cluster.ClusterModule}) and is dynamic, this call
      * is equivalent to {@link #initializeAndWatch(Setting, Consumer)}.
      * Otherwise, evaluate the setting value against {@link #settings the Settings instance owned by this class} and
      * pass it to the consumer. In this case, setting will not be dynamically updated.

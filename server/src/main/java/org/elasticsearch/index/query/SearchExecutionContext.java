@@ -784,17 +784,17 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Adds memory usage to the circuit breaker for query construction.
-     * <p>
-     * This method tracks memory used during query construction and enforces circuit breaker limits
-     * to prevent excessive memory usage. The tracked memory can later be released using
-     * {@link #releaseQueryConstructionMemory()}.
+     * Adds memory usage to the request circuit breaker, accumulating against this SEC's pool drained by
+     * {@link #releaseQueryConstructionMemory()}; the rewrite-phase clone in {@code SearchService} must not charge here.
      *
-     * @param bytes the number of bytes to add to the circuit breaker
+     * @param bytes the number of bytes to add to the circuit breaker; must be {@code >= 0}
      * @param label a descriptive label for the memory allocation, used in circuit breaker error messages
      */
     public void addCircuitBreakerMemory(long bytes, String label) {
-        assert bytes >= 0 : "bytes must be non-negative, got " + bytes;
+        assert bytes >= 0 : "negative breaker charge: " + bytes + " for [" + label + "]";
+        if (circuitBreaker == null || bytes <= 0) {
+            return;
+        }
         addCircuitBreakerMemory(bytes, 0L, label);
     }
 
@@ -844,11 +844,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     /**
-     * Release all accumulated query construction memory back to the circuit breaker.
-     * <p>
-     * Each label's accumulated bytes are released via the category-aware
-     * {@link CircuitBreaker#addWithoutBreaking(long, String)} so the {@code es.breaker.memory.held.usage} per-category gauge nets to zero
-     * across the request lifetime.
+     * Release all accumulated query construction memory back to the circuit breaker. Safe to
+     * call multiple times; subsequent calls after the pool is drained are no-ops.
      */
     public void releaseQueryConstructionMemory() {
         if (circuitBreaker != null) {

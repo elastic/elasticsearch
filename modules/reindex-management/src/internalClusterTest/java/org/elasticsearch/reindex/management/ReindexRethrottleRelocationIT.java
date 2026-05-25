@@ -205,8 +205,10 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
                 .filter(g -> g.taskInfo().taskId().equals(relocatedTaskId))
                 .findFirst()
                 .orElseThrow(() -> new AssertionError("relocated task group not found"));
-            assertThat("all slices should be registered", group.childTasks().size(), equalTo(numOfSlices));
-            final float expectedPerSlice = (float) expectedTotalRps / numOfSlices;
+            BulkByPaginatedSearchTask.Status leaderStatus = asInstanceOf(BulkByPaginatedSearchTask.Status.class, group.taskInfo().status());
+            int completedSlices = Math.toIntExact(leaderStatus.getSliceStatuses().stream().filter(Objects::nonNull).count());
+            assertThat("active slices should match relocated children", group.childTasks().size(), equalTo(numOfSlices - completedSlices));
+            final float expectedPerSlice = (float) expectedTotalRps / group.childTasks().size();
             for (TaskGroup child : group.childTasks()) {
                 final BulkByPaginatedSearchTask.Status sliceStatus = (BulkByPaginatedSearchTask.Status) child.task().status();
                 assertThat(

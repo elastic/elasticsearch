@@ -14,6 +14,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.TestPlainActionFuture;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
@@ -1703,6 +1704,30 @@ public class CohereServiceTests extends InferenceServiceTestCase {
                     )
                 )
             );
+        }
+    }
+
+    public void testParseRequestConfig_WithApiVersion_Throws() throws IOException {
+        try (var service = createInferenceService()) {
+
+            var serviceSettings = new HashMap<String, Object>();
+            serviceSettings.put(ServiceFields.MODEL_ID, MODEL_VALUE);
+            serviceSettings.put(CohereCommonServiceSettings.API_VERSION, "v2");
+
+            TestPlainActionFuture<Model> modelListener = new TestPlainActionFuture<>();
+            service.parseRequestConfig(
+                INFERENCE_ENTITY_ID,
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(
+                    serviceSettings,
+                    getTaskSettingsMap(InputType.INGEST, Truncation.START),
+                    getSecretSettingsMap(API_KEY_VALUE)
+                ),
+                modelListener
+            );
+
+            var exception = expectThrows(XContentParseException.class, () -> modelListener.actionGet(TEST_REQUEST_TIMEOUT));
+            assertThat(exception.getMessage(), containsString("[service_settings] unknown field [api_version]"));
         }
     }
 

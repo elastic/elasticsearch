@@ -100,7 +100,7 @@ public class ViewUnionAll extends UnionAll {
         // (non-separable) so that each key is bound to its value in the hash.
         int h = 0;
         for (Map.Entry<String, LogicalPlan> entry : namedSubqueries.entrySet()) {
-            int k = entry.getKey().hashCode();
+            int k = Objects.hashCode(entry.getKey());
             int v = Objects.hashCode(entry.getValue());
             h += k * (v + 1);
         }

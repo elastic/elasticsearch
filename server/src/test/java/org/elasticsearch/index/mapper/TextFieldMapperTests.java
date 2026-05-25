@@ -2920,4 +2920,9 @@ public class TextFieldMapperTests extends MapperTestCase {
             containsString("configured with [multi_value=false] but encountered multiple values in the same document")
         );
     }
+
+    @Override
+    protected IndexOptions defaultDisabledIndexOption() {
+        return IndexOptions.DOCS_AND_FREQS_AND_POSITIONS;
+    }
 }

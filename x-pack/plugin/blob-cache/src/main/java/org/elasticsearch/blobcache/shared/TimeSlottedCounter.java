@@ -12,7 +12,11 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicLongArray;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 import java.util.function.LongSupplier;
 
 /**
@@ -24,15 +28,21 @@ import java.util.function.LongSupplier;
  * totals from cache residency). Callers pass arbitrary counts via {@link #add} and {@link #remove};
  * this type is agnostic to what is being counted (the expectation is that it is cache regions).
  * <p>
+ * Fixed relative window sums can be registered via {@link #registerRelativeWindow} and read
+ * through {@link TimeSlottedCounterWindow#sum()}. The class automatically updates registered
+ * window sums as counts change. We expect a limited number of such windows, corresponding to the
+ * configured boost levels.
+ * <p>
  * The array is anchored at construction time and never rolled. It spans {@code [now - past, now + future]}
- * at startup. Bucket sums are updated atomically.
+ * at startup. Bucket sums are updated atomically; {@link #windowLock} coordinates registered window
+ * slides with concurrent {@link #add} and {@link #remove} calls.
  * <p>
  * Timestamps older than the tail slot are clamped to the tail bucket. Timestamps beyond the construction head
  * slot are clamped to the head bucket. If the node runs longer than the configured future retention without
- * restart, timestamps beyond the head slot are still clamped to the head bucket and {@link #sum} range queries
- * lose time resolution for post-retention data until restart (quota accuracy degrades). Nodes are expected to
- * restart at least once within {@code time_slots.future.count * time_slots.granularity} (defaults: one year
- * at hourly slots).
+ * restart, the sliding-window anchor stays at the head slot and all new counts beyond that slot accumulate
+ * in the head bucket; registered relative-window sums and {@link #sum} range queries then lose time resolution
+ * for post-retention data until restart (quota accuracy degrades). Nodes are expected to restart at least once
+ * within {@code time_slots.future.count * time_slots.granularity} (defaults: one year at hourly slots).
  */
 public class TimeSlottedCounter {
 
@@ -42,6 +52,8 @@ public class TimeSlottedCounter {
     private final int pastBuckets;
     private final int futureBuckets;
     private final LongSupplier timeProvider;
+    private final ReadWriteLock windowLock = new ReentrantReadWriteLock();
+    private final List<TimeSlottedCounterWindow> registeredWindows = new ArrayList<>();
 
     private final AtomicLongArray counts;
 
@@ -104,6 +116,10 @@ public class TimeSlottedCounter {
         return TimeValue.timeValueMillis(granularityMillis);
     }
 
+    long granularityMillis() {
+        return granularityMillis;
+    }
+
     public int pastBuckets() {
         return pastBuckets;
     }
@@ -114,6 +130,62 @@ public class TimeSlottedCounter {
 
     public int maxBuckets() {
         return counts.length();
+    }
+
+    /**
+     * Registers a fixed relative window whose sum is maintained incrementally by this counter.
+     * <p>
+     * {@code startOffsetMillis} and {@code endOffsetMillis} are clamped to whole slots at registration time.
+     * The resulting window spans {@code [now - endOffset, now - startOffset)} in slot-aligned boundaries.
+     * <p>
+     * Example at {@code now=10d} with 1h slots, {@code registerRelativeWindow(1d, 3d)}:
+     * <pre>
+     *   exclusiveEndSlotsBackFromAnchor=24, inclusiveStartSlotsBackFromAnchor=72 — slots overlapping [7d, 9d)
+     *
+     *   |---- retained buckets ----|.... now ....|
+     *                    ^windowStart    ^windowEnd
+     * </pre>
+     * The returned {@link TimeSlottedCounterWindow} is updated on every {@link #add}/{@link #remove} and window slide.
+     */
+    public TimeSlottedCounterWindow registerRelativeWindow(long startOffsetMillis, long endOffsetMillis) {
+        if (startOffsetMillis < 0 || endOffsetMillis < 0) {
+            throw new IllegalArgumentException("offsets must be non-negative");
+        }
+        if (endOffsetMillis <= startOffsetMillis) {
+            throw new IllegalArgumentException("endOffsetMillis must be greater than startOffsetMillis");
+        }
+        long now = currentTimeMillis();
+        int anchorOffset = anchorOffsetForNow(now);
+        int nearSlotsBackFromAnchor = anchorOffset - offsetFromTailForSlotStart(slotStartForTimestamp(now - startOffsetMillis));
+        int farSlotsBackFromAnchor = anchorOffset - offsetFromTailForSlotStart(slotStartForTimestamp(Math.max(0, now - endOffsetMillis)));
+        int exclusiveEndSlotsBackFromAnchor = Math.min(nearSlotsBackFromAnchor, anchorOffset);
+        int inclusiveStartSlotsBackFromAnchor = Math.min(farSlotsBackFromAnchor, anchorOffset);
+        if (inclusiveStartSlotsBackFromAnchor <= exclusiveEndSlotsBackFromAnchor) {
+            throw new IllegalArgumentException(
+                "inclusiveStartSlotsBackFromAnchor must be greater than exclusiveEndSlotsBackFromAnchor after slot clamping"
+            );
+        }
+        return registerRelativeWindow(exclusiveEndSlotsBackFromAnchor, inclusiveStartSlotsBackFromAnchor);
+    }
+
+    private TimeSlottedCounterWindow registerRelativeWindow(int exclusiveEndSlotsBackFromAnchor, int inclusiveStartSlotsBackFromAnchor) {
+        windowLock.writeLock().lock();
+        try {
+            long now = currentTimeMillis();
+            for (TimeSlottedCounterWindow registeredWindow : registeredWindows) {
+                registeredWindow.advanceUnderWriteLock(now);
+            }
+            TimeSlottedCounterWindow window = new TimeSlottedCounterWindow(
+                this,
+                exclusiveEndSlotsBackFromAnchor,
+                inclusiveStartSlotsBackFromAnchor
+            );
+            window.advanceUnderWriteLock(now);
+            registeredWindows.add(window);
+            return window;
+        } finally {
+            windowLock.writeLock().unlock();
+        }
     }
 
     /**
@@ -139,6 +211,59 @@ public class TimeSlottedCounter {
     }
 
     /**
+     * Returns the incrementally maintained sum for {@code window} after advancing time if needed.
+     * The sum is read under the same read lock used for slot mutations.
+     */
+    long readRegisteredWindowSum(TimeSlottedCounterWindow window) {
+        windowLock.readLock().lock();
+        try {
+            ensureRegisteredWindowsAdvancedWhileHoldingReadLock();
+            return window.cachedSum();
+        } finally {
+            windowLock.readLock().unlock();
+        }
+    }
+
+    /**
+     * Slides registered windows when the anchor slot has moved. Caller must hold {@link #windowLock} read lock;
+     * may temporarily release it to acquire the write lock.
+     */
+    private void ensureRegisteredWindowsAdvancedWhileHoldingReadLock() {
+        if (registeredWindows.isEmpty()) {
+            return;
+        }
+        long now = currentTimeMillis();
+        if (anyRegisteredWindowNeedsUpdate(now) == false) {
+            return;
+        }
+        windowLock.readLock().unlock();
+        windowLock.writeLock().lock();
+        try {
+            long advancedNow = currentTimeMillis();
+            if (anyRegisteredWindowNeedsUpdate(advancedNow)) {
+                for (TimeSlottedCounterWindow registeredWindow : registeredWindows) {
+                    registeredWindow.advanceUnderWriteLock(advancedNow);
+                }
+            }
+        } finally {
+            windowLock.writeLock().unlock();
+        }
+        windowLock.readLock().lock();
+        if (registeredWindows.isEmpty() == false && anyRegisteredWindowNeedsUpdate(currentTimeMillis())) {
+            ensureRegisteredWindowsAdvancedWhileHoldingReadLock();
+        }
+    }
+
+    private boolean anyRegisteredWindowNeedsUpdate(long now) {
+        for (TimeSlottedCounterWindow registeredWindow : registeredWindows) {
+            if (registeredWindow.needsUpdate(now)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
      * Returns the sum of counts in slots overlapping {@code [windowStartMillis, windowEndMillis)}.
      * The query range is clamped to {@code [tailSlotStart, headSlotStart + granularity)} before summing.
      * <p>
@@ -158,16 +283,24 @@ public class TimeSlottedCounter {
         if (windowEndMillis <= windowStartMillis) {
             return 0;
         }
-        int firstOverlapping = offsetFromTailForSlotStart(slotStartForTimestamp(windowStartMillis));
-        int firstNonOverlapping = offsetFromTailForSlotStart(slotStartForTimestamp(windowEndMillis - 1)) + 1;
-        return sumBucketsInOffsetRange(firstOverlapping, firstNonOverlapping);
+        windowLock.readLock().lock();
+        try {
+            int firstOverlapping = offsetFromTailForSlotStart(slotStartForTimestamp(windowStartMillis));
+            int firstNonOverlapping = offsetFromTailForSlotStart(slotStartForTimestamp(windowEndMillis - 1)) + 1;
+            return sumBucketsInOffsetRange(firstOverlapping, firstNonOverlapping);
+        } finally {
+            windowLock.readLock().unlock();
+        }
     }
 
     long currentTimeMillis() {
         return Math.max(0, timeProvider.getAsLong());
     }
 
-    private long sumBucketsInOffsetRange(int startOffsetFromTail, int endOffsetFromTail) {
+    /**
+     * Sum over {@code [startOffsetFromTail, endOffsetFromTail)}. Caller must hold {@link #windowLock} read or write lock.
+     */
+    long sumBucketsInOffsetRange(int startOffsetFromTail, int endOffsetFromTail) {
         int start = Math.max(0, startOffsetFromTail);
         int end = Math.min(counts.length(), endOffsetFromTail);
         if (end <= start) {
@@ -180,21 +313,48 @@ public class TimeSlottedCounter {
         return total;
     }
 
-    private int offsetFromTailForSlotStart(long slotStart) {
+    int offsetFromTailForSlotStart(long slotStart) {
         return (int) Math.floorDiv(slotStart - tailSlotStart, granularityMillis);
     }
 
-    private void mutateSlot(long timestampMillis, long delta) {
-        long slotStart = resolveSlotStart(timestampMillis);
-        int index = offsetFromTailForSlotStart(slotStart);
-        applyDelta(index, slotStart, delta);
+    /**
+     * Slot start used as the sliding-window anchor for {@code now}. When wall clock has moved beyond
+     * the construction head slot, the anchor stays at the head so relative windows remain within the
+     * fixed bucket array.
+     */
+    long effectiveAnchorSlotStart(long now) {
+        long wallSlot = slotStartForTimestamp(now);
+        return wallSlot > headSlotStart ? headSlotStart : wallSlot;
     }
 
-    private void applyDelta(int index, long slotStart, long delta) {
+    int anchorOffsetForNow(long now) {
+        return offsetFromTailForSlotStart(effectiveAnchorSlotStart(now));
+    }
+
+    private void mutateSlot(long timestampMillis, long delta) {
+        windowLock.readLock().lock();
+        try {
+            ensureRegisteredWindowsAdvancedWhileHoldingReadLock();
+            long slotStart = resolveSlotStart(timestampMillis);
+            int index = offsetFromTailForSlotStart(slotStart);
+            long appliedDelta = applyDelta(index, slotStart, delta);
+            if (appliedDelta != 0) {
+                for (TimeSlottedCounterWindow window : registeredWindows) {
+                    if (window.containsSlot(slotStart)) {
+                        window.onSlotDelta(appliedDelta);
+                    }
+                }
+            }
+        } finally {
+            windowLock.readLock().unlock();
+        }
+    }
+
+    private long applyDelta(int index, long slotStart, long delta) {
         assert index >= 0 && index < counts.length() : "index [" + index + "] out of range [0," + counts.length() + "]";
         if (delta > 0) {
             counts.addAndGet(index, delta);
-            return;
+            return delta;
         }
         long removal = -delta;
         long previous = counts.getAndAccumulate(index, removal, (current, amount) -> current < amount ? 0 : current - amount);
@@ -203,6 +363,7 @@ public class TimeSlottedCounter {
                 : "remove clamped: slot start [" + slotStart + "] count [" + previous + "] less than remove count [" + removal + "]";
             logger.warn("remove clamped: slot start [{}] count [{}] less than remove count [{}]", slotStart, previous, removal);
         }
+        return -Math.min(removal, previous);
     }
 
     /**
@@ -217,7 +378,7 @@ public class TimeSlottedCounter {
      * <p>
      * Example: granularity 1h, {@code timestamp=10:37} -> {@code 10:00}.
      */
-    private long slotStartForTimestamp(long timestampMillis) {
+    long slotStartForTimestamp(long timestampMillis) {
         return Math.floorDiv(timestampMillis, granularityMillis) * granularityMillis;
     }
 }

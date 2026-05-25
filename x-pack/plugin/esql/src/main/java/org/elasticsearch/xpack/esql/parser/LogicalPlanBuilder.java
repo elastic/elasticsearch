@@ -548,18 +548,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             Expression regexFileExpr = optionsMap.remove("regex_file");
             if (regexFileExpr != null) {
-                if ((regexFileExpr instanceof Literal && DataType.isString(regexFileExpr.dataType())) == false) {
+                if (regexFileExpr instanceof Literal lit && DataType.isString(lit.dataType())) {
+                    regexFile = BytesRefs.toString(lit.value());
+                } else {
                     throw new ParsingException(regexFileExpr.source(), "Option [regex_file] must be a string literal");
                 }
-                regexFile = BytesRefs.toString(((Literal) regexFileExpr).value());
             }
 
             Expression extractDeviceTypeExpr = optionsMap.remove("extract_device_type");
             if (extractDeviceTypeExpr != null) {
-                if ((extractDeviceTypeExpr instanceof Literal lit && lit.dataType() == DataType.BOOLEAN) == false) {
+                if (extractDeviceTypeExpr instanceof Literal lit && lit.dataType() == DataType.BOOLEAN) {
+                    extractDeviceType = (Boolean) lit.value();
+                } else {
                     throw new ParsingException(extractDeviceTypeExpr.source(), "Option [extract_device_type] must be a boolean literal");
                 }
-                extractDeviceType = (Boolean) ((Literal) extractDeviceTypeExpr).value();
             }
 
             Expression propertiesExpr = optionsMap.remove("properties");
@@ -665,18 +667,20 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
             Expression databaseFileExpr = optionsMap.remove("database_file");
             if (databaseFileExpr != null) {
-                if ((databaseFileExpr instanceof Literal && DataType.isString(databaseFileExpr.dataType())) == false) {
+                if (databaseFileExpr instanceof Literal lit && DataType.isString(lit.dataType())) {
+                    databaseFile = BytesRefs.toString(lit.value());
+                } else {
                     throw new ParsingException(databaseFileExpr.source(), "Option [database_file] must be a string literal");
                 }
-                databaseFile = BytesRefs.toString(((Literal) databaseFileExpr).value());
             }
 
             Expression firstOnlyExpr = optionsMap.remove("first_only");
             if (firstOnlyExpr != null) {
-                if ((firstOnlyExpr instanceof Literal lit && lit.dataType() == DataType.BOOLEAN) == false) {
+                if (firstOnlyExpr instanceof Literal lit && lit.dataType() == DataType.BOOLEAN) {
+                    firstOnly = (Boolean) lit.value();
+                } else {
                     throw new ParsingException(firstOnlyExpr.source(), "Option [first_only] must be a boolean literal");
                 }
-                firstOnly = (Boolean) ((Literal) firstOnlyExpr).value();
             }
 
             Expression propertiesExpr = optionsMap.remove("properties");
@@ -744,8 +748,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
             ipLocationService.requestDownloads(context.projectId(), IpLocationConsumer.ESQL);
         }
 
-        String finalDatabaseFile = databaseFile;
-        boolean finalFirstOnly = firstOnly;
+        final String finalDatabaseFile = databaseFile;
+        final boolean finalFirstOnly = firstOnly;
         return child -> IpLocation.createInitialInstance(
             source,
             child,

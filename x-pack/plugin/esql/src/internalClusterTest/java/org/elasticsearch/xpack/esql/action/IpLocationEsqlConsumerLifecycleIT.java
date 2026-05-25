@@ -28,9 +28,6 @@ import java.util.List;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.nullValue;
 
 /**
  * Integration test verifying the end-to-end ESQL consumer lifecycle for IP_LOCATION:
@@ -92,7 +89,7 @@ public class IpLocationEsqlConsumerLifecycleIT extends AbstractGeoIpIT {
      * the same query returns real geo data.
      */
     public void testSentinelThenRealDataAfterDownload() throws Exception {
-        assumeTrue("only test with fixture to have stable results", getEndpoint() != null);
+        assertNotNull("only test with fixture to have stable results", getEndpoint());
 
         internalCluster().startMasterOnlyNodes(1);
         internalCluster().startDataOnlyNodes(2);
@@ -104,14 +101,14 @@ public class IpLocationEsqlConsumerLifecycleIT extends AbstractGeoIpIT {
         // --- Scenario 1: query before DB download → sentinels + consumer registered ---
         try (EsqlQueryResponse response = run(query)) {
             List<ColumnInfoImpl> columns = response.columns();
-            assertThat(columns, hasSize(2));
-            assertThat(columns.get(0).name(), equalTo("g.country_iso_code"));
-            assertThat(columns.get(1).name(), equalTo("g.city_name"));
+            assertEquals(2, columns.size());
+            assertEquals("g.country_iso_code", columns.get(0).name());
+            assertEquals("g.city_name", columns.get(1).name());
 
             List<List<Object>> values = getValuesList(response);
-            assertThat(values, hasSize(1));
-            assertThat(values.get(0).get(0), equalTo(UNAVAILABLE_SENTINEL));
-            assertThat(values.get(0).get(1), equalTo(UNAVAILABLE_SENTINEL));
+            assertEquals(1, values.size());
+            assertEquals(UNAVAILABLE_SENTINEL, values.getFirst().getFirst());
+            assertEquals(UNAVAILABLE_SENTINEL, values.getFirst().get(1));
         }
 
         assertEsqlConsumerRegistered();
@@ -122,9 +119,9 @@ public class IpLocationEsqlConsumerLifecycleIT extends AbstractGeoIpIT {
 
         try (EsqlQueryResponse response = runOnDataNode(query)) {
             List<List<Object>> values = getValuesList(response);
-            assertThat(values, hasSize(1));
-            assertThat(values.get(0).get(0), equalTo("SE"));
-            assertThat(values.get(0).get(1), equalTo("Linköping"));
+            assertEquals(1, values.size());
+            assertEquals("SE", values.getFirst().getFirst());
+            assertEquals("Linköping", values.getFirst().get(1));
         }
     }
 
@@ -144,10 +141,10 @@ public class IpLocationEsqlConsumerLifecycleIT extends AbstractGeoIpIT {
 
         try (EsqlQueryResponse response = run(query)) {
             List<List<Object>> values = getValuesList(response);
-            assertThat(values, hasSize(1));
-            assertThat(values.get(0).get(0), equalTo(UNAVAILABLE_SENTINEL));
-            assertThat(values.get(0).get(1), nullValue());
-            assertThat(values.get(0).get(2), nullValue());
+            assertEquals(1, values.size());
+            assertEquals(UNAVAILABLE_SENTINEL, values.getFirst().getFirst());
+            assertNull(values.getFirst().get(1));
+            assertNull(values.getFirst().get(2));
         }
     }
 
@@ -178,9 +175,9 @@ public class IpLocationEsqlConsumerLifecycleIT extends AbstractGeoIpIT {
                 .actionGet(TimeValue.timeValueSeconds(30))
         ) {
             List<List<Object>> values = getValuesList(response);
-            assertThat(values, hasSize(1));
-            assertThat(values.getFirst().get(0), equalTo("SE"));
-            assertThat(values.getFirst().get(1), equalTo("Linköping"));
+            assertEquals(1, values.size());
+            assertEquals("SE", values.getFirst().getFirst());
+            assertEquals("Linköping", values.getFirst().get(1));
         }
     }
 

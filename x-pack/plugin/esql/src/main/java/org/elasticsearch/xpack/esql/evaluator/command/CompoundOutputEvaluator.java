@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.evaluator.command;
 
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
+import org.elasticsearch.common.util.ByteUtils;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -17,10 +18,12 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.ColumnExtractOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
+import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.function.BiConsumer;
 import java.util.function.IntPredicate;
@@ -240,9 +243,14 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
         }
 
         /**
-         * Encodes a geo-point as WKB directly into the scratch buffer (fixed 21 bytes, no allocation)
-         * and appends it to a BytesRef block. The axis swap from (lat, lon) callback order to
-         * WKB (x=lon, y=lat) is performed here.
+         * Encodes a geo-point as an OGC Well-Known Binary (WKB) 2D Point (ISO 19125-1, little-endian)
+         * directly into the scratch buffer and appends it to a {@link BytesRefBlock}. The encoding is
+         * a fixed 21 bytes: 1 byte order + 4 geometry type + 8 x (lon) + 8 y (lat).
+         * <p>
+         * This is an allocation-free alternative to
+         * {@link org.elasticsearch.geometry.utils.WellKnownBinary#toWKB(Geometry, ByteOrder) WellKnownBinary.toWKB},
+         * avoiding the per-row {@code Point} object, {@code ByteArrayOutputStream}, and {@code byte[]}
+         * allocations that the general-purpose utility incurs.
          */
         void appendGeoPoint(double lat, double lon, int index) {
             scratch.clear();
@@ -253,8 +261,8 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
             b[2] = 0;
             b[3] = 0;
             b[4] = 0;          // geometry type: Point (1) as int32 LE
-            writeDoubleLE(b, 5, lon);                           // x = longitude
-            writeDoubleLE(b, 13, lat);                          // y = latitude
+            ByteUtils.writeDoubleLE(lon, b, 5);                    // x = longitude
+            ByteUtils.writeDoubleLE(lat, b, 13);                   // y = latitude
             scratch.setLength(21);
             ((BytesRefBlock.Builder) blocks[index]).appendBytesRef(scratch.get());
             valuesSet[index] = true;
@@ -273,17 +281,6 @@ public final class CompoundOutputEvaluator implements ColumnExtractOperator.Eval
             blocks = null;
         }
 
-        private static void writeDoubleLE(byte[] b, int offset, double value) {
-            long bits = Double.doubleToLongBits(value);
-            b[offset] = (byte) bits;
-            b[offset + 1] = (byte) (bits >>> 8);
-            b[offset + 2] = (byte) (bits >>> 16);
-            b[offset + 3] = (byte) (bits >>> 24);
-            b[offset + 4] = (byte) (bits >>> 32);
-            b[offset + 5] = (byte) (bits >>> 40);
-            b[offset + 6] = (byte) (bits >>> 48);
-            b[offset + 7] = (byte) (bits >>> 56);
-        }
     }
 
     public static final BiConsumer<RowOutput, String> NOOP_STRING_COLLECTOR = (blocks, value) -> {/*no-op*/};

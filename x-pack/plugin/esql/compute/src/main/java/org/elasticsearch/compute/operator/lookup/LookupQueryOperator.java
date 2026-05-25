@@ -235,14 +235,27 @@ public final class LookupQueryOperator implements Operator {
         int positionCount
     ) throws IOException {
 
-        if (queryPosition < 0) {
-            queryPosition = 0;
-            bulkKeywordLookup.initializeCaches(indexReader);
-        }
-
         int totalMatches = 0;
         do {
+            /*
+             * Note: in the non-streaming EnrichQuerySourceOperator, queryPosition is incremented
+             * in a slightly different way in the lucene query path and the bulk lookup path.
+             *
+             * There the ordinary path increments queryPosition before comparing to positionCount
+             * but the bulk path increments after the comparison.  That's not great but it's not
+             * a bug because in that getOutput() the path do not share any logic inspecting it.
+             * There each path tests for termination in its own way.
+             *
+             * But here in the LookupQueryOperator, getMatches() and getBulkMatches() share
+             * the getOutput() termination condition so they must follow the same convention 
+             * and increment queryPosition before doing the comparison.
+             *
+             * This way getOutput() may always safely assume (queryPosition >= positionCount - 1)
+             * means we've finished processing the page.
+             */
+            ++queryPosition;
             if (queryPosition >= positionCount) break;
+
             final int matches = bulkKeywordLookup.processQuery(
                 currentInputPage,
                 queryPosition,
@@ -252,7 +265,6 @@ public final class LookupQueryOperator implements Operator {
                 positionsBuilder
             );
             totalMatches += matches;
-            queryPosition++;
 
         } while (totalMatches < maxPageSize);
         return totalMatches;

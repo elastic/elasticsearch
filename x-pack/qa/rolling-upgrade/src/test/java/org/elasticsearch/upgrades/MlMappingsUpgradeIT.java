@@ -44,8 +44,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
      * tests cannot depend on the ML plugin module.
      */
     private static final int ML_INDEX_TEMPLATE_VERSION = 10000002 + AnomalyDetectorsIndex.RESULTS_INDEX_MAPPINGS_VERSION
-        + NotificationsIndex.NOTIFICATIONS_INDEX_MAPPINGS_VERSION
-        + MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
+        + NotificationsIndex.NOTIFICATIONS_INDEX_MAPPINGS_VERSION + MlStatsIndex.STATS_INDEX_MAPPINGS_VERSION
         + NotificationsIndex.NOTIFICATIONS_INDEX_TEMPLATE_VERSION;
 
     @BeforeClass

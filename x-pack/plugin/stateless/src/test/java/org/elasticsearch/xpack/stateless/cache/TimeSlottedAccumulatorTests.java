@@ -1,0 +1,535 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.cache;
+
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.test.ESTestCase;
+
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
+
+public class TimeSlottedAccumulatorTests extends ESTestCase {
+
+    public void testInvalidConstructorArgs() {
+        AtomicLong clock = new AtomicLong(randomLongBetween(0, 1_000_000));
+        expectThrows(IllegalArgumentException.class, () -> new TimeSlottedAccumulator(TimeValue.ZERO, 1, 0, clock::get));
+        expectThrows(IllegalArgumentException.class, () -> new TimeSlottedAccumulator(randomGranularity(), 0, 0, clock::get));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new TimeSlottedAccumulator(randomGranularity(), 1, randomIntBetween(-10, -1), clock::get)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new TimeSlottedAccumulator(randomGranularity(), Integer.MAX_VALUE, 1L, clock::get)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new TimeSlottedAccumulator(randomGranularity(), Long.MAX_VALUE, Long.MAX_VALUE, clock::get)
+        );
+        long overflowingGranularityMillis = Long.MAX_VALUE / 2 + 1;
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new TimeSlottedAccumulator(TimeValue.timeValueMillis(overflowingGranularityMillis), 3, 0, clock::get)
+        );
+    }
+
+    public void testCreateFromSettings() {
+        TimeValue granularity = randomGranularity();
+        int pastCount = randomIntBetween(1, 200);
+        int futureCount = randomIntBetween(0, 100);
+        Settings settings = Settings.builder()
+            .put(TimeSlottedAccumulator.TIME_SLOTS_GRANULARITY_SETTING.getKey(), granularity)
+            .put(TimeSlottedAccumulator.TIME_SLOTS_PAST_COUNT_SETTING.getKey(), pastCount)
+            .put(TimeSlottedAccumulator.TIME_SLOTS_FUTURE_COUNT_SETTING.getKey(), futureCount)
+            .build();
+        AtomicLong clock = new AtomicLong(randomLongBetween(0, 1_000_000));
+        TimeSlottedAccumulator accumulator = (TimeSlottedAccumulator) TimeSlottedAccumulator.createFromSettings(settings, clock::get);
+        assertThat(accumulator.granularity(), equalTo(granularity));
+        assertThat(accumulator.slots(), equalTo(pastCount + futureCount));
+    }
+
+    public void testAddInRetainedPastSlot() {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(10, 500);
+        int slotsBack = randomIntBetween(1, Math.min(pastSlots - 1, 100));
+        long anchorMillis = randomLongBetween(granularityMillis * pastSlots, granularityMillis * pastSlots * 10);
+        AtomicLong clock = new AtomicLong(anchorMillis);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+
+        long anchorSlot = alignToSlot(anchorMillis, granularityMillis);
+        long pastTimestamp = anchorSlot - (long) slotsBack * granularityMillis;
+        long delta = randomNonZeroDelta();
+        accumulator.accumulate(pastTimestamp, delta);
+        assertThat(accumulator.sum(pastTimestamp, pastTimestamp + granularityMillis), equalTo(delta));
+    }
+
+    public void testSlotTruncationAndClamping() {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(3, 6);
+        long anchorSlot = randomLongBetween(granularityMillis * pastSlots, granularityMillis * pastSlots * 10);
+        anchorSlot = alignToSlot(anchorSlot, granularityMillis);
+        long offsetInSlot = randomLongBetween(1, granularityMillis - 1);
+        AtomicLong clock = new AtomicLong(anchorSlot + offsetInSlot);
+        int futureSlots = randomFutureSlotCount();
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, clock::get);
+
+        long delta1 = randomNonZeroDelta();
+        accumulator.accumulate(clock.get(), delta1);
+        assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(delta1));
+
+        long delta2 = randomNonZeroDelta();
+        long midSlotTimestamp = anchorSlot + randomLongBetween(1, granularityMillis - 1);
+        accumulator.accumulate(midSlotTimestamp, delta2);
+        assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(delta1 + delta2));
+
+        long nextSlot = anchorSlot + granularityMillis;
+        long delta3 = randomNonZeroDelta();
+        accumulator.accumulate(nextSlot, delta3);
+        if (futureSlots == 0) {
+            // timestamps at or beyond the next slot clamp to the head (anchor) slot
+            assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(delta1 + delta2 + delta3));
+        } else {
+            assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(delta1 + delta2));
+            assertThat(accumulator.sum(nextSlot, nextSlot + granularityMillis), equalTo(delta3));
+        }
+
+        long tailSlot = anchorSlot - (long) (pastSlots - 1) * granularityMillis;
+        long delta4 = randomNonZeroDelta();
+        accumulator.accumulate(tailSlot, delta4);
+        assertThat(accumulator.sum(tailSlot, tailSlot + granularityMillis), equalTo(delta4));
+    }
+
+    public void testAddRemoveSymmetry() {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(3, 10);
+        long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
+        int futureSlots = randomPositiveFutureSlotCount();
+        long clockSlot = anchorSlot + granularityMillis;
+        AtomicLong clock = new AtomicLong(clockSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, clock::get);
+
+        long timestamp = clockSlot + randomLongBetween(1, granularityMillis - 1);
+        long delta1 = randomLongBetween(1, 100);
+        long delta2 = randomLongBetween(1, 100);
+        accumulator.accumulate(timestamp, delta1);
+        accumulator.accumulate(timestamp, delta2);
+        assertThat(accumulator.sum(clockSlot, clockSlot + granularityMillis), equalTo(delta1 + delta2));
+
+        long total = delta1 + delta2;
+        long removeDelta = randomLongBetween(1, total);
+        accumulator.accumulate(timestamp, -removeDelta);
+        assertThat(accumulator.sum(clockSlot, clockSlot + granularityMillis), equalTo(total - removeDelta));
+    }
+
+    public void testConcurrentAdds() throws Exception {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(10, 48);
+        long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
+        AtomicLong clock = new AtomicLong(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+        long timestamp = clock.get();
+        int threads = randomIntBetween(2, 8);
+        int iterations = randomIntBetween(100, 1000);
+        ExecutorService executor = Executors.newFixedThreadPool(threads);
+        try {
+            CountDownLatch start = new CountDownLatch(1);
+            CountDownLatch done = new CountDownLatch(threads);
+
+            for (int t = 0; t < threads; t++) {
+                executor.execute(() -> {
+                    try {
+                        start.await();
+                        for (int i = 0; i < iterations; i++) {
+                            accumulator.accumulate(timestamp, 1);
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } finally {
+                        done.countDown();
+                    }
+                });
+            }
+            start.countDown();
+            assertTrue(done.await(30, TimeUnit.SECONDS));
+            assertThat(accumulator.sum(timestamp, timestamp + granularityMillis), equalTo((long) threads * iterations));
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    public void testConcurrentAddAndSum() throws Exception {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(24, 48);
+        long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
+        AtomicLong clock = new AtomicLong(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+        long windowStart = anchorSlot;
+        int slotsInWindow = randomIntBetween(3, 6);
+        long windowEnd = anchorSlot + (long) slotsInWindow * granularityMillis;
+        int addThreads = randomIntBetween(2, 4);
+        int sumThreads = randomIntBetween(2, 4);
+        int iterations = randomIntBetween(100, 500);
+        long expectedTotal = (long) addThreads * iterations;
+        AtomicLong completedAdds = new AtomicLong();
+        ExecutorService executor = Executors.newFixedThreadPool(addThreads + sumThreads);
+        try {
+            CountDownLatch start = new CountDownLatch(1);
+            CountDownLatch done = new CountDownLatch(addThreads + sumThreads);
+
+            for (int t = 0; t < addThreads; t++) {
+                executor.execute(() -> {
+                    try {
+                        start.await();
+                        for (int i = 0; i < iterations; i++) {
+                            long ts = windowStart + (long) (i % slotsInWindow) * granularityMillis;
+                            completedAdds.incrementAndGet();
+                            accumulator.accumulate(ts, 1);
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } finally {
+                        done.countDown();
+                    }
+                });
+            }
+            for (int t = 0; t < sumThreads; t++) {
+                executor.execute(() -> {
+                    try {
+                        start.await();
+                        for (int i = 0; i < iterations; i++) {
+                            long sum = accumulator.sum(windowStart, windowEnd);
+                            long completed = completedAdds.get();
+                            assertThat(sum, greaterThanOrEqualTo(0L));
+                            assertThat(sum, lessThanOrEqualTo(completed));
+                            assertThat(sum, lessThanOrEqualTo(expectedTotal));
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } finally {
+                        done.countDown();
+                    }
+                });
+            }
+            start.countDown();
+            assertTrue(done.await(30, TimeUnit.SECONDS));
+            assertThat(completedAdds.get(), equalTo(expectedTotal));
+            assertThat(accumulator.sum(windowStart, windowEnd), equalTo(expectedTotal));
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    public void testConcurrentAddRemove() throws Exception {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(24, 48);
+        long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
+        AtomicLong clock = new AtomicLong(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+        int slotsInWindow = randomIntBetween(3, 6);
+        long windowStart = anchorSlot;
+        long windowEnd = anchorSlot + (long) slotsInWindow * granularityMillis;
+        int threads = randomIntBetween(2, 8);
+        int iterations = randomIntBetween(100, 1000);
+        ExecutorService executor = Executors.newFixedThreadPool(threads);
+        try {
+            CountDownLatch start = new CountDownLatch(1);
+            CountDownLatch done = new CountDownLatch(threads);
+
+            for (int t = 0; t < threads; t++) {
+                executor.execute(() -> {
+                    try {
+                        start.await();
+                        for (int i = 0; i < iterations; i++) {
+                            long ts = windowStart + (long) (i % slotsInWindow) * granularityMillis;
+                            accumulator.accumulate(ts, 1);
+                            accumulator.accumulate(ts, -1);
+                        }
+                    } catch (InterruptedException e) {
+                        Thread.currentThread().interrupt();
+                    } finally {
+                        done.countDown();
+                    }
+                });
+            }
+            start.countDown();
+            assertTrue(done.await(30, TimeUnit.SECONDS));
+            assertThat(accumulator.sum(windowStart, windowEnd), equalTo(0L));
+        } finally {
+            terminate(executor);
+        }
+    }
+
+    public void testFutureTimestampSlotMappingAndClamping() {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(2, 5);
+        int futureSlots = randomPositiveFutureSlotCount();
+        long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
+        AtomicLong clock = new AtomicLong(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, clock::get);
+
+        int futureSlotOffset = randomIntBetween(1, futureSlots);
+        long futureSlot = anchorSlot + (long) futureSlotOffset * granularityMillis;
+        long futureDelta = randomNonZeroDelta();
+        accumulator.accumulate(futureSlot, futureDelta);
+        assertThat(accumulator.sum(futureSlot, futureSlot + granularityMillis), equalTo(futureDelta));
+        assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(0L));
+
+        // timestamps beyond the configured future window clamp to the head slot
+        long headSlot = anchorSlot + (long) futureSlots * granularityMillis;
+        long beyondHeadTimestamp = headSlot + randomLongBetween(granularityMillis * 2, granularityMillis * 20);
+        long headDelta = randomNonZeroDelta();
+        accumulator.accumulate(beyondHeadTimestamp, headDelta);
+        long expectedHeadSum = headDelta + (futureSlot == headSlot ? futureDelta : 0);
+        assertThat(accumulator.sum(headSlot, headSlot + granularityMillis), equalTo(expectedHeadSum));
+        assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(0L));
+
+        long queryStart = headSlot + randomLongBetween(granularityMillis * 2, granularityMillis * 20);
+        long queryEnd = queryStart + randomLongBetween(granularityMillis, granularityMillis * 10);
+        assertThat(accumulator.sum(queryStart, queryEnd), equalTo(0L));
+    }
+
+    public void testPastTimestampClampingAndSumBeforeTailZero() {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(10, 48);
+        long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
+        AtomicLong clock = new AtomicLong(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+
+        long tailSlot = anchorSlot - (long) (pastSlots - 1) * granularityMillis;
+        long clampedDelta = randomNonZeroDelta();
+        long beforeTail = Math.max(0, tailSlot - granularityMillis);
+        accumulator.accumulate(randomLongBetween(0, beforeTail), clampedDelta);
+        assertThat(accumulator.sum(tailSlot, tailSlot + granularityMillis), equalTo(clampedDelta));
+
+        long delta = randomNonZeroDelta();
+        accumulator.accumulate(tailSlot + granularityMillis, delta);
+        assertThat(accumulator.sum(0, tailSlot), equalTo(0L));
+    }
+
+    public void testSumWithNoEventsReturnsZero() {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(5, 10);
+        int futureSlots = randomFutureSlotCount();
+        long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
+        AtomicLong clock = new AtomicLong(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, clock::get);
+
+        long windowStart = anchorSlot - (long) (pastSlots - 1) * granularityMillis;
+        long windowEnd = anchorSlot + (long) futureSlots * granularityMillis + granularityMillis;
+        assertThat(accumulator.sum(windowStart, windowEnd), equalTo(0L));
+    }
+
+    public void testZeroDeltaAccumulateIsNoOp() {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(3, 10);
+        long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
+        AtomicLong clock = new AtomicLong(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+
+        long delta = randomNonZeroDelta();
+        accumulator.accumulate(anchorSlot, delta);
+        accumulator.accumulate(anchorSlot, 0);
+        assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(delta));
+    }
+
+    public void testSumWithNonPositiveRangeReturnsZero() {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(3, 10);
+        long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
+        AtomicLong clock = new AtomicLong(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+
+        long delta = randomNonZeroDelta();
+        accumulator.accumulate(anchorSlot, delta);
+
+        assertThat(accumulator.sum(anchorSlot, anchorSlot), equalTo(0L));
+        assertThat(accumulator.sum(anchorSlot + granularityMillis, anchorSlot), equalTo(0L));
+        assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(delta));
+    }
+
+    public void testSumSaturatesOnOverflow() {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(3, 6);
+        long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
+        AtomicLong clock = new AtomicLong(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+
+        long previousSlot = anchorSlot - granularityMillis;
+        long high = Long.MAX_VALUE / 2 + 1;
+        long low = Long.MAX_VALUE / 2;
+        accumulator.accumulate(previousSlot, high);
+        accumulator.accumulate(anchorSlot, low);
+        assertThat(accumulator.sum(previousSlot, anchorSlot + granularityMillis), equalTo(Long.MAX_VALUE));
+    }
+
+    public void testSumSaturatesOnUnderflow() {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(3, 6);
+        long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
+        AtomicLong clock = new AtomicLong(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+
+        long previousSlot = anchorSlot - granularityMillis;
+        long low = Long.MIN_VALUE / 2 - 1;
+        long high = Long.MIN_VALUE / 2;
+        accumulator.accumulate(previousSlot, low);
+        accumulator.accumulate(anchorSlot, high);
+        assertThat(accumulator.sum(previousSlot, anchorSlot + granularityMillis), equalTo(Long.MIN_VALUE));
+    }
+
+    public void testSumAcrossMultipleSlots() {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(4, 8);
+        int futureSlots = randomPositiveFutureSlotCount();
+        long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
+        AtomicLong clock = new AtomicLong(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, clock::get);
+
+        long tailSlot = anchorSlot - (long) (pastSlots - 1) * granularityMillis;
+        long headSlot = anchorSlot + (long) futureSlots * granularityMillis;
+        long tailDelta = randomNonZeroDelta();
+        long middleDelta = randomNonZeroDelta();
+        long anchorDelta = randomNonZeroDelta();
+        long headDelta = randomNonZeroDelta();
+        accumulator.accumulate(tailSlot, tailDelta);
+        accumulator.accumulate(anchorSlot - granularityMillis, middleDelta);
+        accumulator.accumulate(anchorSlot, anchorDelta);
+        accumulator.accumulate(headSlot, headDelta);
+
+        long retainedEndExclusive = headSlot + granularityMillis;
+        assertThat(accumulator.sum(tailSlot, retainedEndExclusive), equalTo(tailDelta + middleDelta + anchorDelta + headDelta));
+    }
+
+    public void testSumQueryRangeClampedToRetainedWindow() {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(5, 10);
+        int futureSlots = randomPositiveFutureSlotCount();
+        long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
+        AtomicLong clock = new AtomicLong(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, clock::get);
+
+        long delta = randomNonZeroDelta();
+        accumulator.accumulate(anchorSlot, delta);
+
+        long tailSlot = anchorSlot - (long) (pastSlots - 1) * granularityMillis;
+        long headSlot = anchorSlot + (long) futureSlots * granularityMillis;
+        long queryStart = tailSlot - randomLongBetween(granularityMillis, granularityMillis * 100);
+        long queryEnd = headSlot + granularityMillis + randomLongBetween(granularityMillis, granularityMillis * 100);
+        assertThat(accumulator.sum(queryStart, queryEnd), equalTo(delta));
+    }
+
+    public void testSumEndExclusiveAtSlotBoundary() {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(3, 6);
+        long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
+        AtomicLong clock = new AtomicLong(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+
+        long previousSlot = anchorSlot - granularityMillis;
+        long previousDelta = randomNonZeroDelta();
+        long anchorDelta = randomNonZeroDelta();
+        accumulator.accumulate(previousSlot, previousDelta);
+        accumulator.accumulate(anchorSlot, anchorDelta);
+
+        assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(anchorDelta));
+        assertThat(accumulator.sum(previousSlot, anchorSlot + granularityMillis), equalTo(previousDelta + anchorDelta));
+    }
+
+    public void testPartialSlotQueryRange() {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(4, 8);
+        long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
+        AtomicLong clock = new AtomicLong(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+
+        long firstSlot = anchorSlot - granularityMillis;
+        long firstDelta = randomNonZeroDelta();
+        long secondDelta = randomNonZeroDelta();
+        accumulator.accumulate(firstSlot, firstDelta);
+        accumulator.accumulate(anchorSlot, secondDelta);
+
+        long queryStart = firstSlot + randomLongBetween(1, granularityMillis - 1);
+        assertThat(accumulator.sum(queryStart, anchorSlot), equalTo(firstDelta));
+        assertThat(accumulator.sum(queryStart, anchorSlot + granularityMillis), equalTo(firstDelta + secondDelta));
+    }
+
+    public void testNegativeClockAnchorsAtEpoch() {
+        TimeValue granularity = randomGranularity();
+        long granularityMillis = granularity.millis();
+        int pastSlots = randomIntBetween(3, 6);
+        AtomicLong clock = new AtomicLong(randomLongBetween(-1_000_000, -1));
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+
+        long delta = randomNonZeroDelta();
+        accumulator.accumulate(0, delta);
+        assertThat(accumulator.sum(0, granularityMillis), equalTo(delta));
+
+        long tailSlot = -(long) (pastSlots - 1) * granularityMillis;
+        assertThat(accumulator.sum(tailSlot, granularityMillis), equalTo(delta));
+    }
+
+    private static int randomFutureSlotCount() {
+        return randomIntBetween(0, 24);
+    }
+
+    private static int randomPositiveFutureSlotCount() {
+        return randomIntBetween(1, 24);
+    }
+
+    private static long randomNonZeroDelta() {
+        long abs = randomLongBetween(1, 1000);
+        return randomBoolean() ? abs : -abs;
+    }
+
+    private static TimeValue randomGranularity() {
+        return randomFrom(
+            TimeValue.timeValueMinutes(1),
+            TimeValue.timeValueMinutes(5),
+            TimeValue.timeValueMinutes(15),
+            TimeValue.timeValueMinutes(30),
+            TimeValue.timeValueHours(1),
+            TimeValue.timeValueHours(6),
+            TimeValue.timeValueHours(12),
+            TimeValue.timeValueDays(1),
+            TimeValue.timeValueDays(7)
+        );
+    }
+
+    private static long randomAnchorSlot(long granularityMillis, int pastSlots) {
+        return alignToSlot(randomLongBetween(granularityMillis * pastSlots, granularityMillis * pastSlots * 10), granularityMillis);
+    }
+
+    private static long alignToSlot(long timestampMillis, long granularityMillis) {
+        return Math.floorDiv(timestampMillis, granularityMillis) * granularityMillis;
+    }
+}

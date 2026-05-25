@@ -68,23 +68,41 @@ public class PropagateNullable extends OptimizerRules.OptimizerExpressionRule<An
 
         // first against all nullable expressions
         // followed by all not-nullable expressions
-        boolean modified = replace(nullExpressions, others, splits, this::nullify);
-        // Diagnostic for https://github.com/elastic/elasticsearch/issues/141579
-        // The second replace() call NPEs with "pattern is null" on CI despite notNullExpressions being a local
-        // LinkedHashSet that is never reassigned. This check captures the state if a JIT bug nullifies the reference.
+        // Workaround for https://github.com/elastic/elasticsearch/issues/141579: when both sets are empty
+        // (the common case, e.g. queries without IS [NOT] NULL predicates), JDK 26 EA C2 was observed
+        // miscompiling the two sequential replace() calls and nullifying the local notNullExpressions
+        // reference between them. Skipping the calls when there is nothing to do both side-steps the
+        // miscompilation and is a small perf win. The guards inside rule() and replace() below are kept
+        // as a safety net in case the bug surfaces in a different shape.
+        boolean modified = false;
+        if (nullExpressions.isEmpty() == false) {
+            modified = replace(nullExpressions, others, splits, this::nullify);
+        }
         if (notNullExpressions == null) {
-            logger.error(
-                "notNullExpressions is null before second replace() call. " + "nullExpressions={}, others={}, splits={}, and={}",
+            // Observed in production (#148944, follow-up to #141579): the JVM has nullified this local even though Java
+            // source semantics guarantee it is non-null — it was allocated with `new LinkedHashSet<>()` a few lines above
+            // and is never reassigned. The original empty-set short-circuit added in #148277 turned out not to cover this
+            // shape (the guard fires even when the first replace() call is skipped). Re-derive notNullExpressions from
+            // splits — which is a deterministic function of the splits already populated — and continue, so callers
+            // see a successful optimization instead of an IllegalStateException.
+            logger.warn(
+                "PropagateNullable [#141579]: notNullExpressions local was nullified by the JVM; "
+                    + "rebuilding from splits. nullExpressions={}, others={}, splits={}, and={}",
                 nullExpressions,
                 others,
                 splits,
                 and
             );
-            throw new IllegalStateException(
-                "PropagateNullable: notNullExpressions is null before second replace() call [#141579]. and=" + and
-            );
+            notNullExpressions = new LinkedHashSet<>();
+            for (Expression ex : splits) {
+                if (ex instanceof IsNotNull isnn) {
+                    notNullExpressions.add(isnn.field());
+                }
+            }
         }
-        modified |= replace(notNullExpressions, others, splits, this::nonNullify);
+        if (notNullExpressions.isEmpty() == false) {
+            modified |= replace(notNullExpressions, others, splits, this::nonNullify);
+        }
         if (modified) {
             // reconstruct the expression
             return Predicates.combineAnd(splits);

@@ -143,6 +143,12 @@ public sealed interface BytesRefBlock extends Block permits BytesRefArrayBlock, 
     @Override
     BytesRefBlock expand();
 
+    /**
+     * The maximum size in bytes of any single value stored in this block, or {@code 0} if there are no values.
+     * Scans all value indices to find the maximum.
+     */
+    int valueMaxByteSize();
+
     static BytesRefBlock readFrom(BlockStreamInput in) throws IOException {
         final byte serializationType = in.readByte();
         return switch (serializationType) {

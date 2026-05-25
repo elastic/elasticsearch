@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.inference.services.elastic;
 
+import org.apache.http.Header;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ContentTooLargeException;
@@ -16,6 +18,8 @@ import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.elastic.response.ElasticInferenceServiceErrorResponseEntity;
 
 public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler {
+
+    public static final String RETRY_AFTER_HEADER = "Retry-After";
 
     public ElasticInferenceServiceResponseHandler(String requestType, ResponseParser parseFunction) {
         super(requestType, parseFunction, ElasticInferenceServiceErrorResponseEntity::fromResponse);
@@ -31,6 +35,10 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
             return;
         }
 
+        throw buildRetryException(outboundRequest, result);
+    }
+
+    private RetryException buildRetryException(OutboundRequest outboundRequest, HttpResult result) {
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500 || statusCode == 503) {
             throw new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
@@ -44,7 +52,20 @@ public class ElasticInferenceServiceResponseHandler extends BaseResponseHandler 
             throw new RetryException(true, buildError(RATE_LIMIT, outboundRequest, result));
         }
 
-        throw new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
+        return new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
     }
 
+    @Override
+    protected ElasticsearchException buildError(String message, OutboundRequest outboundRequest, HttpResult result) {
+        ElasticsearchException error = super.buildError(message, outboundRequest, result);
+        addRetryAfterHeaderIfPresent(result, error);
+        return error;
+    }
+
+    private void addRetryAfterHeaderIfPresent(HttpResult result, ElasticsearchException e) {
+        Header retryAfterHeader = result.response().getFirstHeader(RETRY_AFTER_HEADER);
+        if (retryAfterHeader != null) {
+            e.addHttpHeader(RETRY_AFTER_HEADER, retryAfterHeader.getValue());
+        }
+    }
 }

@@ -356,6 +356,25 @@ public class TransportBulkActionTests extends ESTestCase {
             .numberOfShards(1)
             .numberOfReplicas(0)
             .build();
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata)
+        );
+        assertThat(exception.getMessage(), containsString("[routing] is not allowed when [index.slice.enabled] is true"));
+        assertThat(exception.getMessage(), containsString("use [_slice] instead"));
+    }
+
+    public void testRequireSliceRoutingWhenSliceEnabledAndSliceProvided() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        var request = new IndexRequest("idx").id("1").routing("s1").setRoutingFromSlice(true);
+        var indexAbstraction = mock(IndexAbstraction.class);
+        var writeIndex = new Index("idx-000001", "uuid");
+        when(indexAbstraction.getWriteIndex()).thenReturn(writeIndex);
+        var indexMetadata = IndexMetadata.builder(writeIndex.getName())
+            .settings(settings(IndexVersion.current()).put(IndexSettings.SLICE_ENABLED.getKey(), true))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
         requireSliceRoutingWhenEnabled(request, indexAbstraction, idx -> indexMetadata);
     }
 

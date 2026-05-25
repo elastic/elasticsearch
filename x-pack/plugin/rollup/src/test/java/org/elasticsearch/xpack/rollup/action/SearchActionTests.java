@@ -347,6 +347,17 @@ public class SearchActionTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Rollup search does not support explaining."));
     }
 
+    public void testSliceParamNotAllowed() {
+        String[] normalIndices = new String[] { ESTestCase.randomAlphaOfLength(10) };
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        source.size(0);
+        SearchRequest request = new SearchRequest(normalIndices, source);
+        request.routing("slice-1");
+        request.searchSlice("slice-1");
+        Exception e = expectThrows(IllegalArgumentException.class, () -> TransportRollupSearchAction.validateSearchRequest(request));
+        assertThat(e.getMessage(), equalTo("Rollup search does not support [_slice]."));
+    }
+
     public void testNoRollupAgg() {
         String[] normalIndices = new String[] {};
         String[] rollupIndices = new String[] { randomAlphaOfLength(10) };

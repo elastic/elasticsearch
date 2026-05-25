@@ -361,7 +361,7 @@ public class CacheFile {
                 rangeToWrite,
                 rangeToRead,
                 rangeListener(rangeToRead, reader, future, reference, decrementRef)
-            ).map(SparseFileTracker.Gaps::claim).orElse(List.of());
+            );
 
             for (SparseFileTracker.Gap gap : gaps) {
                 executor.execute(new AbstractRunnable() {

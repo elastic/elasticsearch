@@ -1097,14 +1097,20 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         /**
          * Populates a range in cache if the range is not available nor pending to be available in cache.
+         * <p>
+         * {@link SparseFileTracker#waitForRange} and gap filling are run as a single task on {@code executor} so callers can route the
+         * full populate operation (coordination and I/O initiation) to a pool sized for their resource limits (e.g. object-store fetches).
+         * If the range is already present or entirely covered by pending fills, {@link SparseFileTracker#waitForRangeIfPending} handles
+         * coordination without queueing on {@code executor}.
+         * </p>
          *
          * @param rangeToWrite the range of bytes to populate
          * @param writer a writer that handles writing of newly downloaded data to the shared cache
-         * @param executor the executor used to download and to write new data
+         * @param executor the executor used to coordinate cache filling; also used to run gap-filling work in-thread on that pool
          * @param listener a listener that is completed with {@code true} if the current thread triggered the download and write of the
          *                 range, in which case the listener is completed once writing is done. The listener is completed with {@code false}
          *                 if the range to write is already available in cache or if another thread will download and write the range, in
-         *                 which cases the listener is completed immediately.
+         *                 which cases the listener is completed when determined on {@code executor}.
          */
         void populate(
             final ByteRange rangeToWrite,
@@ -1112,64 +1118,80 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final Executor executor,
             final ActionListener<Boolean> listener
         ) {
+            if (rangeToWrite.isEmpty()) {
+                listener.onResponse(false);
+                return;
+            }
             try {
-                incRefEnsureOpen();
-                try (RefCountingRunnable refs = new RefCountingRunnable(CacheFileRegion.this::decRef)) {
-                    final var gapsOpt = tracker.waitForRange(
-                        rangeToWrite,
-                        rangeToWrite,
-                        Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
-                            assert blobCacheService.regionOwners.get(nonVolatileIO()) == this;
-                        }), refs.acquire()) : refs.acquireListener()
+                try {
+                    incRefEnsureOpen();
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                    return;
+                }
+                // If the range is already present, or entirely covered by pending fills, coordinate without queueing on executor.
+                try {
+                    final ActionListener<Void> waitIfPendingListener = ActionListener.releaseAfter(
+                        listener.map(unused -> false),
+                        this::decRef
                     );
-                    if (gapsOpt.isEmpty()) {
-                        listener.onResponse(false);
+                    if (tracker.waitForRangeIfPending(rangeToWrite, waitIfPendingListener)) {
                         return;
                     }
-                    executor.execute(new AbstractRunnable() {
-                        private final Releasable dispatchRef = refs.acquire();
-
-                        @Override
-                        protected void doRun() {
-                            try (dispatchRef) {
-                                final List<SparseFileTracker.Gap> gaps = gapsOpt.get().claim();
-                                if (gaps.isEmpty()) {
-                                    listener.onResponse(false);
-                                    return;
-                                }
-                                final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
-                                logger.trace(
-                                    () -> Strings.format(
-                                        "fill gaps %s %s shared input stream factory",
-                                        gaps,
-                                        streamFactory == null ? "without" : "with"
-                                    )
-                                );
-                                final ActionListener<Void> gapsDoneListener = streamFactory != null
-                                    ? ActionListener.releaseBefore(streamFactory, listener.map(unused -> true))
-                                    : listener.map(unused -> true);
-                                try (var gapsListener = new RefCountingListener(gapsDoneListener)) {
-                                    // Use current thread to fill the gaps in order
-                                    for (SparseFileTracker.Gap gap : gaps) {
-                                        fillGapRunnable(
-                                            gap,
-                                            writer,
-                                            streamFactory,
-                                            ActionListener.releaseAfter(gapsListener.acquire(), refs.acquire())
-                                        ).run();
-                                    }
+                } catch (Exception e) {
+                    decRef();
+                    listener.onFailure(e);
+                    return;
+                }
+                executor.execute(new AbstractRunnable() {
+                    @Override
+                    protected void doRun() {
+                        try (RefCountingRunnable refs = new RefCountingRunnable(CacheFileRegion.this::decRef)) {
+                            final List<SparseFileTracker.Gap> gaps = tracker.waitForRange(
+                                rangeToWrite,
+                                rangeToWrite,
+                                Assertions.ENABLED ? ActionListener.releaseAfter(ActionListener.running(() -> {
+                                    assert blobCacheService.regionOwners.get(nonVolatileIO()) == CacheFileRegion.this;
+                                }), refs.acquire()) : refs.acquireListener()
+                            );
+                            if (gaps.isEmpty()) {
+                                listener.onResponse(false);
+                                return;
+                            }
+                            final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
+                            logger.trace(
+                                () -> Strings.format(
+                                    "fill gaps %s %s shared input stream factory",
+                                    gaps,
+                                    streamFactory == null ? "without" : "with"
+                                )
+                            );
+                            final ActionListener<Void> gapsDoneListener = streamFactory != null
+                                ? ActionListener.releaseBefore(streamFactory, listener.map(unused -> true))
+                                : listener.map(unused -> true);
+                            try (var gapsListener = new RefCountingListener(gapsDoneListener)) {
+                                // Use current thread to fill the gaps in order
+                                for (SparseFileTracker.Gap gap : gaps) {
+                                    fillGapRunnable(
+                                        gap,
+                                        writer,
+                                        streamFactory,
+                                        ActionListener.releaseAfter(gapsListener.acquire(), refs.acquire())
+                                    ).run();
                                 }
                             }
                         }
+                    }
 
-                        @Override
-                        public void onFailure(Exception e) {
-                            dispatchRef.close();
-                            listener.onFailure(e);
-                        }
-                    });
-                }
+                    @Override
+                    public void onFailure(Exception e) {
+                        decRef();
+                        listener.onFailure(e);
+                    }
+                });
             } catch (Exception e) {
+                assert false;
+                decRef();
                 listener.onFailure(e);
             }
         }
@@ -1204,7 +1226,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                             blobCacheService.blobCacheMetrics.recordRead();
                             l.onResponse(read);
                         })
-                    ).map(SparseFileTracker.Gaps::claim).orElse(List.of());
+                    );
 
                     if (gaps.isEmpty() == false) {
                         final SourceInputStreamFactory streamFactory = writer.sharedInputStreamFactory(gaps);
@@ -1504,9 +1526,43 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final RangeMissingHandler writer,
             String resourceDescription
         ) throws Exception {
+            final PlainActionFuture<Integer> future = new PlainActionFuture<>();
+            final long absentBytes = populate(rangeToWrite, rangeToRead, reader, writer, resourceDescription, future);
+            if (future.isDone() == false && absentBytes > 0) {
+                return recordWait(absentBytes, future);
+            }
+            return future.get();
+        }
+
+        /**
+         * Asynchronous, listener-based primitive that backs {@link #populateAndRead}. Ensures {@code rangeToWrite}
+         * is populated in the cache (downloading missing sub-ranges via {@code writer} on the I/O executor) and
+         * invokes {@code reader} per region when its sub-range of {@code rangeToRead} becomes available. The
+         * {@code listener} is completed with the total number of bytes that the {@code reader} reported.
+         * <p>
+         * Returns as soon as the per-region work has been dispatched. Sync callers should use
+         * {@link #populateAndRead}; fire-and-forget callers (e.g. an {@code madvise(WILLNEED)}-style prefetch that
+         * just calls {@link SharedBytes.IO#prefetch(long, long)} from the {@code reader}) pass a no-op / logging
+         * listener.
+         *
+         * @return a snapshot of how many bytes inside {@code rangeToRead} were still missing from the cache at
+         *         dispatch time. Used by the sync wrapper to drive {@link #recordWait}; async callers can ignore.
+         */
+        public long populate(
+            final ByteRange rangeToWrite,
+            final ByteRange rangeToRead,
+            final RangeAvailableHandler reader,
+            final RangeMissingHandler writer,
+            String resourceDescription,
+            ActionListener<Integer> listener
+        ) {
             // some cache files can grow after being created, so rangeToWrite can be larger than the initial {@code length}
             assert rangeToWrite.start() >= 0 : rangeToWrite;
             assert assertOffsetsWithinFileLength(rangeToRead.start(), rangeToRead.length(), length);
+            if (rangeToRead.isEmpty()) {
+                listener.onResponse(0);
+                return 0L;
+            }
             // We are interested in the total time that the system spends when fetching a result (including time spent queuing), so we start
             // our measurement here.
             final long startTime = relativeTimeInNanosSupplier.getAsLong();
@@ -1548,27 +1604,30 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     );
                 }
             };
-            if (rangeToRead.isEmpty()) {
-                // nothing to read, skip
-                return 0;
-            }
             final int startRegion = getRegion(rangeToWrite.start());
             final int endRegion = getEndingRegion(rangeToWrite.end());
             if (startRegion == endRegion) {
-                return readSingleRegion(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion);
+                return readSingleRegion(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion, listener);
             }
-            return readMultiRegions(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion, endRegion);
+            return readMultiRegions(rangeToWrite, rangeToRead, reader, writerInstrumentationDecorator, startRegion, endRegion, listener);
         }
 
-        private int readSingleRegion(
+        private long readSingleRegion(
             ByteRange rangeToWrite,
             ByteRange rangeToRead,
             RangeAvailableHandler reader,
             RangeMissingHandler writer,
-            int region
-        ) throws InterruptedException, ExecutionException {
-            final PlainActionFuture<Integer> readFuture = new PlainActionFuture<>();
-            final CacheFileRegion<KeyType> fileRegion = get(cacheKey, length, region);
+            int region,
+            ActionListener<Integer> listener
+        ) {
+            final CacheFileRegion<KeyType> fileRegion;
+            try {
+                fileRegion = get(cacheKey, length, region);
+            } catch (Exception e) {
+                assert e instanceof AlreadyClosedException : e;
+                listener.onFailure(e);
+                return 0L;
+            }
             final long regionStart = getRegionStart(region);
             ByteRange regionRangeToRead = mapSubRangeToRegion(rangeToRead, region);
             fileRegion.populateAndRead(
@@ -1577,36 +1636,30 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 readerWithOffset(reader, fileRegion, Math.toIntExact(rangeToRead.start() - regionStart)),
                 metricRecordingWriter(writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))),
                 ioExecutor,
-                readFuture
+                listener
             );
-            if (readFuture.isDone() == false) {
-                long bytes = fileRegion.tracker.getAbsentBytesWithin(regionRangeToRead);
-                if (bytes > 0) {
-                    return recordWait(bytes, readFuture);
-                }
-            }
-            return readFuture.get();
+            return fileRegion.tracker.getAbsentBytesWithin(regionRangeToRead);
         }
 
-        private int readMultiRegions(
+        private long readMultiRegions(
             ByteRange rangeToWrite,
             ByteRange rangeToRead,
             RangeAvailableHandler reader,
             RangeMissingHandler writer,
             int startRegion,
-            int endRegion
-        ) throws InterruptedException, ExecutionException {
-            final PlainActionFuture<Void> readsComplete = new PlainActionFuture<>();
+            int endRegion,
+            ActionListener<Integer> listener
+        ) {
             final AtomicInteger bytesRead = new AtomicInteger();
-            List<CacheFileRegion<KeyType>> regions = new ArrayList<>(endRegion - startRegion);
-            try (var listeners = new RefCountingListener(1, readsComplete)) {
+            final List<CacheFileRegion<KeyType>> regions = new ArrayList<>(endRegion - startRegion);
+            try (var listeners = new RefCountingListener(1, listener.map(v -> bytesRead.get()))) {
                 for (int region = startRegion; region <= endRegion; region++) {
                     final ByteRange subRangeToRead = mapSubRangeToRegion(rangeToRead, region);
                     if (subRangeToRead.isEmpty()) {
                         // nothing to read, skip
                         continue;
                     }
-                    ActionListener<Integer> listener = listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j)));
+                    ActionListener<Integer> regionListener = listeners.acquire(i -> bytesRead.updateAndGet(j -> Math.addExact(i, j)));
                     try {
                         final CacheFileRegion<KeyType> fileRegion = get(cacheKey, length, region);
                         regions.add(fileRegion);
@@ -1619,29 +1672,17 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                 writerWithOffset(writer, fileRegion, Math.toIntExact(rangeToWrite.start() - regionStart))
                             ),
                             ioExecutor,
-                            listener
+                            regionListener
                         );
                     } catch (Exception e) {
                         assert e instanceof AlreadyClosedException : e;
-                        listener.onFailure(e);
+                        regionListener.onFailure(e);
                     }
                 }
             }
-            if (readsComplete.isDone() == false) {
-                long bytes = regions.stream()
-                    .mapToLong(
-                        fileRegion -> fileRegion.tracker.getAbsentBytesWithin(
-                            mapSubRangeToRegion(rangeToRead, fileRegion.regionKey.region())
-                        )
-                    )
-                    .sum();
-                if (bytes > 0) {
-                    recordWait(bytes, readsComplete);
-                }
-
-            }
-            readsComplete.get();
-            return bytesRead.get();
+            return regions.stream()
+                .mapToLong(fr -> fr.tracker.getAbsentBytesWithin(mapSubRangeToRegion(rangeToRead, fr.regionKey.region())))
+                .sum();
         }
 
         /**

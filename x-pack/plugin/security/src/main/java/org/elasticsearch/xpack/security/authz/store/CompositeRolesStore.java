@@ -54,6 +54,7 @@ import org.elasticsearch.xpack.core.security.authz.store.RoleKey;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReference;
 import org.elasticsearch.xpack.core.security.authz.store.RoleReferenceIntersection;
 import org.elasticsearch.xpack.core.security.authz.store.RolesRetrievalResult;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.CacheIteratorHelper;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
@@ -69,6 +70,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -77,6 +79,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executor;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -686,10 +689,10 @@ public class CompositeRolesStore {
         }
         final Map<Set<String>, MergeableIndicesPrivilege> indicesPrivilegesMap = new HashMap<>();
         final Map<Set<String>, MergeableIndicesPrivilege> restrictedIndicesPrivilegesMap = new HashMap<>();
-        final Map<Tuple<String, String>, ApplicationPrivilegeDescriptor> appPrivLookup = appPrivileges.stream()
-            .collect(Collectors.toMap(p -> new Tuple<>(p.getApplication(), p.getName()), p -> p));
+        final Map<String, List<ApplicationPrivilegeDescriptor>> appPrivsByName = appPrivileges.stream()
+            .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getName));
         for (RoleDescriptor rd : roleDescriptors) {
-            final List<ApplicationPrivilegeDescriptor> roleAppPrivs = getApplicationPrivilegeDescriptors(rd, appPrivLookup);
+            final List<ApplicationPrivilegeDescriptor> roleAppPrivs = getApplicationPrivilegeDescriptors(rd, appPrivsByName);
             for (ImplicitPrivilegesProvider provider : implicitPrivilegesProviders) {
                 final Collection<IndicesPrivileges> implicit = provider.getImplicitIndicesPrivileges(rd, roleAppPrivs);
                 final IndicesPrivileges[] kept = implicit.stream()
@@ -711,24 +714,33 @@ public class CompositeRolesStore {
         addIndicesPrivilegesToBuilder(builder, fieldPermissionsCache, indicesPrivilegesMap, restrictedIndicesPrivilegesMap, true);
     }
 
-    private static List<ApplicationPrivilegeDescriptor> getApplicationPrivilegeDescriptors(
+    static List<ApplicationPrivilegeDescriptor> getApplicationPrivilegeDescriptors(
         RoleDescriptor rd,
-        Map<Tuple<String, String>, ApplicationPrivilegeDescriptor> appPrivLookup
+        Map<String, List<ApplicationPrivilegeDescriptor>> appPrivsByName
     ) {
-        final List<ApplicationPrivilegeDescriptor> roleAppPrivs = new ArrayList<>();
+        if (rd.getApplicationPrivileges().length == 0) {
+            return List.of();
+        }
+        final Set<ApplicationPrivilegeDescriptor> roleAppPrivs = new LinkedHashSet<>();
         for (RoleDescriptor.ApplicationResourcePrivileges ap : rd.getApplicationPrivileges()) {
+            final Predicate<String> appMatches = ap.getApplication().contains("*")
+                ? Automatons.predicate(ap.getApplication())
+                : ap.getApplication()::equals;
             for (String priv : ap.getPrivileges()) {
-                // Miss == either an action pattern (e.g. "data:read/*", never stored) or a
-                // reference to an undefined stored privilege. Both are silently skipped; providers
-                // that need action-pattern visibility can read roleDescriptor.getApplicationPrivileges().
-                final ApplicationPrivilegeDescriptor descriptor = appPrivLookup.get(new Tuple<>(ap.getApplication(), priv));
-                if (descriptor == null) {
+                final List<ApplicationPrivilegeDescriptor> candidates = appPrivsByName.get(priv);
+                if (candidates == null) {
+                    // Either an action pattern (e.g. "data:read/*") or a reference to an undefined stored privilege; silently skip.
+                    // Providers that need action-pattern visibility can read RoleDescriptor#getApplicationPrivileges() directly.
                     continue;
                 }
-                roleAppPrivs.add(descriptor);
+                for (ApplicationPrivilegeDescriptor apd : candidates) {
+                    if (appMatches.test(apd.getApplication())) {
+                        roleAppPrivs.add(apd);
+                    }
+                }
             }
         }
-        return roleAppPrivs;
+        return new ArrayList<>(roleAppPrivs);
     }
 
     public void addImplicitPrivilegesToRoles(
@@ -752,19 +764,19 @@ public class CompositeRolesStore {
             return;
         }
         privilegeStore.getPrivileges(applicationNames, privilegeNames, false, ActionListener.wrap(appPrivileges -> {
-            Map<Tuple<String, String>, ApplicationPrivilegeDescriptor> appPrivLookup = appPrivileges.stream()
-                .collect(Collectors.toMap(p -> new Tuple<>(p.getApplication(), p.getName()), p -> p));
-            listener.onResponse(decorateWithImplicitPrivileges(roleDescriptors, appPrivLookup));
+            final Map<String, List<ApplicationPrivilegeDescriptor>> appPrivsByName = appPrivileges.stream()
+                .collect(Collectors.groupingBy(ApplicationPrivilegeDescriptor::getName));
+            listener.onResponse(decorateWithImplicitPrivileges(roleDescriptors, appPrivsByName));
         }, listener::onFailure));
     }
 
     private Collection<RoleDescriptor> decorateWithImplicitPrivileges(
         Collection<RoleDescriptor> roleDescriptors,
-        Map<Tuple<String, String>, ApplicationPrivilegeDescriptor> appPrivLookup
+        Map<String, List<ApplicationPrivilegeDescriptor>> appPrivsByName
     ) {
         List<RoleDescriptor> result = new ArrayList<>();
         for (RoleDescriptor rd : roleDescriptors) {
-            List<ApplicationPrivilegeDescriptor> roleAppPrivs = getApplicationPrivilegeDescriptors(rd, appPrivLookup);
+            List<ApplicationPrivilegeDescriptor> roleAppPrivs = getApplicationPrivilegeDescriptors(rd, appPrivsByName);
             List<IndicesPrivileges> implicitPrivileges = implicitPrivilegesProviders.stream()
                 .flatMap(p -> p.getImplicitIndicesPrivileges(rd, roleAppPrivs).stream())
                 .<IndicesPrivileges>map(IndicesPrivileges.ImplicitlyGranted::new)

@@ -21,6 +21,7 @@ import java.sql.Time;
 import java.sql.Timestamp;
 import java.sql.Types;
 import java.time.Clock;
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
 import java.util.Calendar;
@@ -441,7 +442,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         someTimestamp2.setNanos(randomNanos);
         jps.setTimestamp(1, someTimestamp2, nonDefaultCal);
         ZonedDateTime zdt = (ZonedDateTime) value(jps);
-        assertEquals(someTimestamp2.getTime(), convertFromUTCtoCalendar(zdt, nonDefaultCal));
+        assertCalendarConversionPreservesWallClock(someTimestamp2.getTime(), zdt.toInstant().toEpochMilli(), nonDefaultCal);
         assertEquals(someTimestamp2.getNanos(), zdt.getNano());
         assertEquals(DATETIME, jdbcType(jps));
 
@@ -450,7 +451,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         someTimestamp3.setNanos(randomNanos);
         jps.setTimestamp(1, someTimestamp3, nonDefaultCal);
         zdt = (ZonedDateTime) value(jps);
-        assertEquals(someTimestamp3.getTime(), convertFromUTCtoCalendar(zdt, nonDefaultCal));
+        assertCalendarConversionPreservesWallClock(someTimestamp3.getTime(), zdt.toInstant().toEpochMilli(), nonDefaultCal);
         assertEquals(someTimestamp3.getNanos(), zdt.getNano());
 
         jps.setObject(1, someTimestamp, Types.VARCHAR);
@@ -477,7 +478,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
 
         Calendar nonDefaultCal = randomCalendar();
         jps.setTime(1, time, nonDefaultCal);
-        assertEquals(4675000, convertFromUTCtoCalendar(((Date) value(jps)), nonDefaultCal));
+        assertCalendarConversionPreservesWallClock(4675000, ((Date) value(jps)).getTime(), nonDefaultCal);
         assertEquals(TIME, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
@@ -505,7 +506,7 @@ public class JdbcPreparedStatementTests extends ESTestCase {
         someSqlDate = new java.sql.Date(randomLong());
         Calendar nonDefaultCal = randomCalendar();
         jps.setDate(1, someSqlDate, nonDefaultCal);
-        assertEquals(someSqlDate.getTime(), convertFromUTCtoCalendar(((Date) value(jps)), nonDefaultCal));
+        assertCalendarConversionPreservesWallClock(someSqlDate.getTime(), ((Date) value(jps)).getTime(), nonDefaultCal);
         assertEquals(DATETIME, jdbcType(jps));
         assertTrue(value(jps) instanceof java.util.Date);
 
@@ -660,18 +661,13 @@ public class JdbcPreparedStatementTests extends ESTestCase {
     }
 
     /**
-     * @see #convertFromUTCtoCalendar(ZonedDateTime, Calendar)
+     * Asserts the original wall-clock in the calendar's zone equals the stored wall-clock in UTC.
+     * Avoids reverse-mapping the stored instant back to the calendar's zone, which is ambiguous in DST fall-back overlaps.
      */
-    private long convertFromUTCtoCalendar(Date date, Calendar nonDefaultCal) {
-        return convertFromUTCtoCalendar(ZonedDateTime.ofInstant(date.toInstant(), UTC), nonDefaultCal);
-    }
-
-    /**
-     * Converts from UTC to the provided Calendar.
-     * Helps checking if the converted date/time values using Calendars in set*(...,Calendar) methods did convert
-     * the values correctly to UTC.
-     */
-    private long convertFromUTCtoCalendar(ZonedDateTime zdt, Calendar nonDefaultCal) {
-        return zdt.withZoneSameInstant(UTC).withZoneSameLocal(nonDefaultCal.getTimeZone().toZoneId()).toInstant().toEpochMilli();
+    private static void assertCalendarConversionPreservesWallClock(long originalMillis, long storedMillis, Calendar nonDefaultCal) {
+        assertEquals(
+            LocalDateTime.ofInstant(Instant.ofEpochMilli(originalMillis), nonDefaultCal.getTimeZone().toZoneId()),
+            LocalDateTime.ofInstant(Instant.ofEpochMilli(storedMillis), UTC)
+        );
     }
 }

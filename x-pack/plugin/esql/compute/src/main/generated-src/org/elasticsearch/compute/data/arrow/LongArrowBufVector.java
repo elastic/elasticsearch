@@ -67,6 +67,11 @@ public final class LongArrowBufVector extends AbstractArrowBufVector<LongVector,
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Long.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.LONG;
     }

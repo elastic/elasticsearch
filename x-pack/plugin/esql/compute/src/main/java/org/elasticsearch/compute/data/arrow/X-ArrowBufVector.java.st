@@ -67,6 +67,11 @@ public final class $Name$ArrowBufVector extends AbstractArrowBufVector<$Type$Vec
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return $BYTES$;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.$TYPE$;
     }

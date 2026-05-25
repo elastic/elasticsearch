@@ -69,15 +69,12 @@ public class CustomRequestManager extends BaseRequestManager {
         ActionListener<InferenceServiceResults> listener
     ) {
         RequestParameters requestParameters;
-        if (inferenceInputs instanceof QueryAndDocsInputs) {
-            requestParameters = RerankParameters.of(QueryAndDocsInputs.of(inferenceInputs));
+        if (inferenceInputs instanceof QueryAndDocsInputs queryAndDocsInputs) {
+            requestParameters = RerankParameters.of(queryAndDocsInputs);
         } else if (inferenceInputs instanceof ChatCompletionInput chatInputs) {
             requestParameters = CompletionParameters.of(chatInputs);
-        } else if (inferenceInputs instanceof EmbeddingsInput) {
-            requestParameters = EmbeddingParameters.of(
-                inferenceInputs.castTo(EmbeddingsInput.class),
-                model.getServiceSettings().getInputTypeTranslator()
-            );
+        } else if (inferenceInputs instanceof EmbeddingsInput embeddingsInput) {
+            requestParameters = EmbeddingParameters.of(embeddingsInput, model.getServiceSettings().getInputTypeTranslator());
         } else {
             listener.onFailure(
                 new ElasticsearchStatusException(

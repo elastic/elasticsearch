@@ -13,6 +13,7 @@ import org.apache.lucene.codecs.Codec;
 import org.apache.lucene.tests.util.TestUtil;
 import org.elasticsearch.index.codec.tsdb.AbstractPrefixPartitionTests;
 import org.elasticsearch.index.codec.tsdb.TSDBDocValuesTestUtil;
+import org.elasticsearch.index.codec.tsdb.pipeline.numeric.NumericCodecFactory;
 
 public class PrefixPartitionTests extends AbstractPrefixPartitionTests {
 
@@ -26,7 +27,11 @@ public class PrefixPartitionTests extends AbstractPrefixPartitionTests {
                 TSDBDocValuesTestUtil.randomBinaryCompressionMode(),
                 random().nextBoolean(),
                 TSDBDocValuesTestUtil.randomNumericBlockSize(),
-                writePrefixPartitions
+                writePrefixPartitions,
+                ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+                ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
+                NumericCodecFactory.DEFAULT,
+                ES95NumericFieldReader::defaultFallbackDecoder
             )
         );
     }

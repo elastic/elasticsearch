@@ -479,6 +479,12 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (e.foldable()) {
             e = new Literal(e.source(), e.fold(FoldContext.small()), e.dataType());
         }
+        // Build the layout from the *original* (pre-surrogate) expression so channel positions stay aligned
+        // with the test page's positional data; surrogates that reorder children (e.g. swap arguments) would
+        // otherwise misalign channels. FieldAttributes survive surrogate substitution unchanged (same NameId),
+        // so the post-surrogate evaluator finds them via the layout.
+        Layout.Builder builder = new Layout.Builder();
+        buildLayout(builder, e);
         if (e instanceof SurrogateExpression s) {
             Expression surrogate = s.surrogate();
             if (surrogate != null) {
@@ -486,8 +492,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
         }
         assertThat("expression required surrogates", e, not(instanceOf(OnlySurrogateExpression.class)));
-        Layout.Builder builder = new Layout.Builder();
-        buildLayout(builder, e);
         Expression.TypeResolution resolution = e.typeResolved();
         if (resolution.unresolved()) {
             throw new AssertionError("expected resolved " + resolution.message());

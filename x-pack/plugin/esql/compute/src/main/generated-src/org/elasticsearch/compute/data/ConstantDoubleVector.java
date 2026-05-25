@@ -48,6 +48,11 @@ final class ConstantDoubleVector extends AbstractVector implements DoubleVector 
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Double.BYTES;
+    }
+
+    @Override
     public DoubleVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantDoubleVector(value, positions.length);
     }

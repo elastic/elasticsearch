@@ -221,10 +221,17 @@ class JdkZstdLibrary implements ZstdLibrary {
      *
      * <p>The arena is closed on {@link #close()}, releasing all native memory back to the OS.
      *
-     * <p>Single-threaded by contract — there is no internal locking.
+     * <p><b>Threading.</b> The arena is {@link Arena#ofShared() shared}, not confined: the wrapper
+     * is constructed eagerly when the codec opens the file, but the actual {@link #decompress}
+     * calls run on whatever worker thread {@code StreamingParallelParsingCoordinator}'s segmentator
+     * is scheduled on — almost never the constructing thread. A confined arena would raise
+     * {@link java.lang.WrongThreadException} from {@code MemorySegment.copy} on the first read.
+     * Shared arenas pay a small synchronization cost on {@link Arena#close()}, which is negligible
+     * relative to libzstd's per-call work. The DStream itself is still single-reader by contract —
+     * the segmentator owns it for the lifetime of one file.
      */
     private static final class JdkDStream implements ZstdLibrary.DStream {
-        private final Arena arena = Arena.ofConfined();
+        private final Arena arena = Arena.ofShared();
         private final MemorySegment handle;
         private final MemorySegment inStruct;
         private final MemorySegment outStruct;

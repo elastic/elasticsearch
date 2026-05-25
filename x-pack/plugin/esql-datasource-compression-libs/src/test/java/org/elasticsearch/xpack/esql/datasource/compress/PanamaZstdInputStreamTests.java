@@ -283,6 +283,39 @@ public class PanamaZstdInputStreamTests extends ESTestCase {
         }
     }
 
+    /**
+     * Regression for the WrongThreadException that surfaced in the CSV/NdJSON QA ITs: the codec
+     * constructs the wrapper eagerly when the file is opened, but `StreamingParallelParsingCoordinator`
+     * actually reads it from a segmentator worker thread. A confined arena binds to the constructing
+     * thread and any MemorySegment.copy from a different thread throws WrongThreadException. This
+     * test reproduces the exact construct-on-A-read-on-B shape and would have caught the bug in unit
+     * tests, off the QA cluster.
+     */
+    public void testReadFromDifferentThreadThanConstructor() throws Exception {
+        byte[] data = randomBytesForCompression(96 * 1024);
+        byte[] compressed = compress(data);
+        PanamaZstdInputStream s = new PanamaZstdInputStream(new ByteArrayInputStream(compressed), zstd);
+        try {
+            byte[][] decoded = new byte[1][];
+            Throwable[] thrown = new Throwable[1];
+            Thread t = new Thread(() -> {
+                try {
+                    decoded[0] = s.readAllBytes();
+                } catch (Throwable err) {
+                    thrown[0] = err;
+                }
+            }, "panama-zstd-cross-thread-test");
+            t.start();
+            t.join();
+            if (thrown[0] != null) {
+                throw new AssertionError("read on worker thread failed: " + thrown[0], thrown[0]);
+            }
+            assertArrayEquals(data, decoded[0]);
+        } finally {
+            s.close();
+        }
+    }
+
     // The constructor's "free DStream if byte[] allocation throws" invariant was previously covered
     // by a placebo test that called newDStream() + close() without ever exercising the failure path.
     // Deleted: a real check needs a poisoned `Zstd` whose `newDStream()` returns a counting

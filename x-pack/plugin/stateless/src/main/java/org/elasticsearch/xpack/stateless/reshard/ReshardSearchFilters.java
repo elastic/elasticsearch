@@ -19,6 +19,8 @@ import org.elasticsearch.action.support.replication.StaleRequestException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
+import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.RoutingFunction;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
@@ -72,6 +74,16 @@ public final class ReshardSearchFilters implements Closeable {
             // There was no resharding in progress when this PIT was opened and no additional logic is necessary.
             return reader;
         }
+
+        if (IndexRouting.shouldUseShardCountModRouting(currentIndexMetadata.getCreationVersion())) {
+            assert false : "Resharding is not supported for indices that use legacy routing";
+            throw new IllegalStateException("Resharding is not supported for indices that use legacy routing");
+        }
+
+        // Number of shards could change due to another resharding operation that was executed while this PIT was open.
+        // and resharding metadata will very likely not exist or differ for the same reason.
+        RoutingFunction routingFunction = RoutingFunction.moduloNumberOfShards(relocatedReshardingMetadata.shardCountAfter());
+        IndexRouting customRouting = IndexRouting.withRoutingFunction(currentIndexMetadata, routingFunction);
 
         // This is a hack.
         // Things like ShardSplittingQuery currently specifically depend on IndexMetadata class (and even our code below does).

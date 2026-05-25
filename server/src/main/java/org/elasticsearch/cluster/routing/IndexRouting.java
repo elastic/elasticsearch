@@ -68,6 +68,10 @@ public abstract class IndexRouting {
             routingFunction = RoutingFunction.legacyRoutingNumberOfShards(metadata.getRoutingNumShards(), metadata.getRoutingFactor());
         }
 
+        return withRoutingFunction(metadata, routingFunction);
+    }
+
+    public static IndexRouting withRoutingFunction(IndexMetadata metadata, RoutingFunction routingFunction) {
         if (metadata.getIndexMode() == IndexMode.TIME_SERIES
             && metadata.getTimeSeriesDimensions().isEmpty() == false
             && metadata.getCreationVersion().onOrAfter(IndexVersions.TSID_CREATED_DURING_ROUTING)) {

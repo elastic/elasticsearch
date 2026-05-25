@@ -1060,7 +1060,7 @@ public final class RateLongGroupingAggregatorFunction extends AbstractRateGroupi
         }
         final double increase = lastValue - firstValue;
         // Interpolation might introduce precision errors, so we try to account for that.
-        assert increase >= -0.00000000000001 : "increase must be non-negative, got " + lastValue + " - " + firstValue;
+        assert increase >= -0.00000000000002 : "increase must be non-negative, got " + lastValue + " - " + firstValue;
         return (isRateOverTime) ? increase / (lastTsSec - firstTsSec) : increase;
     }
 

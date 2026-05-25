@@ -22,8 +22,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
-import org.elasticsearch.search.crossproject.ProjectRoutingResolver;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
@@ -308,13 +308,17 @@ public class ViewResolver {
             listener.onResponse(unresolvedRelation);
             return;
         }
-        if (containsOriginProjectWildcardExclusion(patterns, originProjectAlias)) {
-            // Origin is fully excluded by a project-wildcard exclusion (e.g. `-_origin:*`, `-<origin-alias>:*`, `-*:*`).
-            // Skip local view resolution: any view body would otherwise be expanded into a sibling branch that queries
-            // every project (the body itself does not carry the exclusion), surfacing as an "Unknown index" failure on a
-            // linked project that does not have the body's indices.
-            listener.onResponse(unresolvedRelation);
-            return;
+        if (originProjectAlias != null) {
+            for (String pattern : patterns) {
+                if (CrossProjectIndexExpressionsRewriter.isOriginProjectWildcardExclusion(pattern, originProjectAlias)) {
+                    // Origin is fully excluded by a project-wildcard exclusion (e.g. `-_origin:*`, `-<origin-alias>:*`, `-*:*`).
+                    // Skip local view resolution: any view body would otherwise be expanded into a sibling branch that queries
+                    // every project (the body itself does not carry the exclusion), surfacing as an "Unknown index" failure on a
+                    // linked project that does not have the body's indices.
+                    listener.onResponse(unresolvedRelation);
+                    return;
+                }
+            }
         }
         for (String pattern : patterns) {
             if (Regex.isSimpleMatchPattern(pattern)) {
@@ -795,24 +799,4 @@ public class ViewResolver {
         return false;
     }
 
-    private static boolean containsOriginProjectWildcardExclusion(String[] patterns, @Nullable String originProjectAlias) {
-        if (originProjectAlias == null) {
-            return false;
-        }
-        for (String pattern : patterns) {
-            if (pattern.isEmpty() || pattern.charAt(0) != '-') {
-                continue;
-            }
-            String[] split = RemoteClusterAware.splitIndexName(pattern.substring(1));
-            String alias = split[0];
-            String index = split[1];
-            if (alias == null || "*".equals(index) == false) {
-                continue;
-            }
-            if (ProjectRoutingResolver.ORIGIN.equals(alias) || Regex.simpleMatch(alias, originProjectAlias)) {
-                return true;
-            }
-        }
-        return false;
-    }
 }

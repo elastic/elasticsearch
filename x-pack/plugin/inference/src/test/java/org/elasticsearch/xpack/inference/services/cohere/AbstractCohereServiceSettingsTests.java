@@ -11,6 +11,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
@@ -18,6 +19,7 @@ import org.elasticsearch.xpack.inference.services.ServiceFields;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
@@ -31,6 +33,15 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
     protected abstract T createGivenCommonSettings(Map<String, Object> commonSettings, ConfigurationParseContext context);
 
     protected abstract XContentBuilder toXContentFragmentOfExposedFields(T instance, XContentBuilder builder) throws IOException;
+
+    protected Set<String> getImmutableFields() {
+        return Set.of(
+            CohereCommonServiceSettings.API_VERSION,
+            ServiceFields.MODEL_ID,
+            CohereCommonServiceSettings.OLD_MODEL_ID_FIELD,
+            ServiceFields.URL
+        );
+    }
 
     @Override
     public boolean supportsUnknownFields() {
@@ -112,5 +123,17 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
         String xContentResult = Strings.toString(builder);
 
         assertThat(xContentResult, containsString(CohereCommonServiceSettings.API_VERSION));
+    }
+
+    public void testUpdateServiceSettings_GivenImmutableFields_ShouldThrow() {
+        var serviceSettings = createTestInstance();
+
+        for (String immutableField : getImmutableFields()) {
+            var e = expectThrows(
+                XContentParseException.class,
+                () -> serviceSettings.updateServiceSettings(Map.of(immutableField, "value"))
+            );
+            assertThat(e.getMessage(), containsString("unknown field [" + immutableField + "]"));
+        }
     }
 }

@@ -34,8 +34,10 @@ import org.elasticsearch.xpack.inference.services.settings.RateLimitSettingsTest
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.ML_INFERENCE_COHERE_API_VERSION;
 import static org.hamcrest.Matchers.containsString;
@@ -104,7 +106,16 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
         return instance.toXContentFragmentOfExposedFields(builder, null);
     }
 
-    public void testUpdateServiceSettings_AllFields_OnlyMutableFieldsAreUpdated() {
+    @Override
+    protected Set<String> getImmutableFields() {
+        Set<String> immutableFields = new HashSet<>(super.getImmutableFields());
+        immutableFields.add(ServiceFields.SIMILARITY);
+        immutableFields.add(ServiceFields.DIMENSIONS);
+        immutableFields.add(ServiceFields.EMBEDDING_TYPE);
+        return immutableFields;
+    }
+
+    public void testUpdateServiceSettings_AllUpdatableFields() {
         var originalServiceSettings = new CohereEmbeddingsServiceSettings(
             new CohereCommonServiceSettings(
                 INITIAL_TEST_MODEL_ID,
@@ -117,11 +128,11 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
             INITIAL_TEST_EMBEDDING_TYPE
         );
         var updatedServiceSettings = originalServiceSettings.updateServiceSettings(
-            buildServiceSettingsMap(
-                TEST_MODEL_ID,
-                TEST_LEGACY_MODEL_ID,
-                TEST_EMBEDDING_TYPE.toString(),
-                CohereCommonServiceSettings.CohereApiVersion.V2
+            Map.of(
+                RateLimitSettings.FIELD_NAME,
+                Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, TEST_RATE_LIMIT),
+                ServiceFields.MAX_INPUT_TOKENS,
+                TEST_MAX_INPUT_TOKENS
             )
         );
 

@@ -16,6 +16,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -94,10 +95,28 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
             var resolvedEmbeddingType = Objects.requireNonNullElse(embeddingType, CohereEmbeddingType.FLOAT);
             return new CohereEmbeddingsServiceSettings(commonSettings, similarity, dimensions, maxInputTokens, resolvedEmbeddingType);
         }
+    }
 
-        CohereEmbeddingsServiceSettings mergeInto(CohereEmbeddingsServiceSettings existing) {
-            var updatedRateLimitSettings = rateLimitSettings != null ? rateLimitSettings : existing.rateLimitSettings();
-            var updatedMaxInputTokens = maxInputTokens != null ? maxInputTokens : existing.maxInputTokens();
+    private record Update(RateLimitSettings rateLimitSettings, Integer maxInputTokens) {
+
+        private static ConstructingObjectParser<Update, Void> PARSER = new ConstructingObjectParser<>(
+            ModelConfigurations.SERVICE_SETTINGS,
+            false,
+            a -> new Update((RateLimitSettings) a[0], (Integer) a[1])
+        );
+
+        static {
+            PARSER.declareObject(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> RateLimitSettings.createParser(false).apply(p, null),
+                new ParseField(RateLimitSettings.FIELD_NAME)
+            );
+            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(MAX_INPUT_TOKENS));
+        }
+
+        public CohereEmbeddingsServiceSettings mergeInto(CohereEmbeddingsServiceSettings existing) {
+            RateLimitSettings updatedRateLimitSettings = rateLimitSettings != null ? rateLimitSettings : existing.rateLimitSettings();
+            Integer updatedMaxInputTokens = maxInputTokens != null ? maxInputTokens : existing.maxInputTokens();
             return new CohereEmbeddingsServiceSettings(
                 existing.commonSettings().update(updatedRateLimitSettings),
                 existing.similarity(),
@@ -250,7 +269,8 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     @Override
     public CohereEmbeddingsServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, serviceSettings)) {
-            return REQUEST_PARSER.parse(xParser, ConfigurationParseContext.REQUEST).mergeInto(this);
+            Update update = Update.PARSER.apply(xParser, null);
+            return update.mergeInto(this);
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse Cohere embeddings service settings update", e);
         }

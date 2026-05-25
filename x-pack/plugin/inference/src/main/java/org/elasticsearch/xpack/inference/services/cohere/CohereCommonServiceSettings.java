@@ -88,7 +88,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         parser.declareString(Builder::setApiVersion, new ParseField(API_VERSION));
         parser.declareObject(
             Builder::setRateLimitSettings,
-            (p, c) -> RateLimitSettings.createParser(c).parse(p, c),
+            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT).parse(p, null),
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
         // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
@@ -279,7 +279,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         ObjectParser<? extends Builder<T>, ConfigurationParseContext> parser
     ) {
         try (var xParser = XContentHelper.mapToXContentParser(XContentParserConfiguration.EMPTY, map)) {
-            return parser.parse(xParser, context).build();
+            return parser.apply(xParser, context).build();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
         }

@@ -38,8 +38,7 @@ public class RateLimitSettings implements Writeable, ToXContentFragment {
     public static final String REQUESTS_PER_MINUTE_FIELD = "requests_per_minute";
     public static final RateLimitSettings DISABLED_INSTANCE = new RateLimitSettings(1, TimeUnit.MINUTES, false);
 
-    public static ConstructingObjectParser<RateLimitSettings, ConfigurationParseContext> createParser(ConfigurationParseContext context) {
-        boolean ignoreUnknownFields = context != ConfigurationParseContext.REQUEST;
+    public static ConstructingObjectParser<RateLimitSettings, ConfigurationParseContext> createParser(boolean ignoreUnknownFields) {
         ConstructingObjectParser<RateLimitSettings, ConfigurationParseContext> parser = new ConstructingObjectParser<>(
             "rate_limit",
             ignoreUnknownFields,

@@ -75,10 +75,6 @@ FROM sample_data
 
 ### With TRANGE
 
-```{applies_to}
-stack: ga 9.3
-```
-
 ```esql
 TS k8s
 | WHERE TRANGE(1 hour)

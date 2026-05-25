@@ -53,7 +53,7 @@ public class KeyMappingTests extends ESTestCase {
         assertFalse(mapping.remove(k1, k2, value));
     }
 
-    public void testCountMatchingKey2S() {
+    public void testCountMatchingKey2s() {
         final var mapping = new KeyMapping<String, String, String>();
 
         // empty mapping always returns 0

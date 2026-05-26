@@ -1126,6 +1126,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         FileSplit fileSplit = (FileSplit) leaf;
         List<String> cols = dataProjectedColumns();
 
+        // TODO: inject SharedNumericThreshold row-group skip check here, before the read
+        // dispatch below — avoids the I/O cost rather than paying for it and discarding.
         CloseableIterator<Page> pages = null;
         try {
             FormatReader fileReader = readerForFile(fileSplit);

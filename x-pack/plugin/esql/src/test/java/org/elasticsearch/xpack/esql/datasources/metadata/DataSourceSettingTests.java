@@ -150,6 +150,17 @@ public class DataSourceSettingTests extends ESTestCase {
         assertXContentRoundTrip(new DataSourceSetting(null, false));
     }
 
+    public void testSmileRoundTripPreservesValueTypes() throws IOException {
+        // Cluster-state persistence (PersistedClusterStateService) uses SMILE, so the GATEWAY path must
+        // preserve non-secret value types across a restart — objectText() keeps the parsed type rather
+        // than stringifying. Guards against a regression to text() that would silently coerce to String.
+        assertSmileRoundTrip(new DataSourceSetting(42, false));
+        assertSmileRoundTrip(new DataSourceSetting(9_999_999_999L, false));
+        assertSmileRoundTrip(new DataSourceSetting(3.14159, false));
+        assertSmileRoundTrip(new DataSourceSetting(true, false));
+        assertSmileRoundTrip(new DataSourceSetting(null, false));
+    }
+
     private void assertSmileRoundTrip(DataSourceSetting setting) throws IOException {
         XContentBuilder builder = SmileXContent.contentBuilder();
         setting.toXContent(builder, null);

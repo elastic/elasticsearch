@@ -60,6 +60,7 @@ import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -2033,7 +2034,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             }
             // If EvictionPolicy requires access to FreqLevel[] then we could use some factory here to pass down the freqs array while
             // instantiating the EvictionPolicy, eg. this.evictionPolicy = evictionPolicyFactory.create(FreqLevel[], maxFreq);
-            this.evictionPolicy = evictionPolicy;
+            this.evictionPolicy = Objects.requireNonNull(evictionPolicy);
         }
 
         @Override

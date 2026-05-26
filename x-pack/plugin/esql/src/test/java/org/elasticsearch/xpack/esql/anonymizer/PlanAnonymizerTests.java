@@ -25,8 +25,10 @@ import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.UriParts;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.plan.physical.UriPartsExec;
 
 import java.util.ArrayList;
 import java.util.Collections;
@@ -411,6 +413,48 @@ public class PlanAnonymizerTests extends ESTestCase {
 
         assertFalse("Enrich.concreteIndices cluster key leaked:\n" + out.optimized(), out.optimized().contains(sensitiveCluster));
         assertFalse("Enrich.concreteIndices enrich-index value leaked:\n" + out.optimized(), out.optimized().contains(sensitiveEnrichIdx));
+    }
+
+    /**
+     * CompoundOutputEval / CompoundOutputEvalExec (URI_PARTS, USER_AGENT, REGISTERED_DOMAIN) carry a
+     * raw {@code List<String> outputFieldNames} alongside their (already-anonymized) output
+     * attributes. Without a {@code nodeString} override that list renders unmapped through the
+     * default property walker. Assert the names route through the column-token map in both the
+     * logical and physical stages.
+     */
+    public void testCompoundOutputFieldNamesAnonymized() {
+        String sensitiveOutputName = "secret_output_capture_name";
+        String sensitiveInputCol = "secret_source_url_column";
+
+        EsField urlField = new EsField(sensitiveInputCol, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        FieldAttribute urlAttr = new FieldAttribute(Source.EMPTY, null, null, sensitiveInputCol, urlField);
+        EsRelation rel = new EsRelation(
+            Source.EMPTY,
+            INDEX,
+            IndexMode.STANDARD,
+            Map.of(),
+            Map.of(),
+            Map.of(INDEX, IndexMode.STANDARD),
+            List.<Attribute>of(urlAttr)
+        );
+        EsField outField = new EsField(sensitiveOutputName, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
+        FieldAttribute outAttr = new FieldAttribute(Source.EMPTY, null, null, sensitiveOutputName, outField);
+
+        UriParts logical = new UriParts(Source.EMPTY, rel, urlAttr, List.of(sensitiveOutputName), List.<Attribute>of(outAttr));
+        UriPartsExec physical = new UriPartsExec(
+            Source.EMPTY,
+            new FragmentExec(rel),
+            urlAttr,
+            List.of(sensitiveOutputName),
+            List.<Attribute>of(outAttr)
+        );
+
+        var out = PlanAnonymizer.forSubmission(randomUUID()).anonymize(null, null, logical, physical);
+
+        assertFalse("output field name leaked in logical plan:\n" + out.optimized(), out.optimized().contains(sensitiveOutputName));
+        assertFalse("output field name leaked in physical plan:\n" + out.physical(), out.physical().contains(sensitiveOutputName));
+        assertFalse("input column leaked in logical plan:\n" + out.optimized(), out.optimized().contains(sensitiveInputCol));
+        assertFalse("input column leaked in physical plan:\n" + out.physical(), out.physical().contains(sensitiveInputCol));
     }
 
     /**

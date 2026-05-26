@@ -156,13 +156,18 @@ public class ReplaceRegexMatchTests extends ESTestCase {
     }
 
     public void testLikeContainsNotDecomposedOnOldVersion() {
-        // A mixed-version query (e.g. cross-cluster against a pre-Contains remote) must keep the WildcardLike:
-        // older nodes either lack the Contains NamedWriteable or carry a non-TranslationAware Contains.
+        // A mixed-version query (e.g. cross-cluster against a pre-Contains remote) must keep the original
+        // WildcardLike unchanged: older nodes either lack the Contains NamedWriteable or carry a
+        // non-TranslationAware Contains. Assert the predicate is preserved intact, not merely that some
+        // WildcardLike comes back — that is the plan the old remote actually needs to receive and execute.
         WildcardPattern pattern = new WildcardPattern("*foo*");
         FieldAttribute fa = getFieldAttribute();
         WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
         Expression e = replaceRegexMatch(wl, TransportVersionUtils.randomVersionNotSupporting(Contains.LIKE_TO_CONTAINS_VERSION));
         assertEquals(WildcardLike.class, e.getClass());
+        WildcardLike kept = (WildcardLike) e;
+        assertEquals(fa, kept.field());
+        assertEquals("*foo*", kept.pattern().pattern());
     }
 
     public void testLikeComplexContainsNotDecomposedToContains() {

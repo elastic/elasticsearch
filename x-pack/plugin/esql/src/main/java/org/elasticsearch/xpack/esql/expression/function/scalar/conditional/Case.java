@@ -251,6 +251,21 @@ public final class Case extends EsqlScalarFunction {
         return elseValue.foldable();
     }
 
+    @Override
+    public Object fold(FoldContext ctx) {
+        DataType type = dataType();
+        if (type == DataType.DATE_PERIOD || type == DataType.TIME_DURATION) {
+            // These can't be managed by evaluators, we have to fold them manually.
+            for (Condition condition : conditions) {
+                if (Boolean.TRUE.equals(condition.condition.fold(ctx))) {
+                    return condition.value.fold(ctx);
+                }
+            }
+            return elseValue.fold(ctx);
+        }
+        return super.fold(ctx);
+    }
+
     /**
      * Fold the arms of {@code CASE} statements.
      * <ol>
@@ -330,7 +345,7 @@ public final class Case extends EsqlScalarFunction {
              *     see the right type (e.g. KEYWORD, not NULL)
              */
             case 1 -> {
-                Expression child = newChildren.getFirst();
+                Expression child = newChildren.get(0);
                 if (child.dataType() == NULL && dataType() != NULL) {
                     yield new Literal(child.source(), null, dataType());
                 }

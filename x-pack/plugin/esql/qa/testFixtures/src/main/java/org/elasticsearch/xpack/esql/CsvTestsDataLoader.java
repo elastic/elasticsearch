@@ -477,15 +477,16 @@ public class CsvTestsDataLoader {
         if (mapping == null) {
             throw new IllegalArgumentException("Cannot find resource " + mappingName);
         }
-        final String dataName = "/data/" + dataset.dataFileName;
-        URL data = CsvTestsDataLoader.class.getResource(dataName);
-        if (data == null) {
-            throw new IllegalArgumentException("Cannot find resource " + dataName);
-        }
-
         Settings indexSettings = dataset.readSettingsFile();
         indexCreator.createIndex(client, dataset.indexName, readMappingFile(mapping, dataset.typeMapping), indexSettings);
-        loadCsvData(client, dataset.indexName, data, dataset.allowSubFields, logger);
+        if (dataset.dataFileName != null) {
+            final String dataName = "/data/" + dataset.dataFileName;
+            URL data = CsvTestsDataLoader.class.getResource(dataName);
+            if (data == null) {
+                throw new IllegalArgumentException("Cannot find resource " + dataName);
+            }
+            loadCsvData(client, dataset.indexName, data, dataset.allowSubFields, logger);
+        }
     }
 
     private static String readMappingFile(URL resource, Map<String, String> typeMapping) throws IOException {
@@ -780,6 +781,18 @@ public class CsvTestsDataLoader {
                 dataFileName,
                 settingFileName,
                 false,
+                typeMapping,
+                requiresInferenceEndpoint
+            );
+        }
+
+        public TestDataset noData() {
+            return new TestDataset(
+                indexName,
+                mappingFileName,
+                null,
+                settingFileName,
+                allowSubFields,
                 typeMapping,
                 requiresInferenceEndpoint
             );

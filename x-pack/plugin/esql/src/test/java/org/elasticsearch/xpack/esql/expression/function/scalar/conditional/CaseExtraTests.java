@@ -178,28 +178,30 @@ public class CaseExtraTests extends ESTestCase {
     }
 
     public void testPartialFoldTrailingTextLeadingKeyword() {
+        Expression textField = field("text_field", DataType.TEXT);
         Case c = new Case(
             Source.synthetic("case"),
             new Literal(Source.EMPTY, false, DataType.BOOLEAN),
-            List.of(field("keyword_field", DataType.KEYWORD), field("text_field", DataType.TEXT))
+            List.of(field("keyword_field", DataType.KEYWORD), textField)
         );
         assertThat(c.dataType(), equalTo(DataType.KEYWORD));
         Expression result = c.partiallyFold(FoldContext.small());
-        assertThat(result, equalToIgnoringIds(field("text_field", DataType.TEXT)));
+        assertThat(result, sameInstance(textField));
         // This should be KEYWORD so it lines up with the original value.
         // It isn't because the conversion is difficult.
         // But it's not likely to break anything as is.
     }
 
     public void testPartialFoldTrailingKeywordLeadingText() {
+        Expression keywordField = field("keyword_field", DataType.KEYWORD);
         Case c = new Case(
             Source.synthetic("case"),
             new Literal(Source.EMPTY, false, DataType.BOOLEAN),
-            List.of(field("text_field", DataType.TEXT), field("keyword_field", DataType.KEYWORD))
+            List.of(field("text_field", DataType.TEXT), keywordField)
         );
         assertThat(c.dataType(), equalTo(DataType.KEYWORD));
         Expression result = c.partiallyFold(FoldContext.small());
-        assertThat(result, equalToIgnoringIds(field("keyword_field", DataType.KEYWORD)));
+        assertThat(result, sameInstance(keywordField));
     }
 
     public void testPartialFoldExplicitNull() {

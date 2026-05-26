@@ -1111,6 +1111,11 @@ public class EsqlCapabilities {
         FIX_UNROLLED_FOLDABLE_MV_WARNING,
 
         /**
+         * {@code CASE} folding with DATE_PERIOD and TIME_DURATION return types.
+         */
+        CASE_FOLD_TEMPORAL_AMOUNT,
+
+        /**
          * Fix for {@code _index LIKE} not supporting the {@code ?} wildcard character.
          * see <a href="https://github.com/elastic/elasticsearch/issues/146364">ES|QL: _index LIKE with ? #146364</a>
          */

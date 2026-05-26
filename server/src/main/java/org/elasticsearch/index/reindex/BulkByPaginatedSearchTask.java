@@ -69,7 +69,7 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
     private final ResumeInfo.RelocationOrigin relocationOrigin;
     private final RelocationProgress relocationProgress = new RelocationProgress();
     private volatile LeaderBulkByPaginatedSearchTaskState leaderState;
-    private volatile WorkerBulkByScrollTaskState workerState;
+    private volatile WorkerBulkByPaginatedSearchTaskState workerState;
     private volatile boolean relocationRequested = false;
 
     public BulkByPaginatedSearchTask(
@@ -228,7 +228,7 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
             throw new IllegalStateException("This task is already a leader for other slice subtasks");
         }
 
-        workerState = new WorkerBulkByScrollTaskState(this, sliceId, requestsPerSecond);
+        workerState = new WorkerBulkByPaginatedSearchTaskState(this, sliceId, requestsPerSecond);
         if (isCancelled()) {
             workerState.handleCancel();
         }
@@ -238,7 +238,7 @@ public class BulkByPaginatedSearchTask extends CancellableTask {
      * Returns the object that manages sending search requests. Throws IllegalStateException if this task is not set to be a
      * worker task.
      */
-    public WorkerBulkByScrollTaskState getWorkerState() {
+    public WorkerBulkByPaginatedSearchTaskState getWorkerState() {
         if (isWorker() == false) {
             throw new IllegalStateException("This task is not set to be a worker");
         }

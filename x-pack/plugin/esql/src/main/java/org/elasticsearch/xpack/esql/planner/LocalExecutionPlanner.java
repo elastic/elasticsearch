@@ -72,6 +72,7 @@ import org.elasticsearch.compute.operator.fuse.RrfConfig;
 import org.elasticsearch.compute.operator.fuse.RrfScoreEvalOperator;
 import org.elasticsearch.compute.operator.topn.GroupedTopNOperator;
 import org.elasticsearch.compute.operator.topn.NumericTopNOperator;
+import org.elasticsearch.compute.operator.topn.SharedNumericThreshold;
 import org.elasticsearch.compute.operator.topn.TopNEncoder;
 import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
@@ -112,6 +113,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
+import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperatorFactory;
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
@@ -827,12 +829,15 @@ public class LocalExecutionPlanner {
             return null;
         }
         ElementType keyElementType = PlannerUtils.toElementType(sortAttribute.dataType());
-        return new NumericTopNOperator.NumericTopNOperatorFactory(
-            limit,
-            keyElementType,
-            sortOrder.direction() == Order.OrderDirection.ASC,
-            sortOrder.nullsPosition() == Order.NullsPosition.FIRST
-        );
+        boolean asc = sortOrder.direction() == Order.OrderDirection.ASC;
+        boolean nullsFirst = sortOrder.nullsPosition() == Order.NullsPosition.FIRST;
+        SharedNumericThreshold.Supplier thresholdSupplier = new SharedNumericThreshold.Supplier(asc);
+        if (source.sourceOperatorFactory instanceof AsyncExternalSourceOperatorFactory externalSourceFactory) {
+            externalSourceFactory.setNumericThresholdSupplier(thresholdSupplier, sortAttribute.name(), keyElementType, asc);
+        } else {
+            return null;
+        }
+        return new NumericTopNOperator.NumericTopNOperatorFactory(limit, keyElementType, asc, nullsFirst, thresholdSupplier);
     }
 
     /**

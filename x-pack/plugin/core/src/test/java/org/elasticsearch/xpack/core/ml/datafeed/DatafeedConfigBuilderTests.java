@@ -157,6 +157,7 @@ public class DatafeedConfigBuilderTests extends AbstractWireSerializingTestCase<
      * so the CPS flag in the stored configuration is not used.
      */
     public void testCrossProjectModeOptionsAccepted() {
+        assumeTrue("CPS feature flag must be enabled", DatafeedConfig.DATAFEED_CROSS_PROJECT.isEnabled());
         var datafeedBuilder = createRandomizedDatafeedConfigBuilder("jobId", "datafeed-id", 3600000);
         datafeedBuilder = datafeedBuilder.setIndicesOptions(
             IndicesOptions.builder(datafeedBuilder.getIndicesOptions())

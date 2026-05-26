@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.Before;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -1341,6 +1342,22 @@ public class ForkIT extends AbstractEsqlIntegTestCase {
                 List.of("fork2", 3, "This dog is really brown"),
                 List.of("fork3", 5, "There is also a white cat")
             );
+            assertValues(resp.values(), expectedValues);
+        }
+    }
+
+    public void testForkWithAllColumnsDropped() {
+        var query = """
+            FROM test
+            | FORK (WHERE true | LIMIT 1)
+            | KEEP _fork
+            | DROP _fork
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnTypes(resp.columns(), Collections.emptyList());
+            assertColumnNames(resp.columns(), Collections.emptyList());
+            Iterable<Iterable<Object>> expectedValues = List.of(Collections.emptyList());
             assertValues(resp.values(), expectedValues);
         }
     }

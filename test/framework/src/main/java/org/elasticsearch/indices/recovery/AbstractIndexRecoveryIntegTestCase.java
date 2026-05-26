@@ -94,19 +94,19 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         final var sourceService = internalCluster().getInstance(PeerRecoverySourceService.class, nodeName);
         final CountDownLatch conditionLatch = new CountDownLatch(1);
 
-        final RecoveryScheduleListener listener = () -> {
+        final RecoverySchedulingListener listener = () -> {
             final var stats = indicesService.stats(CommonStatsFlags.ALL, false).getRecoveryStats();
             if (condition.test(stats)) {
                 conditionLatch.countDown();
             }
         };
-        sourceService.ongoingRecoveries.addRecoveryScheduleListener(listener);
+        sourceService.ongoingRecoveries.addRecoverySchedulingListener(listener);
         try {
             // in case condition was already met before we added the listener
-            listener.onRecoveryScheduleChange();
+            listener.onRecoverySchedulingChange();
             safeAwait(conditionLatch);
         } finally {
-            sourceService.ongoingRecoveries.removeRecoveryScheduleListener(listener);
+            sourceService.ongoingRecoveries.removeRecoverySchedulingListener(listener);
         }
     }
 

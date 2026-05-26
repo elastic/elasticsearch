@@ -238,7 +238,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
         private int activeRecoveryHandlerCount = 0;
 
-        private final List<RecoveryScheduleListener> recoveryScheduleListeners = new CopyOnWriteArrayList<>();
+        private final List<RecoverySchedulingListener> recoverySchedulingListeners = new CopyOnWriteArrayList<>();
 
         // visible for testing
         synchronized int activeRecoveryCount() {
@@ -251,23 +251,23 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
         }
 
         /// Registers a recovery scheduling listener.
-        void addRecoveryScheduleListener(RecoveryScheduleListener listener) {
-            recoveryScheduleListeners.add(listener);
+        void addRecoverySchedulingListener(RecoverySchedulingListener listener) {
+            recoverySchedulingListeners.add(listener);
         }
 
         /// Unregisters a recovery scheduling listener.
-        void removeRecoveryScheduleListener(RecoveryScheduleListener listener) {
-            recoveryScheduleListeners.remove(listener);
+        void removeRecoverySchedulingListener(RecoverySchedulingListener listener) {
+            recoverySchedulingListeners.remove(listener);
         }
 
-        private void notifyRecoveryScheduleListeners() {
+        private void notifyRecoverySchedulingListeners() {
             assert Thread.holdsLock(this) == false;
-            for (RecoveryScheduleListener listener : recoveryScheduleListeners) {
+            for (RecoverySchedulingListener listener : recoverySchedulingListeners) {
                 try {
-                    listener.onRecoveryScheduleChange();
+                    listener.onRecoverySchedulingChange();
                 } catch (Exception e) {
-                    assert false : "recovery schedule listener should not throw exceptions";
-                    logger.warn("recovery schedule listener exception", e);
+                    assert false : e;
+                    logger.warn("exception from recovery schedule listener", e);
                 }
             }
         }
@@ -295,7 +295,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     handler = null;
                 }
             }
-            notifyRecoveryScheduleListeners();
+            notifyRecoverySchedulingListeners();
             return handler;
         }
 
@@ -336,7 +336,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     );
             }
             if (cancelled.isEmpty() == false) {
-                notifyRecoveryScheduleListeners();
+                notifyRecoverySchedulingListeners();
             }
         }
 
@@ -396,7 +396,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     ActionListener.runAfter(nextRecovery.listener(), () -> onRecoveryComplete(nextRecovery.shard(), nextHandler))
                 );
             }
-            notifyRecoveryScheduleListeners();
+            notifyRecoverySchedulingListeners();
         }
 
         void cancelAllPendingRecoveries() {
@@ -417,7 +417,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     );
             }
             if (cancelled.isEmpty() == false) {
-                notifyRecoveryScheduleListeners();
+                notifyRecoverySchedulingListeners();
             }
         }
 
@@ -475,7 +475,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     );
             }
             if (cancelled.isEmpty() == false) {
-                notifyRecoveryScheduleListeners();
+                notifyRecoverySchedulingListeners();
             }
         }
 
@@ -485,21 +485,21 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                 return;
             }
             final CountDownLatch emptyLatch = new CountDownLatch(1);
-            final RecoveryScheduleListener listener = () -> {
+            final RecoverySchedulingListener listener = () -> {
                 if (isEmpty()) {
                     emptyLatch.countDown();
                 }
             };
-            addRecoveryScheduleListener(listener);
+            addRecoverySchedulingListener(listener);
             try {
                 // Force a check in case we became empty while registering
-                listener.onRecoveryScheduleChange();
+                listener.onRecoverySchedulingChange();
                 emptyLatch.await();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 throw new IllegalStateException("interrupted while waiting for recoveries to complete", e);
             } finally {
-                removeRecoveryScheduleListener(listener);
+                removeRecoverySchedulingListener(listener);
             }
         }
 

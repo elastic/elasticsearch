@@ -11,9 +11,9 @@ package org.elasticsearch.indices.recovery;
 
 /// Listener for recovery scheduling changes. Invoked when recoveries start, end, or are queued/dequeued.
 @FunctionalInterface
-public interface RecoveryScheduleListener {
+public interface RecoverySchedulingListener {
 
     /// Invoked after recovery scheduling changes due to recovery lifecycle events
     /// Implementations must be thread-safe, should not block or throw any exceptions.
-    void onRecoveryScheduleChange();
+    void onRecoverySchedulingChange();
 }

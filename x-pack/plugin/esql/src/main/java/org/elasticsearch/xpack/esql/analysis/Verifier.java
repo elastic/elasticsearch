@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedTimestamp;
 import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
@@ -42,6 +43,7 @@ import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.grouping.TimeSeriesWithout;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.TRange;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -130,6 +132,13 @@ public class Verifier {
 
         ConfigurationAware.verifyNoMarkerConfiguration(plan, failures);
 
+        // Temporary check before we implement https://github.com/elastic/elasticsearch/issues/141995.
+        // Partially-unmapped non-keyword field references are checked before the bail-out so that a query with both
+        // an UnsupportedAttribute and a PUNK field produces both errors in one batch.
+        if (unmappedResolution == UnmappedResolution.LOAD) {
+            checkPartiallyUnmappedNonKeywordReferences(plan, failures, context);
+        }
+
         // in case of failures bail-out as all other checks will be redundant
         if (failures.hasFailures()) {
             return failures.failures();
@@ -139,6 +148,7 @@ public class Verifier {
             checkLoadModeDisallowedCommands(plan, failures);
             checkLoadModeDisallowedFunctions(plan, failures);
             checkFlattenedSubFieldLoad(plan, failures);
+            checkConvertOnPartiallyUnmappedField(plan, failures);
         }
 
         checkTStepIncompatibleWithTRange(plan, failures);
@@ -559,6 +569,91 @@ public class Verifier {
         }
 
         return names;
+    }
+
+    /**
+     * Check for convert functions that cannot handle partially unmapped fields because they don't support KEYWORD.
+     * This catches cases like {@code punk_field::aggregate_metric_double} where the field is partially unmapped
+     * (loaded as KEYWORD from unmapped indices) but the convert function doesn't accept KEYWORD.
+     */
+    private static void checkConvertOnPartiallyUnmappedField(LogicalPlan plan, Failures failures) {
+        plan.forEachExpressionDown(FieldAttribute.class, fa -> {
+            if (fa.field() instanceof MultiTypeEsField mtf && mtf.getPotentiallyUnmappedExpression() != null) {
+                Expression unmappedExpr = mtf.getPotentiallyUnmappedExpression();
+                if (unmappedExpr instanceof AbstractConvertFunction convert) {
+                    // Check if the convert function is being applied to KEYWORD but doesn't support it
+                    if (convert.field().dataType() == DataType.KEYWORD && convert.supportedTypes().contains(DataType.KEYWORD) == false) {
+                        failures.add(
+                            fail(
+                                fa,
+                                "Cannot convert partially unmapped field [{}]: [{}] does not accept [KEYWORD]",
+                                mtf.getName(),
+                                convert.functionName()
+                            )
+                        );
+                    }
+                }
+            }
+        });
+    }
+
+    /**
+     * Reject queries that refer to partially unmapped non-keyword fields (PUNKs) when {@code unmapped_fields="load"}.
+     * Any expression referencing a PUNK attribute is flagged as a verification failure unless it's within a conversion
+     * function or KEEP/DROP.
+     * <p>
+     * Example
+     * <p>
+     * With the two indices below
+     * <ol>
+     *     <li>index1 has foo(long) and bar(keyword)</li>
+     *     <li>index2 has bar(keyword)</li>
+     * </ol>
+     *
+     * The following queries should pass (assume unmapped_fields="load" and reading from both indices)
+     * <ul>
+     *     <li>KEEP foo</li>
+     *     <li>DROP foo*</li>
+     *     <li>EVAL x = foo::long</li>
+     * </ul>
+     * The following queries should fail (assume unmapped_fields="load" and reading from both indices)
+     * <ul>
+     *     <li>RENAME foo as x</li>
+     *     <li>EVAL x = foo</li>
+     *     <li>WHERE foo > 1</li>
+     * </ul>
+     */
+    private static void checkPartiallyUnmappedNonKeywordReferences(LogicalPlan plan, Failures failures, AnalyzerContext context) {
+        final String errorMessage = "Using partially unmapped non-KEYWORD field [{}] is not supported with unmapped_fields=\"load\"";
+
+        AttributeSet punks = partiallyUnmappedNonKeywords(plan, context.indexResolution());
+        Consumer<FieldAttribute> addFailureIfPunk = fa -> {
+            if (punks.contains(fa)) {
+                failures.add(fail(fa, errorMessage, fa.fieldName().string()));
+            }
+        };
+
+        plan.forEachUp(p -> {
+            // Fork will have a PUNK in the output even if it wasn't actually used in the query, that's fine.
+            if (p instanceof EsRelation || p instanceof Fork) {
+                return;
+            }
+
+            // Project represents KEEP/DROP/RENAME. We are consistent with UnsupportedAttribute (unsupported type/type conflict):
+            // - RENAME is forbidden.
+            // - KEEP/DROP are fine, with and without wildcards.
+            if (p instanceof Project project) {
+                for (NamedExpression projection : project.projections()) {
+                    if (projection instanceof Attribute) {
+                        continue;
+                    }
+                    projection.forEachDown(FieldAttribute.class, addFailureIfPunk);
+                }
+                return;
+            }
+
+            p.forEachExpression(FieldAttribute.class, addFailureIfPunk);
+        });
     }
 
     /**

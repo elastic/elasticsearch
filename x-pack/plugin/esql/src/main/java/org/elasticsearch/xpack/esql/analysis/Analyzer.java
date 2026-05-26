@@ -246,14 +246,14 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolvePromqlFunctions(),
             new ResolveTimestampBoundsAware(),
             new ResolveInference(),
-            new DateMillisToNanosInEsRelation()
+            new DateMillisToNanosInEsRelation(),
+            new ResolveTwoLeggedPunksInEsRelation()
         ),
         new Batch<>(
             "Resolution",
             new ResolveRefs(),
             new ImplicitCasting(),
             new ResolveUnionTypes(),  // Must be after ResolveRefs, so union types can be found
-            new ResolveTwoLeggedPunks(),
             new InsertDefaultInnerTimeSeriesAggregate(),
             new ImplicitCastAggregateMetricDoubles(),
             new InsertFromAggregateMetricDouble(),
@@ -2461,10 +2461,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     return createIfDoesNotAlreadyExist(fa, resolvedField, unionFieldAttributes);
                 }
             } else if (convert.field() instanceof FieldAttribute fa
-                && fa.synthetic() == false // MultiTypeEsField in EsRelation created by DateMillisToNanosInEsRelation has synthetic = false
+                && fa.synthetic() == false // MultiTypeEsField in EsRelation created by DateMillisToNanosInEsRelation or
+                                           // ResolveTwoLeggedPunksInEsRelation has synthetic = false
                 && fa.field() instanceof MultiTypeEsField mtf) {
                     // This is an explicit casting of a union typed field that has been converted to MultiTypeEsField in EsRelation by
-                    // DateMillisToNanosInEsRelation, it is not necessary to cast it again to the same type, replace the implicit casting
+                    // DateMillisToNanosInEsRelation or ResolveTwoLeggedPunksInEsRelation, it is not necessary to cast it again to the same
+                    // type, replace the implicit casting
                     // with explicit casting. However, it is useful to differentiate implicit and explicit casting in some cases, for
                     // example, an expression like multiTypeEsField(synthetic=false, date_nanos)::date_nanos::datetime is rewritten to
                     // multiTypeEsField(synthetic=true, date_nanos)::datetime, the implicit casting is overwritten by explicit casting and
@@ -2486,10 +2488,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             Expression newConvertFunction = convertExpression.replaceChildren(Collections.singletonList(originalField));
                             indexToConversionExpressions.put(indexName, newConvertFunction);
                         }
-                        // The only code that creates MultiTypeEsField with synthetic=false (reaching this branch) is
-                        // DateMillisToNanosInEsRelation, which runs in the "Initialize" batch before ResolveUnmapped. At that point,
-                        // unmapped fields haven't been detected yet, so potentiallyUnmappedExpression is always null.
-                        if (mtf.getPotentiallyUnmappedExpression() != null) {
+
+                        Expression potentiallyUnmappedExpression = null;
+
+                        if (mtf.getPotentiallyUnmappedExpression() instanceof AbstractConvertFunction existingConvert) {
+                            // This came from ResolveTwoLeggedPunksInEsRelation: apply the explicit cast directly to the KEYWORD field.
+                            Expression keywordField = existingConvert.field();
+                            potentiallyUnmappedExpression = convertExpression.replaceChildren(Collections.singletonList(keywordField));
+                        } else if (mtf.getPotentiallyUnmappedExpression() != null) {
+                            // DateMillisToNanosInEsRelation, which runs in the "Initialize" batch before ResolveUnmapped. At that point,
+                            // unmapped fields haven't been detected yet, so potentiallyUnmappedExpression is always null.
                             throw new IllegalStateException("Unexpected potentially unmapped expression for [" + fa.fieldName() + "]");
                         }
                         MultiTypeEsField multiTypeEsField = new MultiTypeEsField(
@@ -2498,7 +2506,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                             false,
                             indexToConversionExpressions,
                             fa.field().getTimeSeriesFieldType(),
-                            null
+                            potentiallyUnmappedExpression
                         );
                         return createIfDoesNotAlreadyExist(fa, multiTypeEsField, unionFieldAttributes);
                     }
@@ -2721,42 +2729,28 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * When {@code SET unmapped_fields="load"}, this analyzer rule walks the plan and applies auto-casting to any field meeting the
+     * When {@code SET unmapped_fields="load"}, this analyzer rule auto-casts any field in {@code EsRelation} nodes that meets all the
      * criteria below, by re-writing it as {@code MultiTypeEsField}.
      * <ol>
      *     <li>Field is a PUNK (partially unmapped non-KEYWORD)</li>
-     *     <li>Field's type is unique where mapped. It can't be mapped as two different non-KEYWORD types.</li>
-     *     <li>Field is not referenced inside a ConvertFunction</li>
+     *     <li>Field's type is consistent where mapped. It can't be mapped as two different non-KEYWORD types.</li>
      *     <li>There exists a converter function to cast KEYWORD to the mapped type</li>
      * </ol>
      */
-    private static class ResolveTwoLeggedPunks extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
+    private static class ResolveTwoLeggedPunksInEsRelation extends ParameterizedRule<LogicalPlan, LogicalPlan, AnalyzerContext> {
         @Override
         public LogicalPlan apply(LogicalPlan plan, AnalyzerContext context) {
             if (context.unmappedResolution() != UnmappedResolution.LOAD) {
                 return plan;
             }
 
-            // Collect fields inside ConvertFunction so they can be skipped. These are handled by ResolveUnionType.
-            Set<NameId> convertFunctionFieldIds = new HashSet<>();
-            plan.forEachExpressionDown(AbstractConvertFunction.class, cf -> {
-                if (cf.field() instanceof FieldAttribute fa) {
-                    convertFunctionFieldIds.add(fa.id());
-                }
-            });
-
-            return plan.transformUp(LogicalPlan.class, p -> {
-                if (p instanceof EsRelation rel && rel.indexMode() == IndexMode.LOOKUP) {
-                    return p;
+            return plan.transformUp(EsRelation.class, esRelation -> {
+                if (esRelation.indexMode() == IndexMode.LOOKUP) {
+                    return esRelation;
                 }
 
-                return p.transformExpressionsUp(FieldAttribute.class, fa -> {
-                    if (convertFunctionFieldIds.contains(fa.id())) {
-                        // Skip implicit casting: These fields are handled by ResolveUnionType.
-                        return fa;
-                    }
-
-                    // We're looking for partuially unmapped fields with exactly one mapped type, i.e.: two-legged PUNKs
+                return esRelation.transformExpressionsUp(FieldAttribute.class, fa -> {
+                    // We're looking for partially unmapped fields with exactly one mapped type, i.e.: two-legged PUNKs
                     if (fa.field() instanceof InvalidMappedField imf && imf.isPotentiallyUnmapped() && imf.types().size() == 1) {
                         DataType mappedType = imf.types().iterator().next();
 

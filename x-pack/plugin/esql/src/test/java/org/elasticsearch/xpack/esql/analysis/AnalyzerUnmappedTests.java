@@ -734,7 +734,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     /**
-     * There is no function that converts to TEXT. The field is therefore not re-written as MultiTypeEsField.
+     * There is no function that converts to TEXT. The field is therefore not re-written as MultiTypeEsField, and Verifier rejects the
+     * query.
      */
     public void testTypeConflictTextUnmappedNoAutoCast() {
         assumeTrue("Requires UNMAPPED FIELDS", EsqlCapabilities.Cap.UNMAPPED_FIELDS.isEnabled());
@@ -747,13 +748,8 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             List.of()
         );
         var resolutions = indexResolutions(mergedResolution("foo,bar", caps, true));
-        TestAnalyzer analyzer = analyzer();
-        for (var entry : resolutions.entrySet()) {
-            analyzer.addIndex(entry.getKey().indexPattern(), entry.getValue());
-        }
         for (String suffix : TYPE_CONFLICT_QUERY_SUFFIXES) {
-            var plan = analyzer.statement(setUnmappedLoad("FROM foo, bar " + suffix));
-            assertNoTwoLeggedPunkResolution(plan, "message", DataType.TEXT);
+            typeConflictVerificationFailure(setUnmappedLoad("FROM foo, bar " + suffix), resolutions);
         }
     }
 
@@ -895,13 +891,13 @@ public class AnalyzerUnmappedTests extends ESTestCase {
     }
 
     /**
-     * Verify that partially-mapped fields of ALL non-keyword types are NOT converted to
-     * {@link PotentiallyUnmappedKeywordEsField}, but are instead marked as potentially unmapped via {@link InvalidMappedField}.
-     * This iterates over all {@link DataType} values that can appear as ES mapped field types.
+     * Verify that partially-mapped fields are re-written as {@link MultiTypeEsField} while retaining their original data type.
+     * Types without a KEYWORD-accepting converter are excluded.
      */
     public void testPartiallyMappedNonKeywordFieldsMarkedAsPotentiallyUnmapped() {
-        // Types that cannot appear as regular ES mapped fields in an EsIndex mapping
+
         Set<DataType> excludedTypes = Set.of(
+            // Types that cannot appear as regular ES mapped fields in an EsIndex mapping
             DataType.KEYWORD,           // this is the type we DO convert — not a negative test case
             DataType.NULL,              // not a real mapped field type
             DataType.UNSUPPORTED,       // not a real mapped field type
@@ -913,7 +909,21 @@ public class AnalyzerUnmappedTests extends ESTestCase {
             DataType.OBJECT,            // not a leaf field type
             DataType.GEOHASH,           // ESQL-internal grid type, not a real ES mapped field type
             DataType.GEOTILE,           // ESQL-internal grid type, not a real ES mapped field type
-            DataType.GEOHEX             // ESQL-internal grid type, not a real ES mapped field type
+            DataType.GEOHEX,            // ESQL-internal grid type, not a real ES mapped field type
+
+            // Types whose converter function doesn't take KEYWORD
+            DataType.AGGREGATE_METRIC_DOUBLE,
+            DataType.EXPONENTIAL_HISTOGRAM,
+            DataType.TDIGEST,
+
+            // Types with no converter function at all
+            DataType.TEXT,
+            DataType.COUNTER_LONG,
+            DataType.COUNTER_INTEGER,
+            DataType.COUNTER_DOUBLE,
+            DataType.PARTIAL_AGG,
+            DataType.HISTOGRAM,
+            DataType.FLATTENED
         );
 
         for (DataType dataType : DataType.values()) {
@@ -942,6 +952,11 @@ public class AnalyzerUnmappedTests extends ESTestCase {
 
             var testFieldAttr = relation.output().stream().filter(a -> a.name().equals("test_field")).findFirst().orElseThrow();
             var fieldAttr = as(testFieldAttr, FieldAttribute.class);
+
+            assertTrue(
+                "Partially-mapped " + dataType + " field must have be re-written as MultiTypeEsField",
+                fieldAttr.field() instanceof MultiTypeEsField
+            );
             assertThat(
                 "Partially-mapped " + dataType + " field should not be converted to PotentiallyUnmappedKeywordEsField",
                 fieldAttr.field(),

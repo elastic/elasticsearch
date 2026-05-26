@@ -210,9 +210,8 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
     }
 
     /**
-     * Random per-chunk delay for {@link YieldsChunksPlugin}'s infinite route, capped so that encoding at least enough body for the
-     * client to close (see {@link PageCacheRecycler#BYTE_PAGE_SIZE}, rounded up to whole chunks) stays within half of
-     * {@link #SAFE_AWAIT_TIMEOUT}.
+     * Random per-chunk delay, capped so that the test encodes at least enough body for the client to close
+     * (see {@link PageCacheRecycler#BYTE_PAGE_SIZE}). The total delay shouldn't exceed half of {@link #SAFE_AWAIT_TIMEOUT}
      */
     private int cappedChunkDelayMillis(int chunkSizeBytes, int closeAfterBytes) {
         if (randomBoolean()) {

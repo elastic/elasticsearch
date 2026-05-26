@@ -288,9 +288,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.autoscaling.search.AutoscalingReplicaIT
   method: testSearchSizeAffectsReplicasSPBetween100And250
   issue: https://github.com/elastic/elasticsearch-serverless/issues/5731
-- class: "org.elasticsearch.xpack.stateless.reshard.StatelessReshardMixedOperationsIT"
-  issue: "https://github.com/elastic/elasticsearch/issues/147842"
-  method: "testMixedOperationsDuringSplitWithDisruption"
 - class: org.elasticsearch.xpack.stateless.StatelessHollowIndexShardsIT
   method: testStressWithRelocationOrObjectStoreFailures
   issue: https://github.com/elastic/elasticsearch/issues/147844

@@ -59,7 +59,8 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
             public void start(Index index, int clusterSize, int shardCount, String coordinator) {
                 var thread = new Thread(() -> {
                     do {
-                        Failure randomFailure = randomFrom(Failure.values());
+                        // We don't stop/restart nodes due to #147842.
+                        Failure randomFailure = randomFrom(Failure.LOCAL_FAIL_SHARD, Failure.RELOCATE_SHARD);
                         try {
                             induceFailure(randomFailure, index, coordinator);
                         } catch (Exception e) {

@@ -21,6 +21,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.esql.DataSourceRequestInfo;
 import org.elasticsearch.xpack.core.esql.EsqlDatasetActionNames;
 
 import java.io.IOException;
@@ -45,7 +46,7 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
         super(NAME);
     }
 
-    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest {
+    public static class Request extends AcknowledgedRequest<Request> implements IndicesRequest, DataSourceRequestInfo {
         private static final ParseField DATA_SOURCE = new ParseField("data_source");
         private static final ParseField RESOURCE = new ParseField("resource");
         private static final ParseField DESCRIPTION = new ParseField("description");
@@ -156,6 +157,17 @@ public class PutDatasetAction extends ActionType<AcknowledgedResponse> {
 
         public String dataSource() {
             return dataSource;
+        }
+
+        @Override
+        public String[] dataSourceNames() {
+            return new String[] { dataSource };
+        }
+
+        /** Cluster action used to evaluate {@code global.data_source} for the attached datasource on put. */
+        @Override
+        public String dataSourceClusterActionName() {
+            return EsqlDatasetActionNames.ESQL_AUTHORIZE_DATASET_DATASOURCE_ACTION_NAME;
         }
 
         public String resource() {

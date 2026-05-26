@@ -33,7 +33,7 @@ public class ClearOAuth2TokenCacheActionTests extends AbstractBWCWireSerializati
         ClearOAuth2TokenCacheAction.ClearOAuth2TokenMessage instance
     ) throws IOException {
         return new ClearOAuth2TokenCacheAction.ClearOAuth2TokenMessage(
-            new InferenceIdAndProject(instance.key().inferenceEntityId() + randomAlphaOfLength(3), instance.key().projectId())
+            randomValueOtherThan(instance.key(), ClearOAuth2TokenCacheActionTests::randomKey)
         );
     }
 

@@ -434,13 +434,13 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             FileMetaData fileMetaData = reader.getFileMetaData();
             MessageType parquetSchema = fileMetaData.getSchema();
             List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
-            SourceStatistics statistics = extractStatistics(reader, parquetSchema);
+            SourceStatistics statistics = extractStatistics(reader, schema);
             return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
         }
     }
 
     @SuppressWarnings("rawtypes")
-    private SourceStatistics extractStatistics(ParquetFileReader reader, MessageType schema) {
+    private SourceStatistics extractStatistics(ParquetFileReader reader, List<Attribute> attributes) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();
         if (rowGroups.isEmpty()) {
             return null;
@@ -490,8 +490,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         final long rowCount = totalRows;
         final long sizeBytes = totalSize;
         Map<String, SourceStatistics.ColumnStatistics> columnStats = new HashMap<>();
-        for (Type field : schema.getFields()) {
-            String name = field.getName();
+        // Publish stats keyed by every dotted leaf the flattener produced an addressable
+        // attribute for. Skip UNSUPPORTED — they will not bind to a planner attribute the
+        // aggregate-pushdown layer can read stats off of, and over-depth / MAP / LIST<STRUCT>
+        // groups surface as UNSUPPORTED here exactly so this filter removes them. Names match
+        // the collection-loop's col.getPath().toDotString() exactly because
+        // {@link #collectAttributes} concatenates the same Parquet child names with '.'.
+        for (Attribute attribute : attributes) {
+            if (attribute.dataType() == DataType.UNSUPPORTED) {
+                continue;
+            }
+            String name = attribute.name();
             long[] nc = nullCounts.get(name);
             Comparable[] mn = mins.get(name);
             Comparable[] mx = maxs.get(name);
@@ -1230,21 +1239,26 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             // Try dotted-path traversal: walk prefixes from shortest to longest and stop at the
             // first one that resolves to a STRUCT group whose remainder also matches. The literal
             // top-level name already won above; here we only deal with synthetic dotted names.
+            // Walk dot positions directly with substring rather than splitting + re-joining each
+            // probe; the segments array is still computed once for the remainder.
             String[] segments = name.split("\\.");
-            for (int prefixLen = 1; prefixLen < segments.length; prefixLen++) {
-                String topLevel = String.join(".", Arrays.copyOfRange(segments, 0, prefixLen));
-                if (fullSchema.containsField(topLevel) == false) {
-                    continue;
+            int dotIdx = name.indexOf('.');
+            int prefixLen = 1;
+            while (dotIdx >= 0) {
+                String topLevel = name.substring(0, dotIdx);
+                if (fullSchema.containsField(topLevel)) {
+                    Type field = fullSchema.getType(topLevel);
+                    if (field.isPrimitive()) {
+                        break;
+                    }
+                    List<String> remainder = List.of(Arrays.copyOfRange(segments, prefixLen, segments.length));
+                    if (groupContainsPath(field.asGroupType(), remainder, 0)) {
+                        topLevelToChildPaths.computeIfAbsent(topLevel, k -> new LinkedHashMap<>()).put(remainder, Boolean.TRUE);
+                        break;
+                    }
                 }
-                Type field = fullSchema.getType(topLevel);
-                if (field.isPrimitive()) {
-                    break;
-                }
-                List<String> remainder = List.of(Arrays.copyOfRange(segments, prefixLen, segments.length));
-                if (groupContainsPath(field.asGroupType(), remainder, 0)) {
-                    topLevelToChildPaths.computeIfAbsent(topLevel, k -> new LinkedHashMap<>()).put(remainder, Boolean.TRUE);
-                    break;
-                }
+                dotIdx = name.indexOf('.', dotIdx + 1);
+                prefixLen++;
             }
         }
         List<Type> projectedFields = new ArrayList<>();
@@ -1279,23 +1293,26 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             return fullSchema.getType(name);
         }
         String[] segments = name.split("\\.");
-        for (int prefixLen = 1; prefixLen < segments.length; prefixLen++) {
-            String topLevel = String.join(".", Arrays.copyOfRange(segments, 0, prefixLen));
-            if (fullSchema.containsField(topLevel) == false) {
-                continue;
-            }
-            Type field = fullSchema.getType(topLevel);
-            for (int i = prefixLen; i < segments.length; i++) {
-                if (field.isPrimitive()) {
-                    return null;
+        int dotIdx = name.indexOf('.');
+        int prefixLen = 1;
+        while (dotIdx >= 0) {
+            String topLevel = name.substring(0, dotIdx);
+            if (fullSchema.containsField(topLevel)) {
+                Type field = fullSchema.getType(topLevel);
+                for (int i = prefixLen; i < segments.length; i++) {
+                    if (field.isPrimitive()) {
+                        return null;
+                    }
+                    GroupType group = field.asGroupType();
+                    if (group.containsField(segments[i]) == false) {
+                        return null;
+                    }
+                    field = group.getType(segments[i]);
                 }
-                GroupType group = field.asGroupType();
-                if (group.containsField(segments[i]) == false) {
-                    return null;
-                }
-                field = group.getType(segments[i]);
+                return field;
             }
-            return field;
+            dotIdx = name.indexOf('.', dotIdx + 1);
+            prefixLen++;
         }
         return null;
     }
@@ -1365,6 +1382,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * Maximum recursion depth for nested STRUCT flattening. Beyond this, the offending group
      * surfaces as a single {@link DataType#UNSUPPORTED} attribute at its dotted path and a
      * DEBUG log entry is emitted; no infinite recursion or partial flattening occurs.
+     *
+     * <p>Depth counts from 1 at the schema's top-level children, so the deepest reachable
+     * group sits at depth {@code MAX_STRUCT_FLATTENING_DEPTH}. The ORC flattener uses the
+     * same convention so the two formats accept the same set of valid paths.
      */
     static final int MAX_STRUCT_FLATTENING_DEPTH = 64;
 

@@ -29,6 +29,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2TokenCache.EXPIRY_SKEW;
 import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2TokenCache.OAUTH2_TOKEN_CACHE_ENABLED;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.sameInstance;
@@ -72,13 +73,15 @@ public class OAuth2TokenCacheTests extends ESTestCase {
 
         var future1 = new TestPlainActionFuture<CachedToken>();
         cache.getToken(INFERENCE_ID, supplier, future1);
-        future1.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+        var cachedToken = future1.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+        assertThat(fetchCount.get(), is(1));
+        assertThat(cachedToken, sameInstance(token));
 
         var future2 = new TestPlainActionFuture<CachedToken>();
         cache.getToken(INFERENCE_ID, supplier, future2);
-        future2.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
-
+        cachedToken = future2.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
         assertThat(fetchCount.get(), is(1));
+        assertThat(cachedToken, sameInstance(token));
     }
 
     public void testExpiringSoon_TreatedAsMiss() {
@@ -86,7 +89,7 @@ public class OAuth2TokenCacheTests extends ESTestCase {
         var expiringBearer = "expiring-bearer";
         var freshBearer = "fresh-bearer";
         // Token expires in less than EXPIRY_SKEW (60s) — considered expiring soon
-        var expiringSoonToken = new CachedToken(expiringBearer, Instant.now().plus(Duration.ofSeconds(30)));
+        var expiringSoonToken = new CachedToken(expiringBearer, Instant.now().plus(EXPIRY_SKEW).minusSeconds(1));
         var freshToken = new CachedToken(freshBearer, Instant.now().plus(ONE_HOUR));
 
         var tokensToReturn = new ArrayDeque<>(List.of(expiringSoonToken, freshToken));

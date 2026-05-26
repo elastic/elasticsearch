@@ -40,6 +40,7 @@ import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedTimingStats;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredentialsExtension;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedTimingStatsReporter;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
@@ -167,6 +168,7 @@ public class TransportPreviewDatafeedAction extends HandledTransportAction<Previ
             );
             DataExtractorFactory.create(
                 new ParentTaskAssigningClient(client, parentTaskId),
+                CloudCredentialsExtension.getInstance().credentialManager(),
                 effectiveDatafeedConfig,
                 extraFilters,
                 job,

@@ -81,6 +81,10 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         return currentAsSourceQueued.get();
     }
 
+    public boolean noCurrentRecoveries() {
+        return currentAsSourceQueued.get() == 0 && currentAsSource.get() == 0 && currentAsTarget.get() == 0;
+    }
+
     /**
      * Total time recoveries waited due to throttling
      */

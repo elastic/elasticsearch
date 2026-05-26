@@ -9,7 +9,8 @@
 
 package org.elasticsearch.indices.recovery;
 
-/// Listener for recovery scheduling changes. Invoked when recoveries start, end, or are queued/dequeued.
+/// Listener for recovery scheduling changes. Invoked when a recovery starts, end, or is queued/dequeued.
+/// TODO: This and RecoveryStats should also be able to track local/snapshot recoveries
 @FunctionalInterface
 public interface RecoverySchedulingListener {
 

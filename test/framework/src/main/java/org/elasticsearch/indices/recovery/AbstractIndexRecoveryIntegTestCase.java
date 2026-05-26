@@ -89,24 +89,39 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         internalCluster().assertSameDocIdsOnShards();
     }
 
-    protected void awaitRecoveryStats(String nodeName, Predicate<RecoveryStats> condition) {
-        final var indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
-        final var sourceService = internalCluster().getInstance(PeerRecoverySourceService.class, nodeName);
+    protected void awaitRecoveryCountStats(Map<String, Predicate<RecoveryStats>> predicatePerNode) {
         final CountDownLatch conditionLatch = new CountDownLatch(1);
-
         final RecoverySchedulingListener listener = () -> {
-            final var stats = indicesService.stats(CommonStatsFlags.ALL, false).getRecoveryStats();
-            if (condition.test(stats)) {
-                conditionLatch.countDown();
+            // Check if all conditions are met
+            for (final var nodePredicate : predicatePerNode.entrySet()) {
+                final var checkIndicesService = internalCluster().getInstance(IndicesService.class, nodePredicate.getKey());
+                final var stats = checkIndicesService.stats(CommonStatsFlags.ALL, false).getRecoveryStats();
+                if (nodePredicate.getValue().test(stats) == false) {
+                    return;
+                }
             }
+            conditionLatch.countDown();
         };
-        sourceService.ongoingRecoveries.addRecoverySchedulingListener(listener);
+
+        // Plug in listener on all nodes
+        for (final var nodeName : predicatePerNode.keySet()) {
+            final var peerRecoverySourceService = internalCluster().getInstance(PeerRecoverySourceService.class, nodeName);
+            peerRecoverySourceService.ongoingRecoveries.addRecoverySchedulingListener(listener);
+            final var peerRecoveryTargetService = internalCluster().getInstance(PeerRecoveryTargetService.class, nodeName);
+            peerRecoveryTargetService.onGoingRecoveries.addRecoverySchedulingListener(listener);
+        }
         try {
-            // in case condition was already met before we added the listener
+            // In case conditions were already met before we added the listener everywhere
             listener.onRecoverySchedulingChange();
             safeAwait(conditionLatch);
         } finally {
-            sourceService.ongoingRecoveries.removeRecoverySchedulingListener(listener);
+            // Clean up all listeners
+            for (final var nodeName : predicatePerNode.keySet()) {
+                final var peerRecoverySourceService = internalCluster().getInstance(PeerRecoverySourceService.class, nodeName);
+                peerRecoverySourceService.ongoingRecoveries.removeRecoverySchedulingListener(listener);
+                final var peerRecoveryTargetService = internalCluster().getInstance(PeerRecoveryTargetService.class, nodeName);
+                peerRecoveryTargetService.onGoingRecoveries.removeRecoverySchedulingListener(listener);
+            }
         }
     }
 

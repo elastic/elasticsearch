@@ -27,10 +27,11 @@ import org.elasticsearch.xpack.inference.common.DiagnosticsCache;
 import org.elasticsearch.xpack.inference.common.InferenceIdAndProject;
 
 import java.time.Duration;
-import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.ConcurrentHashMap;
+
+import static org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry.DEFAULT_CACHE_WEIGHT;
 
 /**
  * A node-local cache for OAuth2 bearer tokens, keyed by {@link InferenceIdAndProject}.
@@ -49,7 +50,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>Tokens are kept only in heap memory and are never persisted. Each node fetches its own
  * tokens independently.
  */
-public class OAuth2TokenCache implements DiagnosticsCache {
+public class OAuth2TokenCache extends DiagnosticsCache<InferenceIdAndProject, CachedToken> {
 
     /**
      * 60-second buffer subtracted from a token's {@code expiresAt} when deciding whether a
@@ -68,11 +69,14 @@ public class OAuth2TokenCache implements DiagnosticsCache {
     private static final Logger logger = LogManager.getLogger(OAuth2TokenCache.class);
 
     /**
-     * Weight here means the maximum number of tokens to cache.
+     * Weight here means the maximum number of tokens to cache. We use the same default weight as the
+     * {@link org.elasticsearch.xpack.inference.registry.InferenceEndpointRegistry} because in the situation where every inference
+     * endpoint has a unique token, we want the cache to be able to hold all of them. It could be useful to have the OAuth2 token cache
+     * be larger than the endpoint cache since the tokens could live longer than the endpoint objects.
      */
     private static final Setting<Integer> OAUTH2_TOKEN_CACHE_WEIGHT = Setting.intSetting(
         "xpack.inference.oauth2.token_cache.weight",
-        25,
+        DEFAULT_CACHE_WEIGHT,
         Setting.Property.NodeScope
     );
 
@@ -100,9 +104,6 @@ public class OAuth2TokenCache implements DiagnosticsCache {
         return List.of(OAUTH2_TOKEN_CACHE_ENABLED, OAUTH2_TOKEN_CACHE_WEIGHT, OAUTH2_TOKEN_CACHE_EXPIRY);
     }
 
-    private static final Cache.Stats EMPTY = new Cache.Stats(0, 0, 0);
-
-    private final Cache<InferenceIdAndProject, CachedToken> cache;
     private final ConcurrentHashMap<InferenceIdAndProject, SubscribableListener<CachedToken>> inflight = new ConcurrentHashMap<>();
     private final ProjectResolver projectResolver;
     private final ClusterService clusterService;
@@ -117,15 +118,27 @@ public class OAuth2TokenCache implements DiagnosticsCache {
         ProjectResolver projectResolver,
         Client client
     ) {
+        super(buildCache(settings));
         this.clusterService = clusterService;
         this.featureService = featureService;
         this.projectResolver = projectResolver;
         this.client = client;
-        this.cache = CacheBuilder.<InferenceIdAndProject, CachedToken>builder()
+        this.cacheEnabledViaSetting = OAUTH2_TOKEN_CACHE_ENABLED.get(settings);
+    }
+
+    private static Cache<InferenceIdAndProject, CachedToken> buildCache(Settings settings) {
+        return CacheBuilder.<InferenceIdAndProject, CachedToken>builder()
             .setMaximumWeight(OAUTH2_TOKEN_CACHE_WEIGHT.get(settings))
             .setExpireAfterWrite(OAUTH2_TOKEN_CACHE_EXPIRY.get(settings))
+            .removalListener(
+                notification -> logger.debug(
+                    "Token for inference id [{}] of project [{}] from OAuth2 token cache due to [{}].",
+                    notification.getKey().inferenceEntityId(),
+                    notification.getKey().projectId(),
+                    notification.getRemovalReason()
+                )
+            )
             .build();
-        this.cacheEnabledViaSetting = OAUTH2_TOKEN_CACHE_ENABLED.get(settings);
     }
 
     public void init() {
@@ -145,7 +158,7 @@ public class OAuth2TokenCache implements DiagnosticsCache {
 
         if (cacheEnabled()) {
             var cached = cache.get(key);
-            if (cached != null && cached.isExpiringSoon(Instant.now(), EXPIRY_SKEW)) {
+            if (cached != null && cached.isExpiringSoon(EXPIRY_SKEW)) {
                 // Token is expiring soon — treat as a miss so we proactively refresh
                 cache.invalidate(key);
             } else if (cached != null) {
@@ -209,14 +222,7 @@ public class OAuth2TokenCache implements DiagnosticsCache {
         cache.invalidate(key);
     }
 
-    public Cache.Stats stats() {
-        return cacheEnabled() ? cache.stats() : EMPTY;
-    }
-
-    public int cacheCount() {
-        return cacheEnabled() ? cache.count() : 0;
-    }
-
+    @Override
     public boolean cacheEnabled() {
         return cacheEnabledViaSetting && cacheEnabledViaFeature();
     }

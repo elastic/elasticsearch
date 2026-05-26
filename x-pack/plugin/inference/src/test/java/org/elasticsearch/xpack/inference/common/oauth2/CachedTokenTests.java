@@ -19,9 +19,9 @@ public class CachedTokenTests extends ESTestCase {
     public void testIsExpiringSoon_ReturnsFalseWhenExpiresAfterSkew() {
         var now = Instant.now();
         var skew = Duration.ofSeconds(60);
-        // expires well after now+skew → still valid
+        // expires after now+skew so the token should be valid
         var token = new CachedToken(TEST_BEARER_VALUE, now.plus(skew).plusSeconds(1));
-        assertFalse(token.isExpiringSoon(now, skew));
+        assertFalse(token.isExpiringSoonHelper(now, skew));
     }
 
     public void testIsExpiringSoon_ReturnsTrueWhenExpiresBeforeSkew() {
@@ -29,7 +29,7 @@ public class CachedTokenTests extends ESTestCase {
         var skew = Duration.ofSeconds(60);
         // expires before now+skew → too close, treat as expiring soon
         var token = new CachedToken(TEST_BEARER_VALUE, now.plus(skew).minusSeconds(1));
-        assertTrue(token.isExpiringSoon(now, skew));
+        assertTrue(token.isExpiringSoonHelper(now, skew));
     }
 
     public void testIsExpiringSoon_ReturnsTrueWhenExpiresExactlyAtSkewBoundary() {
@@ -37,7 +37,7 @@ public class CachedTokenTests extends ESTestCase {
         var skew = Duration.ofSeconds(60);
         // expires exactly at now+skew → not strictly after, so expiring soon
         var token = new CachedToken(TEST_BEARER_VALUE, now.plus(skew));
-        assertTrue(token.isExpiringSoon(now, skew));
+        assertTrue(token.isExpiringSoonHelper(now, skew));
     }
 
     public void testIsExpiringSoon_ReturnsTrueWhenAlreadyExpired() {
@@ -45,6 +45,6 @@ public class CachedTokenTests extends ESTestCase {
         var skew = Duration.ofSeconds(60);
         // already in the past
         var token = new CachedToken(TEST_BEARER_VALUE, now.minusSeconds(1));
-        assertTrue(token.isExpiringSoon(now, skew));
+        assertTrue(token.isExpiringSoonHelper(now, skew));
     }
 }

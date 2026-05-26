@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.common.oauth2;
 
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -60,13 +59,12 @@ public class ClearOAuth2TokenCacheAction extends BroadcastMessageAction<ClearOAu
     public record ClearOAuth2TokenMessage(InferenceIdAndProject key) implements Writeable {
 
         public ClearOAuth2TokenMessage(StreamInput in) throws IOException {
-            this(new InferenceIdAndProject(in.readString(), ProjectId.readFrom(in)));
+            this(new InferenceIdAndProject(in));
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(key.inferenceEntityId());
-            key.projectId().writeTo(out);
+            key.writeTo(out);
         }
     }
 }

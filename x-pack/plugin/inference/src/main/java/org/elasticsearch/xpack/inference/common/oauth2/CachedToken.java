@@ -20,7 +20,14 @@ public record CachedToken(String bearer, Instant expiresAt) {
      * Returns true when the token is expiring within the given skew window,
      * i.e. it is not safe to use for a request that may take up to {@code skew} to dispatch.
      */
-    public boolean isExpiringSoon(Instant now, Duration skew) {
+    public boolean isExpiringSoon(Duration skew) {
+        return isExpiringSoonHelper(Instant.now(), skew);
+    }
+
+    /**
+     * Helper method to allow testing with a fixed "now" instant.
+     */
+    boolean isExpiringSoonHelper(Instant now, Duration skew) {
         // if it expires at or before now+skew, treat it as expiring soon. This ensures we don't dispatch a token that's on the verge of
         // expiry.
         return expiresAt.isAfter(now.plus(skew)) == false;

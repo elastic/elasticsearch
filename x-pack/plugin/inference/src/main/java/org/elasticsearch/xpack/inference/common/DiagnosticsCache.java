@@ -8,16 +8,32 @@
 package org.elasticsearch.xpack.inference.common;
 
 import org.elasticsearch.common.cache.Cache;
+import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsAction;
 
 /**
- * Surface implemented by inference caches that report runtime diagnostics through the
- * {@code GetInferenceDiagnosticsAction} response. Implementations are expected to return
- * safe defaults (count = 0, empty stats) when {@link #cacheEnabled()} is false.
+ * Base class for inference caches that report runtime diagnostics through the
+ * {@link  GetInferenceDiagnosticsAction} response. Subclasses provide the {@link Cache}
+ * instance at construction time and implement {@link #cacheEnabled()} to gate access behind
+ * their specific feature flag. Safe defaults (count = 0, empty stats) are returned automatically
+ * when {@link #cacheEnabled()} is false.
  */
-public interface DiagnosticsCache {
-    boolean cacheEnabled();
+public abstract class DiagnosticsCache<K, V> {
 
-    int cacheCount();
+    private static final Cache.Stats EMPTY = new Cache.Stats(0, 0, 0);
 
-    Cache.Stats stats();
+    protected final Cache<K, V> cache;
+
+    protected DiagnosticsCache(Cache<K, V> cache) {
+        this.cache = cache;
+    }
+
+    public abstract boolean cacheEnabled();
+
+    public final Cache.Stats stats() {
+        return cacheEnabled() ? cache.stats() : EMPTY;
+    }
+
+    public final int cacheCount() {
+        return cacheEnabled() ? cache.count() : 0;
+    }
 }

@@ -78,6 +78,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.BucketColumnMetadata;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
@@ -181,6 +182,7 @@ public class EsqlSession {
     private final Verifier verifier;
     private final Metrics metrics;
     private final EsqlFunctionRegistry functionRegistry;
+    private final PromqlFunctionRegistry promqlFunctionRegistry;
     private final AnalysisRegistry analysisRegistry;
     private final PreMapper preMapper;
 
@@ -241,6 +243,7 @@ public class EsqlSession {
         EsqlParser parser,
         PreAnalyzer preAnalyzer,
         EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
         AnalysisRegistry analysisRegistry,
         Mapper mapper,
         Verifier verifier,
@@ -263,6 +266,7 @@ public class EsqlSession {
         this.verifier = verifier;
         this.metrics = metrics;
         this.functionRegistry = functionRegistry;
+        this.promqlFunctionRegistry = promqlFunctionRegistry;
         this.analysisRegistry = analysisRegistry;
         this.mapper = mapper;
         this.planTelemetry = planTelemetry;
@@ -1831,6 +1835,7 @@ public class EsqlSession {
         AnalyzerContext analyzerContext = new AnalyzerContext(
             configuration,
             functionRegistry,
+            promqlFunctionRegistry,
             analysisRegistry,
             unmappedResolution,
             projectMetadata,

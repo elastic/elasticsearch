@@ -23,6 +23,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.crossproject.TargetProjects;
@@ -31,6 +32,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 
+// TODO rename to EsqlGetOriginProjectAliasAction (and action name to `indices:data/read/esql/get_origin_project_alias`).
 public class EsqlHasOriginProjectTargetAction extends TransportLocalProjectMetadataAction<
     EsqlHasOriginProjectTargetAction.Request,
     EsqlHasOriginProjectTargetAction.Response> {
@@ -57,9 +59,9 @@ public class EsqlHasOriginProjectTargetAction extends TransportLocalProjectMetad
     protected void localClusterStateOperation(Task task, Request request, ProjectState project, ActionListener<Response> listener) {
         if (request.getResolvedTargetProjects() == null) {
             assert false : "request.getResolvedTargetProjects() must be not null";
-            listener.onResponse(new Response(true));
+            listener.onResponse(new Response(null));
         } else {
-            listener.onResponse(new Response(request.getResolvedTargetProjects().originProject() != null));
+            listener.onResponse(new Response(request.getResolvedTargetProjects().originProjectAlias()));
         }
     }
 
@@ -99,19 +101,25 @@ public class EsqlHasOriginProjectTargetAction extends TransportLocalProjectMetad
 
         @Override
         public String toString() {
-            return "EsqlResolveLocalViewAction.Request={projectRouting:" + projectRouting + "}";
+            return "EsqlHasOriginProjectTargetAction.Request={projectRouting:" + projectRouting + "}";
         }
     }
 
     public static class Response extends ActionResponse {
-        private final boolean resolveLocalViews;
+        @Nullable
+        private final String originProjectAlias;
 
-        public Response(boolean resolveLocalViews) {
-            this.resolveLocalViews = resolveLocalViews;
+        public Response(@Nullable String originProjectAlias) {
+            this.originProjectAlias = originProjectAlias;
         }
 
         public boolean resolveLocalViews() {
-            return resolveLocalViews;
+            return originProjectAlias != null;
+        }
+
+        @Nullable
+        public String originProjectAlias() {
+            return originProjectAlias;
         }
 
         @Override

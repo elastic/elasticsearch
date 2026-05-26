@@ -3198,7 +3198,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
 
             @Override
             public void onCached(CacheFileRegion<TimestampCacheKey> region) {
-                assert Thread.holdsLock(region);
                 if (isRecent(region.regionKey().file())) {
                     recentCount.incrementAndGet();
                 } else {

@@ -2222,7 +2222,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     throwAlreadyClosed("no free region found");
                 }
             }
-            evictionPolicy.onCached(entry.chunk);
             return entry;
         }
 
@@ -2247,6 +2246,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 pushEntryToBack(entry);
                 // assign io only when chunk is ready for use. Under lock to avoid concurrent tryEvict.
                 entry.chunk.volatileIO(freeSlot);
+                evictionPolicy.onCached(entry.chunk);
             }
         }
 

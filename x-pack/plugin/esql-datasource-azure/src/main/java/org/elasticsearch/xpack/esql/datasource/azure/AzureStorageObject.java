@@ -15,7 +15,6 @@ import com.azure.storage.blob.models.BlobStorageException;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 

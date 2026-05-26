@@ -1367,4 +1367,5 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             .put(ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_PART_SIZE, partSize)
             .build();
     }
+
 }

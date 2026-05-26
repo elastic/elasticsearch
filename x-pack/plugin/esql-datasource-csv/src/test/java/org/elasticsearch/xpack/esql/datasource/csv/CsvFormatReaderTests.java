@@ -30,6 +30,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.DrainSimulatingStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -3524,6 +3525,110 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    // --- Datetime fast-path equivalence tests ---
+    // tryParseSpaceSeparatedDatetimeMillis avoids the JDK DateTimeFormatter Parsed-HashMap
+    // allocation that dominated ~16% of CPU on Q24 of the CSV ClickBench profile. These tests lock
+    // in the equivalence contract: any input the fast path accepts must produce the same epoch
+    // millis as the existing slow path (DateUtils.asDateTime), and any input it rejects must hit
+    // the slow path unchanged (returning FAST_PATH_MISS).
+
+    public void testFastPathSpaceSeparatedNoFraction() {
+        long actual = CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024-05-12 14:30:45");
+        assertEquals(Instant.parse("2024-05-12T14:30:45Z").toEpochMilli(), actual);
+    }
+
+    public void testFastPathSpaceSeparatedWithMillis() {
+        long actual = CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024-05-12 14:30:45.123");
+        assertEquals(Instant.parse("2024-05-12T14:30:45.123Z").toEpochMilli(), actual);
+    }
+
+    public void testFastPathSpaceSeparatedLeapDay() {
+        long actual = CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2020-02-29 00:00:00");
+        assertEquals(Instant.parse("2020-02-29T00:00:00Z").toEpochMilli(), actual);
+    }
+
+    public void testFastPathSpaceSeparatedEpoch() {
+        long actual = CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("1970-01-01 00:00:00");
+        assertEquals(0L, actual);
+    }
+
+    public void testFastPathRejectsCalendarInvalidDates() {
+        // 30 February — valid digits, invalid calendar date. Must fall through (FAST_PATH_MISS)
+        // so the slow path can produce the usual "Failed to parse" error.
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2021-02-30 10:00:00"));
+        // 13th month
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2021-13-01 10:00:00"));
+        // Hour 24 — Iso8601Parser also rejects this and LocalDateTime.of throws.
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2021-01-01 24:00:00"));
+    }
+
+    public void testFastPathRejectsWrongShape() {
+        // T-separated → not the space-separated fast path's job; ISO fast path handles it instead.
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024-05-12T14:30:45"));
+        // Date-only
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024-05-12"));
+        // Trailing Z — falls back to the general-purpose parser (preserves the existing semantics
+        // that DateUtils.asDateTime's whitespace formatter would apply).
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024-05-12 14:30:45Z"));
+        // Microsecond precision (6-digit fraction) — only 3-digit ms is fast-pathed.
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024-05-12 14:30:45.123456"));
+        // Garbage
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("not-a-date"));
+        // Wrong separators
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("2024/05/12 14:30:45"));
+        // Non-ASCII digit (full-width '1') in the year — must be rejected without throwing
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("\uFF12024-05-12 14:30:45"));
+        // Negative year — `-2024-05-12 14:30:45` is 20 chars and fails the length guard
+        // (19 or 23 only); `-999-05-12 14:30:45` is 19 chars but the leading '-' fails
+        // parseFixedDigits at offset 0. Either way, BCE-style dates route to Stage 3.
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("-2024-05-12 14:30:45"));
+        assertEquals(CsvFormatReader.FAST_PATH_MISS, CsvFormatReader.tryParseSpaceSeparatedDatetimeMillis("-999-05-12 14:30:45"));
+    }
+
+    public void testDatetimeFastPathInvalidIsoFallsThroughCleanly() throws IOException {
+        // Regression for the Stage 1 catch path: an ISO-shaped but calendar-invalid input like
+        // 2021-02-30T10:00:00 succeeds in Iso8601Parser's lexical parse but fails inside
+        // DateFormatters.from(...) with a generic DateTimeException (not DateTimeParseException).
+        // Without the catch, the batch would abort with an uncaught exception. The catch routes
+        // the row through Stage 3, whose JDK SMART resolver leniently maps Feb 30 to Feb 28 (same
+        // behaviour as before this change). The second row is a sanity-check that the batch
+        // continues normally.
+        String csv = "ts:datetime\n2021-02-30T10:00:00\n2021-01-01T00:00:00Z\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertEquals(Instant.parse("2021-02-28T10:00:00Z").toEpochMilli(), block.getLong(0));
+            assertEquals(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli(), block.getLong(1));
+        }
+    }
+
+    public void testDatetimeFastPathRouting() throws IOException {
+        // End-to-end smoke test exercising all three stages of tryParseDatetime in one batch:
+        // * 2024-05-12 14:30:45 → Stage 2 (space-separated fast path)
+        // * 2024-05-12T14:30:45Z → Stage 1 (ISO fast path)
+        // * 2024-05-12T14:30:45+02:00 → Stage 1 (ISO fast path, with zone offset)
+        // * 1715520645000 → looksNumeric → Long.parseLong
+        String csv = "ts:datetime\n2024-05-12 14:30:45\n2024-05-12T14:30:45Z\n2024-05-12T14:30:45+02:00\n1715520645000\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(4, page.getPositionCount());
+            LongBlock block = (LongBlock) page.getBlock(0);
+            assertEquals(Instant.parse("2024-05-12T14:30:45Z").toEpochMilli(), block.getLong(0));
+            assertEquals(Instant.parse("2024-05-12T14:30:45Z").toEpochMilli(), block.getLong(1));
+            assertEquals(Instant.parse("2024-05-12T12:30:45Z").toEpochMilli(), block.getLong(2));
+            assertEquals(1715520645000L, block.getLong(3));
+        }
+    }
+
     // --- Numeric alias tests (#324) ---
 
     public void testFloatAlias() throws IOException {
@@ -5514,5 +5619,82 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(1, page.getPositionCount());
             assertEquals(new BytesRef("hello\nworld"), ((BytesRefBlock) page.getBlock(0)).getBytesRef(0, new BytesRef()));
         }
+    }
+
+    // --- Stream drain prevention ---
+
+    /**
+     * Regression guard: {@code readSchema} must not drain the full stream body when closing
+     * after reading a typed header. Storage providers that drain on close (e.g. S3) would
+     * otherwise block the search thread for the full object transfer time.
+     * The fix must abort the stream before the drain can occur.
+     * <p>
+     * This test uses a mock stream that simulates the drain-on-close behaviour. The test
+     * fails against the unfixed code (because {@code close()} drains the entire body) and
+     * passes once the fix ensures the stream is aborted after the header is read.
+     */
+    public void testReadSchemaDoesNotDrainStream_typedHeader() throws IOException {
+        // Typed-header CSV: the schema is fully encoded in the header line so readSchema
+        // needs only that one line. The rest of the file should never be consumed.
+        StringBuilder csv = new StringBuilder("id:long,name:keyword,value:double\n");
+        for (int i = 0; i < 200_000; i++) {
+            csv.append(i).append(",name_").append(i).append(",").append(i * 1.5).append("\n");
+        }
+        byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
+        assertThat("test file must be >> reader buffer size to be meaningful", bytes.length, Matchers.greaterThan(1_000_000));
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(bytes, tracking);
+
+        new CsvFormatReader(blockFactory).schema(object);
+
+        // Only the header line was needed. The BufferedReader pre-fills up to 64 KB on
+        // the first readLine(), so allow 2x that as a generous upper bound — but the vast
+        // majority of the multi-MB file must not have been touched.
+        assertThat(
+            "readSchema must not drain the stream after reading a typed header; consumed "
+                + tracking.bytesConsumed.get()
+                + " of "
+                + bytes.length
+                + " bytes",
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan((long) bytes.length / 2)
+        );
+    }
+
+    /**
+     * Regression guard: for plain (untyped) headers, type inference reads a bounded sample
+     * of rows, but the remaining file body must not be drained on close.
+     * <p>
+     * This test uses a mock stream that simulates the drain-on-close behaviour. The test
+     * fails against the unfixed code and passes once the fix aborts the stream after the
+     * sample rows are consumed.
+     */
+    public void testReadSchemaDoesNotDrainStream_inferredSchema() throws IOException {
+        // Plain headers trigger type inference from a sample (default 20 000 rows).
+        // The file contains 200 000 rows so most of it should remain unread after schema().
+        StringBuilder csv = new StringBuilder("id,name,value\n");
+        for (int i = 0; i < 200_000; i++) {
+            csv.append(i).append(",name_").append(i).append(",").append(i * 1.5).append("\n");
+        }
+        byte[] bytes = csv.toString().getBytes(StandardCharsets.UTF_8);
+        assertThat("test file must be significantly larger than the schema sample", bytes.length, Matchers.greaterThan(2_000_000));
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(bytes, tracking);
+
+        new CsvFormatReader(blockFactory).schema(object);
+
+        // The sample covers at most DEFAULT_SAMPLE_SIZE rows, which is a small fraction
+        // of the 200 000-row file. The remaining body must not be drained.
+        assertThat(
+            "readSchema must not drain beyond the schema sample; consumed "
+                + tracking.bytesConsumed.get()
+                + " of "
+                + bytes.length
+                + " bytes",
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan((long) bytes.length / 2)
+        );
     }
 }

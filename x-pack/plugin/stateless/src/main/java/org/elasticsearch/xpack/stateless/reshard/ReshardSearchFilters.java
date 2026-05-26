@@ -82,8 +82,11 @@ public final class ReshardSearchFilters implements Closeable {
 
         // Number of shards could change due to another resharding operation that was executed while this PIT was open.
         // and resharding metadata will very likely not exist or differ for the same reason.
-        RoutingFunction routingFunction = RoutingFunction.moduloNumberOfShards(relocatedReshardingMetadata.shardCountAfter());
-        IndexRouting customRouting = IndexRouting.withRoutingFunction(currentIndexMetadata, routingFunction);
+        // But this PIT is only using the shards that existed when it was opened so we should route accordingly.
+        // This number of shards is equal to the "after" number of shards in the resharding metadata by definition.
+        int numberOfShardsForRouting = relocatedReshardingMetadata.shardCountAfter();
+        RoutingFunction routingFunction = RoutingFunction.moduloNumberOfShards(numberOfShardsForRouting);
+        IndexRouting customRouting = IndexRouting.reshardingCustom(currentIndexMetadata, routingFunction, relocatedReshardingMetadata);
 
         // This is a hack.
         // Things like ShardSplittingQuery currently specifically depend on IndexMetadata class (and even our code below does).
@@ -93,7 +96,19 @@ public final class ReshardSearchFilters implements Closeable {
         // and resharding metadata will very likely not exist or differ for the same reason.
         IndexMetadata adjustedMetadata = adjustMetadataForPitRelocation(currentIndexMetadata, relocatedReshardingMetadata);
 
-        return maybeWrapDirectoryReader(reader, shardId, relocatedSplitShardCountSummary, adjustedMetadata, mapperService);
+        boolean routingRequired = currentIndexMetadata.mapping() == null ? false : currentIndexMetadata.mapping().routingRequired();
+        var shardSplittingQuery = new ShardSplittingQuery(
+            currentIndexMetadata.getIndex(),
+            shardId.id(),
+            numberOfShardsForRouting,
+            customRouting,
+            currentIndexMetadata.getCreationVersion(),
+            currentIndexMetadata.isRoutingPartitionedIndex(),
+            routingRequired,
+            mapperService.hasNested()
+        );
+
+        return wrapReader(reader, shardSplittingQuery);
     }
 
     // visible for testing
@@ -139,7 +154,7 @@ public final class ReshardSearchFilters implements Closeable {
         IndexMetadata indexMetadata,
         MapperService mapperService
     ) throws IOException {
-        if (shouldFilter(summary, indexMetadata, shardId) == false) {
+        if (shouldFilter(shardId, summary, indexMetadata.getNumberOfShards(), indexMetadata.getReshardingMetadata()) == false) {
             return reader;
         }
 
@@ -147,11 +162,20 @@ public final class ReshardSearchFilters implements Closeable {
         final var query = new ShardSplittingQuery(indexMetadata, shardId.id(), mapperService.hasNested());
 
         // and this filter returns the documents that do not match the query, i.e. the documents that are owned by the shard
+        return wrapReader(reader, query);
+    }
+
+    private DirectoryReader wrapReader(DirectoryReader reader, ShardSplittingQuery query) throws IOException {
         return new QueryFilterDirectoryReader(reader, query, unownedBitsetCache);
     }
 
     // visible for testing
-    static boolean shouldFilter(SplitShardCountSummary summary, IndexMetadata indexMetadata, ShardId shardId) {
+    static boolean shouldFilter(
+        ShardId shardId,
+        SplitShardCountSummary summary,
+        int numberOfShards,
+        IndexReshardingMetadata reshardingMetadata
+    ) {
         if (summary.equals(SplitShardCountSummary.UNSET)) {
             /// See ES-13108 to track injecting the summary at each call site that must provide it.
             /// In the meantime we default to not filtering if the summary is not provided. This
@@ -164,14 +188,13 @@ public final class ReshardSearchFilters implements Closeable {
             return false;
         }
 
-        var decision = summary.check(indexMetadata);
+        var decision = summary.check(numberOfShards, reshardingMetadata);
         return switch (decision) {
             /// If the provided summary is older, then the request was only sent to the source shard
             /// and therefore should not be filtered.
             /// However, the request can be so stale that we would not have enough data to serve it after cleaning up
             /// unowned data. In that case we have to fail the request.
             case OLDER -> {
-                IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
                 assert reshardingMetadata != null;
                 assert reshardingMetadata.isSplit();
 
@@ -195,7 +218,6 @@ public final class ReshardSearchFilters implements Closeable {
                 /// But if the summary is current, that only means that we *may* have to filter.
                 /// * When no resharding is in progress, the summary should usually match, but we have no need to filter.
                 /// * We do not need to filter shards that have moved to DONE, since they have already removed unowned documents.
-                IndexReshardingMetadata reshardingMetadata = indexMetadata.getReshardingMetadata();
                 if (reshardingMetadata == null) {
                     // This is a common case - the summary is current and there is no ongoing split, nothing to do.
                     yield false;

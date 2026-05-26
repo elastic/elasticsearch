@@ -39,7 +39,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.xpack.stateless.MetricQuality;
-import org.elasticsearch.xpack.stateless.memory.partition.indexing.IndexTierPartitionContext;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -849,29 +848,8 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
         );
     }
 
-    /**
-     * Builds a {@link IndexTierPartitionContext} snapshot from the current state of this service.
-     * The shard cost fields are computed by iterating {@link #shardMemoryMetrics}: each shard's
-     * cost is {@link #computeShardHeapUsage} (shard-level infrastructure, excluding index-level
-     * mapping overhead which is the responsibility of {@code IndexMetadataPartition}).
-     */
-    public IndexTierPartitionContext buildIndexTierPartitionContext() {
-        long largestShardCostBytes = 0;
-        long totalShardCostBytes = 0;
-        for (ShardMemoryMetrics metrics : shardMemoryMetrics.values()) {
-            long cost = computeShardHeapUsage(metrics);
-            if (cost > largestShardCostBytes) {
-                largestShardCostBytes = cost;
-            }
-            totalShardCostBytes += cost;
-        }
-        return new IndexTierPartitionContext(
-            totalIndices,
-            mergeMemoryEstimation(),
-            minimumRequiredHeapForAcceptingLargeIndexingOps(),
-            largestShardCostBytes,
-            totalShardCostBytes
-        );
+    public int getTotalIndices() {
+        return totalIndices;
     }
 
     /**

@@ -24,7 +24,7 @@ public class IndexMetadataPartition implements MemoryPartition<IndexTierPartitio
 
     public static final String NAME = "index_metadata";
     public static final Setting<RatioValue> FRACTION_SETTING = new Setting<>(
-        "memory_metrics.partition.index_metadata.fraction",
+        "stateless.memory.partition.index_tier.index_metadata.fraction",
         "10%",
         RatioValue::parseRatioValue,
         Setting.Property.NodeScope

@@ -23,7 +23,7 @@ public class HeadroomPartition implements MemoryPartition<IndexTierPartitionCont
 
     public static final String NAME = "headroom";
     public static final Setting<RatioValue> FRACTION_SETTING = new Setting<>(
-        "memory_metrics.partition.headroom.fraction",
+        "stateless.memory.partition.index_tier.headroom.fraction",
         "20%",
         RatioValue::parseRatioValue,
         Setting.Property.NodeScope

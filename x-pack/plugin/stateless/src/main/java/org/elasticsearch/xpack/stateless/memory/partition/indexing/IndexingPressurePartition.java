@@ -29,7 +29,7 @@ public class IndexingPressurePartition implements MemoryPartition<IndexTierParti
 
     public static final String NAME = "indexing_pressure";
     public static final Setting<RatioValue> FRACTION_SETTING = new Setting<>(
-        "memory_metrics.partition.indexing_pressure.fraction",
+        "stateless.memory.partition.index_tier.indexing_pressure.fraction",
         "15%",
         RatioValue::parseRatioValue,
         Setting.Property.NodeScope

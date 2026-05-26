@@ -24,7 +24,7 @@ public class IndexBuffersPartition implements MemoryPartition<IndexTierPartition
 
     public static final String NAME = "index_buffers";
     public static final Setting<RatioValue> FRACTION_SETTING = new Setting<>(
-        "memory_metrics.partition.index_buffers.fraction",
+        "stateless.memory.partition.index_tier.index_buffers.fraction",
         "15%",
         RatioValue::parseRatioValue,
         Setting.Property.NodeScope

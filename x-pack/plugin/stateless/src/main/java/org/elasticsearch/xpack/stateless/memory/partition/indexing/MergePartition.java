@@ -25,7 +25,7 @@ public class MergePartition implements MemoryPartition<IndexTierPartitionContext
 
     public static final String NAME = "merge";
     public static final Setting<RatioValue> FRACTION_SETTING = new Setting<>(
-        "memory_metrics.partition.merge.fraction",
+        "stateless.memory.partition.index_tier.merge.fraction",
         "10%",
         RatioValue::parseRatioValue,
         Setting.Property.NodeScope

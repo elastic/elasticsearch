@@ -31,7 +31,7 @@ public class HostedShardsPartition implements MemoryPartition<IndexTierPartition
 
     public static final String NAME = "hosted_shards";
     public static final Setting<RatioValue> FRACTION_SETTING = new Setting<>(
-        "memory_metrics.partition.hosted_shards.fraction",
+        "stateless.memory.partition.index_tier.hosted_shards.fraction",
         "30%",
         RatioValue::parseRatioValue,
         Setting.Property.NodeScope

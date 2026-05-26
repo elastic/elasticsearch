@@ -24,6 +24,7 @@ import java.nio.ByteBuffer;
 
 import static java.lang.foreign.ValueLayout.ADDRESS;
 import static java.lang.foreign.ValueLayout.JAVA_BOOLEAN;
+import static java.lang.foreign.ValueLayout.JAVA_BYTE;
 import static java.lang.foreign.ValueLayout.JAVA_INT;
 import static java.lang.foreign.ValueLayout.JAVA_LONG;
 import static org.elasticsearch.nativeaccess.jdk.LinkerHelper.downcallHandle;
@@ -285,7 +286,7 @@ class JdkZstdLibrary implements ZstdLibrary {
             // tracking partial consumption inside the staging buffer) because the wrapper above
             // re-supplies the leftover bytes on the next call.
             if (srcAvail > 0) {
-                MemorySegment.copy(src, srcPos, inBuf, java.lang.foreign.ValueLayout.JAVA_BYTE, 0L, srcAvail);
+                MemorySegment.copy(src, srcPos, inBuf, JAVA_BYTE, 0L, srcAvail);
             }
             SIZE_VH.set(inStruct, 0L, (long) srcAvail);
             POS_VH.set(inStruct, 0L, 0L);
@@ -301,8 +302,12 @@ class JdkZstdLibrary implements ZstdLibrary {
 
             int srcConsumed = (int) (long) POS_VH.get(inStruct, 0L);
             int dstProduced = (int) (long) POS_VH.get(outStruct, 0L);
+            // libzstd guarantees pos ≤ size on return — the size fields we stamped above are the
+            // upper bounds here, both already int-typed and bounded by the staging buffer sizes.
+            assert srcConsumed >= 0 && srcConsumed <= srcAvail : "srcConsumed " + srcConsumed + " out of [0, " + srcAvail + "]";
+            assert dstProduced >= 0 && dstProduced <= outRoom : "dstProduced " + dstProduced + " out of [0, " + outRoom + "]";
             if (dstProduced > 0) {
-                MemorySegment.copy(outBuf, java.lang.foreign.ValueLayout.JAVA_BYTE, 0L, dst, dstPos, dstProduced);
+                MemorySegment.copy(outBuf, JAVA_BYTE, 0L, dst, dstPos, dstProduced);
             }
             // Translate native-staging positions back into absolute caller-array offsets — keeps
             // the SPI contract identical to zstd-jni's "positions are absolute in your byte[]".

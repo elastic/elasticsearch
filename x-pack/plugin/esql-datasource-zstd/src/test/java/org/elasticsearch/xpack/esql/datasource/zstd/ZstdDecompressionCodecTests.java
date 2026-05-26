@@ -63,11 +63,6 @@ public class ZstdDecompressionCodecTests extends ESTestCase {
     }
 
     /**
-     * Decompresses a ~5 MB payload end-to-end to exercise multi-chunk refill behavior of the
-     * Panama streaming wrapper through the public codec path. Sized to span ≥ 30 of libzstd's
-     * 128 KB recommended input chunks, ensuring the wrapper's refill/needRead loop runs many times.
-     */
-    /**
      * Pin issue #811's scope: the streaming codec path must not pull in any
      * {@code com.github.luben.zstd.*} class. The parent compression-libs plugin still ships
      * zstd-jni on the runtime classpath (for the Parquet cold {@code byte[]} path), so an
@@ -99,6 +94,11 @@ public class ZstdDecompressionCodecTests extends ESTestCase {
         }
     }
 
+    /**
+     * Decompresses a ~5 MB payload end-to-end to exercise multi-chunk refill behavior of the
+     * Panama streaming wrapper through the public codec path. Sized to span ≥ 30 of libzstd's
+     * 128 KB recommended input chunks, ensuring the wrapper's refill/needRead loop runs many times.
+     */
     public void testLargeRoundTrip() throws IOException {
         byte[] data = new byte[5 * 1024 * 1024];
         for (int i = 0; i < data.length; i++) {

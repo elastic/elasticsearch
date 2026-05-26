@@ -214,6 +214,8 @@ public final class PanamaZstdInputStream extends FilterInputStream {
             return 0;
         }
         int bufferLen = (int) Math.min(numBytes, PanamaZstdInputStream.recommendedSkipBufferSize());
+        assert bufferLen > 0 && bufferLen <= PanamaZstdInputStream.recommendedSkipBufferSize()
+            : "scratch buffer " + bufferLen + " out of (0, " + PanamaZstdInputStream.recommendedSkipBufferSize() + "]";
         byte[] scratch = new byte[bufferLen];
         long toSkip = numBytes;
         while (toSkip > 0) {

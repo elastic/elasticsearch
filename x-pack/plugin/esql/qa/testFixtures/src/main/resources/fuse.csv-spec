@@ -960,3 +960,33 @@ language_code:integer | language_name:keyword | label:keyword | my_score:double
 2                     | French                | label2        | 0.01613
 3                     | Spanish               | label2        | 0.01587
 ;
+
+fuseWithDenseVector
+required_capability: fork_v9
+required_capability: fuse_v6
+required_capability: match_operator_colon
+required_capability: knn_function_v5
+required_capability: fuse_passthrough_with_first
+
+FROM colors METADATA _id, _index, _score
+| FORK (WHERE color:"red"                | SORT _score DESC | LIMIT 10)
+       (WHERE knn(rgb_vector, [1, 2, 3]) | SORT _score DESC | LIMIT 10)
+| FUSE
+| KEEP _score, color, hex_code, primary, _index, _fork
+| EVAL _score = round(_score, 5)
+| SORT _score DESC, color ASC
+;
+
+_score:double | color:text  | hex_code:keyword | primary:boolean | _index:keyword | _fork:keyword
+0.01639       | black       | #000000          | true            | colors         | fork2
+0.01639       | red         | #FF0000          | true            | colors         | fork1
+0.01613       | navy        | #000080          | false           | colors         | fork2
+0.01587       | green       | #008000          | true            | colors         | fork2
+0.01563       | maroon      | #800000          | false           | colors         | fork2
+0.01538       | indigo      | #4B0082          | false           | colors         | fork2
+0.01515       | brown       | #A52A2A          | false           | colors         | fork2
+0.01493       | teal        | #008080          | false           | colors         | fork2
+0.01471       | purple      | #800080          | false           | colors         | fork2
+0.01449       | olive       | #808000          | false           | colors         | fork2
+0.01429       | firebrick   | #B22222          | false           | colors         | fork2
+;

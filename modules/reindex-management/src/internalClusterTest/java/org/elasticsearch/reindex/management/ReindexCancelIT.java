@@ -259,8 +259,7 @@ public class ReindexCancelIT extends ESIntegTestCase {
                 is(expected)
             );
         } finally {
-            // Clean up the parent reindex via the real cancel API so the test's @After teardown isn't slow.
-            cancelReindexAsynchronously(parentTaskId);
+            cancelReindexSynchronously(parentTaskId);
         }
     }
 

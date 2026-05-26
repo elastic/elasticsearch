@@ -80,6 +80,7 @@ processingCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
+    | {this.isDevVersion()}? dedupCommand
     ;
 
 whereCommand
@@ -390,6 +391,10 @@ lookupCommand
 
 insistCommand
     : DEV_INSIST qualifiedNamePatterns
+    ;
+
+dedupCommand
+    : DEV_DEDUP
     ;
 
 uriPartsCommand

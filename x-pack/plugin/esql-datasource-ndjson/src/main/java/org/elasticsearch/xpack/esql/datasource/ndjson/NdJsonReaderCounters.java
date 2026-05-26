@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.ndjson;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Thread-safe counter struct for {@link NdJsonFormatReader}; {@link #snapshot()} yields the
- * immutable {@code format_reader} map.
+ * immutable typed {@link NdJsonReaderStatus}.
  */
 public final class NdJsonReaderCounters {
 
@@ -39,12 +37,7 @@ public final class NdJsonReaderCounters {
         }
     }
 
-    public Map<String, Object> snapshot() {
-        Map<String, Object> snap = new LinkedHashMap<>();
-        snap.put("format", "ndjson");
-        snap.put("rows_emitted", rowsEmitted.sum());
-        snap.put("parse_errors", parseErrors.sum());
-        snap.put("read_nanos", totalReadNanos.sum());
-        return Map.copyOf(snap);
+    public NdJsonReaderStatus snapshot() {
+        return new NdJsonReaderStatus(rowsEmitted.sum(), parseErrors.sum(), totalReadNanos.sum());
     }
 }

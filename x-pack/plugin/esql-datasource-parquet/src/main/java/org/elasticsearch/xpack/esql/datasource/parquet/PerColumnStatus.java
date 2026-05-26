@@ -14,17 +14,14 @@ import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
- * Immutable per-column counter snapshot exposed by {@link ParquetReaderCounters#snapshot()} under
- * the {@code "columns"} key.
+ * Immutable per-column counter snapshot held under the {@code columns} key of
+ * {@link ParquetReaderStatus}.
  * <p>
  * Wire and XContent shape mirrors {@code BlobStoreActionStats}: a record that implements
- * {@link Writeable} + {@link ToXContentObject} so it can ride through the operator-status
- * {@code Map<String, Object>} envelope without bespoke serialization at the carrier level.
+ * {@link Writeable} + {@link ToXContentObject}, so each entry crosses the operator-status wire
+ * directly as part of the typed {@link ParquetReaderStatus}.
  *
  * @param bytesCompressedRead   on-disk bytes read for this column (sum across pages)
  * @param bytesDecompressed     bytes after page decompression
@@ -87,25 +84,5 @@ public record PerColumnStatus(
         }
         builder.endObject();
         return builder;
-    }
-
-    /**
-     * Flat {@code Map<String, Object>} representation used as the wire-format payload for the
-     * per-column entries inside {@code AsyncExternalSourceOperator.Status.formatReader}. The outer
-     * carrier serializes through {@code StreamOutput.writeGenericMap}, which requires every leaf
-     * value to be in the {@code WRITERS} registry — typed records are not, so the per-column
-     * snapshot is flattened at emit time. Keys mirror {@link #toXContent}.
-     */
-    public Map<String, Object> toMap() {
-        Map<String, Object> m = new LinkedHashMap<>(6);
-        m.put("compressed_bytes", bytesCompressedRead);
-        m.put("decompressed_bytes", bytesDecompressed);
-        m.put("decompression_nanos", decompressionNanos);
-        m.put("decode_nanos", decodeNanos);
-        m.put("data_pages_read", pagesRead);
-        if (materialization != null) {
-            m.put("materialization", materialization);
-        }
-        return Collections.unmodifiableMap(m);
     }
 }

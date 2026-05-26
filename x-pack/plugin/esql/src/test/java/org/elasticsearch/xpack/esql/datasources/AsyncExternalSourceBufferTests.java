@@ -17,8 +17,8 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonReaderStatus;
 
-import java.util.Map;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -220,18 +220,18 @@ public class AsyncExternalSourceBufferTests extends ESTestCase {
 
     public void testFormatReaderStatusGetterMatchesLastRecorded() {
         AsyncExternalSourceBuffer buffer = new AsyncExternalSourceBuffer(1024);
-        assertEquals(Map.of(), buffer.formatReaderStatus());
+        assertNull(buffer.formatReaderStatus());
 
-        buffer.recordFormatReaderStatus(Map.of("row_groups_read", 3L));
-        assertEquals(Map.of("row_groups_read", 3L), buffer.formatReaderStatus());
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(3L, 0L, 0L));
+        assertEquals(new NdJsonReaderStatus(3L, 0L, 0L), buffer.formatReaderStatus());
 
         // Latest snapshot replaces (does not merge) the prior one.
-        buffer.recordFormatReaderStatus(Map.of("row_groups_read", 5L, "rows_filtered", 17L));
-        assertEquals(Map.of("row_groups_read", 5L, "rows_filtered", 17L), buffer.formatReaderStatus());
+        buffer.recordFormatReaderStatus(new NdJsonReaderStatus(5L, 17L, 0L));
+        assertEquals(new NdJsonReaderStatus(5L, 17L, 0L), buffer.formatReaderStatus());
 
-        // Null is normalized to an empty map.
+        // Null clears the recorded snapshot.
         buffer.recordFormatReaderStatus(null);
-        assertEquals(Map.of(), buffer.formatReaderStatus());
+        assertNull(buffer.formatReaderStatus());
     }
 
     public void testBytesReadAccumulatesPositiveDeltas() {

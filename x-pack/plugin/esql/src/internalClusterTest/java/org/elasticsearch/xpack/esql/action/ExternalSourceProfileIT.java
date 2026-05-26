@@ -26,6 +26,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.parquet.ParquetDataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasource.parquet.ParquetReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.AsyncExternalSourceOperator;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceActio
 import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.junit.After;
@@ -52,10 +54,9 @@ import java.util.concurrent.TimeUnit;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_COMMAND;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.hasKey;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.notNullValue;
 
 /**
@@ -251,21 +252,22 @@ public class ExternalSourceProfileIT extends AbstractEsqlIntegTestCase {
             try (var response = run(request, TIMEOUT)) {
                 assertNotNull("profile must be present (request had profile=true)", response.profile());
                 AsyncExternalSourceOperator.Status status = findAsyncExternalSourceStatus(response);
-                Map<String, Object> formatReader = status.formatReader();
+                FormatReaderStatus formatReader = status.formatReader();
                 assertThat(
                     "format_reader snapshot must be populated after the producer drains the file",
-                    formatReader.isEmpty(),
-                    equalTo(false)
+                    formatReader,
+                    instanceOf(ParquetReaderStatus.class)
                 );
-                assertThat(formatReader, hasKey("row_groups_in_file"));
-                assertThat(formatReader, hasKey("read_nanos"));
-                long rowGroupsInFile = ((Number) formatReader.get("row_groups_in_file")).longValue();
-                assertThat("multi-row-group fixture should report at least one row group", rowGroupsInFile, greaterThanOrEqualTo(1L));
+                ParquetReaderStatus parquetStatus = (ParquetReaderStatus) formatReader;
+                assertThat(
+                    "multi-row-group fixture should report at least one row group",
+                    parquetStatus.rowGroupsInFile(),
+                    greaterThanOrEqualTo(1L)
+                );
                 // read_nanos is wall-time and can read as zero on fast / containerized CI runners
-                // (sub-microsecond synchronous reads + low-resolution clocks). Assert presence + non-negative
+                // (sub-microsecond synchronous reads + low-resolution clocks). Assert non-negative
                 // rather than a strict positive — the deterministic shape signal lives in row_groups_in_file.
-                long totalReadNanos = ((Number) formatReader.get("read_nanos")).longValue();
-                assertThat("read_nanos must be present and non-negative", totalReadNanos, greaterThanOrEqualTo(0L));
+                assertThat("read_nanos must be non-negative", parquetStatus.readNanos(), greaterThanOrEqualTo(0L));
             }
         } finally {
             Files.deleteIfExists(parquetFile);

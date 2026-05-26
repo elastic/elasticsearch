@@ -60,7 +60,6 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 public class OrcFormatReaderTests extends ESTestCase {
 
@@ -115,10 +114,10 @@ public class OrcFormatReaderTests extends ESTestCase {
         OrcFormatReader reader = new OrcFormatReader(blockFactory);
 
         // Snapshot before drain: format identifier present, row count at zero.
-        Map<String, Object> before = reader.statusSnapshot();
-        assertEquals("orc", before.get("format"));
-        assertEquals(0L, before.get("rows_emitted"));
-        assertEquals(0L, before.get("read_nanos"));
+        var before = reader.statusSnapshot();
+        assertEquals("orc", before.format());
+        assertEquals(0L, before.rowsEmitted());
+        assertEquals(0L, before.readNanos());
 
         try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
             while (iterator.hasNext()) {
@@ -127,10 +126,10 @@ public class OrcFormatReaderTests extends ESTestCase {
             }
         }
 
-        Map<String, Object> after = reader.statusSnapshot();
-        assertEquals("orc", after.get("format"));
-        assertEquals("3 data rows drained from the file", 3L, after.get("rows_emitted"));
-        assertTrue("read_nanos should be > 0 after at least one batch", ((Long) after.get("read_nanos")) > 0);
+        var after = reader.statusSnapshot();
+        assertEquals("orc", after.format());
+        assertEquals("3 data rows drained from the file", 3L, after.rowsEmitted());
+        assertTrue("read_nanos should be > 0 after at least one batch", after.readNanos() > 0);
     }
 
     public void testReadSchemaFromSimpleOrc() throws Exception {

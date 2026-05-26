@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.datasource.ndjson;
 
 import org.elasticsearch.test.ESTestCase;
 
-import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -19,20 +18,20 @@ public class NdJsonReaderCountersTests extends ESTestCase {
 
     public void testEmptySnapshotIsZeroes() {
         NdJsonReaderCounters counters = new NdJsonReaderCounters();
-        Map<String, Object> snap = counters.snapshot();
-        assertEquals("ndjson", snap.get("format"));
-        assertEquals(0L, snap.get("parse_errors"));
-        assertEquals(0L, snap.get("read_nanos"));
+        var snap = counters.snapshot();
+        assertEquals("ndjson", snap.format());
+        assertEquals(0L, snap.parseErrors());
+        assertEquals(0L, snap.readNanos());
     }
 
     public void testSnapshotReflectsIncrements() {
         NdJsonReaderCounters counters = new NdJsonReaderCounters();
         counters.addParseErrors(2);
         counters.addReadNanos(123456);
-        Map<String, Object> snap = counters.snapshot();
-        assertEquals("ndjson", snap.get("format"));
-        assertEquals(2L, snap.get("parse_errors"));
-        assertEquals(123456L, snap.get("read_nanos"));
+        var snap = counters.snapshot();
+        assertEquals("ndjson", snap.format());
+        assertEquals(2L, snap.parseErrors());
+        assertEquals(123456L, snap.readNanos());
     }
 
     public void testNonPositiveDeltasIgnored() {
@@ -41,9 +40,9 @@ public class NdJsonReaderCountersTests extends ESTestCase {
         counters.addParseErrors(-1);
         counters.addReadNanos(0);
         counters.addReadNanos(-1);
-        Map<String, Object> snap = counters.snapshot();
-        assertEquals(0L, snap.get("parse_errors"));
-        assertEquals(0L, snap.get("read_nanos"));
+        var snap = counters.snapshot();
+        assertEquals(0L, snap.parseErrors());
+        assertEquals(0L, snap.readNanos());
     }
 
     public void testConcurrentIncrementsAccumulateWithoutLoss() throws Exception {
@@ -75,19 +74,17 @@ public class NdJsonReaderCountersTests extends ESTestCase {
 
         long expectedErrors = (long) threads * iterationsPerThread;
         long expectedNanos = (long) threads * iterationsPerThread * 50;
-        Map<String, Object> snap = counters.snapshot();
-        assertEquals(expectedErrors, snap.get("parse_errors"));
-        assertEquals(expectedNanos, snap.get("read_nanos"));
+        var snap = counters.snapshot();
+        assertEquals(expectedErrors, snap.parseErrors());
+        assertEquals(expectedNanos, snap.readNanos());
     }
 
     public void testSnapshotIsImmutableCopy() {
         NdJsonReaderCounters counters = new NdJsonReaderCounters();
         counters.addParseErrors(5);
-        Map<String, Object> snap = counters.snapshot();
+        var snap = counters.snapshot();
         // Mutating the underlying counters does not retroactively mutate a previously taken snapshot.
         counters.addParseErrors(10);
-        assertEquals(5L, snap.get("parse_errors"));
-        // The map itself rejects mutation.
-        expectThrows(UnsupportedOperationException.class, () -> snap.put("parse_errors", 0L));
+        assertEquals(5L, snap.parseErrors());
     }
 }

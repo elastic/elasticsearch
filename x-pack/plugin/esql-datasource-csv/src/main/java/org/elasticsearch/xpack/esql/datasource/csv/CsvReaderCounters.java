@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
-import java.util.LinkedHashMap;
-import java.util.Map;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Thread-safe counter struct for {@link CsvFormatReader}; {@link #snapshot()} yields the immutable
- * {@code format_reader} map. The {@code format} key reflects the owning reader's
+ * typed {@link CsvReaderStatus}. The {@code format} field reflects the owning reader's
  * {@link CsvFormatReader#formatName()} so that a CSV instance reports {@code "csv"} and a TSV
  * instance reports {@code "tsv"}.
  */
@@ -51,13 +49,7 @@ public final class CsvReaderCounters {
         }
     }
 
-    public Map<String, Object> snapshot() {
-        Map<String, Object> snap = new LinkedHashMap<>();
-        snap.put("format", format);
-        snap.put("rows_emitted", rowsEmitted.sum());
-        snap.put("parse_errors", parseErrors.sum());
-        snap.put("header_detected", headerDetected);
-        snap.put("read_nanos", totalReadNanos.sum());
-        return Map.copyOf(snap);
+    public CsvReaderStatus snapshot() {
+        return new CsvReaderStatus(format, rowsEmitted.sum(), parseErrors.sum(), headerDetected, totalReadNanos.sum());
     }
 }

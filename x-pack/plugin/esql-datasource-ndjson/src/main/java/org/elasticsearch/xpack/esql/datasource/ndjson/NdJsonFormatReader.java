@@ -358,11 +358,11 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Returns an immutable snapshot of the NDJSON reader's counters for the operator-status
-     * envelope. Empty map when no decoders have run.
+     * Returns an immutable typed snapshot of the NDJSON reader's counters for the operator-status
+     * envelope. Zeroed counters when no decoders have run.
      */
     @Override
-    public Map<String, Object> statusSnapshot() {
+    public NdJsonReaderStatus statusSnapshot() {
         return counters.snapshot();
     }
 

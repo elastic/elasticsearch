@@ -9,17 +9,29 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
+import org.elasticsearch.xpack.esql.datasource.csv.CsvReaderStatus;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonReaderStatus;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 
 import java.io.IOException;
-import java.util.Map;
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializingTestCase<AsyncExternalSourceOperator.Status> {
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        // The typed format_reader payload is a NamedWriteable contributed by each format module; the
+        // csv + ndjson modules are on the unit-test classpath, so register their entries here.
+        return new NamedWriteableRegistry(List.of(NdJsonReaderStatus.ENTRY, CsvReaderStatus.ENTRY));
+    }
 
     @Override
     protected Writeable.Reader<AsyncExternalSourceOperator.Status> instanceReader() {
@@ -44,28 +56,16 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
         );
     }
 
-    private static Map<String, Object> randomFormatReader() {
-        return switch (between(0, 3)) {
-            case 0 -> Map.of();
-            case 1 -> Map.of("row_groups_read", randomNonNegativeLong());
-            case 2 -> Map.of("row_groups_read", randomNonNegativeLong(), "rows_filtered", randomNonNegativeLong());
-            // Case 3 exercises the producer-realistic shape: a "columns" key carrying nested
-            // Map<String, Map<String, Object>>. Without this case, the wire round-trip in
-            // AbstractWireSerializingTestCase never sees the nested map and a PerColumnStatus-style
-            // regression would not be caught here. String keys are intentionally neutral — this is
-            // wire-format coverage, not production semantics.
-            case 3 -> Map.of(
-                "scalar_a",
+    private static FormatReaderStatus randomFormatReader() {
+        return switch (between(0, 2)) {
+            case 0 -> null;
+            case 1 -> new NdJsonReaderStatus(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
+            case 2 -> new CsvReaderStatus(
+                randomFrom("csv", "tsv"),
                 randomNonNegativeLong(),
-                "scalar_b",
                 randomNonNegativeLong(),
-                "columns",
-                Map.of(
-                    "host",
-                    Map.of("leaf_a", randomNonNegativeLong(), "leaf_b", randomNonNegativeLong(), "leaf_c", randomFrom("eager", "late")),
-                    "status_code",
-                    Map.of("leaf_a", randomNonNegativeLong(), "leaf_c", "eager")
-                )
+                randomBoolean(),
+                randomNonNegativeLong()
             );
             default -> throw new UnsupportedOperationException();
         };
@@ -82,7 +82,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
         int splitsTotal = instance.splitsTotal();
         int currentSplit = instance.currentSplit();
         long bytesRead = instance.bytesRead();
-        Map<String, Object> formatReader = instance.formatReader();
+        FormatReaderStatus formatReader = instance.formatReader();
         switch (between(0, 9)) {
             case 0 -> pagesWaiting = randomValueOtherThan(pagesWaiting, ESTestCase::randomNonNegativeInt);
             case 1 -> pagesEmitted = randomValueOtherThan(pagesEmitted, ESTestCase::randomNonNegativeInt);
@@ -115,12 +115,26 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
     public void testToXContent() {
         assertThat(
             Strings.toString(
-                new AsyncExternalSourceOperator.Status(5, 10, 111, 2048, null, 1_000_000L, 2, 4, 3, 8192L, 0L, Map.of("k", 7L))
+                new AsyncExternalSourceOperator.Status(
+                    5,
+                    10,
+                    111,
+                    2048,
+                    null,
+                    1_000_000L,
+                    2,
+                    4,
+                    3,
+                    8192L,
+                    0L,
+                    new NdJsonReaderStatus(7L, 0L, 0L)
+                )
             ),
             equalTo(
                 "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
                     + "\"process_nanos\":1000000,\"splits_processed\":2,\"splits_total\":4,\"current_split\":3,"
-                    + "\"bytes_read\":8192,\"read_nanos\":0,\"format_reader\":{\"k\":7}}"
+                    + "\"bytes_read\":8192,\"read_nanos\":0,"
+                    + "\"format_reader\":{\"format\":\"ndjson\",\"rows_emitted\":7,\"parse_errors\":0,\"read_nanos\":0}}"
             )
         );
     }
@@ -128,7 +142,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
     public void testToXContentWithFailure() {
         assertThat(
             Strings.toString(
-                new AsyncExternalSourceOperator.Status(5, 10, 111, 2048, new RuntimeException("boom"), 0L, 0, 0, 0, 0L, 0L, Map.of())
+                new AsyncExternalSourceOperator.Status(5, 10, 111, 2048, new RuntimeException("boom"), 0L, 0, 0, 0, 0L, 0L, null)
             ),
             equalTo(
                 "{\"pages_waiting\":5,\"pages_emitted\":10,\"rows_emitted\":111,\"bytes_buffered\":2048,"
@@ -151,7 +165,7 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             3,
             8192L,
             0L,
-            Map.of("row_groups_read", 7L)
+            new NdJsonReaderStatus(7L, 0L, 0L)
         );
         TransportVersion preProfile = TransportVersionUtils.getPreviousVersion(TransportVersion.fromName("esql_external_source_profile"));
         AsyncExternalSourceOperator.Status copy = copyInstance(original, preProfile);
@@ -160,41 +174,16 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
         assertThat(copy.pagesEmitted(), equalTo(10));
         assertThat(copy.rowsEmitted(), equalTo(111L));
         assertThat(copy.bytesBuffered(), equalTo(2048L));
-        // Profile fields default to zero/empty on the receiving end
+        // Profile fields default to zero / null on the receiving end
         assertThat(copy.processNanos(), equalTo(0L));
         assertThat(copy.splitsProcessed(), equalTo(0));
         assertThat(copy.splitsTotal(), equalTo(0));
         assertThat(copy.currentSplit(), equalTo(0));
         assertThat(copy.bytesRead(), equalTo(0L));
-        assertThat(copy.formatReader(), equalTo(Map.of()));
+        assertThat(copy.formatReader(), nullValue());
     }
 
-    /**
-     * Locks down the wire format of the {@code formatReader} carrier with a producer-realistic
-     * payload: scalar top-level keys plus a {@code columns} key whose value is a nested
-     * {@code Map<String, Map<String, Object>>}. {@code StreamOutput.writeGenericMap} only handles
-     * leaf types in its {@code WRITERS} registry; routing a typed record (e.g. {@code PerColumnStatus})
-     * directly through this path throws at runtime and silently breaks production reads. Keeping the
-     * nested-Map payload in the random-instance space catches that regression in the round-trip.
-     */
-    public void testFormatReaderRoundTripWithNestedColumnsMap() throws IOException {
-        // String keys here are arbitrary — the test exercises wire-format round-trip of nested
-        // Map<String, Object>, not production semantics. Using neutral names avoids false-grep hits.
-        Map<String, Object> formatReader = Map.of(
-            "scalar_a",
-            42L,
-            "scalar_b",
-            7L,
-            "scalar_c",
-            123_456L,
-            "columns",
-            Map.of(
-                "host",
-                Map.of("leaf_a", 1024L, "leaf_b", 500L, "leaf_c", "late"),
-                "status_code",
-                Map.of("leaf_a", 9L, "leaf_c", "eager")
-            )
-        );
+    public void testTypedFormatReaderRoundTrip() throws IOException {
         AsyncExternalSourceOperator.Status original = new AsyncExternalSourceOperator.Status(
             1,
             2,
@@ -207,9 +196,9 @@ public class AsyncExternalSourceOperatorStatusTests extends AbstractWireSerializ
             8,
             9L,
             10L,
-            formatReader
+            new CsvReaderStatus("tsv", 42L, 3L, true, 123_456L)
         );
         AsyncExternalSourceOperator.Status copy = copyInstance(original);
-        assertThat(copy.formatReader(), equalTo(formatReader));
+        assertThat(copy.formatReader(), equalTo(new CsvReaderStatus("tsv", 42L, 3L, true, 123_456L)));
     }
 }

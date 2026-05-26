@@ -7,17 +7,14 @@
 
 package org.elasticsearch.xpack.esql.datasource.orc;
 
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
-import java.util.Map;
+import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 
 /**
  * Thread-safe counter struct for {@link OrcFormatReader}; {@link #snapshot()} yields the immutable
- * {@code format_reader} map. ORC's internal stripe rejection (stats / dictionary / bloom) is not
+ * typed {@link OrcReaderStatus}. ORC's internal stripe rejection (stats / dictionary / bloom) is not
  * exposed by the Reader API, so selectivity must be inferred from {@code rows_emitted} vs.
  * {@code stripes_total}.
  */
@@ -107,23 +104,21 @@ public final class OrcReaderCounters {
         }
     }
 
-    public Map<String, Object> snapshot() {
-        Map<String, Object> snap = new LinkedHashMap<>();
-        snap.put("format", "orc");
-        snap.put("rows_emitted", rowsEmitted.sum());
-        snap.put("footer_read_nanos", footerReadNanos.sum());
-        snap.put("footer_size_bytes", footerSizeBytes.sum());
-        snap.put("footer_cache_hits", footerCacheHits.sum());
-        snap.put("footer_cache_misses", footerCacheMisses.sum());
-        snap.put("stripes_in_file", stripesInFile.sum());
-        snap.put("stripes_total", stripesTotal.sum());
-        snap.put("predicate_pushdown_used", predicatePushdownUsed);
-        Set<String> sortedPredicates = new LinkedHashSet<>();
-        predicateColumns.stream().sorted().forEach(sortedPredicates::add);
-        snap.put("predicate_columns", Collections.unmodifiableSet(sortedPredicates));
-        snap.put("columns_projected", (long) columnsProjected);
-        snap.put("columns_total", (long) columnsTotal);
-        snap.put("read_nanos", totalReadNanos.sum());
-        return Map.copyOf(snap);
+    public OrcReaderStatus snapshot() {
+        List<String> sortedPredicates = predicateColumns.stream().sorted().toList();
+        return new OrcReaderStatus(
+            rowsEmitted.sum(),
+            footerReadNanos.sum(),
+            footerSizeBytes.sum(),
+            footerCacheHits.sum(),
+            footerCacheMisses.sum(),
+            stripesInFile.sum(),
+            stripesTotal.sum(),
+            predicatePushdownUsed,
+            sortedPredicates,
+            columnsProjected,
+            columnsTotal,
+            totalReadNanos.sum()
+        );
     }
 }

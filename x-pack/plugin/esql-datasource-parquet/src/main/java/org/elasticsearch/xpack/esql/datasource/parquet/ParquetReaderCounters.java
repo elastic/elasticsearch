@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.esql.datasource.parquet;
 
 import java.util.Collection;
 import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.LongAdder;
 
@@ -171,53 +171,44 @@ public final class ParquetReaderCounters {
     }
 
     /**
-     * Returns an immutable snapshot of the current counter values. Per-column entries are captured
-     * under the {@code "columns"} key as {@code Map<String, Map<String, Object>>}: the outer
-     * envelope ({@code AsyncExternalSourceOperator.Status.formatReader}) ships through
-     * {@code StreamOutput.writeGenericMap}, which only supports leaf types in the {@code WRITERS}
-     * registry, so each {@link PerColumnStatus} is flattened via {@link PerColumnStatus#toMap()}
-     * before it crosses the carrier boundary.
+     * Returns an immutable, typed snapshot of the current counter values. Per-column entries ride as
+     * a {@code Map<String, PerColumnStatus>} — {@link PerColumnStatus} is itself {@code Writeable},
+     * so it crosses the operator-status wire directly with no flattening.
      */
-    public Map<String, Object> snapshot() {
-        Map<String, Object> snap = new LinkedHashMap<>();
-        snap.put("format", "parquet");
-        snap.put("rows_emitted", rowsEmitted.sum());
-        snap.put("predicate_pushdown_used", predicatePushdownUsed);
-        snap.put("footer_read_nanos", footerReadNanos.sum());
-        snap.put("footer_size_bytes", footerSizeBytes.sum());
-        snap.put("footer_cache_hits", footerCacheHits.sum());
-        snap.put("footer_cache_misses", footerCacheMisses.sum());
-        snap.put("row_groups_in_file", rowGroupsInFile.sum());
-
-        snap.put("row_groups_total", rowGroupsTotal.sum());
-        snap.put("row_groups_passed_stats", rowGroupsPassedStats.sum());
-        snap.put("row_groups_passed_dictionary", rowGroupsPassedDictionary.sum());
-        snap.put("row_groups_passed_bloom", rowGroupsPassedBloom.sum());
-        snap.put("row_groups_kept", rowGroupsKept.sum());
-
-        snap.put("page_index_used", pageIndexUsed);
-        snap.put("rows_in_kept_row_groups", rowsInKeptRowGroups.sum());
-        snap.put("rows_after_page_index", rowsAfterPageIndex.sum());
-
-        snap.put("late_materialization_enabled", lateMaterializationEnabled);
-        snap.put("late_materialization_used", lateMaterializationUsed);
+    public ParquetReaderStatus snapshot() {
         // Sort predicate columns for deterministic snapshots; insertion order is meaningless because
         // ConcurrentHashMap.newKeySet() is not insertion-ordered.
-        Set<String> sortedPredicates = new LinkedHashSet<>();
-        predicateColumns.stream().sorted().forEach(sortedPredicates::add);
-        snap.put("predicate_columns", sortedPredicates);
-
-        snap.put("read_nanos", totalReadNanos.sum());
-
-        if (perColumn.isEmpty() == false) {
-            Map<String, Map<String, Object>> columnsSnap = new LinkedHashMap<>();
-            perColumn.entrySet()
-                .stream()
-                .sorted(Map.Entry.comparingByKey())
-                .forEach(e -> columnsSnap.put(e.getKey(), e.getValue().snapshot().toMap()));
-            snap.put("columns", Collections.unmodifiableMap(columnsSnap));
+        List<String> sortedPredicates = predicateColumns.stream().sorted().toList();
+        Map<String, PerColumnStatus> columnsSnap;
+        if (perColumn.isEmpty()) {
+            columnsSnap = Map.of();
+        } else {
+            Map<String, PerColumnStatus> m = new TreeMap<>();
+            perColumn.forEach((k, v) -> m.put(k, v.snapshot()));
+            columnsSnap = Collections.unmodifiableMap(m);
         }
-        return Map.copyOf(snap);
+        return new ParquetReaderStatus(
+            rowsEmitted.sum(),
+            predicatePushdownUsed,
+            footerReadNanos.sum(),
+            footerSizeBytes.sum(),
+            footerCacheHits.sum(),
+            footerCacheMisses.sum(),
+            rowGroupsInFile.sum(),
+            rowGroupsTotal.sum(),
+            rowGroupsPassedStats.sum(),
+            rowGroupsPassedDictionary.sum(),
+            rowGroupsPassedBloom.sum(),
+            rowGroupsKept.sum(),
+            pageIndexUsed,
+            rowsInKeptRowGroups.sum(),
+            rowsAfterPageIndex.sum(),
+            lateMaterializationEnabled,
+            lateMaterializationUsed,
+            sortedPredicates,
+            totalReadNanos.sum(),
+            columnsSnap
+        );
     }
 
     /** Mutable per-column counter struct. One instance per column path. */

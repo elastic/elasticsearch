@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.esql.datasource.orc;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.List;
-import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -21,16 +19,16 @@ public class OrcReaderCountersTests extends ESTestCase {
 
     public void testEmptySnapshot() {
         OrcReaderCounters counters = new OrcReaderCounters();
-        Map<String, Object> snap = counters.snapshot();
-        assertEquals(0L, snap.get("stripes_total"));
-        assertEquals(false, snap.get("predicate_pushdown_used"));
-        assertEquals(Set.of(), snap.get("predicate_columns"));
-        assertEquals(0L, snap.get("columns_projected"));
-        assertEquals(0L, snap.get("columns_total"));
-        assertEquals(0L, snap.get("rows_emitted"));
-        assertEquals(0L, snap.get("read_nanos"));
-        assertEquals(0L, snap.get("footer_cache_hits"));
-        assertEquals(0L, snap.get("footer_cache_misses"));
+        var snap = counters.snapshot();
+        assertEquals(0L, snap.stripesTotal());
+        assertEquals(false, snap.predicatePushdownUsed());
+        assertEquals(List.of(), snap.predicateColumns());
+        assertEquals(0L, snap.columnsProjected());
+        assertEquals(0L, snap.columnsTotal());
+        assertEquals(0L, snap.rowsEmitted());
+        assertEquals(0L, snap.readNanos());
+        assertEquals(0L, snap.footerCacheHits());
+        assertEquals(0L, snap.footerCacheMisses());
     }
 
     public void testFooterCacheHitMissCounters() {
@@ -39,9 +37,9 @@ public class OrcReaderCountersTests extends ESTestCase {
         counters.recordFooterCache(true);
         counters.recordFooterCache(true);
 
-        Map<String, Object> snap = counters.snapshot();
-        assertEquals(2L, snap.get("footer_cache_hits"));
-        assertEquals(1L, snap.get("footer_cache_misses"));
+        var snap = counters.snapshot();
+        assertEquals(2L, snap.footerCacheHits());
+        assertEquals(1L, snap.footerCacheMisses());
     }
 
     public void testSnapshotReflectsAllIncrements() {
@@ -53,16 +51,15 @@ public class OrcReaderCountersTests extends ESTestCase {
         counters.addRowsEmitted(2_500);
         counters.addReadNanos(987_654_321L);
 
-        Map<String, Object> snap = counters.snapshot();
-        assertEquals(8L, snap.get("stripes_total"));
-        assertEquals(true, snap.get("predicate_pushdown_used"));
-        assertEquals(3L, snap.get("columns_projected"));
-        assertEquals(12L, snap.get("columns_total"));
-        assertEquals(2_500L, snap.get("rows_emitted"));
-        assertEquals(987_654_321L, snap.get("read_nanos"));
+        var snap = counters.snapshot();
+        assertEquals(8L, snap.stripesTotal());
+        assertEquals(true, snap.predicatePushdownUsed());
+        assertEquals(3L, snap.columnsProjected());
+        assertEquals(12L, snap.columnsTotal());
+        assertEquals(2_500L, snap.rowsEmitted());
+        assertEquals(987_654_321L, snap.readNanos());
         // predicate_columns is sorted — alphabetical order regardless of insertion order.
-        @SuppressWarnings("unchecked")
-        Set<String> predicates = (Set<String>) snap.get("predicate_columns");
+        List<String> predicates = snap.predicateColumns();
         assertEquals(List.of("host", "level"), predicates.stream().toList());
     }
 
@@ -72,29 +69,28 @@ public class OrcReaderCountersTests extends ESTestCase {
         counters.addStripesTotal(-3);
         counters.addRowsEmitted(0);
         counters.addReadNanos(-5);
-        Map<String, Object> snap = counters.snapshot();
-        assertEquals(0L, snap.get("stripes_total"));
-        assertEquals(0L, snap.get("rows_emitted"));
-        assertEquals(0L, snap.get("read_nanos"));
+        var snap = counters.snapshot();
+        assertEquals(0L, snap.stripesTotal());
+        assertEquals(0L, snap.rowsEmitted());
+        assertEquals(0L, snap.readNanos());
     }
 
     public void testNullAndEmptyPredicateColumnsTolerated() {
         OrcReaderCounters counters = new OrcReaderCounters();
         counters.addPredicateColumns(null); // ignored
         counters.addPredicateColumns(List.of("", "ok"));
-        Map<String, Object> snap = counters.snapshot();
-        @SuppressWarnings("unchecked")
-        Set<String> predicates = (Set<String>) snap.get("predicate_columns");
-        assertEquals(Set.of("ok"), predicates);
+        var snap = counters.snapshot();
+        List<String> predicates = snap.predicateColumns();
+        assertEquals(List.of("ok"), predicates);
     }
 
     public void testColumnCountsClampNegativesToCurrent() {
         OrcReaderCounters counters = new OrcReaderCounters();
         counters.setColumnCounts(5, 10);
         counters.setColumnCounts(-1, -1); // both negative — both ignored
-        Map<String, Object> snap = counters.snapshot();
-        assertEquals(5L, snap.get("columns_projected"));
-        assertEquals(10L, snap.get("columns_total"));
+        var snap = counters.snapshot();
+        assertEquals(5L, snap.columnsProjected());
+        assertEquals(10L, snap.columnsTotal());
     }
 
     public void testConcurrentIncrementsAccumulateWithoutLoss() throws Exception {
@@ -128,18 +124,17 @@ public class OrcReaderCountersTests extends ESTestCase {
         long expectedStripes = (long) threads * iterationsPerThread * 2;
         long expectedRows = (long) threads * iterationsPerThread * 100;
         long expectedNanos = (long) threads * iterationsPerThread * 75;
-        Map<String, Object> snap = counters.snapshot();
-        assertEquals(expectedStripes, snap.get("stripes_total"));
-        assertEquals(expectedRows, snap.get("rows_emitted"));
-        assertEquals(expectedNanos, snap.get("read_nanos"));
+        var snap = counters.snapshot();
+        assertEquals(expectedStripes, snap.stripesTotal());
+        assertEquals(expectedRows, snap.rowsEmitted());
+        assertEquals(expectedNanos, snap.readNanos());
     }
 
     public void testSnapshotIsImmutable() {
         OrcReaderCounters counters = new OrcReaderCounters();
         counters.addStripesTotal(3);
-        Map<String, Object> snap = counters.snapshot();
+        var snap = counters.snapshot();
         counters.addStripesTotal(5);
-        assertEquals(3L, snap.get("stripes_total"));
-        expectThrows(UnsupportedOperationException.class, () -> snap.put("stripes_total", 0L));
+        assertEquals(3L, snap.stripesTotal());
     }
 }

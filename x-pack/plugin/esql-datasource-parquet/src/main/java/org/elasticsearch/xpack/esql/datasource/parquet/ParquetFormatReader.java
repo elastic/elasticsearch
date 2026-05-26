@@ -278,12 +278,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Returns an immutable snapshot of this reader's instrumentation counters. The carrier
-     * ({@code AsyncExternalSourceOperator.Status}) folds this map into the {@code formatReader}
+     * Returns an immutable typed snapshot of this reader's instrumentation counters. The carrier
+     * ({@code AsyncExternalSourceOperator.Status}) folds it into the {@code format_reader}
      * sub-object on the operator profile.
      */
     @Override
-    public Map<String, Object> statusSnapshot() {
+    public ParquetReaderStatus statusSnapshot() {
         return counters.snapshot();
     }
 

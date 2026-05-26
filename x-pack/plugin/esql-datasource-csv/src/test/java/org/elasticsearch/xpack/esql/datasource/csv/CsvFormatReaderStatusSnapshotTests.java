@@ -23,7 +23,6 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Verifies that {@link CsvFormatReader#statusSnapshot()} reports populated counters after a real
@@ -51,11 +50,11 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
         CsvFormatReader reader = new CsvFormatReader(blockFactory);
 
         // Snapshot before drain: counters should be at zero, header_detected false.
-        Map<String, Object> before = reader.statusSnapshot();
-        assertEquals(0L, before.get("rows_emitted"));
-        assertEquals(0L, before.get("parse_errors"));
-        assertEquals(false, before.get("header_detected"));
-        assertEquals(0L, before.get("read_nanos"));
+        var before = reader.statusSnapshot();
+        assertEquals(0L, before.rowsEmitted());
+        assertEquals(0L, before.parseErrors());
+        assertEquals(false, before.headerDetected());
+        assertEquals(0L, before.readNanos());
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("id", "name"), 10)) {
             while (iterator.hasNext()) {
@@ -64,11 +63,11 @@ public class CsvFormatReaderStatusSnapshotTests extends ESTestCase {
             }
         }
 
-        Map<String, Object> after = reader.statusSnapshot();
-        assertEquals("3 data rows parsed (header excluded)", 3L, after.get("rows_emitted"));
-        assertEquals("no malformed rows in this fixture", 0L, after.get("parse_errors"));
-        assertEquals("header row detected", true, after.get("header_detected"));
-        assertTrue("read_nanos should be > 0 after at least one batch", ((Long) after.get("read_nanos")) > 0);
+        var after = reader.statusSnapshot();
+        assertEquals("3 data rows parsed (header excluded)", 3L, after.rowsEmitted());
+        assertEquals("no malformed rows in this fixture", 0L, after.parseErrors());
+        assertEquals("header row detected", true, after.headerDetected());
+        assertTrue("read_nanos should be > 0 after at least one batch", after.readNanos() > 0);
     }
 
     private static StorageObject inMemoryCsv(String content) {

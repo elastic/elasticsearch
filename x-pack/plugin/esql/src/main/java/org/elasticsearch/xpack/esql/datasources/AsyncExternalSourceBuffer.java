@@ -12,8 +12,8 @@ import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.xpack.esql.datasources.spi.FormatReaderStatus;
 
-import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -54,7 +54,7 @@ public final class AsyncExternalSourceBuffer {
     private volatile boolean noMoreInputs = false;
     private volatile Throwable failure = null;
 
-    private volatile Map<String, Object> formatReaderStatus = Map.of();
+    private volatile FormatReaderStatus formatReaderStatus = null;
     // LongAdder (rather than the AtomicLong used for {@link #bytesInBuffer}) because every read
     // iteration adds a delta to bytesRead, so contention between concurrent producer threads on
     // multi-file paths would dominate AtomicLong's CAS cost. bytesInBuffer is a single producer /
@@ -281,8 +281,8 @@ public final class AsyncExternalSourceBuffer {
     }
 
     /** Records the latest format-reader counter snapshot for the operator's status view. */
-    public void recordFormatReaderStatus(Map<String, Object> snapshot) {
-        this.formatReaderStatus = snapshot == null ? Map.of() : snapshot;
+    public void recordFormatReaderStatus(FormatReaderStatus snapshot) {
+        this.formatReaderStatus = snapshot;
     }
 
     /** Adds {@code delta} cumulative pre-decompression bytes read from the storage layer. */
@@ -307,8 +307,8 @@ public final class AsyncExternalSourceBuffer {
         this.currentSplit = idx;
     }
 
-    /** Returns the latest format-reader counter snapshot, or an empty map. */
-    public Map<String, Object> formatReaderStatus() {
+    /** Returns the latest format-reader counter snapshot, or {@code null} if none recorded yet. */
+    public FormatReaderStatus formatReaderStatus() {
         return formatReaderStatus;
     }
 

@@ -941,11 +941,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Returns an immutable snapshot of the CSV reader's counters for the operator-status
-     * envelope. Empty map (well, zero-valued counters) when no batches have run.
+     * Returns an immutable typed snapshot of the CSV reader's counters for the operator-status
+     * envelope. Zero-valued counters when no batches have run.
      */
     @Override
-    public Map<String, Object> statusSnapshot() {
+    public CsvReaderStatus statusSnapshot() {
         return counters.snapshot();
     }
 

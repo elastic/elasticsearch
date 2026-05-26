@@ -678,12 +678,12 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     }
 
     /**
-     * Returns an immutable snapshot of the ORC reader's counters for the operator-status envelope.
-     * Empty-ish (zero counters, false flag, empty predicate columns) before any read() / readRange()
+     * Returns an immutable typed snapshot of the ORC reader's counters for the operator-status
+     * envelope. Zero counters, false flag, empty predicate columns before any read() / readRange()
      * has run.
      */
     @Override
-    public Map<String, Object> statusSnapshot() {
+    public OrcReaderStatus statusSnapshot() {
         return counters.snapshot();
     }
 

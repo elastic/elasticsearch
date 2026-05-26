@@ -18,7 +18,6 @@ import org.elasticsearch.test.ESTestCase;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
-import java.util.Map;
 
 /**
  * Verifies that {@link NdJsonFormatReader#statusSnapshot()} reports populated counters after a real
@@ -45,10 +44,10 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
         var reader = new NdJsonFormatReader(null, blockFactory);
 
         // Snapshot before drain: counters should be at zero, format identifier present.
-        Map<String, Object> before = reader.statusSnapshot();
-        assertEquals("ndjson", before.get("format"));
-        assertEquals(0L, before.get("parse_errors"));
-        assertEquals(0L, before.get("read_nanos"));
+        var before = reader.statusSnapshot();
+        assertEquals("ndjson", before.format());
+        assertEquals(0L, before.parseErrors());
+        assertEquals(0L, before.readNanos());
 
         try (CloseableIterator<Page> iterator = reader.read(object, List.of("a", "b"), 10)) {
             while (iterator.hasNext()) {
@@ -57,9 +56,9 @@ public class NdJsonFormatReaderStatusSnapshotTests extends ESTestCase {
             }
         }
 
-        Map<String, Object> after = reader.statusSnapshot();
-        assertEquals("ndjson", after.get("format"));
-        assertEquals("no malformed lines in this fixture", 0L, after.get("parse_errors"));
-        assertTrue("read_nanos should be > 0 after at least one decodePage call", ((Long) after.get("read_nanos")) > 0);
+        var after = reader.statusSnapshot();
+        assertEquals("ndjson", after.format());
+        assertEquals("no malformed lines in this fixture", 0L, after.parseErrors());
+        assertTrue("read_nanos should be > 0 after at least one decodePage call", after.readNanos() > 0);
     }
 }

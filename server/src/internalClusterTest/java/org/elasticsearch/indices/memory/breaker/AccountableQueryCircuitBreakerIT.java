@@ -253,11 +253,10 @@ public class AccountableQueryCircuitBreakerIT extends ESIntegTestCase {
     }
 
     private void assertQueryMemoryReleased(QueryBuilder query) throws Exception {
-        long baseline = getRequestBreakerEstimated();
+        assertBusy(() -> assertEquals("Request breaker should be empty before search", 0L, getRequestBreakerEstimated()));
         client().prepareSearch(INDEX_NAME).setQuery(query).get().decRef();
-        assertBusy(() -> {
-            long estimated = getRequestBreakerEstimated();
-            assertEquals("Request breaker memory should be released after search completes", baseline, estimated);
-        });
+        assertBusy(
+            () -> assertEquals("Request breaker memory should be released after search completes", 0L, getRequestBreakerEstimated())
+        );
     }
 }

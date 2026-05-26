@@ -2466,6 +2466,17 @@ public class EsqlCapabilities {
         EXTERNAL_SOURCE_FILE_METADATA_COLUMNS(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
+         * Parquet (Java) and ORC external sources. Gated so format readers that do not yet
+         * implement nested support (parquet-rs, csv, ndjson, etc.) skip the csv-spec tests
+         * until they catch up.
+         *
+         * <p>Tracks: elastic/esql-planning#435 (this PR) and elastic/esql-planning#320
+         * (correctness gap for Parquet-Java MAP/STRUCT/nested LIST).
+         */
+        EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * Multi-file external UNION_BY_NAME widens cross-file type disagreements to KEYWORD
          * instead of throwing at planning time. The reconciler emits a warning header per
          * affected column, the per-file ColumnMapping carries a stringification cast, and the
@@ -2867,6 +2878,12 @@ public class EsqlCapabilities {
          * cartesian_point, geo_shape, cartesian_shape, geohash, geotile, geohex.
          */
         FIRST_AGG_EXTENDED_TYPES,
+
+        /**
+         * Support for the {@code DEDUP} command, which removes duplicate rows from the result set.
+         * Snapshot-only.
+         */
+        DEDUP_COMMAND(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

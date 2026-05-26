@@ -91,7 +91,7 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
     }
 
     public void testVerify_fork_disabled() {
-        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled() == false);
+        assumeTrue("needs approximation fork disabled", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled() == false);
         assertError(
             "FROM test | FORK (EVAL x=1 | STATS c = COUNT()) (EVAL y=1 | STATS c = COUNT())",
             equalTo(
@@ -306,8 +306,24 @@ public class ApproximationVerifierTests extends ApproximationTestCase {
             equalTo("line 1:70: approximation not supported: query with chained [STATS] cannot be approximated")
         );
         assertError(
+            "FROM test | FORK (EVAL x=1) (STATS COUNT_DISTINCT(emp_no) BY emp_no) | STATS COUNT()",
+            equalTo("line 1:72: approximation not supported: query with chained [STATS] cannot be approximated")
+        );
+        assertError(
             "FROM test | FORK (EVAL x=1) (WHERE true) | STATS COUNT() BY emp_no | STATS COUNT()",
             equalTo("line 1:70: approximation not supported: query with chained [STATS] cannot be approximated")
+        );
+    }
+
+    public void testVerify_noChainedStats_subquery() {
+        assumeTrue("needs approximation fork", EsqlCapabilities.Cap.APPROXIMATION_FORK.isEnabled());
+        assertError(
+            "FROM test, (FROM test | STATS x = MAX(emp_no) BY gender) | STATS c = COUNT(*)",
+            equalTo("line 1:60: approximation not supported: query with chained [STATS] cannot be approximated")
+        );
+        assertError(
+            "FROM test, (FROM test | INLINE STATS x = MAX(emp_no) BY gender) | STATS c = COUNT(*)",
+            equalTo("line 1:67: approximation not supported: query with chained [STATS] cannot be approximated")
         );
     }
 

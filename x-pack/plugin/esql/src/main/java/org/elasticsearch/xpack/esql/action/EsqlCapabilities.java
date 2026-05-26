@@ -1880,12 +1880,13 @@ public class EsqlCapabilities {
 
         /**
          * Support for the DATE_RANGE field type, RANGE_WITHIN, TO_DATE_RANGE(string), RANGE_MIN, RANGE_MAX.
-         * V5: TO_DATE_RANGE(string) honors the query timezone (Configuration); malformed input now produces a
-         * warning + null (via the standard {@code warnExceptions} path) rather than an assertion error
-         * in production. RANGE_MIN/MAX/WITHIN evaluators are now generated and warn on multi-valued input
-         * instead of silently aggregating across values.
+         * TO_DATE_RANGE(string) honors the query timezone (Configuration); malformed input produces a
+         * warning + null. RANGE_MIN/MAX/WITHIN/INTERSECTS return {@code null} when any argument is
+         * multi-valued (consistent with ES|QL null-for-MV semantics). The Lucene pushdown uses
+         * {@code RECHECK} so the row-level evaluator rechecks each candidate and returns {@code null}
+         * for multi-valued positions, which {@code FilterOperator} treats as {@code false}.
          */
-        DATE_RANGE_FIELD_TYPE_V5(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V6(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -2829,6 +2830,11 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         /**
+         * Fix for column pruning when FORK branches return no columns.
+         */
+        FORK_PROJECT_AWAY_COLUMNS_FIX,
+
+        /**
          * Fix for histogram block loaders (tdigest, exponential_histogram) passing {@code nullsFiltered=true} to
          * sub-block-loaders for min, max and sum. Those sub-fields can be absent for empty histograms even when the
          * histogram field itself is present, so the null-filtered guarantee does not hold for them.
@@ -2878,6 +2884,17 @@ public class EsqlCapabilities {
          * cartesian_point, geo_shape, cartesian_shape, geohash, geotile, geohex.
          */
         FIRST_AGG_EXTENDED_TYPES,
+
+        /**
+         * Support for the {@code DEDUP} command, which removes duplicate rows from the result set.
+         * Snapshot-only.
+         */
+        DEDUP_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Support for COALESCE with date_range type.
+         */
+        COALESCE_DATE_RANGE(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

@@ -64,9 +64,11 @@ If there is no `STATS` command in the query, the output of the `TS` command gets
 
 ## When to use TS vs FROM
 
-[`FROM`](/reference/query-languages/esql/commands/from.md) can read time series indices,
-but applying `STATS` directly to raw metric values produces silently wrong results in
-three common cases. `TS` is designed to handle each of them correctly.
+`TS` is the right choice for aggregating metrics. It's aware of time series
+semantics, commonly provides better performance, and avoids correctness issues
+that [`FROM`](/reference/query-languages/esql/commands/from.md) `| STATS` runs into
+on raw metric data. Two common examples where `FROM` silently produces wrong
+results that `TS` handles correctly:
 
 ### Counters need deltas, not raw sums
 
@@ -89,7 +91,7 @@ along the way), then lets you aggregate those deltas across series:
 TS metrics | STATS SUM(RATE(request_count)) BY host
 ```
 
-### Unequal publish rates
+### Uneven publish intervals for metrics
 
 Different hosts and agents publish at different cadences. A host emitting CPU samples
 every second contributes 120x more rows than one emitting every two minutes, so `AVG()`

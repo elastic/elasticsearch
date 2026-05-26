@@ -82,6 +82,7 @@ import org.elasticsearch.xpack.esql.analysis.PlanCheckerProvider;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.datasources.CoalescedSplit;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCapabilities;
+import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.DataSourceModule;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.FileSplit;
@@ -278,6 +279,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Build capabilities from plugin declarations (cheap -- no I/O, no heavy deps)
         DataSourceCapabilities dataSourceCapabilities = DataSourceCapabilities.build(allDataSourcePlugins);
 
+        // Shared DataSourceCredentials holder: TransportPutDataSourceAction's @Inject(optional=true)
+        // setter pushes the EncryptionService into it; the lazy wrappers in DataSourceModule call
+        // decryptInPlace on the same instance from the read path.
+        DataSourceCredentials dataSourceCredentials = new DataSourceCredentials();
+
         // Create DataSourceModule with all discovered plugins
         // Pass GENERIC executor for plugins that need async I/O (e.g. HTTP storage provider)
         DataSourceModule dataSourceModule = new DataSourceModule(
@@ -285,7 +291,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             dataSourceCapabilities,
             settings,
             blockFactoryProvider.blockFactory(),
-            services.threadPool().executor(ThreadPool.Names.GENERIC)
+            services.threadPool().executor(ThreadPool.Names.GENERIC),
+            dataSourceCredentials
         );
 
         EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
@@ -379,6 +386,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
             ),
             blockFactoryProvider,
             dataSourceModule,
+            dataSourceCredentials,
             new ViewResolver(
                 services.threadPool(),
                 services.clusterService(),

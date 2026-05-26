@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 
 public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNodeProjectAction<PutDataSourceAction.Request> {
     private final DataSourceService dataSourceService;
+    private final DataSourceCredentials credentials;
 
     // Optional Guice injection. When unset (security plugin absent or PEK feature flag off),
     // putDataSource stores secrets as plaintext and logs a WARN naming the data source on every
@@ -34,9 +35,9 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
     @Inject(optional = true)
     public void setEncryptionService(EncryptionService encryptionService) {
         this.encryptionService = encryptionService;
-        // Fires per Guice action construction on every node loading ESQL — populates the data-node
-        // decryption step (DataSourceCredentials) before any FROM <dataset> reaches the connector.
-        DataSourceCredentials.initialize(encryptionService);
+        // Push the service into the shared DataSourceCredentials so the data-node decryption step
+        // (called from the lazy wrappers in DataSourceModule) sees the same binding.
+        credentials.setEncryptionService(encryptionService);
     }
 
     @Inject
@@ -46,7 +47,8 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
         ThreadPool threadPool,
         ActionFilters actionFilters,
         DataSourceService dataSourceService,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        DataSourceCredentials credentials
     ) {
         super(
             PutDataSourceAction.NAME,
@@ -59,6 +61,7 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.dataSourceService = dataSourceService;
+        this.credentials = credentials;
     }
 
     @Override
@@ -80,7 +83,7 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
         ProjectState state,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        dataSourceService.putDataSource(state.projectId(), request, new DataSourceEncryption(encryptionService), listener);
+        dataSourceService.putDataSource(state.projectId(), request, encryptionService, listener);
     }
 
     @Override

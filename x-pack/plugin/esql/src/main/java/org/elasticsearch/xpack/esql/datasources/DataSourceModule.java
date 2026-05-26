@@ -61,7 +61,8 @@ public final class DataSourceModule implements Closeable {
         DataSourceCapabilities capabilities,
         Settings settings,
         BlockFactory blockFactory,
-        ExecutorService executor
+        ExecutorService executor,
+        DataSourceCredentials credentials
     ) {
         this.capabilities = capabilities;
         this.storageProviderRegistry = new StorageProviderRegistry(settings);
@@ -151,7 +152,12 @@ public final class DataSourceModule implements Closeable {
             // Connectors: register lazy wrappers only for explicitly declared connector schemes
             Set<String> connectorSchemes = plugin.supportedConnectorSchemes();
             if (connectorSchemes.isEmpty() == false) {
-                LazyConnectorFactory lazyConnector = new LazyConnectorFactory(state, connectorSchemes, plugin.getClass().getName());
+                LazyConnectorFactory lazyConnector = new LazyConnectorFactory(
+                    state,
+                    connectorSchemes,
+                    plugin.getClass().getName(),
+                    credentials
+                );
                 for (String scheme : connectorSchemes) {
                     sourceFactoryMap.putIfAbsent(scheme, lazyConnector);
                 }
@@ -159,7 +165,7 @@ public final class DataSourceModule implements Closeable {
 
             // Table catalogs: register lazy wrappers
             for (String catalogType : plugin.supportedCatalogs()) {
-                LazyTableCatalogWrapper lazyCatalog = new LazyTableCatalogWrapper(state, catalogType, closeables, settings);
+                LazyTableCatalogWrapper lazyCatalog = new LazyTableCatalogWrapper(state, catalogType, closeables, settings, credentials);
                 if (sourceFactoryMap.put(catalogType, lazyCatalog) != null) {
                     throw new IllegalArgumentException("Source factory for type [" + catalogType + "] is already registered");
                 }
@@ -306,12 +312,14 @@ public final class DataSourceModule implements Closeable {
         private final LazyPluginState state;
         private final Set<String> declaredSchemes;
         private final String pluginName;
+        private final DataSourceCredentials credentials;
         private volatile ConnectorFactory delegate;
 
-        LazyConnectorFactory(LazyPluginState state, Set<String> declaredSchemes, String pluginName) {
+        LazyConnectorFactory(LazyPluginState state, Set<String> declaredSchemes, String pluginName, DataSourceCredentials credentials) {
             this.state = state;
             this.declaredSchemes = declaredSchemes;
             this.pluginName = pluginName;
+            this.credentials = credentials;
         }
 
         @Override
@@ -334,17 +342,17 @@ public final class DataSourceModule implements Closeable {
 
         @Override
         public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
-            return resolveDelegate().resolveMetadata(location, DataSourceCredentials.decryptInPlace(config));
+            return resolveDelegate().resolveMetadata(location, credentials.decryptInPlace(config));
         }
 
         @Override
         public void validateConfig(String location, Map<String, Object> config) {
-            resolveDelegate().validateConfig(location, DataSourceCredentials.decryptInPlace(config));
+            resolveDelegate().validateConfig(location, credentials.decryptInPlace(config));
         }
 
         @Override
         public Connector open(Map<String, Object> config) {
-            return resolveDelegate().open(DataSourceCredentials.decryptInPlace(config));
+            return resolveDelegate().open(credentials.decryptInPlace(config));
         }
 
         @Override
@@ -402,13 +410,21 @@ public final class DataSourceModule implements Closeable {
         private final String catalogType;
         private final List<Closeable> managedCloseables;
         private final Settings settings;
+        private final DataSourceCredentials credentials;
         private volatile TableCatalog delegate;
 
-        LazyTableCatalogWrapper(LazyPluginState state, String catalogType, List<Closeable> managedCloseables, Settings settings) {
+        LazyTableCatalogWrapper(
+            LazyPluginState state,
+            String catalogType,
+            List<Closeable> managedCloseables,
+            Settings settings,
+            DataSourceCredentials credentials
+        ) {
             this.state = state;
             this.catalogType = catalogType;
             this.managedCloseables = managedCloseables;
             this.settings = settings;
+            this.credentials = credentials;
         }
 
         @Override
@@ -442,12 +458,12 @@ public final class DataSourceModule implements Closeable {
 
         @Override
         public SourceMetadata resolveMetadata(String location, Map<String, Object> config) {
-            return resolveDelegate().resolveMetadata(location, DataSourceCredentials.decryptInPlace(config));
+            return resolveDelegate().resolveMetadata(location, credentials.decryptInPlace(config));
         }
 
         @Override
         public void validateConfig(String location, Map<String, Object> config) {
-            resolveDelegate().validateConfig(location, DataSourceCredentials.decryptInPlace(config));
+            resolveDelegate().validateConfig(location, credentials.decryptInPlace(config));
         }
 
         @Override

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
@@ -21,10 +22,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Decrypts secret values at the catalog-invocation point. {@link #initialize} runs once per node at
- * Guice setter time (from {@code TransportPutDataSourceAction.setEncryptionService}); {@link #decryptInPlace}
- * runs on every connector call to materialize plaintext from encrypted blobs just before the connector
- * consumes them.
+ * Decrypts secret values at the catalog-invocation point. The single per-node instance is created
+ * by {@code EsqlPlugin.createComponents} and bound for Guice injection; {@code TransportPutDataSourceAction}
+ * binds an optional {@link EncryptionService} into it at Guice setter time. The lazy wrappers in
+ * {@code DataSourceModule} hold the same instance and call {@link #decryptInPlace} on every
+ * connector call to materialize plaintext from encrypted blobs.
  *
  * <p>Asymmetry with the producer side is intentional. PUT is lax: if the encryption service is
  * unavailable, secrets are stored as plaintext (the cluster has no way to encrypt). FROM is strict:
@@ -32,25 +34,24 @@ import java.util.Map;
  * it, the call fails with 503 — passing the SDK opaque bytes it can't read would surface as a
  * confusing auth error or worse.
  *
- * <p>TODO(#149194): the static singleton holder mirrors the same per-project mismatch the linked issue
+ * <p>TODO(#149194): the volatile-slot pattern mirrors the same per-project mismatch the linked issue
  * flags inside {@code PrimaryEncryptionKeyService}. When that lands and the service becomes
- * project-aware, replace this static holder with a per-call lookup that carries {@code ProjectId} context.
+ * project-aware, replace the slot with a per-call lookup that carries {@code ProjectId} context.
  */
 public final class DataSourceCredentials {
 
-    private static volatile EncryptionService encryptionService;
+    @Nullable
+    private volatile EncryptionService encryptionService;
 
-    private DataSourceCredentials() {}
-
-    public static void initialize(EncryptionService service) {
-        encryptionService = service;
+    public void setEncryptionService(@Nullable EncryptionService encryptionService) {
+        this.encryptionService = encryptionService;
     }
 
-    public static Map<String, Object> decryptInPlace(Map<String, Object> config) {
+    public Map<String, Object> decryptInPlace(Map<String, Object> config) {
         if (config == null) {
             return null;
         }
-        EncryptionService service = encryptionService;
+        EncryptionService service = this.encryptionService;
         Map<String, Object> result = new HashMap<>(config.size());
         for (Map.Entry<String, Object> entry : config.entrySet()) {
             Object value = entry.getValue();

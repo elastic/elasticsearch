@@ -32,9 +32,11 @@ import java.util.Objects;
  * <p>Whether a secret is encrypted is an explicit, serialized property — {@link #encryption} — not
  * an inference from the value's runtime type. {@link EncryptionFormat#NONE} means the value is
  * plaintext as supplied by the validator; {@link EncryptionFormat#V1} means the value is the binary
- * {@code writeTo} output of an {@code EncryptedData} carrier. Readers branch on the enum, which is
- * written alongside the value on both the binary ({@link StreamOutput#writeGenericValue}) and SMILE
- * XContent paths; an absent {@code encryption} field parses as {@code NONE}, so anything written
+ * {@code writeTo} output of an {@code EncryptedData} carrier. Both serialization paths dispatch on
+ * the enum: the binary wire reads/writes the V1 value via {@code readByteArray}/{@code writeByteArray}
+ * and the NONE value via {@code readGenericValue}/{@code writeGenericValue}; the XContent path
+ * writes V1 as bytes (rendered as base64 in JSON, embedded-object token in SMILE) and NONE as a
+ * generic value. An absent {@code encryption} field parses as {@code NONE}, so anything written
  * before this field existed reads back as plaintext (which it is).
  *
  * <p>The value's Java type is no longer a discriminator, so plaintext values carry whatever type the
@@ -119,14 +121,25 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     }
 
     public DataSourceSetting(StreamInput in) throws IOException {
-        this(in.readGenericValue(), in.readBoolean(), in.readEnum(EncryptionFormat.class));
+        // Stream order: secret, encryption, value. Value is read by dispatching on the encryption
+        // discriminator (V1 → raw byte[] ciphertext, NONE → generic plaintext value) so the wire
+        // shape commits to the invariant we already enforce in the constructor.
+        this(in, in.readBoolean(), in.readEnum(EncryptionFormat.class));
+    }
+
+    private DataSourceSetting(StreamInput in, boolean secret, EncryptionFormat encryption) throws IOException {
+        this(encryption == EncryptionFormat.V1 ? in.readByteArray() : in.readGenericValue(), secret, encryption);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeGenericValue(value);
         out.writeBoolean(secret);
         out.writeEnum(encryption);
+        if (encryption == EncryptionFormat.V1) {
+            out.writeByteArray((byte[]) value);
+        } else {
+            out.writeGenericValue(value);
+        }
     }
 
     public boolean secret() {
@@ -167,10 +180,10 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
-        if (value instanceof byte[] bytes) {
-            // Renders as base64 in JSON, embedded-object token in SMILE — the SMILE form is what
-            // PersistedClusterStateService round-trips through.
-            builder.field(VALUE.getPreferredName(), bytes);
+        if (encryption == EncryptionFormat.V1) {
+            // V1 invariant: value is byte[] ciphertext. Renders as base64 in JSON, embedded-object
+            // token in SMILE — the SMILE form is what PersistedClusterStateService round-trips through.
+            builder.field(VALUE.getPreferredName(), (byte[]) value);
         } else {
             builder.field(VALUE.getPreferredName(), value);
         }

@@ -47,26 +47,22 @@ public class DataSourceCredentialsTests extends ESTestCase {
         return new EncryptedSecret(BytesReference.toBytes(out.bytes()));
     }
 
+    private DataSourceCredentials credentials;
+
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        DataSourceCredentials.initialize(IDENTITY);
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        // The static holder is process-wide; reset it so no test leaves the JVM with a bound stub.
-        DataSourceCredentials.initialize(null);
-        super.tearDown();
+        credentials = new DataSourceCredentials();
+        credentials.setEncryptionService(IDENTITY);
     }
 
     public void testNullMapPassesThrough() {
-        assertNull(DataSourceCredentials.decryptInPlace(null));
+        assertNull(credentials.decryptInPlace(null));
     }
 
     public void testEmptyMapReturnsCopy() {
         Map<String, Object> empty = Map.of();
-        Map<String, Object> out = DataSourceCredentials.decryptInPlace(empty);
+        Map<String, Object> out = credentials.decryptInPlace(empty);
         assertNotNull(out);
         assertTrue(out.isEmpty());
     }
@@ -78,7 +74,7 @@ public class DataSourceCredentialsTests extends ESTestCase {
         input.put("use_path_style", true);
         input.put("optional_label", null);
 
-        Map<String, Object> out = DataSourceCredentials.decryptInPlace(input);
+        Map<String, Object> out = credentials.decryptInPlace(input);
 
         assertEquals("us-east-1", out.get("region"));
         assertEquals(7, out.get("max_retries"));
@@ -95,7 +91,7 @@ public class DataSourceCredentialsTests extends ESTestCase {
         input.put("region", "us-east-1");
         input.put("secret_access_key", blob);
 
-        Map<String, Object> out = DataSourceCredentials.decryptInPlace(input);
+        Map<String, Object> out = credentials.decryptInPlace(input);
 
         assertNotSame("decryptInPlace must return a fresh map, never alias its input", input, out);
         assertThat(out.get("region"), equalTo("us-east-1"));
@@ -111,7 +107,7 @@ public class DataSourceCredentialsTests extends ESTestCase {
         input.put("secret_key", encryptedSecret(skCanary));
         input.put("endpoint", "https://example.test");
 
-        Map<String, Object> out = DataSourceCredentials.decryptInPlace(input);
+        Map<String, Object> out = credentials.decryptInPlace(input);
 
         assertEquals(akCanary, out.get("access_key"));
         assertEquals(skCanary, out.get("secret_key"));
@@ -125,7 +121,7 @@ public class DataSourceCredentialsTests extends ESTestCase {
         input.put("region", "us-east-1");
         input.put("secret_access_key", "AKIA_plaintext_storage");
 
-        Map<String, Object> out = DataSourceCredentials.decryptInPlace(input);
+        Map<String, Object> out = credentials.decryptInPlace(input);
 
         assertEquals("us-east-1", out.get("region"));
         assertEquals("AKIA_plaintext_storage", out.get("secret_access_key"));
@@ -138,7 +134,7 @@ public class DataSourceCredentialsTests extends ESTestCase {
         Map<String, Object> input = new HashMap<>();
         input.put("some_binary_value", raw);
 
-        Map<String, Object> out = DataSourceCredentials.decryptInPlace(input);
+        Map<String, Object> out = credentials.decryptInPlace(input);
 
         assertSame(raw, out.get("some_binary_value"));
     }
@@ -148,7 +144,7 @@ public class DataSourceCredentialsTests extends ESTestCase {
         input.put("nested", Map.of("k", "v"));
         input.put("list", java.util.List.of(1, 2, 3));
 
-        Map<String, Object> out = DataSourceCredentials.decryptInPlace(input);
+        Map<String, Object> out = credentials.decryptInPlace(input);
 
         assertEquals(input.get("nested"), out.get("nested"));
         assertEquals(input.get("list"), out.get("list"));
@@ -160,7 +156,7 @@ public class DataSourceCredentialsTests extends ESTestCase {
         input.put("secret_access_key", blob);
         Map<String, Object> snapshot = new HashMap<>(input);
 
-        DataSourceCredentials.decryptInPlace(input);
+        credentials.decryptInPlace(input);
 
         assertEquals(snapshot, input);
         assertSame(blob, input.get("secret_access_key"));
@@ -169,37 +165,26 @@ public class DataSourceCredentialsTests extends ESTestCase {
     public void testUnboundEncryptionServiceFailsLoudWhenEncryptedBlobPresent() throws Exception {
         // Consumer-side strict: if an encrypted blob reaches the connector boundary without an
         // EncryptionService to decrypt it, fail with 503 rather than hand the SDK opaque bytes.
-        DataSourceCredentials.initialize(null);
-        try {
-            EncryptedSecret blob = encryptedSecret("plain");
-            Map<String, Object> input = new HashMap<>();
-            input.put("region", "us-east-1");
-            input.put("secret_access_key", blob);
+        DataSourceCredentials unbound = new DataSourceCredentials();
+        EncryptedSecret blob = encryptedSecret("plain");
+        Map<String, Object> input = new HashMap<>();
+        input.put("region", "us-east-1");
+        input.put("secret_access_key", blob);
 
-            ElasticsearchStatusException ese = expectThrows(
-                ElasticsearchStatusException.class,
-                () -> DataSourceCredentials.decryptInPlace(input)
-            );
-            assertEquals(RestStatus.SERVICE_UNAVAILABLE, ese.status());
-            assertThat(ese.getMessage(), containsString("encryption service is not bound"));
-        } finally {
-            DataSourceCredentials.initialize(IDENTITY);
-        }
+        ElasticsearchStatusException ese = expectThrows(ElasticsearchStatusException.class, () -> unbound.decryptInPlace(input));
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ese.status());
+        assertThat(ese.getMessage(), containsString("encryption service is not bound"));
     }
 
     public void testUnboundServiceWithPlaintextSecretsIsAllowedThrough() throws Exception {
         // The no-encryption-service producer path produces plaintext String values; reading them back
         // on a node still without a service is fine — there is nothing to decrypt.
-        DataSourceCredentials.initialize(null);
-        try {
-            Map<String, Object> input = new HashMap<>();
-            input.put("region", "us-east-1");
-            input.put("secret_access_key", "AKIA_plaintext");
-            Map<String, Object> out = DataSourceCredentials.decryptInPlace(input);
-            assertEquals("us-east-1", out.get("region"));
-            assertEquals("AKIA_plaintext", out.get("secret_access_key"));
-        } finally {
-            DataSourceCredentials.initialize(IDENTITY);
-        }
+        DataSourceCredentials unbound = new DataSourceCredentials();
+        Map<String, Object> input = new HashMap<>();
+        input.put("region", "us-east-1");
+        input.put("secret_access_key", "AKIA_plaintext");
+        Map<String, Object> out = unbound.decryptInPlace(input);
+        assertEquals("us-east-1", out.get("region"));
+        assertEquals("AKIA_plaintext", out.get("secret_access_key"));
     }
 }

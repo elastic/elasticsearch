@@ -31,6 +31,8 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 import org.elasticsearch.xpack.esql.datasources.EncryptedSecret;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
@@ -143,10 +145,22 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         // Proves: PUT encrypts → cluster state holds byte[] blob → projection wraps it as EncryptedSecret
         // → consumer decrypts back to the canary. The EncryptedSecret wrap is exactly what
         // DatasetRewriter.mergeSettings produces for an encrypted secret.
+        DataSourceCredentials credentials = new DataSourceCredentials();
+        credentials.setEncryptionService(new EncryptionService() {
+            @Override
+            public EncryptedData encrypt(byte[] bytes) {
+                return new EncryptedData(TestEncryptionServicePlugin.TEST_KEY_ID, bytes);
+            }
+
+            @Override
+            public byte[] decrypt(EncryptedData encryptedData) {
+                return encryptedData.payload();
+            }
+        });
         Map<String, Object> connectorInput = new HashMap<>();
         connectorInput.put("region", "us-east-1");
         connectorInput.put("secret_access_key", new EncryptedSecret(blob));
-        Map<String, Object> decrypted = DataSourceCredentials.decryptInPlace(connectorInput);
+        Map<String, Object> decrypted = credentials.decryptInPlace(connectorInput);
         assertThat("decryptInPlace passes non-secrets through", decrypted.get("region"), equalTo("us-east-1"));
         assertThat("decryptInPlace materialises the plaintext canary", decrypted.get("secret_access_key"), equalTo("AKIAXYZ"));
 

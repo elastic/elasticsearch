@@ -56,10 +56,10 @@ public class DataSourceWithoutEncryptionIT extends ESIntegTestCase {
                     )
                 )
             ),
-            DataSourceEncryption.class,
+            DataSourceService.class,
             new MockLog.SeenEventExpectation(
                 "plaintext-storage WARN naming the data source",
-                DataSourceEncryption.class.getCanonicalName(),
+                DataSourceService.class.getCanonicalName(),
                 Level.WARN,
                 "credentials for data source [" + dsName + "] are stored as plaintext because no encryption service is available"
             )
@@ -91,10 +91,10 @@ public class DataSourceWithoutEncryptionIT extends ESIntegTestCase {
                     )
                 )
             ),
-            DataSourceEncryption.class,
+            DataSourceService.class,
             new MockLog.UnseenEventExpectation(
                 "no plaintext-storage WARN when the PUT carries no secret",
-                DataSourceEncryption.class.getCanonicalName(),
+                DataSourceService.class.getCanonicalName(),
                 Level.WARN,
                 "*credentials for data source*are stored as plaintext*"
             )

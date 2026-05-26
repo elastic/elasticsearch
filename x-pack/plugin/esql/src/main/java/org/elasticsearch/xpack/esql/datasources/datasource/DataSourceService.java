@@ -25,13 +25,21 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
+import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 
+import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -87,23 +95,23 @@ public class DataSourceService {
     }
 
     /**
-     * Create or replace a data source. {@code encryption} owns both halves of the encryption story:
-     * when a service is bound it encrypts every secret master-side; when it isn't, secrets are stored
-     * as plaintext and a {@code WARN} naming the data source is logged so the operator sees exactly
-     * which credentials hit the disk in clear text. The consumer-side decryption step still refuses
-     * to hand the connector an encrypted blob without a key (the only asymmetric mode is "unbound at
-     * PUT, then plaintext at FROM" — what you'd expect on a dev / no-security cluster).
+     * Create or replace a data source. When {@code encryptionService} is bound, every secret in the
+     * request is encrypted master-side; when it isn't, secrets are stored as plaintext and a
+     * {@code WARN} naming the data source is logged so the operator sees exactly which credentials
+     * hit the disk in clear text. The consumer-side decryption step still refuses to hand the
+     * connector an encrypted blob without a key (the only asymmetric mode is "unbound at PUT, then
+     * plaintext at FROM" — what you'd expect on a dev / no-security cluster).
      */
     public void putDataSource(
         ProjectId projectId,
         PutDataSourceAction.Request request,
-        DataSourceEncryption encryption,
+        @Nullable EncryptionService encryptionService,
         ActionListener<AcknowledgedResponse> listener
     ) {
         // Validate and encrypt off the cluster-state update thread. Encryption is expensive and must not
         // run inside the CAS task body — the master would block on every concurrent PUT otherwise.
         final DataSource validated = validatePutDataSource(request);
-        final DataSourceSettings stored = encryption.apply(validated.name(), validated.settings());
+        final DataSourceSettings stored = applyEncryption(validated.name(), validated.settings(), encryptionService);
         final DataSource encrypted = new DataSource(validated.name(), validated.type(), validated.description(), stored);
         logger.debug("submitting put data source [{}] of type [{}]", encrypted.name(), encrypted.type());
         final AckedClusterStateUpdateTask task = new AckedClusterStateUpdateTask(request, listener) {
@@ -128,6 +136,65 @@ public class DataSourceService {
             }
         };
         taskQueue.submitTask("update-esql-data-source-metadata-[" + request.name() + "]", task, task.timeout());
+    }
+
+    /**
+     * Apply master-side encryption to a data source's settings. When {@code encryptionService} is null
+     * (security plugin absent or PEK feature flag off), the settings pass through unchanged and a WARN
+     * naming the data source is logged if any of them carries a real secret.
+     */
+    private static DataSourceSettings applyEncryption(
+        String dataSourceName,
+        DataSourceSettings settings,
+        @Nullable EncryptionService encryptionService
+    ) {
+        if (encryptionService == null) {
+            if (settings.hasSecrets()) {
+                logger.warn(
+                    "credentials for data source [{}] are stored as plaintext because no encryption service is available",
+                    dataSourceName
+                );
+            }
+            return settings;
+        }
+        Map<String, DataSourceSetting> result = new HashMap<>(settings.size());
+        for (var entry : settings) {
+            String key = entry.getKey();
+            DataSourceSetting setting = entry.getValue();
+            if (setting.secret() && setting.rawValue() instanceof String plaintext) {
+                result.put(key, encryptSecret(key, plaintext, encryptionService));
+            } else {
+                result.put(key, setting);
+            }
+        }
+        return new DataSourceSettings(result);
+    }
+
+    /**
+     * Encrypt one plaintext into a freshly-built ciphertext-carrying setting. The intermediate
+     * UTF-8 byte buffer is zeroed in {@code finally}; the original plaintext String reference still
+     * lives in the caller's settings until the cluster-state task completes (narrowing that
+     * lifetime is Phase 2).
+     */
+    private static DataSourceSetting encryptSecret(String key, String plaintext, EncryptionService encryptionService) {
+        byte[] bytes = plaintext.getBytes(StandardCharsets.UTF_8);
+        try {
+            EncryptedData encrypted = encryptionService.encrypt(bytes);
+            BytesStreamOutput out = new BytesStreamOutput();
+            try {
+                encrypted.writeTo(out);
+            } catch (IOException e) {
+                throw new ElasticsearchStatusException(
+                    "failed to serialize encrypted value for setting [" + key + "]",
+                    RestStatus.INTERNAL_SERVER_ERROR,
+                    e
+                );
+            }
+            byte[] blob = BytesReference.toBytes(out.bytes());
+            return new DataSourceSetting(blob, true, DataSourceSetting.EncryptionFormat.V1);
+        } finally {
+            Arrays.fill(bytes, (byte) 0);
+        }
     }
 
     /** Delete data sources by name. Fails with 409 if any dataset references one; 404 if a name doesn't exist. */

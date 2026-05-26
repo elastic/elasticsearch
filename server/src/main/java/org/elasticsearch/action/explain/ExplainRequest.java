@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -36,6 +37,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  */
 public class ExplainRequest extends SingleShardRequest<ExplainRequest> implements ToXContentObject, RetryableSplitAwareRequest {
     private static final TransportVersion SPLIT_SHARD_COUNT_SUMMARY = TransportVersion.fromName("explain_split_shard_count_summary");
+    public static final TransportVersion EXPLAIN_SLICE_ROUTING_STATE_VERSION = TransportVersion.fromName("explain_slice_routing_state");
 
     private static final ParseField QUERY_FIELD = new ParseField("query");
 
@@ -69,6 +71,11 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
         storedFields = in.readOptionalStringArray();
         fetchSourceContext = in.readOptionalWriteable(FetchSourceContext::readFrom);
         nowInMillis = in.readVLong();
+        if (in.getTransportVersion().supports(EXPLAIN_SLICE_ROUTING_STATE_VERSION)) {
+            routingFromSlice = in.readBoolean();
+        } else {
+            routingFromSlice = false;
+        }
         if (in.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
             this.splitShardCountSummary = new SplitShardCountSummary(in);
         }
@@ -194,6 +201,9 @@ public class ExplainRequest extends SingleShardRequest<ExplainRequest> implement
         out.writeOptionalStringArray(storedFields);
         out.writeOptionalWriteable(fetchSourceContext);
         out.writeVLong(nowInMillis);
+        if (out.getTransportVersion().supports(EXPLAIN_SLICE_ROUTING_STATE_VERSION)) {
+            out.writeBoolean(routingFromSlice);
+        }
         if (out.getTransportVersion().supports(SPLIT_SHARD_COUNT_SUMMARY)) {
             splitShardCountSummary.writeTo(out);
         }

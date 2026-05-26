@@ -61,7 +61,7 @@ public class ExplainRequestTests extends ESTestCase {
                 assertEquals(request.query(), readRequest.query());
                 assertEquals(request.routing(), readRequest.routing());
                 assertEquals(request.fetchSourceContext(), readRequest.fetchSourceContext());
-                assertFalse(readRequest.isRoutingFromSlice());
+                assertTrue(readRequest.isRoutingFromSlice());
             }
         }
     }

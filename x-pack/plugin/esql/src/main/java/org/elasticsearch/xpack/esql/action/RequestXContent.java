@@ -202,6 +202,11 @@ final class RequestXContent {
                             checkParamValueValidity(entry, classification, paramValue, loc, errors);
                         }
                         type = DataType.fromJava(paramValue);
+                        // DataType.fromJava returns null for an empty list,
+                        // treat it as NULL so downstream type resolution sees DataType.NULL instead of Java null.
+                        if (type == null && paramValue instanceof List<?> list && list.isEmpty()) {
+                            type = DataType.NULL;
+                        }
                         currentParam = new QueryParam(
                             paramName,
                             paramValue,

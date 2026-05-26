@@ -216,6 +216,36 @@ public class EsqlQueryRequestTests extends ESTestCase {
         }
     }
 
+    public void testEmptyListParams() throws IOException {
+        EsqlQueryRequest namedRequest = parseEsqlQueryRequestSync("""
+            {
+                "query": "row a = 1",
+                "params": [ {"n1": []}, {"n2": null} ]
+            }""");
+
+        assertThat(namedRequest.params().size(), is(2));
+        QueryParam namedEmpty = namedRequest.params().get(1);
+        assertThat(namedEmpty.name(), equalTo("n1"));
+        assertThat(namedEmpty.value(), equalTo(List.of()));
+        assertThat(namedEmpty.type(), equalTo(NULL));
+        QueryParam namedNull = namedRequest.params().get(2);
+        assertThat(namedNull.name(), equalTo("n2"));
+        assertThat(namedNull.value(), nullValue());
+        assertThat(namedNull.type(), equalTo(NULL));
+
+        EsqlQueryRequest unnamedRequest = parseEsqlQueryRequestSync("""
+            {
+                "query": "row a = 1",
+                "params": [ [] ]
+            }""");
+
+        assertThat(unnamedRequest.params().size(), is(1));
+        QueryParam unnamedEmpty = unnamedRequest.params().get(1);
+        assertThat(unnamedEmpty.name(), nullValue());
+        assertThat(unnamedEmpty.value(), equalTo(List.of()));
+        assertThat(unnamedEmpty.type(), equalTo(NULL));
+    }
+
     public void testNamedParamsForIdentifiersPatterns() throws IOException {
         String query = randomAlphaOfLengthBetween(1, 100);
         boolean columnar = randomBoolean();

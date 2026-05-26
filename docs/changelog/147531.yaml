@@ -1,0 +1,6 @@
+pr: 147531
+summary: "ESQL: Fix NPE on empty list params"
+area: ES|QL
+type: bug
+issues:
+  - 147448

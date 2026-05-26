@@ -15,11 +15,14 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 
 import java.io.Closeable;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
@@ -104,13 +107,13 @@ public class ExternalSourceCacheService implements Closeable {
      * group merge algorithm), then enriches the matching {@link SchemaCacheEntry} so the next
      * query's planning-time lookup short-circuits on the merged stats.
      */
-    public void reconcileSourceStatsFromContributions(Map<String, java.util.List<Map<String, Object>>> contributionsPerFile) {
+    public void reconcileSourceStatsFromContributions(Map<String, List<Map<String, Object>>> contributionsPerFile) {
         if (enabled == false || contributionsPerFile == null || contributionsPerFile.isEmpty()) {
             return;
         }
         Map<String, Map<String, Object>> merged = new HashMap<>(contributionsPerFile.size());
-        for (Map.Entry<String, java.util.List<Map<String, Object>>> e : contributionsPerFile.entrySet()) {
-            java.util.List<Map<String, Object>> contributions = e.getValue();
+        for (Map.Entry<String, List<Map<String, Object>>> e : contributionsPerFile.entrySet()) {
+            List<Map<String, Object>> contributions = e.getValue();
             if (contributions == null || contributions.isEmpty()) {
                 continue;
             }
@@ -121,8 +124,8 @@ public class ExternalSourceCacheService implements Closeable {
             // regressions). WholeFile and PartialChunk carry stats; Poison and Finalize are gate-only.
             boolean poisoned = false;
             boolean finalized = false;
-            java.util.List<Map<String, Object>> wholeFile = new java.util.ArrayList<>(contributions.size());
-            java.util.List<Map<String, Object>> partials = new java.util.ArrayList<>(contributions.size());
+            List<Map<String, Object>> wholeFile = new ArrayList<>(contributions.size());
+            List<Map<String, Object>> partials = new ArrayList<>(contributions.size());
             for (Map<String, Object> raw : contributions) {
                 switch (SourceStatsContribution.classify(raw)) {
                     case SourceStatsContribution.Poison ignored -> poisoned = true;
@@ -156,10 +159,7 @@ public class ExternalSourceCacheService implements Closeable {
      * CONFIG_FINGERPRINT_KEY (to disambiguate {@code WITH}-option variants) are re-attached from a
      * chunk — all chunks of a file share one pinned mtime and fingerprint.
      */
-    private static Map<String, Object> mergeContributions(
-        java.util.List<Map<String, Object>> wholeFile,
-        java.util.List<Map<String, Object>> partials
-    ) {
+    private static Map<String, Object> mergeContributions(List<Map<String, Object>> wholeFile, List<Map<String, Object>> partials) {
         if (wholeFile.isEmpty() == false) {
             return wholeFile.get(0);
         }
@@ -169,7 +169,7 @@ public class ExternalSourceCacheService implements Closeable {
         if (partials.size() == 1) {
             return partials.get(0);
         }
-        Map<String, Object> mergedForFile = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.mergeStatistics(partials);
+        Map<String, Object> mergedForFile = SourceStatisticsSerializer.mergeStatistics(partials);
         if (mergedForFile != null) {
             Object mtime = partials.get(0).get(ExternalStats.MTIME_MILLIS_KEY);
             if (mtime != null) {

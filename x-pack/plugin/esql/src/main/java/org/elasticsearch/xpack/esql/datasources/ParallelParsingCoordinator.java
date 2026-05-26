@@ -12,6 +12,8 @@ import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
@@ -21,7 +23,9 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -516,11 +520,11 @@ public final class ParallelParsingCoordinator {
                 if (mtimeMillis < 0) {
                     return;
                 }
-                java.util.Map<String, Object> marker = new java.util.HashMap<>();
-                marker.put(org.elasticsearch.xpack.esql.datasources.cache.ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
-                marker.put(org.elasticsearch.xpack.esql.datasources.cache.ExternalStats.FINALIZE_CHUNKS_KEY, Boolean.TRUE);
-                org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.record(storageObject.path().toString(), marker);
-            } catch (java.io.IOException e) {
+                Map<String, Object> marker = new HashMap<>();
+                marker.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
+                marker.put(ExternalStats.FINALIZE_CHUNKS_KEY, Boolean.TRUE);
+                ExternalStatsCapture.record(storageObject.path().toString(), marker);
+            } catch (IOException e) {
                 logger.debug(
                     () -> "ParallelParsingCoordinator: skipping finalize marker for ["
                         + storageObject.path()

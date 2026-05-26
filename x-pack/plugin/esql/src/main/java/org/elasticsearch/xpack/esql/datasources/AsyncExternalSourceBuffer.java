@@ -13,7 +13,12 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Queue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -59,8 +64,7 @@ public final class AsyncExternalSourceBuffer {
      * merges them via {@code SourceStatisticsSerializer.mergeStatistics} before enriching the
      * {@code SchemaCacheEntry}.
      */
-    private final java.util.Map<String, java.util.List<java.util.Map<String, Object>>> capturedSourceMetadata =
-        new java.util.concurrent.ConcurrentHashMap<>();
+    private final Map<String, List<Map<String, Object>>> capturedSourceMetadata = new ConcurrentHashMap<>();
 
     public AsyncExternalSourceBuffer(long maxBufferBytes) {
         if (maxBufferBytes < 1) {
@@ -70,7 +74,7 @@ public final class AsyncExternalSourceBuffer {
     }
 
     /** The mutable per-file capture sink shared with the iterator wrapping. */
-    public java.util.Map<String, java.util.List<java.util.Map<String, Object>>> capturedSourceMetadataSink() {
+    public Map<String, List<Map<String, Object>>> capturedSourceMetadataSink() {
         return capturedSourceMetadata;
     }
 
@@ -80,17 +84,15 @@ public final class AsyncExternalSourceBuffer {
      * against downstream callers mutating the snapshot in place, which would silently lose stats
      * before they reach the coordinator's reconciler.
      */
-    java.util.Map<String, java.util.List<java.util.Map<String, Object>>> capturedSourceMetadataSnapshot() {
+    Map<String, List<Map<String, Object>>> capturedSourceMetadataSnapshot() {
         if (capturedSourceMetadata.isEmpty()) {
-            return java.util.Map.of();
+            return Map.of();
         }
-        java.util.HashMap<String, java.util.List<java.util.Map<String, Object>>> snapshot = new java.util.HashMap<>(
-            capturedSourceMetadata.size()
-        );
+        HashMap<String, List<Map<String, Object>>> snapshot = new HashMap<>(capturedSourceMetadata.size());
         for (var entry : capturedSourceMetadata.entrySet()) {
-            snapshot.put(entry.getKey(), java.util.List.copyOf(entry.getValue()));
+            snapshot.put(entry.getKey(), List.copyOf(entry.getValue()));
         }
-        return java.util.Collections.unmodifiableMap(snapshot);
+        return Collections.unmodifiableMap(snapshot);
     }
 
     /**

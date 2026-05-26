@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.datasources.DatasetRewriter;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.PartitionFilterHintExtractor;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
@@ -729,11 +730,11 @@ public class EsqlSession {
         if (info == null) {
             return;
         }
-        java.util.Map<String, java.util.List<java.util.Map<String, Object>>> captured = info.capturedSourceMetadata();
+        Map<String, List<Map<String, Object>>> captured = info.capturedSourceMetadata();
         if (captured == null || captured.isEmpty()) {
             return;
         }
-        org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService cache = externalSourceResolver.cacheService();
+        ExternalSourceCacheService cache = externalSourceResolver.cacheService();
         if (cache != null) {
             cache.reconcileSourceStatsFromContributions(captured);
         }
@@ -856,7 +857,7 @@ public class EsqlSession {
                         planTimeProfile,
                         releasingNext.delegateFailureAndWrap((finalListener, finalResult) -> {
                             completionInfoAccumulator.accumulate(finalResult.completionInfo());
-                            org.elasticsearch.compute.operator.DriverCompletionInfo merged = completionInfoAccumulator.finish();
+                            DriverCompletionInfo merged = completionInfoAccumulator.finish();
                             reconcileCapturedSourceStats(merged);
                             finalListener.onResponse(
                                 new Result(finalResult.schema(), finalResult.pages(), null, configuration, merged, executionInfo)

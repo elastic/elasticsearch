@@ -11,6 +11,7 @@ package org.elasticsearch.search.slice;
 
 import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.Query;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -44,6 +45,8 @@ import java.util.Objects;
  *  {@link DocValuesSliceQuery} is used to filter the results.
  */
 public class SliceBuilder implements Writeable, ToXContentObject {
+
+    private static final TransportVersion OPTIMIZE_BY_SHARD_VERSION = TransportVersion.fromName("optimize_by_shard");
     private static final MatchNoDocsQuery NOT_PART_OF_SLICE = new MatchNoDocsQuery("this shard is not part of the slice");
 
     private static final ParseField FIELD_FIELD = new ParseField("field");
@@ -64,6 +67,8 @@ public class SliceBuilder implements Writeable, ToXContentObject {
     private int id = -1;
     /** Max number of slices */
     private int max = -1;
+    /** Whether to optimize the slice query by shard */
+    private boolean optimizeByShard = true;
 
     private SliceBuilder() {}
 
@@ -94,6 +99,9 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         field = in.readOptionalString();
         id = in.readVInt();
         max = in.readVInt();
+        if (in.getTransportVersion().supports(OPTIMIZE_BY_SHARD_VERSION)) {
+            optimizeByShard = in.readBoolean();
+        }
     }
 
     @Override
@@ -101,6 +109,21 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         out.writeOptionalString(field);
         out.writeVInt(id);
         out.writeVInt(max);
+        if (out.getTransportVersion().supports(OPTIMIZE_BY_SHARD_VERSION)) {
+            out.writeBoolean(optimizeByShard);
+        }
+    }
+
+    public static SliceBuilder withoutShardOptimization(SliceBuilder sb) {
+        final SliceBuilder newSliceBuilder = new SliceBuilder(sb.field, sb.id, sb.max);
+        newSliceBuilder.setOptimizeByShard(false);
+        return newSliceBuilder;
+    }
+
+    public static SliceBuilder withShardOptimization(SliceBuilder sb) {
+        final SliceBuilder newSliceBuilder = new SliceBuilder(sb.field, sb.id, sb.max);
+        newSliceBuilder.setOptimizeByShard(true);
+        return newSliceBuilder;
     }
 
     private SliceBuilder setField(String field) {
@@ -151,6 +174,17 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         return max;
     }
 
+    /**
+     * Whether to optimize the slice query by shard.
+     */
+    public boolean optimizeByShard() {
+        return optimizeByShard;
+    }
+
+    private void setOptimizeByShard(boolean optimizeByShard) {
+        this.optimizeByShard = optimizeByShard;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -177,12 +211,12 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         SliceBuilder that = (SliceBuilder) o;
-        return id == that.id && max == that.max && Objects.equals(field, that.field);
+        return id == that.id && max == that.max && optimizeByShard == that.optimizeByShard && Objects.equals(field, that.field);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(this.field, this.id, this.max);
+        return Objects.hash(this.field, this.id, this.max, this.optimizeByShard);
     }
 
     /**
@@ -195,7 +229,7 @@ public class SliceBuilder implements Writeable, ToXContentObject {
         int numShards = request.shardRequestIndex() != -1 ? request.numberOfShards() : context.getIndexSettings().getNumberOfShards();
         boolean isScroll = request.scroll() != null;
 
-        if (numShards == 1) {
+        if (numShards == 1 || optimizeByShard == false) {
             return createSliceQuery(id, max, context, isScroll);
         }
         if (max > numShards) {

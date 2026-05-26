@@ -591,3 +591,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:approximation.Subqueries with stats by}
   issue: https://github.com/elastic/elasticsearch/issues/149842
+- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
+  method: testPreferredNodeIdsAreUsedDuringRelocation
+  issue: https://github.com/elastic/elasticsearch/issues/149851
+- class: org.elasticsearch.indices.state.OpenCloseIndexIT
+  method: testTranslogStats
+  issue: https://github.com/elastic/elasticsearch/issues/149852

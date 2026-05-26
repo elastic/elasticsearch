@@ -3019,10 +3019,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     : unionAll
             );
 
-            // Carry over the synthetic convert-function attributes added to UnionAll output through any
-            // intermediate Project nodes (e.g. created by RENAME/KEEP/DROP). Without this, the synthetic
-            // attribute referenced by the replaced convert function would not be visible above the Project,
-            // producing a plan with missing references. Mirrors the logic in {@link ResolveUnionTypes}.
+            // Carry over the synthetic convert-function attributes added to UnionAll output through Project above it.
             if (convertFunctionsToAttributes.isEmpty() == false) {
                 planWithConvertFunctionsPushedDown = carryOverSyntheticAttributesThroughProjects(planWithConvertFunctionsPushedDown);
             }

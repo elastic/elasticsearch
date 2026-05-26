@@ -544,8 +544,8 @@ public final class ShardGetService extends AbstractIndexShardComponent {
         // exclude semantic field if not explicitly requested by fields
         var fetchFieldsAut = fetchFieldsContext != null && !fetchFieldsContext.fields().isEmpty()
             ? new CharacterRunAutomaton(
-            Regex.simpleMatchToAutomaton(fetchFieldsContext.fields().stream().map(f -> f.field).toArray(String[]::new))
-        )
+                Regex.simpleMatchToAutomaton(fetchFieldsContext.fields().stream().map(f -> f.field).toArray(String[]::new))
+            )
             : null;
 
         SourceFilter filter = fetchSourceContext != null ? fetchSourceContext.filter() : null;
@@ -576,12 +576,12 @@ public final class ShardGetService extends AbstractIndexShardComponent {
             var newFetchSourceContext = fetchSourceContext == null
                 ? FetchSourceContext.of(true, false, null, lateExcludes.toArray(String[]::new))
                 : FetchSourceContext.of(
-                fetchSourceContext.fetchSource(),
-                fetchSourceContext.excludeVectors(),
-                fetchSourceContext.excludeInferenceFields(),
-                fetchSourceContext.includes(),
-                lateExcludes.toArray(String[]::new)
-            );
+                    fetchSourceContext.fetchSource(),
+                    fetchSourceContext.excludeVectors(),
+                    fetchSourceContext.excludeInferenceFields(),
+                    fetchSourceContext.includes(),
+                    lateExcludes.toArray(String[]::new)
+                );
             return Tuple.tuple(newFetchSourceContext, sourceFilter);
         }
         return Tuple.tuple(fetchSourceContext, sourceFilter);

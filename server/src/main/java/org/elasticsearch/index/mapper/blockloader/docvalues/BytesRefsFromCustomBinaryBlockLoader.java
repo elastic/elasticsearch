@@ -44,47 +44,10 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
         return new BytesRefsFromCustomBinary(dv);
     }
 
-    public abstract static class AbstractBytesRefsFromBinary extends BlockDocValuesReader implements RowStrideReader {
-        protected final TrackingBinaryDocValues docValues;
-
-        public AbstractBytesRefsFromBinary(TrackingBinaryDocValues docValues) {
-            super(null);
-            this.docValues = docValues;
-        }
-
-        @Override
-        public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
-            try (BlockLoader.BytesRefBuilder builder = factory.bytesRefs(docs.count() - offset)) {
-                for (int i = offset; i < docs.count(); i++) {
-                    int doc = docs.get(i);
-                    read(doc, builder);
-                }
-                return builder.build();
-            }
-        }
-
-        @Override
-        public final void read(int docId, StoredFields storedFields, Builder builder) throws IOException {
-            read(docId, (BytesRefBuilder) builder);
-        }
-
-        @Override
-        public int docId() {
-            return docValues.docValues().docID();
-        }
-
-        public abstract void read(int docId, BytesRefBuilder builder) throws IOException;
-
-        @Override
-        public void close() {
-            docValues.close();
-        }
-    }
-
     /**
      * Read BinaryDocValues encoded by {@link org.elasticsearch.index.mapper.MultiValuedBinaryDocValuesField.IntegratedCount}
      */
-    static class BytesRefsFromCustomBinary extends AbstractBytesRefsFromBinary {
+    static class BytesRefsFromCustomBinary extends AbstractBytesRefsFromBinaryReader {
         private final CustomBinaryDocValuesReader reader = new CustomBinaryDocValuesReader();
 
         BytesRefsFromCustomBinary(TrackingBinaryDocValues docValues) {
@@ -93,6 +56,7 @@ public class BytesRefsFromCustomBinaryBlockLoader extends BlockDocValuesReader.D
 
         @Override
         public BlockLoader.Block read(BlockFactory factory, Docs docs, int offset, boolean nullsFiltered) throws IOException {
+            // Attempt a fast path through OptionalColumnAtATimeReader
             if (docValues.docValues() instanceof BlockLoader.OptionalColumnAtATimeReader direct) {
                 BlockLoader.Block block = direct.tryRead(factory, docs, offset, nullsFiltered, null, false, true);
                 if (block != null) {

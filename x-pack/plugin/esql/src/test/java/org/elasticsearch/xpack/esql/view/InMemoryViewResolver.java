@@ -38,7 +38,7 @@ public class InMemoryViewResolver extends ViewResolver {
         Supplier<ViewMetadata> metadata,
         CrossProjectModeDecider crossProjectModeDecider
     ) {
-        super(clusterService, null, null, crossProjectModeDecider);
+        super(null, clusterService, null, null, crossProjectModeDecider);
         this.projectResolver = DefaultProjectResolver.INSTANCE;
         this.indexNameExpressionResolver = new IndexNameExpressionResolver(
             new ThreadContext(Settings.EMPTY),
@@ -68,6 +68,11 @@ public class InMemoryViewResolver extends ViewResolver {
             projectResolver
         );
         action.execute(mock(Task.class), request, listener);
+    }
+
+    @Override
+    protected void doResolveOriginViews(String projectRouting, ActionListener<OriginViewsResolution> listener) {
+        listener.onResponse(new OriginViewsResolution(true, null));
     }
 
     public void close() {

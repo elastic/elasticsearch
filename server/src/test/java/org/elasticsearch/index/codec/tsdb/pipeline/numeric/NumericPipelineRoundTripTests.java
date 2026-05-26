@@ -161,6 +161,47 @@ public class NumericPipelineRoundTripTests extends ESTestCase {
         assertEquals(4, encodedSize);
     }
 
+    public void testSplitDeltaBoundaryBlockRoundTrip() throws IOException {
+        final int blockSize = 128;
+        final int numBlocks = 4;
+        final long[][] allValues = new long[numBlocks][];
+        final long baseTimestamp = 1_700_000_000_000L;
+        final long interval = 10_000L;
+        final long boundaryJump = 240L * 60L * 1000L;
+        for (int b = 0; b < numBlocks; b++) {
+            allValues[b] = new long[blockSize];
+            final int boundary = blockSize / 2 + b;
+            long current = baseTimestamp + (long) b * boundaryJump;
+            for (int i = 0; i < boundary; i++) {
+                allValues[b][i] = current - (long) i * interval;
+            }
+            long secondStart = current + boundaryJump;
+            for (int i = boundary; i < blockSize; i++) {
+                allValues[b][i] = secondStart - (long) (i - boundary) * interval;
+            }
+        }
+
+        final PipelineConfig config = PipelineConfig.forLongs(blockSize).splitDelta().delta().offset().gcd().bitPack();
+        final NumericEncoder encoder = NumericCodecFactory.DEFAULT.createEncoder(config);
+        final NumericBlockEncoder blockEncoder = encoder.newBlockEncoder();
+
+        final ByteBuffersDataOutput bufferOut = new ByteBuffersDataOutput();
+        final IndexOutput out = new ByteBuffersIndexOutput(bufferOut, "test", "test");
+        for (int b = 0; b < numBlocks; b++) {
+            blockEncoder.encode(Arrays.copyOf(allValues[b], blockSize), blockSize, out);
+        }
+        out.close();
+
+        final NumericDecoder decoder = NumericCodecFactory.DEFAULT.createDecoder(encoder.descriptor());
+        final NumericBlockDecoder blockDecoder = decoder.newBlockDecoder();
+        final ByteBuffersDataInput in = bufferOut.toDataInput();
+        for (int b = 0; b < numBlocks; b++) {
+            final long[] decoded = new long[blockSize];
+            blockDecoder.decode(decoded, blockSize, in);
+            assertArrayEquals("block " + b, allValues[b], decoded);
+        }
+    }
+
     private void assertRoundTrip(long[] values, int blockSize, int count) throws IOException {
         assertRoundTripAndReturnSize(values, blockSize, count);
     }

@@ -101,6 +101,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
@@ -1860,6 +1861,7 @@ public class AuthorizationServiceTests extends ESTestCase {
 
         final BulkShardRequest request = new BulkShardRequest(
             new ShardId(index, randomAlphaOfLength(24), 1),
+            SplitShardCountSummary.IRRELEVANT,
             WriteRequest.RefreshPolicy.NONE,
             new BulkItemRequest[] {
                 new BulkItemRequest(
@@ -3037,7 +3039,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("bad-role", badRole);
 
         final ShardId shardId = new ShardId("some-concrete-shard-index-name", UUID.randomUUID().toString(), 1);
-        final BulkShardRequest request = new BulkShardRequest(shardId, randomFrom(WriteRequest.RefreshPolicy.values()), items);
+        final BulkShardRequest request = new BulkShardRequest(
+            shardId,
+            SplitShardCountSummary.IRRELEVANT,
+            randomFrom(WriteRequest.RefreshPolicy.values()),
+            items
+        );
 
         mockEmptyMetadata();
         final Authentication authentication;
@@ -3163,7 +3170,12 @@ public class AuthorizationServiceTests extends ESTestCase {
         roleMap.put("index-role", indexRole);
 
         final ShardId shardId = new ShardId(indexName, UUID.randomUUID().toString(), 1);
-        final BulkShardRequest request = new BulkShardRequest(shardId, randomFrom(WriteRequest.RefreshPolicy.values()), items);
+        final BulkShardRequest request = new BulkShardRequest(
+            shardId,
+            SplitShardCountSummary.IRRELEVANT,
+            randomFrom(WriteRequest.RefreshPolicy.values()),
+            items
+        );
 
         mockEmptyMetadata();
         final Authentication authentication;
@@ -3264,7 +3276,12 @@ public class AuthorizationServiceTests extends ESTestCase {
             new BulkItemRequest(5, new DeleteRequest("alias-2", "a2a")),
             new BulkItemRequest(6, new IndexRequest("alias-2").id("a2b")) };
         final ShardId shardId = new ShardId("concrete-index", UUID.randomUUID().toString(), 1);
-        final BulkShardRequest request = new BulkShardRequest(shardId, WriteRequest.RefreshPolicy.IMMEDIATE, items);
+        final BulkShardRequest request = new BulkShardRequest(
+            shardId,
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            items
+        );
 
         final Authentication authentication = createAuthentication(new User("user", "my-role"));
         RoleDescriptor role = new RoleDescriptor(
@@ -3353,7 +3370,12 @@ public class AuthorizationServiceTests extends ESTestCase {
             new BulkItemRequest(4, new DeleteRequest("<datemath-{now/d{YYYY.MM}}>", "dm2")), // resolves to same as above
         };
         final ShardId shardId = new ShardId("concrete-index", UUID.randomUUID().toString(), 1);
-        final BulkShardRequest request = new BulkShardRequest(shardId, WriteRequest.RefreshPolicy.IMMEDIATE, items);
+        final BulkShardRequest request = new BulkShardRequest(
+            shardId,
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            items
+        );
 
         final Authentication authentication = createAuthentication(new User("user", "my-role"));
         final RoleDescriptor role = new RoleDescriptor(
@@ -3407,7 +3429,12 @@ public class AuthorizationServiceTests extends ESTestCase {
 
     private BulkShardRequest createBulkShardRequest(String indexName, BiFunction<String, String, DocWriteRequest<?>> req) {
         final BulkItemRequest[] items = { new BulkItemRequest(1, req.apply(indexName, "id")) };
-        return new BulkShardRequest(new ShardId(indexName, UUID.randomUUID().toString(), 1), WriteRequest.RefreshPolicy.IMMEDIATE, items);
+        return new BulkShardRequest(
+            new ShardId(indexName, UUID.randomUUID().toString(), 1),
+            SplitShardCountSummary.IRRELEVANT,
+            WriteRequest.RefreshPolicy.IMMEDIATE,
+            items
+        );
     }
 
     private static Tuple<String, TransportRequest> randomCompositeRequest() {

@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 149532
+summary: Parquet reader support for legacy LZ4 codec
+type: enhancement

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings;
 
+import org.apache.http.HttpHeaders;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.EmptyTaskSettings;
@@ -26,20 +27,12 @@ public class IbmWatsonxEmbeddingsModelTests extends ESTestCase {
         String apiKey,
         String url
     ) {
-        return new IbmWatsonxEmbeddingsModel(
-            "id",
-            TaskType.TEXT_EMBEDDING,
-            "service",
-            url,
-            new IbmWatsonxEmbeddingsServiceSettings(model, projectId, uri, apiVersion, null, null, SimilarityMeasure.DOT_PRODUCT, null),
-            EmptyTaskSettings.INSTANCE,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
-        );
+        return createModel(model, projectId, uri, apiVersion, apiKey, null, null, SimilarityMeasure.DOT_PRODUCT, url, "foo");
     }
 
     public static IbmWatsonxEmbeddingsModel createModel(
         String url,
-        String model,
+        String modelId,
         String projectId,
         URI uri,
         String apiVersion,
@@ -52,38 +45,34 @@ public class IbmWatsonxEmbeddingsModelTests extends ESTestCase {
             TaskType.TEXT_EMBEDDING,
             "service",
             url,
-            new IbmWatsonxEmbeddingsServiceSettings(model, projectId, uri, apiVersion, null, dimensions, similarityMeasure, null),
+            new IbmWatsonxEmbeddingsServiceSettings(modelId, projectId, uri, apiVersion, null, dimensions, similarityMeasure, null),
             EmptyTaskSettings.INSTANCE,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, "foo")
         );
     }
 
     public static IbmWatsonxEmbeddingsModel createModel(
-        String model,
+        String modelId,
         String projectId,
         URI uri,
         String apiVersion,
         String apiKey,
         @Nullable Integer tokenLimit,
-        @Nullable Integer dimensions
+        @Nullable Integer dimensions,
+        @Nullable SimilarityMeasure similarityMeasure,
+        @Nullable String url,
+        String authHeaderValue
     ) {
         return new IbmWatsonxEmbeddingsModel(
             "id",
             TaskType.TEXT_EMBEDDING,
             "service",
-            new IbmWatsonxEmbeddingsServiceSettings(
-                model,
-                projectId,
-                uri,
-                apiVersion,
-                tokenLimit,
-                dimensions,
-                SimilarityMeasure.DOT_PRODUCT,
-                null
-            ),
+            url,
+            new IbmWatsonxEmbeddingsServiceSettings(modelId, projectId, uri, apiVersion, tokenLimit, dimensions, similarityMeasure, null),
             EmptyTaskSettings.INSTANCE,
-            null,
-            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray())),
+            (httpPost, model) -> httpPost.setHeader(HttpHeaders.AUTHORIZATION, authHeaderValue)
         );
     }
 }

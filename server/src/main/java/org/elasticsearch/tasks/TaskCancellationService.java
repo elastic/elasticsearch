@@ -135,6 +135,7 @@ public class TaskCancellationService {
                     logger.trace("child tasks of parent [{}] are completed", taskId);
                     banChildrenRef.close();
                 });
+                // new child tasks will fail to start beyond this point
 
                 taskManager.cancel(task, reason, () -> {
                     logger.trace("task [{}] is cancelled", taskId);

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.view;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ResolvedIndexExpression;
 import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.action.support.ThreadedActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.View;
 import org.elasticsearch.cluster.metadata.ViewMetadata;
@@ -17,12 +18,16 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.search.crossproject.CrossProjectIndexExpressionsRewriter;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.VerificationException;
+import org.elasticsearch.xpack.esql.action.EsqlHasOriginProjectTargetAction;
 import org.elasticsearch.xpack.esql.action.EsqlResolveViewAction;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -45,6 +50,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
 import java.util.function.Predicate;
 
@@ -53,6 +59,7 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_DEFAULT;
 public class ViewResolver {
 
     protected Logger log = LogManager.getLogger(getClass());
+    private final Executor executor;
     private final ClusterService clusterService;
     private final ProjectResolver projectResolver;
     private final CrossProjectModeDecider crossProjectModeDecider;
@@ -75,6 +82,7 @@ public class ViewResolver {
      * Public constructor for NOOP instance (in release mode, when component is not registered, but TransportEsqlQueryAction still needs it)
      */
     public ViewResolver() {
+        this.executor = null;
         this.clusterService = null;
         this.projectResolver = null;
         this.crossProjectModeDecider = CrossProjectModeDecider.NOOP;
@@ -83,11 +91,13 @@ public class ViewResolver {
     }
 
     public ViewResolver(
+        ThreadPool threadPool,
         ClusterService clusterService,
         ProjectResolver projectResolver,
         Client client,
         CrossProjectModeDecider crossProjectModeDecider
     ) {
+        this.executor = threadPool != null ? threadPool.executor(ThreadPool.Names.SEARCH) : null;
         this.clusterService = clusterService;
         this.projectResolver = projectResolver;
         this.crossProjectModeDecider = crossProjectModeDecider;
@@ -96,7 +106,7 @@ public class ViewResolver {
     }
 
     ViewMetadata getMetadata() {
-        return clusterService.state().metadata().getProject(projectResolver.getProjectId()).custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
+        return projectResolver.getProjectMetadata(clusterService.state()).custom(ViewMetadata.TYPE, ViewMetadata.EMPTY);
     }
 
     // TODO: Remove this function entirely if we no longer need to do micro-benchmarks on views enabled/disabled
@@ -131,6 +141,7 @@ public class ViewResolver {
      */
     public void replaceViews(
         LogicalPlan plan,
+        String projectRouting,
         BiFunction<String, String, LogicalPlan> parser,
         ActionListener<ViewResolutionResult> listener
     ) {
@@ -146,14 +157,21 @@ public class ViewResolver {
         // patterns that the analyzer's ResolveTable will later look up. Keeping the resolver's
         // output uncompacted is the foundation for the CPS lenient-field-caps work in
         // esql-planning #543, #472.
-        replaceViews(
-            plan,
-            parser,
-            new LinkedHashSet<>(),
-            viewQueries,
-            0,
-            listener.delegateFailureAndWrap((l, rewritten) -> l.onResponse(new ViewResolutionResult(rewritten, viewQueries)))
-        );
+        doResolveOriginViews(projectRouting, listener.delegateFailureAndWrap((l1, originResolution) -> {
+            if (originResolution.resolveLocalViews() == false) {
+                l1.onResponse(new ViewResolutionResult(plan, viewQueries));
+            } else {
+                replaceViews(
+                    plan,
+                    parser,
+                    new LinkedHashSet<>(),
+                    viewQueries,
+                    0,
+                    originResolution.originProjectAlias(),
+                    l1.delegateFailureAndWrap((l2, rewritten) -> l2.onResponse(new ViewResolutionResult(rewritten, viewQueries)))
+                );
+            }
+        }));
     }
 
     private void replaceViews(
@@ -162,6 +180,7 @@ public class ViewResolver {
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
         int depth,
+        @Nullable String originProjectAlias,
         ActionListener<LogicalPlan> listener
     ) {
         LinkedHashSet<String> seenInner = new LinkedHashSet<>(seenViews);
@@ -191,6 +210,7 @@ public class ViewResolver {
                     seenInner,
                     viewQueries,
                     depth,
+                    originProjectAlias,
                     planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
                         result.forEachDown(resolvedPlans::add);
@@ -204,6 +224,7 @@ public class ViewResolver {
                     seenWildcards,
                     viewQueries,
                     depth,
+                    originProjectAlias,
                     planListener.delegateFailureAndWrap((l, result) -> {
                         plan.forEachDown(resolvedPlans::add);
                         // Also mark the resolved result subtree so transformDown does not
@@ -223,6 +244,7 @@ public class ViewResolver {
         LinkedHashSet<String> seenViews,
         Map<String, String> viewQueries,
         int depth,
+        @Nullable String originProjectAlias,
         ActionListener<LogicalPlan> listener
     ) {
         var currentSubplans = fork.children();
@@ -237,6 +259,7 @@ public class ViewResolver {
                     seenViews,
                     viewQueries,
                     depth + 1,
+                    originProjectAlias,
                     l.delegateFailureAndWrap((subListener, newPlan) -> {
                         if (newPlan instanceof Subquery sq && sq.child() instanceof NamedSubquery named) {
                             newPlan = named;
@@ -270,6 +293,7 @@ public class ViewResolver {
         HashSet<String> seenWildcards,
         Map<String, String> viewQueries,
         int depth,
+        @Nullable String originProjectAlias,
         ActionListener<LogicalPlan> listener
     ) {
         // Avoid re-resolving wildcards preserved for non-view matches in subsequent transformDown visits.
@@ -283,6 +307,18 @@ public class ViewResolver {
             // leak "_all" as a literal pattern into downstream merge/concat code.
             listener.onResponse(unresolvedRelation);
             return;
+        }
+        if (originProjectAlias != null) {
+            for (String pattern : patterns) {
+                if (CrossProjectIndexExpressionsRewriter.isOriginProjectWildcardExclusion(pattern, originProjectAlias)) {
+                    // Origin is fully excluded by a project-wildcard exclusion (e.g. `-_origin:*`, `-<origin-alias>:*`, `-*:*`).
+                    // Skip local view resolution: any view body would otherwise be expanded into a sibling branch that queries
+                    // every project (the body itself does not carry the exclusion), surfacing as an "Unknown index" failure on a
+                    // linked project that does not have the body's indices.
+                    listener.onResponse(unresolvedRelation);
+                    return;
+                }
+            }
         }
         for (String pattern : patterns) {
             if (Regex.isSimpleMatchPattern(pattern)) {
@@ -336,6 +372,7 @@ public class ViewResolver {
                         branchSeenViews,
                         viewQueries,
                         depth + 1,
+                        originProjectAlias,
                         l2.delegateFailureAndWrap((l3, fullyResolved) -> {
                             ViewPlan viewPlan = new ViewPlan(view.name(), fullyResolved);
                             resolvedViews.put(view.name(), viewPlan);
@@ -587,6 +624,23 @@ public class ViewResolver {
         client.execute(EsqlResolveViewAction.TYPE, request, listener);
     }
 
+    protected void doResolveOriginViews(String projectRouting, ActionListener<OriginViewsResolution> listener) {
+        if (crossProjectModeDecider.crossProjectEnabled() == false) {
+            listener.onResponse(new OriginViewsResolution(true, null));
+        } else {
+            client.execute(
+                EsqlHasOriginProjectTargetAction.TYPE,
+                new EsqlHasOriginProjectTargetAction.Request(REST_MASTER_TIMEOUT_DEFAULT, projectRouting),
+                new ThreadedActionListener<>(
+                    executor,
+                    listener.map(response -> new OriginViewsResolution(response.resolveLocalViews(), response.originProjectAlias()))
+                )
+            );
+        }
+    }
+
+    protected record OriginViewsResolution(boolean resolveLocalViews, @Nullable String originProjectAlias) {}
+
     record ViewPlan(String name, LogicalPlan plan) {}
 
     private LogicalPlan buildPlanFromBranches(UnresolvedRelation ur, List<ViewPlan> subqueries, int depth) {
@@ -744,4 +798,5 @@ public class ViewResolver {
         }
         return false;
     }
+
 }

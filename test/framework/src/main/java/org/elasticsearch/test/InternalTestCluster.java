@@ -2204,6 +2204,13 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     /**
+     * Blocks until {@code vacatingNode} holds no shards of {@code index} (the node has been vacated for that index).
+     */
+    public void awaitNodeVacated(String index, String vacatingNode) {
+        awaitNodesInclude(index, nodes -> nodes.contains(vacatingNode) == false);
+    }
+
+    /**
      * Performs cluster bootstrap when node with index {@link #bootstrapMasterNodeIndex} is started
      * with the names of all existing and new master-eligible nodes.
      * Indexing starts from 0.

@@ -43,7 +43,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
@@ -74,7 +73,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Consumer;
 
 import static org.apache.logging.log4j.Level.DEBUG;
 import static org.apache.logging.log4j.Level.ERROR;
@@ -658,17 +656,15 @@ public class ShardStateAction {
             this.allocationService = allocationService;
             this.rerouteService = rerouteService;
 
-            watchPrioritySetting(clusterSettings, SHARD_STARTED_REROUTE_SOME_UNASSIGNED_PRIORITY, v -> rerouteSomeUnassignedPriority = v);
-            watchPrioritySetting(clusterSettings, SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY, v -> rerouteAllAssignedPriority = v);
-        }
-
-        private static void watchPrioritySetting(ClusterSettings clusterSettings, Setting<Priority> setting, Consumer<Priority> consumer) {
-            if (clusterSettings.isDynamicSetting(setting.getKey())) {
-                // setting only registered in some tests today
-                clusterSettings.initializeAndWatch(setting, consumer);
-            } else {
-                consumer.accept(setting.get(Settings.EMPTY));
-            }
+            // setting only registered in some tests today
+            clusterSettings.initializeAndWatchIfRegistered(
+                SHARD_STARTED_REROUTE_SOME_UNASSIGNED_PRIORITY,
+                v -> rerouteSomeUnassignedPriority = v
+            );
+            clusterSettings.initializeAndWatchIfRegistered(
+                SHARD_STARTED_REROUTE_ALL_ASSIGNED_PRIORITY,
+                v -> rerouteAllAssignedPriority = v
+            );
         }
 
         @Override

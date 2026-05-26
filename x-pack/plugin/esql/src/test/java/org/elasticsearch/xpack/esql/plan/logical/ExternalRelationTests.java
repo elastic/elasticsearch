@@ -221,6 +221,94 @@ public class ExternalRelationTests extends ESTestCase {
         assertNotEquals(exec1, exec3);
     }
 
+    // ===== Partition-column strip in toPhysicalExec → withUnifiedSchema =====
+
+    public void testToPhysicalExecSeedsUnifiedFromDataOnlyWhenNoPartitions() {
+        // No partitions → unifiedSchema seeded from metadata.schema() unchanged (by name).
+        FileList fileList = createFileList();
+        ExternalRelation relation = createRelation(fileList);
+
+        ExternalSourceExec exec = relation.toPhysicalExec();
+
+        assertNotNull("unifiedSchema is seeded", exec.unifiedSchema());
+        assertEquals(
+            "no partition stripping; matches metadata.schema() column count",
+            relation.metadata().schema().size(),
+            exec.unifiedSchema().size()
+        );
+        assertEquals(
+            "no partition stripping; column names match",
+            relation.metadata().schema().stream().map(a -> a.name()).toList(),
+            exec.unifiedSchema().attributes().stream().map(a -> a.name()).toList()
+        );
+    }
+
+    public void testToPhysicalExecStripsPartitionAttributesFromUnified() {
+        // Partitioned dataset: metadata.schema() carries appended partition attrs, but
+        // ColumnMapping.index was sized against the data-only unified. toPhysicalExec must seed
+        // unifiedSchema from the data-only view.
+        Attribute id = attr("id", DataType.LONG);
+        Attribute name = attr("name", DataType.KEYWORD);
+        Attribute year = attr("year", DataType.INTEGER); // partition column
+
+        SourceMetadata partitionedMetadata = createMetadataWithSchema(List.of(id, name, year));
+        FileList partitionedFiles = createPartitionedFileList(Map.of("year", DataType.INTEGER));
+        ExternalRelation relation = new ExternalRelation(
+            Source.EMPTY,
+            "s3://bucket/year=*/*.parquet",
+            partitionedMetadata,
+            List.of(id, name, year),
+            partitionedFiles,
+            Map.of()
+        );
+
+        ExternalSourceExec exec = relation.toPhysicalExec();
+
+        assertNotNull("unifiedSchema is seeded", exec.unifiedSchema());
+        assertEquals("partition attr stripped", 2, exec.unifiedSchema().size());
+        assertFalse("partition column not present in seeded unified", exec.unifiedSchema().names().contains("year"));
+        assertTrue("data columns preserved", exec.unifiedSchema().names().contains("id"));
+        assertTrue("data columns preserved", exec.unifiedSchema().names().contains("name"));
+    }
+
+    private static SourceMetadata createMetadataWithSchema(List<Attribute> schema) {
+        return new SourceMetadata() {
+            @Override
+            public List<Attribute> schema() {
+                return schema;
+            }
+
+            @Override
+            public String sourceType() {
+                return "parquet";
+            }
+
+            @Override
+            public String location() {
+                return "s3://bucket/data/*.parquet";
+            }
+
+            @Override
+            public boolean equals(Object o) {
+                return o instanceof SourceMetadata;
+            }
+
+            @Override
+            public int hashCode() {
+                return 1;
+            }
+        };
+    }
+
+    private static FileList createPartitionedFileList(Map<String, DataType> partitionColumns) {
+        StoragePath path = StoragePath.of("s3://bucket/year=2024/data.parquet");
+        return GlobExpander.fileListOf(
+            List.of(new StorageEntry(path, 100, Instant.EPOCH)),
+            "s3://bucket/year=*/*.parquet",
+            new org.elasticsearch.xpack.esql.datasources.PartitionMetadata(partitionColumns, Map.of(path, Map.of("year", 2024)))
+        );
+    }
+
     // ===== Helpers =====
 
     private static Attribute attr(String name, DataType type) {

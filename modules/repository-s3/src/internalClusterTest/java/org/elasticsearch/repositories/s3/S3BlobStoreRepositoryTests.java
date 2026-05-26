@@ -745,6 +745,11 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             );
             super.handle(exchange);
         }
+
+        @Override
+        public Set<String> blobsKeyset() {
+            return blobs().keySet();
+        }
     }
 
     /**

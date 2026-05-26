@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -603,6 +604,8 @@ public class ViewResolver {
         client.execute(EsqlResolveViewAction.TYPE, request, new ThreadedActionListener<>(executor, listener));
     }
 
+    protected record OriginViewsResolution(boolean resolveLocalViews, @Nullable String originProjectAlias) {}
+
     record ViewPlan(String name, LogicalPlan plan) {}
 
     private LogicalPlan buildPlanFromBranches(UnresolvedRelation ur, List<ViewPlan> subqueries, int depth) {
@@ -760,4 +763,5 @@ public class ViewResolver {
         }
         return false;
     }
+
 }

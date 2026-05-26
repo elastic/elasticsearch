@@ -56,7 +56,7 @@ final class Panama22VectorScorerFactory implements VectorScorerFactory {
         int dimension,
         int dataLength,
         int bulkSize,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+        ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) throws IOException {
         if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS
             && ((queryBits == 1 && indexBits == 1)
@@ -72,12 +72,12 @@ final class Panama22VectorScorerFactory implements VectorScorerFactory {
                     dimension,
                     dataLength,
                     bulkSize,
-                    int4Encoding,
+                    bitEncoding,
                     false   // native not enabled
                 );
             }
         }
-        return FALLBACK.newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
+        return FALLBACK.newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, bitEncoding);
     }
 
     @Override

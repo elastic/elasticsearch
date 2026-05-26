@@ -38,34 +38,28 @@ public class FieldArrayContext {
     protected final Map<String, Offsets> offsetsPerField = new HashMap<>();
 
     public void recordOffset(String field, Comparable<?> value) {
-        Offsets arrayOffsets = offsetsPerField.computeIfAbsent(field, k -> new Offsets());
-        int nextOffset = arrayOffsets.currentOffset++;
-        var offsets = arrayOffsets.valueToOffsets.computeIfAbsent(value, s -> new ArrayList<>(2));
-        offsets.add(nextOffset);
+        offsetsPerField.computeIfAbsent(field, k -> new Offsets()).recordOffset(value);
     }
 
     public void recordNull(String field) {
-        Offsets arrayOffsets = offsetsPerField.computeIfAbsent(field, k -> new Offsets());
-        int nextOffset = arrayOffsets.currentOffset++;
-        arrayOffsets.nullValueOffsets.add(nextOffset);
+        offsetsPerField.computeIfAbsent(field, k -> new Offsets()).recordNull();
     }
 
     void maybeRecordEmptyArray(String field) {
-        offsetsPerField.computeIfAbsent(field, k -> new Offsets());
+        offsetsPerField.computeIfAbsent(field, k -> new Offsets()).markEmptyArray();
     }
 
     public void addToLuceneDocument(DocumentParserContext context) throws IOException {
+        boolean strictlyColumnar = context.indexSettings().getMode().isStrictColumnar();
         for (var entry : offsetsPerField.entrySet()) {
-            var fieldName = entry.getKey();
-            var offset = entry.getValue();
-            // In columnar mode, a single non-null value carries no ordering or shape information beyond what the sorted-set doc values
-            // already encode, so the offsets entry is redundant.
-            // This means that single-valued arrays are rebuilt as single valued; ex. ["a"] -> "a".
-            boolean strictlyColumnar = context.indexSettings().getMode().isStrictColumnar();
-            if (strictlyColumnar && offset.currentOffset <= 1 && offset.nullValueOffsets.isEmpty()) {
+            var offsets = entry.getValue();
+            // In strict columnar a single non-null value carries no ordering or shape information beyond what the sorted-set doc
+            // values already encode, so the offsets entry is redundant. This means that single-valued arrays are rebuilt as
+            // single valued; ex. ["a"] -> "a".
+            if (strictlyColumnar && offsets.currentOffset() <= 1 && offsets.hasNulls() == false) {
                 continue;
             }
-            context.doc().add(new SortedDocValuesField(fieldName, encodeOffsetArray(offset)));
+            context.doc().add(new SortedDocValuesField(entry.getKey(), encodeOffsetArray(offsets)));
         }
     }
 
@@ -76,17 +70,19 @@ public class FieldArrayContext {
      * (one per indexed array element, including {@code null}s) and each following ordinal is either a non-negative index into the
      * per-document sorted set of array values, or {@code -1} when that slot is {@code null}. Decoding uses {@link #parseOffsetArray}.
      */
-    protected static BytesRef encodeOffsetArray(Offsets offset) throws IOException {
+    protected static BytesRef encodeOffsetArray(Offsets offsets) throws IOException {
+        // Force inline single-value state to materialize so the table below has a populated valueToOffsets to iterate.
+        offsets.startRecording();
         int currentOrd = 0;
         // This array allows to retain the original ordering of elements in leaf arrays and retain duplicates.
-        int[] offsetToOrd = new int[offset.currentOffset];
-        for (var offsetEntry : offset.valueToOffsets.entrySet()) {
+        int[] offsetToOrd = new int[offsets.currentOffset()];
+        for (var offsetEntry : offsets.valueToOffsets.entrySet()) {
             for (var offsetAndLevel : offsetEntry.getValue()) {
                 offsetToOrd[offsetAndLevel] = currentOrd;
             }
             currentOrd++;
         }
-        for (var nullOffset : offset.nullValueOffsets) {
+        for (var nullOffset : offsets.nullValueOffsets) {
             offsetToOrd[nullOffset] = NULL_ORD;
         }
 
@@ -184,21 +180,76 @@ public class FieldArrayContext {
             );
     }
 
+    /**
+     * Per-field offsets accumulator. Lazily allocates its backing collections: the first non-null value is stashed in
+     * {@link #pendingValue}, and the collections are populated only once a second value, a null, or an empty-array marker arrives.
+     * This avoids the {@link TreeMap}/{@link ArrayList} allocation cost for the common case of a field with a single scalar value
+     * per document.
+     */
     protected static class Offsets {
 
-        int currentOffset;
-        // Need to use TreeMap here, so that we maintain the order in which each value (with offset) stored inserted,
-        // (which is in the same order the document gets parsed) so we store offsets in right order. This is the same
-        // order in what the values get stored in SortedSetDocValues.
-        final Map<Comparable<?>, List<Integer>> valueToOffsets = new TreeMap<>();
-        final List<Integer> nullValueOffsets = new ArrayList<>(2);
+        // Inline single-value state — non-null while no second value/null/empty-array marker has been recorded yet
+        private Comparable<?> pendingValue;
+
+        // Recording state — populated by startRecording()
+        private Map<Comparable<?>, List<Integer>> valueToOffsets;
+
+        private List<Integer> nullValueOffsets;
+        private int currentOffset;
+
+        public void recordOffset(Comparable<?> value) {
+            if (valueToOffsets != null) {
+                // Already recording — append at the next slot
+                appendValue(value);
+            } else if (pendingValue == null) {
+                // First value - lazily record it, defer collection allocation until a second arrives
+                pendingValue = value;
+            } else {
+                // Second value - startRecording backfills the inline value at offset 0, then we append at offset 1
+                startRecording();
+                appendValue(value);
+            }
+        }
+
+        public void recordNull() {
+            startRecording();
+            nullValueOffsets.add(currentOffset++);
+        }
+
+        public void markEmptyArray() {
+            startRecording();
+        }
 
         public int currentOffset() {
+            if (valueToOffsets == null) {
+                return pendingValue == null ? 0 : 1;
+            }
             return currentOffset;
         }
 
         public boolean hasNulls() {
-            return nullValueOffsets.isEmpty() == false;
+            return nullValueOffsets != null && nullValueOffsets.isEmpty() == false;
+        }
+
+        private void startRecording() {
+            if (valueToOffsets != null) {
+                // Offsets are already being recorded
+                return;
+            }
+
+            // TreeMap so iteration order matches the sorted-set doc-values ordering used during reconstruction
+            valueToOffsets = new TreeMap<>();
+            nullValueOffsets = new ArrayList<>(2);
+
+            // Backfill the previously stored value
+            if (pendingValue != null) {
+                appendValue(pendingValue);
+                pendingValue = null;
+            }
+        }
+
+        private void appendValue(Comparable<?> value) {
+            valueToOffsets.computeIfAbsent(value, k -> new ArrayList<>(2)).add(currentOffset++);
         }
     }
 

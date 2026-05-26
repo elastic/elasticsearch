@@ -1554,6 +1554,66 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
         assertThat(getShard1Response.get().getSource().get("field"), equalTo("shard1"));
     }
 
+    public void testGetWithRefresh() {
+        startMasterOnlyNode();
+        final var searchNode = startSearchNode();
+        final var indexNode = startIndexNode();
+        ensureStableCluster(3);
+
+        final String indexName = "test-get-with-refresh";
+        createIndex(indexName, indexSettings(1, 1).put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        ensureGreen(indexName);
+
+        final var index = resolveIndex(indexName);
+        final var indexRoutingPostSplit = postSplitRouting(clusterService().state(), index, 2);
+
+        // Document that routes to target shard after split.
+        final var shard1docId = makeIdThatRoutesToShard(indexRoutingPostSplit, 1);
+        indexDoc(indexName, shard1docId, "field", "initial");
+
+        final var SHARD_GET_ACTION = TransportGetAction.TYPE.name() + "[s]";
+        final var getPrepared = new CountDownLatch(1);
+        final var reshardDone = new CountDownLatch(1);
+        final var transportService = MockTransportService.getInstance(indexNode);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (SHARD_GET_ACTION.equals(action)) {
+                getPrepared.countDown();
+                safeAwait(reshardDone);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        final var getResponse = new AtomicReference<GetResponse>();
+        final var getThread = new Thread(
+            () -> getResponse.set(
+                client(indexNode).prepareGet(indexName, shard1docId)
+                    .setRealtime(false)
+                    .setRefresh(true)
+                    .execute()
+                    .actionGet(SAFE_AWAIT_TIMEOUT)
+            )
+        );
+        getThread.start();
+
+        safeAwait(getPrepared);
+        client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet(SAFE_AWAIT_TIMEOUT);
+        awaitClusterState(
+            searchNode,
+            clusterState -> indexMetadata(clusterState, index).getReshardingMetadata()
+                .getSplit()
+                .targetStateAtLeast(1, IndexReshardingState.Split.TargetShardState.HANDOFF)
+        );
+
+        // Refresh should guarantee update goes to target shard
+        indexDoc(indexName, shard1docId, "field", "updated");
+        reshardDone.countDown();
+
+        safeJoin(getThread);
+        waitForReshardCompletion(indexName);
+        assertThat(getResponse.get().isExists(), is(true));
+        assertEquals("updated", getResponse.get().getSource().get("field"));
+    }
+
     // test MultiGet during resharding - same pattern as testGet but with a single multiget request
     public void testMultiGet() {
         String masterOnlyNode = startMasterOnlyNode();
@@ -1636,6 +1696,68 @@ public class StatelessReshardIT extends AbstractStatelessPluginIntegTestCase {
             assertThat(item.getResponse().isExists(), is(true));
             assertThat(item.getResponse().getSource().get("field"), equalTo("shard" + i));
         }
+    }
+
+    public void testMultiGetWithRefresh() {
+        startMasterOnlyNode();
+        final var searchNode = startSearchNode();
+        final var indexNode = startIndexNode();
+        ensureStableCluster(3);
+
+        final String indexName = "test-multiget-with-refresh";
+        createIndex(indexName, indexSettings(1, 1).put(INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.MINUS_ONE).build());
+        ensureGreen(indexName);
+
+        final var index = resolveIndex(indexName);
+        final var indexRoutingPostSplit = postSplitRouting(clusterService().state(), index, 2);
+
+        // Document that routes to target shard after split.
+        final var shard1docId = makeIdThatRoutesToShard(indexRoutingPostSplit, 1);
+        indexDoc(indexName, shard1docId, "field", "initial");
+
+        final var SHARD_MGET_ACTION = TransportShardMultiGetAction.TYPE.name() + "[s]";
+        final var mgetPrepared = new CountDownLatch(1);
+        final var reshardDone = new CountDownLatch(1);
+        final var transportService = MockTransportService.getInstance(indexNode);
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (SHARD_MGET_ACTION.equals(action)) {
+                mgetPrepared.countDown();
+                safeAwait(reshardDone);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        final var mgetResponse = new AtomicReference<MultiGetResponse>();
+        final var mgetThread = new Thread(
+            () -> mgetResponse.set(
+                client(indexNode).prepareMultiGet()
+                    .add(indexName, shard1docId)
+                    .setRealtime(false)
+                    .setRefresh(true)
+                    .execute()
+                    .actionGet(SAFE_AWAIT_TIMEOUT)
+            )
+        );
+        mgetThread.start();
+
+        safeAwait(mgetPrepared);
+        client().execute(TransportReshardAction.TYPE, new ReshardIndexRequest(indexName, 2)).actionGet(SAFE_AWAIT_TIMEOUT);
+        awaitClusterState(
+            searchNode,
+            clusterState -> indexMetadata(clusterState, index).getReshardingMetadata()
+                .getSplit()
+                .targetStateAtLeast(1, IndexReshardingState.Split.TargetShardState.HANDOFF)
+        );
+
+        // Refresh should guarantee update goes to target shard
+        indexDoc(indexName, shard1docId, "field", "updated");
+        reshardDone.countDown();
+
+        safeJoin(mgetThread);
+        waitForReshardCompletion(indexName);
+        MultiGetItemResponse itemResponse = mgetResponse.get().getResponses()[0];
+        assertThat(itemResponse.getResponse().isExists(), is(true));
+        assertEquals("updated", itemResponse.getResponse().getSource().get("field"));
     }
 
     // A successful realtime get should return the latest value of a doc regardless of refresh.

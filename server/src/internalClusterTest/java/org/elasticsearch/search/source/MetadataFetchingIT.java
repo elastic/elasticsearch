@@ -35,7 +35,8 @@ public class MetadataFetchingIT extends ESIntegTestCase {
 
     @Override
     protected boolean randomizeColumnarIdMode() {
-        // .storedFields("_none_") has no effect with columnar mode
+        // A number of tests use .storedFields("_none_") and rely that _id will then not be fetched, but that has no effect with columnar
+        // id mode.
         return false;
     }
 

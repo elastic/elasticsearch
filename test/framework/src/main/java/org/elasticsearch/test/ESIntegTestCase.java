@@ -2914,7 +2914,7 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     }
 
                     String seqNoIndexOptionsStr = indexTemplateAndCreateRequestSettings.get("index.seq_no.index_options");
-                    if (seqNoIndexOptionsStr != null) {
+                    if ("POINTS_AND_DOC_VALUES".equals(seqNoIndexOptionsStr)) {
                         // Don't randomly enable columnar id mode, if seqno isn't stored as doc values.
                         return;
                     }
@@ -2927,8 +2927,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
                     if (randomBoolean()) {
                         LOGGER.info("randomly setting [index.mapping.use_colulmnar_id_mode_by_default] to [true]");
-                        additionalSettings.put("index.mapping.use_colulmnar_id_mode_by_default", true);
                     }
+                    additionalSettings.put("index.mapping.use_colulmnar_id_mode_by_default", true);
                 }
             );
         }
@@ -2939,12 +2939,23 @@ public abstract class ESIntegTestCase extends ESTestCase {
      * Assumes that index isn't using columnar id mode because of {@link RandomizeColumnarIdModePlugin}.
      * This is a way for tests to deal with the fact that it can't handle columanar ids well.
      */
-    public static void assumeNoColumnarId(String message, String indexName) {
+    public static void assumeNoColumnarId(String message, String... indexNames) {
+        var response = client().admin()
+            .indices()
+            .getSettings(new GetSettingsRequest(TimeValue.THIRTY_SECONDS).indices(indexNames))
+            .actionGet();
+        for (String indexName : indexNames) {
+            assumeTrue(message, response.getSetting(indexName, "index.mapping.use_colulmnar_id_mode_by_default") == null);
+        }
+    }
+
+    public static boolean indexColumnarIdMode(String indexName) {
         var response = client().admin()
             .indices()
             .getSettings(new GetSettingsRequest(TimeValue.THIRTY_SECONDS).indices(indexName))
             .actionGet();
-        assumeTrue(message, response.getSetting(indexName, "index.mapping.use_colulmnar_id_mode_by_default") == null);
+        String settingValue = response.getSetting(indexName, "index.mapping.use_colulmnar_id_mode_by_default");
+        return settingValue != null && Boolean.TRUE.equals(Booleans.parseBoolean(settingValue));
     }
 
     /**

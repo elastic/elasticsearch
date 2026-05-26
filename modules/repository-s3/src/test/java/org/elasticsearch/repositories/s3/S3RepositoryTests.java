@@ -359,7 +359,7 @@ public class S3RepositoryTests extends ESTestCase {
             StorageClass.STANDARD
         );
 
-        // Case 4: only metadata_storage_class set → data uses it; data + others fall back to STANDARD (storage_class unset).
+        // Case 4: only metadata_storage_class set → metadata uses it; data + others fall back to STANDARD (storage_class unset).
         assertResolvedStorageClasses(
             storageClassSettings(null, null, "onezone_ia"),
             StorageClass.STANDARD,
@@ -373,6 +373,14 @@ public class S3RepositoryTests extends ESTestCase {
             StorageClass.STANDARD_IA,
             StorageClass.STANDARD_IA,
             StorageClass.ONEZONE_IA
+        );
+
+        // Case 6: storage_class + data_storage_class set → metadata falls back to storage_class; data uses its override.
+        assertResolvedStorageClasses(
+            storageClassSettings("standard_ia","onezone_ia", null),
+            StorageClass.STANDARD_IA,
+            StorageClass.ONEZONE_IA,
+            StorageClass.STANDARD_IA
         );
     }
 

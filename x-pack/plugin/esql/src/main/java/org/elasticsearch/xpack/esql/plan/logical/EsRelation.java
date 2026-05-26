@@ -195,8 +195,7 @@ public class EsRelation extends LeafPlan {
      * Returns a copy with the given cluster aliases removed from {@link #originalIndices()},
      * {@link #concreteIndices()} and {@link #indexNameWithModes()} (the last keyed by qualified
      * {@code cluster:index} names). Dropping a cluster stops it being queried, since
-     * {@link #concreteIndices()} drives the per-cluster fan-out. See
-     * <a href="https://github.com/elastic/esql-planning/issues/795">esql-planning#795</a>.
+     * {@link #concreteIndices()} drives the per-cluster fan-out.
      */
     public EsRelation withoutClusters(Set<String> clusterAliases) {
         if (clusterAliases.isEmpty()) {

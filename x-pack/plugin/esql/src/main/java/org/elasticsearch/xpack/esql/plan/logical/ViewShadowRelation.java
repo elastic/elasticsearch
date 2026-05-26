@@ -38,8 +38,7 @@ import java.util.Objects;
  *       against that map (replacing a matched shadow with the remote index's {@code EsRelation}) and
  *       removes the owning projects from the paired view body.</li>
  *   <li>{@code ViewCompactionPostIndexResolution} strips any still-unresolved shadow, then flattens
- *       nested {@link ViewUnionAll}s and unwraps {@code NamedSubquery} wrappers. Per Strategy A in
- *       <a href="https://github.com/elastic/esql-planning/issues/543">esql-planning#543</a>, sibling
+ *       nested {@link ViewUnionAll}s and unwraps {@code NamedSubquery} wrappers. Sibling
  *       {@code EsRelation}s stay separate rather than being merged via a combined field-caps call.</li>
  * </ol>
  * <p>

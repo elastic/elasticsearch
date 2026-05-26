@@ -235,7 +235,7 @@ public class ExcludeShadowedProjectsFromViewBodyTests extends ESTestCase {
      * View {@code v1 = FROM source-idx} resolved across origin ({@code ""}) and linked project
      * {@code "P"}; the shadow shows {@code "P"} also owns an index named {@code v1}. The body must
      * drop {@code "P"} (the view stops running there) while the shadow keeps {@code "P"} — otherwise
-     * {@code "P"} is double-counted (view body + its index). See esql-planning#795.
+     * {@code "P"} is double-counted (view body + its index).
      */
     public void testViewBodyExcludesProjectOwningSameNamedIndex() {
         // Strict view body "v1": source-idx resolved on origin ("") and linked project "P".
@@ -292,7 +292,6 @@ public class ExcludeShadowedProjectsFromViewBodyTests extends ESTestCase {
     /**
      * Only the colliding project is excluded: view body on origin, {@code P} and {@code Q}; only
      * {@code P} owns a same-named index. The body keeps origin and {@code Q} and drops just {@code P}.
-     * See esql-planning#795.
      */
     public void testViewBodyExcludesOnlyTheCollidingProject() {
         EsIndex body = new EsIndex(
@@ -329,7 +328,7 @@ public class ExcludeShadowedProjectsFromViewBodyTests extends ESTestCase {
     /**
      * Edge: the colliding project is the body's only project. Excluding it leaves the body with no
      * clusters (a zero-row leaf); the project's index supplies all rows via the shadow. Whether
-     * execution treats the empty leaf as no rows is left to the integration test. See esql-planning#795.
+     * execution treats the empty leaf as no rows is left to the integration test.
      */
     public void testViewBodyEmptyWhenOnlyProjectOwnsSameNamedIndex() {
         EsIndex body = new EsIndex(
@@ -370,8 +369,7 @@ public class ExcludeShadowedProjectsFromViewBodyTests extends ESTestCase {
      * Nested case: outer view {@code v = FROM v2}, inner view {@code v2 = FROM source-idx}; project
      * {@code P} owns indexes named like both {@code v} and {@code v2}. Since {@code v} is an index on
      * {@code P}, none of {@code v}'s definition runs there — including {@code P}'s {@code v2} index, which
-     * the bottom-up pass prunes away too. {@code P} contributes only its {@code v} index. See
-     * esql-planning#795.
+     * the bottom-up pass prunes away too. {@code P} contributes only its {@code v} index.
      */
     public void testNestedViewExcludesProjectOwningOuterViewIndex() {
         Map<String, EsField> mapping = LoadMapping.loadMapping("mapping-one-field.json");

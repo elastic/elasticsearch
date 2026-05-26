@@ -479,8 +479,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * inside a {@link ViewUnionAll}, so every shadow flows through here (an unmatched one is left for
      * {@link ViewCompactionPostIndexResolution} to strip). Running bottom-up means an inner shadow is
      * already an {@link EsRelation} when an enclosing collision prunes its subtree, so an outer
-     * collision also excludes inner same-named indexes. See
-     * <a href="https://github.com/elastic/esql-planning/issues/795">esql-planning#795</a>.
+     * collision also excludes inner same-named indexes.
      */
     private static class ExcludeShadowedProjectsFromViewBody extends ParameterizedAnalyzerRule<ViewUnionAll, AnalyzerContext> {
 

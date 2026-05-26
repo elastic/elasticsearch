@@ -272,8 +272,10 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         final String dataNode = internalCluster().startDataOnlyNode();
         ensureStableCluster(2);
 
+        final long failedSnapshotWarnThreshold = randomLongBetween(1, 5);
         updateClusterSettings(
-            Settings.builder().put(LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING.getKey(), 2L)
+            Settings.builder()
+                .put(LifecycleSettings.SLM_HEALTH_FAILED_SNAPSHOT_WARN_THRESHOLD_SETTING.getKey(), failedSnapshotWarnThreshold)
         );
 
         createRepository(repoName, "mock");
@@ -288,13 +290,13 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         waitForNoSnapshotsInProgress();
         assertInvocationsSinceLastSuccess(policyName, 0L);
 
-        stopSlm();
+        startSlm();
         try {
-            for (long expectedInvocations = 1L; expectedInvocations <= 2L; expectedInvocations++) {
+            for (long expectedInvocations = 1L; expectedInvocations <= failedSnapshotWarnThreshold; expectedInvocations++) {
+                assertSlmHealthGreen();
                 executePolicyWithSnapshotFailure(masterNode, policyName, repoName, dataNode, expectedInvocations);
             }
 
-            startSlm();
             assertSlmYellowWithImpactAndDiagnosis(
                 SlmHealthIndicatorService.STALE_SNAPSHOTS_IMPACT_ID,
                 SlmHealthIndicatorService.DIAGNOSIS_CHECK_RECENTLY_FAILED_SNAPSHOTS_ID,
@@ -423,6 +425,17 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         );
 
         client().execute(PutSnapshotLifecycleAction.INSTANCE, putLifecycle).get();
+    }
+
+    private void assertSlmHealthGreen() throws Exception {
+        assertBusy(() -> {
+            GetHealthAction.Response health = admin().cluster()
+                .execute(GetHealthAction.INSTANCE, new GetHealthAction.Request(true, 1000))
+                .get();
+            assertThat(health.getStatus(), equalTo(HealthStatus.GREEN));
+            HealthIndicatorResult slmIndicator = health.findIndicator(SlmHealthIndicatorService.NAME);
+            assertThat(slmIndicator.status(), equalTo(HealthStatus.GREEN));
+        });
     }
 
     private void assertSlmYellowMissingSnapshot(List<String> unhealthyPolicies) throws Exception {

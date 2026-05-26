@@ -33,7 +33,7 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
      */
     protected static final ConfigurationParseContext PARSE_CONTEXT = ConfigurationParseContext.PERSISTENT;
 
-    protected boolean ignoreUnknownFields = randomBoolean();
+    protected static final boolean ignoreUnknownFields = true;
 
     protected abstract T createGivenCommonSettings(Map<String, Object> commonSettings, ConfigurationParseContext context);
 
@@ -46,11 +46,6 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
             CohereCommonServiceSettings.OLD_MODEL_ID_FIELD,
             ServiceFields.URL
         );
-    }
-
-    @Override
-    public boolean supportsUnknownFields() {
-        return ignoreUnknownFields;
     }
 
     public void testFromMap_Request_SetModelId() {

@@ -104,10 +104,15 @@ tasks.register("copyPainless", Copy) {
 
 tasks.named("run").configure {
   executable = "${buildParams.runtimeJavaHome.get()}/bin/java" + (OS.current() == OS.WINDOWS ? '.exe' : '')
-  dependsOn "copyExpression", "copyPainless", configurations.nativeLib
+  dependsOn "copyExpression", "copyPainless", configurations.nativeLib, ":libs:native:native-libraries:extractLibs"
   systemProperty 'plugins.dir', "${buildDir}/plugins"
   systemProperty 'tests.index', "${buildDir}/index"
-  systemProperty 'es.nativelibs.path', TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())
+  def nativeLibsPath = TestUtil.getTestLibraryPath(file("../libs/native/libraries/build/platform/").toString())
+  systemProperty 'es.nativelibs.path', nativeLibsPath
+  jvmArgs '--enable-native-access=ALL-UNNAMED',
+    '-Dorg.apache.lucene.vectorization.upperJavaFeatureVersion=' + buildParams.getRuntimeJavaVersion().map { it.majorVersion }.get()
+  // Forward es.nativelibs.path to JMH forked VMs via default jvmArgsAppend
+  args '-jvmArgsAppend', "-Des.nativelibs.path=${nativeLibsPath}"
 }
 
 tasks.named('test').configure {

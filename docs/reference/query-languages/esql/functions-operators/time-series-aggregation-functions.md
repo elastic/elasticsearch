@@ -52,7 +52,9 @@ for details and examples.
 
 ## Metric type compatibility
 
-The inner function you pick depends on the field's `metric_type` mapping:
+The inner function you pick depends on the field's
+[`metric_type`](docs-content://manage-data/data-store/data-streams/time-series-data-stream-tsds.md#time-series-metric)
+mapping:
 
 - **Counters**: monotonically increasing values that reset on process restart. Use
   [`RATE`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/rate.md),
@@ -67,10 +69,8 @@ The inner function you pick depends on the field's `metric_type` mapping:
   [`MAX_OVER_TIME`](/reference/query-languages/esql/functions-operators/time-series-aggregation-functions/max_over_time.md),
   and the other `*_OVER_TIME` variants. Counter functions like `RATE` reject gauge fields.
 
-For the conceptual context behind this split (counter resets, weighting by publish rate,
-and choosing an inner function), see
-[When to use TS vs FROM](/reference/query-languages/esql/commands/ts.md#when-to-use-ts-vs-from)
-on the `TS` command page.
+For the conceptual context behind the counter/gauge split, refer to
+[When to use TS vs FROM](/reference/query-languages/esql/commands/ts.md#when-to-use-ts-vs-from).
 
 The following time series aggregation functions are supported:
 

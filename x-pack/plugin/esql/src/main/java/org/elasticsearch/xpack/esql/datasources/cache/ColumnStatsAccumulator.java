@@ -22,11 +22,10 @@ import java.util.Map;
 
 /**
  * Accumulates per-column null count + min + max across the pages of a single cold scan.
- * Tracked types: BOOLEAN, INTEGER (incl. COUNTER_INTEGER), LONG (incl. DATETIME / DATE_NANOS /
- * COUNTER_LONG), DOUBLE (incl. COUNTER_DOUBLE), KEYWORD / TEXT / IP. UNSIGNED_LONG and VERSION are
- * deliberately untracked (their stored byte order disagrees with the type's semantic order); all
- * other types are untracked too. Untracked types contribute null counts only — min and max stay
- * null so the warm path bails out rather than serving an unbounded answer.
+ * Tracked types: BOOLEAN, INTEGER, LONG (incl. DATETIME / DATE_NANOS), DOUBLE, KEYWORD / TEXT / IP.
+ * UNSIGNED_LONG and VERSION are deliberately untracked (their stored byte order disagrees with the
+ * type's semantic order); all other types are untracked too. Untracked types contribute null counts
+ * only — min and max stay null so the warm path bails out rather than serving an unbounded answer.
  * <p>
  * Hot-path discipline: the iterator passes blocks by their position index in the page (not by name)
  * via {@link #acceptBlockAt(int, Block)} — accumulator state is held in a flat array so each block
@@ -130,9 +129,9 @@ public final class ColumnStatsAccumulator {
             // order matches IPv4/IPv6 address order by construction.
             return switch (type) {
                 case BOOLEAN -> T_BOOLEAN;
-                case INTEGER, COUNTER_INTEGER -> T_INT;
-                case LONG, COUNTER_LONG, DATETIME, DATE_NANOS -> T_LONG;
-                case DOUBLE, COUNTER_DOUBLE -> T_DOUBLE;
+                case INTEGER -> T_INT;
+                case LONG, DATETIME, DATE_NANOS -> T_LONG;
+                case DOUBLE -> T_DOUBLE;
                 case KEYWORD, TEXT, IP -> T_BYTESREF;
                 default -> T_UNTRACKED;
             };
@@ -162,9 +161,7 @@ public final class ColumnStatsAccumulator {
                         case T_LONG -> updateLong(((LongBlock) block).getLong(idx));
                         case T_DOUBLE -> updateDouble(((DoubleBlock) block).getDouble(idx));
                         case T_BYTESREF -> updateBytesRef(((BytesRefBlock) block).getBytesRef(idx, scratch));
-                        default -> {
-                            // unreachable: gated above
-                        }
+                        default -> throw new AssertionError("unexpected type ordinal: " + t);
                     }
                 }
             }

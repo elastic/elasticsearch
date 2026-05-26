@@ -26,12 +26,11 @@ import java.util.Set;
  * {@code MAX(<column>)} when the column's ESQL data type has byte-stable comparison semantics
  * matching ES|QL's runtime ordering.
  * <p>
- * MIN/MAX-eligible types: INTEGER, LONG, DOUBLE, DATETIME, DATE_NANOS, KEYWORD, TEXT, IP. Other
- * types (VERSION uses semver order — not byte-lex; BOOLEAN — too narrow a min/max surface to be
- * useful; UNSIGNED_LONG — signed-byte serialization mismatches the logical unsigned ordering)
- * are rejected here to keep correctness ahead of breadth. Virtual columns ({@code _file.*},
- * synthetic engine metadata) are rejected because the per-column statistics layer cannot answer
- * about them — same gate Parquet uses.
+ * MIN/MAX-eligible types: BOOLEAN, INTEGER, LONG, DOUBLE, DATETIME, DATE_NANOS, KEYWORD, TEXT, IP.
+ * Other types (VERSION uses semver order — not byte-lex; UNSIGNED_LONG — signed-byte serialization
+ * mismatches the logical unsigned ordering) are rejected here to keep correctness ahead of breadth.
+ * Virtual columns ({@code _file.*}, synthetic engine metadata) are rejected because the per-column
+ * statistics layer cannot answer about them — same gate Parquet uses.
  */
 public class TextAggregatePushdownSupport implements AggregatePushdownSupport {
 

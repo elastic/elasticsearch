@@ -169,6 +169,36 @@ public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testMinMaxBooleanColdThenWarmShortCircuits() throws Exception {
+        assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
+
+        // Mixed flag column: even rows true, odd rows false → MIN(flag)=false, MAX(flag)=true. The
+        // mixed values catch a default-valued or swapped serve (false/false, true/true, true/false
+        // would all fail) while proving the warm path reads the captured boolean stat.
+        int totalRows = 6;
+        StringBuilder sb = new StringBuilder("id:integer,flag:boolean\n");
+        for (int i = 0; i < totalRows; i++) {
+            sb.append(i).append(',').append(i % 2 == 0).append('\n');
+        }
+        Path csvFile = createTempDir().resolve("bool_pushdown_test.csv");
+        Files.writeString(csvFile, sb.toString(), StandardCharsets.UTF_8);
+        try {
+            String query = "EXTERNAL \"" + StoragePath.fileUri(csvFile) + "\" | STATS lo = MIN(flag), hi = MAX(flag)";
+
+            try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+                assertBooleanMinMax(response, false, true);
+                assertThat("cold execution must scan rows", response.documentsFound(), equalTo((long) totalRows));
+            }
+            try (var response = run(syncEsqlQueryRequest(query).profile(true))) {
+                assertBooleanMinMax(response, false, true);
+                assertNoPushdownBypass(response);
+                assertThat(response.documentsFound(), equalTo(0L));
+            }
+        } finally {
+            Files.deleteIfExists(csvFile);
+        }
+    }
+
     public void testAllNullColumnMinMaxReturnsNull() throws Exception {
         assumeTrue("requires EXTERNAL command capability", EXTERNAL_COMMAND.isEnabled());
 
@@ -236,6 +266,15 @@ public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
         assertThat(rows.size(), equalTo(1));
         assertThat(rows.get(0).get(0).toString(), equalTo(expectedMin));
         assertThat(rows.get(0).get(1).toString(), equalTo(expectedMax));
+    }
+
+    private static void assertBooleanMinMax(EsqlQueryResponse response, boolean expectedMin, boolean expectedMax) {
+        List<? extends ColumnInfo> columns = response.columns();
+        assertThat(columns.size(), equalTo(2));
+        List<List<Object>> rows = getValuesList(response);
+        assertThat(rows.size(), equalTo(1));
+        assertThat(rows.get(0).get(0), equalTo(expectedMin));
+        assertThat(rows.get(0).get(1), equalTo(expectedMax));
     }
 
     private static void assertMinMax(EsqlQueryResponse response, long expectedMin, long expectedMax) {

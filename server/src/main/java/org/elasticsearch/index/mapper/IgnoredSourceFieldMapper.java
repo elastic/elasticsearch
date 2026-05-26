@@ -212,7 +212,7 @@ public class IgnoredSourceFieldMapper extends MetadataFieldMapper {
     @Override
     public void postParse(DocumentParserContext context) {
         // Ignored values are only expected in synthetic and columnar_stored modes.
-        if (context.mappingLookup().isSourceSynthetic() == false && context.mappingLookup().isColumnarStored() == false) {
+        if (context.mappingLookup().isSourceSynthetic() == false && context.mappingLookup().isSourceColumnarStored() == false) {
             assert context.getIgnoredFieldValues().isEmpty();
             return;
         }

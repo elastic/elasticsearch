@@ -69,7 +69,7 @@ public final class MappingLookup {
     // cached booleans from the _source field mapper
     private final boolean isSourceEnabled;
     private final boolean isSourceSynthetic;
-    private final boolean isColumnarStored;
+    private final boolean isSourceColumnarStored;
 
     /**
      * Creates a new {@link MappingLookup} instance by parsing the provided mapping and extracting its field definitions.
@@ -244,7 +244,7 @@ public final class MappingLookup {
         SourceFieldMapper sfm = mapping.getMetadataMapperByClass(SourceFieldMapper.class);
         this.isSourceEnabled = sfm != null && sfm.enabled();
         this.isSourceSynthetic = sfm != null && sfm.isSynthetic();
-        this.isColumnarStored = sfm != null && sfm.isColumnarStored();
+        this.isSourceColumnarStored = sfm != null && sfm.isColumnarStored();
     }
 
     private static boolean assertMapperNamesInterned(Map<String, Mapper> mappers, Map<String, ObjectMapper> objectMappers) {
@@ -525,8 +525,8 @@ public final class MappingLookup {
         return isSourceSynthetic;
     }
 
-    public boolean isColumnarStored() {
-        return isColumnarStored;
+    public boolean isSourceColumnarStored() {
+        return isSourceColumnarStored;
     }
 
     /**
@@ -536,7 +536,7 @@ public final class MappingLookup {
         if (isSourceSynthetic()) {
             return new SourceLoader.Synthetic(filter, () -> mapping.syntheticFieldLoader(filter), metrics, mapping.ignoredSourceFormat());
         }
-        if (isColumnarStored()) {
+        if (isSourceColumnarStored()) {
             return new SourceLoader.ColumnarStored(filter, mapping.ignoredSourceFormat());
         }
         var syntheticVectorsLoader = mapping.syntheticVectorsLoader(filter);

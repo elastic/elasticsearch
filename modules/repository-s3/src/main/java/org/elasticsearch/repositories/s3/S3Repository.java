@@ -154,17 +154,17 @@ class S3Repository extends MeteredBlobStoreRepository {
      * Sets the S3 storage class type for the backup files. Values may be standard, reduced_redundancy,
      * standard_ia, onezone_ia and intelligent_tiering. Defaults to standard.
      */
-    static final Setting<String> STORAGE_CLASS_SETTING = Setting.simpleString("storage_class");
+    static final Setting<String> FALLBACK_STORAGE_CLASS_SETTING = Setting.simpleString("storage_class");
 
     /**
      * Storage class applied to uploads with {@link org.elasticsearch.common.blobstore.OperationPurpose#SNAPSHOT_DATA}.
-     * When unset, falls back to {@link #STORAGE_CLASS_SETTING} (which itself defaults to standard).
+     * When unset, falls back to {@link #FALLBACK_STORAGE_CLASS_SETTING} (which itself defaults to standard).
      */
     static final Setting<String> DATA_STORAGE_CLASS_SETTING = Setting.simpleString("data_storage_class");
 
     /**
      * Storage class applied to uploads with {@link org.elasticsearch.common.blobstore.OperationPurpose#SNAPSHOT_METADATA}.
-     * When unset, falls back to {@link #STORAGE_CLASS_SETTING}.
+     * When unset, falls back to {@link #FALLBACK_STORAGE_CLASS_SETTING}.
      */
     static final Setting<String> METADATA_STORAGE_CLASS_SETTING = Setting.simpleString("metadata_storage_class");
 
@@ -264,7 +264,7 @@ class S3Repository extends MeteredBlobStoreRepository {
 
     private final boolean serverSideEncryption;
 
-    private final String storageClass;
+    private final String fallbackStorageClass;
 
     private final String dataStorageClass;
 
@@ -346,7 +346,7 @@ class S3Repository extends MeteredBlobStoreRepository {
 
         this.serverSideEncryption = SERVER_SIDE_ENCRYPTION_SETTING.get(metadata.settings());
 
-        this.storageClass = STORAGE_CLASS_SETTING.get(metadata.settings());
+        this.fallbackStorageClass = FALLBACK_STORAGE_CLASS_SETTING.get(metadata.settings());
         this.dataStorageClass = DATA_STORAGE_CLASS_SETTING.get(metadata.settings());
         this.metadataStorageClass = METADATA_STORAGE_CLASS_SETTING.get(metadata.settings());
         validatePerPurposeStorageClassIfSpecified(metadata.name(), DATA_STORAGE_CLASS_SETTING.getKey(), this.dataStorageClass);
@@ -384,7 +384,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             serverSideEncryption,
             bufferSize,
             cannedACL,
-            storageClass
+            fallbackStorageClass
         );
     }
 
@@ -525,7 +525,7 @@ class S3Repository extends MeteredBlobStoreRepository {
             serverSideEncryption,
             bufferSize,
             cannedACL,
-            storageClass,
+            fallbackStorageClass,
             dataStorageClass,
             metadataStorageClass,
             supportsConditionalWrites,

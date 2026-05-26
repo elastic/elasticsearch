@@ -28,8 +28,8 @@ import java.util.Map;
  * <p>The data-source feature is coupled to the project-encryption-key feature, so the service is always
  * bound when a data source is served; the {@code 503} below guards the otherwise-impossible unbound case.
  *
- * <p>TODO(#149194): the volatile slot mirrors the per-project mismatch in {@code PrimaryEncryptionKeyService};
- * make it a per-call {@code ProjectId} lookup once that lands.
+ * <p>The per-node service slot will need to become a per-project lookup once the encryption service is
+ * project-aware.
  */
 public final class DataSourceCredentials {
 

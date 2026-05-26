@@ -192,10 +192,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
      * reuse the cached tail.
      */
     private OrcTail loadTail(OrcStorageObjectAdapter fs, Path path) throws IOException {
-        // Single-array flag is cheap and avoids allocating an AtomicBoolean per call. The lambda
-        // only runs on cache miss, so observing missed[0] == true after the cache returns means
-        // this caller paid the parse cost; missed[0] == false means another producer (or an earlier
-        // call from this one) already populated the entry within the access TTL.
+        // The loader runs only on a cache miss, so the flag distinguishes hit from miss.
         boolean[] missed = { false };
         try {
             OrcTail tail = PARSED_FOOTERS.getOrLoad(fs.cacheKey(), key -> {

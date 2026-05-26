@@ -395,10 +395,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * builder.
      */
     private ParquetMetadata loadFooter(StorageObject object, ParquetStorageObjectAdapter adapter) throws IOException {
-        // Single-array flag is cheap and avoids allocating an AtomicBoolean per call. The lambda
-        // only runs on cache miss, so observing missed[0] == true after the cache returns means
-        // this caller paid the parse cost; missed[0] == false means another producer (or an earlier
-        // call from this one) already populated the entry within the access TTL.
+        // The loader runs only on a cache miss, so the flag distinguishes hit from miss.
         boolean[] missed = { false };
         try {
             ParquetMetadata footer = PARSED_FOOTERS.getOrLoad(adapter.cacheKey(), key -> {
@@ -674,11 +671,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 filter -> openParquetFileCached(object, parquetInputFile, readOptionsBuilder().withRecordFilter(filter).build())
             );
         } finally {
-            // read_nanos covers the synchronous setup phase of read() / readRange(): footer
-            // open, row-group filter, page-index narrowing, late-mat decision, iterator construction.
-            // Per-page wall time during iterator drain is not folded in here — page-level decode/
-            // decompress timing is captured in per-column counters, but the iterator's overall
-            // active time would require wrapping the returned CloseableIterator (follow-up: per-page wall time).
+            // read_nanos covers the synchronous setup phase only; per-page decode/decompress time
+            // is in the per-column counters, not here.
             counters.addTotalReadNanos(System.nanoTime() - startNanos);
         }
     }

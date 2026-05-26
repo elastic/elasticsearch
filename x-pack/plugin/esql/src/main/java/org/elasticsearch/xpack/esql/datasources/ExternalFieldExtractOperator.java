@@ -318,17 +318,10 @@ public class ExternalFieldExtractOperator implements Operator {
     }
 
     /**
-     * Per-driver counters for {@link ExternalFieldExtractOperator}. Surfaces as the operator's
-     * {@code status} block in the ES|QL profile.
-     * <ul>
-     *     <li>{@code pages_processed} — pages passed through {@link #getOutput()} (non-empty).</li>
-     *     <li>{@code rows_extracted} — rows whose deferred columns were materialized (the rows
-     *     surviving TopN that this operator did <em>not</em> skip).</li>
-     *     <li>{@code extract_nanos} — wall time spent in {@code materialize(...)} including the
-     *     registry's per-file extractor calls.</li>
-     * </ul>
-     * Wire-gated by {@code esql_external_source_profile} so older nodes round-trip a zero-valued
-     * status without rejecting the response.
+     * Per-driver counters for {@link ExternalFieldExtractOperator}, surfaced as the operator's
+     * {@code status} in the profile: pages processed, rows whose deferred columns were materialized,
+     * and wall time in {@code materialize(...)}. Wire-gated by {@code esql_external_source_profile}
+     * so older nodes round-trip a zero-valued status.
      */
     public static class Status implements Operator.Status {
 

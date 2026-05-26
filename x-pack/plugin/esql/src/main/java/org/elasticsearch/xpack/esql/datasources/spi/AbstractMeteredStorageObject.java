@@ -8,22 +8,14 @@
 package org.elasticsearch.xpack.esql.datasources.spi;
 
 /**
- * Base for leaf {@link StorageObject} implementations that meter their own I/O — the per-provider
- * readers (S3, GCS, Azure, HTTP, local). It owns the {@link StorageObjectMetricsCounters} instance
- * and the {@link #metrics()} snapshot accessor so the providers don't each re-declare the identical
- * field + method; subclasses call {@link #counters} from inside their own read paths to record
- * request timing and bytes.
- * <p>
- * Only the read-path metering itself is provider-specific (each SDK / transport surfaces byte
- * counts and completion differently), so {@code addRequest(...)} call sites stay in the subclasses.
- * <p>
- * Decorators (range, retry, concurrency-limit, …) do <b>not</b> extend this: they forward
- * {@link #metrics()} to their wrapped object so counters are attributed to the underlying store,
- * per the {@link StorageObject#metrics()} contract.
+ * Base for the leaf {@link StorageObject} providers (S3, GCS, Azure, HTTP, local): owns the
+ * {@link #counters} field and the {@link #metrics()} accessor that each used to re-declare
+ * identically. Subclasses record into {@link #counters} from their own read paths — the
+ * byte-count extraction is provider-specific, so {@code addRequest} call sites stay in them.
+ * Decorators do not extend this; they forward {@link #metrics()} to their delegate.
  */
 public abstract class AbstractMeteredStorageObject implements StorageObject {
 
-    /** Cumulative I/O counters for this object; subclasses record into it from their read paths. */
     protected final StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
 
     @Override

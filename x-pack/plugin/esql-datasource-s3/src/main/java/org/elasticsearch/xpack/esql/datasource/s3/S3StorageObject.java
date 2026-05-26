@@ -51,7 +51,6 @@ public final class S3StorageObject extends AbstractMeteredStorageObject {
 
     // Retries: AWS manages them via the SDK ExecutionInterceptor / RetryStrategy at the S3Client
     // layer; intercepting them here would require wrapping the client. Not counted in this PR.
-    // The metering counters field + metrics() live in AbstractMeteredStorageObject.
 
     public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
         this(s3Client, null, bucket, key, path);

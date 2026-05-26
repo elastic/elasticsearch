@@ -54,7 +54,6 @@ public final class GcsStorageObject extends AbstractMeteredStorageObject {
 
     // TODO: GCS retries are managed inside RetryHelper at the Storage client layer; intercepting
     // them here would require wrapping the Storage instance. Not counted in this PR.
-    // Metering counters field + metrics() live in AbstractMeteredStorageObject.
 
     public GcsStorageObject(Storage storage, String bucket, String objectName, StoragePath path) {
         if (storage == null) {

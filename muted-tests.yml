@@ -586,7 +586,6 @@ tests:
   method: testUniformCanMatchMetricAttributesWhenPlentyOfDocumentsInIndex
   issue: https://github.com/elastic/elasticsearch/issues/149874
 - class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
-  method: testLikeIndexLegacySettingNoResults
   issue: https://github.com/elastic/elasticsearch/issues/149898
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:where-like.likeContainsOnEvalOutput}

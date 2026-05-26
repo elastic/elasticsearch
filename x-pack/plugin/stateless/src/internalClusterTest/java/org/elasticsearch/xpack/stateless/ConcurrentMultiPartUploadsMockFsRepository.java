@@ -54,9 +54,13 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.test.ESTestCase.SAFE_AWAIT_TIMEOUT;
 import static org.elasticsearch.test.ESTestCase.asInstanceOf;
 import static org.elasticsearch.test.ESTestCase.safeGet;
 
@@ -205,6 +209,7 @@ class ConcurrentMultiPartUploadsMockFsRepository extends FsRepository {
                 try {
                     var tempBlobPath = path.resolve(tempBlob);
                     try (var fileChannel = FileChannel.open(tempBlobPath, STANDARD_OPEN_OPTIONS)) {
+                        final var cancelled = new AtomicBoolean(false);
                         final var bytesWritten = new AtomicLong();
                         final var future = new PlainActionFuture<Void>();
                         try (var refCountingListener = new RefCountingListener(future)) {
@@ -213,7 +218,11 @@ class ConcurrentMultiPartUploadsMockFsRepository extends FsRepository {
                             while (remaining > 0) {
                                 long partSize = Math.min(remaining, getMultiPartUploadSize());
                                 final long partOffset = offset;
-                                executor.execute(ActionRunnable.run(refCountingListener.acquire(), () -> {
+                                final var partListener = refCountingListener.acquire();
+                                executor.execute(ActionRunnable.run(partListener, () -> {
+                                    if (cancelled.get()) {
+                                        throw new IOException("upload cancelled");
+                                    }
                                     var bytesCopied = 0L;
                                     try (var input = provider.apply(partOffset, partSize)) {
                                         bytesCopied += copy(input, fileChannel, partOffset);
@@ -240,6 +249,25 @@ class ConcurrentMultiPartUploadsMockFsRepository extends FsRepository {
                             // causing safeGet to in turn wrap that in an AssertionError that won't be caught.
                             // In order to better match the semantics of sequential copy we unwrap the ExecutionException
                             // back into an IOException here. This allows e.g. corruption handling to be tested.
+                            // Additionally, signal queued tasks to skip the upload and wait for any running
+                            // tasks to finish before returning. This ensures the InputStreams obtained from
+                            // the provider remain valid for the full duration of each task, since the provider
+                            // may release underlying resources once writeBlobAtomic returns.
+                            cancelled.set(true);
+                            // We use a raw get() rather than safeGet() to avoid throwing a second
+                            // AssertionError. We double the timeout because SAFE_AWAIT_TIMEOUT has already
+                            // elapsed waiting for the parts future; running tasks need extra headroom to
+                            // finish their current I/O before they can observe cancellation.
+                            try {
+                                future.get(2 * SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS);
+                            } catch (InterruptedException drainInterrupted) {
+                                Thread.currentThread().interrupt();
+                                assertion.addSuppressed(drainInterrupted);
+                            } catch (TimeoutException timeoutException) {
+                                assert false : timeoutException;
+                            } catch (ExecutionException executionException) {
+                                assertion.addSuppressed(executionException);
+                            }
                             if (assertion.getCause() instanceof ExecutionException ee && ee.getCause() instanceof IOException ioe) {
                                 throw ioe;
                             }

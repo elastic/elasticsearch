@@ -24,9 +24,10 @@ Convert strings to time spans using [TO_DATEPERIOD](/reference/query-languages/e
 [TO_TIMEDURATION](/reference/query-languages/esql/functions-operators/type-conversion-functions/to_timeduration.md),
 or the [cast operators](/reference/query-languages/esql/functions-operators/operators.md#esql-cast-operator) `::DATE_PERIOD`, `::TIME_DURATION`.
 
-For time series queries with the [`TS`](/reference/query-languages/esql/commands/ts.md)
-source command, the [`TRANGE`](/reference/query-languages/esql/functions-operators/date-time-functions/trange.md)
-function takes a time span and filters on a sliding range relative to query time.
+The [`TRANGE`](/reference/query-languages/esql/functions-operators/date-time-functions/trange.md)
+function takes a time span and filters on a sliding range relative to query time. It
+works in any ES|QL query, and is commonly paired with
+[`TS`](/reference/query-languages/esql/commands/ts.md) for time series.
 
 
 ## Examples of using time spans in {{esql}} [esql-time-spans-examples]

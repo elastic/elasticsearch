@@ -52,7 +52,7 @@ public class FileSplit implements ExternalSplit {
     private final Map<String, Object> config;
     private final Map<String, Object> partitionValues;
     @Nullable
-    private final SchemaReconciliation.ColumnMapping columnMapping;
+    private final ColumnMapping columnMapping;
     @Nullable
     private final Map<String, Object> statistics;
     @Nullable
@@ -87,7 +87,7 @@ public class FileSplit implements ExternalSplit {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
-        @Nullable SchemaReconciliation.ColumnMapping columnMapping
+        @Nullable ColumnMapping columnMapping
     ) {
         this(sourceType, path, offset, length, format, config, partitionValues, columnMapping, null, null, null);
     }
@@ -100,14 +100,14 @@ public class FileSplit implements ExternalSplit {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
-        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        @Nullable ColumnMapping columnMapping,
         @Nullable Map<String, Object> statistics
     ) {
         this(sourceType, path, offset, length, format, config, partitionValues, columnMapping, statistics, null, null);
     }
 
     /**
-     * Static factory that includes the per-file {@code readSchema} alongside the {@link SchemaReconciliation.ColumnMapping}.
+     * Static factory that includes the per-file {@code readSchema} alongside the {@link ColumnMapping}.
      * Use this when building splits with the planner-resolved per-file schema so the reader can be pinned to the
      * coordinator's inference instead of self-inferring at runtime.
      * <p>Provided as a static factory (instead of a constructor overload) to avoid ambiguity with the
@@ -121,7 +121,7 @@ public class FileSplit implements ExternalSplit {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
-        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        @Nullable ColumnMapping columnMapping,
         @Nullable List<Attribute> readSchema
     ) {
         return new FileSplit(sourceType, path, offset, length, format, config, partitionValues, columnMapping, null, null, readSchema);
@@ -138,7 +138,7 @@ public class FileSplit implements ExternalSplit {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
-        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        @Nullable ColumnMapping columnMapping,
         @Nullable Map<String, Object> statistics,
         @Nullable List<Attribute> readSchema
     ) {
@@ -168,7 +168,7 @@ public class FileSplit implements ExternalSplit {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
-        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        @Nullable ColumnMapping columnMapping,
         @Nullable SplitStats splitStats
     ) {
         return new FileSplit(sourceType, path, offset, length, format, config, partitionValues, columnMapping, null, splitStats, null);
@@ -185,7 +185,7 @@ public class FileSplit implements ExternalSplit {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
-        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        @Nullable ColumnMapping columnMapping,
         @Nullable SplitStats splitStats,
         @Nullable List<Attribute> readSchema
     ) {
@@ -212,7 +212,7 @@ public class FileSplit implements ExternalSplit {
         String format,
         Map<String, Object> config,
         Map<String, Object> partitionValues,
-        @Nullable SchemaReconciliation.ColumnMapping columnMapping,
+        @Nullable ColumnMapping columnMapping,
         @Nullable Map<String, Object> statistics,
         @Nullable SplitStats splitStats,
         @Nullable List<Attribute> readSchema
@@ -268,7 +268,7 @@ public class FileSplit implements ExternalSplit {
         this.config = in.readGenericMap();
         this.partitionValues = in.readGenericMap();
         if (in.readBoolean()) {
-            this.columnMapping = new SchemaReconciliation.ColumnMapping(in);
+            this.columnMapping = new ColumnMapping(in);
         } else {
             this.columnMapping = null;
         }
@@ -404,7 +404,7 @@ public class FileSplit implements ExternalSplit {
     }
 
     @Nullable
-    public SchemaReconciliation.ColumnMapping columnMapping() {
+    public ColumnMapping columnMapping() {
         return columnMapping;
     }
 

@@ -119,4 +119,20 @@ class JdkZstdLibrary implements ZstdLibrary {
             throw new AssertionError(t);
         }
     }
+
+    @Override
+    public long decompress(ByteBuffer dst, int dstOffset, int dstSize, ByteBuffer src, int srcOffset, int srcSize) {
+        assert dst.isDirect();
+        assert src.isDirect();
+        // Use absolute addressing: MemorySegment.ofBuffer(buf) covers [position, limit), so
+        // duplicate().clear() yields a non-mutating view over [0, capacity) on which the
+        // explicit (offset, size) slice resolves to absolute byte positions in the buffer.
+        var segmentDst = MemorySegment.ofBuffer(dst.duplicate().clear()).asSlice(dstOffset, dstSize);
+        var segmentSrc = MemorySegment.ofBuffer(src.duplicate().clear()).asSlice(srcOffset, srcSize);
+        try {
+            return (long) decompress$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
 }

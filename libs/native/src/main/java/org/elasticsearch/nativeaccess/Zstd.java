@@ -75,6 +75,43 @@ public final class Zstd {
     }
 
     /**
+     * Decompress {@code srcSize} bytes starting at {@code srcOffset} of the direct {@link ByteBuffer} {@code src} into
+     * {@code dstSize} bytes starting at {@code dstOffset} of the direct {@link ByteBuffer} {@code dst}, and return the
+     * number of decompressed bytes. Both buffers must be direct. {@link ByteBuffer#position()} and {@link ByteBuffer#limit()}
+     * of both buffers are left unmodified — callers manage their own cursors. Suits external codec APIs that pass plain
+     * {@link ByteBuffer}s with explicit offsets/sizes (e.g. parquet-mr's {@code BytesInputDecompressor}).
+     */
+    public int decompress(ByteBuffer dst, int dstOffset, int dstSize, ByteBuffer src, int srcOffset, int srcSize) {
+        Objects.requireNonNull(dst, "Null destination buffer");
+        Objects.requireNonNull(src, "Null source buffer");
+        if (dst.isDirect() == false) {
+            throw new IllegalArgumentException("Destination buffer must be direct");
+        }
+        if (src.isDirect() == false) {
+            throw new IllegalArgumentException("Source buffer must be direct");
+        }
+        checkRange("Destination", dstOffset, dstSize, dst.capacity());
+        checkRange("Source", srcOffset, srcSize, src.capacity());
+        long ret = zstdLib.decompress(dst, dstOffset, dstSize, src, srcOffset, srcSize);
+        if (zstdLib.isError(ret)) {
+            throw new IllegalArgumentException(zstdLib.getErrorName(ret));
+        } else if (ret < 0 || ret > Integer.MAX_VALUE) {
+            throw new IllegalStateException("Integer overflow? ret=" + ret);
+        }
+        return (int) ret;
+    }
+
+    private static void checkRange(String label, int offset, int size, int capacity) {
+        // The (offset > capacity - size) form avoids the (offset + size > capacity) overflow
+        // that could otherwise wrap around when offset + size exceeds Integer.MAX_VALUE.
+        if (offset < 0 || size < 0 || offset > capacity - size) {
+            throw new IllegalArgumentException(
+                label + " range [offset=" + offset + ", size=" + size + ") is out of bounds for buffer with capacity " + capacity
+            );
+        }
+    }
+
+    /**
      * Return the maximum number of compressed bytes given an input length.
      */
     public int compressBound(int srcLen) {

@@ -12,6 +12,7 @@ import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.WarningsHandler;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
@@ -77,21 +78,21 @@ public class AggOnCaseFoldIT extends ESRestTestCase {
         assertThat("Need at least 2 nodes", nodeNames.size(), greaterThanOrEqualTo(2));
 
         Request pinAlerts = new Request("PUT", "/event_alerts/_settings");
-        pinAlerts.setJsonEntity("""
+        pinAlerts.setJsonEntity(Strings.format("""
             {
               "index.routing.allocation.require._name": "%s",
               "index.number_of_replicas": 0
             }
-            """.formatted(nodeNames.get(0)));
+            """, nodeNames.get(0)));
         assertOK(client().performRequest(pinAlerts));
 
         Request pinLogs = new Request("PUT", "/event_logs/_settings");
-        pinLogs.setJsonEntity("""
+        pinLogs.setJsonEntity(Strings.format("""
             {
               "index.routing.allocation.require._name": "%s",
               "index.number_of_replicas": 0
             }
-            """.formatted(nodeNames.get(1)));
+            """, nodeNames.get(1)));
         assertOK(client().performRequest(pinLogs));
 
         ensureGreen("event_alerts");
@@ -206,10 +207,7 @@ public class AggOnCaseFoldIT extends ESRestTestCase {
               BY ts_month = DATE_TRUNC(1 month, @timestamp)
             | SORT ts_month
             """);
-        assertThat(
-            values,
-            equalTo(List.of(List.of(3, 0, "2024-01-01T00:00:00.000Z"), List.of(0, 3, "2024-02-01T00:00:00.000Z")))
-        );
+        assertThat(values, equalTo(List.of(List.of(3, 0, "2024-01-01T00:00:00.000Z"), List.of(0, 3, "2024-02-01T00:00:00.000Z"))));
     }
 
     public void testDataNodeMultipleCasesAnd() throws IOException {
@@ -221,10 +219,7 @@ public class AggOnCaseFoldIT extends ESRestTestCase {
               BY ts_month = DATE_TRUNC(1 month, @timestamp)
             | SORT ts_month
             """);
-        assertThat(
-            values,
-            equalTo(List.of(List.of(0, 0, "2024-01-01T00:00:00.000Z"), List.of(0, 3, "2024-02-01T00:00:00.000Z")))
-        );
+        assertThat(values, equalTo(List.of(List.of(0, 0, "2024-01-01T00:00:00.000Z"), List.of(0, 3, "2024-02-01T00:00:00.000Z"))));
     }
 
     /**

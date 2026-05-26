@@ -26,9 +26,15 @@ dependencies {
   compileOnly project(path: xpackModule('core'))
   compileOnly project(':server')
   compileOnly project(xpackModule('esql:compute'))
+  // PanamaZstd lives in the parent compression-libs plugin (extendedPlugins above) so it is
+  // available at runtime through parent-first classloader delegation; compileOnly is just to
+  // surface the symbols at compile time.
+  compileOnly project(':x-pack:plugin:esql-datasource-compression-libs')
 
   // zstd-jni provided by esql-datasource-compression-libs parent plugin at runtime;
-  // compileOnly for compilation, testImplementation for test-time resolution
+  // compileOnly for compilation, testImplementation for test-time resolution. Compression-side
+  // fixtures (ZstdOutputStream) still use zstd-jni — full removal of zstd-jni from this plugin
+  // is out of scope for issue #811 and will happen once the Parquet cold byte[] path is also off it.
   compileOnly "com.github.luben:zstd-jni:${versions.zstdJni}"
 
   testImplementation project(':test:framework')

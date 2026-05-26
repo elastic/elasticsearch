@@ -606,3 +606,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:conditional.docsCaseColumnExpression}
   issue: https://github.com/elastic/elasticsearch/issues/149920
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:where-like.likeContainsLongerLiteralOnEvalOutput}
+  issue: https://github.com/elastic/elasticsearch/issues/149921

@@ -222,8 +222,13 @@ public interface Transport extends LifecycleComponent {
         ) {
             long requestId = newRequestId();
             long ramBytesEstimate = reserveBytes(handler, action);
-            ResponseContext<? extends TransportResponse> holder = new ResponseContext<>(handler, connection, action, requestId,
-                ramBytesEstimate);
+            ResponseContext<? extends TransportResponse> holder = new ResponseContext<>(
+                handler,
+                connection,
+                action,
+                requestId,
+                ramBytesEstimate
+            );
             ResponseContext<? extends TransportResponse> existing = handlers.put(requestId, holder);
             assert existing == null : "request ID already in use: " + requestId;
             return holder;

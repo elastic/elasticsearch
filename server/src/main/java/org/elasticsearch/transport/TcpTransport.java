@@ -152,9 +152,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.threadPool = threadPool;
         this.circuitBreakerService = circuitBreakerService;
         this.networkService = networkService;
-        this.responseHandlers = new ResponseHandlers(
-            () -> circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS)
-        );
+        this.responseHandlers = new ResponseHandlers(() -> circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS));
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
 
         this.rstOnClose = TransportSettings.RST_ON_CLOSE.get(settings);

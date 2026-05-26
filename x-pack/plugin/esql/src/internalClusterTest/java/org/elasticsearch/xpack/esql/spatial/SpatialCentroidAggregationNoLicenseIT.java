@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.spatial;
 
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.xpack.esql.datasources.datasource.TestEncryptionServicePlugin;
 
 import java.util.Collection;
 import java.util.List;
@@ -16,7 +17,11 @@ public class SpatialCentroidAggregationNoLicenseIT extends SpatialCentroidAggreg
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(SpatialNoLicenseTestCase.TestSpatialPlugin.class, SpatialNoLicenseTestCase.TestEsqlPlugin.class);
+        return List.of(
+            SpatialNoLicenseTestCase.TestSpatialPlugin.class,
+            SpatialNoLicenseTestCase.TestEsqlPlugin.class,
+            TestEncryptionServicePlugin.class
+        );
     }
 
     @Override

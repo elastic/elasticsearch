@@ -330,51 +330,48 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.visitCode();
 
-        // For opted-in functions: capture the cancellation runnable once at entry and immediately
-        // apply a persistent-counter decrement so that function calls (not just loop back-edges)
-        // count toward the next cancellation poll. The counter lives in $cancelPoll on the
-        // script instance so it accumulates across execute() invocations.
-        // When the runnable is null the branch in writeBranchedLoopGuard falls through to the
-        // legacy per-function loop counter unchanged.
+        // For opted-in functions: expose the script receiver under "$scriptThis" (an instance method
+        // already has it at slot 0; a static lambda receives it as a synthetic first parameter), then
+        // cache _getCancellationCheck() in #cancelRunnable and apply an entry-time persistent-counter
+        // decrement so function calls (not just loop back-edges) count toward the next cancellation
+        // poll. The counter lives in $cancelPoll on the script instance so it accumulates across
+        // execute() invocations and is shared between the script body and any static lambdas it
+        // dispatches to. When the runnable is null the entry decrement is skipped and the loop
+        // guards fall through to the legacy per-function loop counter unchanged.
         boolean cancellation = irFunctionNode.hasCondition(IRCCancellationCheck.class);
+        boolean staticCancellation = irFunctionNode.hasCondition(IRCStaticCancellationCheck.class);
         int maxLoopCounter = irFunctionNode.getDecorationValue(IRDMaxLoopCounter.class);
 
-        if (cancellation) {
-            Variable cancelRunnable = writeScope.defineInternalVariable(Runnable.class, "cancelRunnable");
+        if (cancellation || staticCancellation) {
+            Variable scriptThis;
+            if (cancellation) {
+                // Instance method: ASTORE `this` into a regular "$scriptThis" slot so nested static
+                // lambdas can find it by name through IRDCaptureNames.
+                scriptThis = writeScope.defineVariable(Object.class, "$scriptThis");
+                methodWriter.loadThis();
+                methodWriter.visitVarInsn(Opcodes.ASTORE, scriptThis.getSlot());
+            } else {
+                // Static lambda: "$scriptThis" was already registered by the parameter-name loop above
+                // as the first parameter (slot 0), declared with the script base class type.
+                scriptThis = writeScope.getVariable("$scriptThis");
+            }
 
-            methodWriter.loadThis();
+            Variable cancelRunnable = writeScope.defineInternalVariable(Runnable.class, "cancelRunnable");
+            methodWriter.visitVarInsn(Opcodes.ALOAD, scriptThis.getSlot());
             methodWriter.invokeInterface(WriterConstants.BASE_INTERFACE_TYPE, WriterConstants.GET_CANCELLATION_CHECK);
             methodWriter.visitVarInsn(Opcodes.ASTORE, cancelRunnable.getSlot());
 
             Label skipEntry = new Label();
             methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
             methodWriter.ifNull(skipEntry);
-            writePersistentCancellationDecrement(methodWriter, cancelRunnable.getSlot());
+            writePersistentCancellationDecrement(methodWriter, writeScope, cancelRunnable.getSlot());
             methodWriter.mark(skipEntry);
-
-            // Expose the runnable under "$cancelRunnable" so that static lambda call sites can
-            // load it as a capture via IRDCaptureNames without using the internal "#" prefix.
-            Variable cancelRunnableCapture = writeScope.defineVariable(Runnable.class, "$cancelRunnable");
-            methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
-            methodWriter.visitVarInsn(Opcodes.ASTORE, cancelRunnableCapture.getSlot());
         }
 
-        boolean staticCancellation = irFunctionNode.hasCondition(IRCStaticCancellationCheck.class);
-
-        // The legacy #loop counter is superseded by #localCancelPoll for static lambdas that carry
-        // IRCStaticCancellationCheck, so skip allocating it to keep the frame compact.
         if (maxLoopCounter > 0 && staticCancellation == false) {
             Variable loop = writeScope.defineInternalVariable(int.class, "loop");
             methodWriter.push(maxLoopCounter);
             methodWriter.visitVarInsn(Opcodes.ISTORE, loop.getSlot());
-        }
-
-        if (staticCancellation) {
-            // $cancelRunnable is already the first parameter (slot 0 for a static method).
-            // Initialise a per-invocation counter that drives the cancellation poll.
-            Variable localCancelPoll = writeScope.defineInternalVariable(int.class, "localCancelPoll");
-            methodWriter.push(WriterConstants.CANCELLATION_POLL_INTERVAL);
-            methodWriter.visitVarInsn(Opcodes.ISTORE, localCancelPoll.getSlot());
         }
 
         visit(irFunctionNode.getBlockNode(), writeScope.newBlockScope());
@@ -397,17 +394,13 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
     }
 
     /**
-     * Shared loop-guard emission. Opted-in functions emit
-     * {@code if (cancelRunnable != null) persistentDecrement() else writeLoopCounter} so the
+     * Shared loop-guard emission. Opted-in functions (instance methods with
+     * {@link IRCCancellationCheck} and static lambdas with {@link IRCStaticCancellationCheck})
+     * emit {@code if (cancelRunnable != null) persistentDecrement() else writeLoopCounter} so the
      * inactive counter pays no per-iteration cost (important: an int counter pre-set to
-     * {@link Integer#MAX_VALUE} still trips after ~2 s of tight looping). Non-opted-in
-     * functions emit only the legacy counter (or nothing, when {@code legacyForNonOptedIn} is
-     * false — used by for-each).
-     * <p>
-     * Static lambdas decorated with {@link IRCStaticCancellationCheck} use a local poll counter
-     * ({@code #localCancelPoll}) instead of the shared {@code this.$cancelPoll} field, because
-     * static methods have no script receiver.  When {@code #localCancelPoll} is present this
-     * path is taken unconditionally (regardless of the other variables).
+     * {@link Integer#MAX_VALUE} still trips after ~2 s of tight looping). Non-opted-in functions
+     * emit only the legacy counter (or nothing, when {@code legacyForNonOptedIn} is false — used
+     * by for-each).
      */
     private static void writeBranchedLoopGuard(
         WriteScope writeScope,
@@ -415,13 +408,6 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         Location location,
         boolean legacyForNonOptedIn
     ) {
-        Variable localCancelPoll = writeScope.getInternalVariable("localCancelPoll");
-        if (localCancelPoll != null) {
-            Variable staticRunnable = writeScope.getVariable("$cancelRunnable");
-            writeLocalCancellationDecrement(methodWriter, staticRunnable.getSlot(), localCancelPoll.getSlot());
-            return;
-        }
-
         Variable cancelRunnable = writeScope.getInternalVariable("cancelRunnable");
         Variable loop = writeScope.getInternalVariable("loop");
 
@@ -436,7 +422,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             Label skip = new Label();
             methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
             methodWriter.ifNull(skip);
-            writePersistentCancellationDecrement(methodWriter, cancelRunnable.getSlot());
+            writePersistentCancellationDecrement(methodWriter, writeScope, cancelRunnable.getSlot());
             methodWriter.mark(skip);
             return;
         }
@@ -446,7 +432,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
         methodWriter.ifNull(legacyPath);
-        writePersistentCancellationDecrement(methodWriter, cancelRunnable.getSlot());
+        writePersistentCancellationDecrement(methodWriter, writeScope, cancelRunnable.getSlot());
         methodWriter.goTo(end);
         methodWriter.mark(legacyPath);
         methodWriter.writeLoopCounter(loop.getSlot(), location);
@@ -454,54 +440,46 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
     }
 
     /**
-     * Decrements the local poll counter ({@code #localCancelPoll}) used by static lambdas.
-     * When the counter reaches zero the counter is reset and the cancel {@code Runnable} at
-     * {@code runnableSlot} is invoked (if non-null).
+     * Decrements the persistent {@link WriterConstants#CANCEL_POLL_FIELD} on the script instance
+     * (loaded from the {@code $scriptThis} local) and, when it reaches zero, invokes the
+     * cancellation runnable and resets the counter.  The caller must have already verified that
+     * the runnable is non-null.  A {@code CHECKCAST} to {@link WriterConstants#CLASS_TYPE} is
+     * emitted before each field access because the static-lambda parameter is declared with the
+     * script base class type rather than the generated class type.
      */
-    private static void writeLocalCancellationDecrement(MethodWriter methodWriter, int runnableSlot, int counterSlot) {
+    private static void writePersistentCancellationDecrement(MethodWriter methodWriter, WriteScope writeScope, int runnableSlot) {
         Label skip = new Label();
+        int scriptThisSlot = writeScope.getVariable("$scriptThis").getSlot();
 
-        methodWriter.visitIincInsn(counterSlot, -1);
-        methodWriter.visitVarInsn(Opcodes.ILOAD, counterSlot);
-        methodWriter.ifZCmp(MethodWriter.GT, skip);
-
-        // Counter reached zero: reset it, then call the runnable if non-null.
-        methodWriter.push(WriterConstants.CANCELLATION_POLL_INTERVAL);
-        methodWriter.visitVarInsn(Opcodes.ISTORE, counterSlot);
-        methodWriter.visitVarInsn(Opcodes.ALOAD, runnableSlot);
-        methodWriter.ifNull(skip);
-        methodWriter.visitVarInsn(Opcodes.ALOAD, runnableSlot);
-        methodWriter.invokeInterface(WriterConstants.RUNNABLE_TYPE, WriterConstants.RUNNABLE_RUN);
-
-        methodWriter.mark(skip);
-    }
-
-    /**
-     * Decrements the persistent {@link WriterConstants#CANCEL_POLL_FIELD} on {@code this} and,
-     * when it reaches zero, invokes the cancellation runnable and resets the counter.
-     * The caller must have already verified that the runnable is non-null.
-     */
-    private static void writePersistentCancellationDecrement(MethodWriter methodWriter, int runnableSlot) {
-        Label skip = new Label();
-
-        // --this.$cancelPoll; if ($cancelPoll > 0) skip;
-        methodWriter.loadThis();
-        methodWriter.loadThis();
+        // --scriptThis.$cancelPoll; if ($cancelPoll > 0) skip;
+        loadScriptInstance(methodWriter, scriptThisSlot);
+        loadScriptInstance(methodWriter, scriptThisSlot);
         methodWriter.getField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
         methodWriter.push(-1);
         methodWriter.math(MethodWriter.ADD, Type.INT_TYPE);
-        methodWriter.visitInsn(Opcodes.DUP_X1);  // [newVal, this, newVal] — copy int below the object ref
+        methodWriter.visitInsn(Opcodes.DUP_X1);  // [newVal, scriptThis, newVal] — copy int below the object ref
         methodWriter.putField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
         methodWriter.ifZCmp(MethodWriter.GT, skip);
 
         // counter reached zero: run the cancellation check and reset
         methodWriter.visitVarInsn(Opcodes.ALOAD, runnableSlot);
         methodWriter.invokeInterface(WriterConstants.RUNNABLE_TYPE, WriterConstants.RUNNABLE_RUN);
-        methodWriter.loadThis();
+        loadScriptInstance(methodWriter, scriptThisSlot);
         methodWriter.push(WriterConstants.CANCELLATION_POLL_INTERVAL);
         methodWriter.putField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
 
         methodWriter.mark(skip);
+    }
+
+    /**
+     * Loads the script instance from {@code $scriptThis} and downcasts to the generated class so
+     * subsequent {@code GETFIELD}/{@code PUTFIELD} of {@link WriterConstants#CANCEL_POLL_FIELD}
+     * verify.  The cast is a no-op for instance methods (the slot already holds the generated
+     * class) and a real downcast for static lambdas (the slot type is the script base class).
+     */
+    private static void loadScriptInstance(MethodWriter methodWriter, int scriptThisSlot) {
+        methodWriter.visitVarInsn(Opcodes.ALOAD, scriptThisSlot);
+        methodWriter.visitTypeInsn(Opcodes.CHECKCAST, WriterConstants.CLASS_TYPE.getInternalName());
     }
 
     @Override

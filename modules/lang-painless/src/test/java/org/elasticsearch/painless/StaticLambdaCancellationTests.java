@@ -21,10 +21,11 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Tests that static lambdas in cancellation-aware script contexts properly forward
- * the cancel {@code Runnable} captured from the enclosing scope.  The compiler injects
- * a synthetic {@code $cancelRunnable} capture so that loops inside static lambdas
- * honour task cancellation even without access to {@code this.$cancelPoll}.
+ * Tests that static lambdas in cancellation-aware script contexts honour task
+ * cancellation.  The compiler injects a synthetic {@code $scriptThis} capture
+ * carrying the script receiver so that loops inside static lambdas share the
+ * script's persistent {@code $cancelPoll} counter and can fetch the cancel
+ * {@code Runnable} via {@code _getCancellationCheck()}.
  */
 public class StaticLambdaCancellationTests extends ScriptTestCase {
 

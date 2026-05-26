@@ -11,8 +11,9 @@
 # search timeouts never propagate into the script.
 #
 # "static lambda" tests (below the context tests) verify that the cancellation poll is forwarded
-# into typed static lambda bodies (e.g. removeIf / sort) via the synthetic $cancelRunnable capture
-# injected by the compiler.  The loop lives inside the lambda, not the top-level script body.
+# into typed static lambda bodies (e.g. removeIf / sort) via the synthetic $scriptThis capture
+# (the script receiver) injected by the compiler.  The loop lives inside the lambda, not the
+# top-level script body, and shares the script's persistent $cancelPoll counter.
 
 ---
 "Search timeout aborts a long-running filter script loop":
@@ -673,7 +674,7 @@
 "Search timeout cancels a loop inside a static lambda in a filter script":
   # The loop is inside a typed removeIf lambda, not in the top-level script body.
   # Exercises the IRCStaticCancellationCheck path: the compiler injects a synthetic
-  # $cancelRunnable capture so the lambda can poll for cancellation without a receiver.
+  # $scriptThis capture so the lambda body shares the script's $cancelPoll counter.
   - do:
       indices.create:
         index: test_filter_lambda_timeout

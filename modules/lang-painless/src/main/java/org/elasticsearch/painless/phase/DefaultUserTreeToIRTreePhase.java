@@ -1426,24 +1426,25 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         attachLoopProtection(irFunctionNode, scriptScope);
         irClassNode.addFunctionNode(irFunctionNode);
 
-        // For typed static lambdas in cancellation-aware scripts: inject the cancel Runnable as a
-        // synthetic first capture. The enclosing IRCCancellationCheck function stores the runnable
-        // in a "$cancelRunnable" local that the lambda call site loads and passes as a capture. The
-        // generated static method receives it as parameter "$cancelRunnable" and uses a local counter
-        // to call it periodically instead of touching this.$cancelPoll (no receiver in static context).
+        // For typed static lambdas in cancellation-aware scripts: inject the script receiver as a
+        // synthetic first capture so the lambda body shares the script's persistent $cancelPoll
+        // counter and can fetch the cancel Runnable via _getCancellationCheck(). The enclosing
+        // function exposes itself as "$scriptThis"; the lambda receives it as a parameter of the
+        // script base class type and uses it the same way an instance method would use "this".
         boolean injectCancelCapture = irFunctionNode.hasCondition(IRCStatic.class)
             && scriptScope.getScriptClassInfo().supportsCancellation()
             && scriptScope.hasDecoration(userLambdaNode, TargetType.class);
         if (injectCancelCapture) {
             irFunctionNode.attachCondition(IRCStaticCancellationCheck.class);
 
+            Class<?> scriptClass = scriptScope.getScriptClassInfo().getBaseClass();
             List<Class<?>> augTypes = new ArrayList<>();
-            augTypes.add(Runnable.class);
+            augTypes.add(scriptClass);
             augTypes.addAll(irFunctionNode.getDecorationValue(IRDTypeParameters.class));
             irFunctionNode.attachDecoration(new IRDTypeParameters(augTypes));
 
             List<String> augNames = new ArrayList<>();
-            augNames.add("$cancelRunnable");
+            augNames.add("$scriptThis");
             augNames.addAll(irFunctionNode.getDecorationValue(IRDParameterNames.class));
             irFunctionNode.attachDecoration(new IRDParameterNames(augNames));
         }
@@ -1461,13 +1462,14 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
         if (injectCancelCapture) {
             List<String> augCaptures = new ArrayList<>();
-            augCaptures.add("$cancelRunnable");
+            augCaptures.add("$scriptThis");
             if (captureNames != null) {
                 augCaptures.addAll(captureNames);
             }
             irExpressionNode.attachDecoration(new IRDCaptureNames(augCaptures));
             FunctionRef original = irExpressionNode.getDecorationValue(IRDReference.class);
-            irExpressionNode.attachDecoration(new IRDReference(original.withSyntheticCancelCapture()));
+            Class<?> scriptClass = scriptScope.getScriptClassInfo().getBaseClass();
+            irExpressionNode.attachDecoration(new IRDReference(original.withSyntheticScriptCapture(scriptClass)));
         } else if (captureNames != null) {
             irExpressionNode.attachDecoration(new IRDCaptureNames(captureNames));
         }

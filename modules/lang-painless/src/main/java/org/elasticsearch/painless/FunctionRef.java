@@ -347,12 +347,13 @@ public class FunctionRef {
     }
 
     /**
-     * Returns a new {@link FunctionRef} with a synthetic {@code Runnable} cancel capture
-     * prepended to the factory method type.  Used by the compiler to augment typed static
-     * lambdas in cancellation-aware scripts so that {@code LambdaBootstrap} captures and
-     * stores the runnable in the generated lambda class.
+     * Returns a new {@link FunctionRef} with a synthetic script-instance capture prepended
+     * to the factory method type.  Used by the compiler to augment typed static lambdas in
+     * cancellation-aware scripts so that {@code LambdaBootstrap} captures the script
+     * receiver, giving the lambda body access to both the script's persistent
+     * {@code $cancelPoll} counter and its {@code _getCancellationCheck()} runnable.
      */
-    public FunctionRef withSyntheticCancelCapture() {
+    public FunctionRef withSyntheticScriptCapture(Class<?> scriptClass) {
         return new FunctionRef(
             interfaceMethodName,
             interfaceMethodType,
@@ -363,7 +364,7 @@ public class FunctionRef {
             delegateMethodName,
             delegateMethodType,
             delegateInjections,
-            factoryMethodType.insertParameterTypes(0, Runnable.class),
+            factoryMethodType.insertParameterTypes(0, scriptClass),
             factoryMethodReceiver
         );
     }

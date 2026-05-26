@@ -368,11 +368,11 @@ public class IRDecorations {
 
     /**
      * Marker for static synthetic lambda functions in cancellation-aware scripts.
-     * Unlike {@link IRCCancellationCheck}, the cancel {@code Runnable} cannot be loaded
-     * from {@code this._getCancellationCheck()} because static methods have no receiver.
-     * Instead the runnable is injected as a synthetic first parameter ({@code $cancelRunnable})
-     * captured from the enclosing scope, and a per-invocation local counter
-     * ({@code #localCancelPoll}) drives the check.
+     * Static lambdas have no implicit receiver, so the script instance is injected as a
+     * synthetic first parameter ({@code $scriptThis}) captured from the enclosing scope.
+     * The lambda body uses it to fetch the cancel {@code Runnable} via
+     * {@code _getCancellationCheck()} and to share the script's persistent
+     * {@code $cancelPoll} counter, identical to the {@link IRCCancellationCheck} path.
      */
     public static class IRCStaticCancellationCheck implements IRCondition {
 

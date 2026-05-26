@@ -1043,7 +1043,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                 if (info == null) {
                     predicateBlocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
                 } else {
-                    predicateBlocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, predicateBlocks);
+                    predicateBlocks[col] = readColumnBlockNoCleanup(col, info, rowsToRead);
                 }
                 predicateBlockMap.put(attributes.get(col).name(), predicateBlocks[col]);
             }
@@ -1767,7 +1767,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     if (info == null) {
                         blocks[col] = blockFactory.newConstantNullBlock(rowsToRead);
                     } else {
-                        blocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                        blocks[col] = readColumnBlockNoCleanup(col, info, rowsToRead);
                     }
                     predicateBlockMap.put(attributes.get(col).name(), blocks[col]);
                 }
@@ -1824,11 +1824,11 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
                     }
                     blocks[col] = blockFactory.newConstantNullBlock(0);
                 } else if (positions == null) {
-                    blocks[col] = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                    blocks[col] = readColumnBlockNoCleanup(col, info, rowsToRead);
                 } else if (pageColumnReaders != null && pageColumnReaders[col] != null) {
                     blocks[col] = pageColumnReaders[col].readBatchFiltered(rowsToRead, blockFactory, positions, survivorCount);
                 } else {
-                    Block fullBlock = readColumnBlockWithAttribution(col, info, rowsToRead, blocks);
+                    Block fullBlock = readColumnBlockNoCleanup(col, info, rowsToRead);
                     blocks[col] = PageColumnReader.filterBlock(fullBlock, positions, survivorCount, blockFactory);
                 }
             }

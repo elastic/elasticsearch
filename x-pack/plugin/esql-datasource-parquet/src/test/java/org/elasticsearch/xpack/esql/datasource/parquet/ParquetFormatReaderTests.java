@@ -3103,7 +3103,17 @@ public class ParquetFormatReaderTests extends ESTestCase {
         }
     }
 
-    public void testDictionaryBitWidthTooSmallRaisesError() throws Exception {
+    /**
+     * Verifies that a data page with RLE bit-width 0 and a dictionary containing more than one
+     * entry is rejected with a clear error. A bit-width of 0 means every decoded index is 0, so
+     * the first dictionary entry would be returned for every row — silently wrong data.
+     * <p>
+     * This test exercises the same corruption as
+     * {@code bad_data/ARROW-GH-43605.parquet} in the parquet-testing repository (see
+     * https://github.com/apache/parquet-testing/pull/57): a data page whose RLE header encodes
+     * bit-width 0 while the column chunk dictionary has 2+ entries.
+     */
+    public void testDictionaryBitWidthZeroRaisesErrorForMultiEntryDict() throws Exception {
         MessageType schema = Types.buildMessage()
             .required(PrimitiveType.PrimitiveTypeName.BINARY)
             .as(LogicalTypeAnnotation.stringType())

@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.esql.datasources.cache;
 
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -23,32 +26,73 @@ import java.util.Map;
  * The wrapper is a thin pass-through for {@code hasNext} / {@code next}; the only behavior
  * change is at close time. Multiple iterators wrapped against the same sink accumulate
  * contributions in the sink — natural fit for multi-file and multi-split paths.
+ *
+ * <h2>{@link ColumnExtractorProducer} forwarding</h2>
+ * The wrapper unconditionally declares the {@link ColumnExtractorProducer} capability and forwards
+ * {@link #createColumnExtractor()} / {@link #setExtractorId(int)} to its delegate, mirroring
+ * {@code SchemaAdaptingIterator}. A non-producer delegate makes the consumer's
+ * {@code instanceof ColumnExtractorProducer} check a necessary-but-not-sufficient guard — the
+ * dispatch into the delegate fails loud (see {@link #innerProducer()}). Without this forwarding the
+ * stats wrapper would hide a producer-capable reader from the deferred-extraction wiring in
+ * {@code AsyncExternalSourceOperatorFactory#wrapWithEncoderIfNeeded}, breaking {@code _rowPosition}
+ * encoding whenever stats capture and deferred extraction are both active on the same read.
  */
-public final class StatsCapturingIterator {
+public final class StatsCapturingIterator implements CloseableIterator<Page>, ColumnExtractorProducer {
 
-    private StatsCapturingIterator() {}
+    private final CloseableIterator<Page> delegate;
+    private final Map<String, List<Map<String, Object>>> sink;
 
-    public static CloseableIterator<Page> wrap(CloseableIterator<Page> delegate, Map<String, java.util.List<Map<String, Object>>> sink) {
+    private StatsCapturingIterator(CloseableIterator<Page> delegate, Map<String, List<Map<String, Object>>> sink) {
+        this.delegate = delegate;
+        this.sink = sink;
+    }
+
+    public static CloseableIterator<Page> wrap(CloseableIterator<Page> delegate, Map<String, List<Map<String, Object>>> sink) {
         if (delegate == null || sink == null) {
             return delegate;
         }
-        return new CloseableIterator<Page>() {
-            @Override
-            public boolean hasNext() {
-                return delegate.hasNext();
-            }
+        return new StatsCapturingIterator(delegate, sink);
+    }
 
-            @Override
-            public Page next() {
-                return delegate.next();
-            }
+    @Override
+    public boolean hasNext() {
+        return delegate.hasNext();
+    }
 
-            @Override
-            public void close() throws IOException {
-                try (ExternalStatsCapture.Handle handle = ExternalStatsCapture.bind(sink)) {
-                    delegate.close();
-                }
-            }
-        };
+    @Override
+    public Page next() {
+        return delegate.next();
+    }
+
+    @Override
+    public void close() throws IOException {
+        try (ExternalStatsCapture.Handle handle = ExternalStatsCapture.bind(sink)) {
+            delegate.close();
+        }
+    }
+
+    @Override
+    public ColumnExtractor createColumnExtractor() throws IOException {
+        return innerProducer().createColumnExtractor();
+    }
+
+    @Override
+    public void setExtractorId(int id) {
+        innerProducer().setExtractorId(id);
+    }
+
+    /**
+     * Pass-through capability: the producer is the wrapped reader iterator that owns the addressing
+     * space and pre-encodes {@code _rowPosition}. If the delegate is not a producer, deferred
+     * extraction was wired to a reader that does not support it — fail loudly so callers don't
+     * silently lose data.
+     */
+    private ColumnExtractorProducer innerProducer() {
+        if (delegate instanceof ColumnExtractorProducer producer) {
+            return producer;
+        }
+        throw new IllegalStateException(
+            "deferred extraction requested but underlying iterator [" + delegate.getClass().getName() + "] is not a ColumnExtractorProducer"
+        );
     }
 }

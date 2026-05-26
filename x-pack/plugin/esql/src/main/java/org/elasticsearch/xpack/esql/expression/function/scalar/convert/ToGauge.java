@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -55,19 +57,25 @@ public class ToGauge extends AbstractConvertFunction {
         (source, field) -> field
     );
 
-    @FunctionInfo(returnType = { "long", "integer", "double" }, description = """
-        Converts a counter value to its gauge (plain numeric) equivalent. The output type is determined by the input:
-        `counter_long` converts to `long`, `counter_integer` to `integer`, and `counter_double` to `double`.
-        No values are modified; only the type annotation changes. If the input is already a plain numeric, the \
-        function is a no-op. This is useful when a metric field was misclassified as a counter type instead of a \
-        plain numeric (gauge) in the index mapping.
-        This function is also available as the `::gauge` cast operator.""", appendix = """
-        ::::{warning}
-        Applying `TO_GAUGE` to a field that is a genuine monotonically increasing counter, rather than a \
-        misclassified gauge, will produce raw cumulative counter values instead of gauge samples. \
-        Results from aggregations on such values are not meaningful.
-        ::::\
-        """, examples = @Example(file = "k8s-timeseries-avg-over-time", tag = "toGauge"))
+    @FunctionInfo(
+        returnType = { "long", "integer", "double" },
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.5.0") },
+        description = """
+            Converts a counter value to its gauge (plain numeric) equivalent. The output type is determined by the input:
+            `counter_long` converts to `long`, `counter_integer` to `integer`, and `counter_double` to `double`.
+            No values are modified; only the type annotation changes. If the input is already a plain numeric, the \
+            function is a no-op. This is useful when a metric field was misclassified as a counter type instead of a \
+            plain numeric (gauge) in the index mapping.
+            This function is also available as the `::gauge` cast operator.""",
+        appendix = """
+            ::::{warning}
+            Applying `TO_GAUGE` to a field that is a genuine monotonically increasing counter, rather than a \
+            misclassified gauge, will produce raw cumulative counter values instead of gauge samples. \
+            Results from aggregations on such values are not meaningful.
+            ::::\
+            """,
+        examples = @Example(file = "k8s-timeseries-avg-over-time", tag = "toGauge")
+    )
     public ToGauge(
         Source source,
         @Param(

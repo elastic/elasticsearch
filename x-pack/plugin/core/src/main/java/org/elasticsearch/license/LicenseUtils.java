@@ -171,4 +171,21 @@ public class LicenseUtils {
         }
         return null;
     }
+
+    /**
+     * Calculate the number of days until license expiry
+     * @param license The license to check
+     * @param now Current time in milliseconds
+     * @return Number of days until expiry (can be negative if expired)
+     */
+    public static double getDaysUntilExpiry(License license, long now) {
+        if (license == null) {
+            return 0.0;
+        }
+        final long expiryDate = getExpiryDate(license);
+        if (expiryDate == LicenseSettings.BASIC_SELF_GENERATED_LICENSE_EXPIRATION_MILLIS) {
+            return Double.POSITIVE_INFINITY;
+        }
+        return (expiryDate - now) / (24.0 * 60 * 60 * 1000);
+    }
 }

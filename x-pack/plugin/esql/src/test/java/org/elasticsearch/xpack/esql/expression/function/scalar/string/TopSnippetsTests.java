@@ -11,18 +11,15 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
-import org.elasticsearch.env.Environment;
-import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
-import org.elasticsearch.indices.analysis.AnalysisModule;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -34,10 +31,7 @@ import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.junit.AfterClass;
-import org.junit.BeforeClass;
 
-import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -51,28 +45,15 @@ import static org.elasticsearch.xpack.esql.expression.function.scalar.string.Top
 import static org.elasticsearch.xpack.esql.expression.function.scalar.string.TopSnippets.DEFAULT_WORD_SIZE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 
 public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
 
-    private static AnalysisRegistry analysisRegistry;
-
-    @BeforeClass
-    public static void setupAnalysisRegistry() throws IOException {
-        analysisRegistry = new AnalysisModule(
-            TestEnvironment.newEnvironment(
-                Settings.builder().put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString()).build()
-            ),
-            List.of(new org.elasticsearch.analysis.common.CommonAnalysisPlugin()),
-            new StablePluginsRegistry()
-        ).getAnalysisRegistry();
-    }
-
-    @AfterClass
-    public static void tearDownAnalysisRegistry() {
-        analysisRegistry = null;
-    }
+    private static final AnalysisRegistry analysisRegistry = EsqlTestUtils.analysisRegistry(
+        new org.elasticsearch.analysis.common.CommonAnalysisPlugin()
+    );
 
     private static final String PARAGRAPH_INPUT = """
         The Adirondacks, a vast mountain region in northern New York, offer a breathtaking mix of rugged wilderness, serene lakes,
@@ -432,6 +413,45 @@ public class TopSnippetsTests extends AbstractScalarFunctionTestCase {
         );
         assertThat(e.getMessage(), containsString("'analyzer' must be a registered analyzer"));
         assertThat(e.getMessage(), containsString("nonexistent_analyzer"));
+    }
+
+    public void testValidateAnalyzersKnownAnalyzerPasses() {
+        Failures failures = new Failures();
+        topSnippetsWithAnalyzer("standard").validateAnalyzers(analysisRegistry, failures);
+        assertThat(failures.failures(), empty());
+    }
+
+    public void testValidateAnalyzersUnknownAnalyzerFails() {
+        Failures failures = new Failures();
+        topSnippetsWithAnalyzer("no_such_analyzer").validateAnalyzers(analysisRegistry, failures);
+        assertThat(failures.failures(), hasSize(1));
+        assertThat(
+            failures.failures().iterator().next().message(),
+            equalTo("'analyzer' must be a registered analyzer, found [no_such_analyzer]")
+        );
+    }
+
+    public void testValidateAnalyzersMissingAnalyzerOptionPasses() {
+        Failures failures = new Failures();
+        topSnippetsWithAnalyzer(null).validateAnalyzers(analysisRegistry, failures);
+        assertThat(failures.failures(), empty());
+    }
+
+    public void testValidateAnalyzersNoOptionsAtAllPasses() {
+        TopSnippets ts = new TopSnippets(
+            Source.EMPTY,
+            Literal.keyword(Source.EMPTY, "field text"),
+            Literal.keyword(Source.EMPTY, "query"),
+            null
+        );
+        Failures failures = new Failures();
+        ts.validateAnalyzers(analysisRegistry, failures);
+        assertThat(failures.failures(), empty());
+    }
+
+    private static TopSnippets topSnippetsWithAnalyzer(String analyzerName) {
+        MapExpression options = analyzerName == null ? null : createOptions(null, null, null, null, null, null, null, analyzerName);
+        return new TopSnippets(Source.EMPTY, Literal.keyword(Source.EMPTY, "field text"), Literal.keyword(Source.EMPTY, "query"), options);
     }
 
     /**

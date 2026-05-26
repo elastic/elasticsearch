@@ -94,6 +94,7 @@ public class FilterTests extends ESTestCase {
             new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 TEST_FUNCTION_REGISTRY,
+                EsqlTestUtils.TEST_ANALYSIS_REGISTRY,
                 indexResolutions(test),
                 Map.of(),
                 EsqlTestUtils.emptyPolicyResolution(),

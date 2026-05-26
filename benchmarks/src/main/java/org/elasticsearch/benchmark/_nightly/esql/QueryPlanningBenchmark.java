@@ -14,6 +14,7 @@ import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
@@ -119,6 +120,7 @@ public class QueryPlanningBenchmark {
             new AnalyzerContext(
                 config,
                 functionRegistry,
+                EsqlTestUtils.TEST_ANALYSIS_REGISTRY,
                 Map.of(new IndexPattern(Source.EMPTY, esIndex.name()), IndexResolution.valid(esIndex)),
                 Map.of(),
                 new EnrichResolution(),

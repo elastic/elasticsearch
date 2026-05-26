@@ -30,6 +30,7 @@ import org.elasticsearch.compute.ann.Position;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.lucene.search.uhighlight.CustomPassageFormatter;
 import org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter;
@@ -38,6 +39,7 @@ import org.elasticsearch.lucene.search.uhighlight.Snippet;
 import org.elasticsearch.xpack.core.common.chunks.MemoryIndexChunkScorer;
 import org.elasticsearch.xpack.core.common.chunks.ScoredChunk;
 import org.elasticsearch.xpack.core.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.esql.capabilities.AnalyzerNameAware;
 import org.elasticsearch.xpack.esql.capabilities.PostOptimizationVerificationAware;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
@@ -79,7 +81,7 @@ import static org.elasticsearch.xpack.esql.expression.function.Options.resolve;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.chunkText;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.util.ChunkUtils.emitChunks;
 
-public class TopSnippets extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware {
+public class TopSnippets extends EsqlScalarFunction implements OptionalArgument, PostOptimizationVerificationAware, AnalyzerNameAware {
 
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -298,6 +300,33 @@ public class TopSnippets extends EsqlScalarFunction implements OptionalArgument,
                 fail(query(), "second argument of [{}] must be a constant, received [{}]", sourceText(), Expressions.name(query()))
             );
         }
+    }
+
+    @Override
+    public void validateAnalyzers(AnalysisRegistry registry, Failures failures) {
+        String name = analyzerName();
+        if (name == null) {
+            return;
+        }
+        Analyzer resolved;
+        try {
+            resolved = registry.getAnalyzer(name);
+        } catch (IOException e) {
+            failures.add(fail(this, "failed to load analyzer [{}]: {}", name, e.getMessage()));
+            return;
+        }
+        if (resolved == null) {
+            failures.add(fail(this, "'analyzer' must be a registered analyzer, found [{}]", name));
+        }
+    }
+
+    private String analyzerName() {
+        if (options == null) {
+            return null;
+        }
+        Map<String, Object> opts = new HashMap<>();
+        Options.populateMap((MapExpression) options, opts, source(), THIRD, ALLOWED_OPTIONS);
+        return (String) opts.get(ANALYZER);
     }
 
     private static void validateOptions(Map<String, Object> options) {

@@ -369,7 +369,8 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
                 dataSourceModule,
                 functionRegistry,
                 parser,
-                cacheService
+                cacheService,
+                services.indicesService().getAnalysis()
             ),
             new ExchangeService(
                 services.clusterService().getSettings(),

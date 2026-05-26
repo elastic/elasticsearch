@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.querydsl.QueryDslTimestampBoundsExtractor.TimestampBounds;
 import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolution;
@@ -29,6 +30,7 @@ import java.util.Set;
 public class AnalyzerContext {
     private final Configuration configuration;
     private final EsqlFunctionRegistry functionRegistry;
+    private final AnalysisRegistry analysisRegistry;
     private final Map<IndexPattern, IndexResolution> indexResolution;
     private final Map<String, IndexResolution> lookupResolution;
     private final Map<IndexPattern, IndexResolution> optionalLinkedResolution;  // CPS-specific resolution for remote indexes matching local
@@ -45,6 +47,7 @@ public class AnalyzerContext {
     public AnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
+        AnalysisRegistry analysisRegistry,
         ProjectMetadata projectMetadata,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
@@ -58,6 +61,7 @@ public class AnalyzerContext {
     ) {
         this.configuration = configuration;
         this.functionRegistry = functionRegistry;
+        this.analysisRegistry = analysisRegistry;
         this.projectMetadata = projectMetadata;
         this.indexResolution = indexResolution;
         this.lookupResolution = lookupResolution;
@@ -78,6 +82,7 @@ public class AnalyzerContext {
     public AnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
+        AnalysisRegistry analysisRegistry,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupResolution,
         EnrichResolution enrichResolution,
@@ -88,6 +93,7 @@ public class AnalyzerContext {
         this(
             configuration,
             functionRegistry,
+            analysisRegistry,
             null,
             indexResolution,
             lookupResolution,
@@ -107,6 +113,14 @@ public class AnalyzerContext {
 
     public EsqlFunctionRegistry functionRegistry() {
         return functionRegistry;
+    }
+
+    /**
+     * Node-level analyzer registry to resolve analyzer names referenced by
+     * {@code AnalyzerNameAware} expressions
+     */
+    public AnalysisRegistry analysisRegistry() {
+        return analysisRegistry;
     }
 
     public Map<IndexPattern, IndexResolution> indexResolution() {
@@ -187,6 +201,7 @@ public class AnalyzerContext {
     public AnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,
+        AnalysisRegistry analysisRegistry,
         UnmappedResolution unmappedResolution,
         ProjectMetadata projectMetadata,
         EsqlSession.PreAnalysisResult result,
@@ -195,6 +210,7 @@ public class AnalyzerContext {
         this(
             configuration,
             functionRegistry,
+            analysisRegistry,
             projectMetadata,
             result.indexResolution(),
             result.lookupIndices(),

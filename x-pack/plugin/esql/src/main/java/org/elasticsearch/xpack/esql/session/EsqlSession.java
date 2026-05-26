@@ -29,6 +29,7 @@ import org.elasticsearch.compute.operator.FailureCollector;
 import org.elasticsearch.compute.operator.PlanTimeProfile;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -180,6 +181,7 @@ public class EsqlSession {
     private final Verifier verifier;
     private final Metrics metrics;
     private final EsqlFunctionRegistry functionRegistry;
+    private final AnalysisRegistry analysisRegistry;
     private final PreMapper preMapper;
 
     private final Mapper mapper;
@@ -239,6 +241,7 @@ public class EsqlSession {
         EsqlParser parser,
         PreAnalyzer preAnalyzer,
         EsqlFunctionRegistry functionRegistry,
+        AnalysisRegistry analysisRegistry,
         Mapper mapper,
         Verifier verifier,
         Metrics metrics,
@@ -260,6 +263,7 @@ public class EsqlSession {
         this.verifier = verifier;
         this.metrics = metrics;
         this.functionRegistry = functionRegistry;
+        this.analysisRegistry = analysisRegistry;
         this.mapper = mapper;
         this.planTelemetry = planTelemetry;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
@@ -1827,6 +1831,7 @@ public class EsqlSession {
         AnalyzerContext analyzerContext = new AnalyzerContext(
             configuration,
             functionRegistry,
+            analysisRegistry,
             unmappedResolution,
             projectMetadata,
             r,

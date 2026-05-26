@@ -180,6 +180,7 @@ public class ClusterRequestTests extends AbstractWireSerializingTestCase<Cluster
             new AnalyzerContext(
                 EsqlTestUtils.TEST_CFG,
                 TEST_FUNCTION_REGISTRY,
+                EsqlTestUtils.TEST_ANALYSIS_REGISTRY,
                 indexResolutions(test),
                 Map.of(),
                 emptyPolicyResolution(),

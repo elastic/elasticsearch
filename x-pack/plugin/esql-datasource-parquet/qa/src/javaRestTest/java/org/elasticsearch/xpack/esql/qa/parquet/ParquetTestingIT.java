@@ -30,20 +30,18 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
-import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
-import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.AzureReactorThreadFilter;
 import org.elasticsearch.test.TestClustersThreadFilter;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.datasource.parquet.PlainCompressionCodecFactory;
 import org.elasticsearch.xpack.esql.datasource.parquet.PlainParquetReadOptions;
+import org.junit.AfterClass;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -55,6 +53,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.requestObjectBuilder;
+import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 
 /**
  * Integration tests that validate ESQL's Parquet reader against ground-truth data generated at runtime
@@ -200,7 +201,22 @@ public class ParquetTestingIT extends ESRestTestCase {
     private static final Set<String> BAD_DATA_HANGS = Set.of("bad_data/ARROW-RS-GH-6229-DICTHEADER.parquet");
 
     @ClassRule
-    public static ElasticsearchCluster cluster = Clusters.testCluster(() -> "unused:9999");
+    public static ElasticsearchCluster cluster = Clusters.httpOnlyTestCluster();
+
+    private static CloseableHttpClient httpClient;
+
+    @BeforeClass
+    public static void initHttpClient() {
+        httpClient = HttpClients.createDefault();
+    }
+
+    @AfterClass
+    public static void closeHttpClient() throws IOException {
+        if (httpClient != null) {
+            httpClient.close();
+            httpClient = null;
+        }
+    }
 
     private final String parquetFile;
     private final boolean isBadData;
@@ -243,7 +259,10 @@ public class ParquetTestingIT extends ESRestTestCase {
         logger.info("Testing good data: {}", parquetFile);
 
         if (GOOD_DATA_RETURNS_500.contains(parquetFile)) {
-            ResponseException ex = expectThrows(ResponseException.class, () -> runEsqlQuery(buildQuery(url, 100000)));
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(requestObjectBuilder().query(buildQuery(url, 100000)), new AssertWarnings.NoWarnings(), null)
+            );
             int status = ex.getResponse().getStatusLine().getStatusCode();
             assertEquals("Known-buggy file " + parquetFile + " expected 500 but got " + status, 500, status);
             logger.warn("KNOWN BUG: {} returns HTTP 500 instead of readable data", parquetFile);
@@ -259,7 +278,7 @@ public class ParquetTestingIT extends ESRestTestCase {
         }
 
         String query = buildQuery(url, Math.max(groundTruth.numRows + 1, 100000));
-        Map<String, Object> result = runEsqlQuery(query);
+        Map<String, Object> result = runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
 
         @SuppressWarnings("unchecked")
         List<Map<String, String>> resultColumns = (List<Map<String, String>>) result.get("columns");
@@ -313,7 +332,7 @@ public class ParquetTestingIT extends ESRestTestCase {
 
         if (BAD_DATA_READS_OK.contains(parquetFile)) {
             try {
-                Map<String, Object> result = runEsqlQuery(query);
+                Map<String, Object> result = runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null);
                 assertNotNull("Expected " + parquetFile + " to read successfully (known readable)", result.get("columns"));
                 logger.info("Confirmed: {} is readable by ESQL despite being in bad_data/", parquetFile);
             } catch (ResponseException ex) {
@@ -327,14 +346,20 @@ public class ParquetTestingIT extends ESRestTestCase {
         }
 
         if (BAD_DATA_RETURNS_500.contains(parquetFile)) {
-            ResponseException ex = expectThrows(ResponseException.class, () -> runEsqlQuery(query));
+            ResponseException ex = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null)
+            );
             int status = ex.getResponse().getStatusLine().getStatusCode();
             assertEquals("Known-buggy file " + parquetFile + " expected 500 but got " + status, 500, status);
             logger.warn("KNOWN BUG: {} returns HTTP 500 instead of 4xx", parquetFile);
             return;
         }
 
-        ResponseException ex = expectThrows(ResponseException.class, () -> runEsqlQuery(query));
+        ResponseException ex = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(requestObjectBuilder().query(query), new AssertWarnings.NoWarnings(), null)
+        );
         int status = ex.getResponse().getStatusLine().getStatusCode();
         assertTrue(
             "Bad data file " + parquetFile + " should produce a 4xx error but got " + status + ": " + ex.getMessage(),
@@ -397,7 +422,7 @@ public class ParquetTestingIT extends ESRestTestCase {
 
         // List types
         if (isListType(fieldType)) {
-            return extractListValues(group, fieldIndex, fieldType.asGroupType(), esqlType);
+            return extractListValues(group, fieldIndex, fieldType.asGroupType());
         }
 
         return null;
@@ -446,13 +471,25 @@ public class ParquetTestingIT extends ESRestTestCase {
         return raw;
     }
 
+    /**
+     * Converts a Parquet INT96 timestamp to an ISO-8601 string.
+     * <p>
+     * INT96 is 12 bytes in little-endian order: the first 8 bytes encode nanoseconds elapsed within
+     * the day, and the last 4 bytes encode the Julian day number. The Unix epoch (1970-01-01)
+     * corresponds to Julian day 2,440,588. This method subtracts that offset to obtain the epoch day,
+     * converts to milliseconds, and adds the sub-day nanos (truncated to millis).
+     * <p>
+     * This mirrors the production conversion in
+     * {@code ParquetFormatReader.readInt96TimestampColumn} and
+     * {@code PageColumnReader}, which use the same constants
+     * ({@code JULIAN_EPOCH_OFFSET = 2_440_588}, {@code MILLIS_PER_DAY}, {@code NANOS_PER_MILLI}).
+     */
     private static Object extractInt96Value(Group group, int fieldIndex) {
         org.apache.parquet.io.api.Binary binary = group.getInt96(fieldIndex, 0);
         byte[] bytes = binary.getBytes();
-        // INT96: 12 bytes -- first 8 are nanoseconds within the day, last 4 are Julian day
         long nanos = ByteBuffer.wrap(bytes, 0, 8).order(java.nio.ByteOrder.LITTLE_ENDIAN).getLong();
         int julianDay = ByteBuffer.wrap(bytes, 8, 4).order(java.nio.ByteOrder.LITTLE_ENDIAN).getInt();
-        long millisFromEpoch = (julianDay - 2440588L) * TimeUnit.DAYS.toMillis(1) + nanos / 1_000_000;
+        long millisFromEpoch = (julianDay - 2_440_588L) * TimeUnit.DAYS.toMillis(1) + nanos / 1_000_000;
         return formatTimestamp(millisFromEpoch);
     }
 
@@ -500,21 +537,21 @@ public class ParquetTestingIT extends ESRestTestCase {
         return (sign == 1) ? -result : result;
     }
 
-    private static List<Object> extractListValues(Group group, int fieldIndex, GroupType listType, String esqlType) {
+    private static List<Object> extractListValues(Group group, int fieldIndex, GroupType listType) {
         Group listGroup = group.getGroup(fieldIndex, 0);
+        Type elementType = listType.getType(0).asGroupType().getType(0);
+        String elementEsqlType = elementType.isPrimitive() ? mapPrimitiveType(elementType.asPrimitiveType()) : null;
+
         List<Object> values = new ArrayList<>();
         int elementCount = listGroup.getFieldRepetitionCount(0);
         for (int i = 0; i < elementCount; i++) {
             Group elementGroup = listGroup.getGroup(0, i);
             if (elementGroup.getFieldRepetitionCount(0) == 0) {
                 values.add(null);
+            } else if (elementType.isPrimitive()) {
+                values.add(extractPrimitiveValue(elementGroup, 0, elementType.asPrimitiveType(), elementEsqlType));
             } else {
-                Type elementType = listType.getType(0).asGroupType().getType(0);
-                if (elementType.isPrimitive()) {
-                    values.add(extractPrimitiveValue(elementGroup, 0, elementType.asPrimitiveType(), esqlType));
-                } else {
-                    values.add(null);
-                }
+                values.add(null);
             }
         }
         return values;
@@ -566,12 +603,6 @@ public class ParquetTestingIT extends ESRestTestCase {
             || logicalType instanceof LogicalTypeAnnotation.EnumLogicalTypeAnnotation) {
             return "keyword";
         }
-        if (logicalType instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intType) {
-            if (intType.getBitWidth() <= 32) {
-                return intType.getBitWidth() <= 16 ? "integer" : (intType.isSigned() ? "integer" : "long");
-            }
-            return "long";
-        }
         if (logicalType instanceof LogicalTypeAnnotation.Float16LogicalTypeAnnotation) {
             return "double";
         }
@@ -591,12 +622,6 @@ public class ParquetTestingIT extends ESRestTestCase {
             return true;
         }
         if (("keyword".equals(expected) && "text".equals(actual)) || ("text".equals(expected) && "keyword".equals(actual))) {
-            return true;
-        }
-        if ("integer".equals(expected) && "long".equals(actual)) {
-            return true;
-        }
-        if ("long".equals(expected) && "double".equals(actual)) {
             return true;
         }
         return false;
@@ -702,31 +727,13 @@ public class ParquetTestingIT extends ESRestTestCase {
     }
 
     private static byte[] downloadFile(String url) throws IOException {
-        try (CloseableHttpClient httpClient = HttpClients.createDefault()) {
-            HttpGet request = new HttpGet(url);
-            try (CloseableHttpResponse response = httpClient.execute(request)) {
-                int status = response.getStatusLine().getStatusCode();
-                if (status != 200) {
-                    throw new IOException("Failed to download " + url + ": HTTP " + status);
-                }
-                return EntityUtils.toByteArray(response.getEntity());
+        HttpGet request = new HttpGet(url);
+        try (CloseableHttpResponse response = httpClient.execute(request)) {
+            int status = response.getStatusLine().getStatusCode();
+            if (status != 200) {
+                throw new IOException("Failed to download " + url + ": HTTP " + status);
             }
-        }
-    }
-
-    @SuppressWarnings("unchecked")
-    private Map<String, Object> runEsqlQuery(String query) throws IOException {
-        Request request = new Request("POST", "/_query");
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
-        var builder = org.elasticsearch.xcontent.XContentFactory.jsonBuilder();
-        builder.startObject();
-        builder.field("query", query);
-        builder.endObject();
-        request.setJsonEntity(org.elasticsearch.common.Strings.toString(builder));
-        Response response = client().performRequest(request);
-        String body = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
-        try (var parser = JsonXContent.jsonXContent.createParser(org.elasticsearch.xcontent.XContentParserConfiguration.EMPTY, body)) {
-            return (Map<String, Object>) parser.map();
+            return EntityUtils.toByteArray(response.getEntity());
         }
     }
 

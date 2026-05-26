@@ -1,0 +1,333 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.esql.action;
+
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.cluster.metadata.DataSourceMetadata;
+import org.elasticsearch.cluster.metadata.DataSourceSetting;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
+import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.DeleteDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.datasource.PutDataSourceAction;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourcePlugin;
+import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
+import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
+import org.junit.After;
+import org.junit.Before;
+
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
+
+/**
+ * Per-format matrix for the standard metadata columns surfaced on {@code FROM <external-dataset>}.
+ *
+ * <p>The wiring that surfaces {@code _id} / {@code _source} / {@code _version} / {@code _index}
+ * (and the always-null set {@code _score / _ignored / _index_mode / _tsid / _size}) reaches into
+ * the per-format <em>reader</em>: {@code _id}'s row position is emitted reader-side by the only
+ * {@code ColumnExtractorAware} reader (Parquet) and synthesized by {@code VirtualColumnIterator}'s
+ * per-file counter for the rest; {@code _source} is composed from the reader's data blocks by
+ * {@code SynthesizeExternalSource}, rendering every {@code BytesRefBlock} via {@code utf8ToString}.
+ * A format-specific reader regression in any of those paths would otherwise pass with only the
+ * CSV coverage in {@link FromDatasetIT}.
+ *
+ * <p>This base owns the five {@code @Test} bodies; each concrete subclass binds them to one format
+ * by supplying {@link #format()}, {@link #formatPlugins()} and a {@link #writeFixture(Path)} that
+ * lays down the same canonical 3-row fixture (in file order {@code emp_no} 1,2,3) so the assertions
+ * hold uniformly across formats.
+ *
+ * <p>Single-node by design, matching {@link FromDatasetIT}: multi-node dataset publication trips an
+ * unrelated {@code ProjectMetadata.Builder} assertion already on {@code main}.
+ */
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1, numClientNodes = 0, supportsDedicatedMasters = false)
+public abstract class AbstractExternalMetadataMatrixIT extends AbstractEsqlIntegTestCase {
+
+    protected static final TimeValue TIMEOUT = TimeValue.timeValueSeconds(30);
+
+    /** The format name passed as the dataset's {@code format} setting (e.g. {@code "csv"}). */
+    protected abstract String format();
+
+    /** Reader plugin(s) backing this format, registered as node plugins for SPI discovery. */
+    protected abstract Collection<Class<? extends Plugin>> formatPlugins();
+
+    /**
+     * Write the canonical 3-row fixture into {@code dir} and return the resource URI string.
+     * Row order in the file must be {@code emp_no} 1,2,3 so that, under {@code SORT emp_no}, the
+     * file-local offsets {@code 0,1,2} line up with the sorted rows. The fixture carries three
+     * columns: {@code emp_no} (int) 1,2,3; {@code first_name} (keyword) Alice,Bob,Carol; and
+     * {@code host_ip} (keyword) "10.0.0.1","10.0.0.2","10.0.0.3" — the latter a non-{@code emp_no}
+     * keyword column so {@code _source} synthesis exercises a typed KEYWORD-family render.
+     */
+    protected abstract String writeFixture(Path dir) throws Exception;
+
+    /** Minimal pass-through validator registered for type {@code test}; accepts any resource scheme. */
+    public static final class TestDataSourcePlugin extends Plugin implements DataSourcePlugin {
+        @Override
+        public Map<String, DataSourceValidator> datasourceValidators(Settings settings) {
+            return Map.of("test", new TestValidator());
+        }
+    }
+
+    private static final class TestValidator implements DataSourceValidator {
+        @Override
+        public String type() {
+            return "test";
+        }
+
+        @Override
+        public Map<String, DataSourceSetting> validateDatasource(Map<String, Object> datasourceSettings) {
+            Map<String, DataSourceSetting> out = new HashMap<>();
+            for (Map.Entry<String, Object> e : datasourceSettings.entrySet()) {
+                out.put(e.getKey(), new DataSourceSetting(e.getValue(), e.getKey().startsWith("secret_")));
+            }
+            return out;
+        }
+
+        @Override
+        public Map<String, Object> validateDataset(
+            Map<String, DataSourceSetting> datasourceSettings,
+            String resource,
+            Map<String, Object> datasetSettings
+        ) {
+            return datasetSettings == null ? Map.of() : new HashMap<>(datasetSettings);
+        }
+    }
+
+    private String fixtureUri;
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins());
+        plugins.addAll(formatPlugins());
+        plugins.add(TestDataSourcePlugin.class);
+        return plugins;
+    }
+
+    /** Determinism over planner-regression diversity here — these tests pin specific plan shapes. */
+    @Override
+    protected QueryPragmas getPragmas() {
+        return QueryPragmas.EMPTY;
+    }
+
+    @Before
+    public void requireFeatureFlag() {
+        assumeTrue("requires external data sources feature flag", DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled());
+    }
+
+    @Before
+    public void writeFixtureAndRegister() throws Exception {
+        fixtureUri = writeFixture(createTempDir());
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(PutDatasetAction.INSTANCE, putDatasetRequest("employees", "local_ds", fixtureUri, Map.of("format", format())))
+        );
+    }
+
+    @After
+    public void cleanupRegistry() throws Exception {
+        try {
+            client().execute(DeleteDatasetAction.INSTANCE, deleteDatasetRequest("employees"))
+                .get(30, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (ResourceNotFoundException ignored) {
+            // already deleted
+        } catch (Exception e) {
+            logger.warn("dataset cleanup [employees] failed", e);
+        }
+        try {
+            client().execute(DeleteDataSourceAction.INSTANCE, deleteDataSourceRequest("local_ds"))
+                .get(30, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (ResourceNotFoundException ignored) {
+            // already deleted
+        } catch (Exception e) {
+            logger.warn("data source cleanup [local_ds] failed", e);
+        }
+    }
+
+    public void testIdRendersLocationAndRowPosition() throws Exception {
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _id | SORT emp_no | KEEP emp_no, _id | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("emp_no"));
+            assertThat(columns.get(1).name(), equalTo("_id"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+
+            // Sorted by emp_no (1,2,3), so the rows line up with file-local offsets 0,1,2 regardless
+            // of whether the reader emits its own _rowPosition (Parquet) or the per-file counter does.
+            List<String> ids = new ArrayList<>();
+            for (List<Object> row : rows) {
+                ids.add(row.get(1).toString());
+            }
+            for (int i = 0; i < ids.size(); i++) {
+                String id = ids.get(i);
+                int sep = id.lastIndexOf(':');
+                assertThat("rendered _id [" + id + "] must contain a location:offset separator", sep, greaterThan(0));
+                assertThat("file-local row offset", id.substring(sep + 1), equalTo(Integer.toString(i)));
+            }
+            String prefix0 = ids.get(0).substring(0, ids.get(0).lastIndexOf(':'));
+            for (String id : ids) {
+                assertThat("all rows come from one file, so share one location prefix", id, startsWith(prefix0));
+            }
+            assertThat("all _id values are distinct", new java.util.HashSet<>(ids), hasSize(3));
+        }
+    }
+
+    public void testIndexIsDatasetName() throws Exception {
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _index | SORT emp_no | KEEP emp_no, _index | LIMIT 10"),
+                TIMEOUT
+            )
+        ) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(1).name(), equalTo("_index"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat(row.get(1).toString(), equalTo("employees"));
+            }
+        }
+    }
+
+    public void testSourceRoundTripsRowColumns() throws Exception {
+        // KEEP must list _source to surface it, but it must ALSO keep the data columns alive: _source
+        // is synthesized producer-side from the data columns the read binds, so pruning first_name /
+        // host_ip before synthesis would shrink _source to just emp_no. Keep all three plus _source.
+        try (
+            var response = run(
+                syncEsqlQueryRequest(
+                    "FROM employees METADATA _source | SORT emp_no | KEEP emp_no, first_name, host_ip, _source | LIMIT 10"
+                ),
+                TIMEOUT
+            )
+        ) {
+            int sourceIdx = response.columns().stream().map(ColumnInfo::name).toList().indexOf("_source");
+            assertThat("_source column present", sourceIdx, greaterThan(-1));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+
+            // Expected per-row keyword values, in sorted emp_no order.
+            String[] expectedFirstName = { "Alice", "Bob", "Carol" };
+            String[] expectedHostIp = { "10.0.0.1", "10.0.0.2", "10.0.0.3" };
+
+            for (int i = 0; i < rows.size(); i++) {
+                Object source = rows.get(i).get(sourceIdx);
+                assertThat("_source must be present for row " + i, source, notNullValue());
+                // getValuesList already deserializes a SOURCE column into a Map (ResponseValueUtils).
+                Map<?, ?> parsed = asMap(source);
+                // The two keyword columns must round-trip through reader -> _source synthesis as their
+                // exact string values. A format whose reader hands SynthesizeExternalSource a non-text
+                // block for a keyword column (or mangles the bytes) shows up right here.
+                assertThat("first_name in _source for row " + i, objToString(parsed.get("first_name")), equalTo(expectedFirstName[i]));
+                assertThat("host_ip in _source for row " + i, objToString(parsed.get("host_ip")), equalTo(expectedHostIp[i]));
+            }
+        }
+    }
+
+    public void testVersionIsNonNull() throws Exception {
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _version | SORT emp_no | KEEP emp_no, _version | LIMIT 10"),
+                TIMEOUT
+            )
+        ) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(1).name(), equalTo("_version"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat("_version (file mtime) must be non-null", row.get(1), notNullValue());
+            }
+        }
+    }
+
+    public void testStandardMetadataNeverFails() throws Exception {
+        // Standing contract: every standard metadata name is accepted, returning a value or SQL NULL,
+        // never an error. _index carries the dataset name; _version the file mtime; the rest have no
+        // external value and come back as NULL columns. None may be dropped and none may crash.
+        // _data_tier is snapshot-only in MetadataAttribute.ATTRIBUTES_MAP; omit it so the query is
+        // valid in non-snapshot builds.
+        String query = "FROM employees METADATA _index, _version, _ignored, _index_mode, _tsid, _size, _score "
+            + "| SORT emp_no "
+            + "| KEEP emp_no, _index, _version, _ignored, _index_mode, _tsid, _size, _score "
+            + "| LIMIT 10";
+
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat(names, equalTo(List.of("emp_no", "_index", "_version", "_ignored", "_index_mode", "_tsid", "_size", "_score")));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat("_index is the dataset name", row.get(1).toString(), equalTo("employees"));
+                assertThat("_version is non-null", row.get(2), notNullValue());
+                assertThat("_ignored is null on external rows", row.get(3), nullValue());
+                assertThat("_index_mode is null on external rows", row.get(4), nullValue());
+                assertThat("_tsid is null on external rows", row.get(5), nullValue());
+                assertThat("_size is null on external rows", row.get(6), nullValue());
+                assertThat("_score is null on external rows", row.get(7), nullValue());
+            }
+        }
+    }
+
+    /** The deserialized {@code _source} value is a {@link Map}; fail loudly if a format yields otherwise. */
+    private static Map<?, ?> asMap(Object source) {
+        assertThat("_source deserializes to a Map", source, org.hamcrest.Matchers.instanceOf(Map.class));
+        return (Map<?, ?>) source;
+    }
+
+    /** Keyword values may surface as String or BytesRef depending on block plumbing; normalize to String. */
+    private static String objToString(Object value) {
+        return value == null ? null : value.toString();
+    }
+
+    private static PutDataSourceAction.Request putDataSourceRequest(String name, Map<String, Object> settings) {
+        return new PutDataSourceAction.Request(TIMEOUT, TIMEOUT, name, "test", null, new HashMap<>(settings));
+    }
+
+    private static PutDatasetAction.Request putDatasetRequest(
+        String name,
+        String dataSource,
+        String resource,
+        Map<String, Object> settings
+    ) {
+        return new PutDatasetAction.Request(TIMEOUT, TIMEOUT, name, dataSource, resource, null, new HashMap<>(settings));
+    }
+
+    private static DeleteDataSourceAction.Request deleteDataSourceRequest(String name) {
+        return new DeleteDataSourceAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
+    }
+
+    private static DeleteDatasetAction.Request deleteDatasetRequest(String name) {
+        return new DeleteDatasetAction.Request(TIMEOUT, TIMEOUT, new String[] { name });
+    }
+}

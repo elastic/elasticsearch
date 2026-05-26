@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
 import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.update.UpdateResponse;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.eirf.EirfBatch;
@@ -130,7 +131,12 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         IndexShard shard = newMappedPrimaryShard();
 
         BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            items
+        );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
         try (EirfBatch batch = buildBatch(1)) {
@@ -157,7 +163,12 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         for (int i = 0; i < numDocs; i++) {
             items[i] = new BulkItemRequest(i, indexRequest(Integer.toString(i)));
         }
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            items
+        );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
         try (EirfBatch batch = buildBatch(numDocs)) {
@@ -190,7 +201,12 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         for (int i = 0; i < numDocs; i++) {
             items[i] = new BulkItemRequest(i, indexRequest(Integer.toString(i)));
         }
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            items
+        );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
         try (EirfBatch batch = buildBatch(numDocs)) {
@@ -220,7 +236,12 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         BulkItemRequest[] items = new BulkItemRequest[] {
             new BulkItemRequest(0, indexRequest("same-id")),
             new BulkItemRequest(1, indexRequest("same-id")) };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            items
+        );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
         try (EirfBatch batch = buildBatch(2)) {
@@ -256,7 +277,12 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
             )
         );
 
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            items
+        );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
         try (EirfBatch batch = buildBatch(1)) {
@@ -278,7 +304,12 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         for (int i = 0; i < numDocs; i++) {
             items[i] = new BulkItemRequest(i, indexRequest(Integer.toString(i)));
         }
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            items
+        );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
         try (EirfBatch batch = buildBatch(numDocs)) {
@@ -307,7 +338,12 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         IndexShard shard = newMappedPrimaryShard();
 
         BulkItemRequest[] items = new BulkItemRequest[] { new BulkItemRequest(0, indexRequest("1")) };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            items
+        );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
         try (EirfBatch batch = buildBatch(1)) {
@@ -334,7 +370,12 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         for (int i = 0; i < numDocs; i++) {
             items[i] = new BulkItemRequest(i, indexRequest(Integer.toString(i)));
         }
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            items
+        );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
         try (EirfBatch batch = buildBatch(numDocs)) {
@@ -364,7 +405,12 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         BulkItemRequest[] items = new BulkItemRequest[] {
             new BulkItemRequest(0, indexRequest("1")),
             new BulkItemRequest(1, indexRequest("2")) };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            items
+        );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
         try (EirfBatch batch = buildBatch(2)) {
@@ -461,7 +507,12 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         }
 
         try (EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON)) {
-            BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
+            BulkShardRequest bulkShardRequest = new BulkShardRequest(
+                shard.shardId(),
+                SplitShardCountSummary.IRRELEVANT,
+                RefreshPolicy.NONE,
+                items
+            );
             BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
             PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -507,7 +558,12 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         }
 
         try (EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON)) {
-            BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
+            BulkShardRequest bulkShardRequest = new BulkShardRequest(
+                shard.shardId(),
+                SplitShardCountSummary.IRRELEVANT,
+                RefreshPolicy.NONE,
+                items
+            );
             BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
             PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -544,7 +600,12 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         }
 
         try (EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON)) {
-            BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
+            BulkShardRequest bulkShardRequest = new BulkShardRequest(
+                shard.shardId(),
+                SplitShardCountSummary.IRRELEVANT,
+                RefreshPolicy.NONE,
+                items
+            );
             BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
             PlainActionFuture<Void> future = new PlainActionFuture<>();
@@ -563,7 +624,12 @@ public class ShardBatchIndexerTests extends IndexShardTestCase {
         BulkItemRequest[] items = new BulkItemRequest[] {
             new BulkItemRequest(0, indexRequest("1")),
             new BulkItemRequest(1, indexRequest("2")) };
-        BulkShardRequest bulkShardRequest = new BulkShardRequest(shard.shardId(), RefreshPolicy.NONE, items);
+        BulkShardRequest bulkShardRequest = new BulkShardRequest(
+            shard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
+            RefreshPolicy.NONE,
+            items
+        );
         BulkPrimaryExecutionContext context = new BulkPrimaryExecutionContext(bulkShardRequest, shard);
 
         try (EirfBatch batch = buildBatch(2)) {

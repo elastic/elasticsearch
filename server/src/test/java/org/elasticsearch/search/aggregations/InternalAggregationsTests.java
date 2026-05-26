@@ -299,10 +299,10 @@ public class InternalAggregationsTests extends ESTestCase {
         writeToAndReadFrom(aggregations, TransportVersion.current(), 0);
     }
 
-    public void testSerializedSize() throws Exception {
+    public void testUncompressedSerializedSize() throws Exception {
         InternalAggregations aggregations = createTestInstance();
         assertThat(
-            DelayableWriteable.getSerializedSize(aggregations),
+            DelayableWriteable.getUncompressedSerializedSize(aggregations),
             equalTo((long) serialize(aggregations, TransportVersion.current()).length)
         );
     }

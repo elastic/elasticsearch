@@ -1137,3 +1137,102 @@ FROM mv_decades
 decade:integer | description:keyword | date_range:date_range
 1950           | Two                 | 1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z
 ;
+
+
+###############################################
+# COALESCE tests
+###############################################
+
+// COALESCE returns the first non-null date_range when the first arg is non-null.
+coalesceDateRange
+required_capability: date_range_field_type_v6
+required_capability: coalesce_date_range
+
+FROM decades
+| WHERE decade == 1900
+| EVAL c = COALESCE(date_range, TO_DATE_RANGE("2000-01-01..2001-01-01"))
+| KEEP decade, c
+;
+
+decade:integer | c:date_range
+1900           | 1900-01-01..1910-01-01
+;
+
+// COALESCE skips null and returns the second date_range argument.
+coalesceDateRangeNullFirst
+required_capability: date_range_field_type_v6
+required_capability: coalesce_date_range
+
+ROW a = TO_DATE_RANGE("2022-01-01T00:00:00.000Z..2023-01-01T00:00:00.000Z")
+| EVAL r = COALESCE(null, a)
+| KEEP r
+;
+
+r:date_range
+2022-01-01T00:00:00.000Z..2023-01-01T00:00:00.000Z
+;
+
+// COALESCE with a single date_range argument returns that value unchanged.
+coalesceDateRangeSingleArg
+required_capability: date_range_field_type_v6
+required_capability: coalesce_date_range
+
+FROM decades
+| WHERE decade == 1900
+| EVAL c = COALESCE(date_range)
+| KEEP decade, c
+;
+
+decade:integer | c:date_range
+1900           | 1900-01-01..1910-01-01
+;
+
+// COALESCE over multiple date_range fields; the first non-null wins.
+coalesceDateRangeMultipleArgs
+required_capability: date_range_field_type_v6
+required_capability: coalesce_date_range
+
+ROW a = TO_DATE_RANGE("2020-01-01..2021-01-01"),
+    b = TO_DATE_RANGE("2022-01-01..2023-01-01")
+| EVAL r = COALESCE(a, b)
+| KEEP r
+;
+
+r:date_range
+2020-01-01..2021-01-01
+;
+
+// For decades divisible by 20, synthesise a 15-year "extended" range from the decade integer;
+// for all others the override is null, so COALESCE falls back to the stored date_range field.
+// The extended ranges (e.g. 1900-01-01..1915-01-01) are clearly distinguishable from the
+// original 10-year spans (e.g. 1900-01-01..1910-01-01).
+coalesceDateRangeFromFieldValue
+required_capability: date_range_field_type_v6
+required_capability: coalesce_date_range
+
+FROM decades
+| EVAL override_str = CASE(
+    decade % 20 == 0,
+    CONCAT(TO_STRING(decade), "-01-01..", TO_STRING(decade + 15), "-01-01")
+  )
+| EVAL override = TO_DATE_RANGE(override_str)
+| EVAL result = COALESCE(override, date_range)
+| KEEP decade, result
+| SORT decade
+;
+
+decade:integer | result:date_range
+1900           | 1900-01-01..1915-01-01
+1910           | 1910-01-01..1920-01-01
+1920           | 1920-01-01..1935-01-01
+1930           | 1930-01-01..1940-01-01
+1940           | 1940-01-01..1955-01-01
+1950           | 1950-01-01..1960-01-01
+1960           | 1960-01-01..1975-01-01
+1970           | 1970-01-01..1980-01-01
+1980           | 1980-01-01..1995-01-01
+1990           | 1990-01-01..2000-01-01
+2000           | 2000-01-01..2015-01-01
+2010           | 2010-01-01..2020-01-01
+2020           | 2020-01-01..2035-01-01
+;

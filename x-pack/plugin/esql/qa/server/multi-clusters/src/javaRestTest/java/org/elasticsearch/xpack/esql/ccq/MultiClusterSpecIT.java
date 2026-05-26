@@ -244,6 +244,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             testCase.requiredCapabilities.contains(DENSE_VECTOR_EQUALITY.capabilityName())
         );
 
+        // TODO remove this when addressing https://github.com/elastic/esql-planning/issues/517
         assumeFalse(
             "skip CCS for IN subqueries until convertToRemoteIndices supports IN subquery",
             testCase.requiredCapabilities.contains(WHERE_IN_SUBQUERY_WITHOUT_VIEW.capabilityName())

@@ -36,7 +36,7 @@ import static org.hamcrest.Matchers.greaterThan;
  * Multi-JVM coverage for external-text aggregate-metadata pushdown.
  * <p>
  * The single-JVM {@code internalClusterTest}s (e.g. {@code ExternalCsvAggregatePushdownIT}) cannot
- * exercise the cross-node stats return-flow: every node shares one JVM-static {@code ExternalStatsCache},
+ * exercise the cross-node stats return-flow: every node shares one JVM-static {@code ExternalStats},
  * so a data node's capture is visible to the coordinator through the static cache regardless of whether
  * {@code DriverCompletionInfo.capturedSourceMetadata} works. This test runs a real two-process cluster
  * with split roles (coordinator-only node 0, data-only node 1). Both queries target node 0; the cold

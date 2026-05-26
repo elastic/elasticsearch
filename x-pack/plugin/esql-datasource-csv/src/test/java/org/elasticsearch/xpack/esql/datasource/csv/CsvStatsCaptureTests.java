@@ -7,13 +7,16 @@
 
 package org.elasticsearch.xpack.esql.datasource.csv;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache;
+import org.elasticsearch.xpack.esql.datasources.SplitStats;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -24,10 +27,16 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
-import java.util.OptionalLong;
+import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
-/** Capture-on-close gate for CSV. Lookup side is in {@code CsvStatsMetadataLookupTests}. */
+/**
+ * Capture-on-close gate for CSV. The close hook publishes a flat {@code _stats.*} contribution to the
+ * thread-bound {@link ExternalStatsCapture} sink (the only sink now — the legacy JVM-static cache was
+ * removed in favour of the unified SchemaCacheEntry + coordinator reconcile). These tests bind a sink,
+ * drain the reader, and assert the contribution via the production {@link SplitStats#of} read path.
+ */
 public class CsvStatsCaptureTests extends ESTestCase {
 
     private BlockFactory blockFactory;
@@ -36,13 +45,6 @@ public class CsvStatsCaptureTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
-        ExternalStatsCache.clearForTests();
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        ExternalStatsCache.clearForTests();
-        super.tearDown();
     }
 
     /** SKIP_ROW emits HeaderWarning; drop the context so ensureNoWarnings sees an empty list. */
@@ -53,124 +55,102 @@ public class CsvStatsCaptureTests extends ESTestCase {
         }
     }
 
-    public void testWholeFileCleanDrainPopulatesCache() throws Exception {
+    public void testWholeFileCleanDrainPublishesStats() throws Exception {
         StorageObject o = obj("id:integer,n:integer\n1,10\n2,20\n3,30\n4,40\n");
-        try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, FormatReadContext.builder().batchSize(10).build())) {
-            drain(it);
-        }
-        OptionalLong cached = ExternalStatsCache.lookupAnyForTests(o)
-            .map(s -> java.util.OptionalLong.of(s.rowCount()))
-            .orElse(java.util.OptionalLong.empty());
-        assertTrue("clean whole-file drain must populate cache", cached.isPresent());
-        assertEquals(4L, cached.getAsLong());
+        Map<String, Object> c = capture(o, FormatReadContext.builder().batchSize(10).build());
+        assertNotNull("clean whole-file drain must publish a contribution", c);
+        assertFalse("a whole-file read is not a partial chunk", c.containsKey(ExternalStats.PARTIAL_CHUNK_KEY));
+        assertEquals(4L, SplitStats.of(c).rowCount());
     }
 
-    public void testCloseWithoutFullDrainDoesNotPopulateCache() throws Exception {
+    public void testCloseWithoutFullDrainPublishesNothing() throws Exception {
         StorageObject o = obj("id:integer,n:integer\n1,10\n2,20\n3,30\n");
-        try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, FormatReadContext.builder().batchSize(10).build())) {
+        Map<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (
+            var handle = ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, FormatReadContext.builder().batchSize(10).build())
+        ) {
             if (it.hasNext()) {
                 it.next().releaseBlocks();
             }
-            // Close without reaching natural EOF — must not cache.
+            // Close without reaching natural EOF — must not publish.
         }
-        assertTrue("close-before-EOF must not populate cache", ExternalStatsCache.lookupAnyForTests(o).isEmpty());
+        assertNull("close-before-EOF must not publish", sink.get(o.path().toString()));
     }
 
-    public void testNonFirstSplitDoesNotPopulateCache() throws Exception {
+    public void testNonFirstSplitPublishesNothing() throws Exception {
         StorageObject o = obj("id:integer,n:integer\n1,10\n2,20\n3,30\n");
-        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).firstSplit(false).lastSplit(true).build();
-        try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)) {
-            drain(it);
-        }
-        assertTrue("non-first split read must not populate cache", ExternalStatsCache.lookupAnyForTests(o).isEmpty());
-    }
-
-    public void testNonLastSplitDoesNotPopulateCache() throws Exception {
-        StorageObject o = obj("id:integer,n:integer\n1,10\n2,20\n3,30\n");
-        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).firstSplit(true).lastSplit(false).build();
-        try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)) {
-            drain(it);
-        }
-        assertTrue("non-last split read must not populate cache", ExternalStatsCache.lookupAnyForTests(o).isEmpty());
-    }
-
-    public void testRecordAlignedDoesNotPopulateCache() throws Exception {
-        StorageObject o = obj("id:integer,n:integer\n1,10\n2,20\n3,30\n");
-        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).recordAligned(true).build();
-        try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)) {
-            drain(it);
-        }
-        assertTrue("record-aligned (parallel-sliced) read must not populate cache", ExternalStatsCache.lookupAnyForTests(o).isEmpty());
-    }
-
-    /** SKIP_ROW with a malformed row → errorCount > 0 → gate suppresses the cache write. */
-    public void testSkipRowWithErrorsDoesNotPopulateCache() throws Exception {
-        ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
-        StorageObject o = obj("id:integer,n:integer\n1,10\nnot-an-integer,20\n3,30\n");
-        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).build();
-        try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)) {
-            drain(it);
-        }
-        assertTrue(
-            "SKIP_ROW with errors must not populate cache (count is policy-dependent)",
-            ExternalStatsCache.lookupAnyForTests(o).isEmpty()
+        assertNull(
+            "non-first split is neither a whole-file read nor a record-aligned chunk — no publish",
+            capture(o, FormatReadContext.builder().batchSize(10).firstSplit(false).lastSplit(true).build())
         );
     }
 
-    public void testWholeFileCleanDrainPopulatesColumnStats() throws Exception {
+    public void testNonLastSplitPublishesNothing() throws Exception {
+        StorageObject o = obj("id:integer,n:integer\n1,10\n2,20\n3,30\n");
+        assertNull(
+            "non-last split is neither a whole-file read nor a record-aligned chunk — no publish",
+            capture(o, FormatReadContext.builder().batchSize(10).firstSplit(true).lastSplit(false).build())
+        );
+    }
+
+    public void testRecordAlignedPublishesPartialChunk() throws Exception {
+        StorageObject o = obj("id:integer,n:integer\n1,10\n2,20\n3,30\n");
+        Map<String, Object> c = capture(o, FormatReadContext.builder().batchSize(10).recordAligned(true).build());
+        assertNotNull("a clean record-aligned chunk must publish its partial", c);
+        assertTrue("a record-aligned chunk publishes a partial-marked contribution", c.containsKey(ExternalStats.PARTIAL_CHUNK_KEY));
+        assertEquals(3L, SplitStats.of(c).rowCount());
+    }
+
+    /** SKIP_ROW drops a malformed row → rowsSkipped > 0 → whole-file write suppressed (count is policy-dependent). */
+    public void testSkipRowWithDroppedRowsPublishesNothing() throws Exception {
+        ErrorPolicy skipRowQuiet = new ErrorPolicy(ErrorPolicy.Mode.SKIP_ROW, 10, 1.0, false);
+        StorageObject o = obj("id:integer,n:integer\n1,10\nnot-an-integer,20\n3,30\n");
+        assertNull(
+            "SKIP_ROW with dropped rows must not publish (count is policy-dependent)",
+            capture(o, FormatReadContext.builder().batchSize(10).errorPolicy(skipRowQuiet).build())
+        );
+    }
+
+    public void testWholeFileCleanDrainPublishesColumnStats() throws Exception {
         StorageObject o = obj("id:integer,n:integer,name:keyword\n1,10,alpha\n2,20,beta\n3,30,gamma\n");
-        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).projectedColumns(java.util.List.of("id", "n", "name")).build();
-        try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)) {
-            drain(it);
-        }
-        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookupAnyForTests(o);
-        assertTrue("clean whole-file drain must populate cache", cached.isPresent());
-        assertEquals(3L, cached.get().rowCount());
-        java.util.Map<String, ExternalStatsCache.ColumnStats> cols = cached.get().columns();
-        assertEquals(3, cols.size());
-        ExternalStatsCache.ColumnStats id = cols.get("id");
-        assertEquals(0L, id.nullCount());
-        assertEquals(1, id.min());
-        assertEquals(3, id.max());
-        ExternalStatsCache.ColumnStats n = cols.get("n");
-        assertEquals(10, n.min());
-        assertEquals(30, n.max());
-        ExternalStatsCache.ColumnStats name = cols.get("name");
-        assertEquals(new org.apache.lucene.util.BytesRef("alpha"), name.min());
-        assertEquals(new org.apache.lucene.util.BytesRef("gamma"), name.max());
+        Map<String, Object> c = capture(o, FormatReadContext.builder().batchSize(10).projectedColumns(List.of("id", "n", "name")).build());
+        assertNotNull(c);
+        SplitStats stats = SplitStats.of(c);
+        assertEquals(3L, stats.rowCount());
+        assertEquals(0L, stats.columnNullCount("id"));
+        assertEquals(1L, ((Number) stats.columnMin("id")).longValue());
+        assertEquals(3L, ((Number) stats.columnMax("id")).longValue());
+        assertEquals(10L, ((Number) stats.columnMin("n")).longValue());
+        assertEquals(30L, ((Number) stats.columnMax("n")).longValue());
+        assertEquals(new BytesRef("alpha"), stats.columnMin("name"));
+        assertEquals(new BytesRef("gamma"), stats.columnMax("name"));
     }
 
     public void testNullValuesCountTowardsColumnNullCount() throws Exception {
         // n column has one null encoded as empty field
         StorageObject o = obj("id:integer,n:integer\n1,10\n2,\n3,30\n");
-        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).projectedColumns(java.util.List.of("id", "n")).build();
-        try (CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)) {
-            drain(it);
-        }
-        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookupAnyForTests(o);
-        assertTrue(cached.isPresent());
-        assertEquals(3L, cached.get().rowCount());
-        ExternalStatsCache.ColumnStats n = cached.get().columns().get("n");
-        assertEquals("null cell must increment nullCount", 1L, n.nullCount());
-        assertEquals(10, n.min());
-        assertEquals(30, n.max());
+        Map<String, Object> c = capture(o, FormatReadContext.builder().batchSize(10).projectedColumns(List.of("id", "n")).build());
+        assertNotNull(c);
+        SplitStats stats = SplitStats.of(c);
+        assertEquals(3L, stats.rowCount());
+        assertEquals("null cell must increment nullCount", 1L, stats.columnNullCount("n"));
+        assertEquals(10L, ((Number) stats.columnMin("n")).longValue());
+        assertEquals(30L, ((Number) stats.columnMax("n")).longValue());
     }
 
-    public void testStreamOnlyCaptureRecordsBytesRead() throws Exception {
+    public void testStreamOnlyCaptureRecordsSizeInBytes() throws Exception {
         String body = "id:integer\n1\n2\n3\n";
         StorageObject streamOnly = streamOnlyObj(body);
-        try (
-            CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(
-                streamOnly,
-                FormatReadContext.builder().batchSize(10).build()
-            )
-        ) {
-            drain(it);
-        }
-        java.util.Optional<ExternalStatsCache.Stats> cached = ExternalStatsCache.lookupAnyForTests(streamOnly);
-        assertTrue("stream-only whole-file drain must populate cache", cached.isPresent());
-        assertTrue("bytesRead must be present for stream-only sources", cached.get().bytesRead().isPresent());
-        assertEquals(body.getBytes(StandardCharsets.UTF_8).length, cached.get().bytesRead().getAsLong());
+        Map<String, Object> c = capture(streamOnly, FormatReadContext.builder().batchSize(10).build());
+        assertNotNull("stream-only whole-file drain must publish a contribution", c);
+        SplitStats stats = SplitStats.of(c);
+        assertEquals(3L, stats.rowCount());
+        assertEquals(
+            "stream-only sources publish scan-counted bytes as sizeInBytes",
+            body.getBytes(StandardCharsets.UTF_8).length,
+            stats.sizeInBytes()
+        );
     }
 
     /**
@@ -182,64 +162,30 @@ public class CsvStatsCaptureTests extends ESTestCase {
         ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 10, 1.0, false);
         // 3 data rows; row 2 has a non-integer in column n → null-filled, row preserved.
         StorageObject o = obj("id:integer,n:integer\n1,10\n2,not-an-int\n3,30\n");
-        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).recordAligned(true).errorPolicy(nullField).build();
-        java.util.Map<String, java.util.List<java.util.Map<String, Object>>> sink =
-            org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.newSink();
-        try (
-            var handle = org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.bind(sink);
-            CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)
-        ) {
-            drain(it);
-        }
-        java.util.List<java.util.Map<String, Object>> contributions = sink.get(o.path().toString());
+        List<Map<String, Object>> contributions = captureAll(
+            o,
+            FormatReadContext.builder().batchSize(10).recordAligned(true).errorPolicy(nullField).build()
+        );
         assertNotNull("NULL_FIELD chunk must still publish its partial — its row count is accurate", contributions);
-        boolean anyPoison = contributions.stream().anyMatch(c -> Boolean.TRUE.equals(c.get(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY)));
+        boolean anyPoison = contributions.stream().anyMatch(c -> Boolean.TRUE.equals(c.get(ExternalStats.CHUNK_HAD_ERRORS_KEY)));
         assertFalse("NULL_FIELD preserves rows, so the chunk must not poison the file", anyPoison);
-        long published = contributions.stream()
-            .filter(c -> c.containsKey(org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.STATS_ROW_COUNT))
-            .mapToLong(
-                c -> ((Number) c.get(org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
-            )
-            .max()
-            .orElse(-1L);
+        long published = contributions.stream().mapToLong(c -> SplitStats.of(c).rowCount()).max().orElse(-1L);
         assertEquals("the chunk's published row count must include the null-filled row", 3L, published);
     }
 
-    private StorageObject streamOnlyObj(String csv) {
-        byte[] bytes = csv.getBytes(StandardCharsets.UTF_8);
-        String uniquePath = "memory://" + UUID.randomUUID() + ".csv.bz2";
-        Instant fixedMtime = Instant.now();
-        return new StorageObject() {
-            @Override
-            public InputStream newStream() {
-                return new ByteArrayInputStream(bytes);
-            }
+    /** Binds a capture sink, drains the reader to EOF, returns the single contribution for the path (or null). */
+    private Map<String, Object> capture(StorageObject o, FormatReadContext ctx) throws Exception {
+        List<Map<String, Object>> all = captureAll(o, ctx);
+        return all == null ? null : all.get(0);
+    }
 
-            @Override
-            public InputStream newStream(long position, long length) {
-                throw new UnsupportedOperationException("Range reads not supported");
-            }
-
-            @Override
-            public long length() {
-                throw new UnsupportedOperationException("Decompressed length is unknown");
-            }
-
-            @Override
-            public Instant lastModified() {
-                return fixedMtime;
-            }
-
-            @Override
-            public boolean exists() {
-                return true;
-            }
-
-            @Override
-            public StoragePath path() {
-                return StoragePath.of(uniquePath);
-            }
-        };
+    private List<Map<String, Object>> captureAll(StorageObject o, FormatReadContext ctx) throws Exception {
+        Map<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        try (var handle = ExternalStatsCapture.bind(sink); CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)) {
+            drain(it);
+        }
+        List<Map<String, Object>> c = sink.get(o.path().toString());
+        return c == null || c.isEmpty() ? null : c;
     }
 
     private static void drain(CloseableIterator<Page> it) {
@@ -248,9 +194,16 @@ public class CsvStatsCaptureTests extends ESTestCase {
         }
     }
 
+    private StorageObject streamOnlyObj(String csv) {
+        return memoryObject(csv, "memory://" + UUID.randomUUID() + ".csv.bz2", false);
+    }
+
     private StorageObject obj(String csvContent) {
-        byte[] bytes = csvContent.getBytes(StandardCharsets.UTF_8);
-        String uniquePath = "memory://" + UUID.randomUUID() + ".csv";
+        return memoryObject(csvContent, "memory://" + UUID.randomUUID() + ".csv", true);
+    }
+
+    private StorageObject memoryObject(String content, String uniquePath, boolean lengthKnown) {
+        byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
         Instant fixedMtime = Instant.now();
         return new StorageObject() {
             @Override
@@ -265,7 +218,10 @@ public class CsvStatsCaptureTests extends ESTestCase {
 
             @Override
             public long length() {
-                return bytes.length;
+                if (lengthKnown) {
+                    return bytes.length;
+                }
+                throw new UnsupportedOperationException("Decompressed length is unknown");
             }
 
             @Override

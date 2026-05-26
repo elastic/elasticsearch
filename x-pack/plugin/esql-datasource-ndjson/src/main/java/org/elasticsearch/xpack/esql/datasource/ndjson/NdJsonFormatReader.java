@@ -17,7 +17,7 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
-import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -329,12 +329,13 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
                 cachedSize = OptionalLong.empty();
             }
             String configFingerprint = computeConfigFingerprint();
-            Optional<ExternalStatsCache.Stats> cachedStats = ExternalStatsCache.lookup(object, configFingerprint);
-            SourceStatistics stats = TextFormatStats.build(cachedStats, cachedSize, schema);
+            // Cold resolution publishes only the file size + identity; row/column stats arrive via the
+            // data-node capture → coordinator reconcile into SchemaCacheEntry.
+            SourceStatistics stats = TextFormatStats.build(Optional.empty(), cachedSize, schema);
             Map<String, Object> baseSourceMetadata = Map.of(
-                ExternalStatsCache.MTIME_MILLIS_KEY,
+                ExternalStats.MTIME_MILLIS_KEY,
                 mtimeMillis,
-                ExternalStatsCache.CONFIG_FINGERPRINT_KEY,
+                ExternalStats.CONFIG_FINGERPRINT_KEY,
                 configFingerprint
             );
             Map<String, Object> sourceMetadata = SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats);

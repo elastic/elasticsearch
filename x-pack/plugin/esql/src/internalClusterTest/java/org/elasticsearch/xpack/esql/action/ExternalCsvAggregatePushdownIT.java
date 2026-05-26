@@ -13,7 +13,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -57,18 +56,6 @@ public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
     protected QueryPragmas getPragmas() {
         // parsing_parallelism=1 keeps the file on the single-thread path; record-aligned chunks bypass the capture-hook gate.
         return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
-    }
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        ExternalStatsCache.clearForTests();
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        ExternalStatsCache.clearForTests();
-        super.tearDown();
     }
 
     public void testCountStarColdThenWarmShortCircuits() throws Exception {

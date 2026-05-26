@@ -17,8 +17,8 @@ import java.util.Map;
  * {@code DriverCompletionInfo.capturedSourceMetadata}.
  * <p>
  * Contributions travel over the wire as untyped {@code Map<String, Object>} blobs tagged with marker
- * keys ({@link ExternalStatsCache#PARTIAL_CHUNK_KEY}, {@link ExternalStatsCache#FINALIZE_CHUNKS_KEY},
- * {@link ExternalStatsCache#CHUNK_HAD_ERRORS_KEY}). Each kind composes differently — partial chunks
+ * keys ({@link ExternalStats#PARTIAL_CHUNK_KEY}, {@link ExternalStats#FINALIZE_CHUNKS_KEY},
+ * {@link ExternalStats#CHUNK_HAD_ERRORS_KEY}). Each kind composes differently — partial chunks
  * are summed, whole-file reads are deduplicated, poison discards the file, finalize gates the merge.
  * Three separate correctness bugs in the reconciler came from the merge logic forgetting to
  * special-case one marker and letting that kind fall through to the summable {@link PartialChunk}
@@ -52,17 +52,17 @@ sealed interface SourceStatsContribution {
      * stripped from the stats-bearing kinds so the well-known {@code _stats.*} keys merge cleanly.
      */
     static SourceStatsContribution classify(Map<String, Object> raw) {
-        if (Boolean.TRUE.equals(raw.get(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY))) {
+        if (Boolean.TRUE.equals(raw.get(ExternalStats.CHUNK_HAD_ERRORS_KEY))) {
             return new Poison();
         }
         boolean hasStats = raw.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT);
-        if (Boolean.TRUE.equals(raw.get(ExternalStatsCache.FINALIZE_CHUNKS_KEY)) && hasStats == false) {
+        if (Boolean.TRUE.equals(raw.get(ExternalStats.FINALIZE_CHUNKS_KEY)) && hasStats == false) {
             return new Finalize();
         }
         Map<String, Object> stripped = new HashMap<>(raw);
-        boolean isPartial = stripped.remove(ExternalStatsCache.PARTIAL_CHUNK_KEY) != null;
-        stripped.remove(ExternalStatsCache.FINALIZE_CHUNKS_KEY);
-        stripped.remove(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY);
+        boolean isPartial = stripped.remove(ExternalStats.PARTIAL_CHUNK_KEY) != null;
+        stripped.remove(ExternalStats.FINALIZE_CHUNKS_KEY);
+        stripped.remove(ExternalStats.CHUNK_HAD_ERRORS_KEY);
         return isPartial ? new PartialChunk(stripped) : new WholeFile(stripped);
     }
 }

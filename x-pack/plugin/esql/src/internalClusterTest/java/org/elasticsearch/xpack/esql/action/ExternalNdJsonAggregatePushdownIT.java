@@ -13,7 +13,6 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.datasource.http.HttpDataSourcePlugin;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonDataSourcePlugin;
-import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 
@@ -54,18 +53,6 @@ public class ExternalNdJsonAggregatePushdownIT extends AbstractEsqlIntegTestCase
     protected QueryPragmas getPragmas() {
         // See parallel comment in ExternalCsvCountPushdownIT.getPragmas.
         return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
-    }
-
-    @Override
-    public void setUp() throws Exception {
-        super.setUp();
-        ExternalStatsCache.clearForTests();
-    }
-
-    @Override
-    public void tearDown() throws Exception {
-        ExternalStatsCache.clearForTests();
-        super.tearDown();
     }
 
     public void testCountStarColdThenWarmShortCircuits() throws Exception {

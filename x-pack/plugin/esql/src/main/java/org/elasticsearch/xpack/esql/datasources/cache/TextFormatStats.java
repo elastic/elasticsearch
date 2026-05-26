@@ -17,7 +17,7 @@ import java.util.Optional;
 import java.util.OptionalLong;
 
 /**
- * Builds a {@link SourceStatistics} from a cached {@link ExternalStatsCache.Stats} for the
+ * Builds a {@link SourceStatistics} from a cached {@link ExternalStats.Stats} for the
  * line-oriented text-format readers (CSV / TSV / NDJSON).
  * <p>
  * Cache miss → row count + column statistics absent; {@code sizeInBytes} still published when
@@ -31,7 +31,7 @@ public final class TextFormatStats {
     private TextFormatStats() {}
 
     public static SourceStatistics build(
-        Optional<ExternalStatsCache.Stats> cachedStats,
+        Optional<ExternalStats.Stats> cachedStats,
         OptionalLong lengthDerivedSizeInBytes,
         List<Attribute> schema
     ) {
@@ -39,7 +39,7 @@ public final class TextFormatStats {
         OptionalLong sizeInBytes;
         Map<String, SourceStatistics.ColumnStatistics> columns;
         if (cachedStats.isPresent()) {
-            ExternalStatsCache.Stats s = cachedStats.get();
+            ExternalStats.Stats s = cachedStats.get();
             rowCount = OptionalLong.of(s.rowCount());
             sizeInBytes = lengthDerivedSizeInBytes.isPresent() ? lengthDerivedSizeInBytes : s.bytesRead();
             columns = buildColumns(s.columns(), schema);
@@ -70,7 +70,7 @@ public final class TextFormatStats {
     }
 
     private static Map<String, SourceStatistics.ColumnStatistics> buildColumns(
-        Map<String, ExternalStatsCache.ColumnStats> cached,
+        Map<String, ExternalStats.ColumnStats> cached,
         List<Attribute> schema
     ) {
         if (cached.isEmpty() || schema == null || schema.isEmpty()) {
@@ -81,7 +81,7 @@ public final class TextFormatStats {
         // get dropped here rather than leaking into sourceMetadata.
         Map<String, SourceStatistics.ColumnStatistics> out = new HashMap<>();
         for (Attribute a : schema) {
-            ExternalStatsCache.ColumnStats cs = cached.get(a.name());
+            ExternalStats.ColumnStats cs = cached.get(a.name());
             if (cs == null) {
                 continue;
             }
@@ -90,7 +90,7 @@ public final class TextFormatStats {
         return out;
     }
 
-    private static SourceStatistics.ColumnStatistics toSpi(ExternalStatsCache.ColumnStats cs) {
+    private static SourceStatistics.ColumnStatistics toSpi(ExternalStats.ColumnStats cs) {
         return new SourceStatistics.ColumnStatistics() {
             @Override
             public OptionalLong nullCount() {

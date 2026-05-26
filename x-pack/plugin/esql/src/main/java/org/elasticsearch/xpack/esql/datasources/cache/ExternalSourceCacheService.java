@@ -171,13 +171,13 @@ public class ExternalSourceCacheService implements Closeable {
         }
         Map<String, Object> mergedForFile = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.mergeStatistics(partials);
         if (mergedForFile != null) {
-            Object mtime = partials.get(0).get(ExternalStatsCache.MTIME_MILLIS_KEY);
+            Object mtime = partials.get(0).get(ExternalStats.MTIME_MILLIS_KEY);
             if (mtime != null) {
-                mergedForFile.put(ExternalStatsCache.MTIME_MILLIS_KEY, mtime);
+                mergedForFile.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
             }
-            Object fingerprint = partials.get(0).get(ExternalStatsCache.CONFIG_FINGERPRINT_KEY);
+            Object fingerprint = partials.get(0).get(ExternalStats.CONFIG_FINGERPRINT_KEY);
             if (fingerprint != null) {
-                mergedForFile.put(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, fingerprint);
+                mergedForFile.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
             }
         }
         return mergedForFile;
@@ -200,7 +200,7 @@ public class ExternalSourceCacheService implements Closeable {
             if (path == null || mergedStats == null || mergedStats.isEmpty()) {
                 continue;
             }
-            Object mtimeObj = mergedStats.get(ExternalStatsCache.MTIME_MILLIS_KEY);
+            Object mtimeObj = mergedStats.get(ExternalStats.MTIME_MILLIS_KEY);
             if (mtimeObj instanceof Number == false) {
                 continue;
             }
@@ -212,7 +212,7 @@ public class ExternalSourceCacheService implements Closeable {
             // them, and it is node-stable: both the data node's contribution and the coordinator's entry
             // derive it from SchemaCacheKey.buildFormatConfig of the same logical config, so the guard
             // holds across JVMs (coordinator != data node) — the warm short-circuit's whole point.
-            Object contributionFingerprint = mergedStats.get(ExternalStatsCache.CONFIG_FINGERPRINT_KEY);
+            Object contributionFingerprint = mergedStats.get(ExternalStats.CONFIG_FINGERPRINT_KEY);
             for (SchemaCacheKey key : schemaCache.keys()) {
                 if (path.equals(key.canonicalPath()) == false || key.lastModifiedEpochMillis() != mtimeMillis) {
                     continue;
@@ -221,7 +221,7 @@ public class ExternalSourceCacheService implements Closeable {
                 if (existing == null) {
                     continue;
                 }
-                Object existingFingerprint = existing.safeMetadata().get(ExternalStatsCache.CONFIG_FINGERPRINT_KEY);
+                Object existingFingerprint = existing.safeMetadata().get(ExternalStats.CONFIG_FINGERPRINT_KEY);
                 if (Objects.equals(existingFingerprint, contributionFingerprint) == false) {
                     continue;
                 }

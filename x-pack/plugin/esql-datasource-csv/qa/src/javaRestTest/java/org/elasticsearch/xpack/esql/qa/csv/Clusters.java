@@ -73,7 +73,7 @@ public class Clusters {
      * The empty-roles coordinator is deliberate: a node that can also host the data phase makes ES|QL
      * collapse the plan to a single-node execution and run the external scan locally, which would not
      * exercise the cross-JVM return-flow. With no data role on node 0, ES|QL must dispatch the scan to
-     * node 1, whose JVM-static {@code ExternalStatsCache} is separate — so the only way node 0's
+     * node 1, whose JVM-static {@code ExternalStats} is separate — so the only way node 0's
      * planning-time cache can be populated for the warm query is the {@code DriverCompletionInfo}
      * return-flow. A single-JVM {@code internalClusterTest} cannot exercise this because all nodes
      * share one static cache. Tests target node 0's HTTP endpoint for both the cold and warm query so

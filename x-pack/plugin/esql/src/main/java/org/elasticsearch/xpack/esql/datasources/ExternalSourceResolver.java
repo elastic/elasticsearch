@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
-import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache;
 import org.elasticsearch.xpack.esql.datasources.cache.ListingCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheEntry;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
@@ -44,7 +43,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.OptionalLong;
 import java.util.Set;
 import java.util.concurrent.Executor;
 
@@ -444,51 +442,10 @@ public class ExternalSourceResolver {
             mergedConfig = queryConfig != null ? queryConfig : Map.of();
         }
 
-        // Schema cache short-circuits metadata() on hits; re-check the stats cache here, since
-        // the iterator's capture hook populates it after the schema entry was written.
-        Map<String, Object> effectiveMetadata = entry.safeMetadata();
-        if (effectiveMetadata.containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT) == false
-            && effectiveMetadata.get(ExternalStatsCache.MTIME_MILLIS_KEY) instanceof Number mtimeMillis
-            && entry.location() != null) {
-            String configFingerprint = effectiveMetadata.get(ExternalStatsCache.CONFIG_FINGERPRINT_KEY) instanceof String fp
-                ? fp
-                : ExternalStatsCache.NO_FINGERPRINT;
-            java.util.Optional<ExternalStatsCache.Stats> cachedStats = ExternalStatsCache.lookup(
-                entry.location(),
-                mtimeMillis.longValue(),
-                configFingerprint
-            );
-            if (cachedStats.isPresent()) {
-                long count = cachedStats.get().rowCount();
-                // Sanity bound when sizeInBytes is published: count must fit in the file. Stream-only sources skip this — gate is the mtime
-                // key, not byte budget.
-                boolean plausible = true;
-                if (effectiveMetadata.get(SourceStatisticsSerializer.STATS_SIZE_BYTES) instanceof Number sizeBytes) {
-                    long size = sizeBytes.longValue();
-                    if (count < 0 || count > size) {
-                        LOGGER.warn(
-                            "ExternalStatsCache returned implausible count [{}] for file [{}] of size [{}]; ignoring",
-                            count,
-                            entry.location(),
-                            size
-                        );
-                        plausible = false;
-                    }
-                } else if (count < 0) {
-                    plausible = false;
-                }
-                if (plausible) {
-                    OptionalLong lengthDerivedSize = effectiveMetadata.get(SourceStatisticsSerializer.STATS_SIZE_BYTES) instanceof Number sb
-                        ? OptionalLong.of(sb.longValue())
-                        : OptionalLong.empty();
-                    org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics stats =
-                        org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats.build(cachedStats, lengthDerivedSize, schema);
-                    Map<String, Object> augmented = SourceStatisticsSerializer.embedStatistics(effectiveMetadata, stats);
-                    effectiveMetadata = Map.copyOf(augmented);
-                }
-            }
-        }
-        final Map<String, Object> finalMetadata = effectiveMetadata;
+        // Warm stats live in the entry's safeMetadata, reconciled there from the data-node capture
+        // (DriverCompletionInfo → ExternalSourceCacheService.reconcileSourceStats). The optimizer
+        // reads the _stats.* keys straight off this map; no separate cache lookup.
+        final Map<String, Object> finalMetadata = entry.safeMetadata();
 
         return new ExternalSourceMetadata() {
             @Override

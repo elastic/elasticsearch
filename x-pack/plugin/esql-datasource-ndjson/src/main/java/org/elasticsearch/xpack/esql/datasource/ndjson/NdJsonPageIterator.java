@@ -15,7 +15,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
-import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -44,7 +44,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     private long rowsEmitted;
     private boolean endOfFile = false;
     private Page nextPage;
-    /** Non-null iff the iterator is eligible to populate {@link ExternalStatsCache} on close (whole-file read). */
+    /** Non-null iff the iterator is eligible to populate {@link ExternalStats} on close (whole-file read). */
     private final StorageObject cacheableObject;
     /** Stream-side byte counter for stream-only sources (length() throws). Null for byte-array fast path. */
     private final org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream byteCounter;
@@ -251,8 +251,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
             && pageDecoder.errorCount() > 0
             && chunkMode) {
             java.util.Map<String, Object> poison = new java.util.HashMap<>();
-            poison.put(ExternalStatsCache.MTIME_MILLIS_KEY, pinnedMtimeMillis);
-            poison.put(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
+            poison.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
+            poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
             org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.record(sourceLocation, poison);
         }
         if (cacheableObject != null
@@ -265,18 +265,12 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
             // projected attributes only when those equal the full schema (no projection pruning).
             List<Attribute> fullSchema = fingerprintSchema != null ? fingerprintSchema : pageDecoder.projectedAttributes();
             if (fullSchema != null && fullSchema.isEmpty() == false) {
-                java.util.Map<String, ExternalStatsCache.ColumnStats> cols = columnStats == null
-                    ? java.util.Map.of()
-                    : columnStats.snapshot();
+                java.util.Map<String, ExternalStats.ColumnStats> cols = columnStats == null ? java.util.Map.of() : columnStats.snapshot();
                 java.util.OptionalLong bytesRead = byteCounter != null
                     ? java.util.OptionalLong.of(byteCounter.getBytesRead())
                     : (byteArrayBytesRead >= 0 ? java.util.OptionalLong.of(byteArrayBytesRead) : java.util.OptionalLong.empty());
                 String fingerprint = fingerprinter.apply(fullSchema);
-                ExternalStatsCache.Stats statsRecord = new ExternalStatsCache.Stats(rowsEmitted, bytesRead, cols);
-                // Legacy single-JVM cache only holds whole-file rows; never write chunk partials.
-                if (chunkMode == false) {
-                    ExternalStatsCache.put(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord);
-                }
+                ExternalStats.Stats statsRecord = new ExternalStats.Stats(rowsEmitted, bytesRead, cols);
                 // Surface to thread-bound capture sink so the contribution rides back to the
                 // coordinator via DriverCompletionInfo for multi-JVM warm-path consumption.
                 org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics sourceStats =
@@ -286,10 +280,10 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                         fullSchema
                     );
                 java.util.Map<String, Object> base = new java.util.HashMap<>();
-                base.put(ExternalStatsCache.MTIME_MILLIS_KEY, pinnedMtimeMillis);
-                base.put(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, fingerprint);
+                base.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
+                base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
                 if (chunkMode) {
-                    base.put(ExternalStatsCache.PARTIAL_CHUNK_KEY, Boolean.TRUE);
+                    base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
                 }
                 java.util.Map<String, Object> flat = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.embedStatistics(
                     base,

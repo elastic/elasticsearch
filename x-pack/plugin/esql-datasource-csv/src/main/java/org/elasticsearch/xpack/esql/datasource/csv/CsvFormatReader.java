@@ -37,7 +37,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
-import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
@@ -612,12 +612,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         final OptionalLong sizeInBytes = cachedSize;
         String configFingerprint = computeConfigFingerprint();
-        Optional<ExternalStatsCache.Stats> cachedStats = ExternalStatsCache.lookup(object, configFingerprint);
-        SourceStatistics stats = TextFormatStats.build(cachedStats, sizeInBytes, schema);
+        // Cold resolution publishes only the file size + identity (mtime, fingerprint); row/column
+        // stats arrive later via the data-node capture → coordinator reconcile into SchemaCacheEntry.
+        SourceStatistics stats = TextFormatStats.build(Optional.empty(), sizeInBytes, schema);
         Map<String, Object> baseSourceMetadata = Map.of(
-            ExternalStatsCache.MTIME_MILLIS_KEY,
+            ExternalStats.MTIME_MILLIS_KEY,
             mtimeMillis,
-            ExternalStatsCache.CONFIG_FINGERPRINT_KEY,
+            ExternalStats.CONFIG_FINGERPRINT_KEY,
             configFingerprint
         );
         Map<String, Object> sourceMetadata = SourceStatisticsSerializer.embedStatistics(baseSourceMetadata, stats);
@@ -959,7 +960,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         InputStream rawStream = object.newStream();
         // CountingInputStream tracks decompressed-byte consumption for stream-only sources whose
         // length() throws UnsupportedOperationException. The byte count flows through {@link
-        // ExternalStatsCache} as sizeInBytes when the file lacks a publishable length.
+        // ExternalStats} as sizeInBytes when the file lacks a publishable length.
         org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream stream =
             new org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream(rawStream);
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
@@ -1752,7 +1753,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private long rowsSkipped = 0;
         private long totalRowCount = 0;
         private String lastFieldError;
-        /** Non-null iff the iterator is eligible to populate {@link ExternalStatsCache} on close (whole-file read). */
+        /** Non-null iff the iterator is eligible to populate {@link ExternalStats} on close (whole-file read). */
         private final StorageObject cacheableObject;
         /** Non-null iff stats capture is enabled. Wraps the underlying stream so bytesRead is available at close. */
         private final org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream byteCounter;
@@ -1878,27 +1879,22 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // before EOF, so naturallyExhausted already gates it out.)
                 if (cacheableObject != null && naturallyExhausted && pinnedMtimeMillis >= 0 && schema != null) {
                     if (rowsSkipped == 0) {
-                        java.util.Map<String, ExternalStatsCache.ColumnStats> cols = columnStats == null
+                        java.util.Map<String, ExternalStats.ColumnStats> cols = columnStats == null
                             ? java.util.Map.of()
                             : columnStats.snapshot();
                         OptionalLong bytesRead = byteCounter == null ? OptionalLong.empty() : OptionalLong.of(byteCounter.getBytesRead());
                         String fingerprint = computeConfigFingerprint();
-                        ExternalStatsCache.Stats statsRecord = new ExternalStatsCache.Stats(rowsEmittedForCache, bytesRead, cols);
-                        // Legacy single-JVM ExternalStatsCache only holds whole-file rows; never write
-                        // chunk partials here (they would serve under-counted COUNT(*) on warm queries).
-                        if (chunkMode == false) {
-                            ExternalStatsCache.put(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord);
-                        }
-                        // Per-chunk publishes carry the partial marker; the ParallelParsingCoordinator
-                        // publishes a finalize marker at clean whole-file completion so the coordinator's
-                        // reconciler only commits the merge then.
+                        ExternalStats.Stats statsRecord = new ExternalStats.Stats(rowsEmittedForCache, bytesRead, cols);
+                        // Whole-file publishes carry no partial marker; per-chunk publishes carry one, and
+                        // the ParallelParsingCoordinator publishes a finalize marker at clean whole-file
+                        // completion so the coordinator's reconciler only commits the merge then.
                         publishToCaptureSink(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord, schema, sizeInBytesFromLength());
                     } else if (chunkMode) {
                         // rowsSkipped > 0 here: a parallel chunk dropped rows mid-scan, so its partial
                         // would under-count. Poison the file — the reconciler discards every contribution.
                         java.util.Map<String, Object> poison = new java.util.HashMap<>();
-                        poison.put(ExternalStatsCache.MTIME_MILLIS_KEY, pinnedMtimeMillis);
-                        poison.put(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
+                        poison.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
+                        poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
                         org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.record(sourceLocation, poison);
                     }
                 }
@@ -1923,7 +1919,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             String filePath,
             long mtimeMillis,
             String fingerprint,
-            ExternalStatsCache.Stats stats,
+            ExternalStats.Stats stats,
             List<Attribute> resolvedSchema,
             OptionalLong lengthSize
         ) {
@@ -1934,10 +1930,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     resolvedSchema
                 );
             java.util.Map<String, Object> base = new java.util.HashMap<>();
-            base.put(ExternalStatsCache.MTIME_MILLIS_KEY, mtimeMillis);
-            base.put(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, fingerprint);
+            base.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
+            base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
             if (chunkMode) {
-                base.put(ExternalStatsCache.PARTIAL_CHUNK_KEY, Boolean.TRUE);
+                base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
             }
             java.util.Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(base, sourceStats);
             org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.record(filePath, flat);

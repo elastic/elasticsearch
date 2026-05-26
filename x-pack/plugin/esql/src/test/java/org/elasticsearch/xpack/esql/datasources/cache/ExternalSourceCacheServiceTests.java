@@ -347,16 +347,16 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             );
             service.getOrComputeSchema(
                 keyHeader,
-                k -> SchemaCacheEntry.from(schema, "csv", path, Map.of(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, "fp-header"), Map.of())
+                k -> SchemaCacheEntry.from(schema, "csv", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp-header"), Map.of())
             );
             service.getOrComputeSchema(
                 keyNoHeader,
-                k -> SchemaCacheEntry.from(schema, "csv", path, Map.of(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, "fp-noheader"), Map.of())
+                k -> SchemaCacheEntry.from(schema, "csv", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp-noheader"), Map.of())
             );
 
             Map<String, Object> stats = new LinkedHashMap<>();
-            stats.put(ExternalStatsCache.MTIME_MILLIS_KEY, mtime);
-            stats.put(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, "fp-header");
+            stats.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            stats.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp-header");
             stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
             service.reconcileSourceStats(Map.of(path, stats));
 
@@ -383,12 +383,12 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
             );
             service.getOrComputeSchema(
                 key,
-                k -> SchemaCacheEntry.from(schema, "csv", path, Map.of(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, "fp"), Map.of())
+                k -> SchemaCacheEntry.from(schema, "csv", path, Map.of(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp"), Map.of())
             );
 
             Map<String, Object> wholeFileA = new LinkedHashMap<>();
-            wholeFileA.put(ExternalStatsCache.MTIME_MILLIS_KEY, mtime);
-            wholeFileA.put(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, "fp");
+            wholeFileA.put(ExternalStats.MTIME_MILLIS_KEY, mtime);
+            wholeFileA.put(ExternalStats.CONFIG_FINGERPRINT_KEY, "fp");
             wholeFileA.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
             Map<String, Object> wholeFileB = new LinkedHashMap<>(wholeFileA);
 

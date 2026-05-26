@@ -84,17 +84,17 @@ public final class ColumnStatsAccumulator {
     }
 
     /**
-     * Snapshots the current state into an immutable {@link ExternalStatsCache.ColumnStats} map.
+     * Snapshots the current state into an immutable {@link ExternalStats.ColumnStats} map.
      * Safe to call only once per accumulator instance — call it from the iterator's close-time hook.
      */
-    public Map<String, ExternalStatsCache.ColumnStats> snapshot() {
+    public Map<String, ExternalStats.ColumnStats> snapshot() {
         if (states.length == 0) {
             return Map.of();
         }
-        Map<String, ExternalStatsCache.ColumnStats> out = new LinkedHashMap<>(states.length);
+        Map<String, ExternalStats.ColumnStats> out = new LinkedHashMap<>(states.length);
         for (int i = 0; i < states.length; i++) {
             ColumnState s = states[i];
-            out.put(columnNames[i], new ExternalStatsCache.ColumnStats(s.nullCount, s.min, s.max));
+            out.put(columnNames[i], new ExternalStats.ColumnStats(s.nullCount, s.min, s.max));
         }
         return out;
     }

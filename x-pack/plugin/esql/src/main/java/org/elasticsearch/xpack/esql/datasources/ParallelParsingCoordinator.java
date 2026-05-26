@@ -517,8 +517,8 @@ public final class ParallelParsingCoordinator {
                     return;
                 }
                 java.util.Map<String, Object> marker = new java.util.HashMap<>();
-                marker.put(org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache.MTIME_MILLIS_KEY, mtimeMillis);
-                marker.put(org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache.FINALIZE_CHUNKS_KEY, Boolean.TRUE);
+                marker.put(org.elasticsearch.xpack.esql.datasources.cache.ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
+                marker.put(org.elasticsearch.xpack.esql.datasources.cache.ExternalStats.FINALIZE_CHUNKS_KEY, Boolean.TRUE);
                 org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.record(storageObject.path().toString(), marker);
             } catch (java.io.IOException e) {
                 logger.debug(

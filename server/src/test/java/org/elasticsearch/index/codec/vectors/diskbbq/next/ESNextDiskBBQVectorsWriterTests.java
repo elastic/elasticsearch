@@ -66,7 +66,7 @@ public class ESNextDiskBBQVectorsWriterTests extends ESTestCase {
         throws Exception {
         try (
             Directory directory = newDirectory();
-            IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig(vectorsPerCluster, centroidsPerParentCluster))
+            IndexWriter writer = new IndexWriter(directory, newIndexWriterConfig(vectorsPerCluster, centroidsPerParentCluster, numDocs))
         ) {
             for (int i = 0; i < numDocs; i++) {
                 Document document = new Document();
@@ -76,6 +76,7 @@ public class ESNextDiskBBQVectorsWriterTests extends ESTestCase {
             writer.commit();
 
             try (IndexReader reader = DirectoryReader.open(writer)) {
+                assertEquals("expected a single segment", 1, reader.leaves().size());
                 LeafReader leafReader = reader.leaves().get(0).reader();
                 FieldInfo fieldInfo = leafReader.getFieldInfos().fieldInfo("vector");
                 KnnVectorsReader vectorReader = ((CodecReader) leafReader).getVectorReader();
@@ -88,11 +89,17 @@ public class ESNextDiskBBQVectorsWriterTests extends ESTestCase {
         }
     }
 
-    private IndexWriterConfig newIndexWriterConfig(int vectorsPerCluster, int centroidsPerParentCluster) {
+    private IndexWriterConfig newIndexWriterConfig(int vectorsPerCluster, int centroidsPerParentCluster, int numDocs) {
         KnnVectorsFormat format = new ESNextDiskBBQVectorsFormat(vectorsPerCluster, centroidsPerParentCluster, null);
         IndexWriterConfig indexWriterConfig = newIndexWriterConfig();
         indexWriterConfig.setCodec(TestUtil.alwaysKnnVectorsFormat(format));
         indexWriterConfig.setMergePolicy(NoMergePolicy.INSTANCE);
+        // Ensure all documents are buffered into a single segment so the test can verify
+        // the writer's cluster-size output deterministically. Without this, the randomized
+        // IndexWriterConfig from ESTestCase can trigger intermediate flushes and produce
+        // multiple segments, each containing only a subset of the documents.
+        indexWriterConfig.setMaxBufferedDocs(numDocs + 1);
+        indexWriterConfig.setRAMBufferSizeMB(IndexWriterConfig.DISABLE_AUTO_FLUSH);
         return indexWriterConfig;
     }
 

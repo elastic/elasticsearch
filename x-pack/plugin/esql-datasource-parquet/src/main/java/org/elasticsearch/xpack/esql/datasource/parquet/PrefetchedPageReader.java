@@ -17,6 +17,7 @@ import org.apache.parquet.compression.CompressionCodecFactory.BytesInputDecompre
 import org.apache.parquet.io.ParquetDecodingException;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.List;
@@ -93,7 +94,7 @@ final class PrefetchedPageReader implements PageReader {
             return cachedDictionaryPage;
         }
         try {
-            BytesInput decompressed = decompressor.decompress(
+            BytesInput decompressed = decompressToDirectBuffer(
                 compressedDictionaryPage.getBytes(),
                 compressedDictionaryPage.getUncompressedSize()
             );
@@ -114,7 +115,7 @@ final class PrefetchedPageReader implements PageReader {
 
     private DataPageV1 decompressV1(DataPageV1 v1) {
         try {
-            BytesInput decompressed = decompressor.decompress(v1.getBytes(), v1.getUncompressedSize());
+            BytesInput decompressed = decompressToDirectBuffer(v1.getBytes(), v1.getUncompressedSize());
             int indexRowCount = v1.getIndexRowCount().orElse(-1);
             long firstRowIndex = v1.getFirstRowIndex().orElse(-1L);
             if (firstRowIndex >= 0 && indexRowCount >= 0) {
@@ -165,7 +166,23 @@ final class PrefetchedPageReader implements PageReader {
             int rlBytes = (int) v2.getRepetitionLevels().size();
             int dlBytes = (int) v2.getDefinitionLevels().size();
             int uncompressedDataSize = v2.getUncompressedSize() - rlBytes - dlBytes;
-            BytesInput decompressedData = decompressor.decompress(v2.getData(), uncompressedDataSize);
+            if (uncompressedDataSize == 0) {
+                // Spark's Parquet writer stores all-null V2 pages with an empty data buffer
+                // rather than a compressed representation of zero bytes. Decompression libraries
+                // (Snappy, Zstd, ...) reject empty input, so skip decompression entirely.
+                return DataPageV2.uncompressed(
+                    v2.getRowCount(),
+                    v2.getNullCount(),
+                    v2.getValueCount(),
+                    firstRowIndex,
+                    v2.getRepetitionLevels(),
+                    v2.getDefinitionLevels(),
+                    v2.getDataEncoding(),
+                    BytesInput.empty(),
+                    v2.getStatistics()
+                );
+            }
+            BytesInput decompressedData = decompressToDirectBuffer(v2.getData(), uncompressedDataSize);
             return DataPageV2.uncompressed(
                 v2.getRowCount(),
                 v2.getNullCount(),
@@ -180,5 +197,51 @@ final class PrefetchedPageReader implements PageReader {
         } catch (IOException e) {
             throw new ParquetDecodingException("Could not decompress V2 data page", e);
         }
+    }
+
+    /**
+     * Decompresses {@code compressed} into a direct {@link ByteBuffer}, then wraps the result
+     * as a {@link BytesInput}. Both the input and output sides are direct so each codec takes its
+     * direct-to-direct JNI fast path (Zstd: {@code decompressDirectByteBuffer}; Snappy:
+     * {@code Snappy.uncompress(ByteBuffer, ByteBuffer)}), avoiding
+     * {@code GetPrimitiveArrayCritical} JNI pinning and the G1GC evacuation failures it causes.
+     *
+     * <p>For the prefetched path, {@link ColumnChunkPrefetcher} promotes each S3 response buffer
+     * from heap to direct once at fetch time (one copy per coalesced range), so page slices
+     * derived from it are already direct and the conditional copy below is a no-op. The copy
+     * remains as a safety net for the non-prefetched sync fallback path.
+     *
+     * <p>Uncompressed Parquet files take a short-circuit: when the decompressor is the pass-through
+     * {@link PlainCompressionCodecFactory.NoopDecompressor} and the input slice is already direct,
+     * the input is returned as-is. This avoids one {@code ByteBuffer.allocateDirect(pageSize)} plus
+     * a full page memcopy per V1 data page (and per dictionary page) — wasted work since
+     * {@code NoopDecompressor} would just copy the input into the output buffer verbatim. DataPageV2
+     * already has its own {@code isCompressed()=false} early exit upstream of this method; V1 has no
+     * equivalent flag in the page header, so the marker check on the decompressor instance is the
+     * only signal we have at the page-read layer. See elastic/esql-planning#804.
+     */
+    private BytesInput decompressToDirectBuffer(BytesInput compressed, int decompressedSize) throws IOException {
+        ByteBuffer input = compressed.toByteBuffer();
+        if (decompressor instanceof PlainCompressionCodecFactory.NoopDecompressor && input.isDirect()) {
+            if (input.remaining() != decompressedSize) {
+                throw new ParquetDecodingException(
+                    "Uncompressed page size mismatch: input has "
+                        + input.remaining()
+                        + " bytes but page header declares "
+                        + decompressedSize
+                );
+            }
+            return BytesInput.from(input);
+        }
+        if (input.isDirect() == false) {
+            ByteBuffer directInput = ByteBuffer.allocateDirect(input.remaining());
+            directInput.put(input);
+            directInput.flip();
+            input = directInput;
+        }
+        ByteBuffer output = ByteBuffer.allocateDirect(decompressedSize);
+        decompressor.decompress(input, Math.toIntExact(compressed.size()), output, decompressedSize);
+        output.flip();
+        return BytesInput.from(output);
     }
 }

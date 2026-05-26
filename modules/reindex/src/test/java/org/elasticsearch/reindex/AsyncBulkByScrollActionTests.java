@@ -67,7 +67,7 @@ import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
 import org.elasticsearch.index.reindex.ResumeInfo;
-import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.index.reindex.WorkerBulkByPaginatedSearchTaskState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.reindex.PaginatedHitSource.Hit;
 import org.elasticsearch.rest.RestStatus;
@@ -150,7 +150,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
     private ThreadPool clientThreadPool;
     private TaskManager taskManager;
     private BulkByPaginatedSearchTask testTask;
-    private WorkerBulkByScrollTaskState worker;
+    private WorkerBulkByPaginatedSearchTaskState worker;
     private Map<String, String> expectedHeaders = new HashMap<>();
     private DiscoveryNode localNode;
     private TaskId taskId;
@@ -2184,7 +2184,7 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
 
         final BulkByPaginatedSearchTask.Status status = randomStatus();
 
-        final WorkerBulkByScrollTaskState workerState = mock(WorkerBulkByScrollTaskState.class);
+        final WorkerBulkByPaginatedSearchTaskState workerState = mock(WorkerBulkByPaginatedSearchTaskState.class);
         when(workerState.getNodeToRelocateTo()).thenReturn(Optional.of("target-node"));
         when(workerState.getStatus()).thenReturn(status);
 

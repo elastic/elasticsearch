@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.snapshots;
 
 import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.StringField;
@@ -17,6 +18,8 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.util.LuceneTestCase;
+import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
@@ -30,12 +33,16 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobLocation;
 import org.elasticsearch.xpack.stateless.engine.PrimaryTermAndGeneration;
+import org.elasticsearch.xpack.stateless.test.FakeStatelessNode;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,6 +50,8 @@ import static org.hamcrest.Matchers.startsWith;
 
 @LuceneTestCase.SuppressFileSystems("ExtrasFS")
 public class MetadataSnapshotBlobStoreDirectoryTests extends ESTestCase {
+
+    private static final Logger logger = LogManager.getLogger(MetadataSnapshotBlobStoreDirectoryTests.class);
 
     public void testMetadataSnapshotMatchesLocalDirectory() throws IOException {
         // Create a real Lucene index
@@ -108,20 +117,7 @@ public class MetadataSnapshotBlobStoreDirectoryTests extends ESTestCase {
             }
 
             // Verify they match
-            assertThat(actual.numDocs(), equalTo(expected.numDocs()));
-            assertThat(actual.commitUserData(), equalTo(expected.commitUserData()));
-            assertThat(actual.fileMetadataMap().keySet(), equalTo(expected.fileMetadataMap().keySet()));
-            for (var entry : expected.fileMetadataMap().entrySet()) {
-                var expectedMeta = entry.getValue();
-                var actualMeta = actual.get(entry.getKey());
-                assertNotNull("missing metadata for file " + entry.getKey(), actualMeta);
-                assertThat(actualMeta.name(), equalTo(expectedMeta.name()));
-                assertThat(actualMeta.length(), equalTo(expectedMeta.length()));
-                assertThat(actualMeta.checksum(), equalTo(expectedMeta.checksum()));
-                assertThat(actualMeta.writtenBy(), equalTo(expectedMeta.writtenBy()));
-                assertThat(actualMeta.hash(), equalTo(expectedMeta.hash()));
-                assertThat(actualMeta.writerUuid(), equalTo(expectedMeta.writerUuid()));
-            }
+            assertStoreMetadataMatches(actual, expected);
         }
     }
 
@@ -189,19 +185,80 @@ public class MetadataSnapshotBlobStoreDirectoryTests extends ESTestCase {
             final var shardId = new ShardId(new Index(randomIdentifier(), randomUUID()), 0);
             final Store.MetadataSnapshot actual;
             try (var blobDir = new MetadataSnapshotBlobStoreDirectory(blobLocations, (s, pt) -> blobContainer, shardId)) {
-                actual = Store.MetadataSnapshot.loadFromIndexCommit(
-                    null,
-                    blobDir,
-                    LogManager.getLogger(MetadataSnapshotBlobStoreDirectoryTests.class)
-                );
+                actual = Store.MetadataSnapshot.loadFromIndexCommit(null, blobDir, logger);
             }
 
-            assertThat(actual.numDocs(), equalTo(expected.numDocs()));
-            assertThat(actual.fileMetadataMap().keySet(), equalTo(expected.fileMetadataMap().keySet()));
-            for (var entry : expected.fileMetadataMap().entrySet()) {
-                assertThat(actual.get(entry.getKey()).checksum(), equalTo(entry.getValue().checksum()));
-                assertThat(actual.get(entry.getKey()).hash(), equalTo(entry.getValue().hash()));
+            assertStoreMetadataMatches(actual, expected);
+        }
+    }
+
+    public void testMetadataSnapshotWithFakeStatelessNode() throws IOException {
+        try (
+            var testHarness = new FakeStatelessNode(
+                this::newEnvironment,
+                this::newNodeEnvironment,
+                xContentRegistry(),
+                randomLongBetween(1, 100),
+                TestProjectResolvers.DEFAULT_PROJECT_ONLY
+            )
+        ) {
+            final int iterations = between(5, 20);
+            for (int i = 0; i < iterations; i++) {
+                final var commitRefs = testHarness.generateIndexCommits(between(1, 20), randomBoolean(), randomBoolean(), generation -> {});
+                commitRefs.forEach(testHarness.commitService::onCommitCreation);
+                final var currentCommit = commitRefs.getLast().getIndexCommit();
+                testHarness.commitService.ensureMaxGenerationToUploadForFlush(testHarness.shardId, currentCommit.getGeneration());
+                safeAwait(
+                    (ActionListener<Void> listener) -> testHarness.commitService.addListenerForUploadedGeneration(
+                        testHarness.shardId,
+                        currentCommit.getGeneration(),
+                        listener
+                    )
+                );
+
+                final Store.MetadataSnapshot expected = testHarness.indexingStore.getMetadata(currentCommit);
+
+                final var blobLocations = currentCommit.getFileNames()
+                    .stream()
+                    .collect(
+                        Collectors.toUnmodifiableMap(
+                            Function.identity(),
+                            fileName -> Objects.requireNonNull(
+                                testHarness.commitService.getBlobLocation(testHarness.shardId, fileName),
+                                fileName
+                            )
+                        )
+                    );
+                final Store.MetadataSnapshot actual;
+                try (
+                    var blobDir = new MetadataSnapshotBlobStoreDirectory(
+                        blobLocations,
+                        testHarness.objectStoreService::getProjectBlobContainer,
+                        testHarness.shardId
+                    )
+                ) {
+                    actual = Store.MetadataSnapshot.loadFromIndexCommit(null, blobDir, logger);
+                }
+
+                assertStoreMetadataMatches(actual, expected);
             }
+        }
+    }
+
+    private static void assertStoreMetadataMatches(Store.MetadataSnapshot actual, Store.MetadataSnapshot expected) {
+        assertThat(actual.numDocs(), equalTo(expected.numDocs()));
+        assertThat(actual.commitUserData(), equalTo(expected.commitUserData()));
+        assertThat(actual.fileMetadataMap().keySet(), equalTo(expected.fileMetadataMap().keySet()));
+        for (var entry : expected.fileMetadataMap().entrySet()) {
+            var expectedMeta = entry.getValue();
+            var actualMeta = actual.get(entry.getKey());
+            assertNotNull("missing metadata for file " + entry.getKey(), actualMeta);
+            assertThat(actualMeta.name(), equalTo(expectedMeta.name()));
+            assertThat(actualMeta.length(), equalTo(expectedMeta.length()));
+            assertThat(actualMeta.checksum(), equalTo(expectedMeta.checksum()));
+            assertThat(actualMeta.writtenBy(), equalTo(expectedMeta.writtenBy()));
+            assertThat(actualMeta.hash(), equalTo(expectedMeta.hash()));
+            assertThat(actualMeta.writerUuid(), equalTo(expectedMeta.writerUuid()));
         }
     }
 

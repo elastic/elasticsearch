@@ -7,6 +7,7 @@
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.publish'
+apply plugin: 'elasticsearch.esql-release'
 
 esplugin {
   name = 'esql-datasource-azure'
@@ -226,12 +227,6 @@ tasks.named("thirdPartyAudit").configure {
 
     // from nimbus-jose-jwt (siv-mode is an optional AES-SIV provider)
     'org.cryptomator.siv.SivMode',
-
-    // from net.minidev:accessors-smart (ASM is used for optional bytecode-gen accessor optimization)
-    'org.objectweb.asm.ClassWriter',
-    'org.objectweb.asm.Label',
-    'org.objectweb.asm.MethodVisitor',
-    'org.objectweb.asm.Type',
   )
 
   ignoreViolations(

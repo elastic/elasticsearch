@@ -81,6 +81,17 @@ user3:
           }
         }
 
+# Passes global.data_source authorize for shared IT datasource; no create_dataset on security_it_ds_* — for PUT dataset denied on index priv.
+user_dataset_authorize_only:
+  cluster: []
+  indices: []
+  global:
+    data_source:
+      - names: [ "security_it_*" ]
+        privileges: [ "read" ]
+      - names: [ "other_*" ]
+        privileges: [ "create" ]
+
 user4:
   cluster:
     - monitor_enrich
@@ -334,3 +345,73 @@ view_dls_fls_user:
       query: '{"match": {"org": "sales"}}'
       field_security:
         grant: [ "value" ]
+
+ds_read_datasource:
+  cluster: []
+  indices: []
+  global:
+    data_source:
+      - names: [ "security_it_*" ]
+        privileges: [ "read" ]
+      - names: [ "other_*" ]
+        privileges: [ "create" ]
+
+ds_read_metadata_datasource:
+  cluster: []
+  indices: []
+  global:
+    data_source:
+      - names: [ "security_it_*" ]
+        privileges: [ "read_metadata" ]
+
+ds_manage_datasource:
+  cluster: []
+  indices: []
+  global:
+    data_source:
+      - names: [ "security_it_*" ]
+        privileges: [ "manage" ]
+      - names: [ "other_*" ]
+        privileges: [ "read" ]
+
+ds_dataset_create:
+  cluster: []
+  global:
+    data_source:
+      - names: [ "security_it_*" ]
+        privileges: [ "read" ]
+      - names: [ "other_*" ]
+        privileges: [ "manage" ]
+  indices:
+    - names: [ 'security_it_ds_*' ]
+      privileges: [ 'create_dataset' ]
+
+# create_dataset on target indices only; no global.data_source — PUT dataset must fail on authorize_datasource before put_dataset.
+ds_dataset_create_no_datasource:
+  cluster: []
+  indices:
+    - names: [ 'security_it_ds_*' ]
+      privileges: [ 'create_dataset' ]
+
+# create_dataset on indices; read_metadata (not read) on datasource — PUT dataset must fail authorize_datasource.
+ds_dataset_create_read_metadata_datasource:
+  cluster: []
+  global:
+    data_source:
+      - names: [ "security_it_*" ]
+        privileges: [ "read_metadata" ]
+  indices:
+    - names: [ 'security_it_ds_*' ]
+      privileges: [ 'create_dataset' ]
+
+ds_dataset_read_metadata:
+  cluster: []
+  indices:
+    - names: [ 'security_it_ds_*' ]
+      privileges: [ 'read_dataset_metadata' ]
+
+ds_dataset_delete:
+  cluster: []
+  indices:
+    - names: [ 'security_it_ds_*' ]
+      privileges: [ 'delete_dataset' ]

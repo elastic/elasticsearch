@@ -74,10 +74,12 @@ processingCommand
     | registeredDomainCommand
     | tsInfoCommand
     | userAgentCommand
+    | tsCollapseCommand
     | mmrCommand
     // in development
     | {this.isDevVersion()}? lookupCommand
     | {this.isDevVersion()}? insistCommand
+    | {this.isDevVersion()}? dedupCommand
     ;
 
 whereCommand
@@ -122,7 +124,12 @@ indexPatternOrSubquery
     ;
 
 subquery
-    : LP fromCommand (PIPE processingCommand)* RP
+    : LP subquerySourceCommand (PIPE processingCommand)* RP
+    ;
+
+subquerySourceCommand
+    : fromCommand
+    | {this.isDevVersion()}? rowCommand
     ;
 
 indexPattern
@@ -370,6 +377,10 @@ tsInfoCommand
     : TS_INFO
     ;
 
+tsCollapseCommand
+    : TS_COLLAPSE
+    ;
+
 //
 // In development
 //
@@ -379,6 +390,10 @@ lookupCommand
 
 insistCommand
     : DEV_INSIST qualifiedNamePatterns
+    ;
+
+dedupCommand
+    : DEV_DEDUP
     ;
 
 uriPartsCommand

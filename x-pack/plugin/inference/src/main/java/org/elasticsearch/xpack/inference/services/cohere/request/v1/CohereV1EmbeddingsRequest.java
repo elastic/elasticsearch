@@ -12,8 +12,8 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceFields;
-import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingType;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbeddingsTaskSettings;
@@ -43,7 +43,7 @@ public class CohereV1EmbeddingsRequest extends CohereRequest implements Outbound
         this.input = Objects.requireNonNull(input);
         this.inputType = inputType;
         taskSettings = embeddingsModel.getTaskSettings();
-        embeddingType = embeddingsModel.getServiceSettings().getEmbeddingType();
+        embeddingType = embeddingsModel.getServiceSettings().embeddingType();
         taskType = embeddingsModel.getTaskType();
     }
 
@@ -57,7 +57,7 @@ public class CohereV1EmbeddingsRequest extends CohereRequest implements Outbound
         builder.startObject();
         builder.field(CohereUtils.TEXTS_FIELD, input);
         if (getModelId() != null) {
-            builder.field(CohereServiceSettings.OLD_MODEL_ID_FIELD, getModelId());
+            builder.field(CohereCommonServiceSettings.OLD_MODEL_ID_FIELD, getModelId());
         }
 
         // prefer the root level inputType over task settings input type

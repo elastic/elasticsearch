@@ -172,6 +172,17 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             return failure;
         }
 
+        /**
+         * Projects the operator's existing {@code rowsEmitted} counter into the
+         * {@link Operator.Status#documentsFound()} contract so external-source-emitted
+         * rows aggregate into the top-level {@code documents_found} of the ES|QL response
+         * alongside Lucene-sourced operators, without introducing a new wire field.
+         */
+        @Override
+        public long documentsFound() {
+            return rowsEmitted;
+        }
+
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();

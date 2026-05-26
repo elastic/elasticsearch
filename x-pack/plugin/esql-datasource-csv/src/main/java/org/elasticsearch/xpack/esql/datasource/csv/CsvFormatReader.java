@@ -38,6 +38,7 @@ import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache;
+import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -321,6 +322,16 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * if the file cannot be sampled cleanly", consistent with the rest of the system.
      */
     private final ErrorPolicy effectivePolicy;
+    /**
+     * Node-stable identity of the row-interpretation-affecting {@code WITH} config, as produced by
+     * {@link SchemaCacheKey#buildFormatConfig}. Used as the external-stats cache fingerprint. It is
+     * deliberately derived from the canonical config rather than the parsed options or the resolved
+     * schema: a data node reads only the query's projected columns and an instance-local options
+     * object, so a projection/options-derived fingerprint would differ from the coordinator's and the
+     * coordinator would reject the data node's shipped-back stats — silently disabling the warm
+     * short-circuit in any real (coordinator != data node) cluster. Empty until {@link #withConfig} runs.
+     */
+    private final String canonicalConfig;
 
     public CsvFormatReader(BlockFactory blockFactory) {
         this(
@@ -330,16 +341,26 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List.of(".csv", ".tsv"),
             null,
             CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE,
-            ErrorPolicy.STRICT
+            ErrorPolicy.STRICT,
+            ""
         );
     }
 
     public CsvFormatReader(BlockFactory blockFactory, String format, List<String> extensions) {
-        this(blockFactory, CsvFormatOptions.DEFAULT, format, extensions, null, CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE, ErrorPolicy.STRICT);
+        this(
+            blockFactory,
+            CsvFormatOptions.DEFAULT,
+            format,
+            extensions,
+            null,
+            CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE,
+            ErrorPolicy.STRICT,
+            ""
+        );
     }
 
     public CsvFormatReader(BlockFactory blockFactory, CsvFormatOptions options, String format, List<String> extensions) {
-        this(blockFactory, options, format, extensions, null, CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE, ErrorPolicy.STRICT);
+        this(blockFactory, options, format, extensions, null, CsvSchemaInferrer.DEFAULT_SAMPLE_SIZE, ErrorPolicy.STRICT, "");
     }
 
     private CsvFormatReader(
@@ -349,7 +370,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
         List<String> extensions,
         List<Attribute> resolvedSchema,
         int schemaSampleSize,
-        ErrorPolicy effectivePolicy
+        ErrorPolicy effectivePolicy,
+        String canonicalConfig
     ) {
         this.blockFactory = blockFactory;
         this.options = options;
@@ -358,6 +380,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.resolvedSchema = resolvedSchema;
         this.schemaSampleSize = schemaSampleSize;
         this.effectivePolicy = effectivePolicy;
+        this.canonicalConfig = canonicalConfig;
         this.sharedCsvMapper = createMapper(options);
     }
 
@@ -522,12 +545,21 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     public CsvFormatReader withOptions(CsvFormatOptions newOptions) {
-        return new CsvFormatReader(blockFactory, newOptions, format, extensions, resolvedSchema, schemaSampleSize, effectivePolicy);
+        return new CsvFormatReader(
+            blockFactory,
+            newOptions,
+            format,
+            extensions,
+            resolvedSchema,
+            schemaSampleSize,
+            effectivePolicy,
+            canonicalConfig
+        );
     }
 
     @Override
     public CsvFormatReader withSchema(List<Attribute> schema) {
-        return new CsvFormatReader(blockFactory, options, format, extensions, schema, schemaSampleSize, effectivePolicy);
+        return new CsvFormatReader(blockFactory, options, format, extensions, schema, schemaSampleSize, effectivePolicy, canonicalConfig);
     }
 
     @Override
@@ -540,17 +572,20 @@ public class CsvFormatReader implements SegmentableFormatReader {
         Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         ErrorPolicy resolvedPolicy = ErrorPolicy.fromConfig(config, effectivePolicy);
         CsvFormatReader result = parsed != null ? withOptions(parsed) : this;
-        if (newSampleSize != result.schemaSampleSize || resolvedPolicy != result.effectivePolicy) {
-            result = new CsvFormatReader(
-                result.blockFactory,
-                result.options,
-                result.format,
-                result.extensions,
-                result.resolvedSchema,
-                newSampleSize,
-                resolvedPolicy
-            );
-        }
+        // Pin the node-stable config identity from THIS query's WITH config. buildFormatConfig filters
+        // to format-affecting params (dropping credentials, split keys, and any per-node augmentation),
+        // so a coordinator and a data node configured from the same logical query derive the same value.
+        String canon = SchemaCacheKey.buildFormatConfig(config);
+        result = new CsvFormatReader(
+            result.blockFactory,
+            result.options,
+            result.format,
+            result.extensions,
+            result.resolvedSchema,
+            newSampleSize,
+            resolvedPolicy,
+            canon
+        );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
@@ -576,7 +611,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             cachedSize = OptionalLong.empty();
         }
         final OptionalLong sizeInBytes = cachedSize;
-        String configFingerprint = computeConfigFingerprint(schema);
+        String configFingerprint = computeConfigFingerprint();
         Optional<ExternalStatsCache.Stats> cachedStats = ExternalStatsCache.lookup(object, configFingerprint);
         SourceStatistics stats = TextFormatStats.build(cachedStats, sizeInBytes, schema);
         Map<String, Object> baseSourceMetadata = Map.of(
@@ -590,18 +625,17 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Hash of the row-interpretation-affecting config: format name, format options (header / comment
-     * / delimiter / quote / null-value / multi-value-syntax / encoding), effective error-policy mode,
-     * and the resolved schema (name + type per attribute). Distinct hashes produce distinct cache
-     * entries — a same-file re-query under different {@code WITH} options never serves stale stats.
+     * Node-stable identity of the row-interpretation-affecting {@code WITH} config — the same
+     * canonical string {@link SchemaCacheKey#buildFormatConfig} stores on the cache key, so a data
+     * node's shipped-back contribution and the coordinator's cache entry compare equal across JVMs.
+     * Distinct {@code WITH} options produce distinct values, so a same-file re-query under different
+     * options never serves stale stats. Error policy and resolved schema are deliberately excluded:
+     * the capture gate only caches clean (no-rows-dropped) scans, so cached counts are policy-
+     * independent, and the schema is projection-dependent (would differ between a coordinator's
+     * full-schema resolution and a data node's projected read).
      */
-    private String computeConfigFingerprint(List<Attribute> schema) {
-        StringBuilder sb = new StringBuilder(128);
-        sb.append(formatName()).append('|').append(options.hashCode()).append('|').append(effectivePolicy.mode());
-        for (Attribute a : schema) {
-            sb.append('|').append(a.name()).append(':').append(a.dataType());
-        }
-        return Integer.toUnsignedString(sb.toString().hashCode(), 36);
+    private String computeConfigFingerprint() {
+        return canonicalConfig;
     }
 
     private List<Attribute> readSchema(StorageObject object) throws IOException {
@@ -1848,7 +1882,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                             ? java.util.Map.of()
                             : columnStats.snapshot();
                         OptionalLong bytesRead = byteCounter == null ? OptionalLong.empty() : OptionalLong.of(byteCounter.getBytesRead());
-                        String fingerprint = computeConfigFingerprint(schema);
+                        String fingerprint = computeConfigFingerprint();
                         ExternalStatsCache.Stats statsRecord = new ExternalStatsCache.Stats(rowsEmittedForCache, bytesRead, cols);
                         // Legacy single-JVM ExternalStatsCache only holds whole-file rows; never write
                         // chunk partials here (they would serve under-counted COUNT(*) on warm queries).

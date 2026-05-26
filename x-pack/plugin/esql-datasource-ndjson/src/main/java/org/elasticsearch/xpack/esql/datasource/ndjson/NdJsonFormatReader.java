@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCache;
+import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
@@ -89,9 +90,16 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
     private final long segmentSizeBytes;
+    /**
+     * Node-stable identity of the row-interpretation-affecting {@code WITH} config, per
+     * {@link SchemaCacheKey#buildFormatConfig} — the external-stats cache fingerprint. Derived from
+     * the canonical config rather than the projected/resolved schema so a data node's shipped-back
+     * contribution matches the coordinator's cache entry across JVMs. Empty until {@link #withConfig}.
+     */
+    private final String canonicalConfig;
 
     public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
-        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings));
+        this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings), "");
     }
 
     NdJsonFormatReader(Settings settings, BlockFactory blockFactory) {
@@ -103,18 +111,20 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         BlockFactory blockFactory,
         List<Attribute> resolvedSchema,
         int schemaSampleSize,
-        long segmentSizeBytes
+        long segmentSizeBytes,
+        String canonicalConfig
     ) {
         this.blockFactory = blockFactory;
         this.settings = settings == null ? Settings.EMPTY : settings;
         this.resolvedSchema = resolvedSchema;
         this.schemaSampleSize = schemaSampleSize;
         this.segmentSizeBytes = segmentSizeBytes;
+        this.canonicalConfig = canonicalConfig;
     }
 
     @Override
     public NdJsonFormatReader withSchema(List<Attribute> schema) {
-        return new NdJsonFormatReader(settings, blockFactory, schema, schemaSampleSize, segmentSizeBytes);
+        return new NdJsonFormatReader(settings, blockFactory, schema, schemaSampleSize, segmentSizeBytes, canonicalConfig);
     }
 
     @Override
@@ -125,9 +135,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
         int newSampleSize = parseInt(config.get(CONFIG_SCHEMA_SAMPLE_SIZE), schemaSampleSize);
         Check.isTrue(newSampleSize > 0, CONFIG_SCHEMA_SAMPLE_SIZE + " must be positive, got: {}", newSampleSize);
         long newSegmentSize = parseSegmentSize(config.get(CONFIG_SEGMENT_SIZE), segmentSizeBytes);
-        FormatReader result = (newSampleSize == schemaSampleSize && newSegmentSize == segmentSizeBytes)
-            ? this
-            : new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize, newSegmentSize);
+        // Pin the node-stable config identity from THIS query's WITH config (see CsvFormatReader).
+        String canon = SchemaCacheKey.buildFormatConfig(config);
+        FormatReader result = new NdJsonFormatReader(settings, blockFactory, resolvedSchema, newSampleSize, newSegmentSize, canon);
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
@@ -318,7 +328,7 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             } catch (IOException | UnsupportedOperationException e) {
                 cachedSize = OptionalLong.empty();
             }
-            String configFingerprint = computeConfigFingerprint(schema);
+            String configFingerprint = computeConfigFingerprint();
             Optional<ExternalStatsCache.Stats> cachedStats = ExternalStatsCache.lookup(object, configFingerprint);
             SourceStatistics stats = TextFormatStats.build(cachedStats, cachedSize, schema);
             Map<String, Object> baseSourceMetadata = Map.of(
@@ -333,17 +343,14 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Hash of the row-interpretation-affecting config: format name + resolved schema (name + type
-     * per attribute). NDJSON has less drift surface than CSV (no header / delimiter / quote toggles),
-     * but the schema can still be re-typed via {@code WITH} options.
+     * Node-stable identity of the row-interpretation-affecting {@code WITH} config — the same
+     * canonical string {@link SchemaCacheKey#buildFormatConfig} stores on the cache key, so a data
+     * node's contribution and the coordinator's entry compare equal across JVMs. Derived from the
+     * canonical config rather than the resolved schema (which is projection-dependent and would
+     * differ between a coordinator's full-schema resolution and a data node's projected read).
      */
-    private String computeConfigFingerprint(List<Attribute> schema) {
-        StringBuilder sb = new StringBuilder(64);
-        sb.append(formatName());
-        for (Attribute a : schema) {
-            sb.append('|').append(a.name()).append(':').append(a.dataType());
-        }
-        return Integer.toUnsignedString(sb.toString().hashCode(), 36);
+    private String computeConfigFingerprint() {
+        return canonicalConfig;
     }
 
     /**
@@ -423,7 +430,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             errorPolicy,
             cacheable ? object : null,
             pinnedMtimeMillis,
-            cacheable ? this::computeConfigFingerprint : null,
+            // The fingerprint is the node-stable canonical config; the iterator's schema arg is ignored.
+            cacheable ? ignoredSchema -> computeConfigFingerprint() : null,
             chunkMode
         );
     }

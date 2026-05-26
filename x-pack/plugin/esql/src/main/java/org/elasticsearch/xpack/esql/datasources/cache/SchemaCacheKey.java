@@ -77,7 +77,14 @@ public record SchemaCacheKey(
         return new SchemaCacheKey(canonicalPath, mtime, formatType != null ? formatType : "", formatConfig, endpoint, region);
     }
 
-    static String buildFormatConfig(Map<String, Object> config) {
+    /**
+     * Canonical, node-stable identity of the row-interpretation-affecting config: the format-affecting
+     * params (credentials and non-format keys excluded), sorted and rendered {@code key=value,...}.
+     * Deterministic across JVMs and independent of column projection, so a coordinator and a data node
+     * derive the same string for the same logical query config — the basis for the cross-node stats
+     * cache fingerprint.
+     */
+    public static String buildFormatConfig(Map<String, Object> config) {
         if (config == null || config.isEmpty()) {
             return "";
         }

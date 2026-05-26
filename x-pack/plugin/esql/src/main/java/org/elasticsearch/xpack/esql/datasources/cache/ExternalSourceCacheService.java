@@ -21,6 +21,7 @@ import java.io.Closeable;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Coordinator-only, in-memory cache service for external source metadata.
@@ -204,14 +205,13 @@ public class ExternalSourceCacheService implements Closeable {
                 continue;
             }
             long mtimeMillis = ((Number) mtimeObj).longValue();
-            // Match must include the config fingerprint to prevent cross-pollination: SchemaCacheKey
-            // is keyed on path + mtime + formatType + formatConfig + endpoint + region, so the SAME
-            // file can have multiple distinct entries — one per (formatType, formatConfig) tuple.
-            // A query under WITH {"header_row": true} interprets row counts differently from one
-            // under WITH {"header_row": false}, even on identical bytes. Without the fingerprint
-            // gate we would enrich every matching entry with stats that describe only one
-            // interpretation. Each format-reader's metadata() writes its CONFIG_FINGERPRINT_KEY
-            // into the entry's safeMetadata at planning time, so the comparison here is symmetric.
+            // Enrich the schema entry whose config matches the contribution. SchemaCacheKey is keyed on
+            // path + mtime + formatType + formatConfig + endpoint + region, so the SAME file can have
+            // several entries — one per (formatType, formatConfig) tuple (e.g. WITH {"header_row": true}
+            // vs {"header_row": false} count rows differently). The config fingerprint disambiguates
+            // them, and it is node-stable: both the data node's contribution and the coordinator's entry
+            // derive it from SchemaCacheKey.buildFormatConfig of the same logical config, so the guard
+            // holds across JVMs (coordinator != data node) — the warm short-circuit's whole point.
             Object contributionFingerprint = mergedStats.get(ExternalStatsCache.CONFIG_FINGERPRINT_KEY);
             for (SchemaCacheKey key : schemaCache.keys()) {
                 if (path.equals(key.canonicalPath()) == false || key.lastModifiedEpochMillis() != mtimeMillis) {
@@ -222,7 +222,7 @@ public class ExternalSourceCacheService implements Closeable {
                     continue;
                 }
                 Object existingFingerprint = existing.safeMetadata().get(ExternalStatsCache.CONFIG_FINGERPRINT_KEY);
-                if (java.util.Objects.equals(existingFingerprint, contributionFingerprint) == false) {
+                if (Objects.equals(existingFingerprint, contributionFingerprint) == false) {
                     continue;
                 }
                 Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());

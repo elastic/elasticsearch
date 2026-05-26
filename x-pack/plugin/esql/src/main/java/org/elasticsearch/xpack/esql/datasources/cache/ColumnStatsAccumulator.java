@@ -119,12 +119,19 @@ public final class ColumnStatsAccumulator {
         }
 
         private static byte classify(DataType type) {
+            // Min/max bucketing is keyed strictly on whether the SIGNED comparator on the stored
+            // representation matches the type's semantic order. Types where that contract fails
+            // are pinned to T_UNTRACKED so the cache never captures wrong-ordering min/max:
+            // - UNSIGNED_LONG: stored as signed long; signed compare flips for values >= 2^63.
+            // - VERSION: byte-lex (e.g. "1.10" < "1.2") disagrees with semver ordering.
+            // IP stays in T_BYTESREF because the 16-byte InetAddressPoint encoding's byte-lex
+            // order matches IPv4/IPv6 address order by construction.
             return switch (type) {
                 case BOOLEAN -> T_BOOLEAN;
                 case INTEGER, COUNTER_INTEGER -> T_INT;
-                case LONG, COUNTER_LONG, DATETIME, DATE_NANOS, UNSIGNED_LONG -> T_LONG;
+                case LONG, COUNTER_LONG, DATETIME, DATE_NANOS -> T_LONG;
                 case DOUBLE, COUNTER_DOUBLE -> T_DOUBLE;
-                case KEYWORD, TEXT, IP, VERSION -> T_BYTESREF;
+                case KEYWORD, TEXT, IP -> T_BYTESREF;
                 default -> T_UNTRACKED;
             };
         }

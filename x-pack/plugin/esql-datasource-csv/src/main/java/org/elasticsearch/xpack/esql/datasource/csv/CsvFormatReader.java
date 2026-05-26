@@ -1709,6 +1709,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
         private Page nextPage;
         private boolean closed = false;
         private long errorCount = 0;
+        /**
+         * Subset of {@link #errorCount} counting only row-dropping events (SKIP_ROW and structural
+         * failures). Field-level NULL_FIELD events leave the row intact and increment
+         * {@code errorCount} but NOT this counter. The chunk-poison gate keys on this so a
+         * benign field-warning under NULL_FIELD does not discard a file's cache merge.
+         */
+        private long rowsSkipped = 0;
         private long totalRowCount = 0;
         private String lastFieldError;
         /** Non-null iff the iterator is eligible to populate {@link ExternalStatsCache} on close (whole-file read). */
@@ -1847,11 +1854,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         // publishes a finalize marker at clean whole-file completion so the coordinator's
                         // reconciler only commits the merge then.
                         publishToCaptureSink(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord, schema, sizeInBytesFromLength());
-                    } else if (chunkMode) {
-                        // SKIP_ROW etc. can leave a chunk naturallyExhausted with errorCount > 0 (dropped
-                        // rows). Poison the file's merge so the reconciler discards every partial rather
-                        // than commit an under-counted COUNT(*). Whole-file mode already suppresses
-                        // the write above — no separate poison needed there.
+                    } else if (chunkMode && rowsSkipped > 0) {
+                        // SKIP_ROW (or any structural-failure path) actually dropped rows from this
+                        // chunk, so rowsEmittedForCache is short of the file's true row count. Poison
+                        // the file's merge. NULL_FIELD also increments errorCount but NOT rowsSkipped
+                        // — that path null-fills the bad field and keeps the row, so the count stays
+                        // accurate and no poison is needed.
                         java.util.Map<String, Object> poison = new java.util.HashMap<>();
                         poison.put(ExternalStatsCache.MTIME_MILLIS_KEY, pinnedMtimeMillis);
                         poison.put(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
@@ -2793,6 +2801,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 );
             }
             errorCount++;
+            rowsSkipped++;
             skipWarnings.add("Row [" + totalRowCount + "] error: " + message);
             if (logErrors) {
                 logger.warn(

@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Values;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.VarianceOverTime;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.CompoundOutputEval;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Explain;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
@@ -134,6 +135,10 @@ public class ApproximationSupportTests extends ESTestCase {
         // They require chained stats commands.
         TimeSeriesAggregate.class,
         TimeSeriesCollapse.class,
+
+        // SurrogateLogicalPlans: present in the analyzed plan but rewritten during the optimizer's
+        // substitutions phase, before any approximation logic runs.
+        Dedup.class, // rewritten to LimitBy
 
         // PromQL plans are not supported yet.
         // They require chained stats commands.
@@ -295,14 +300,11 @@ public class ApproximationSupportTests extends ESTestCase {
     @Before
     public void assume() {
         assumeTrue("needs inline stats approximation", EsqlCapabilities.Cap.APPROXIMATION_INLINE_STATS_V2.isEnabled());
-        assumeTrue("needs lookup join approximation", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN.isEnabled());
+        assumeTrue("needs lookup join approximation", EsqlCapabilities.Cap.APPROXIMATION_LOOKUP_JOIN_V2.isEnabled());
     }
 
     public void testAllCommandsWhitelistedOrBlacklisted() throws Exception {
-        testAllClassesListed(
-            LogicalPlan.class,
-            List.of(ApproximationVerifier.SUPPORTED_COMMANDS, ApproximationVerifier.SUPPORTED_LIMITING_COMMANDS, UNSUPPORTED_COMMANDS)
-        );
+        testAllClassesListed(LogicalPlan.class, List.of(ApproximationVerifier.SUPPORTED_COMMANDS.keySet(), UNSUPPORTED_COMMANDS));
     }
 
     public void testAllAggregationsWhitelistedOrBlacklisted() throws Exception {

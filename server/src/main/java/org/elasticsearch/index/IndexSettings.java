@@ -971,6 +971,10 @@ public final class IndexSettings {
         Property.Final
     );
 
+    /**
+     * Controls whether columnar id mode is used. This is a proxy setting for the default based on index.mode setting.
+     * Proxy mainly exists for tests to easily randomly test with columnar id mode.
+     */
     public static final Setting<Boolean> USE_COLUMNAR_ID_BY_DEFAULT = Setting.boolSetting(
         "index.mapping.use_colulmnar_id_mode_by_default",
         settings -> {

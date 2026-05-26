@@ -10,6 +10,7 @@
 package org.elasticsearch.search.fields;
 
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.Strings;
@@ -20,6 +21,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
@@ -408,9 +410,8 @@ public class SearchFieldsIT extends ESIntegTestCase {
     }
 
     public void testIdBasedScriptFields() throws Exception {
-        prepareCreate("test").setSettings(Settings.builder().put("index.skip.random_columnar_mode", true))
-            .setMapping("num1", "type=long")
-            .get();
+        prepareCreate("test").setMapping("num1", "type=long").get();
+        assumeNoColumnarId("test relies on reading _id from stored fields", "test");
 
         int numDocs = randomIntBetween(1, 30);
         IndexRequestBuilder[] indexRequestBuilders = new IndexRequestBuilder[numDocs];

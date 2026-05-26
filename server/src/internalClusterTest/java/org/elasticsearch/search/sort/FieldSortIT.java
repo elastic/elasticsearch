@@ -1608,11 +1608,15 @@ public class FieldSortIT extends ESIntegTestCase {
 
     public void testSortColumnarId() {
         assumeTrue("feature flag must be enabled", ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled());
-        prepareCreate("test").setMapping("""
+        if (randomBoolean()) {
+            prepareCreate("test", Settings.builder().put("index.mapping.use_colulmnar_id_mode_by_default", true)).get();
+        } else {
+            prepareCreate("test").setMapping("""
             {
                 "_id": { "mode": "columnar" }
             }
             """).get();
+        }
         ensureGreen();
         final int numDocs = randomIntBetween(10, 20);
         IndexRequestBuilder[] indexReqs = new IndexRequestBuilder[numDocs];

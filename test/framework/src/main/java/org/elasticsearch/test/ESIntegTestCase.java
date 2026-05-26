@@ -51,6 +51,7 @@ import org.elasticsearch.action.admin.indices.segments.IndexSegments;
 import org.elasticsearch.action.admin.indices.segments.IndexShardSegments;
 import org.elasticsearch.action.admin.indices.segments.IndicesSegmentResponse;
 import org.elasticsearch.action.admin.indices.segments.ShardSegments;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequestBuilder;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.admin.indices.template.put.PutIndexTemplateRequestBuilder;
@@ -2871,15 +2872,21 @@ public abstract class ESIntegTestCase extends ESTestCase {
         }
     }
 
+    /**
+     * Randomly enables columanr id mode at index creation time.
+     * <p>
+     * Typically this type of randomization happens via random legacy index templates with internal integration tests.
+     * However for columnar id mode test coverage this doesn't work well:
+     * <ul>
+     *     <li>If composable index templates or data streams are used we would never test with randomized columanr id</li>
+     *     <li>Columnar id mode can't be enabled for tsdb tests, but when the randomized legacy template is created
+     *         we don't know whether it matches with tsdb indices. An index settings provider is the only place where
+     *         we see all settings (from create index request or template) prior to index creation.</li>
+     * </ul>
+     */
     public static final class RandomizeColumnarIdModePlugin extends Plugin {
 
         private static final Logger LOGGER = LogManager.getLogger(RandomizeColumnarIdModePlugin.class);
-
-        public static final Setting<Boolean> SKIP_RANDOM_COLUMNAR_MODE_SETTING = Setting.boolSetting(
-            "index.skip.random_columnar_mode",
-            false,
-            Property.IndexScope
-        );
 
         @Override
         public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
@@ -2895,41 +2902,49 @@ public abstract class ESIntegTestCase extends ESTestCase {
                     indexVersion,
                     additionalSettings) -> {
                     if (templateIndexMode == IndexMode.TIME_SERIES) {
+                        // Don't randomly enable columnar id mode, if time series index mode has been enabled.
+                        // Enabling columnar id isn't possible because tsdb always uses synthetic id.
                         return;
                     }
 
                     String indexModeStr = indexTemplateAndCreateRequestSettings.get("index.mode");
                     if (indexModeStr != null) {
+                        // Don't randomly enable columnar id mode, if index mode has defined explicitly.
                         return;
                     }
 
                     String seqNoIndexOptionsStr = indexTemplateAndCreateRequestSettings.get("index.seq_no.index_options");
                     if (seqNoIndexOptionsStr != null) {
-                        return;
-                    }
-
-                    boolean skip = indexTemplateAndCreateRequestSettings.getAsBoolean(SKIP_RANDOM_COLUMNAR_MODE_SETTING.getKey(), false);
-                    if (skip) {
+                        // Don't randomly enable columnar id mode, if seqno isn't stored as doc values.
                         return;
                     }
 
                     String columnarIdMode = indexTemplateAndCreateRequestSettings.get("index.mapping.use_colulmnar_id_mode_by_default");
                     if (columnarIdMode != null) {
+                        // Don't randomly enable columnar id mode, columnar mode has been enabled.
                         return;
                     }
 
-                    LOGGER.info("randomly setting [index.mapping.use_colulmnar_id_mode_by_default] to [true]");
-                    additionalSettings.put("index.mapping.use_colulmnar_id_mode_by_default", true);
                     if (randomBoolean()) {
+                        LOGGER.info("randomly setting [index.mapping.use_colulmnar_id_mode_by_default] to [true]");
+                        additionalSettings.put("index.mapping.use_colulmnar_id_mode_by_default", true);
                     }
                 }
             );
         }
 
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(SKIP_RANDOM_COLUMNAR_MODE_SETTING);
-        }
+    }
+
+    /**
+     * Assumes that index isn't using columnar id mode because of {@link RandomizeColumnarIdModePlugin}.
+     * This is a way for tests to deal with the fact that it can't handle columanar ids well.
+     */
+    public static void assumeNoColumnarId(String message, String indexName) {
+        var response = client().admin()
+            .indices()
+            .getSettings(new GetSettingsRequest(TimeValue.THIRTY_SECONDS).indices(indexName))
+            .actionGet();
+        assumeTrue(message, response.getSetting(indexName, "index.mapping.use_colulmnar_id_mode_by_default") == null);
     }
 
     /**

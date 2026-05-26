@@ -1854,39 +1854,32 @@ public class EsqlActionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    private void createAndPopulateIndex(String indexName) throws IOException {
+    private void createAndPopulateIndex(String indexName) {
         createAndPopulateIndex(indexName, Settings.EMPTY);
     }
 
-    private void createAndPopulateIndex(String indexName, Settings additionalSettings) throws IOException {
-        var mapping = PutMappingRequest.simpleMapping(
-            "data",
-            "type=long",
-            "data_d",
-            "type=double",
-            "count",
-            "type=long",
-            "count_d",
-            "type=double",
-            "time",
-            "type=long",
-            "color",
-            "type=keyword",
-            "tag",
-            "type=keyword"
-        );
-        if (ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled() && randomBoolean()) {
-            String mappingAsSting = Strings.toString(mapping);
-            var parsedMapping = XContentHelper.convertToMap(JsonXContent.jsonXContent, mappingAsSting, true);
-            parsedMapping.put("_id", Map.of("mode", "columnar"));
-            mapping = JsonXContent.contentBuilder().map(parsedMapping);
-        }
+    private void createAndPopulateIndex(String indexName, Settings additionalSettings) {
         assertAcked(
             client().admin()
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(Settings.builder().put(additionalSettings).put("index.number_of_shards", ESTestCase.randomIntBetween(1, 5)))
-                .setMapping(mapping)
+                .setMapping(
+                    "data",
+                    "type=long",
+                    "data_d",
+                    "type=double",
+                    "count",
+                    "type=long",
+                    "count_d",
+                    "type=double",
+                    "time",
+                    "type=long",
+                    "color",
+                    "type=keyword",
+                    "tag",
+                    "type=keyword"
+                )
         );
         long timestamp = epoch;
         for (int i = 0; i < 10; i++) {

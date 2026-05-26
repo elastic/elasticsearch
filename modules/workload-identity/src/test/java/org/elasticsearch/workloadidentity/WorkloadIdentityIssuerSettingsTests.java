@@ -33,13 +33,8 @@ public class WorkloadIdentityIssuerSettingsTests extends ESTestCase {
         // An explicitly-set but blank URL is unusable and should take the "feature off" branch
         // rather than falling through to a downstream URI-parse failure at node startup.
         for (String blank : new String[] { "", " ", "\t", "   " }) {
-            final Settings settings = Settings.builder()
-                .put(WorkloadIdentityIssuerSettings.ISSUER_URL_SETTING.getKey(), blank)
-                .build();
-            assertFalse(
-                "blank issuer URL must not enable workload-identity",
-                WorkloadIdentityIssuerSettings.isEnabled(settings)
-            );
+            final Settings settings = Settings.builder().put(WorkloadIdentityIssuerSettings.ISSUER_URL_SETTING.getKey(), blank).build();
+            assertFalse("blank issuer URL must not enable workload-identity", WorkloadIdentityIssuerSettings.isEnabled(settings));
         }
     }
 

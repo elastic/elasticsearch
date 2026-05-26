@@ -107,9 +107,7 @@ public final class WorkloadIdentityHttpClientManager implements Closeable {
             // Override the IOReactorConfig default of availableProcessors(): this client is low-QPS and
             // single-host, and concurrent callers share in-flight fetches (HttpsWorkloadIdentityIssuerClient#tokens),
             // so one dispatcher suffices and keeps the thread footprint independent of host CPU count.
-            ioReactor = new DefaultConnectingIOReactor(
-                IOReactorConfig.custom().setSoKeepAlive(true).setIoThreadCount(1).build()
-            );
+            ioReactor = new DefaultConnectingIOReactor(IOReactorConfig.custom().setSoKeepAlive(true).setIoThreadCount(1).build());
         } catch (IOReactorException e) {
             throw new ElasticsearchException("failed to initialize workload-identity HTTP client manager", e);
         }

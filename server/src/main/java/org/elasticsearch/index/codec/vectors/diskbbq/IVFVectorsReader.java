@@ -562,92 +562,65 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
     }
 
     /**
-     * Read the raw centroids and cluster sizes for the given field from this segment's posting list data.
+     * Read the raw centroids and cluster sizes for the given field from this segment.
      * Used by the adaptive merge strategy to bootstrap K-means with prior segment centroids.
+     * Implementations may return {@code null} if the format does not support reading centroid data
+     * (e.g. because the layout differs from the writer that consumes this data).
      *
      * @param fieldInfo the vector field to read centroids for
-     * @return centroid data, or null if the field has no centroids
+     * @return centroid data, or {@code null} if unavailable
      */
-    public CentroidData readCentroidData(FieldInfo fieldInfo) throws IOException {
-        E entry = fields.get(fieldInfo.number);
-        if (entry == null || entry.numCentroids == 0) {
-            return null;
-        }
-        int dimension = fieldInfo.getVectorDimension();
-        int numCentroids = entry.numCentroids;
-        float[][] centroids = new float[numCentroids][];
-        int[] clusterSizes = new int[numCentroids];
-
-        // Read posting list offsets from the centroid file, then read raw centroids from each posting list
-        try (IndexInput centroidSlice = entry.centroidSlice(ivfCentroids); IndexInput postingSlice = entry.postingListSlice(ivfClusters)) {
-            // skip the maxPostingListSize VInt at the start of the posting list data
-            postingSlice.readVInt();
-
-            // Read the posting list offsets from the centroid file.
-            // The offset table is at the end of the centroid data.
-            // We need to skip the quantized centroids to find the offset table.
-            long[] postingOffsets = readPostingListOffsets(centroidSlice, numCentroids, dimension);
-
-            for (int c = 0; c < numCentroids; c++) {
-                centroids[c] = new float[dimension];
-                postingSlice.seek(postingOffsets[c]);
-                postingSlice.readFloats(centroids[c], 0, dimension);
-                // skip the centroid dot product (int)
-                postingSlice.readInt();
-                // read the cluster size
-                clusterSizes[c] = postingSlice.readVInt();
-            }
-        }
-
-        return new CentroidData(centroids, clusterSizes, entry.globalCentroid);
-    }
+    public abstract CentroidData readCentroidData(FieldInfo fieldInfo) throws IOException;
 
     /**
-     * Read posting list offsets from the centroid file.
-     * Handles both parent and no-parent centroid file formats.
+     * Container for centroid data read from an existing segment. The centroid vectors are
+     * exposed as a streaming {@link org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues}
+     * so the merge path can iterate them without materializing the full {@code float[N][dim]}
+     * on the heap. The optional {@code backing} {@link IndexInput} owns any sliced resources
+     * required by the streaming view; {@link #close()} releases it.
      */
-    private static long[] readPostingListOffsets(IndexInput centroidSlice, int numCentroids, int dimension) throws IOException {
-        long[] offsets = new long[numCentroids];
-        int numParents = centroidSlice.readVInt();
-        long centroidQuantizeSize = dimension + 3 * Float.BYTES + Integer.BYTES;
+    public static final class CentroidData implements Closeable {
+        private final int numCentroids;
+        private final org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues centroids;
+        private final int[] clusterSizes;
+        private final float[] globalCentroid;
+        private final IndexInput backing;
 
-        if (numParents == 0) {
-            // No-parent format: quantized centroids are bulk-written, then offset table
-            // Skip quantized centroid data (bulk written).
-            // Each centroid is centroidQuantizeSize bytes, written in bulk groups.
-            long quantizedDataSize = centroidQuantizeSize * numCentroids;
-            centroidSlice.skipBytes(quantizedDataSize);
-            // Now read the offset table
-            for (int i = 0; i < numCentroids; i++) {
-                offsets[i] = centroidSlice.readLong();
-                centroidSlice.readLong(); // skip length
-            }
-        } else {
-            // Parent format: skip all parent/child data to reach the offset table at the end.
-            int maxChildrenSize = centroidSlice.readVInt();
-            // Skip parent centroids
-            long parentDataSize = centroidQuantizeSize * numParents;
-            centroidSlice.skipBytes(parentDataSize);
-            // Skip parent index entries (Int offset, Int numChildren per parent)
-            centroidSlice.skipBytes((long) numParents * 2 * Integer.BYTES);
-            // Skip all child centroids
-            long childDataSize = centroidQuantizeSize * numCentroids;
-            centroidSlice.skipBytes(childDataSize);
-            // Now read the offset table
-            for (int i = 0; i < numCentroids; i++) {
-                offsets[i] = centroidSlice.readLong();
-                centroidSlice.readLong(); // skip length
-            }
+        public CentroidData(
+            org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues centroids,
+            int[] clusterSizes,
+            float[] globalCentroid,
+            IndexInput backing
+        ) {
+            assert centroids.size() == clusterSizes.length;
+            this.numCentroids = centroids.size();
+            this.centroids = centroids;
+            this.clusterSizes = clusterSizes;
+            this.globalCentroid = globalCentroid;
+            this.backing = backing;
         }
-        return offsets;
-    }
 
-    /**
-     * Container for centroid data read from an existing segment.
-     */
-    public record CentroidData(float[][] centroids, int[] clusterSizes, float[] globalCentroid) {
         public int numCentroids() {
-            return centroids.length;
+            return numCentroids;
+        }
+
+        public org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues centroids() {
+            return centroids;
+        }
+
+        public int[] clusterSizes() {
+            return clusterSizes;
+        }
+
+        public float[] globalCentroid() {
+            return globalCentroid;
+        }
+
+        @Override
+        public void close() throws IOException {
+            if (backing != null) {
+                backing.close();
+            }
         }
     }
 

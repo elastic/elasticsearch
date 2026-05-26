@@ -8,7 +8,10 @@
  */
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
+import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.test.ESTestCase;
+
+import java.util.Arrays;
 
 public class TieredMergeStrategyTests extends ESTestCase {
 
@@ -27,7 +30,7 @@ public class TieredMergeStrategyTests extends ESTestCase {
         TieredMergeStrategy.MergeAction action = assertAction(strategy, sizes, centroids, TieredMergeStrategy.Strategy.INSERTION);
         assertTrue(action instanceof TieredMergeStrategy.Insertion);
         // Dominant segment (index 0) centroids should be captured
-        assertEquals(120, ((TieredMergeStrategy.Insertion) action).seedCentroids().length);
+        assertEquals(120, ((TieredMergeStrategy.Insertion) action).seedCentroids().size());
     }
 
     public void testExactly70PercentSelectsConcatenation() {
@@ -46,7 +49,7 @@ public class TieredMergeStrategyTests extends ESTestCase {
         TieredMergeStrategy.MergeAction action = assertAction(strategy, sizes, centroids, TieredMergeStrategy.Strategy.CONCATENATION);
         assertTrue(action instanceof TieredMergeStrategy.Concatenation);
         // Should collect all 40 centroids
-        assertEquals(40, ((TieredMergeStrategy.Concatenation) action).seedCentroids().length);
+        assertEquals(40, ((TieredMergeStrategy.Concatenation) action).seedCentroids().size());
     }
 
     public void testInsufficientCentroidsSelectsFullRebuild() {
@@ -143,7 +146,7 @@ public class TieredMergeStrategyTests extends ESTestCase {
         TieredMergeStrategy.MergeAction action = strategy.selectAction(sizes, centroids, data);
         assertEquals(TieredMergeStrategy.Strategy.CONCATENATION, action.strategy());
         // Should only collect centroids from segments 0 and 1
-        assertEquals(40, ((TieredMergeStrategy.Concatenation) action).seedCentroids().length);
+        assertEquals(40, ((TieredMergeStrategy.Concatenation) action).seedCentroids().size());
     }
 
     /**
@@ -166,7 +169,12 @@ public class TieredMergeStrategyTests extends ESTestCase {
         for (int i = 0; i < centroidCounts.length; i++) {
             if (centroidCounts[i] > 0) {
                 float[][] c = new float[centroidCounts[i]][4]; // dummy 4-d centroids
-                data[i] = new IVFVectorsReader.CentroidData(c, new int[centroidCounts[i]], new float[4]);
+                data[i] = new IVFVectorsReader.CentroidData(
+                    KMeansFloatVectorValues.build(Arrays.asList(c), null, 4),
+                    new int[centroidCounts[i]],
+                    new float[4],
+                    null
+                );
             }
         }
         return data;

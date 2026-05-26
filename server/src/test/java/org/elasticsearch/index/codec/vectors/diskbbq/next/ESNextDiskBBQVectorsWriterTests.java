@@ -37,23 +37,23 @@ public class ESNextDiskBBQVectorsWriterTests extends ESTestCase {
     }
 
     public void testReadCentroidDataLoadsClusterSizesWithoutParents() throws Exception {
-        IVFVectorsReader.CentroidData centroidData = readCentroidData(64, 16, 256);
-
-        assertNotNull(centroidData);
-        assertTrue(centroidData.centroids().length <= 16);
-        assertClusterSizesAreLoaded(centroidData, 256);
+        try (IVFVectorsReader.CentroidData centroidData = readCentroidData(64, 16, 256)) {
+            assertNotNull(centroidData);
+            assertTrue(centroidData.centroids().size() <= 16);
+            assertClusterSizesAreLoaded(centroidData, 256);
+        }
     }
 
     public void testReadCentroidDataLoadsClusterSizesWithParents() throws Exception {
-        IVFVectorsReader.CentroidData centroidData = readCentroidData(64, 2, 512);
-
-        assertNotNull(centroidData);
-        assertTrue(centroidData.centroids().length > 2);
-        assertClusterSizesAreLoaded(centroidData, 512);
+        try (IVFVectorsReader.CentroidData centroidData = readCentroidData(64, 2, 512)) {
+            assertNotNull(centroidData);
+            assertTrue(centroidData.centroids().size() > 2);
+            assertClusterSizesAreLoaded(centroidData, 512);
+        }
     }
 
     private static void assertClusterSizesAreLoaded(IVFVectorsReader.CentroidData centroidData, int numDocs) {
-        assertEquals(centroidData.centroids().length, centroidData.clusterSizes().length);
+        assertEquals(centroidData.centroids().size(), centroidData.clusterSizes().length);
         int totalAssignments = Arrays.stream(centroidData.clusterSizes()).sum();
         assertTrue(totalAssignments >= numDocs);
         assertTrue(totalAssignments <= numDocs * 2);

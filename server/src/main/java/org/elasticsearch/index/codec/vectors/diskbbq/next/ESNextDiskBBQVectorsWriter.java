@@ -910,6 +910,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
+    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#closeWhileHandlingException(...)")
     public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues, MergeState mergeState)
         throws IOException {
         // Gather prior segment statistics for tiered merge strategy selection
@@ -918,76 +919,82 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         int[] segmentCentroidCounts = new int[numSegments];
         IVFVectorsReader.CentroidData[] segmentCentroidData = new IVFVectorsReader.CentroidData[numSegments];
 
-        for (int i = 0; i < numSegments; i++) {
-            KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
-            if (reader instanceof PerFieldKnnVectorsFormat.FieldsReader perFieldReader) {
-                reader = perFieldReader.getFieldReader(fieldInfo.name);
-            }
-            if (reader instanceof IVFVectorsReader<?> ivfReader) {
-                FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(fieldInfo.name);
-                if (readerFieldInfo == null) {
+        try {
+            for (int i = 0; i < numSegments; i++) {
+                KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
+                if (reader instanceof PerFieldKnnVectorsFormat.FieldsReader perFieldReader) {
+                    reader = perFieldReader.getFieldReader(fieldInfo.name);
+                }
+                if (reader instanceof IVFVectorsReader<?> ivfReader) {
+                    FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(fieldInfo.name);
+                    if (readerFieldInfo == null) {
+                        segmentSizes[i] = 0;
+                        segmentCentroidCounts[i] = 0;
+                        continue;
+                    }
+                    FloatVectorValues vectorValues = mergeState.knnVectorsReaders[i].getFloatVectorValues(fieldInfo.name);
+                    segmentSizes[i] = vectorValues != null ? vectorValues.size() : 0;
+                    segmentCentroidData[i] = ivfReader.readCentroidData(readerFieldInfo);
+                    segmentCentroidCounts[i] = segmentCentroidData[i] != null ? segmentCentroidData[i].numCentroids() : 0;
+                } else {
                     segmentSizes[i] = 0;
                     segmentCentroidCounts[i] = 0;
-                    continue;
                 }
-                FloatVectorValues vectorValues = mergeState.knnVectorsReaders[i].getFloatVectorValues(fieldInfo.name);
-                segmentSizes[i] = vectorValues != null ? vectorValues.size() : 0;
-                segmentCentroidData[i] = ivfReader.readCentroidData(readerFieldInfo);
-                segmentCentroidCounts[i] = segmentCentroidData[i] != null ? segmentCentroidData[i].numCentroids() : 0;
+            }
+
+            // Select merge strategy
+            TieredMergeStrategy tieredStrategy = new TieredMergeStrategy(vectorPerCluster);
+            TieredMergeStrategy.MergeAction action = tieredStrategy.selectAction(segmentSizes, segmentCentroidCounts, segmentCentroidData);
+
+            if (logger.isInfoEnabled()) {
+                int totalVectors = 0;
+                int totalCentroids = 0;
+                for (int s : segmentSizes) {
+                    totalVectors += s;
+                }
+                for (int c : segmentCentroidCounts) {
+                    totalCentroids += c;
+                }
+                logger.info(
+                    "DiskBBQ merge for field [{}]: selected strategy [{}], segments={}, totalVectors={}, totalCentroids={}",
+                    fieldInfo.name,
+                    action.strategy(),
+                    numSegments,
+                    totalVectors,
+                    totalCentroids
+                );
+            }
+
+            // Slice metadata is on disk and readers return flat segments -> FullRebuild
+            if (action instanceof TieredMergeStrategy.FullRebuild && sliceField != null) {
+                return calculateCentroidsFullRebuildSliced(floatVectorValues, fieldInfo, mergeState);
+            }
+
+            HierarchicalKMeans hierarchicalKMeans;
+            if (mergeExec != null) {
+                hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(floatVectorValues.dimension(), mergeExec, numMergeWorkers);
             } else {
-                segmentSizes[i] = 0;
-                segmentCentroidCounts[i] = 0;
+                hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
             }
-        }
-
-        // Select merge strategy
-        TieredMergeStrategy tieredStrategy = new TieredMergeStrategy(vectorPerCluster);
-        TieredMergeStrategy.MergeAction action = tieredStrategy.selectAction(segmentSizes, segmentCentroidCounts, segmentCentroidData);
-
-        if (logger.isInfoEnabled()) {
-            int totalVectors = 0;
-            int totalCentroids = 0;
-            for (int s : segmentSizes) {
-                totalVectors += s;
+            KMeansResult kMeansResult = action.execute(hierarchicalKMeans, floatVectorValues, vectorPerCluster);
+            if (logger.isDebugEnabled()) {
+                int[] clusterSizes = new int[kMeansResult.centroids().length];
+                for (int a : kMeansResult.assignments()) {
+                    clusterSizes[a]++;
+                }
+                printClusterQualityStatistics(clusterSizes);
             }
-            for (int c : segmentCentroidCounts) {
-                totalCentroids += c;
-            }
-            logger.info(
-                "DiskBBQ merge for field [{}]: selected strategy [{}], segments={}, totalVectors={}, totalCentroids={}",
-                fieldInfo.name,
-                action.strategy(),
-                numSegments,
-                totalVectors,
-                totalCentroids
+            return new CentroidAssignments(
+                fieldInfo.getVectorDimension(),
+                kMeansResult.centroids(),
+                kMeansResult.assignments(),
+                kMeansResult.soarAssignments()
             );
+        } finally {
+            // CentroidData owns the IndexInput backing the streaming centroid view; close once
+            // the clustering pass has consumed it (and on any failure mid-way).
+            org.apache.lucene.util.IOUtils.closeWhileHandlingException(segmentCentroidData);
         }
-
-        // Slice metadata is on disk and readers return flat segments -> FullRebuild
-        if (action instanceof TieredMergeStrategy.FullRebuild && sliceField != null) {
-            return calculateCentroidsFullRebuildSliced(floatVectorValues, fieldInfo, mergeState);
-        }
-
-        HierarchicalKMeans hierarchicalKMeans;
-        if (mergeExec != null) {
-            hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(floatVectorValues.dimension(), mergeExec, numMergeWorkers);
-        } else {
-            hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
-        }
-        KMeansResult kMeansResult = action.execute(hierarchicalKMeans, floatVectorValues, vectorPerCluster);
-        if (logger.isDebugEnabled()) {
-            int[] clusterSizes = new int[kMeansResult.centroids().length];
-            for (int a : kMeansResult.assignments()) {
-                clusterSizes[a]++;
-            }
-            printClusterQualityStatistics(clusterSizes);
-        }
-        return new CentroidAssignments(
-            fieldInfo.getVectorDimension(),
-            kMeansResult.centroids(),
-            kMeansResult.assignments(),
-            kMeansResult.soarAssignments()
-        );
     }
 
     private CentroidAssignments calculateCentroidsFullRebuildSliced(

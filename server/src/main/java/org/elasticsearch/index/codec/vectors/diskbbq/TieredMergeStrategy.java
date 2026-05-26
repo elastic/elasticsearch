@@ -10,12 +10,12 @@
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
 import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
+import org.elasticsearch.index.codec.vectors.cluster.ConcatenatedClusteringFloatVectorValues;
 import org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansResult;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -86,7 +86,7 @@ public class TieredMergeStrategy {
         }
     }
 
-    public record Insertion(float[][] seedCentroids) implements MergeAction {
+    public record Insertion(ClusteringFloatVectorValues seedCentroids) implements MergeAction {
         @Override
         public Strategy strategy() {
             return Strategy.INSERTION;
@@ -99,7 +99,7 @@ public class TieredMergeStrategy {
         }
     }
 
-    public record Concatenation(float[][] seedCentroids, int[] clusterSizes) implements MergeAction {
+    public record Concatenation(ClusteringFloatVectorValues seedCentroids, int[] clusterSizes) implements MergeAction {
         @Override
         public Strategy strategy() {
             return Strategy.CONCATENATION;
@@ -130,20 +130,26 @@ public class TieredMergeStrategy {
                 yield new Insertion(centroidData[dominantIdx].centroids());
             }
             case CONCATENATION -> {
-                List<float[]> allPriorCentroids = new ArrayList<>();
-                List<Integer> allClusterSizes = new ArrayList<>();
+                List<ClusteringFloatVectorValues> parts = new ArrayList<>();
+                List<int[]> sizesParts = new ArrayList<>();
+                int totalSizes = 0;
                 for (IVFVectorsReader.CentroidData data : centroidData) {
                     if (data != null) {
-                        Collections.addAll(allPriorCentroids, data.centroids());
-                        for (int size : data.clusterSizes()) {
-                            allClusterSizes.add(size);
-                        }
+                        parts.add(data.centroids());
+                        sizesParts.add(data.clusterSizes());
+                        totalSizes += data.clusterSizes().length;
                     }
                 }
-                yield new Concatenation(
-                    allPriorCentroids.toArray(new float[0][]),
-                    allClusterSizes.stream().mapToInt(Integer::intValue).toArray()
+                int[] allClusterSizes = new int[totalSizes];
+                int off = 0;
+                for (int[] s : sizesParts) {
+                    System.arraycopy(s, 0, allClusterSizes, off, s.length);
+                    off += s.length;
+                }
+                ClusteringFloatVectorValues concatenated = new ConcatenatedClusteringFloatVectorValues(
+                    parts.toArray(new ClusteringFloatVectorValues[0])
                 );
+                yield new Concatenation(concatenated, allClusterSizes);
             }
             case FULL_REBUILD -> new FullRebuild();
         };

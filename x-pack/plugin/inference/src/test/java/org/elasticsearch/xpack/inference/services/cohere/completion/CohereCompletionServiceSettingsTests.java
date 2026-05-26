@@ -33,7 +33,6 @@ import static org.hamcrest.Matchers.is;
 
 public class CohereCompletionServiceSettingsTests extends AbstractCohereServiceSettingsTests<CohereCompletionServiceSettings> {
 
-    private static final String TEST_MODEL_ID = "test-model-id";
     private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
 
     private static final int TEST_RATE_LIMIT = 20;

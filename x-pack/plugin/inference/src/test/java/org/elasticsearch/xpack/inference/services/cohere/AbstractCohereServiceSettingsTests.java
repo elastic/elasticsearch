@@ -16,6 +16,7 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.CohereApiVersion;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -26,6 +27,9 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public abstract class AbstractCohereServiceSettingsTests<T extends CohereServiceSettings> extends AbstractBWCSerializationTestCase<T> {
+
+    protected static final String TEST_MODEL_ID = "test-model-id";
+    private static final String TEST_LEGACY_MODEL_ID = "test-legacy-model-id";
 
     /**
      * We always use the {@link ConfigurationParseContext#PERSISTENT} context for tests because api_version gets
@@ -124,6 +128,145 @@ public abstract class AbstractCohereServiceSettingsTests<T extends CohereService
 
         assertThat(serviceSettings.commonSettings().modelId(), is("new-model"));
         assertThat(serviceSettings.commonSettings().apiVersion(), is(CohereApiVersion.V2));
+    }
+
+    public void testFromMap_Request_NullApiVersion_NewModelIdField_CreatesSettingsCorrectly() {
+        assertFromMap_CreatesSettingsCorrectly(
+            TEST_MODEL_ID,
+            null,
+            null,
+            ConfigurationParseContext.REQUEST,
+            TEST_MODEL_ID,
+            CohereCommonServiceSettings.CohereApiVersion.V2
+        );
+    }
+
+    public void testFromMap_Persistent_NullApiVersion_NewModelIdField_CreatesSettingsCorrectly() {
+        assertFromMap_CreatesSettingsCorrectly(
+            TEST_MODEL_ID,
+            null,
+            null,
+            ConfigurationParseContext.PERSISTENT,
+            TEST_MODEL_ID,
+            CohereCommonServiceSettings.CohereApiVersion.V1
+        );
+    }
+
+    public void testFromMap_V2_NewModelIdField_CreatesSettingsCorrectly() {
+        assertFromMap_CreatesSettingsCorrectly(
+            TEST_MODEL_ID,
+            null,
+            CohereCommonServiceSettings.CohereApiVersion.V2,
+            ConfigurationParseContext.PERSISTENT,
+            TEST_MODEL_ID,
+            CohereCommonServiceSettings.CohereApiVersion.V2
+        );
+    }
+
+    public void testFromMap_Request_NullApiVersion_LegacyModelIdField_CreatesSettingsCorrectly() {
+        assertFromMap_CreatesSettingsCorrectly(
+            null,
+            TEST_LEGACY_MODEL_ID,
+            null,
+            ConfigurationParseContext.REQUEST,
+            TEST_LEGACY_MODEL_ID,
+            CohereCommonServiceSettings.CohereApiVersion.V2
+        );
+    }
+
+    public void testFromMap_Persistent_NullApiVersion_LegacyModelIdField_CreatesSettingsCorrectly() {
+        assertFromMap_CreatesSettingsCorrectly(
+            null,
+            TEST_LEGACY_MODEL_ID,
+            null,
+            ConfigurationParseContext.PERSISTENT,
+            TEST_LEGACY_MODEL_ID,
+            CohereCommonServiceSettings.CohereApiVersion.V1
+        );
+    }
+
+    public void testFromMap_V2_LegacyModelIdField_CreatesSettingsCorrectly() {
+        assertFromMap_CreatesSettingsCorrectly(
+            null,
+            TEST_LEGACY_MODEL_ID,
+            CohereCommonServiceSettings.CohereApiVersion.V2,
+            ConfigurationParseContext.PERSISTENT,
+            TEST_LEGACY_MODEL_ID,
+            CohereCommonServiceSettings.CohereApiVersion.V2
+        );
+    }
+
+    public void testFromMap_Request_NullApiVersion_BothNewAndLegacyModelIdFields_CreatesSettingsCorrectly() {
+        assertFromMap_CreatesSettingsCorrectly(
+            TEST_MODEL_ID,
+            TEST_LEGACY_MODEL_ID,
+            null,
+            ConfigurationParseContext.REQUEST,
+            TEST_MODEL_ID,
+            CohereCommonServiceSettings.CohereApiVersion.V2
+        );
+    }
+
+    public void testFromMap_Persistent_NullApiVersion_BothNewAndLegacyModelIdFields_CreatesSettingsCorrectly() {
+        assertFromMap_CreatesSettingsCorrectly(
+            TEST_MODEL_ID,
+            TEST_LEGACY_MODEL_ID,
+            null,
+            ConfigurationParseContext.PERSISTENT,
+            TEST_MODEL_ID,
+            CohereCommonServiceSettings.CohereApiVersion.V1
+        );
+    }
+
+    public void testFromMap_Persistent_V2_BothNewAndLegacyModelIdFields_CreatesSettingsCorrectly() {
+        assertFromMap_CreatesSettingsCorrectly(
+            TEST_MODEL_ID,
+            TEST_LEGACY_MODEL_ID,
+            CohereCommonServiceSettings.CohereApiVersion.V2,
+            ConfigurationParseContext.PERSISTENT,
+            TEST_MODEL_ID,
+            CohereCommonServiceSettings.CohereApiVersion.V2
+        );
+    }
+
+    public void testFromMap_Persistent_V1_NoModelIdFields_CreatesSettingsCorrectly() {
+        assertFromMap_CreatesSettingsCorrectly(
+            null,
+            null,
+            CohereCommonServiceSettings.CohereApiVersion.V1,
+            ConfigurationParseContext.PERSISTENT,
+            null,
+            CohereCommonServiceSettings.CohereApiVersion.V1
+        );
+    }
+
+    private void assertFromMap_CreatesSettingsCorrectly(
+        String modelId,
+        String legacyModelId,
+        CohereCommonServiceSettings.CohereApiVersion apiVersion,
+        ConfigurationParseContext context,
+        String expectedModelId,
+        CohereCommonServiceSettings.CohereApiVersion expectedApiVersion
+    ) {
+        Map<String, Object> map = new HashMap<>();
+        if (modelId != null) {
+            map.put(ServiceFields.MODEL_ID, modelId);
+        }
+        if (legacyModelId != null) {
+            map.put(CohereCommonServiceSettings.OLD_MODEL_ID_FIELD, legacyModelId);
+        }
+        if (apiVersion != null) {
+            map.put(CohereCommonServiceSettings.API_VERSION, apiVersion.toString());
+        }
+        long requestsPerMinute = randomLongBetween(1, 10000);
+        map.put(RateLimitSettings.FIELD_NAME, new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, requestsPerMinute)));
+
+        var testInstance = createGivenCommonSettings(map, context);
+
+        assertThat(
+            testInstance.commonSettings(),
+            is(new CohereCommonServiceSettings(expectedModelId, new RateLimitSettings(requestsPerMinute), expectedApiVersion))
+        );
     }
 
     public void testToXContent_ExposedFields_DoesNotContainApiVersion() throws IOException {

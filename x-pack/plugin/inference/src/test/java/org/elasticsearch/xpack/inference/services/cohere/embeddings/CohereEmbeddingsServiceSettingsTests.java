@@ -43,7 +43,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceSettingsTests<CohereEmbeddingsServiceSettings> {
-    private static final String TEST_MODEL_ID = "test-model-id";
+
     private static final String INITIAL_TEST_MODEL_ID = "initial-test-model-id";
 
     private static final int TEST_RATE_LIMIT = 20;
@@ -58,10 +58,8 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
     private static final SimilarityMeasure TEST_SIMILARITY_MEASURE = SimilarityMeasure.COSINE;
     private static final SimilarityMeasure INITIAL_TEST_SIMILARITY_MEASURE = SimilarityMeasure.DOT_PRODUCT;
 
-    private static final CohereEmbeddingType TEST_EMBEDDING_TYPE = CohereEmbeddingType.BYTE;
     private static final CohereEmbeddingType INITIAL_TEST_EMBEDDING_TYPE = CohereEmbeddingType.BIT;
 
-    private static final String TEST_LEGACY_MODEL_ID = "test-legacy-model-id";
     private static final RateLimitSettings DEFAULT_COHERE_EMBEDDINGS_RATE_LIMIT_SETTINGS = new RateLimitSettings(10_000);
 
     public static CohereEmbeddingsServiceSettings createRandom() {
@@ -186,143 +184,6 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
                     null,
                     null,
                     CohereEmbeddingType.FLOAT
-                )
-            )
-        );
-    }
-
-    public void testFromMap_Request_NullApiVersion_NewModelIdField_CreatesSettingsCorrectly() {
-        assertFromMap_CreatesSettingsCorrectly(
-            TEST_MODEL_ID,
-            null,
-            null,
-            ConfigurationParseContext.REQUEST,
-            TEST_MODEL_ID,
-            CohereCommonServiceSettings.CohereApiVersion.V2
-        );
-    }
-
-    public void testFromMap_Persistent_NullApiVersion_NewModelIdField_CreatesSettingsCorrectly() {
-        assertFromMap_CreatesSettingsCorrectly(
-            TEST_MODEL_ID,
-            null,
-            null,
-            ConfigurationParseContext.PERSISTENT,
-            TEST_MODEL_ID,
-            CohereCommonServiceSettings.CohereApiVersion.V1
-        );
-    }
-
-    public void testFromMap_V2_NewModelIdField_CreatesSettingsCorrectly() {
-        assertFromMap_CreatesSettingsCorrectly(
-            TEST_MODEL_ID,
-            null,
-            CohereCommonServiceSettings.CohereApiVersion.V2,
-            ConfigurationParseContext.PERSISTENT,
-            TEST_MODEL_ID,
-            CohereCommonServiceSettings.CohereApiVersion.V2
-        );
-    }
-
-    public void testFromMap_Request_NullApiVersion_LegacyModelIdField_CreatesSettingsCorrectly() {
-        assertFromMap_CreatesSettingsCorrectly(
-            null,
-            TEST_LEGACY_MODEL_ID,
-            null,
-            ConfigurationParseContext.REQUEST,
-            TEST_LEGACY_MODEL_ID,
-            CohereCommonServiceSettings.CohereApiVersion.V2
-        );
-    }
-
-    public void testFromMap_Persistent_NullApiVersion_LegacyModelIdField_CreatesSettingsCorrectly() {
-        assertFromMap_CreatesSettingsCorrectly(
-            null,
-            TEST_LEGACY_MODEL_ID,
-            null,
-            ConfigurationParseContext.PERSISTENT,
-            TEST_LEGACY_MODEL_ID,
-            CohereCommonServiceSettings.CohereApiVersion.V1
-        );
-    }
-
-    public void testFromMap_V2_LegacyModelIdField_CreatesSettingsCorrectly() {
-        assertFromMap_CreatesSettingsCorrectly(
-            null,
-            TEST_LEGACY_MODEL_ID,
-            CohereCommonServiceSettings.CohereApiVersion.V2,
-            ConfigurationParseContext.PERSISTENT,
-            TEST_LEGACY_MODEL_ID,
-            CohereCommonServiceSettings.CohereApiVersion.V2
-        );
-    }
-
-    public void testFromMap_Request_NullApiVersion_BothNewAndLegacyModelIdFields_CreatesSettingsCorrectly() {
-        assertFromMap_CreatesSettingsCorrectly(
-            TEST_MODEL_ID,
-            TEST_LEGACY_MODEL_ID,
-            null,
-            ConfigurationParseContext.REQUEST,
-            TEST_MODEL_ID,
-            CohereCommonServiceSettings.CohereApiVersion.V2
-        );
-    }
-
-    public void testFromMap_Persistent_NullApiVersion_BothNewAndLegacyModelIdFields_CreatesSettingsCorrectly() {
-        assertFromMap_CreatesSettingsCorrectly(
-            TEST_MODEL_ID,
-            TEST_LEGACY_MODEL_ID,
-            null,
-            ConfigurationParseContext.PERSISTENT,
-            TEST_MODEL_ID,
-            CohereCommonServiceSettings.CohereApiVersion.V1
-        );
-    }
-
-    public void testFromMap_Persistent_V2_BothNewAndLegacyModelIdFields_CreatesSettingsCorrectly() {
-        assertFromMap_CreatesSettingsCorrectly(
-            TEST_MODEL_ID,
-            TEST_LEGACY_MODEL_ID,
-            CohereCommonServiceSettings.CohereApiVersion.V2,
-            ConfigurationParseContext.PERSISTENT,
-            TEST_MODEL_ID,
-            CohereCommonServiceSettings.CohereApiVersion.V2
-        );
-    }
-
-    public void testFromMap_Persistent_V1_NoModelIdFields_CreatesSettingsCorrectly() {
-        assertFromMap_CreatesSettingsCorrectly(
-            null,
-            null,
-            CohereCommonServiceSettings.CohereApiVersion.V1,
-            ConfigurationParseContext.PERSISTENT,
-            null,
-            CohereCommonServiceSettings.CohereApiVersion.V1
-        );
-    }
-
-    private static void assertFromMap_CreatesSettingsCorrectly(
-        String modelId,
-        String legacyModelId,
-        CohereCommonServiceSettings.CohereApiVersion apiVersion,
-        ConfigurationParseContext context,
-        String expectedModelId,
-        CohereCommonServiceSettings.CohereApiVersion expectedApiVersion
-    ) {
-        var serviceSettings = CohereEmbeddingsServiceSettings.fromMap(
-            buildServiceSettingsMap(modelId, legacyModelId, TEST_EMBEDDING_TYPE.toString(), apiVersion),
-            context
-        );
-
-        assertThat(
-            serviceSettings,
-            is(
-                new CohereEmbeddingsServiceSettings(
-                    new CohereCommonServiceSettings(expectedModelId, new RateLimitSettings(TEST_RATE_LIMIT), expectedApiVersion),
-                    TEST_SIMILARITY_MEASURE,
-                    TEST_DIMENSIONS,
-                    TEST_MAX_INPUT_TOKENS,
-                    TEST_EMBEDDING_TYPE
                 )
             )
         );
@@ -671,35 +532,6 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
         entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
         entries.addAll(InferenceNamedWriteablesProvider.getNamedWriteables());
         return new NamedWriteableRegistry(entries);
-    }
-
-    private static HashMap<String, Object> buildServiceSettingsMap(
-        @Nullable String modelId,
-        @Nullable String legacyModelId,
-        @Nullable String embeddingType,
-        @Nullable CohereCommonServiceSettings.CohereApiVersion apiVersion
-    ) {
-        var result = new HashMap<String, Object>();
-        result.put(ServiceFields.SIMILARITY, CohereEmbeddingsServiceSettingsTests.TEST_SIMILARITY_MEASURE.toString());
-        result.put(ServiceFields.DIMENSIONS, TEST_DIMENSIONS);
-        result.put(ServiceFields.MAX_INPUT_TOKENS, TEST_MAX_INPUT_TOKENS);
-        if (modelId != null) {
-            result.put(ServiceFields.MODEL_ID, modelId);
-        }
-        if (legacyModelId != null) {
-            result.put(CohereCommonServiceSettings.OLD_MODEL_ID_FIELD, legacyModelId);
-        }
-        if (embeddingType != null) {
-            result.put(ServiceFields.EMBEDDING_TYPE, embeddingType);
-        }
-        if (apiVersion != null) {
-            result.put(CohereCommonServiceSettings.API_VERSION, apiVersion.toString());
-        }
-        result.put(
-            RateLimitSettings.FIELD_NAME,
-            new HashMap<>(Map.of(RateLimitSettings.REQUESTS_PER_MINUTE_FIELD, CohereEmbeddingsServiceSettingsTests.TEST_RATE_LIMIT))
-        );
-        return result;
     }
 
     public static Map<String, Object> getServiceSettingsMap(@Nullable String model, @Nullable Enum<?> embeddingType) {

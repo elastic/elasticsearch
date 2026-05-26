@@ -58,6 +58,7 @@ import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceProvider;
 import org.elasticsearch.search.vectors.VectorData;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.IndexSettingsModule;
@@ -2186,7 +2187,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
             }
             assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
             KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-            VectorScorerFactory factory = VectorScorerFactory.instance().orElse(null);
+            VectorScorerFactory factory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
             String encoding = quantizedFlatFormat.equals("int4_flat") ? "PACKED_NIBBLE" : "SEVEN_BIT";
             assertThat(
                 knnVectorsFormat,
@@ -2195,7 +2196,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                         containsString("ES94ScalarQuantizedVectorsFormat(name=ES94ScalarQuantizedVectorsFormat"),
                         containsString("encoding=" + encoding),
                         containsString("flatVectorScorer=ESQuantizedFlatVectorsScorer("),
-                        containsString("factory=" + (factory != null ? factory : "null")),
+                        containsString("factory=" + factory),
                         containsString(
                             "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                                 + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
@@ -2231,7 +2232,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
         assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        VectorScorerFactory factory = VectorScorerFactory.instance().orElse(null);
+        VectorScorerFactory factory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
         assertThat(
             knnVectorsFormat,
             hasToString(
@@ -2246,7 +2247,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                             + ", flatVectorFormat=ES94ScalarQuantizedVectorsFormat(name=ES94ScalarQuantizedVectorsFormat"
                     ),
                     containsString("encoding=SEVEN_BIT"),
-                    containsString("factory=" + (factory != null ? factory : "null")),
+                    containsString("factory=" + factory),
                     containsString(
                         "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                             + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="
@@ -2332,7 +2333,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
         }
         assertThat(codec, instanceOf(LegacyPerFieldMapperCodec.class));
         KnnVectorsFormat knnVectorsFormat = ((LegacyPerFieldMapperCodec) codec).getKnnVectorsFormatForField("field");
-        VectorScorerFactory factory = VectorScorerFactory.instance().orElse(null);
+        VectorScorerFactory factory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
         assertThat(
             knnVectorsFormat,
             hasToString(
@@ -2347,7 +2348,7 @@ public class DenseVectorFieldMapperTests extends SyntheticVectorsMapperTestCase 
                             + ", flatVectorFormat=ES94ScalarQuantizedVectorsFormat(name=ES94ScalarQuantizedVectorsFormat"
                     ),
                     containsString("encoding=PACKED_NIBBLE"),
-                    containsString("factory=" + (factory != null ? factory : "null")),
+                    containsString("factory=" + factory),
                     containsString(
                         "rawVectorFormat=ES93GenericFlatVectorsFormat(name=ES93GenericFlatVectorsFormat, format="
                             + "Lucene99FlatVectorsFormat(name=Lucene99FlatVectorsFormat, flatVectorScorer="

@@ -56,6 +56,7 @@ import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -336,15 +337,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
     @Override
     public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         try {
-            var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, model.getTaskType());
             if (supportsMultimodalRerank() == false
                 && (request.query().isNonText() || request.inputs().stream().anyMatch(InferenceString::isNonText))) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        Strings.format("The %s service does not support rerank with non-text inputs or queries", name()),
-                        RestStatus.BAD_REQUEST
-                    )
-                );
+                listener.onFailure(createUnsupportedMultimodalRerankException(name()));
                 return;
             }
 
@@ -352,6 +347,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
             validateRerankParameters(request.returnDocuments(), request.topN(), validationException);
             validationException.throwIfValidationErrorsExist();
 
+            var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, model.getTaskType());
             doRerankInfer(model, request, resolvedInferenceTimeout, listener);
         } catch (Exception e) {
             listener.onFailure(e);

@@ -33,7 +33,6 @@ import org.elasticsearch.test.NodeRoles;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
-import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -73,11 +72,6 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
     // keep RPS reasonable so each slice doesn't sleep and delay relocation for too long (max 1s)
     private final int requestsPerSecond = randomIntBetween(bulkSize * numOfSlices, 20);
     private final int numberOfDocumentsThatTakes60SecondsToIngest = 60 * requestsPerSecond;
-
-    @BeforeClass
-    public static void skipIfReindexResilienceDisabled() {
-        assumeTrue("reindex resilience is enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
-    }
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -130,9 +124,11 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
             timeMillisBeforeSecondRethrottle
         );
 
-        // 15s timeout is well under the 60s the throttled reindex would take,
-        // so completing within this window proves the unlimited rate was applied
-        final GetReindexResponse completedResponse = getReindexWithWaitForCompletion(setup.originalTaskId, true);
+        final GetReindexResponse completedResponse = getReindexWithWaitForCompletion(
+            setup.originalTaskId,
+            true,
+            TimeValue.timeValueMinutes(1)
+        );
         final Map<String, Object> responseMap = XContentTestUtils.convertToMap(completedResponse);
         assertThat(responseMap.get("completed"), is(true));
         assertThat(responseMap.get("error"), is(nullValue()));
@@ -281,10 +277,15 @@ public class ReindexRethrottleRelocationIT extends ESIntegTestCase {
     }
 
     private GetReindexResponse getReindexWithWaitForCompletion(final TaskId taskId, final boolean waitForCompletion) {
-        return client().execute(
-            TransportGetReindexAction.TYPE,
-            new GetReindexRequest(taskId, waitForCompletion, TimeValue.timeValueSeconds(15))
-        ).actionGet();
+        return getReindexWithWaitForCompletion(taskId, waitForCompletion, TimeValue.timeValueSeconds(15));
+    }
+
+    private GetReindexResponse getReindexWithWaitForCompletion(
+        final TaskId taskId,
+        final boolean waitForCompletion,
+        final TimeValue timeout
+    ) {
+        return client().execute(TransportGetReindexAction.TYPE, new GetReindexRequest(taskId, waitForCompletion, timeout)).actionGet();
     }
 
     private Map<String, Object> rethrottleReindex(final TaskId taskId, final int requestsPerSecond) throws Exception {

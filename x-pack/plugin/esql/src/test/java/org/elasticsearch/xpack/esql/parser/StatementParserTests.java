@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -996,6 +997,31 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
     }
 
+    /** Regression test for <a href="https://github.com/elastic/elasticsearch/issues/146073">#146073</a>. */
+    public void testWildcardPatternWithReservedPrefixChar() {
+        List<String> commands = new ArrayList<>();
+        commands.add("FROM");
+        if (Build.current().isSnapshot()) {
+            commands.add("TS");
+        }
+        for (String command : commands) {
+            assertStringAsIndexPattern("*_logs", command + " *_logs");
+            assertStringAsIndexPattern("*+logs", command + " *+logs");
+            assertStringAsIndexPattern("**_logs", command + " **_logs");
+            assertStringAsIndexPattern("foo*_logs", command + " foo*_logs");
+            assertStringAsIndexPattern("*_logs,*_metrics", command + " *_logs,*_metrics");
+            assertStringAsIndexPattern("cluster:*_logs", command + " cluster:*_logs");
+            if (EsqlCapabilities.Cap.INDEX_COMPONENT_SELECTORS.isEnabled()) {
+                assertStringAsIndexPattern("*_logs::data", command + " *_logs::data");
+            }
+
+            String lineNumber = command.equals("FROM") ? "line 1:6: " : "line 1:4: ";
+            expectError(command + " _logs*", lineNumber + "Invalid index name [_logs], must not start with '_', '-', or '+'");
+            expectError(command + " _*logs", lineNumber + "Invalid index name [_logs], must not start with '_', '-', or '+'");
+            expectError(command + " +logs*", lineNumber + "Invalid index name [+logs], must not start with '_', '-', or '+'");
+        }
+    }
+
     public void testInvalidQuotingAsFromIndexPattern() {
         expectError("FROM \"foo", ": token recognition error at: '\"foo'");
         expectError("FROM \"foo | LIMIT 1", ": token recognition error at: '\"foo | LIMIT 1'");
@@ -1179,6 +1205,44 @@ public class StatementParserTests extends AbstractStatementParserTests {
             FROM foo
             | LIMIT -1 + 5 BY languages
             """));
+    }
+
+    public void testDedup() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("FROM foo | DEDUP");
+        Dedup dedup = as(plan, Dedup.class);
+        UnresolvedRelation relation = as(dedup.child(), UnresolvedRelation.class);
+        assertThat(relation.indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testDedupAfterProcessingCommands() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("FROM foo | EVAL x = a + 1 | WHERE b > 0 | DEDUP");
+        Dedup dedup = as(plan, Dedup.class);
+        as(dedup.child(), Filter.class);
+    }
+
+    public void testDedupChained() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("FROM foo | DEDUP | LIMIT 10");
+        Limit limit = as(plan, Limit.class);
+        as(limit.child(), Dedup.class);
+    }
+
+    public void testDedupOnRow() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assertEqualsIgnoringIds(new Dedup(EMPTY, PROCESSING_CMD_INPUT), processingCommand("DEDUP"));
+    }
+
+    public void testDedupRejectsArguments() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectThrows(ParsingException.class, containsString("extraneous input 'a' expecting"), () -> query("FROM foo | DEDUP a"));
+        expectThrows(ParsingException.class, containsString("extraneous input '*' expecting"), () -> query("FROM foo | DEDUP *"));
+    }
+
+    public void testDedupNotInReleaseBuild() {
+        assumeFalse("only runs on release build", Build.current().isSnapshot());
+        expectThrows(ParsingException.class, containsString("mismatched input 'DEDUP'"), () -> query("FROM foo | DEDUP"));
     }
 
     public void testBasicSortCommand() {

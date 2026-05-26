@@ -143,7 +143,8 @@ public class DataSourceService {
      * (security plugin absent or PEK feature flag off), the settings pass through unchanged and a WARN
      * naming the data source is logged if any of them carries a real secret.
      */
-    private static DataSourceSettings applyEncryption(
+    // Package-private for unit testing of the encrypt-or-fallback transform in isolation.
+    static DataSourceSettings applyEncryption(
         String dataSourceName,
         DataSourceSettings settings,
         @Nullable EncryptionService encryptionService

@@ -330,7 +330,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.visitCode();
 
-        // For opted-in functions: expose the script receiver under "$scriptThis" (an instance method
+        // For opted-in functions: expose the script receiver under "#scriptThis" (an instance method
         // already has it at slot 0; a static lambda receives it as a synthetic first parameter), then
         // cache _getCancellationCheck() in #cancelRunnable and apply an entry-time persistent-counter
         // decrement so function calls (not just loop back-edges) count toward the next cancellation
@@ -345,15 +345,15 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         if (cancellation || staticCancellation) {
             Variable scriptThis;
             if (cancellation) {
-                // Instance method: ASTORE `this` into a regular "$scriptThis" slot so nested static
-                // lambdas can find it by name through IRDCaptureNames.
-                scriptThis = writeScope.defineVariable(Object.class, "$scriptThis");
+                // Instance method: ASTORE `this` into a "#scriptThis" slot so nested static lambdas
+                // can find it via IRDCaptureNames (which looks up names verbatim).
+                scriptThis = writeScope.defineInternalVariable(Object.class, "scriptThis");
                 methodWriter.loadThis();
                 methodWriter.visitVarInsn(Opcodes.ASTORE, scriptThis.getSlot());
             } else {
-                // Static lambda: "$scriptThis" was already registered by the parameter-name loop above
-                // as the first parameter (slot 0), declared with the script base class type.
-                scriptThis = writeScope.getVariable("$scriptThis");
+                // Static lambda: "#scriptThis" was already registered by the parameter-name loop
+                // above as the first parameter (slot 0), declared with the script base class type.
+                scriptThis = writeScope.getInternalVariable("scriptThis");
             }
 
             Variable cancelRunnable = writeScope.defineInternalVariable(Runnable.class, "cancelRunnable");
@@ -441,7 +441,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
     /**
      * Decrements the persistent {@link WriterConstants#CANCEL_POLL_FIELD} on the script instance
-     * (loaded from the {@code $scriptThis} local) and, when it reaches zero, invokes the
+     * (loaded from the {@code #scriptThis} local) and, when it reaches zero, invokes the
      * cancellation runnable and resets the counter.  The caller must have already verified that
      * the runnable is non-null.  A {@code CHECKCAST} to {@link WriterConstants#CLASS_TYPE} is
      * emitted before each field access because the static-lambda parameter is declared with the
@@ -449,7 +449,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
      */
     private static void writePersistentCancellationDecrement(MethodWriter methodWriter, WriteScope writeScope, int runnableSlot) {
         Label skip = new Label();
-        int scriptThisSlot = writeScope.getVariable("$scriptThis").getSlot();
+        int scriptThisSlot = writeScope.getInternalVariable("scriptThis").getSlot();
 
         // --scriptThis.$cancelPoll; if ($cancelPoll > 0) skip;
         loadScriptInstance(methodWriter, scriptThisSlot);
@@ -472,7 +472,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
     }
 
     /**
-     * Loads the script instance from {@code $scriptThis} and downcasts to the generated class so
+     * Loads the script instance from {@code #scriptThis} and downcasts to the generated class so
      * subsequent {@code GETFIELD}/{@code PUTFIELD} of {@link WriterConstants#CANCEL_POLL_FIELD}
      * verify.  The cast is a no-op for instance methods (the slot already holds the generated
      * class) and a real downcast for static lambdas (the slot type is the script base class).

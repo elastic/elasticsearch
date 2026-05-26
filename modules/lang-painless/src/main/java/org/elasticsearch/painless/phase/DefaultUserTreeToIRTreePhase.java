@@ -1429,7 +1429,8 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
         // For typed static lambdas in cancellation-aware scripts: inject the script receiver as a
         // synthetic first capture so the lambda body shares the script's persistent $cancelPoll
         // counter and can fetch the cancel Runnable via _getCancellationCheck(). The enclosing
-        // function exposes itself as "$scriptThis"; the lambda receives it as a parameter of the
+        // function exposes itself as "#scriptThis" (compiler-internal namespace, matching the
+        // other "#"-prefixed bookkeeping locals); the lambda receives it as a parameter of the
         // script base class type and uses it the same way an instance method would use "this".
         boolean injectCancelCapture = irFunctionNode.hasCondition(IRCStatic.class)
             && scriptScope.getScriptClassInfo().supportsCancellation()
@@ -1444,7 +1445,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irFunctionNode.attachDecoration(new IRDTypeParameters(augTypes));
 
             List<String> augNames = new ArrayList<>();
-            augNames.add("$scriptThis");
+            augNames.add("#scriptThis");
             augNames.addAll(irFunctionNode.getDecorationValue(IRDParameterNames.class));
             irFunctionNode.attachDecoration(new IRDParameterNames(augNames));
         }
@@ -1462,7 +1463,7 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
         if (injectCancelCapture) {
             List<String> augCaptures = new ArrayList<>();
-            augCaptures.add("$scriptThis");
+            augCaptures.add("#scriptThis");
             if (captureNames != null) {
                 augCaptures.addAll(captureNames);
             }

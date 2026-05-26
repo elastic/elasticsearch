@@ -76,8 +76,6 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
                 // We don't know whether the job is on an old or upgraded node, so cannot assert that the mappings have been upgraded
                 break;
             case UPGRADED:
-                // Job may have been closed during rolling upgrade; reopen so results aliases exist
-                openTestJob();
                 assertUpgradedResultsMappings();
                 assertUpgradedAnnotationsMappings();
                 closeAndReopenTestJob();
@@ -131,6 +129,22 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
         assertEquals(200, response.getStatusLine().getStatusCode());
     }
 
+    /**
+     * Opens the test job if it was closed during rolling upgrade so results write aliases exist.
+     * The job must already exist from the {@code OLD} cluster phase.
+     */
+    private void ensureTestJobIsOpen() throws IOException {
+        Request getJob = new Request("GET", "_ml/anomaly_detectors/" + JOB_ID);
+        Response response = client().performRequest(getJob);
+        assertEquals(200, response.getStatusLine().getStatusCode());
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> jobs = (List<Map<String, Object>>) entityAsMap(response).get("jobs");
+        assertThat(jobs, hasSize(1));
+        if ("closed".equals(jobs.get(0).get("state"))) {
+            openTestJob();
+        }
+    }
+
     // Doing this should force the config index mappings to be upgraded,
     // when the finished time is cleared on reopening the job
     private void openTestJob() throws IOException {
@@ -152,6 +166,7 @@ public class MlMappingsUpgradeIT extends AbstractUpgradeTestCase {
     private void assertUpgradedResultsMappings() throws Exception {
 
         assertBusy(() -> {
+            ensureTestJobIsOpen();
             Request getMappings = new Request("GET", XPackRestTestHelper.resultsWriteAlias(JOB_ID) + "/_mappings");
             Response response = client().performRequest(getMappings);
 

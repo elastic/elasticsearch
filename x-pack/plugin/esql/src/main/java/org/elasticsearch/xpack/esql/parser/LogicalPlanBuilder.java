@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.ChangePoint;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -457,6 +458,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public LogicalPlan visitFromCommand(EsqlBaseParser.FromCommandContext ctx) {
         return visitRelation(source(ctx), SourceCommand.FROM, ctx.indexPatternAndMetadataFields());
+    }
+
+    @Override
+    public PlanFactory visitDedupCommand(EsqlBaseParser.DedupCommandContext ctx) {
+        Source source = source(ctx);
+        return input -> new Dedup(source, input);
     }
 
     @Override

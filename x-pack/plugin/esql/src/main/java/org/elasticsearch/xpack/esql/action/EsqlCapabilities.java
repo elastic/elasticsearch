@@ -2880,6 +2880,12 @@ public class EsqlCapabilities {
         FIRST_AGG_EXTENDED_TYPES,
 
         /**
+         * Support for the {@code DEDUP} command, which removes duplicate rows from the result set.
+         * Snapshot-only.
+         */
+        DEDUP_COMMAND(Build.current().isSnapshot()),
+
+        /**
          * Support for COALESCE with date_range type.
          */
         COALESCE_DATE_RANGE(Build.current().isSnapshot()),

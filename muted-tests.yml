@@ -600,3 +600,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:where-like.likePrefixSuffix}
   issue: https://github.com/elastic/elasticsearch/issues/149904
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:ints.valuesLongGrouped}
+  issue: https://github.com/elastic/elasticsearch/issues/149905

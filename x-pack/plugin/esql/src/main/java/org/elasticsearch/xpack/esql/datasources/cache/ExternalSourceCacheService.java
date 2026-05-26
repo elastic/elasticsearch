@@ -164,14 +164,11 @@ public class ExternalSourceCacheService implements Closeable {
             }
             Map<String, Object> mergedForFile = null;
             if (wholeFile.isEmpty() == false) {
-                // Deduplicate duplicate complete reads — true duplicates are identical; pick the
-                // one with the largest row count as a defensive tie-break.
+                // A whole-file read always reports the file's full row count: text readers apply no
+                // scan-time filter, and the wholeFileRead shape requires the first+last split with no
+                // parallel slicing. Duplicate complete reads of one file are therefore identical, so
+                // we take the first and never sum.
                 mergedForFile = wholeFile.get(0);
-                for (Map<String, Object> c : wholeFile) {
-                    if (rowCountOf(c) > rowCountOf(mergedForFile)) {
-                        mergedForFile = c;
-                    }
-                }
             } else if (partials.size() == 1) {
                 mergedForFile = partials.get(0);
             } else if (partials.isEmpty() == false) {
@@ -199,11 +196,6 @@ public class ExternalSourceCacheService implements Closeable {
             }
         }
         reconcileSourceStats(merged);
-    }
-
-    private static long rowCountOf(Map<String, Object> stats) {
-        Object rc = stats.get(org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.STATS_ROW_COUNT);
-        return rc instanceof Number n ? n.longValue() : -1L;
     }
 
     /**

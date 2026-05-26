@@ -449,13 +449,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ctx.stepAttr(),
             ctx.optimizerContext().configuration()
         );
-        Expression function = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
-            scalarFunction.functionName(),
-            scalarFunction.source(),
-            null,
-            promqlCtx,
-            List.of()
-        );
+        Expression function = scalarFunction.buildEsqlFunction(promqlCtx);
 
         return new TranslationResult(currentPlan, function);
     }
@@ -661,7 +655,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             }
         }
 
-        return new TimeSeriesAggregate(source, plan, groupings, aggregates, null, command.timestamp(), command.isCollapsed());
+        return new TimeSeriesAggregate(source, plan, groupings, aggregates, null, command.timestamp());
     }
 
     private static boolean hasTSGrouping(List<Attribute> groupings) {

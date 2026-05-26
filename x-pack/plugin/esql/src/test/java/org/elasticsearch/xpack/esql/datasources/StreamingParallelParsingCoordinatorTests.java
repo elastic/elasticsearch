@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -757,6 +759,91 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
             for (int i = 0; i < lineCount; i++) {
                 assertEquals("line-" + String.format(Locale.ROOT, "%04d", i), allLines.get(i));
             }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * End-to-end test: drives {@link NdJsonFormatReader} through the streaming parallel coordinator,
+     * verifying that chunk splitting at record boundaries, schema inference from the first chunk, and
+     * multi-chunk ordered output all work with the real NDJSON parser.
+     * <p>
+     * Uses a 64 KiB segment size (the minimum) with ~4 000 records (~300 KiB) so the coordinator
+     * produces 4–5 chunks. Projects a single {@code "name"} keyword column for easy comparison with
+     * the existing {@link #collectLines} helper.
+     */
+    public void testNdJsonFormatReaderStreamingParallel() throws Exception {
+        int recordCount = 4000;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < recordCount; i++) {
+            sb.append(String.format(Locale.ROOT, "{\"id\":%d,\"name\":\"record-%04d\",\"value\":%d}\n", i, i, i * 7));
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        Settings settings = Settings.builder().put(NdJsonFormatReader.SEGMENT_SIZE_SETTING, "64kb").build();
+        NdJsonFormatReader reader = new NdJsonFormatReader(settings, TEST_BLOCK_FACTORY, null);
+
+        ExecutorService executor = Executors.newFixedThreadPool(8);
+        try {
+            List<String> names = collectLines(
+                StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    new ByteArrayInputStream(bytes),
+                    List.of("name"),
+                    100,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT
+                )
+            );
+
+            assertEquals(recordCount, names.size());
+            for (int i = 0; i < recordCount; i++) {
+                assertEquals("record " + i, "record-" + String.format(Locale.ROOT, "%04d", i), names.get(i));
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+    }
+
+    /**
+     * Variant of {@link #testNdJsonFormatReaderStreamingParallel()} that projects no columns,
+     * exercising the {@code COUNT(*)} fast path where the NDJSON decoder only counts records without
+     * materialising field values. The coordinator must still split and order chunks correctly.
+     */
+    public void testNdJsonFormatReaderStreamingParallelCountOnly() throws Exception {
+        int recordCount = 5000;
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < recordCount; i++) {
+            sb.append(String.format(Locale.ROOT, "{\"id\":%d,\"name\":\"row-%04d\"}\n", i, i));
+        }
+        byte[] bytes = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        Settings settings = Settings.builder().put(NdJsonFormatReader.SEGMENT_SIZE_SETTING, "64kb").build();
+        NdJsonFormatReader reader = new NdJsonFormatReader(settings, TEST_BLOCK_FACTORY, null);
+
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            int totalRows = 0;
+            try (
+                CloseableIterator<Page> pages = StreamingParallelParsingCoordinator.parallelRead(
+                    reader,
+                    new ByteArrayInputStream(bytes),
+                    List.of(),
+                    200,
+                    4,
+                    executor,
+                    ErrorPolicy.STRICT
+                )
+            ) {
+                while (pages.hasNext()) {
+                    Page page = pages.next();
+                    totalRows += page.getPositionCount();
+                    page.releaseBlocks();
+                }
+            }
+            assertEquals(recordCount, totalRows);
         } finally {
             executor.shutdownNow();
         }

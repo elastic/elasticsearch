@@ -764,14 +764,14 @@ public class SearchableSnapshotsCanMatchOnCoordinatorIntegTests extends BaseFroz
 
     /**
      * Can match against searchable snapshots is tested via both the Search API and the SearchShards (transport-only) API.
-     * The latter is a way to do only a can-match rather than all search phases.  Tests the case where columnar_logsdb mode is
+     * The latter is a way to do only a can-match rather than all search phases.  Tests the case where logsdb_columnar mode is
      * enabled and therefore the timestamp field is stored with a sparse index.
      */
     public void testColumnarLogsDBSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode() throws Exception {
-        // When the columnar feature flag is enabled, randomly exercise COLUMNAR_LOGSDB; fall back to LOGSDB otherwise.
+        // When the columnar feature flag is enabled, randomly exercise LOGSDB_COLUMNAR; fall back to LOGSDB otherwise.
         // assumeTrue cannot be used here because the cluster is started before the test body runs, and a mid-test skip
         // leaves the cluster in a state where @After cleanup cannot obtain a client.
-        IndexMode mode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean() ? IndexMode.COLUMNAR_LOGSDB : IndexMode.LOGSDB;
+        IndexMode mode = IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled() && randomBoolean() ? IndexMode.LOGSDB_COLUMNAR : IndexMode.LOGSDB;
         testSearchableSnapshotShardsThatHaveMatchingDataAreNotSkippedOnTheCoordinatingNode(mode);
     }
 

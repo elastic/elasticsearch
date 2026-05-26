@@ -143,7 +143,7 @@ public class StatelessSnapshotShardContextTests extends ESTestCase {
             @Override
             public void onResponse(IndexShardSnapshotStatus.AbortStatus abortStatus) {
                 assertThat(abortStatus, is(IndexShardSnapshotStatus.AbortStatus.ABORTED));
-                snapshotIndexCommit.onAbort();
+                snapshotIndexCommit.releaseInitialReference();
             }
 
             @Override

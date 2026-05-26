@@ -877,7 +877,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         }
         if (dsIndexMode != indexModeFromTemplate) {
             if (indexModeFromTemplate == IndexMode.TIME_SERIES
-                && (dsIndexMode == IndexMode.LOGSDB || dsIndexMode == IndexMode.COLUMNAR_LOGSDB)) {
+                && (dsIndexMode == IndexMode.LOGSDB || dsIndexMode == IndexMode.LOGSDB_COLUMNAR)) {
                 LOGGER.warn("Changing [{}] index mode from [{}] to [{}]", name, indexModeFromTemplate, dsIndexMode);
             }
             dsIndexMode = indexModeFromTemplate;

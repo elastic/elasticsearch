@@ -83,6 +83,49 @@ public class SearchEngineTests extends AbstractEngineTestCase {
         return engine.getCurrentPrimaryTermAndGeneration().generation();
     }
 
+    public void testFieldInfoCachingDirectoryWrapsSearchEngineDirectory() throws IOException {
+        assumeTrue(
+            "requires the per-Directory FieldInfo cache feature flag",
+            org.elasticsearch.index.store.FieldInfoCachingDirectory.FEATURE_FLAG.isEnabled()
+        );
+        final var indexConfig = indexConfig();
+        final var searchTaskQueue = new DeterministicTaskQueue();
+
+        try (
+            var indexEngine = newIndexEngine(indexConfig);
+            var searchEngine = newSearchEngineFromIndexEngine(indexEngine, searchTaskQueue)
+        ) {
+            for (int i = 0; i < 3; i++) {
+                indexEngine.index(randomDoc(String.valueOf(i)));
+                indexEngine.flush();
+            }
+            notifyCommits(indexEngine, searchEngine);
+            searchTaskQueue.runAllRunnableTasks();
+
+            try (Searcher searcher = searchEngine.acquireSearcher("test")) {
+                DirectoryReader reader = searcher.getDirectoryReader();
+                boolean sawCachingDir = false;
+                for (org.apache.lucene.index.LeafReaderContext leaf : reader.leaves()) {
+                    org.apache.lucene.index.SegmentReader sr = org.elasticsearch.common.lucene.Lucene.tryUnwrapSegmentReader(leaf.reader());
+                    assertNotNull("expected SegmentReader at leaf", sr);
+                    if (org.elasticsearch.index.store.FieldInfoCachingDirectory.unwrap(sr.getSegmentInfo().info.dir) != null) {
+                        sawCachingDir = true;
+                    }
+                }
+                // Wiring check: at least one SearchEngine leaf must surface the FieldInfoCachingDirectory via SegmentInfo.dir.
+                // This is what CachingFieldInfosFormat consults to reach the per-Directory cache. Identity assertions across
+                // leaves are deliberately not made here because the system fields (_id, _seq_no, _version, etc.) carry DV
+                // generations that vary per segment in stateless; those are covered in CachingFieldInfosFormatTests against a
+                // schema with stable DV gens.
+                assertTrue("expected at least one SearchEngine leaf to see FieldInfoCachingDirectory via SegmentInfo.dir", sawCachingDir);
+            }
+        }
+        assertWarnings(
+            "[indices.merge.scheduler.use_thread_pool] setting was deprecated in Elasticsearch and will be removed in a future release. "
+                + "See the breaking changes documentation for the next major version."
+        );
+    }
+
     public void testCommitNotifications() throws IOException {
         final var indexConfig = indexConfig();
         final var searchTaskQueue = new DeterministicTaskQueue();

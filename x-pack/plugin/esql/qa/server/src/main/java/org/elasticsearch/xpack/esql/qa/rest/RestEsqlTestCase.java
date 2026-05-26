@@ -1647,6 +1647,10 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         });
     }
 
+    public static boolean doesntHaveCapabilities(RestClient client, List<String> capabilities) {
+        return capabilities.stream().noneMatch(cap -> hasCapabilities(client, List.of(cap)));
+    }
+
     private static Object removeOriginalTypesAndSuggestedCast(Object response) {
         if (response instanceof ArrayList<?> columns) {
             var newColumns = new ArrayList<>();
@@ -1902,9 +1906,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             """.formatted(testIndexName(), randomLong()));
 
         var timeZone = randomZone();
-        var interval = randomFrom("1 hour", "1 day", "1 month");
+        var unit = randomFrom("hour", "day", "month");
         var functions = Stream.of("DATE_TRUNC(\"%s\", @timestamp)", "BUCKET(@timestamp, \"%s\")", "TBUCKET(\"%s\")")
-            .map(f -> f.formatted(interval))
+            .map(f -> f.formatted("1 " + unit))
             .toList();
 
         Object firstResultValues = null;
@@ -1931,7 +1935,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 assertResultMap(
                     result,
                     getResultMatcher(result),
-                    matchesList().item(matchesMap().entry("name", "bucket").entry("type", "date")),
+                    matchesList().item(
+                        matchesMap() //
+                            .entry("name", "bucket")
+                            .entry("type", "date")
+                            // meta is only present if request is routed to a node supporting this feature
+                            .optionalEntry("_meta", Map.of("bucket", Map.of("interval", 1, "unit", unit)))
+                    ),
                     hasSize(greaterThanOrEqualTo(1))
                 );
 
@@ -1951,7 +1961,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public void testApproximationColumnMetadata() throws IOException {
-        assumeTrue("approximation support", EsqlCapabilities.Cap.APPROXIMATION_V6.isEnabled());
+        assumeTrue("approximation support", EsqlCapabilities.Cap.APPROXIMATION_V7.isEnabled());
         bulkLoadTestData(10);
 
         String query = "SET approximation=true; " + fromIndex() + " | STATS count=COUNT()";
@@ -2048,7 +2058,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertEquals(404, response.getStatusLine().getStatusCode());
     }
 
-    static String runEsqlAsTextWithFormat(RequestObjectBuilder builder, String format, @Nullable Character delimiter, Mode mode)
+    protected static String runEsqlAsTextWithFormat(RequestObjectBuilder builder, String format, @Nullable Character delimiter, Mode mode)
         throws IOException {
         Request request = prepareRequest(mode);
         if (mode == ASYNC) {

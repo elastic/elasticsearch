@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.search.crossproject.CrossProjectModeDecider;
@@ -25,6 +24,7 @@ import org.elasticsearch.xpack.esql.datasources.ExternalSourceResolver;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalSourceCacheService;
 import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
@@ -51,6 +51,7 @@ public class PlanExecutor {
     private final EsqlParser parser;
     private final PreAnalyzer preAnalyzer;
     private final EsqlFunctionRegistry functionRegistry;
+    private final PromqlFunctionRegistry promqlFunctionRegistry;
     private final Mapper mapper;
     private final Metrics metrics;
     private final Verifier verifier;
@@ -68,6 +69,7 @@ public class PlanExecutor {
         CrossProjectModeDecider crossProjectModeDecider,
         DataSourceModule dataSourceModule,
         EsqlFunctionRegistry functionRegistry,
+        PromqlFunctionRegistry promqlFunctionRegistry,
         EsqlParser parser,
         ExternalSourceCacheService cacheService
     ) {
@@ -75,6 +77,7 @@ public class PlanExecutor {
         this.parser = parser;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = functionRegistry;
+        this.promqlFunctionRegistry = promqlFunctionRegistry;
         this.mapper = new Mapper();
         this.metrics = new Metrics(functionRegistry, crossProjectModeDecider.crossProjectEnabled());
         this.verifier = new Verifier(metrics, licenseState, extraCheckers);
@@ -103,7 +106,7 @@ public class PlanExecutor {
         final ExternalSourceResolver externalSourceResolver = new ExternalSourceResolver(
             services.transportService().getThreadPool().executor(org.elasticsearch.threadpool.ThreadPool.Names.SEARCH),
             dataSourceModule,
-            Settings.EMPTY,
+            services.clusterService().getSettings(),
             cacheService
         );
         final var session = new EsqlSession(
@@ -117,6 +120,7 @@ public class PlanExecutor {
             parser,
             preAnalyzer,
             functionRegistry,
+            promqlFunctionRegistry,
             mapper,
             verifier,
             metrics,

@@ -15,7 +15,9 @@ import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.type.FunctionEsField;
+import org.elasticsearch.xpack.esql.core.type.MultiTypeEsField;
 import org.elasticsearch.xpack.esql.expression.function.blockloader.BlockLoaderExpression;
+import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -175,7 +177,13 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
             if (fuse == null) {
                 return e;
             }
+            if (fuse.field().field() instanceof MultiTypeEsField) {
+                return e;
+            }
             if (primaries.canPush(nodeWithExpression) == false) {
+                return e;
+            }
+            if (ble instanceof RoundTo && hasTimeSeriesShards()) {
                 return e;
             }
             MappedFieldType.FieldExtractPreference preference = context.configuration().pragmas().fieldExtractPreference();
@@ -190,6 +198,17 @@ public class PushExpressionsToFieldLoad extends ParameterizedRule<PhysicalPlan, 
             List<NamedExpression> projections = new ArrayList<>(project.projections());
             projections.addAll(addedAttrs.values());
             return new ProjectExec(project.source(), project.child(), projections);
+        }
+
+        /**
+         * Checks index metadata rather than {@link EsQueryExec#indexMode()} because
+         * {@code PruneUnusedIndexMode} can downgrade TIME_SERIES to STANDARD during
+         * logical optimization when {@code _tsid} is not referenced. This means the
+         * check also applies to {@code FROM} queries targeting time-series indices,
+         * not just {@code TS} command queries.
+         */
+        private boolean hasTimeSeriesShards() {
+            return context.searchStats().targetShards().values().stream().anyMatch(imd -> imd.getIndexMode() == IndexMode.TIME_SERIES);
         }
 
         private Expression replaceFieldsForFieldTransformations(Expression e, BlockLoaderExpression.PushedBlockLoaderExpression fuse) {

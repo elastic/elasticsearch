@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148093
+summary: Add streaming parallel parsing for gzip-compressed files
+type: enhancement

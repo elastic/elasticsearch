@@ -9,17 +9,27 @@
 
 package org.elasticsearch.index.query;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriter;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.store.Directory;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.script.FilterScript;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.test.AbstractQueryTestCase;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
@@ -126,5 +136,44 @@ public class ScriptQueryBuilderTests extends AbstractQueryTestCase<ScriptQueryBu
         ScriptQueryBuilder queryBuilder = doCreateTestQueryBuilder();
         ElasticsearchException e = expectThrows(ElasticsearchException.class, () -> queryBuilder.toQuery(searchExecutionContext));
         assertEquals("[script] queries cannot be executed when 'search.allow_expensive_queries' is set to false.", e.getMessage());
+    }
+
+    public void testCancellationCheckWiredForFilterScript() throws IOException {
+        SearchLookup lookup = new SearchLookup(null, null, (ctx, doc) -> null);
+        AtomicReference<FilterScript> capturedScript = new AtomicReference<>();
+        FilterScript.LeafFactory leafFactory = docReader -> {
+            FilterScript script = new FilterScript(Map.of(), null, docReader) {
+                @Override
+                public boolean execute() {
+                    return false;
+                }
+            };
+            capturedScript.set(script);
+            return script;
+        };
+        ScriptQueryBuilder.ScriptQuery query = new ScriptQueryBuilder.ScriptQuery(new Script("test"), leafFactory, lookup);
+
+        try (Directory dir = newDirectory()) {
+            try (IndexWriter w = new IndexWriter(dir, newIndexWriterConfig())) {
+                w.addDocument(new Document());
+                w.commit();
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                ContextIndexSearcher contextSearcher = new ContextIndexSearcher(
+                    reader,
+                    IndexSearcher.getDefaultSimilarity(),
+                    IndexSearcher.getDefaultQueryCache(),
+                    IndexSearcher.getDefaultQueryCachingPolicy(),
+                    true
+                );
+                query.createWeight(contextSearcher, ScoreMode.COMPLETE_NO_SCORES, 1.0f).scorerSupplier(reader.leaves().get(0));
+                assertNotNull(capturedScript.get()._getCancellationCheck());
+
+                capturedScript.set(null);
+                IndexSearcher plainSearcher = newSearcher(reader);
+                query.createWeight(plainSearcher, ScoreMode.COMPLETE_NO_SCORES, 1.0f).scorerSupplier(reader.leaves().get(0));
+                assertNull(capturedScript.get()._getCancellationCheck());
+            }
+        }
     }
 }

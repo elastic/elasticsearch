@@ -9,6 +9,8 @@
 
 package org.elasticsearch.test.knn.data;
 
+import org.apache.lucene.util.IOSupplier;
+import org.elasticsearch.test.knn.IndexVectorReader;
 import org.elasticsearch.test.knn.TestConfiguration;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -17,7 +19,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
 
@@ -27,14 +28,26 @@ import java.util.Locale;
  * <pre>
  *   "dataset": { "gcp": { "name": "somegcpbucketdataset" } }                                — GCP
  *   "dataset": { "file": { "doc_vectors": [...], "query_vectors": "..." } }                 — local files
- *   "dataset": { "partition_generated": { "num_partitions": 50, ... } }                      — synthetic data
+ *   "dataset": { "random_generated": { "generator_seed": 42L} }                             — synthetic data
+ * </pre>
+ *
+ * Any of the dataset svcan be partition by providing a number if partitions > 0 and an optional distribution:
+ *
+ * <pre>
+ *   "dataset": { "gcp": { "num_partitions" : 100, "partition_distribution" : "ZIPF", "name": "somegcpbucketdataset" } }
+ *   "dataset": { "file": { "num_partitions" : 100, "partition_distribution" : "ZIPF",  "doc_vectors": [...],  "query_vectors": "..."} }
+ *   "dataset": { "random_generated": { "num_partitions" : 100, "partition_distribution" : "ZIPF", "generator_seed": 42L} }
  * </pre>
  *
  * Each variant provides a {@link DataGenerator} via {@link #createDataGenerator} that
  * encapsulates all data provisioning for indexing and searching.
  */
 public sealed interface DatasetConfig extends ToXContentFragment permits DatasetConfig.GcpDataset, DatasetConfig.FileDataset,
-    DatasetConfig.PartitionGenerated {
+    DatasetConfig.RandomGenerated {
+
+    ParseField SLICE_FIELD = new ParseField("slices");
+    ParseField NUM_PARTITIONS_FIELD = new ParseField("num_partitions");
+    ParseField PARTITION_DISTRIBUTION_FIELD = new ParseField("partition_distribution");
 
     /** Distribution strategy for assigning documents to partitions. */
     enum PartitionDistribution {
@@ -46,41 +59,188 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
         }
     }
 
+    abstract class PartitionBuilder {
+        protected int numPartitions = 0;
+        protected boolean slices = false;
+        protected PartitionDistribution partitionDistribution = PartitionDistribution.UNIFORM;
+
+        void setNumPartitions(int numPartitions) {
+            this.numPartitions = numPartitions;
+        }
+
+        void setPartitionDistribution(String partitionDistribution) {
+            this.partitionDistribution = PartitionDistribution.fromString(partitionDistribution);
+        }
+
+        void setSlices(boolean slices) {
+            this.slices = slices;
+        }
+    }
+
     /**
      * Creates a {@link DataGenerator} that supplies vectors for indexing and queries for searching.
      */
     DataGenerator createDataGenerator(TestConfiguration config) throws IOException;
 
+    /**
+     * Returns true if this dataset is sliced and the number of partitions is greater than 0.
+     */
+    boolean isSliced();
+
     /** A dataset that is downloaded from a Google Cloud Storage bucket. */
-    record GcpDataset(String name) implements DatasetConfig {
+    record GcpDataset(String name, int numPartitions, PartitionDistribution partitionDistribution, boolean slices)
+        implements
+            DatasetConfig {
+
+        static final ParseField DATASET_NAME = new ParseField("name");
+
+        private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("gcp_dataset", false, Builder::new);
+
+        static {
+            PARSER.declareString(Builder::setDatasetName, DATASET_NAME);
+            PARSER.declareInt(Builder::setNumPartitions, NUM_PARTITIONS_FIELD);
+            PARSER.declareString(Builder::setPartitionDistribution, PARTITION_DISTRIBUTION_FIELD);
+            PARSER.declareBoolean(Builder::setSlices, SLICE_FIELD);
+        }
+
+        static GcpDataset fromXContent(XContentParser parser) {
+            Builder builder = PARSER.apply(parser, null);
+            if (builder.datasetName == null) {
+                throw new IllegalArgumentException("gcp dataset config requires a 'name' field");
+            }
+            return new GcpDataset(builder.datasetName, builder.numPartitions, builder.partitionDistribution, builder.slices);
+        }
 
         @Override
-        public DataGenerator createDataGenerator(TestConfiguration config) throws IOException {
-            return new FileDataGenerator(config);
+        public DataGenerator createDataGenerator(TestConfiguration config) {
+            IOSupplier<IndexVectorReader> docs = () -> IndexVectorReader.MultiFileVectorReader.create(
+                config.docVectors(),
+                config.dimensions(),
+                config.vectorEncoding().luceneEncoding(),
+                config.numDocs(),
+                config.normalizeVectors()
+            );
+            IOSupplier<IndexVectorReader> queries = () -> IndexVectorReader.MultiFileVectorReader.create(
+                List.of(config.queryVectors()),
+                config.dimensions(),
+                config.vectorEncoding().luceneEncoding(),
+                config.numQueries(),
+                config.normalizeVectors()
+            );
+            if (numPartitions == 0) {
+                return new NonPartitionDataGenerator(docs, config.numDocs(), queries, config.numQueries());
+            }
+            PartitionConfiguration partitionConfiguration = new PartitionConfiguration(
+                config.numDocs(),
+                numPartitions,
+                partitionDistribution
+            );
+            return new PartitionDataGenerator(docs, config.numDocs(), queries, config.numQueries(), partitionConfiguration);
+        }
+
+        @Override
+        public boolean isSliced() {
+            return numPartitions > 0 && slices;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject("dataset");
             builder.startObject("gcp");
+            if (numPartitions > 0) {
+                builder.field("num_partitions", numPartitions);
+                builder.field("partition_distribution", partitionDistribution.name().toLowerCase(Locale.ROOT));
+            }
             builder.field("name", name);
             builder.endObject();
             return builder.endObject();
         }
+
+        private static class Builder extends PartitionBuilder {
+            private String datasetName;
+
+            void setDatasetName(String datasetName) {
+                this.datasetName = datasetName;
+            }
+        }
     }
 
     /** A dataset specified via local file paths for doc vectors and (optionally) query vectors. */
-    record FileDataset(List<String> docVectors, String queryVectors) implements DatasetConfig {
+    record FileDataset(
+        List<String> docVectors,
+        String queryVectors,
+        int numPartitions,
+        PartitionDistribution partitionDistribution,
+        boolean slices
+    ) implements DatasetConfig {
+
+        static final ParseField DOC_VECTORS = new ParseField("doc_vectors");
+        static final ParseField QUERY_VECTORS = new ParseField("query_vectors");
+
+        private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("file_dataset", false, Builder::new);
+
+        static {
+            PARSER.declareStringArray(Builder::setDocVectors, DOC_VECTORS);
+            PARSER.declareString(Builder::setQueryVectors, QUERY_VECTORS);
+            PARSER.declareInt(Builder::setNumPartitions, NUM_PARTITIONS_FIELD);
+            PARSER.declareString(Builder::setPartitionDistribution, PARTITION_DISTRIBUTION_FIELD);
+            PARSER.declareBoolean(Builder::setSlices, SLICE_FIELD);
+        }
+
+        static FileDataset fromXContent(XContentParser parser) {
+            Builder builder = PARSER.apply(parser, null);
+            if (builder.docVectors == null || builder.docVectors.isEmpty()) {
+                throw new IllegalArgumentException("file dataset config requires 'doc_vectors'");
+            }
+            return new FileDataset(
+                builder.docVectors,
+                builder.queryVectors,
+                builder.numPartitions,
+                builder.partitionDistribution,
+                builder.slices
+            );
+        }
 
         @Override
         public DataGenerator createDataGenerator(TestConfiguration config) throws IOException {
-            return new FileDataGenerator(config);
+            IOSupplier<IndexVectorReader> docs = () -> IndexVectorReader.MultiFileVectorReader.create(
+                config.docVectors(),
+                config.dimensions(),
+                config.vectorEncoding().luceneEncoding(),
+                config.numDocs(),
+                config.normalizeVectors()
+            );
+            IOSupplier<IndexVectorReader> queries = () -> IndexVectorReader.MultiFileVectorReader.create(
+                List.of(config.queryVectors()),
+                config.dimensions(),
+                config.vectorEncoding().luceneEncoding(),
+                config.numQueries(),
+                config.normalizeVectors()
+            );
+            if (numPartitions == 0) {
+                return new NonPartitionDataGenerator(docs, config.numDocs(), queries, config.numQueries());
+            }
+            PartitionConfiguration partitionConfiguration = new PartitionConfiguration(
+                config.numDocs(),
+                numPartitions,
+                partitionDistribution
+            );
+            return new PartitionDataGenerator(docs, config.numDocs(), queries, config.numQueries(), partitionConfiguration);
+        }
+
+        @Override
+        public boolean isSliced() {
+            return numPartitions > 0 && slices;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject("dataset");
             builder.startObject("file");
+            if (numPartitions > 0) {
+                builder.field("num_partitions", numPartitions);
+                builder.field("partition_distribution", partitionDistribution.name().toLowerCase(Locale.ROOT));
+            }
             builder.field("doc_vectors", docVectors);
             if (queryVectors != null) {
                 builder.field("query_vectors", queryVectors);
@@ -88,21 +248,36 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
             builder.endObject();
             return builder.endObject();
         }
+
+        private static class Builder extends PartitionBuilder {
+            private List<String> docVectors;
+            private String queryVectors;
+
+            void setDocVectors(List<String> docVectors) {
+                this.docVectors = docVectors;
+            }
+
+            void setQueryVectors(String queryVectors) {
+                this.queryVectors = queryVectors;
+            }
+        }
     }
 
     /** A synthetically generated partitioned dataset. */
-    record PartitionGenerated(int numPartitions, PartitionDistribution partitionDistribution, long generatorSeed) implements DatasetConfig {
+    record RandomGenerated(long generatorSeed, int numPartitions, PartitionDistribution partitionDistribution, boolean slices)
+        implements
+            DatasetConfig {
 
-        static final ParseField NUM_PARTITIONS_FIELD = new ParseField("num_partitions");
-        static final ParseField PARTITION_DISTRIBUTION_FIELD = new ParseField("partition_distribution");
         static final ParseField GENERATOR_SEED_FIELD = new ParseField("generator_seed");
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject("dataset");
-            builder.startObject("partition_generated");
-            builder.field("num_partitions", numPartitions);
-            builder.field("partition_distribution", partitionDistribution.name().toLowerCase(Locale.ROOT));
+            builder.startObject("random_generated");
+            if (numPartitions > 0) {
+                builder.field("num_partitions", numPartitions);
+                builder.field("partition_distribution", partitionDistribution.name().toLowerCase(Locale.ROOT));
+            }
             builder.field("generator_seed", generatorSeed);
             builder.endObject();
             return builder.endObject();
@@ -114,30 +289,45 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
             PARSER.declareInt(Builder::setNumPartitions, NUM_PARTITIONS_FIELD);
             PARSER.declareString(Builder::setPartitionDistribution, PARTITION_DISTRIBUTION_FIELD);
             PARSER.declareLong(Builder::setGeneratorSeed, GENERATOR_SEED_FIELD);
+            PARSER.declareBoolean(Builder::setSlices, SLICE_FIELD);
         }
 
-        static PartitionGenerated fromXContent(XContentParser parser) throws IOException {
+        static RandomGenerated fromXContent(XContentParser parser) {
             Builder builder = PARSER.apply(parser, null);
-            return new PartitionGenerated(builder.numPartitions, builder.partitionDistribution, builder.generatorSeed);
+            return new RandomGenerated(builder.generatorSeed, builder.numPartitions, builder.partitionDistribution, builder.slices);
         }
 
         @Override
         public DataGenerator createDataGenerator(TestConfiguration config) {
-            return new PartitionDataGenerator(config.numDocs(), config.dimensions(), numPartitions, partitionDistribution, generatorSeed);
+            IOSupplier<IndexVectorReader> docs = () -> new IndexVectorReader.RandomVectorReader(
+                generatorSeed,
+                config.dimensions(),
+                config.normalizeVectors()
+            );
+            IOSupplier<IndexVectorReader> queries = () -> new IndexVectorReader.RandomVectorReader(
+                generatorSeed / 2,
+                config.dimensions(),
+                config.normalizeVectors()
+            );
+            if (numPartitions == 0) {
+                return new NonPartitionDataGenerator(docs, config.numDocs(), queries, config.numQueries());
+            }
+            PartitionConfiguration partitionConfiguration = new PartitionConfiguration(
+                config.numDocs(),
+                numPartitions,
+                partitionDistribution
+            );
+            return new PartitionDataGenerator(docs, config.numDocs(), queries, config.numQueries(), partitionConfiguration);
+
         }
 
-        private static class Builder {
-            private int numPartitions = 100;
-            private PartitionDistribution partitionDistribution = PartitionDistribution.UNIFORM;
+        @Override
+        public boolean isSliced() {
+            return numPartitions > 0 && slices;
+        }
+
+        private static class Builder extends PartitionBuilder {
             private long generatorSeed = 42L;
-
-            void setNumPartitions(int numPartitions) {
-                this.numPartitions = numPartitions;
-            }
-
-            void setPartitionDistribution(String partitionDistribution) {
-                this.partitionDistribution = PartitionDistribution.fromString(partitionDistribution);
-            }
 
             void setGeneratorSeed(long generatorSeed) {
                 this.generatorSeed = generatorSeed;
@@ -157,9 +347,9 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
         String typeName = parser.currentName();
         parser.nextToken();
         DatasetConfig result = switch (typeName) {
-            case "gcp" -> parseGcp(parser);
-            case "file" -> parseFile(parser);
-            case "partition_generated" -> PartitionGenerated.fromXContent(parser);
+            case "gcp" -> GcpDataset.fromXContent(parser);
+            case "file" -> FileDataset.fromXContent(parser);
+            case "random_generated" -> RandomGenerated.fromXContent(parser);
             default -> throw new IllegalArgumentException(
                 "Unknown dataset type: [" + typeName + "]. Supported: gcp, file, partition_generated"
             );
@@ -167,48 +357,5 @@ public sealed interface DatasetConfig extends ToXContentFragment permits Dataset
         // consume the outer END_OBJECT
         parser.nextToken();
         return result;
-    }
-
-    private static GcpDataset parseGcp(XContentParser parser) throws IOException {
-        String name = null;
-        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                if ("name".equals(parser.currentName())) {
-                    parser.nextToken();
-                    name = parser.text();
-                } else {
-                    throw new IllegalArgumentException("Unknown field in gcp dataset config: " + parser.currentName());
-                }
-            }
-        }
-        if (name == null) {
-            throw new IllegalArgumentException("gcp dataset config requires a 'name' field");
-        }
-        return new GcpDataset(name);
-    }
-
-    private static FileDataset parseFile(XContentParser parser) throws IOException {
-        List<String> docVectors = null;
-        String queryVectors = null;
-        if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
-            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-                String fieldName = parser.currentName();
-                parser.nextToken();
-                switch (fieldName) {
-                    case "doc_vectors" -> {
-                        docVectors = new ArrayList<>();
-                        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
-                            docVectors.add(parser.text());
-                        }
-                    }
-                    case "query_vectors" -> queryVectors = parser.text();
-                    default -> throw new IllegalArgumentException("Unknown field in file dataset config: " + fieldName);
-                }
-            }
-        }
-        if (docVectors == null || docVectors.isEmpty()) {
-            throw new IllegalArgumentException("file dataset config requires 'doc_vectors'");
-        }
-        return new FileDataset(docVectors, queryVectors);
     }
 }

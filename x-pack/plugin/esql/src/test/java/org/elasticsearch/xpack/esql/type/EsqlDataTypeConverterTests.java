@@ -11,7 +11,6 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.FieldAttributeTests;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Instant;
@@ -60,8 +59,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isString;
 import static org.elasticsearch.xpack.esql.core.type.DataType.suggestedCast;
+import static org.elasticsearch.xpack.esql.expression.function.FieldAttributeTestUtils.createFieldAttribute;
 import static org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier.TEST_SOURCE;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.parseDateRange;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class EsqlDataTypeConverterTests extends ESTestCase {
@@ -118,6 +120,15 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
             DateUtils.toLong(Instant.parse("2023-05-01T22:00:00.000Z")),
             EsqlDataTypeConverter.convert("2023-05-02", DATE_NANOS, cetCestConfig)
         );
+    }
+
+    public void testParseDateRangeRejectsFromAfterTo() {
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> parseDateRange("2024-12-31T00:00:00.000Z..2024-01-01T00:00:00.000Z", ZoneOffset.UTC)
+        );
+        assertThat(e.getMessage(), containsString("'from'"));
+        assertThat(e.getMessage(), containsString("must be less than 'to'"));
     }
 
     public void testCommonTypeNull() {
@@ -238,7 +249,7 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
 
     public void testConfigurationConvertersAreConfigurationAware() {
         var configuration = randomConfiguration();
-        var field = FieldAttributeTests.createFieldAttribute(0, false);
+        var field = createFieldAttribute(0, false);
 
         for (var converterFactory : EsqlDataTypeConverter.TYPE_AND_CONFIG_TO_CONVERTER_FUNCTION.values()) {
             var converter = converterFactory.apply(TEST_SOURCE, field, configuration);

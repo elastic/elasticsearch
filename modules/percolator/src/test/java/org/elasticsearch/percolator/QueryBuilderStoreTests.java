@@ -107,7 +107,8 @@ public class QueryBuilderStoreTests extends ESTestCase {
             BytesBinaryIndexFieldData fieldData = new BytesBinaryIndexFieldData(
                 fieldMapper.fullPath(),
                 CoreValuesSourceType.KEYWORD,
-                BinaryDocValuesField::new
+                BinaryDocValuesField::new,
+                indexVersion
             );
             BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (mft, fdc) -> fieldData;
             Settings indexSettingsSettings = indexSettings(indexVersion, 1, 1).build();
@@ -151,22 +152,25 @@ public class QueryBuilderStoreTests extends ESTestCase {
                 SHARD_SEARCH_STATS
             );
             SearchExecutionContext searchExecutionContext = new SearchExecutionContext(baseContext, breaker);
+            try {
+                PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(
+                    fieldMapper.fieldType(),
+                    randomBoolean(),
+                    searchExecutionContext
+                );
 
-            PercolateQuery.QueryStore queryStore = PercolateQueryBuilder.createStore(
-                fieldMapper.fieldType(),
-                randomBoolean(),
-                searchExecutionContext
-            );
-
-            try (IndexReader indexReader = DirectoryReader.open(directory)) {
-                LeafReaderContext leafContext = indexReader.leaves().get(0);
-                CheckedFunction<Integer, Query, IOException> queries = queryStore.getQueries(leafContext);
-                assertEquals(queryBuilders.length, leafContext.reader().numDocs());
-                for (int i = 0; i < queryBuilders.length; i++) {
-                    TermQuery query = (TermQuery) queries.apply(i);
-                    assertEquals(queryBuilders[i].fieldName(), query.getTerm().field());
-                    assertEquals(queryBuilders[i].value(), query.getTerm().text());
+                try (IndexReader indexReader = DirectoryReader.open(directory)) {
+                    LeafReaderContext leafContext = indexReader.leaves().get(0);
+                    CheckedFunction<Integer, Query, IOException> queries = queryStore.getQueries(leafContext);
+                    assertEquals(queryBuilders.length, leafContext.reader().numDocs());
+                    for (int i = 0; i < queryBuilders.length; i++) {
+                        TermQuery query = (TermQuery) queries.apply(i);
+                        assertEquals(queryBuilders[i].fieldName(), query.getTerm().field());
+                        assertEquals(queryBuilders[i].value(), query.getTerm().text());
+                    }
                 }
+            } finally {
+                searchExecutionContext.releaseQueryConstructionMemory();
             }
         }
     }
@@ -224,7 +228,8 @@ public class QueryBuilderStoreTests extends ESTestCase {
             BytesBinaryIndexFieldData fieldData = new BytesBinaryIndexFieldData(
                 fieldMapper.fullPath(),
                 CoreValuesSourceType.KEYWORD,
-                BinaryDocValuesField::new
+                BinaryDocValuesField::new,
+                indexVersion
             );
             BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> indexFieldDataLookup = (mft, fdc) -> fieldData;
 

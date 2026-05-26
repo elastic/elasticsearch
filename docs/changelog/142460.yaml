@@ -1,5 +1,0 @@
-area: Searchable Snapshots
-issues: []
-pr: 142460
-summary: Fix `SharedBytes` mmap leak by closing parent arena on close
-type: bug

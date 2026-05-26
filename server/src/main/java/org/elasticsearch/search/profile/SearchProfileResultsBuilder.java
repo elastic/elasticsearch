@@ -16,6 +16,7 @@ import org.elasticsearch.search.fetch.FetchSearchResult;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Map;
+import java.util.Objects;
 
 /**
  * Profile results for the query phase run on all shards.
@@ -66,6 +67,6 @@ public class SearchProfileResultsBuilder {
 
     @Override
     public int hashCode() {
-        return queryPhaseResults.hashCode();
+        return Objects.hash(queryPhaseResults);
     }
 }

@@ -28,10 +28,11 @@ public class SparklineGenerateEmptyBucketsOperatorTests extends OperatorTestCase
 
     static final Rounding.Prepared ROUNDING = Rounding.builder(TimeValue.timeValueHours(1)).build().prepareForUnknown();
     static final long MIN_DATE = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-01-01T00:00:00Z");
-    static final long MAX_DATE = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2025-01-01T02:00:00Z");
     static final long T0 = MIN_DATE;
     static final long T1 = T0 + TimeValue.timeValueHours(1).millis();
     static final long T2 = T0 + TimeValue.timeValueHours(2).millis();
+    static final long T3 = T0 + TimeValue.timeValueHours(3).millis();
+    static final long MAX_DATE = T3;
     static final List<Long> DATE_BUCKETS = List.of(T0, T1, T2);
     private final List<Long> EXPECTED_VALUE_LIST = List.of(42L, 0L, 99L);
 
@@ -106,6 +107,51 @@ public class SparklineGenerateEmptyBucketsOperatorTests extends OperatorTestCase
     @Override
     protected void assertStatus(Map<String, Object> map, List<Page> input, List<Page> output) {
         assertThat(map, nullValue());
+    }
+
+    public void testMaxDateBoundaryIsExclusive() {
+        long minDate = 0L;
+        long maxDate = 10L * 86_400_000L;
+        Rounding.Prepared dailyRounding = Rounding.builder(TimeValue.timeValueDays(1)).build().prepareForUnknown();
+        DriverContext ctx = driverContext();
+        BlockFactory blockFactory = ctx.blockFactory();
+        LongBlock values;
+        LongBlock dates;
+        try (
+            LongBlock.Builder valueBuilder = blockFactory.newLongBlockBuilder(10);
+            LongBlock.Builder dateBuilder = blockFactory.newLongBlockBuilder(10)
+        ) {
+            valueBuilder.beginPositionEntry();
+            dateBuilder.beginPositionEntry();
+            for (int i = 0; i < 10; i++) {
+                valueBuilder.appendLong(i);
+                dateBuilder.appendLong((long) i * 86_400_000L);
+            }
+            valueBuilder.endPositionEntry();
+            dateBuilder.endPositionEntry();
+            values = valueBuilder.build();
+            dates = dateBuilder.build();
+        }
+        try (
+            SparklineGenerateEmptyBucketsOperator op = new SparklineGenerateEmptyBucketsOperator(ctx, 1, dailyRounding, minDate, maxDate)
+        ) {
+            op.addInput(new Page(values, dates));
+            op.finish();
+            Page result = op.getOutput();
+            assertNotNull(result);
+            try {
+                LongBlock out = result.getBlock(0);
+                assertThat(out.getPositionCount(), equalTo(1));
+                // 10 data buckets (days 0–9)
+                assertThat(out.getValueCount(0), equalTo(10));
+                int start = out.getFirstValueIndex(0);
+                for (int i = 0; i < 10; i++) {
+                    assertThat(out.getLong(start + i), equalTo((long) i));
+                }
+            } finally {
+                result.releaseBlocks();
+            }
+        }
     }
 
     private void assertOutputMatchesExpected(LongBlock outputValues, long[][] expected) {

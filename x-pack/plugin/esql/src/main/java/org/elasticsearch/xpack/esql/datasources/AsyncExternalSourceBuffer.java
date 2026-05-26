@@ -64,16 +64,19 @@ public final class AsyncExternalSourceBuffer {
      */
     public void addPage(Page page) {
         if (failure != null) {
+            // Reject the page without touching buffer state, so the trailing invariantsHold()
+            // call is intentionally bypassed: nothing was mutated for it to check.
             page.releaseBlocks();
             return;
         }
         long pageBytes = page.ramBytesUsedByBlocks();
-        long prevBytes = bytesInBuffer.getAndAdd(pageBytes);
+        bytesInBuffer.addAndGet(pageBytes);
         queue.add(page);
         queueSize.incrementAndGet();
-        if (prevBytes == 0) {
-            notifyNotEmpty();
-        }
+        // Always notify: the conditional guard on prevBytes==0 previously caused a lost-wakeup race
+        // when a consumer drained and blocked on notEmptyFuture between our getAndAdd and queue.add.
+        // notifyNotEmpty() is a no-op when no listener is registered, so unconditional fire is cheap.
+        notifyNotEmpty();
         if (noMoreInputs) {
             // O(N) but acceptable because it only occurs with finish(), and the queue size should be very small.
             if (queue.removeIf(p -> p == page)) {
@@ -88,30 +91,46 @@ public final class AsyncExternalSourceBuffer {
                 }
             }
         }
+        assert invariantsHold() : "buffer invariants violated after addPage";
     }
 
     /**
      * Poll a page from the buffer. Called by the operator (driver thread).
-     * @return the next page, or null if no pages available
+     *
+     * @return the next page, or {@code null} if no pages available
      */
     public Page pollPage() {
-        final var page = queue.poll();
-        if (page != null) {
-            queueSize.decrementAndGet();
-            long pageBytes = page.ramBytesUsedByBlocks();
-            long prevBytes = bytesInBuffer.getAndAdd(-pageBytes);
-            if (prevBytes >= maxBufferBytes && (prevBytes - pageBytes) < maxBufferBytes) {
-                notifyNotFull();
-            }
+        Page page = queue.poll();
+        if (page == null) {
+            signalCompletionIfDrained();
+            assert invariantsHold() : "buffer invariants violated after pollPage (empty)";
+            return null;
         }
-        if (page == null && noMoreInputs && queueSize.get() == 0) {
-            if (failure != null) {
-                completionFuture.onFailure(new Exception(failure));
-            } else {
-                completionFuture.onResponse(null);
-            }
-        }
+        queueSize.decrementAndGet();
+        long pageBytes = page.ramBytesUsedByBlocks();
+        bytesInBuffer.addAndGet(-pageBytes);
+        // Always notify: the previous threshold-crossing guard could miss a crossing because the
+        // producer's waitForSpace snapshot of bytesInBuffer can race with concurrent addPage calls,
+        // orphaning notFullFuture. notifyNotFull() is a no-op when no listener is registered.
+        notifyNotFull();
+        signalCompletionIfDrained();
+        assert invariantsHold() : "buffer invariants violated after pollPage";
         return page;
+    }
+
+    /**
+     * Completes {@link #completionFuture} once the queue is drained and no more input is expected.
+     * Safe to call repeatedly; no-ops if completion was already signaled.
+     */
+    private void signalCompletionIfDrained() {
+        if (noMoreInputs == false || queueSize.get() != 0 || completionFuture.isDone()) {
+            return;
+        }
+        if (failure != null) {
+            completionFuture.onFailure(new Exception(failure));
+        } else {
+            completionFuture.onResponse(null);
+        }
     }
 
     private void notifyNotEmpty() {
@@ -137,30 +156,9 @@ public final class AsyncExternalSourceBuffer {
     }
 
     /**
-     * Returns an {@link IsBlockedResult} that completes when the buffer has space for writing.
-     * Used by background reader for backpressure.
-     */
-    public IsBlockedResult waitForWriting() {
-        if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs) {
-            return Operator.NOT_BLOCKED;
-        }
-        synchronized (notFullLock) {
-            if (bytesInBuffer.get() < maxBufferBytes || noMoreInputs) {
-                return Operator.NOT_BLOCKED;
-            }
-            if (notFullFuture == null) {
-                notFullFuture = new SubscribableListener<>();
-            }
-            return new IsBlockedResult(notFullFuture, "async external source buffer full");
-        }
-    }
-
-    /**
      * Returns a {@link SubscribableListener} that completes when the buffer has space for writing.
-     * This is the preferred method for producers to use for backpressure coordination.
-     * <p>
-     * Unlike {@link #waitForWriting()} which returns an {@link IsBlockedResult}, this method
-     * returns a {@link SubscribableListener} that can be used directly with ES async patterns.
+     * This is the method producers use for backpressure coordination: it integrates directly with
+     * ES async patterns and the producer drain loops.
      *
      * @return a listener that completes when space is available, or an already-completed listener if space exists
      */
@@ -198,6 +196,9 @@ public final class AsyncExternalSourceBuffer {
         }
     }
 
+    // Drains and releases every queued page on teardown. Only call from finish/onFailure;
+    // bytesInBuffer is reset wholesale, which is only safe when no further pollPage() is expected
+    // to subtract from it.
     private void discardPages() {
         Page p;
         while ((p = queue.poll()) != null) {
@@ -205,6 +206,7 @@ public final class AsyncExternalSourceBuffer {
             p.releaseBlocks();
         }
         bytesInBuffer.set(0);
+        assert invariantsHold() : "buffer invariants violated after discardPages";
     }
 
     /**
@@ -217,21 +219,23 @@ public final class AsyncExternalSourceBuffer {
         }
         notifyNotEmpty();
         notifyNotFull(); // wake producers so they observe noMoreInputs and exit
-        if (drainingPages || queueSize.get() == 0) {
-            if (failure != null) {
-                completionFuture.onFailure(new Exception(failure));
-            } else {
-                completionFuture.onResponse(null);
-            }
-        }
+        signalCompletionIfDrained();
+        assert invariantsHold() : "buffer invariants violated after finish";
     }
 
     /**
      * Mark the buffer as failed. Called when the background reader encounters an error.
+     * <p>
+     * Queued pages are retained so the driver can drain them before {@link AsyncExternalSourceOperator}
+     * surfaces the failure via {@link org.elasticsearch.compute.operator.SourceOperator#getOutput()}.
      */
     public void onFailure(Throwable t) {
         this.failure = t;
-        finish(true);
+        noMoreInputs = true;
+        notifyNotEmpty();
+        notifyNotFull();
+        signalCompletionIfDrained();
+        assert invariantsHold() : "buffer invariants violated after onFailure";
     }
 
     public boolean isFinished() {
@@ -262,5 +266,39 @@ public final class AsyncExternalSourceBuffer {
      */
     public long bytesInBuffer() {
         return bytesInBuffer.get();
+    }
+
+    /**
+     * Verifies internal invariants under {@code -ea}. Called from each buffer mutator so that
+     * every existing test exercises the checks automatically without dedicated assertions.
+     * <p>
+     * Scope is intentionally narrow. The buffer is lock-free and counter updates are not atomic
+     * across fields, so several legitimate transient states cannot be asserted on without
+     * introducing flakiness:
+     * <ul>
+     * <li>{@link #addPage} updates {@code bytesInBuffer} before {@code queueSize}, so a
+     *     concurrent reader may briefly observe {@code bytes > 0 && size == 0}.</li>
+     * <li>{@link #pollPage} updates {@code queueSize} before {@code bytesInBuffer}, so a
+     *     concurrent reader may briefly observe {@code size < N && bytes} still reflecting
+     *     {@code N}.</li>
+     * <li>A race between {@link #discardPages()} (which sets {@code bytesInBuffer} to {@code 0}
+     *     wholesale) and the {@code noMoreInputs} cleanup branch of {@link #addPage} (which
+     *     subtracts its own page bytes) can transiently push counters below zero by an
+     *     unpredictable amount.</li>
+     * </ul>
+     * Hence the only invariant asserted here is the forward direction of completion
+     * consistency: if {@code completionFuture} has signalled success, then the buffer must
+     * already have observed {@code noMoreInputs}. This catches premature completion (signalling
+     * done before {@code finish} / {@code onFailure} was called). Lost-wakeup regressions — the
+     * bug class fixed in the unconditional {@code notifyNotEmpty}/{@code notifyNotFull} changes
+     * — leave counters and the completion future internally consistent and are not detected
+     * here; see {@code AsyncExternalSourceBufferTests#testNoLostWakeupUnderConcurrentAddAndPoll}
+     * for that coverage.
+     */
+    private boolean invariantsHold() {
+        if (completionFuture.isDone() && failure == null) {
+            assert noMoreInputs : "completionFuture done with no failure but noMoreInputs is false";
+        }
+        return true;
     }
 }

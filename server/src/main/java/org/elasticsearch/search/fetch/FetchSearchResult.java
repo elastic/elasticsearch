@@ -69,7 +69,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     public FetchSearchResult(StreamInput in) throws IOException {
         contextId = new ShardSearchContextId(in);
-        hits = SearchHits.readFrom(in, true);
+        hits = SearchHits.readFrom(in);
         profileResult = in.readOptionalWriteable(ProfileResult::new);
 
         if (in.getTransportVersion().supports(CHUNKED_FETCH_PHASE)) {

@@ -9,12 +9,18 @@
 
 package org.elasticsearch.index.codec.vectors.cluster;
 
+import org.apache.lucene.search.TaskExecutor;
 import org.apache.lucene.util.FixedBitSet;
 import org.apache.lucene.util.hnsw.IntToIntFunction;
+import org.elasticsearch.simdvec.ESVectorUtil;
+import org.elasticsearch.simdvec.MathUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Random;
+import java.util.concurrent.Callable;
 
 /**
  * k-means implementation specific to the needs of the {@link HierarchicalKMeans} algorithm that deals specifically
@@ -23,26 +29,10 @@ import java.util.Random;
  */
 abstract class KMeansLocal {
 
-    private final int sampleSize;
-    private final int maxIterations;
-
-    KMeansLocal(int sampleSize, int maxIterations) {
-        this.sampleSize = sampleSize;
-        this.maxIterations = maxIterations;
-    }
+    KMeansLocal() {}
 
     /** Number of workers to use for parallelism **/
     protected abstract int numWorkers();
-
-    /** assign to each vector the closest centroid **/
-    protected abstract boolean stepLloyd(
-        ClusteringFloatVectorValues vectors,
-        IntToIntFunction translateOrd,
-        float[][] centroids,
-        FixedBitSet[] centroidChangedSlices,
-        int[] assignments,
-        NeighborHood[] neighborHoods
-    ) throws IOException;
 
     /** assign to each vector the soar assignment **/
     protected abstract void assignSpilled(
@@ -109,6 +99,31 @@ abstract class KMeansLocal {
         }
     }
 
+    protected static boolean stepLloydSliceConcurrent(
+        TaskExecutor executor,
+        int numWorkers,
+        ClusteringFloatVectorValues vectors,
+        IntToIntFunction ordTranslator,
+        float[][] centroids,
+        FixedBitSet[] centroidChangedSlices,
+        int[] assignments,
+        NeighborHood[] neighborHoods
+    ) throws IOException {
+        assert numWorkers == centroidChangedSlices.length;
+        final int len = vectors.size() / numWorkers;
+        final List<Callable<Boolean>> runners = new ArrayList<>(numWorkers);
+        for (int i = 0; i < numWorkers; i++) {
+            final int start = i * len;
+            final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
+            final FixedBitSet centroidChangedSlice = centroidChangedSlices[i];
+            runners.add(
+                () -> stepLloydSlice(vectors.copy(), ordTranslator, centroids, centroidChangedSlice, assignments, neighborHoods, start, end)
+            );
+        }
+        final List<Boolean> hasChanges = executor.invokeAll(runners);
+        return hasChanges.stream().anyMatch(Boolean::booleanValue);
+    }
+
     /** Assign vectors from {@code startOrd} to {@code endOrd} to the SOAR centroid. */
     protected static void assignSpilledSlice(
         ClusteringFloatVectorValues vectors,
@@ -128,8 +143,30 @@ abstract class KMeansLocal {
         vectors.assignSpilled(startOrd, endOrd, centroids, neighborhoods, soarLambda, assignments, spilledAssignments);
     }
 
+    protected static void assignSpilledConcurrent(
+        TaskExecutor executor,
+        int numWorkers,
+        ClusteringFloatVectorValues vectors,
+        KMeansIntermediate kmeansIntermediate,
+        NeighborHood[] neighborhoods,
+        float soarLambda
+    ) throws IOException {
+        final int len = vectors.size() / numWorkers;
+        final List<Callable<Void>> runners = new ArrayList<>(numWorkers);
+        for (int i = 0; i < numWorkers; i++) {
+            final int start = i * len;
+            final int end = i == numWorkers - 1 ? vectors.size() : (i + 1) * len;
+            runners.add(() -> {
+                assignSpilledSlice(vectors.copy(), kmeansIntermediate, neighborhoods, soarLambda, start, end);
+                return null;
+            });
+        }
+        executor.invokeAll(runners);
+    }
+
     /**
-     * cluster using a lloyd k-means algorithm that is not neighbor aware
+     * Compute a clustering that is not neighbor aware.
+     * Different implementations of this abstract class may use different algorithm for clustering.
      *
      * @param vectors the vectors to cluster
      * @param kMeansIntermediate the output object to populate which minimally includes centroids,
@@ -142,8 +179,9 @@ abstract class KMeansLocal {
     }
 
     /**
-     * cluster using a lloyd kmeans algorithm that also considers prior clustered neighborhoods when adjusting centroids
-     * this also is used to generate the neighborhood aware additional (SOAR) assignments
+     * Compute a clustering that considers prior clustered neighborhoods when adjusting centroids.
+     * Different implementations of this abstract class may use different algorithm for clustering.
+     * This also is used to generate the neighborhood aware additional (SOAR) assignments
      *
      * @param vectors the vectors to cluster
      * @param kMeansIntermediate the output object to populate which minimally includes centroids,
@@ -167,7 +205,21 @@ abstract class KMeansLocal {
         doCluster(vectors, kMeansIntermediate, clustersPerNeighborhood, soarLambda);
     }
 
-    private void doCluster(
+    /**
+     * cluster using a Lloyd kmeans algorithm that also considers prior clustered neighborhoods when adjusting centroids
+     * this also is used to generate the neighborhood aware additional (SOAR) assignments
+     *
+     * @param vectors the vectors to cluster
+     * @param kMeansIntermediate the output object to populate which minimally includes centroids, the prior assignments of the given
+     *                           vectors; care should be taken in passing in a valid output object with a centroids array that is the size
+     *                           of centroids expected and assignments that are the same size as the vectors.
+     *                           The SOAR assignments are overwritten by this operation.
+     * @param clustersPerNeighborhood number of nearby neighboring centroids to be used to update the centroid positions.
+     * @param soarLambda   lambda used for SOAR assignments
+     *
+     * @throws IOException is thrown if vectors is inaccessible or if the clustersPerNeighborhood is less than 2
+     */
+    protected void doCluster(
         ClusteringFloatVectorValues vectors,
         KMeansIntermediate kMeansIntermediate,
         int clustersPerNeighborhood,
@@ -180,7 +232,8 @@ abstract class KMeansLocal {
         if (neighborAware && centroids.length > clustersPerNeighborhood) {
             neighborhoods = computeNeighborhoods(centroids, clustersPerNeighborhood);
         }
-        cluster(vectors, kMeansIntermediate, neighborhoods);
+        innerCluster(vectors, kMeansIntermediate, neighborhoods);
+        removeEmptyClusters(kMeansIntermediate, neighborhoods);
         if (neighborAware && soarLambda >= 0) {
             assert kMeansIntermediate.soarAssignments().length == 0;
             kMeansIntermediate.setSoarAssignments(new int[vectors.size()]);
@@ -188,60 +241,97 @@ abstract class KMeansLocal {
         }
     }
 
-    private void cluster(ClusteringFloatVectorValues vectors, KMeansIntermediate kMeansIntermediate, NeighborHood[] neighborhoods)
-        throws IOException {
-        float[][] centroids = kMeansIntermediate.centroids();
-        int k = centroids.length;
-        int n = vectors.size();
-        int[] assignments = kMeansIntermediate.assignments();
+    protected abstract void innerCluster(
+        ClusteringFloatVectorValues vectors,
+        KMeansIntermediate kMeansIntermediate,
+        NeighborHood[] neighborhoods
+    ) throws IOException;
 
-        if (k == 1) {
-            Arrays.fill(assignments, 0);
-            return;
-        }
-        IntToIntFunction ordTranslator = i -> i;
-        ClusteringFloatVectorValues sampledVectors = vectors;
-        if (sampleSize < n) {
-            sampledVectors = ClusteringFloatVectorValuesSlice.createRandomSlice(vectors, sampleSize, 42L);
-            ordTranslator = sampledVectors::ordToDoc;
-        }
-
-        assert assignments.length == n;
-        FixedBitSet[] centroidChangedSlices = new FixedBitSet[numWorkers()];
-        for (int i = 0; i < numWorkers(); i++) {
-            centroidChangedSlices[i] = new FixedBitSet(centroids.length);
-        }
-        int[] centroidCounts = new int[centroids.length];
-        for (int i = 0; i < maxIterations; i++) {
-            // This is potentially sampled, so we need to translate ordinals
-            if (stepLloyd(sampledVectors, ordTranslator, centroids, centroidChangedSlices, assignments, neighborhoods)) {
-                sampledVectors.updateCentroids(centroids, ordTranslator, centroidChangedSlices, centroidCounts, assignments);
-            } else {
-                break;
-            }
-        }
-        // If we were sampled, do a once over the full set of vectors to finalize the centroids
-        if (sampleSize < n || maxIterations == 0) {
-            // No ordinal translation needed here, we are using the full set of vectors
-            if (stepLloyd(vectors, i -> i, centroids, centroidChangedSlices, assignments, neighborhoods)) {
-                sampledVectors.updateCentroids(centroids, ordTranslator, centroidChangedSlices, centroidCounts, assignments);
-            }
+    protected static void deepCopy(float[][] source, float[][] destination) {
+        for (int i = 0; i < source.length; i++) {
+            System.arraycopy(source[i], 0, destination[i], 0, source[i].length);
         }
     }
 
-    /**
-     * helper that calls {@link KMeansLocal#cluster(ClusteringFloatVectorValues, KMeansIntermediate)} given a set of initialized centroids,
-     * this call is not neighbor aware
-     *
-     * @param vectors the vectors to cluster
-     * @param centroids the initialized centroids to be shifted using k-means
-     * @param sampleSize the subset of vectors to use when shifting centroids
-     * @param maxIterations the max iterations to shift centroids
-     */
-    public static void cluster(ClusteringFloatVectorValues vectors, float[][] centroids, int sampleSize, int maxIterations)
-        throws IOException {
-        KMeansIntermediate kMeansIntermediate = new KMeansIntermediate(centroids, new int[vectors.size()], vectors::ordToDoc);
-        KMeansLocal kMeans = new KMeansLocalSerial(sampleSize, maxIterations);
-        kMeans.cluster(vectors, kMeansIntermediate);
+    // Computes: (sum_i sum_j pow(vecs1[i][j] - vecs2[i][j], 2)) / (sum_i sum_j pow(vecs2[i][j], 2))
+    protected static float normalizedFrobeniusNorm(float[][] vecs1, float[][] vecs2) {
+        assert vecs1.length == vecs2.length;
+        float result = 0;
+        float norm2 = 0;
+        for (int i = 0; i < vecs1.length; i++) {
+            result += ESVectorUtil.squareDistance(vecs1[i], vecs2[i]);
+            norm2 += ESVectorUtil.dotProduct(vecs2[i], vecs2[i]);
+        }
+        return MathUtils.sqrt(result / norm2);
+    }
+
+    private static void removeEmptyClusters(KMeansIntermediate kMeansIntermediate, NeighborHood[] neighborhoods) {
+        float[][] centroids = kMeansIntermediate.centroids();
+        int[] assignments = kMeansIntermediate.assignments();
+        int[] centroidVectorCount = kMeansIntermediate.clusterCounts();
+
+        Arrays.fill(centroidVectorCount, 0, centroids.length, 0);
+
+        // handle assignment here so we can track distance and cluster size
+        int effectiveCluster = -1;
+        int effectiveK = 0;
+        for (int assignment : assignments) {
+            centroidVectorCount[assignment]++;
+            // this cluster has received an assignment, its now effective, but only count it once
+            if (centroidVectorCount[assignment] == 1) {
+                effectiveK++;
+                effectiveCluster = assignment;
+            }
+        }
+
+        if (effectiveK == 1) {
+            final float[][] singleClusterCentroid = new float[1][];
+            singleClusterCentroid[0] = centroids[effectiveCluster];
+            final int[] singleClusterCounts = new int[1];
+            singleClusterCounts[0] = assignments.length;
+            kMeansIntermediate.setCentroids(singleClusterCentroid, singleClusterCounts);
+            Arrays.fill(kMeansIntermediate.assignments(), 0);
+            return;
+        }
+
+        if (effectiveK == centroids.length) {
+            return;
+        }
+
+        // TODO eventually, we should get rid of this allocation by overhauling how centroids
+        // are stored and handled in KMeansResult
+        final float[][] newCentroids = new float[effectiveK][centroids[0].length];
+        final int[] newClusterCounts = new int[effectiveK];
+        final int[] centroidIndexMap = new int[centroids.length];
+        int currentCluster = 0;
+        for (int c = 0; c < centroids.length; c++) {
+            if (centroidVectorCount[c] > 0) {
+                centroidIndexMap[c] = currentCluster;
+                System.arraycopy(centroids[c], 0, newCentroids[currentCluster], 0, centroids[c].length);
+                newClusterCounts[currentCluster] = centroidVectorCount[c];
+                currentCluster++;
+            }
+        }
+
+        for (int i = 0; i < assignments.length; i++) {
+            if (centroidVectorCount[assignments[i]] > 0) {
+                assignments[i] = centroidIndexMap[assignments[i]];
+            }
+        }
+        kMeansIntermediate.setCentroids(newCentroids, newClusterCounts);
+
+        if (neighborhoods != null) {
+            // This change will cause that neighborhoods.length > newCentroids.length.
+            // Doing it like this avoids more memory allocations and is fine as long as
+            // we do not use neighborhoods.length to get the number of clusters.
+            for (int c = 0; c < centroids.length; c++) {
+                neighborhoods[centroidIndexMap[c]] = neighborhoods[c];
+                int[] neighbors = neighborhoods[c].neighbors();
+                for (int i = 0; i < neighbors.length; i++) {
+                    neighbors[i] = centroidIndexMap[neighbors[i]];
+                }
+                neighborhoods[centroidIndexMap[c]] = neighborhoods[c];
+            }
+        }
     }
 }

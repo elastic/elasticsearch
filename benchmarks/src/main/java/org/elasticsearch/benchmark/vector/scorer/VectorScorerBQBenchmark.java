@@ -20,8 +20,8 @@ import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.BQVectorUtils;
 import org.elasticsearch.simdvec.ES93BinaryQuantizedVectorScorer;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.internal.vectorization.DefaultES93BinaryQuantizedVectorScorer;
-import org.elasticsearch.simdvec.internal.vectorization.ESVectorizationProvider;
 import org.elasticsearch.simdvec.internal.vectorization.VectorScorerTestUtils;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -166,6 +166,7 @@ public class VectorScorerBQBenchmark {
         scorer = switch (implementation) {
             case SCALAR -> new DefaultES93BinaryQuantizedVectorScorer(input, dims, indexVectorLengthInBytes);
             case VECTORIZED -> ESVectorizationProvider.getInstance()
+                .getVectorScorerFactory()
                 .newES93BinaryQuantizedVectorScorer(input, dims, indexVectorLengthInBytes);
         };
         scratchScores = new float[NUM_VECTORS];

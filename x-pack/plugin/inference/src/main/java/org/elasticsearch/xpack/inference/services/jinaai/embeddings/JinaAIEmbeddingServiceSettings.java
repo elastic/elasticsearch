@@ -7,18 +7,22 @@
 
 package org.elasticsearch.xpack.inference.services.jinaai.embeddings;
 
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.jinaai.JinaAIServiceSettings;
+import org.elasticsearch.xpack.inference.services.jinaai.JinaAICommonServiceSettings;
 
 import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.MULTIMODAL_MODEL;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalPositiveInteger;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeAsType;
 
 public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceSettings {
@@ -35,7 +39,7 @@ public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceS
     }
 
     public JinaAIEmbeddingServiceSettings(
-        JinaAIServiceSettings commonSettings,
+        JinaAICommonServiceSettings commonSettings,
         @Nullable SimilarityMeasure similarity,
         @Nullable Integer dimensions,
         @Nullable Integer maxInputTokens,
@@ -60,6 +64,32 @@ public class JinaAIEmbeddingServiceSettings extends BaseJinaAIEmbeddingsServiceS
             getEmbeddingType(),
             dimensionsSetByUser(),
             isMultimodal()
+        );
+    }
+
+    @Override
+    public JinaAIEmbeddingServiceSettings updateServiceSettings(Map<String, Object> serviceSettings) {
+        var validationException = new ValidationException();
+
+        var extractedMaxInputTokens = extractOptionalPositiveInteger(
+            serviceSettings,
+            MAX_INPUT_TOKENS,
+            ModelConfigurations.SERVICE_SETTINGS,
+            validationException
+        );
+
+        var updatedCommonServiceSettings = getCommonSettings().updateCommonServiceSettings(serviceSettings, validationException);
+
+        validationException.throwIfValidationErrorsExist();
+
+        return new JinaAIEmbeddingServiceSettings(
+            updatedCommonServiceSettings,
+            this.similarity(),
+            this.dimensions(),
+            extractedMaxInputTokens != null ? extractedMaxInputTokens : this.maxInputTokens(),
+            this.getEmbeddingType(),
+            this.dimensionsSetByUser(),
+            this.isMultimodal()
         );
     }
 

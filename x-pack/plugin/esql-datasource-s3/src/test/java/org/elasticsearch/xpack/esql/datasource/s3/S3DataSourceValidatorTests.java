@@ -18,16 +18,42 @@ public class S3DataSourceValidatorTests extends ESTestCase {
 
     private final DataSourceValidator validator = new FileDataSourceValidator("s3", S3Configuration::fromMap, Set.of("s3", "s3a", "s3n"));
 
+    // Must stay in sync with CsvDataSourcePlugin.FORMAT_CONFIG_KEYS. Direct reference is not
+    // possible due to cross-plugin test dependency constraints; CsvFormatReaderRecognizedKeysTests
+    // enforces the canonical set against the reader's RECOGNIZED_KEYS.
+    private static final Set<String> CSV_CONFIG_KEYS = Set.of(
+        "delimiter",
+        "quote",
+        "escape",
+        "comment",
+        "null_value",
+        "encoding",
+        "datetime_format",
+        "max_field_size",
+        "multi_value_syntax",
+        "header_row",
+        "column_prefix",
+        "schema_sample_size"
+    );
+
+    private final DataSourceValidator formatAwareValidator = new FileDataSourceValidator(
+        "s3",
+        S3Configuration::fromMap,
+        Set.of("s3", "s3a", "s3n")
+    ).withFormatConfigKeyResolver(ext -> ".csv".equals(ext) ? CSV_CONFIG_KEYS : null, Set.of(".gz"));
+
     public void testType() {
         assertEquals("s3", validator.type());
     }
 
     public void testValidateDatasourceWithCredentials() {
         var result = validator.validateDatasource(Map.of("access_key", "AKIA123", "secret_key", "secret", "region", "us-east-1"));
-        assertEquals("AKIA123", result.get("access_key").value());
         assertTrue(result.get("access_key").secret());
+        try (var s = result.get("access_key").secretValue()) {
+            assertEquals("AKIA123", s.toString());
+        }
         assertTrue(result.get("secret_key").secret());
-        assertEquals("us-east-1", result.get("region").value());
+        assertEquals("us-east-1", result.get("region").nonSecretValue());
         assertFalse(result.get("region").secret());
     }
 
@@ -45,7 +71,7 @@ public class S3DataSourceValidatorTests extends ESTestCase {
 
     public void testValidateDatasourceAuthCaseInsensitive() {
         var result = validator.validateDatasource(Map.of("auth", "NONE"));
-        assertEquals("none", result.get("auth").value());  // case-insensitive fields normalized to lowercase
+        assertEquals("none", result.get("auth").nonSecretValue());  // case-insensitive fields normalized to lowercase
         assertFalse(result.get("auth").secret());
     }
 
@@ -73,13 +99,13 @@ public class S3DataSourceValidatorTests extends ESTestCase {
         settings.put("region", "us-east-1");
         settings.put("endpoint", null);
         var result = validator.validateDatasource(settings);
-        assertEquals("us-east-1", result.get("region").value());
+        assertEquals("us-east-1", result.get("region").nonSecretValue());
         assertNull(result.get("endpoint"));
     }
 
-    // Dataset settings return plain values, not DataSourceStoredSetting — datasets never contain secrets.
+    // Dataset settings return plain values, not DataSourceSetting — datasets never contain secrets.
     // Credentials are inherited from the parent datasource at query time. The return type enforces this
-    // at compile time: validateDataset() returns Map<String, Object>, not Map<String, DataSourceStoredSetting>.
+    // at compile time: validateDataset() returns Map<String, Object>, not Map<String, DataSourceSetting>.
     public void testValidateDatasetValid() {
         Map<String, Object> result = validator.validateDataset(
             Map.of(),
@@ -226,6 +252,85 @@ public class S3DataSourceValidatorTests extends ESTestCase {
         assertTrue(result.get("access_key").secret());
         assertTrue(result.get("secret_key").secret());
         assertFalse(result.get("region").secret());
-        assertEquals("AKIA", result.get("access_key").value());
+        try (var s = result.get("access_key").secretValue()) {
+            assertEquals("AKIA", s.toString());
+        }
+    }
+
+    // --- Format-aware validation tests ---
+
+    public void testFormatAwareValidatorAcceptsCsvDelimiter() {
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testFormatAwareValidatorAcceptsMultipleCsvOptions() {
+        var result = formatAwareValidator.validateDataset(
+            Map.of(),
+            "s3://bucket/data.csv",
+            Map.of("delimiter", "|", "quote", "'", "header_row", false)
+        );
+        assertEquals("|", result.get("delimiter"));
+        assertEquals("'", result.get("quote"));
+        assertEquals(false, result.get("header_row"));
+    }
+
+    public void testFormatAwareValidatorAcceptsMixOfBaseAndFormatFields() {
+        var result = formatAwareValidator.validateDataset(
+            Map.of(),
+            "s3://bucket/data.csv",
+            Map.of("partition_detection", "hive", "delimiter", ";")
+        );
+        assertEquals("hive", result.get("partition_detection"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testFormatAwareValidatorRejectsCsvFieldOnNonCsvResource() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data.parquet", Map.of("delimiter", ";"))
+        );
+    }
+
+    public void testFormatAwareValidatorRejectsUnknownFieldOnCsvResource() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("nonexistent_field", "value"))
+        );
+    }
+
+    public void testFormatAwareValidatorHandlesCompoundExtension() {
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data.csv.gz", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testFormatAwareValidatorBaseFieldsStillWork() {
+        var result = formatAwareValidator.validateDataset(
+            Map.of(),
+            "s3://bucket/data.csv",
+            Map.of("partition_detection", "hive", "error_mode", "skip_row", "schema_sample_size", 50)
+        );
+        assertEquals("hive", result.get("partition_detection"));
+        assertEquals("skip_row", result.get("error_mode"));
+        assertEquals(50, result.get("schema_sample_size"));
+    }
+
+    public void testFormatAwareValidatorResourceWithoutExtension() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data", Map.of("delimiter", ";"))
+        );
+    }
+
+    public void testFormatAwareValidatorCaseInsensitiveExtension() {
+        var result = formatAwareValidator.validateDataset(Map.of(), "s3://bucket/data.CSV", Map.of("delimiter", ";"));
+        assertEquals(";", result.get("delimiter"));
+    }
+
+    public void testWithoutResolverRejectsFormatFields() {
+        expectThrows(
+            org.elasticsearch.common.ValidationException.class,
+            () -> validator.validateDataset(Map.of(), "s3://bucket/data.csv", Map.of("delimiter", ";"))
+        );
     }
 }

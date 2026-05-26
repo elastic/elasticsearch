@@ -14,6 +14,7 @@ import org.elasticsearch.action.admin.indices.template.put.TransportPutComposabl
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -31,6 +32,7 @@ import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
@@ -41,6 +43,9 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
 
     private static final Logger logger = LogManager.getLogger(AbstractAuditor.class);
     static final int MAX_BUFFER_SIZE = 1000;
+    static final int MAX_WRITE_RETRIES = 2;
+    static final TimeValue RETRY_INITIAL_DELAY = TimeValue.timeValueMillis(200);
+    static final TimeValue RETRY_TIMEOUT = TimeValue.timeValueSeconds(10);
     protected static final TimeValue MASTER_TIMEOUT = TimeValue.timeValueMinutes(1);
 
     private final OriginSettingClient client;
@@ -154,14 +159,46 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     private void writeDoc(ToXContent toXContent) {
         client.index(indexRequest(toXContent), ActionListener.wrap(AbstractAuditor::onIndexResponse, e -> {
             if (e instanceof IndexNotFoundException) {
-                executorService.execute(() -> {
-                    reset();
-                    indexDoc(toXContent);
-                });
+                handleIndexNotFound(toXContent);
             } else {
-                onIndexFailure(e);
+                retryWriteDoc(toXContent);
             }
         }));
+    }
+
+    private void retryWriteDoc(ToXContent toXContent) {
+        var attempts = new AtomicInteger(0);
+        new RetryableAction<DocWriteResponse>(
+            logger,
+            clusterService.threadPool(),
+            RETRY_INITIAL_DELAY,
+            RETRY_TIMEOUT,
+            ActionListener.wrap(AbstractAuditor::onIndexResponse, e -> {
+                if (e instanceof IndexNotFoundException) {
+                    handleIndexNotFound(toXContent);
+                } else {
+                    onIndexFailure(e);
+                }
+            }),
+            executorService
+        ) {
+            @Override
+            public void tryAction(ActionListener<DocWriteResponse> listener) {
+                client.index(indexRequest(toXContent), listener);
+            }
+
+            @Override
+            public boolean shouldRetry(Exception e) {
+                return (e instanceof IndexNotFoundException) == false && attempts.getAndIncrement() < MAX_WRITE_RETRIES;
+            }
+        }.run();
+    }
+
+    private void handleIndexNotFound(ToXContent toXContent) {
+        executorService.execute(() -> {
+            reset();
+            indexDoc(toXContent);
+        });
     }
 
     private IndexRequest indexRequest(ToXContent toXContent) {

@@ -66,8 +66,8 @@ build/
 /backwards
 /dev-tools/backwards
 
-# needed in case docs build is run...maybe we can configure doc build to generate files under build?
-html_docs
+# built docs
+.artifacts
 
 # random old stuff that we should look at the necessity of...
 /tmp/

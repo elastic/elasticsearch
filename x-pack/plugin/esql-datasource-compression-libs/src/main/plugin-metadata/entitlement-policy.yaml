@@ -1,2 +1,15 @@
-ALL-UNNAMED:
+# One stanza per bundled native-loading compression library, scoped to its auto-module name.
+# When adding a new native-loading lib here, also update `module-info.java` (see the "four
+# coordinated edits" javadoc on that file). Pure-Java libraries (e.g. aircompressor) do not
+# need a stanza. The `/lib/ld-musl-x86_64.so.1` read entry covers the dynamic linker on
+# Alpine/musl distroless images that JNI shells out to during library extraction.
+com.github.luben.zstd_jni:
   - load_native_libraries
+  - files:
+    - path: "/lib/ld-musl-x86_64.so.1"
+      mode: "read"
+snappy.java:
+  - load_native_libraries
+  - files:
+    - path: "/lib/ld-musl-x86_64.so.1"
+      mode: "read"

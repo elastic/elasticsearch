@@ -110,7 +110,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         if (usesBinaryDocValues) {
             var binaryDv = reader.getBinaryDocValues(keyedFieldFullPath);
             if (binaryDv != null) {
-                SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.from(reader, keyedFieldFullPath, binaryDv);
+                SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.fromMultiValued(reader, keyedFieldFullPath, binaryDv);
                 docValues = new MultiValuedBinaryFlattenedDocValues(dv);
                 allLoaders.add(docValues);
             } else {
@@ -129,7 +129,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         {
             var binaryDv = reader.getBinaryDocValues(offsetsFieldName);
             if (binaryDv != null) {
-                SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.from(reader, offsetsFieldName, binaryDv);
+                SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.from(reader, offsetsFieldName);
                 offsetsDocValues = new MultiValuedBinaryFlattenedDocValues(dv);
                 allLoaders.add(offsetsDocValues);
             } else {
@@ -148,7 +148,11 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         if (storeIgnoredFieldsInBinaryDocValues && keyedIgnoredValuesFieldFullPath != null) {
             var binaryDv = reader.getBinaryDocValues(keyedIgnoredValuesFieldFullPath);
             if (binaryDv != null) {
-                SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.from(reader, keyedIgnoredValuesFieldFullPath, binaryDv);
+                SortedBinaryDocValues dv = MultiValuedSortedBinaryDocValues.fromMultiValued(
+                    reader,
+                    keyedIgnoredValuesFieldFullPath,
+                    binaryDv
+                );
                 ignoredDocValues = new MultiValuedBinaryFlattenedDocValues(dv);
                 allLoaders.add(ignoredDocValues);
             } else {
@@ -195,7 +199,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         return false;
     }
 
-    protected FlattenedFieldSyntheticWriterHelper getWriter() throws IOException {
+    protected FlattenedFieldSyntheticWriterHelper getWriter(List<SourceLoader.SyntheticFieldLoader> subFieldLoaders) throws IOException {
         FlattenedFieldSyntheticWriterHelper.SortedKeyedValues sortedKeyedValues = docValues.getValues();
         TreeSet<BytesRef> ignoredValuesSet = collectIgnoredValues();
         if (ignoredValuesSet != null) {
@@ -207,7 +211,15 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
             return value != null ? FlattenedFieldArrayContext.parseOffsetField(value) : null;
         };
 
-        return new FlattenedFieldSyntheticWriterHelper(sortedKeyedValues, keyedOffsetFieldSupplier);
+        String parentPrefix = fieldFullPath + ".";
+        List<Map.Entry<String, SourceLoader.SyntheticFieldLoader>> sortedSubFieldEntries = new ArrayList<>();
+        for (SourceLoader.SyntheticFieldLoader loader : subFieldLoaders) {
+            if (loader.hasValue()) {
+                sortedSubFieldEntries.add(Map.entry(loader.fieldName().substring(parentPrefix.length()), loader));
+            }
+        }
+
+        return new FlattenedFieldSyntheticWriterHelper(sortedKeyedValues, keyedOffsetFieldSupplier, sortedSubFieldEntries);
     }
 
     private TreeSet<BytesRef> collectIgnoredValues() throws IOException {
@@ -243,15 +255,7 @@ class FlattenedDocValuesSyntheticFieldLoader implements SourceLoader.SyntheticFi
         }
 
         b.startObject(leafName);
-        if (hasFlattenedValues) {
-            var writer = getWriter();
-            writer.write(b);
-        }
-        for (SourceLoader.SyntheticFieldLoader loader : mappedSubFieldLoaders) {
-            if (loader.hasValue()) {
-                loader.write(b);
-            }
-        }
+        getWriter(mappedSubFieldLoaders).writeNested(b);
         b.endObject();
     }
 

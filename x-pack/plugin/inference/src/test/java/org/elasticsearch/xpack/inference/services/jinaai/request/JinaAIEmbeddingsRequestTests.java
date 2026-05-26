@@ -30,7 +30,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.inference.InferenceStringTests.TEST_IMAGE_DATA_URI;
+import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.services.jinaai.request.JinaAIEmbeddingsRequestEntity.convertInputType;
 import static org.hamcrest.Matchers.instanceOf;
@@ -99,7 +99,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
         var modelName = "modelName";
         var url = "url";
         var embeddingType = randomFrom(JinaAIEmbeddingType.values());
-        var input = List.of(TEST_IMAGE_DATA_URI);
+        var input = List.of(TEST_DATA_URI);
         var apiKey = "api-key";
         var dimensions = 512;
         var request = createMultimodalRequest(
@@ -239,7 +239,7 @@ public class JinaAIEmbeddingsRequestTests extends ESTestCase {
         for (String input : inputs) {
             InferenceString inferenceString;
             if (isTextInput) {
-                inferenceString = new InferenceString(DataType.TEXT, DataFormat.TEXT, input);
+                inferenceString = new InferenceString(DataType.TEXT, input);
             } else {
                 inferenceString = new InferenceString(DataType.IMAGE, DataFormat.BASE64, input);
             }

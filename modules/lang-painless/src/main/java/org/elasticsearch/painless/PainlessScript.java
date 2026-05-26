@@ -121,4 +121,18 @@ public interface PainlessScript {
     default int getNextStatement(int offset) {
         return getStatements().nextSetBit(offset + 1);
     }
+
+    /**
+     * Returns the cancellation runnable for this script instance, or {@code null} for none.
+     * The painless engine reads this once at {@code execute} entry and invokes it between loop
+     * iterations to honor the surrounding deadline (search timeout, task cancellation). Contexts
+     * opt in by overriding both this method and {@link #_setCancellationCheck}; the default
+     * {@code null} means non-opted-in contexts pay no per-iteration cost.
+     */
+    default Runnable _getCancellationCheck() {
+        return null;
+    }
+
+    /** Binds a cancellation runnable; default no-op. See {@link #_getCancellationCheck()}. */
+    default void _setCancellationCheck(Runnable cancellationCheck) {}
 }

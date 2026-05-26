@@ -1,0 +1,5 @@
+area: Distributed
+issues: []
+pr: 147367
+summary: Set `locationToSync` for no-op FAILURE results
+type: bug

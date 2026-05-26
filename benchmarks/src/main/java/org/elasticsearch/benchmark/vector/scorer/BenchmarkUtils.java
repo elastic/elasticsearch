@@ -29,12 +29,18 @@ import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.BFloat16;
 import org.elasticsearch.index.codec.vectors.es93.OffHeapBFloat16VectorValues;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
+import java.util.Collections;
+import java.util.List;
+import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 class BenchmarkUtils {
 
@@ -70,10 +76,10 @@ class BenchmarkUtils {
 
     static void writeBFloat16VectorData(Directory dir, float[][] vectors) throws IOException {
         try (IndexOutput out = dir.createOutput("vector.data", IOContext.DEFAULT)) {
-            ByteBuffer buffer = ByteBuffer.allocate(vectors[0].length * BFloat16.BYTES).order(ByteOrder.LITTLE_ENDIAN);
+            byte[] buffer = new byte[vectors[0].length * BFloat16.BYTES];
             for (float[] vector : vectors) {
-                BFloat16.floatToBFloat16(vector, buffer.asShortBuffer());
-                out.writeBytes(buffer.array(), buffer.capacity());
+                BFloat16.floatToBFloat16(vector, buffer);
+                out.writeBytes(buffer, buffer.length);
             }
         }
     }
@@ -87,8 +93,8 @@ class BenchmarkUtils {
     }
 
     static VectorScorerFactory getScorerFactoryOrDie() {
-        var optionalVectorScorerFactory = VectorScorerFactory.instance();
-        if (optionalVectorScorerFactory.isEmpty()) {
+        var optionalVectorScorerFactory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
+        if (optionalVectorScorerFactory instanceof DefaultFlatVectorScorer) {
             String msg = "JDK=["
                 + Runtime.version()
                 + "], os.name=["
@@ -98,7 +104,7 @@ class BenchmarkUtils {
                 + "]";
             throw new AssertionError("Vector scorer factory not present. Cannot run the benchmark. " + msg);
         }
-        return optionalVectorScorerFactory.get();
+        return optionalVectorScorerFactory;
     }
 
     static boolean supportsHeapSegments() {
@@ -181,5 +187,11 @@ class BenchmarkUtils {
             throw err;
         }
         return t instanceof RuntimeException re ? re : new RuntimeException(t);
+    }
+
+    static int[] generateRandomOrdinals(int numVectors, int numVectorsToScore, Random random) {
+        List<Integer> list = IntStream.range(0, numVectors).boxed().collect(Collectors.toList());
+        Collections.shuffle(list, random);
+        return list.stream().limit(numVectorsToScore).mapToInt(Integer::intValue).toArray();
     }
 }

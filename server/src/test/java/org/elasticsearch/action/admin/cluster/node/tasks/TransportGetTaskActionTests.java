@@ -56,6 +56,8 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -196,8 +198,11 @@ public class TransportGetTaskActionTests extends ESTestCase {
         TaskResult relocatedResult = runningTaskResult(
             relocatedTaskId.toString(),
             ReindexAction.NAME,
+            "relocated reindex task",
             relocatedStartTime,
-            relocatedRunningTimeNanos
+            relocatedRunningTimeNanos,
+            originalTaskId,
+            originalStartTime
         );
 
         var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
@@ -225,10 +230,13 @@ public class TransportGetTaskActionTests extends ESTestCase {
         TaskInfo info = result.getTask();
 
         assertThat("should not be completed", result.isCompleted(), equalTo(false));
-        assertThat("task ID should be the original", info.taskId(), equalTo(originalTaskId));
+        assertThat("task ID should be the relocated task", info.taskId(), equalTo(relocatedTaskId));
+        assertThat("node should be the relocated node", info.node(), equalTo(relocatedTaskId.getNodeId()));
         assertThat("action should be reindex", info.action(), equalTo(ReindexAction.NAME));
-        assertThat("description should be from the original task", info.description(), equalTo("test task"));
+        assertThat("description should be from the relocated task", info.description(), equalTo("relocated reindex task"));
         assertThat("start time should be from the original task", info.startTime(), equalTo(originalStartTime));
+        assertThat("original task ID should reference the original", info.originalTaskId(), equalTo(originalTaskId));
+        assertThat("original start time should be from the original task", info.originalStartTimeMillis(), equalTo(originalStartTime));
         long expectedRunningTime = relocatedRunningTimeNanos + TimeUnit.MILLISECONDS.toNanos(relocatedStartTime - originalStartTime);
         assertThat(
             "running time should cover the full duration including relocation gap",
@@ -305,11 +313,22 @@ public class TransportGetTaskActionTests extends ESTestCase {
         TaskResult secondStoredResult = completedTaskResult(
             secondTaskId.toString(),
             ReindexAction.NAME,
+            "intermediate reindex task",
             relocatedErrorBytes(finalTaskId.toString()),
             secondStartTime,
-            0
+            0,
+            originalTaskId,
+            originalStartTime
         );
-        TaskResult finalResult = runningTaskResult(finalTaskId.toString(), ReindexAction.NAME, finalStartTime, finalRunningTimeNanos);
+        TaskResult finalResult = runningTaskResult(
+            finalTaskId.toString(),
+            ReindexAction.NAME,
+            "final reindex task",
+            finalStartTime,
+            finalRunningTimeNanos,
+            originalTaskId,
+            originalStartTime
+        );
 
         var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
         AtomicReference<TransportGetTaskAction> actionRef = new AtomicReference<>();
@@ -354,17 +373,23 @@ public class TransportGetTaskActionTests extends ESTestCase {
         GetTaskResponse response = executeGetTask(taskManager, getTaskAction, originalTaskId);
         TaskResult result = response.getTask();
         TaskInfo info = result.getTask();
-        assertThat("task ID should be the original", info.taskId(), equalTo(originalTaskId));
+        assertThat("task ID should be the final task in the chain", info.taskId(), equalTo(finalTaskId));
         assertThat("final task should be running", result.isCompleted(), equalTo(false));
         assertThat("action should be reindex", info.action(), equalTo(ReindexAction.NAME));
         assertThat("start time should be from the original task", info.startTime(), equalTo(originalStartTime));
+        assertThat("original task ID should reference the first task in the chain", info.originalTaskId(), equalTo(originalTaskId));
+        assertThat(
+            "original start time should be from the first task in the chain",
+            info.originalStartTimeMillis(),
+            equalTo(originalStartTime)
+        );
         long expectedRunningTime = finalRunningTimeNanos + TimeUnit.MILLISECONDS.toNanos(finalStartTime - originalStartTime);
         assertThat("running time should cover full chain", info.runningTimeNanos(), equalTo(expectedRunningTime));
         assertThat("no error on running task", result.getError(), nullValue());
         assertThat("no response on running task", result.getResponse(), nullValue());
     }
 
-    public void testGetTaskFallsBackWhenRelocatedTaskNotFound() throws Exception {
+    public void testGetTaskDoesNotFollowRelocationWhenDisabled() throws Exception {
         var nodeId = "nodeA";
         var originalTaskId = new TaskId(nodeId, 100);
         var relocatedTaskId = new TaskId("nodeB", 200);
@@ -388,19 +413,154 @@ public class TransportGetTaskActionTests extends ESTestCase {
                     var getRequest = (GetRequest) request;
                     ((ActionListener<GetResponse>) listener).onResponse(buildTasksIndexResponse(getRequest.id(), originalStoredResult));
                 } else if (TransportGetTaskAction.TYPE.equals(action)) {
-                    listener.onFailure(new ResourceNotFoundException("task not found"));
+                    fail("Should not follow relocation when follow_relocations=false");
                 } else {
                     fail("Unexpected action: " + action);
                 }
             }
         }, taskManager);
 
-        GetTaskResponse response = executeGetTask(taskManager, getTaskAction, originalTaskId);
+        var future = new TestPlainActionFuture<GetTaskResponse>();
+        var request = new GetTaskRequest().setTaskId(originalTaskId).setFollowRelocations(false);
+        taskManager.registerAndExecute("transport", getTaskAction, request, null, future);
+        GetTaskResponse response = future.get(10, TimeUnit.SECONDS);
+
         TaskResult result = response.getTask();
-        assertThat("should fall back to original task ID", result.getTask().taskId(), equalTo(originalTaskId));
-        assertThat("original task completed", result.isCompleted(), equalTo(true));
+        assertThat("should return the original task", result.getTask().taskId(), equalTo(originalTaskId));
+        assertThat("should be completed", result.isCompleted(), equalTo(true));
         assertThat("action should be reindex", result.getTask().action(), equalTo(ReindexAction.NAME));
-        assertThat("error should be the relocation error (original response returned as-is)", result.getError(), notNullValue());
+        assertThat("error should be preserved (relocation not followed)", result.getError(), notNullValue());
+    }
+
+    public void testGetTaskSurfacesFailureWhenRelocatedTaskNotFound() {
+        var nodeId = "nodeA";
+        var originalTaskId = new TaskId(nodeId, 100);
+        var relocatedTaskId = new TaskId("nodeB", 200);
+
+        var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        var getTaskAction = buildGetTaskAction(
+            nodeId,
+            buildClientThatFailsRelocationLookup(originalTaskId, relocatedTaskId, new ResourceNotFoundException("task not found")),
+            taskManager
+        );
+
+        var thrown = expectGetTaskFailure(taskManager, getTaskAction, originalTaskId);
+        var rnfe = ExceptionsHelper.unwrap(thrown, ResourceNotFoundException.class);
+        assertThat("relocation lookup failure should be surfaced", rnfe, notNullValue());
+        assertThat(
+            "failure metadata should pinpoint the task we were following relocation from",
+            ((ResourceNotFoundException) rnfe).getMetadata("es.following_relocation_from"),
+            equalTo(List.of(originalTaskId.toString()))
+        );
+    }
+
+    public void testGetTaskSurfacesNonElasticsearchFailure() {
+        var nodeId = "nodeA";
+        var originalTaskId = new TaskId(nodeId, 100);
+        var relocatedTaskId = new TaskId("nodeB", 200);
+
+        var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        var getTaskAction = buildGetTaskAction(
+            nodeId,
+            buildClientThatFailsRelocationLookup(originalTaskId, relocatedTaskId, new IllegalStateException("non-Elasticsearch failure")),
+            taskManager
+        );
+
+        var thrown = expectGetTaskFailure(taskManager, getTaskAction, originalTaskId);
+        assertThat(
+            "non-ES relocation lookup failure should be surfaced unchanged",
+            ExceptionsHelper.unwrap(thrown, IllegalStateException.class),
+            notNullValue()
+        );
+    }
+
+    private NodeClient buildClientThatFailsRelocationLookup(
+        TaskId originalTaskId,
+        TaskId relocatedTaskId,
+        Exception relocationLookupFailure
+    ) {
+        TaskResult originalStoredResult = completedTaskResult(
+            originalTaskId.toString(),
+            ReindexAction.NAME,
+            relocatedErrorBytes(relocatedTaskId.toString())
+        );
+        return new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (TransportGetAction.TYPE.equals(action)) {
+                    var getRequest = (GetRequest) request;
+                    ((ActionListener<GetResponse>) listener).onResponse(buildTasksIndexResponse(getRequest.id(), originalStoredResult));
+                } else if (TransportGetTaskAction.TYPE.equals(action)) {
+                    listener.onFailure(relocationLookupFailure);
+                } else {
+                    fail("Unexpected action: " + action);
+                }
+            }
+        };
+    }
+
+    private Exception expectGetTaskFailure(TaskManager taskManager, TransportGetTaskAction action, TaskId taskId) {
+        var future = new TestPlainActionFuture<GetTaskResponse>();
+        taskManager.registerAndExecute("transport", action, new GetTaskRequest().setTaskId(taskId), null, future);
+        return expectThrows(ExecutionException.class, future::get);
+    }
+
+    public void testGetCompletedRelocatedTaskDirectlyReturnsOwnStartTime() throws Exception {
+        var nodeId = "nodeA";
+        var originalTaskId = new TaskId("nodeB", 100);
+        var relocatedTaskId = new TaskId(nodeId, 200);
+
+        long originalStartTime = randomLongBetween(0, 100_000);
+        long relocatedStartTime = randomLongBetween(originalStartTime + 1, originalStartTime + 100_000);
+        long relocatedRunningTimeNanos = randomLongBetween(1, TimeUnit.HOURS.toNanos(1));
+
+        TaskResult relocatedStoredResult = new TaskResult(
+            true,
+            taskInfo(
+                relocatedTaskId.toString(),
+                ReindexAction.NAME,
+                "completed relocated reindex",
+                relocatedStartTime,
+                relocatedRunningTimeNanos,
+                originalTaskId,
+                originalStartTime
+            )
+        );
+
+        var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        var getTaskAction = buildGetTaskAction(nodeId, new NodeClient(Settings.EMPTY, threadPool, TestProjectResolvers.alwaysThrow()) {
+            @Override
+            @SuppressWarnings("unchecked")
+            public <Request extends ActionRequest, Response extends ActionResponse> void doExecute(
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                if (TransportGetAction.TYPE.equals(action)) {
+                    var getRequest = (GetRequest) request;
+                    ((ActionListener<GetResponse>) listener).onResponse(buildTasksIndexResponse(getRequest.id(), relocatedStoredResult));
+                } else {
+                    fail("Unexpected action: " + action);
+                }
+            }
+        }, taskManager);
+
+        GetTaskResponse response = executeGetTask(taskManager, getTaskAction, relocatedTaskId);
+        TaskResult result = response.getTask();
+        TaskInfo info = result.getTask();
+
+        assertThat("should be completed", result.isCompleted(), equalTo(true));
+        assertThat("task ID should be the relocated task itself", info.taskId(), equalTo(relocatedTaskId));
+        assertThat("start_time should be the relocated task's own", info.startTime(), equalTo(relocatedStartTime));
+        assertThat("running time should be the relocated task's own", info.runningTimeNanos(), equalTo(relocatedRunningTimeNanos));
+        assertThat("original_task_id should reference the original", info.originalTaskId(), equalTo(originalTaskId));
+        assertThat("original_start_time should be from the original task", info.originalStartTimeMillis(), equalTo(originalStartTime));
+        assertThat("no error on successfully completed task", result.getError(), nullValue());
     }
 
     // --- Helpers for multi-project tests ---
@@ -499,12 +659,45 @@ public class TransportGetTaskActionTests extends ESTestCase {
         return new TaskResult(true, taskInfo(taskIdStr, action, startTimeMillis, runningTimeNanos), errorBytes, null);
     }
 
+    private static TaskResult completedTaskResult(
+        String taskIdStr,
+        String action,
+        String description,
+        BytesReference errorBytes,
+        long startTimeMillis,
+        long runningTimeNanos,
+        TaskId originalTaskId,
+        long originalStartTimeMillis
+    ) {
+        return new TaskResult(
+            true,
+            taskInfo(taskIdStr, action, description, startTimeMillis, runningTimeNanos, originalTaskId, originalStartTimeMillis),
+            errorBytes,
+            null
+        );
+    }
+
     private static TaskResult runningTaskResult(String taskIdStr, String action) {
         return runningTaskResult(taskIdStr, action, System.currentTimeMillis(), 0);
     }
 
     private static TaskResult runningTaskResult(String taskIdStr, String action, long startTimeMillis, long runningTimeNanos) {
         return new TaskResult(false, taskInfo(taskIdStr, action, startTimeMillis, runningTimeNanos));
+    }
+
+    private static TaskResult runningTaskResult(
+        String taskIdStr,
+        String action,
+        String description,
+        long startTimeMillis,
+        long runningTimeNanos,
+        TaskId originalTaskId,
+        long originalStartTimeMillis
+    ) {
+        return new TaskResult(
+            false,
+            taskInfo(taskIdStr, action, description, startTimeMillis, runningTimeNanos, originalTaskId, originalStartTimeMillis)
+        );
     }
 
     private static TaskInfo taskInfo(String taskIdStr, String action) {
@@ -526,6 +719,34 @@ public class TransportGetTaskActionTests extends ESTestCase {
             false,
             TaskId.EMPTY_TASK_ID,
             Collections.emptyMap()
+        );
+    }
+
+    private static TaskInfo taskInfo(
+        String taskIdStr,
+        String action,
+        String description,
+        long startTimeMillis,
+        long runningTimeNanos,
+        TaskId originalTaskId,
+        long originalStartTimeMillis
+    ) {
+        TaskId taskId = new TaskId(taskIdStr);
+        return new TaskInfo(
+            taskId,
+            "transport",
+            taskId.getNodeId(),
+            action,
+            description,
+            null,
+            startTimeMillis,
+            runningTimeNanos,
+            true,
+            false,
+            TaskId.EMPTY_TASK_ID,
+            Collections.emptyMap(),
+            originalTaskId,
+            originalStartTimeMillis
         );
     }
 

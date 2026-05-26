@@ -64,6 +64,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
 
+import static org.elasticsearch.action.ActionListener.respondAndRelease;
 import static org.elasticsearch.action.ActionListener.wrap;
 import static org.elasticsearch.transport.RemoteClusterAware.buildRemoteIndexName;
 import static org.elasticsearch.xpack.core.ClientHelper.ASYNC_SEARCH_ORIGIN;
@@ -150,7 +151,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
 
     @Override
     public void execute(EqlSearchRequest request, EqlSearchTask task, ActionListener<EqlSearchResponse> listener) {
-        operation(planExecutor, task, request, username(securityContext), transportService, clusterService, activityLogger, listener);
+        loggedOperation(planExecutor, task, request, username(securityContext), transportService, clusterService, activityLogger, listener);
     }
 
     @Override
@@ -182,7 +183,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 listener
             );
         } else {
-            operation(
+            loggedOperation(
                 planExecutor,
                 (EqlSearchTask) task,
                 request,
@@ -195,7 +196,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         }
     }
 
-    public static void operation(
+    public static void loggedOperation(
         PlanExecutor planExecutor,
         EqlSearchTask task,
         EqlSearchRequest request,
@@ -205,7 +206,22 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
         ActivityLogger<EqlLogContext> activityLogger,
         ActionListener<EqlSearchResponse> operationListener
     ) {
-        final ActionListener<EqlSearchResponse> listener = activityLogger.wrap(operationListener, new EqlLogContextBuilder(task, request));
+        activityLogger.wrapAndRun(
+            operationListener,
+            new EqlLogContextBuilder(task, request),
+            (l) -> operation(planExecutor, task, request, username, transportService, clusterService, l)
+        );
+    }
+
+    public static void operation(
+        PlanExecutor planExecutor,
+        EqlSearchTask task,
+        EqlSearchRequest request,
+        String username,
+        TransportService transportService,
+        ClusterService clusterService,
+        ActionListener<EqlSearchResponse> operationListener
+    ) {
         String nodeId = clusterService.localNode().getId();
         String clusterName = clusterName(clusterService);
         // TODO: these should be sent by the client
@@ -233,8 +249,10 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 TransportRequestOptions.EMPTY,
                 new ActionListenerResponseHandler<>(
                     wrap(
-                        r -> listener.onResponse(qualifyHits(r, clusterAlias)),
-                        e -> listener.onFailure(qualifyException(e, remoteIndices, clusterAlias))
+                        // InboundHandler.doHandleResponse decRefs RefCounted transport responses after handleResponse; do not use
+                        // respondAndRelease here (would double-decRef).
+                        r -> operationListener.onResponse(qualifyHits(r, clusterAlias)),
+                        e -> operationListener.onFailure(qualifyException(e, remoteIndices, clusterAlias))
                     ),
                     EqlSearchResponse::new,
                     TransportResponseHandler.TRANSPORT_WORKER
@@ -274,12 +292,16 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 transportService.getRemoteClusterService().crossProjectEnabled(),
                 request.getResolvedIndexExpressions()
             );
-            planExecutor.eql(
-                cfg,
-                request.query(),
-                params,
-                wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), listener::onFailure)
-            );
+            planExecutor.eql(cfg, request.query(), params, wrap(r -> {
+                EqlSearchResponse response = createResponse(r, task.getExecutionId());
+                // Async: listener is wrapStoringListener → completion uses AsyncTaskManagementService.respondWithRelease (decRef after
+                // onResponse). Sync: release here so the response is not leaked after the REST/transport listener returns.
+                if (requestIsAsync(request)) {
+                    operationListener.onResponse(response);
+                } else {
+                    respondAndRelease(operationListener, response);
+                }
+            }, operationListener::onFailure));
         }
     }
 

@@ -40,7 +40,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 
@@ -62,7 +61,8 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
                 null,
                 1,
                 false,
-                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                null
             );
         } else if (rarely()) {
             format = new ESNextDiskBBQVectorsFormat(
@@ -74,7 +74,8 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
                 null,
                 1,
                 true,
-                random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS)
+                random().nextInt(MIN_PRECONDITIONING_BLOCK_DIMS, MAX_PRECONDITIONING_BLOCK_DIMS),
+                null
             );
         } else {
             // run with low numbers to force many clusters with parents
@@ -87,7 +88,8 @@ public class ESNextDiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVect
                 null,
                 1,
                 false,
-                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION
+                DEFAULT_PRECONDITIONING_BLOCK_DIMENSION,
+                null
             );
         }
         super.setUp();

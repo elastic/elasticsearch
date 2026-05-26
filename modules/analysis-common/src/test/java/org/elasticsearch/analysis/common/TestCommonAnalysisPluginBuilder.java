@@ -9,8 +9,15 @@
 
 package org.elasticsearch.analysis.common;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -22,6 +29,8 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -31,6 +40,8 @@ public class TestCommonAnalysisPluginBuilder {
     private ScriptService scriptService = null;
     private Client client = null;
     private CircuitBreakerService circuitBreakerService = null;
+    private ClusterService clusterService = null;
+    private FeatureService featureService = null;
 
     public TestCommonAnalysisPluginBuilder(ThreadPool threadPool) {
         this.threadPool = threadPool;
@@ -51,6 +62,16 @@ public class TestCommonAnalysisPluginBuilder {
         return this;
     }
 
+    public TestCommonAnalysisPluginBuilder clusterService(ClusterService clusterService) {
+        this.clusterService = clusterService;
+        return this;
+    }
+
+    public TestCommonAnalysisPluginBuilder featureService(FeatureService featureService) {
+        this.featureService = featureService;
+        return this;
+    }
+
     public CommonAnalysisPlugin build() {
         ScriptService scriptService = this.scriptService != null
             ? this.scriptService
@@ -63,10 +84,41 @@ public class TestCommonAnalysisPluginBuilder {
         IndicesService indicesService = mock(IndicesService.class);
         when(indicesService.getCircuitBreakerService()).thenReturn(circuitBreakerService);
 
+        ClusterService clusterService;
+        if (this.clusterService != null) {
+            clusterService = this.clusterService;
+        } else {
+            ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
+            ClusterState clusterState = mock(ClusterState.class);
+            when(clusterState.getMinTransportVersion()).thenReturn(TransportVersion.current());
+            clusterService = mock(ClusterService.class);
+            when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+            when(clusterService.state()).thenReturn(clusterState);
+            // Immediately invoke registered ClusterStateListeners so services (e.g.
+            // SynonymsManagementAPIService) initialize their feature flags at startup.
+            doAnswer(invocation -> {
+                ClusterStateListener listener = invocation.getArgument(0);
+                ClusterChangedEvent event = mock(ClusterChangedEvent.class);
+                when(event.state()).thenReturn(clusterState);
+                listener.clusterChanged(event);
+                return null;
+            }).when(clusterService).addListener(any(ClusterStateListener.class));
+        }
+
+        FeatureService featureService;
+        if (this.featureService != null) {
+            featureService = this.featureService;
+        } else {
+            featureService = mock(FeatureService.class);
+            when(featureService.clusterHasFeature(any(), any())).thenReturn(true);
+        }
+
         Plugin.PluginServices pluginServices = mock(Plugin.PluginServices.class);
         when(pluginServices.scriptService()).thenReturn(scriptService);
         when(pluginServices.client()).thenReturn(client);
         when(pluginServices.indicesService()).thenReturn(indicesService);
+        when(pluginServices.clusterService()).thenReturn(clusterService);
+        when(pluginServices.featureService()).thenReturn(featureService);
 
         CommonAnalysisPlugin plugin = new CommonAnalysisPlugin();
         plugin.createComponents(pluginServices);

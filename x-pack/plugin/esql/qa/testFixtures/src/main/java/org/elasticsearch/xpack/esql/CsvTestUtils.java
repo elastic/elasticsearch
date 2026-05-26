@@ -413,7 +413,8 @@ public final class CsvTestUtils {
                         for (int i = 0; i < entries.length; i++) {
                             String[] header = entries[i].split(":");
                             String name = header[0].trim();
-                            String typeName = (typeMapping != null && typeMapping.containsKey(name)) ? typeMapping.get(name)
+                            String typeName = (typeMapping != null && typeMapping.containsKey(name) && typeMapping.get(name) != null)
+                                ? typeMapping.get(name)
                                 : header.length > 1 ? header[1].trim()
                                 : null;
 
@@ -693,6 +694,7 @@ public final class CsvTestUtils {
         ),
         IP_RANGE(InetAddresses::parseCidr, BytesRef.class),
         JSON(s -> s == null ? null : new BytesRef(s), BytesRef.class),
+        // DATE_RANGE literals are parsed in UTC only; TODO: support other zones in CSV specs (similar to DATETIME).
         DATE_RANGE(s -> EsqlDataTypeConverter.parseDateRange(s, ZoneOffset.UTC), LongRangeBlockBuilder.LongRange.class),
         VERSION(v -> new org.elasticsearch.xpack.versionfield.Version(v).toBytesRef(), BytesRef.class),
         NULL(s -> s, Void.class),
@@ -726,6 +728,7 @@ public final class CsvTestUtils {
         EXPONENTIAL_HISTOGRAM(CsvTestUtils::parseExponentialHistogram, ExponentialHistogram.class),
         TDIGEST(CsvTestUtils::parseTDigest, TDigestHolder.class),
         HISTOGRAM(CsvTestUtils::parseHistogram, BytesRef.class),
+        FLATTENED(s -> s, String.class),
         UNSUPPORTED(Type::convertUnsupported, Void.class);
 
         private static Void convertUnsupported(String s) {
@@ -837,6 +840,7 @@ public final class CsvTestUtils {
                 case NULL -> NULL;
                 case GEO_POINT, CARTESIAN_POINT, GEO_SHAPE, CARTESIAN_SHAPE -> actualType;
                 case HISTOGRAM -> HISTOGRAM;
+                case FLATTENED -> FLATTENED;
                 default -> KEYWORD;
             };
         }

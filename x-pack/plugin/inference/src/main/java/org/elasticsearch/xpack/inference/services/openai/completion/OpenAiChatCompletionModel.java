@@ -73,7 +73,7 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
             service,
             OpenAiChatCompletionServiceSettings.fromMap(serviceSettings, context),
             new OpenAiChatCompletionTaskSettings(taskSettings),
-            DefaultSecretSettings.fromMap(secrets)
+            DefaultSecretSettings.fromMap(secrets, context)
         );
     }
 

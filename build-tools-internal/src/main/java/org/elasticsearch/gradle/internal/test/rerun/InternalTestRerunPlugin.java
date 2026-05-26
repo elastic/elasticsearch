@@ -79,9 +79,12 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
             return;
         }
 
+        // Branch order matters: a task in failedTestTasks is also in executedTestTasks, so
+        // State 2 must be checked before State 3. Reversing these branches would classify a
+        // Gradle-level failure (e.g. resource leak) as "confirmed passed" and skip it.
         WorkUnit workUnit = testsBuildServiceProvider.get().getWorkUnitForTask(test.getPath());
         if (workUnit != null) {
-            // State 1: Task has recorded failures — rerun only failed tests
+            // State 1: Task has recorded test failures — rerun only failed tests
             List<TestCase> tests = workUnit.tests();
             int totalTestCount = tests.stream().mapToInt(tc -> tc.children().size()).sum();
             test.getLogger().lifecycle("Smart retry: filtering to {} failed test classes ({} test methods)", tests.size(), totalTestCount);
@@ -101,12 +104,17 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
                     }
                 }
             });
+        } else if (testsBuildServiceProvider.get().wasTaskFailed(test.getPath())) {
+            // State 2: Task failed at the Gradle level without test failures (e.g. resource leak
+            // detected after tests passed) — run all tests to reproduce the failure
+            test.getLogger()
+                .lifecycle("Smart retry: running all tests for {} (task failed without test failures in previous run)", test.getPath());
         } else if (testsBuildServiceProvider.get().wasTaskExecuted(test.getPath())) {
-            // State 2: Task was executed but had no failures — confirmed passed, skip it
+            // State 3: Task was executed and passed — confirmed passed, skip it
             test.getLogger().lifecycle("Smart retry: skipping {} (confirmed passed in previous run)", test.getPath());
             test.onlyIf("Skipped by smart retry - confirmed passed in previous run", element -> false);
         } else {
-            // State 3: Task was never executed (or executedTestTasks data unavailable) — run all tests
+            // State 4: Task was never executed (or executedTestTasks data unavailable) — run all tests
             test.getLogger().lifecycle("Smart retry: running all tests for {} (not executed in previous run)", test.getPath());
         }
     }
@@ -116,6 +124,7 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
         private final FailedTestsReport failureReport;
         private final Map<String, WorkUnit> workUnitsByPath;
         private final Set<String> executedTestTasks;
+        private final Set<String> failedTestTasks;
 
         interface Params extends BuildServiceParameters {
             RegularFileProperty getInfoPath();
@@ -148,6 +157,12 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
                     // which triggers safe fallback (run all tests for unknown tasks).
                     List<String> executed = this.failureReport.executedTestTasks();
                     this.executedTestTasks = executed != null ? new HashSet<>(executed) : null;
+
+                    // Build a HashSet from failedTestTasks for O(1) lookup.
+                    // These are test tasks that failed at the Gradle level (e.g. resource leaks)
+                    // but had no individual test failures.
+                    List<String> failed = this.failureReport.failedTestTasks();
+                    this.failedTestTasks = failed != null ? new HashSet<>(failed) : null;
                 } catch (IOException e) {
                     throw new RuntimeException(String.format("Failed to parse %s", FAILED_TEST_HISTORY_FILENAME), e);
                 }
@@ -155,6 +170,7 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
                 this.failureReport = null;
                 this.workUnitsByPath = Collections.emptyMap();
                 this.executedTestTasks = null;
+                this.failedTestTasks = null;
             }
         }
 
@@ -175,25 +191,32 @@ public abstract class InternalTestRerunPlugin implements Plugin<Project> {
 
         /**
          * Checks whether a test task was actually executed in the previous build run.
-         * This is used for three-state logic: a task not in workUnits could be either
-         * "confirmed passed" (was executed, no failures) or "never executed" (Gradle
-         * stopped before reaching it).
          * <p>
          * Returns {@code true} if the task was confirmed executed. Returns {@code false}
          * if the task was not executed OR if executed task data is unavailable (null),
          * which triggers the safe fallback of running all tests.
-         * <p>
-         * Note: a task that started but crashed before completing would appear in
-         * executedTestTasks yet have no entry in workUnits. In practice this is safe
-         * because such a crash produces a non-test exit code (e.g. 137 for OOM),
-         * so the smart retry path (exit_status 1) is never reached. If this assumption
-         * ever changes, consider cross-checking with Gradle build outcome data.
          *
          * @param taskPath the Gradle task path (e.g., ":server:test")
          * @return true if the task was confirmed executed in the previous run
          */
         public boolean wasTaskExecuted(String taskPath) {
             return executedTestTasks != null && executedTestTasks.contains(taskPath);
+        }
+
+        /**
+         * Checks whether a test task failed at the Gradle level in the previous build run,
+         * without having individual test failures. This covers cases like resource leak
+         * detection, where all tests pass but the task fails during cluster shutdown.
+         * <p>
+         * Returns {@code false} if failed task data is unavailable (null), which triggers
+         * the safe fallback of running all tests for that task via the
+         * {@link #wasTaskExecuted} check.
+         *
+         * @param taskPath the Gradle task path (e.g., ":server:test")
+         * @return true if the task failed without test failures in the previous run
+         */
+        public boolean wasTaskFailed(String taskPath) {
+            return failedTestTasks != null && failedTestTasks.contains(taskPath);
         }
     }
 }

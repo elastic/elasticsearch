@@ -29,6 +29,7 @@ import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
+import org.elasticsearch.index.mapper.blockloader.ConstantNull;
 import org.elasticsearch.index.mapper.blockloader.docvalues.DateRangeDocValuesLoader;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
@@ -354,13 +355,13 @@ public class RangeFieldMapper extends FieldMapper {
 
         @Override
         public BlockLoader blockLoader(BlockLoaderContext blContext) {
+            if (hasDocValues() == false) {
+                return ConstantNull.INSTANCE;
+            }
             if (rangeType != RangeType.DATE) {
                 throw new UnsupportedOperationException("loading blocks is only supported for date fields");
             }
-            if (hasDocValues()) {
-                return new DateRangeDocValuesLoader(name());
-            }
-            throw new IllegalStateException("Cannot load blocks without doc values");
+            return new DateRangeDocValuesLoader(name());
         }
     }
 

@@ -1,0 +1,3 @@
+FROM employees
+| KEEP emp_no, salary, gender
+| CHANGE_POINT salary ON emp_no BY gender, 1

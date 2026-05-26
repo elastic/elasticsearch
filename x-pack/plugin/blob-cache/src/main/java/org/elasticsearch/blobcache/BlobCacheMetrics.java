@@ -35,6 +35,9 @@ public class BlobCacheMetrics {
     public static final String NON_ES_EXECUTOR_TO_RECORD = "other";
     public static final String BLOB_CACHE_COUNT_OF_EVICTED_REGIONS_TOTAL = "es.blob_cache.count_of_evicted_regions.total";
     public static final String SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME = "es.blob_cache.search_origin.download_took_time.total";
+    public static final String BLOB_CACHE_BYPASS_READ_TOTAL = "es.blob_cache.bypass_read.total";
+    public static final String BLOB_CACHE_PREFETCH_TOTAL = "es.blob_cache.prefetch.total";
+    public static final String PREFETCH_RESULT_ATTRIBUTE_KEY = "es_prefetch_result";
 
     private final LongCounter cacheMissCounter;
     private final LongCounter evictedCountNonZeroFrequency;
@@ -43,6 +46,8 @@ public class BlobCacheMetrics {
     private final DoubleHistogram cachePopulationThroughput;
     private final LongCounter cachePopulationBytes;
     private final LongCounter cachePopulationTime;
+    private final LongCounter cacheBypassCounter;
+    private final LongCounter prefetchCounter;
 
     private final LongAdder missCount = new LongAdder();
     private final LongAdder readCount = new LongAdder();
@@ -66,6 +71,16 @@ public class BlobCacheMetrics {
          * When data is prefetched upon new commit notifications
          */
         PreFetchingNewCommit
+    }
+
+    /**
+     * The outcome of a {@code tryPrefetch} attempt, used as the {@code result} attribute on
+     * {@link #BLOB_CACHE_PREFETCH_TOTAL}.
+     */
+    public enum PrefetchResult {
+        AlreadyCached,
+        Fetched,
+        Failed
     }
 
     public BlobCacheMetrics(MeterRegistry meterRegistry) {
@@ -110,6 +125,16 @@ public class BlobCacheMetrics {
                 SEARCH_ORIGIN_REMOTE_STORAGE_DOWNLOAD_TOOK_TIME,
                 "The distribution of time in millis taken to download data from remote storage for search requests",
                 "milliseconds"
+            ),
+            meterRegistry.registerLongCounter(
+                BLOB_CACHE_BYPASS_READ_TOTAL,
+                "The number of reads that bypassed the cache entirely due to eviction",
+                "count"
+            ),
+            meterRegistry.registerLongCounter(
+                BLOB_CACHE_PREFETCH_TOTAL,
+                "The number of prefetch attempts, broken down by outcome via the [" + PREFETCH_RESULT_ATTRIBUTE_KEY + "] attribute",
+                "count"
             )
         );
 
@@ -148,7 +173,9 @@ public class BlobCacheMetrics {
         LongCounter cachePopulationBytes,
         LongCounter cachePopulationTime,
         LongCounter epochChanges,
-        LongHistogram searchOriginDownloadTime
+        LongHistogram searchOriginDownloadTime,
+        LongCounter cacheBypassCounter,
+        LongCounter prefetchCounter
     ) {
         this.cacheMissCounter = cacheMissCounter;
         this.evictedCountNonZeroFrequency = evictedCountNonZeroFrequency;
@@ -159,6 +186,8 @@ public class BlobCacheMetrics {
         this.cachePopulationTime = cachePopulationTime;
         this.epochChanges = epochChanges;
         this.searchOriginDownloadTime = searchOriginDownloadTime;
+        this.cacheBypassCounter = cacheBypassCounter;
+        this.prefetchCounter = prefetchCounter;
     }
 
     public static final BlobCacheMetrics NOOP = new BlobCacheMetrics(TelemetryProvider.NOOP.getMeterRegistry());
@@ -234,6 +263,24 @@ public class BlobCacheMetrics {
 
     public void recordMiss() {
         missCount.increment();
+    }
+
+    /**
+     * Record metrics for a read that bypassed the cache entirely (e.g. due to eviction or no free region).
+     * This counts as both a read and a miss, in addition to incrementing the bypass counter.
+     */
+    public void recordBypassRead() {
+        recordRead();
+        recordMiss();
+        cacheBypassCounter.increment();
+    }
+
+    /**
+     * Record the outcome of a prefetch attempt. The {@code result} attribute on the resulting metric allows
+     * computing per-outcome rates (e.g. fast-path hit ratio, async failure ratio) without needing separate counters.
+     */
+    public void recordPrefetch(PrefetchResult result) {
+        prefetchCounter.incrementBy(1L, Map.of(PREFETCH_RESULT_ATTRIBUTE_KEY, result.name()));
     }
 
     public long readCount() {

@@ -301,8 +301,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
             // reduced aggregations can be null if all shards failed
             && aggs != null) {
 
-            // Update the circuit breaker to replace the estimation with the serialized size of the newly reduced result
-            long finalSize = DelayableWriteable.getSerializedSize(reducePhase.aggregations()) - breakerSize;
+            // Update the circuit breaker to replace the estimation with the uncompressed size of the newly reduced result.
+            // Uncompressed (not on-the-wire) size matches the heap held by the live aggregations tree, which is what
+            // we have at this point.
+            long finalSize = DelayableWriteable.getUncompressedSerializedSize(reducePhase.aggregations()) - breakerSize;
             addWithoutBreaking(finalSize);
             logger.trace("aggs final reduction [{}] max [{}]", aggsCurrentBufferSize, maxAggsCurrentBufferSize);
         }
@@ -414,13 +416,15 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         if (progressListener != SearchProgressListener.NOOP) {
             progressListener.notifyPartialReduce(processedShards, topDocsStats.getTotalHits(), newAggs, numReducePhases);
         }
-        // we leave the results un-serialized because serializing is slow but we compute the serialized
-        // size as an estimate of the memory used by the newly reduced aggregations.
+        // we leave the results un-serialized because serializing is slow. We compute the uncompressed
+        // serialized size as an estimate of the memory used by the newly reduced aggregations: this matches
+        // the heap held by the live aggregations tree we just built (and avoids the under-counting we'd
+        // get from the compressed on-the-wire size — see #147190).
         return new MergeResult(
             processedShards,
             newTopDocs,
             newAggs != null ? DelayableWriteable.referencing(newAggs) : null,
-            newAggs != null ? DelayableWriteable.getSerializedSize(newAggs) : 0
+            newAggs != null ? DelayableWriteable.getUncompressedSerializedSize(newAggs) : 0
         );
     }
 
@@ -497,11 +501,11 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     }
 
     /**
-     * Returns the size of the serialized aggregation that is contained in the
-     * provided {@link QuerySearchResult}.
+     * Returns the uncompressed serialized size of the aggregation contained in the
+     * provided {@link QuerySearchResult} — the size it will occupy on the heap once expanded.
      */
     private long ramBytesUsedQueryResult(QuerySearchResult result) {
-        return hasAggs ? result.aggregations().getSerializedSize() : 0;
+        return hasAggs ? result.aggregations().getUncompressedSerializedSize() : 0;
     }
 
     /**
@@ -723,12 +727,64 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             Lucene.writeTopDocsIncludingShardIndex(out, reducedTopDocs);
-            out.writeOptionalWriteable(
-                reducedAggs == null
-                    ? null
-                    : (out.getTransportVersion().supports(BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE) ? reducedAggs : reducedAggs.expand())
-            );
+            out.writeOptionalWriteable(reducedAggs == null ? null : aggsOut -> writeAggs(aggsOut, reducedAggs));
             out.writeVLong(estimatedSize);
+        }
+
+        /**
+         * Writes {@code reducedAggs} to {@code out}, releasing any pooled {@link SearchHits} held by
+         * top-hits aggregations after the write whenever expansion produces freshly deserialized objects.
+         *
+         * <p>Two paths require an explicit expand + release to avoid leaking pooled SearchHits:
+         * <ul>
+         *   <li><b>BATCHED, version mismatch</b>: {@link DelayableWriteable.Serialized#writeTo} would
+         *       expand transiently via {@code referencing(expand()).writeTo(out)} and discard the result.
+         *       We intercept by expanding here where we control the lifecycle.</li>
+         *   <li><b>Pre-BATCHED</b>: receivers expect raw {@link InternalAggregations} on the wire;
+         *       expansion is unavoidable. Only {@link DelayableWriteable.Serialized} produces fresh
+         *       objects that need releasing; a referencing {@link DelayableWriteable} returns the live
+         *       caller-owned reference and must not be released here.</li>
+         * </ul>
+         */
+        private static void writeAggs(StreamOutput out, DelayableWriteable<InternalAggregations> reducedAggs) throws IOException {
+            if (out.getTransportVersion().supports(BATCHED_QUERY_EXECUTION_DELAYABLE_WRITEABLE)) {
+                if (reducedAggs instanceof DelayableWriteable.Serialized<?> s && out.getTransportVersion() != s.getSerializedAtVersion()) {
+                    writeExpandedAndRelease(out, reducedAggs.expand(), true);
+                } else {
+                    reducedAggs.writeTo(out);
+                }
+            } else {
+                if (reducedAggs.isSerialized()) {
+                    writeExpandedAndRelease(out, reducedAggs.expand(), false);
+                } else {
+                    reducedAggs.expand().writeTo(out);
+                }
+            }
+        }
+
+        /**
+         * Writes {@code expanded} and releases any pooled {@link SearchHits} held by top-hits
+         * aggregations inside it after the write completes (or fails).
+         *
+         * @param delayableWireFormat {@code true} to write in {@link DelayableWriteable} size-prefixed
+         *                            format (BATCHED path); {@code false} to write {@link InternalAggregations}
+         *                            directly (pre-BATCHED path).
+         */
+        private static void writeExpandedAndRelease(StreamOutput out, InternalAggregations expanded, boolean delayableWireFormat)
+            throws IOException {
+            List<SearchHits> toRelease = new ArrayList<>();
+            InternalAggregations.addTopHitsToReleaseList(expanded, toRelease, false);
+            try {
+                if (delayableWireFormat) {
+                    DelayableWriteable.referencing(expanded).writeTo(out);
+                } else {
+                    expanded.writeTo(out);
+                }
+            } finally {
+                for (SearchHits h : toRelease) {
+                    h.decRef();
+                }
+            }
         }
     }
 

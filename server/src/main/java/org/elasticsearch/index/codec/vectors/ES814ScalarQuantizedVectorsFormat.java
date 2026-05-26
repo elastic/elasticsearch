@@ -33,6 +33,7 @@ import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
+import org.elasticsearch.simdvec.ESVectorizationProvider;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
 
@@ -128,8 +129,10 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
     @Override
     public FlatVectorsReader fieldsReader(SegmentReadState state) throws IOException {
+        FlatVectorsReader rawDelegate = rawVectorFormat.fieldsReader(state);
         return new ES814ScalarQuantizedVectorsReader(
-            new Lucene99ScalarQuantizedVectorsReader(state, rawVectorFormat.fieldsReader(state), flatVectorScorer)
+            new Lucene99ScalarQuantizedVectorsReader(state, rawDelegate, flatVectorScorer),
+            rawDelegate
         );
     }
 
@@ -181,10 +184,12 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     static final class ES814ScalarQuantizedVectorsReader extends FlatVectorsReader implements QuantizedVectorsReader {
 
         final Lucene99ScalarQuantizedVectorsReader delegate;
+        final FlatVectorsReader rawDelegate;
 
-        ES814ScalarQuantizedVectorsReader(Lucene99ScalarQuantizedVectorsReader delegate) {
+        ES814ScalarQuantizedVectorsReader(Lucene99ScalarQuantizedVectorsReader delegate, FlatVectorsReader rawDelegate) {
             super(delegate.getFlatVectorScorer());
             this.delegate = delegate;
+            this.rawDelegate = rawDelegate;
         }
 
         @Override
@@ -204,7 +209,13 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
-            return delegate.getFloatVectorValues(field);
+            FloatVectorValues floatVectorValues = delegate.getFloatVectorValues(field);
+            if (floatVectorValues == null) {
+                return null;
+            }
+            // Its critical that we use this for later rescoring to ensure that the HasSlice, and byte size information relates to the
+            // raw vectors
+            return new QuantizedAndRawFloatVectorValues(floatVectorValues, rawDelegate.getFloatVectorValues(field));
         }
 
         @Override
@@ -245,7 +256,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
         ESFlatVectorsScorer(FlatVectorsScorer delegate) {
             this.delegate = delegate;
-            factory = VectorScorerFactory.instance().orElse(null);
+            factory = ESVectorizationProvider.getInstance().getVectorScorerFactory();
         }
 
         @Override
@@ -261,16 +272,14 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
                 if (qValues.getScalarQuantizer().getBits() != 7) {
                     return delegate.getRandomVectorScorerSupplier(sim, values);
                 }
-                if (factory != null) {
-                    var scorer = factory.getInt7SQVectorScorerSupplier(
-                        VectorSimilarityType.of(sim),
-                        qValues.getSlice(),
-                        qValues,
-                        qValues.getScalarQuantizer().getConstantMultiplier()
-                    );
-                    if (scorer.isPresent()) {
-                        return scorer.get();
-                    }
+                var scorer = factory.getInt7SQVectorScorerSupplier(
+                    VectorSimilarityType.of(sim),
+                    qValues.getSlice(),
+                    qValues,
+                    qValues.getScalarQuantizer().getConstantMultiplier()
+                );
+                if (scorer.isPresent()) {
+                    return scorer.get();
                 }
             }
             return delegate.getRandomVectorScorerSupplier(sim, values);
@@ -284,11 +293,9 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
                 if (qValues.getScalarQuantizer().getBits() != 7) {
                     return delegate.getRandomVectorScorer(sim, values, query);
                 }
-                if (factory != null) {
-                    var scorer = factory.getInt7SQVectorScorer(sim, qValues, query);
-                    if (scorer.isPresent()) {
-                        return scorer.get();
-                    }
+                var scorer = factory.getInt7SQVectorScorer(sim, qValues, query);
+                if (scorer.isPresent()) {
+                    return scorer.get();
                 }
             }
             return delegate.getRandomVectorScorer(sim, values, query);

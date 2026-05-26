@@ -8,203 +8,95 @@
 package org.elasticsearch.xpack.dlm.frozen;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
-import org.elasticsearch.cluster.ClusterStateListener;
-import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.dlm.DataStreamLifecycleErrorStore;
-import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.index.Index;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.logging.Logger;
-import org.elasticsearch.threadpool.ThreadPool;
 
-import java.io.Closeable;
 import java.time.Clock;
-import java.util.concurrent.Executors;
 import java.util.concurrent.RejectedExecutionException;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.BiFunction;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService.indexMarkedForFrozen;
 import static org.elasticsearch.logging.LogManager.getLogger;
 
 /**
- * Master-node service that periodically scans data stream backing indices for the frozen-candidate marker and submits matching indices to
+ * Master-node service that periodically scans all project indices for the frozen-candidate marker and submits matching indices to
  * {@link DLMFrozenTransitionExecutor} for conversion. Thread pools are started when the node becomes master and stopped when it loses
  * mastership or the service is closed.
  */
-class DLMFrozenTransitionService implements ClusterStateListener, Closeable {
-
-    private static final Logger logger = getLogger(DLMFrozenTransitionService.class);
+class DLMFrozenTransitionService extends AbstractDLMPeriodicMasterOnlyService {
 
     static final Setting<TimeValue> POLL_INTERVAL_SETTING = Setting.timeSetting(
         "dlm.frozen_transition.poll_interval",
         TimeValue.timeValueMinutes(5),
-        TimeValue.timeValueMinutes(1),
+        TimeValue.timeValueSeconds(1),
         Setting.Property.NodeScope
     );
 
-    static final Setting<Integer> MAX_CONCURRENCY_SETTING = Setting.intSetting(
-        "dlm.frozen_transition.max_concurrency",
-        10,
-        1,
-        100,
-        Setting.Property.NodeScope
-    );
-
-    static final Setting<Integer> MAX_QUEUE_SIZE = Setting.intSetting(
-        "dlm.frozen_transition.max_queue_size",
-        500,
-        1,
-        10000,
-        Setting.Property.NodeScope
-    );
-
-    private final ClusterService clusterService;
-    private final AtomicBoolean isMaster = new AtomicBoolean(false);
-    private ScheduledExecutorService schedulerThreadExecutor;
-    private DLMFrozenTransitionExecutor transitionExecutor;
-    private final AtomicBoolean closing = new AtomicBoolean(false);
-    private final TimeValue pollInterval;
-    private final int maxConcurrency;
-    private final int maxQueueSize;
-    private final long initialDelayMillis;
-    private final DataStreamLifecycleErrorStore errorStore;
+    private static final Logger logger = getLogger(DLMFrozenTransitionService.class);
 
     private final BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory;
+    private final DLMFrozenTransitionExecutor transitionExecutor;
 
     DLMFrozenTransitionService(
         ClusterService clusterService,
         Client client,
-        XPackLicenseState licenseState,
-        DataStreamLifecycleErrorStore errorStore
+        Supplier<XPackLicenseState> licenseStateSupplier,
+        DLMFrozenTransitionExecutor transitionExecutor
     ) {
         this(
             clusterService,
-            (index, pid) -> new DLMConvertToFrozen(index, pid, client, clusterService, licenseState, Clock.systemUTC()),
+            (index, pid) -> new DLMConvertToFrozen(index, pid, client, clusterService, licenseStateSupplier, Clock.systemUTC()),
             POLL_INTERVAL_SETTING.get(clusterService.getSettings()).millis(),
-            errorStore
+            transitionExecutor
         );
     }
 
     // visible for testing
     DLMFrozenTransitionService(
         ClusterService clusterService,
-        BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory
+        BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory,
+        DLMFrozenTransitionExecutor transitionExecutor
     ) {
-        this(clusterService, transitionRunnableFactory, 0, new DataStreamLifecycleErrorStore(System::currentTimeMillis));
+        this(clusterService, transitionRunnableFactory, 0, transitionExecutor);
     }
 
     private DLMFrozenTransitionService(
         ClusterService clusterService,
         BiFunction<String, ProjectId, DLMFrozenTransitionRunnable> transitionRunnableFactory,
         long initialDelayMillis,
-        DataStreamLifecycleErrorStore errorStore
+        DLMFrozenTransitionExecutor transitionExecutor
     ) {
-        this.clusterService = clusterService;
-        this.pollInterval = POLL_INTERVAL_SETTING.get(clusterService.getSettings());
-        this.maxConcurrency = MAX_CONCURRENCY_SETTING.get(clusterService.getSettings());
-        this.maxQueueSize = MAX_QUEUE_SIZE.get(clusterService.getSettings());
+        super(clusterService, POLL_INTERVAL_SETTING.get(clusterService.getSettings()), initialDelayMillis);
         this.transitionRunnableFactory = transitionRunnableFactory;
-        this.initialDelayMillis = initialDelayMillis;
-        this.errorStore = errorStore;
-    }
-
-    /**
-     * Registers this service as a {@link ClusterStateListener} so that master election events trigger thread pool
-     * lifecycle. Must be called after construction to avoid publishing a self-reference from the constructor.
-     */
-    void init() {
-        clusterService.addListener(this);
+        this.transitionExecutor = transitionExecutor;
     }
 
     @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        // wait for the cluster state to be recovered
-        if (closing.get() || event.state().blocks().hasGlobalBlock(GatewayService.STATE_NOT_RECOVERED_BLOCK)) {
-            return;
-        }
-        var isNodeMaster = event.localNodeMaster();
-        if (isMaster.getAndSet(isNodeMaster) != isNodeMaster) {
-            if (isNodeMaster) {
-                startThreadPools();
-            } else {
-                stopThreadPools();
-            }
-        }
-    }
-
-    private void startThreadPools() {
-        synchronized (this) {
-            if (closing.get() == false) {
-                transitionExecutor = new DLMFrozenTransitionExecutor(
-                    clusterService,
-                    maxConcurrency,
-                    maxQueueSize,
-                    clusterService.getSettings(),
-                    errorStore
-                );
-                transitionExecutor.init();
-                schedulerThreadExecutor = Executors.newSingleThreadScheduledExecutor(
-                    EsExecutors.daemonThreadFactory(clusterService.getSettings(), "dlm-frozen-transition-scheduler")
-                );
-                schedulerThreadExecutor.scheduleAtFixedRate(
-                    this::checkForFrozenIndices,
-                    initialDelayMillis,
-                    pollInterval.millis(),
-                    TimeUnit.MILLISECONDS
-                );
-            }
-        }
-    }
-
-    private void stopThreadPools() {
-        synchronized (this) {
-            if (schedulerThreadExecutor != null) {
-                schedulerThreadExecutor.shutdownNow();
-                schedulerThreadExecutor = null;
-            }
-            if (transitionExecutor != null) {
-                transitionExecutor.shutdownNow();
-                transitionExecutor = null;
-            }
-        }
+    Runnable getScheduledTask() {
+        return this::checkForFrozenIndices;
     }
 
     @Override
-    public void close() {
-        synchronized (this) {
-            if (closing.compareAndSet(false, true)) {
-                clusterService.removeListener(this);
-                if (schedulerThreadExecutor != null) {
-                    ThreadPool.terminate(schedulerThreadExecutor, 10, TimeUnit.SECONDS);
-                    schedulerThreadExecutor = null;
-                }
-                if (transitionExecutor != null) {
-                    transitionExecutor.close();
-                    transitionExecutor = null;
-                }
-            }
-        }
+    String getSchedulerThreadName() {
+        return "dlm-frozen-transition";
     }
 
-    // Visible for testing
-    boolean isSchedulerThreadRunning() {
-        return schedulerThreadExecutor != null && schedulerThreadExecutor.isShutdown() == false;
+    @Override
+    void onStart() {
+        transitionExecutor.start();
     }
 
-    // Visible for testing
-    boolean isTransitionExecutorRunning() {
-        return transitionExecutor != null;
+    @Override
+    void onStop() {
+        transitionExecutor.stop();
     }
 
     // Visible for testing
@@ -212,45 +104,39 @@ class DLMFrozenTransitionService implements ClusterStateListener, Closeable {
         return transitionExecutor;
     }
 
-    // Visible for testing
-    boolean isClosing() {
-        return closing.get();
-    }
-
     // visible for testing
     void checkForFrozenIndices() {
-        final DLMFrozenTransitionExecutor executor = transitionExecutor;
-        if (executor == null) {
-            return;
-        }
         for (ProjectMetadata projectMetadata : clusterService.state().metadata().projects().values()) {
-            for (DataStream dataStream : projectMetadata.dataStreams().values()) {
-                for (Index index : dataStream.getIndices()) {
-                    if (Thread.currentThread().isInterrupted() || closing.get()) {
-                        return;
-                    }
-                    if (indexMarkedForFrozen(projectMetadata.index(index))) {
-                        logger.debug("Frozen index to process detected: {}", index);
-                        if (executor.transitionSubmitted(index.getName())) {
-                            logger.debug("Transition already running for index [{}], skipping", index);
-                            continue;
-                        } else if (executor.hasCapacity() == false) {
-                            logger.debug("No transition threads available. Stopping loop at {}", index);
-                            return;
-                        }
-                        try {
-                            executor.submit(transitionRunnableFactory.apply(index.getName(), projectMetadata.id()));
-                        } catch (RejectedExecutionException e) {
-                            logger.debug(
-                                () -> LoggerMessageFormat.format(
-                                    "Unable to submit transition task for index [{}], Possibly shutting down?",
-                                    index
-                                ),
-                                e
-                            );
-                            return;
-                        }
-                    }
+            for (IndexMetadata indexMetadata : projectMetadata.indices().values()) {
+                if (Thread.currentThread().isInterrupted() || isClosing()) {
+                    return;
+                }
+                if (DLMConvertToFrozen.DLM_CREATED_SETTING.get(indexMetadata.getSettings())) {
+                    continue;
+                }
+                if (indexMarkedForFrozen(indexMetadata) == false) {
+                    continue;
+                }
+                String indexName = indexMetadata.getIndex().getName();
+                logger.debug("Frozen index to process detected: {}", indexName);
+                if (transitionExecutor.transitionSubmitted(indexName)) {
+                    logger.debug("Transition already running for index [{}], skipping", indexName);
+                    continue;
+                } else if (transitionExecutor.hasCapacity() == false) {
+                    logger.debug("No transition threads available. Stopping loop at {}", indexName);
+                    return;
+                }
+                try {
+                    transitionExecutor.submit(transitionRunnableFactory.apply(indexName, projectMetadata.id()));
+                } catch (RejectedExecutionException e) {
+                    logger.debug(
+                        () -> LoggerMessageFormat.format(
+                            "Unable to submit transition task for index [{}], Possibly shutting down?",
+                            indexName
+                        ),
+                        e
+                    );
+                    return;
                 }
             }
         }

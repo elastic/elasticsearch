@@ -10,7 +10,7 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
-import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.LongHashTable;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.IntBlock;
@@ -33,7 +33,7 @@ final class LongTopNBlockHash extends BlockHash {
     private final boolean asc;
     private final boolean nullsFirst;
     private final int limit;
-    private final LongHash hash;
+    private final LongHashTable hash;
     private final LongTopNSet topValues;
 
     /**
@@ -55,7 +55,7 @@ final class LongTopNBlockHash extends BlockHash {
 
         boolean success = false;
         try {
-            this.hash = new LongHash(1, blockFactory.bigArrays());
+            this.hash = HashImplFactory.newLongHash(blockFactory);
             this.topValues = new LongTopNSet(blockFactory.bigArrays(), asc ? SortOrder.ASC : SortOrder.DESC, limit);
             success = true;
         } finally {

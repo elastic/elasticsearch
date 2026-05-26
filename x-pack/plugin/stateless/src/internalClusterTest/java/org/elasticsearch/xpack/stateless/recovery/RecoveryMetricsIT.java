@@ -1,0 +1,504 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+package org.elasticsearch.xpack.stateless.recovery;
+
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
+import org.elasticsearch.telemetry.Measurement;
+import org.elasticsearch.telemetry.TestTelemetryPlugin;
+import org.elasticsearch.test.transport.MockTransportService;
+import org.elasticsearch.xpack.stateless.AbstractStatelessPluginIntegTestCase;
+import org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingService;
+import org.elasticsearch.xpack.stateless.commits.HollowShardsService;
+import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
+import org.elasticsearch.xpack.stateless.engine.IndexEngine;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
+import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
+import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
+
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.function.Function;
+
+import static org.elasticsearch.blobcache.shared.SharedBytes.PAGE_SIZE;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
+
+public class RecoveryMetricsIT extends AbstractStatelessPluginIntegTestCase {
+
+    @Override
+    protected boolean addMockFsRepository() {
+        return false;
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.add(TestTelemetryPlugin.class);
+        plugins.add(MockRepository.Plugin.class);
+        return plugins;
+    }
+
+    @Override
+    protected Settings.Builder nodeSettings() {
+        return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
+    }
+
+    public void testRecoveryMetricPublicationOnIndexingShardRelocation() throws Exception {
+        startMasterOnlyNode();
+        var indexingNode1 = startIndexNode();
+        var indexingNode2 = startIndexNode();
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        // ensure that index shard is allocated on `indexingNode1` and not on `indexingNode2`
+        assertAcked(
+            admin().indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode2))
+        );
+
+        int numDocs = randomIntBetween(100, 1000);
+        indexDocs(indexName, numDocs);
+        flush(indexName);
+
+        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, indexingNode2)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        plugin.resetMeter();
+
+        var latch = delayRecovery(indexingNode2, TimeValue.timeValueSeconds(3L));
+
+        // trigger primary relocation from `indexingNode1` to `indexingNode2`
+        // hence start recovery of the shard on a new node
+        assertAcked(
+            admin().indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode1))
+        );
+        safeAwait(latch);
+
+        assertBusy(() -> {
+            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(
+                RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS
+            );
+            assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
+            assertThat(measurements.size(), equalTo(1));
+            final Measurement metric = measurements.get(0);
+            assertThat(metric.value().longValue(), greaterThan(0L));
+            assertThat(metric.attributes().get("primary"), equalTo(true));
+            assertThat(metric.attributes().get("recovery_type"), equalTo("PEER"));
+        });
+
+        assertBusy(() -> {
+            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(
+                RecoveryMetricsCollector.RECOVERY_INDEX_TIME_METRIC_IN_SECONDS
+            );
+            assertFalse("Index recovery time metric is not recorded", measurements.isEmpty());
+            assertThat(measurements.size(), equalTo(1));
+            final Measurement metric = measurements.get(0);
+            assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
+            assertThat(metric.attributes().get("primary"), equalTo(true));
+            assertThat(metric.attributes().get("recovery_type"), equalTo("PEER"));
+        });
+
+        assertBusy(() -> {
+            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(
+                RecoveryMetricsCollector.RECOVERY_TRANSLOG_TIME_METRIC_IN_SECONDS
+            );
+            assertFalse("Translog recovery time metric is not recorded", measurements.isEmpty());
+            assertThat(measurements.size(), equalTo(1));
+            final Measurement metric = measurements.get(0);
+            assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
+            assertThat(metric.attributes().get("primary"), equalTo(true));
+            assertThat(metric.attributes().get("recovery_type"), equalTo("PEER"));
+        });
+    }
+
+    public void testRecoveryMetricPublicationOnIndexingShardStartedAndThenRecovered() throws Exception {
+        startMasterOnlyNode();
+        var indexingNode1 = startIndexNode();
+
+        final TestTelemetryPlugin pluginOnNode1 = internalCluster().getInstance(PluginsService.class, indexingNode1)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        pluginOnNode1.resetMeter();
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        // check that a brand new shard went thru `EMPTY_STORE` recovery type
+        assertBusy(() -> {
+            final List<Measurement> measurements = pluginOnNode1.getLongHistogramMeasurement(
+                RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS
+            );
+            assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
+            assertThat(measurements.size(), equalTo(1));
+            final Measurement metric = measurements.get(0);
+            assertThat(metric.attributes().get("primary"), equalTo(true));
+            assertThat(metric.attributes().get("recovery_type"), equalTo("EMPTY_STORE"));
+        });
+
+        // ensure that index shard is allocated on `indexingNode1` only
+        assertAcked(
+            admin().indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "._name", indexingNode1))
+        );
+
+        int numDocs = randomIntBetween(100, 1000);
+        indexDocs(indexName, numDocs);
+        refresh(indexName);
+
+        internalCluster().stopNode(indexingNode1);
+
+        // master only node exists
+        assertBusy(() -> assertThat(internalCluster().size(), equalTo(1)));
+
+        var indexingNode2 = startIndexNode();
+
+        final TestTelemetryPlugin pluginOnNode2 = internalCluster().getInstance(PluginsService.class, indexingNode2)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        pluginOnNode2.resetMeter();
+
+        var latch = delayRecovery(indexingNode2, TimeValue.timeValueSeconds(3L));
+
+        // start recovery of the shard on a new node
+        assertAcked(
+            admin().indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().putNull(IndexMetadata.INDEX_ROUTING_INCLUDE_GROUP_PREFIX + "._name"))
+        );
+        safeAwait(latch);
+
+        assertBusy(() -> {
+            final List<Measurement> measurements = pluginOnNode2.getLongHistogramMeasurement(
+                RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS
+            );
+            assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
+            assertThat(measurements.size(), equalTo(1));
+            final Measurement metric = measurements.get(0);
+            assertThat(metric.value().longValue(), greaterThan(0L));
+            assertThat(metric.attributes().get("primary"), equalTo(true));
+            assertThat(metric.attributes().get("recovery_type"), equalTo("EXISTING_STORE"));
+        });
+
+        assertBusy(() -> {
+            final List<Measurement> measurements = pluginOnNode2.getLongHistogramMeasurement(
+                RecoveryMetricsCollector.RECOVERY_INDEX_TIME_METRIC_IN_SECONDS
+            );
+            assertFalse("Index recovery time metric is not recorded", measurements.isEmpty());
+            assertThat(measurements.size(), equalTo(1));
+            final Measurement metric = measurements.get(0);
+            assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
+            assertThat(metric.attributes().get("primary"), equalTo(true));
+            assertThat(metric.attributes().get("recovery_type"), equalTo("EXISTING_STORE"));
+        });
+
+        assertBusy(() -> {
+            final List<Measurement> measurements = pluginOnNode2.getLongHistogramMeasurement(
+                RecoveryMetricsCollector.RECOVERY_TRANSLOG_TIME_METRIC_IN_SECONDS
+            );
+            assertFalse("Translog recovery time metric is not recorded", measurements.isEmpty());
+            assertThat(measurements.size(), equalTo(1));
+            final Measurement metric = measurements.get(0);
+            assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
+            assertThat(metric.attributes().get("primary"), equalTo(true));
+            assertThat(metric.attributes().get("recovery_type"), equalTo("EXISTING_STORE"));
+        });
+    }
+
+    public void testRecoveryMetricPublicationOnSearchingShardStart() throws Exception {
+        startMasterOnlyNode();
+        startIndexNode();
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        indexDocs(indexName, 100);
+        flush(indexName);
+
+        var searchNode = startSearchNode();
+
+        final TestTelemetryPlugin plugin = internalCluster().getInstance(PluginsService.class, searchNode)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        plugin.resetMeter();
+
+        var latch = delayRecovery(searchNode, TimeValue.timeValueSeconds(3L));
+
+        // initiate allocation and shard recovery on `searchNode`
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        safeAwait(latch);
+
+        assertBusy(() -> {
+            final List<Measurement> measurements = plugin.getLongHistogramMeasurement(
+                RecoveryMetricsCollector.RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS
+            );
+            assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
+            assertThat(measurements.size(), equalTo(1));
+            final Measurement metric = measurements.get(0);
+            assertThat(metric.value().longValue(), greaterThan(0L));
+            assertThat(metric.attributes().get("primary"), equalTo(false));
+            assertThat(metric.attributes().get("recovery_type"), equalTo("PEER"));
+        });
+    }
+
+    public void testRecoveryMetricPublicationBytesReadToCache() throws Exception {
+        startMasterOnlyNode();
+        // in scenarios where cache is disabled (see AbstractStatelessIntegTestCase#settingsForRoles)
+        // nothing is copied to cache and so metric in SharedBlobCacheWarmingService is not incremented
+        var cacheSettings = Settings.builder()
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(2L * PAGE_SIZE).getStringRep())
+            .build();
+
+        final var hollowSettings = randomHollowIndexNodeSettings();
+        final var hollowEnabled = STATELESS_HOLLOW_INDEX_SHARDS_ENABLED.get(hollowSettings);
+        final var indexingNodeSettings = Settings.builder().put(cacheSettings).put(hollowSettings).build();
+
+        var indexingNode1 = startIndexNode(indexingNodeSettings);
+        var indexingNode2 = startIndexNode(indexingNodeSettings);
+
+        var indexName = randomIdentifier();
+        // ensure that index shard is allocated on `indexingNode1` and not on `indexingNode2`
+        createIndex(
+            indexName,
+            Settings.builder()
+                .put(indexSettings(1, 0).build())
+                .put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode2)
+                .build()
+        );
+        ensureGreen(indexName);
+
+        indexDocs(indexName, randomIntBetween(100, 1000));
+        flush(indexName);
+        indexDocs(indexName, randomIntBetween(100, 1000));
+        refresh(indexName);
+
+        if (hollowEnabled) {
+            final var hollowShardsService = internalCluster().getInstance(HollowShardsService.class, indexingNode1);
+            final var indexShard = findIndexShard(indexName);
+            assertBusy(() -> assertThat(hollowShardsService.isHollowableIndexShard(indexShard), equalTo(true)));
+        }
+
+        var plugin = internalCluster().getInstance(PluginsService.class, indexingNode2)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        plugin.resetMeter();
+
+        CountDownLatch warmingDone = new CountDownLatch(1);
+        // Block further recovery until prewarming is done
+        MockTransportService.getInstance(indexingNode2)
+            .addRequestHandlingBehavior(PRIMARY_CONTEXT_HANDOFF_ACTION_NAME, (handler, request, channel, task) -> {
+                safeAwait(warmingDone);
+                handler.messageReceived(request, channel, task);
+            });
+
+        // trigger primary relocation from `indexingNode1` to `indexingNode2`
+        // hence start recovery of the shard on a new node
+        assertAcked(
+            admin().indices()
+                .prepareUpdateSettings(indexName)
+                .setSettings(Settings.builder().put(IndexMetadata.INDEX_ROUTING_EXCLUDE_GROUP_PREFIX + "._name", indexingNode1))
+        );
+
+        // Wait until the IndexShardCacheWarmer warms the commit to ensure that it reads some bytes (otherwise it could race with
+        // recovery getting bytes into the cache first).
+        // Note: we don't do warming for to-be-hollowed shards. Hence, we skip waiting and don't expect warming metrics.
+        if (hollowEnabled == false) {
+            assertBusy(
+                () -> assertThat(
+                    plugin.getLongCounterMeasurement(SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC)
+                        .size(),
+                    greaterThan(0)
+                )
+            );
+        }
+        warmingDone.countDown();
+
+        ensureGreen(indexName);
+
+        var recoveriesMetric = getSingleRecordedMetric(
+            plugin::getLongCounterMeasurement,
+            RecoveryMetricsCollector.RECOVERY_TOTAL_COUNT_METRIC
+        );
+        assertThat(recoveriesMetric.getLong(), greaterThan(0L));
+
+        var warmedFromObjectStoreMetric = getSingleRecordedMetric(
+            plugin::getLongCounterMeasurement,
+            RecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_OBJECT_STORE_METRIC
+        );
+        assertMetricAttributes(warmedFromObjectStoreMetric, true);
+
+        var readFromObjectStoreMetric = getSingleRecordedMetric(
+            plugin::getLongCounterMeasurement,
+            RecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_OBJECT_STORE_METRIC
+        );
+        assertMetricAttributes(readFromObjectStoreMetric, true);
+
+        assertThat(
+            "No bytes read or warmed from object store",
+            warmedFromObjectStoreMetric.getLong() + readFromObjectStoreMetric.getLong(),
+            greaterThan(0L)
+        );
+
+        final List<Measurement> measurements = plugin.getLongCounterMeasurement(
+            SharedBlobCacheWarmingService.BLOB_CACHE_WARMING_PAGE_ALIGNED_BYTES_TOTAL_METRIC
+        );
+        if (hollowEnabled) {
+            // We don't warm for to-be-hollowed shards. This is a weak assertion as there is no wait.
+            assertThat(measurements.size(), equalTo(0));
+        } else {
+            // One from IndexShardCacheWarmer and the other from StatelessIndexEventListener (which we may need to wait for it to appear)
+            assertBusy(() -> assertThat(measurements.size(), equalTo(2)));
+            long totalBytesWarmed = 0;
+            for (final Measurement metric : measurements) {
+                final long bytesWarmed = metric.getLong();
+                assertThat(bytesWarmed, greaterThanOrEqualTo(0L));
+                totalBytesWarmed += bytesWarmed;
+                assertMetricAttributes(metric, true);
+            }
+            assertThat(totalBytesWarmed, greaterThan(0L));
+        }
+    }
+
+    public void testRecoveryMetricPublicationBytesReadToCacheFromIndexing() {
+        startMasterOnlyNode();
+        // prevent implicit refreshes
+        startIndexNode(
+            Settings.builder()
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
+                .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.MAX_VALUE)
+                .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+                .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+                .build()
+        );
+
+        var indexName = randomIdentifier();
+        createIndex(indexName, indexSettings(1, 0).build());
+        // have commits both uploaded to object store and pending in vbcc
+
+        var indexShard = findIndexShard(indexName);
+        var indexEngine = asInstanceOf(IndexEngine.class, indexShard.getEngineOrNull());
+        var commitService = indexEngine.getStatelessCommitService();
+
+        indexDocs(indexName, randomIntBetween(10, 20));
+        flush(indexName);   // upload via flush
+        assertThat(commitService.getCurrentVirtualBcc(indexShard.shardId()), nullValue());
+
+        indexDocs(indexName, randomIntBetween(10, 20));
+        // create vbcc but do not upload: upload is disabled and index engine flush does not do upload since it is originated from refresh
+        refresh(indexName);
+        assertThat(commitService.getCurrentVirtualBcc(indexShard.shardId()), notNullValue());
+        ensureGreen(indexName);
+
+        var searchNode = startSearchNode();
+
+        var plugin = internalCluster().getInstance(PluginsService.class, searchNode)
+            .filterPlugins(TestTelemetryPlugin.class)
+            .findFirst()
+            .orElseThrow();
+        plugin.resetMeter();
+
+        // initiate allocation and shard recovery on `searchNode`
+        updateIndexSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1));
+        ensureGreen(indexName);
+
+        boolean warmedBytes;
+        boolean readBytes;
+        {
+            var metric = getSingleRecordedMetric(
+                plugin::getLongCounterMeasurement,
+                RecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC
+            );
+            warmedBytes = metric.getLong() > 0;
+            assertMetricAttributes(metric, false);
+        }
+        {
+            var metric = getSingleRecordedMetric(
+                plugin::getLongCounterMeasurement,
+                RecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_INDEXING_METRIC
+            );
+            readBytes = metric.getLong() > 0;
+            assertMetricAttributes(metric, false);
+        }
+        assertThat("No bytes read or warmed from indexing", warmedBytes || readBytes, equalTo(true));
+    }
+
+    private static Measurement getSingleRecordedMetric(Function<String, List<Measurement>> metricGetter, String name) {
+        final List<Measurement> measurements = metricGetter.apply(name);
+        assertFalse("Metric is not recorded", measurements.isEmpty());
+        assertThat(measurements.size(), equalTo(1));
+        return measurements.get(0);
+    }
+
+    private void assertMetricAttributes(Measurement metric, boolean isPrimary) {
+        assertThat(metric.attributes().get("primary"), equalTo(isPrimary));
+    }
+
+    /**
+     * Delay shard recoveries on a node by blocking access to the object store, then pausing for the given {@code sleep} time before
+     * unblocking access to the object store.
+     *
+     * @param nodeName  the node's name
+     * @param sleep     the amont of time to sleep before unblocking access to the object store
+     * @return          a {@link CountDownLatch} to wait for the blocking, sleeping and unblocking to be executed. The latch is only
+     *                  completed if all operations were successfully executed.
+     */
+    private static CountDownLatch delayRecovery(String nodeName, TimeValue sleep) {
+        var repository = ObjectStoreTestUtils.getObjectStoreMockRepository(getObjectStoreService(nodeName));
+        repository.setBlockOnAnyFiles();
+        final var latch = new CountDownLatch(1);
+        var thread = new Thread(() -> {
+            boolean success = false;
+            try {
+                assertBusy(() -> assertTrue(repository.blocked()), 30L, TimeUnit.SECONDS);
+                safeSleep(sleep);
+                success = true;
+            } catch (Exception e) {
+                throw new AssertionError(e);
+            } finally {
+                try {
+                    repository.unblock();
+                } finally {
+                    if (success) {
+                        latch.countDown();
+                    }
+                }
+            }
+        });
+        thread.start();
+        return latch;
+    }
+}

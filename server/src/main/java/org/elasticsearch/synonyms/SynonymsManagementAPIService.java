@@ -14,6 +14,7 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DelegatingActionListener;
@@ -27,7 +28,6 @@ import org.elasticsearch.action.admin.indices.analyze.ReloadAnalyzersResponse;
 import org.elasticsearch.action.admin.indices.analyze.TransportReloadAnalyzersAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
-import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
@@ -41,11 +41,18 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.ClusterChangedEvent;
+import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.Preference;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -75,10 +82,10 @@ import java.io.UncheckedIOException;
 import java.security.InvalidParameterException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
@@ -106,9 +113,11 @@ public class SynonymsManagementAPIService {
     // Identifies synonym set objects stored in the index
     private static final String SYNONYM_SET_OBJECT_TYPE = "synonym_set";
     private static final String SYNONYM_RULE_ID_SEPARATOR = "|";
-    private static final int MAX_SYNONYM_RULES = 10_000;
+    // Maximum number of synonym sets that can be listed by GET /_synonyms
+    private static final int MAX_SYNONYMS_SETS = 10_000;
     private static final TimeValue PIT_KEEP_ALIVE = TimeValue.timeValueSeconds(60);
     static final int PIT_BATCH_SIZE = 10_000;
+    static final int BULK_CHUNK_SIZE = 10_000;
     private static final String SYNONYM_RULE_ID_FIELD = SynonymRule.ID_FIELD.getPreferredName();
     private static final String SYNONYM_SETS_AGG_NAME = "synonym_sets_aggr";
     private static final String RULE_COUNT_AGG_NAME = "rule_count";
@@ -116,8 +125,26 @@ public class SynonymsManagementAPIService {
     private static final int SYNONYMS_INDEX_MAPPINGS_VERSION = 1;
     public static final int INDEX_SEARCHABLE_TIMEOUT_SECONDS = 30;
 
-    private final int maxSynonymRules;
+    // Gate writes above PRE_LARGE_SETS_LIMIT behind this version to prevent silent truncation on
+    // old nodes during rolling upgrades
+    static final TransportVersion SYNONYMS_LARGE_SETS = TransportVersion.fromName("synonyms_large_sets");
+    // Limit enforced by nodes that do not support large synonym sets
+    static final int PRE_LARGE_SETS_LIMIT = 10_000;
+
+    private static final int MAX_SYNONYM_RULES = 100_000;
+    public static final Setting<Integer> MAX_SYNONYM_RULES_SETTING = Setting.intSetting(
+        "synonyms.max_synonym_rules",
+        MAX_SYNONYM_RULES,
+        1,
+        Property.Dynamic,
+        Property.NodeScope
+    );
+
+    private volatile int maxSynonymRules;
+    private volatile boolean clusterSupportsMultipleSynonymSets = false;
     private final int pitBatchSize;
+    private final int bulkChunkSize;
+    private final ClusterService clusterService;
 
     // Package private for testing
     static Logger logger = LogManager.getLogger(SynonymsManagementAPIService.class);
@@ -136,21 +163,41 @@ public class SynonymsManagementAPIService {
         .setOrigin(SYNONYMS_ORIGIN)
         .build();
 
-    public SynonymsManagementAPIService(Client client) {
-        this(client, MAX_SYNONYM_RULES, PIT_BATCH_SIZE);
+    public SynonymsManagementAPIService(Client client, ClusterService clusterService, FeatureService featureService) {
+        this(
+            client,
+            clusterService,
+            clusterService.getClusterSettings().get(MAX_SYNONYM_RULES_SETTING),
+            PIT_BATCH_SIZE,
+            BULK_CHUNK_SIZE,
+            featureService
+        );
+        clusterService.getClusterSettings().addSettingsUpdateConsumer(MAX_SYNONYM_RULES_SETTING, v -> this.maxSynonymRules = v);
     }
 
-    // Used for testing, so we don't need to test for MAX_SYNONYM_RULES and put unnecessary memory pressure on the test cluster
-    SynonymsManagementAPIService(Client client, int maxSynonymRules) {
-        this(client, maxSynonymRules, PIT_BATCH_SIZE);
-    }
-
-    // Used for testing PIT pagination behavior with a small batch size to force multiple iterations
-    SynonymsManagementAPIService(Client client, int maxSynonymRules, int pitBatchSize) {
+    // VisibleForTesting
+    SynonymsManagementAPIService(
+        Client client,
+        ClusterService clusterService,
+        int maxSynonymRules,
+        int pitBatchSize,
+        int bulkChunkSize,
+        FeatureService featureService
+    ) {
         this.client = new OriginSettingClient(client, SYNONYMS_ORIGIN);
-
+        this.clusterService = clusterService;
         this.maxSynonymRules = maxSynonymRules;
         this.pitBatchSize = pitBatchSize;
+        this.bulkChunkSize = bulkChunkSize;
+        clusterService.addListener(new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                if (featureService.clusterHasFeature(event.state(), SynonymFeatures.MULTIPLE_SYNONYM_SETS_PER_FILTER)) {
+                    clusterSupportsMultipleSynonymSets = true;
+                    clusterService.removeListener(this);
+                }
+            }
+        });
     }
 
     /* The synonym index stores two object types:
@@ -238,7 +285,7 @@ public class SynonymsManagementAPIService {
             .addAggregation(
                 new TermsAggregationBuilder(SYNONYM_SETS_AGG_NAME).field(SYNONYMS_SET_FIELD)
                     .order(BucketOrder.key(true))
-                    .size(maxSynonymRules)
+                    .size(MAX_SYNONYMS_SETS)
                     .subAggregation(ruleCountAggregation)
             )
             .setPreference(Preference.LOCAL.type())
@@ -265,25 +312,86 @@ public class SynonymsManagementAPIService {
     }
 
     /**
-     * Retrieves all synonym rules for a synonym set using PIT + search_after.
-     * Results are fetched iteratively in batches of {@value PIT_BATCH_SIZE} until exhausted.
+     * Retrieves all synonym rules for multiple synonym sets using a PIT-based search.
+     * First checks which of the requested sets exist in a single query, then fetches rules
+     * for the confirmed-existing sets. Missing sets are handled according to {@code ignoreMissing}.
      *
-     * @param synonymSetId the synonym set to load
-     * @param listener     receives the complete set of rules
+     * @param synonymSetIds the synonym sets to load
+     * @param ignoreMissing if true, log a warning for missing sets and return rules from existing sets;
+     *                      if false, fail if any set is missing
+     * @param listener      receives the combined rules from all existing synonym sets
      */
-    public void getSynonymSetRules(String synonymSetId, ActionListener<PagedResult<SynonymRule>> listener) {
+    public void getSynonymSetRules(Set<String> synonymSetIds, boolean ignoreMissing, ActionListener<PagedResult<SynonymRule>> listener) {
         OpenPointInTimeRequest pitRequest = new OpenPointInTimeRequest(SYNONYMS_ALIAS_NAME).keepAlive(PIT_KEEP_ALIVE);
         client.execute(
             TransportOpenPointInTimeAction.TYPE,
             pitRequest,
-            new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (l, pitResponse) -> {
-                fetchPageWithPit(synonymSetId, pitResponse.getPointInTimeId(), null, new ArrayList<>(), l);
-            })
+            new DelegatingIndexNotFoundActionListener<>(
+                synonymSetIds,
+                listener,
+                (l, pitResponse) -> checkExistingSetsThenFetchRules(synonymSetIds, ignoreMissing, pitResponse.getPointInTimeId(), l)
+            )
         );
     }
 
-    private void fetchPageWithPit(
-        String synonymSetId,
+    private void checkExistingSetsThenFetchRules(
+        Set<String> synonymSetIds,
+        boolean ignoreMissing,
+        BytesReference pitId,
+        ActionListener<PagedResult<SynonymRule>> listener
+    ) {
+        // Single query to determine which of the requested synonym sets exist
+        SearchSourceBuilder source = new SearchSourceBuilder().query(
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.termsQuery(SYNONYMS_SET_FIELD, synonymSetIds))
+                .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_SET_OBJECT_TYPE))
+        )
+            .size(synonymSetIds.size())
+            .fetchSource(false)
+            .fetchField(SYNONYMS_SET_FIELD)
+            .pointInTimeBuilder(new PointInTimeBuilder(pitId).setKeepAlive(PIT_KEEP_ALIVE));
+
+        client.execute(TransportSearchAction.TYPE, new SearchRequest().source(source), ActionListener.wrap(response -> {
+            assert response.pointInTimeId() != null;
+            BytesReference currentPitId = response.pointInTimeId();
+
+            Set<String> existingSetIds = Arrays.stream(response.getHits().getHits())
+                .map(hit -> (String) hit.field(SYNONYMS_SET_FIELD).getValue())
+                .collect(Collectors.toSet());
+
+            Set<String> missingSetIds = new HashSet<>(synonymSetIds);
+            missingSetIds.removeAll(existingSetIds);
+
+            if (missingSetIds.isEmpty() == false) {
+                if (existingSetIds.isEmpty()) {
+                    // All requested sets are missing
+                    closePitAndThen(
+                        currentPitId,
+                        () -> listener.onFailure(new ResourceNotFoundException("synonyms sets " + synonymSetIds + " not found"))
+                    );
+                    return;
+                }
+                if (ignoreMissing == false) {
+                    closePitAndThen(
+                        currentPitId,
+                        () -> listener.onFailure(new ResourceNotFoundException("synonyms sets " + missingSetIds + " not found"))
+                    );
+                    return;
+                }
+                logger.warn(
+                    "Synonym set{} {} not found; synonyms from these sets will not be applied,"
+                        + " but other synonym sets in this filter will still be used",
+                    missingSetIds.size() == 1 ? "" : "s",
+                    missingSetIds
+                );
+            }
+
+            fetchPagesWithPit(existingSetIds, currentPitId, null, new ArrayList<>(), listener);
+        }, e -> mapFailureAndClosePit(e, pitId, synonymSetIds, listener)));
+    }
+
+    private void fetchPagesWithPit(
+        Set<String> synonymSetIds,
         BytesReference pitId,
         Object[] searchAfter,
         List<SynonymRule> accumulated,
@@ -291,7 +399,7 @@ public class SynonymsManagementAPIService {
     ) {
         SearchSourceBuilder source = new SearchSourceBuilder().query(
             QueryBuilders.boolQuery()
-                .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
+                .must(QueryBuilders.termsQuery(SYNONYMS_SET_FIELD, synonymSetIds))
                 .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
         )
             .size(pitBatchSize)
@@ -307,45 +415,55 @@ public class SynonymsManagementAPIService {
             source.searchAfter(searchAfter);
         }
 
-        AtomicReference<BytesReference> currentPitId = new AtomicReference<>(pitId);
         client.execute(TransportSearchAction.TYPE, new SearchRequest().source(source), ActionListener.wrap(response -> {
+            assert response.pointInTimeId() != null;
+            BytesReference currentPitId = response.pointInTimeId();
             SearchHit[] hits = response.getHits().getHits();
             long totalHits = response.getHits().getTotalHits().value();
-            assert response.pointInTimeId() != null;
-            currentPitId.set(response.pointInTimeId());
-
-            if (hits.length == 0) {
-                if (accumulated.isEmpty()) {
-                    closePitAndThen(currentPitId.get(), () -> checkSynonymSetExists(synonymSetId, listener.delegateFailure((l, ignored) -> {
-                        l.onResponse(new PagedResult<>(0, new SynonymRule[0]));
-                    })));
-                } else {
-                    PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
-                    closePitAndThen(currentPitId.get(), () -> listener.onResponse(result));
-                }
-                return;
-            }
 
             if (searchAfter == null && totalHits > maxSynonymRules) {
                 logger.warn(
-                    "The number of synonym rules in the synonym set [{}] exceeds the maximum allowed."
-                        + " Inconsistent synonyms results may occur",
-                    synonymSetId
+                    "The number of synonym rules in the synonym filter for sets [{}] exceeds the maximum allowed [{}]."
+                        + " Inconsistent synonym results may occur",
+                    String.join(", ", synonymSetIds),
+                    maxSynonymRules
                 );
+            }
+
+            if (hits.length == 0) {
+                PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
+                closePitAndThen(currentPitId, () -> listener.onResponse(result));
+                return;
             }
 
             for (SearchHit hit : hits) {
                 accumulated.add(hitToSynonymRule(hit));
                 if (accumulated.size() >= maxSynonymRules) {
                     PagedResult<SynonymRule> result = new PagedResult<>(totalHits, accumulated.toArray(new SynonymRule[0]));
-                    closePitAndThen(currentPitId.get(), () -> listener.onResponse(result));
+                    closePitAndThen(currentPitId, () -> listener.onResponse(result));
                     return;
                 }
             }
 
             Object[] lastSortValues = hits[hits.length - 1].getSortValues();
-            fetchPageWithPit(synonymSetId, currentPitId.get(), lastSortValues, accumulated, listener);
-        }, e -> { closePitAndThen(currentPitId.get(), () -> listener.onFailure(e)); }));
+            fetchPagesWithPit(synonymSetIds, currentPitId, lastSortValues, accumulated, listener);
+        }, e -> mapFailureAndClosePit(e, pitId, synonymSetIds, listener)));
+    }
+
+    private void mapFailureAndClosePit(Exception e, BytesReference pitId, Set<String> synonymSetIds, ActionListener<?> listener) {
+        Exception failure = translateIndexNotFound(e, "synonyms sets " + synonymSetIds + " not found");
+        closePitAndThen(pitId, () -> listener.onFailure(failure));
+    }
+
+    private static Exception translateIndexNotFound(Exception e, String notFoundMessage) {
+        Throwable cause = ExceptionsHelper.unwrapCause(e);
+        if (cause instanceof IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus) {
+            cause = cause.getCause();
+        }
+        if (cause instanceof IndexNotFoundException) {
+            return new ResourceNotFoundException(notFoundMessage);
+        }
+        return e;
     }
 
     private void closePitAndThen(BytesReference pitId, Runnable andThen) {
@@ -378,26 +496,77 @@ public class SynonymsManagementAPIService {
             )
             .setFrom(from)
             .setSize(size)
-            .addSort("id", SortOrder.ASC)
+            .addSort(SYNONYM_RULE_ID_FIELD, SortOrder.ASC)
             .setPreference(Preference.LOCAL.type())
             .setTrackTotalHits(true)
             .setFetchSource(false)
             .addFetchField(SYNONYM_RULE_ID_FIELD)
             .addFetchField(SYNONYMS_FIELD)
             .execute(new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (searchListener, searchResponse) -> {
-                final long totalSynonymRules = searchResponse.getHits().getTotalHits().value();
-                // If there are no rules, check that the synonym set actually exists to return the proper error
-                if (totalSynonymRules == 0) {
-                    checkSynonymSetExists(synonymSetId, searchListener.delegateFailure((existsListener, response) -> {
-                        searchListener.onResponse(new PagedResult<>(0, new SynonymRule[0]));
-                    }));
-                    return;
-                }
-                final SynonymRule[] synonymRules = Arrays.stream(searchResponse.getHits().getHits())
-                    .map(SynonymsManagementAPIService::hitToSynonymRule)
-                    .toArray(SynonymRule[]::new);
-                searchListener.onResponse(new PagedResult<>(totalSynonymRules, synonymRules));
+                handleSynonymRulesSearchResponse(
+                    synonymSetId,
+                    searchListener,
+                    searchResponse.getHits().getHits(),
+                    searchResponse.getHits().getTotalHits().value()
+                );
             }));
+    }
+
+    /**
+     * Returns one page of synonym rules using search_after cursor pagination.
+     * Pass {@code null} for {@code searchAfter} on the first call; pass the last returned rule's
+     * {@code id} to advance. A page smaller than {@code size} indicates the last page.
+     */
+    public void getSynonymSetRulesPage(
+        String synonymSetId,
+        int size,
+        @Nullable String searchAfter,
+        ActionListener<PagedResult<SynonymRule>> listener
+    ) {
+        SearchSourceBuilder source = new SearchSourceBuilder().query(
+            QueryBuilders.boolQuery()
+                .must(QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId))
+                .filter(QueryBuilders.termQuery(OBJECT_TYPE_FIELD, SYNONYM_RULE_OBJECT_TYPE))
+        )
+            .size(size)
+            .sort(SortBuilders.fieldSort(SYNONYM_RULE_ID_FIELD).order(SortOrder.ASC))
+            .trackTotalHits(true)
+            .fetchSource(false)
+            .fetchField(SYNONYM_RULE_ID_FIELD)
+            .fetchField(SYNONYMS_FIELD);
+
+        if (searchAfter != null) {
+            source.searchAfter(new Object[] { searchAfter });
+        }
+
+        client.execute(
+            TransportSearchAction.TYPE,
+            new SearchRequest(SYNONYMS_ALIAS_NAME).source(source).preference(Preference.LOCAL.type()),
+            new DelegatingIndexNotFoundActionListener<>(synonymSetId, listener, (l, searchResponse) -> {
+                handleSynonymRulesSearchResponse(
+                    synonymSetId,
+                    l,
+                    searchResponse.getHits().getHits(),
+                    searchResponse.getHits().getTotalHits().value()
+                );
+            })
+        );
+    }
+
+    private void handleSynonymRulesSearchResponse(
+        String synonymSetId,
+        ActionListener<PagedResult<SynonymRule>> listener,
+        SearchHit[] hits,
+        long totalHits
+    ) {
+        if (totalHits == 0) {
+            checkSynonymSetExists(synonymSetId, listener.delegateFailure((existsListener, ignored) -> {
+                existsListener.onResponse(new PagedResult<>(0, new SynonymRule[0]));
+            }));
+            return;
+        }
+        SynonymRule[] rules = Arrays.stream(hits).map(SynonymsManagementAPIService::hitToSynonymRule).toArray(SynonymRule[]::new);
+        listener.onResponse(new PagedResult<>(totalHits, rules));
     }
 
     private static SynonymRule hitToSynonymRule(SearchHit hit) {
@@ -430,10 +599,7 @@ public class SynonymsManagementAPIService {
         boolean refresh,
         ActionListener<SynonymsReloadResult> listener
     ) {
-        if (synonymsSet.length > maxSynonymRules) {
-            listener.onFailure(
-                new IllegalArgumentException("The number of synonyms rules in a synonym set cannot exceed " + maxSynonymRules)
-            );
+        if (checkSynonymRuleCount(synonymsSet.length, listener) == false) {
             return;
         }
         deleteSynonymsSetObjects(synonymSetId, listener.delegateFailure((deleteByQueryResponseListener, bulkDeleteResponse) -> {
@@ -450,23 +616,11 @@ public class SynonymsManagementAPIService {
                 return;
             }
 
-            // Insert as bulk requests
+            // Insert as bulk requests, chunked to avoid large single bulk requests
             bulkUpdateSynonymsSet(
                 synonymSetId,
                 synonymsSet,
-                deleteByQueryResponseListener.delegateFailure((bulkInsertResponseListener, bulkInsertResponse) -> {
-                    if (bulkInsertResponse.hasFailures()) {
-                        logUniqueFailureMessagesWithIndices(
-                            Arrays.stream(bulkInsertResponse.getItems())
-                                .filter(BulkItemResponse::isFailed)
-                                .map(BulkItemResponse::getFailure)
-                                .collect(Collectors.toList())
-                        );
-                        bulkInsertResponseListener.onFailure(
-                            new ElasticsearchException("Error updating synonyms: " + bulkInsertResponse.buildFailureMessage())
-                        );
-                        return;
-                    }
+                deleteByQueryResponseListener.delegateFailure((bulkInsertResponseListener, ignored) -> {
                     UpdateSynonymsResultStatus updateSynonymsResultStatus = created
                         ? UpdateSynonymsResultStatus.CREATED
                         : UpdateSynonymsResultStatus.UPDATED;
@@ -484,20 +638,46 @@ public class SynonymsManagementAPIService {
     }
 
     // Open for testing adding more synonyms set than the limit allows for
-    void bulkUpdateSynonymsSet(String synonymSetId, SynonymRule[] synonymsSet, ActionListener<BulkResponse> listener) {
+    void bulkUpdateSynonymsSet(String synonymSetId, SynonymRule[] synonymsSet, ActionListener<Void> listener) {
+        executeBulkChunks(synonymSetId, synonymsSet, 0, listener);
+    }
+
+    private void executeBulkChunks(String synonymSetId, SynonymRule[] synonymsSet, int offset, ActionListener<Void> listener) {
+        int end = Math.min(offset + bulkChunkSize, synonymsSet.length);
+        boolean isLastChunk = end == synonymsSet.length;
+        // Refresh only on the last chunk so all rules become visible on the same forced refresh.
+        WriteRequest.RefreshPolicy refreshPolicy = isLastChunk ? WriteRequest.RefreshPolicy.IMMEDIATE : WriteRequest.RefreshPolicy.NONE;
         BulkRequestBuilder bulkRequestBuilder = client.prepareBulk();
         try {
-            // Insert synonym set object
-            bulkRequestBuilder.add(createSynonymSetIndexRequest(synonymSetId));
-            // Insert synonym rules
-            for (SynonymRule synonymRule : synonymsSet) {
-                bulkRequestBuilder.add(createSynonymRuleIndexRequest(synonymSetId, synonymRule));
+
+            if (offset == 0) {
+                // Synonym set object is always written in the first chunk
+                bulkRequestBuilder.add(createSynonymSetIndexRequest(synonymSetId));
             }
-        } catch (IOException ex) {
-            listener.onFailure(ex);
+            for (int i = offset; i < end; i++) {
+                bulkRequestBuilder.add(createSynonymRuleIndexRequest(synonymSetId, synonymsSet[i]));
+            }
+        } catch (IOException e) {
+            listener.onFailure(new ElasticsearchException("Error updating synonyms", e));
         }
 
-        bulkRequestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE).execute(listener);
+        bulkRequestBuilder.setRefreshPolicy(refreshPolicy).execute(listener.delegateFailureAndWrap((l, response) -> {
+            if (response.hasFailures()) {
+                logUniqueFailureMessagesWithIndices(
+                    Arrays.stream(response.getItems())
+                        .filter(BulkItemResponse::isFailed)
+                        .map(BulkItemResponse::getFailure)
+                        .collect(Collectors.toList())
+                );
+                l.onFailure(new ElasticsearchException("Error updating synonyms: " + response.buildFailureMessage()));
+                return;
+            }
+            if (isLastChunk) {
+                l.onResponse(null);
+            } else {
+                executeBulkChunks(synonymSetId, synonymsSet, end, l);
+            }
+        }));
     }
 
     public void putSynonymRule(
@@ -522,11 +702,7 @@ public class SynonymsManagementAPIService {
                 .setTrackTotalHits(true)
                 .execute(l1.delegateFailureAndWrap((searchListener, searchResponse) -> {
                     long synonymsSetSize = searchResponse.getHits().getTotalHits().value();
-                    if (synonymsSetSize >= maxSynonymRules) {
-                        listener.onFailure(
-                            new IllegalArgumentException("The number of synonym rules in a synonyms set cannot exceed " + maxSynonymRules)
-                        );
-                    } else {
+                    if (checkSynonymRuleCount(synonymsSetSize + 1, listener)) {
                         indexSynonymRule(synonymsSetId, synonymRule, refresh, searchListener);
                     }
                 }));
@@ -647,8 +823,48 @@ public class SynonymsManagementAPIService {
         DeleteByQueryRequest dbqRequest = new DeleteByQueryRequest(SYNONYMS_ALIAS_NAME).setQuery(
             QueryBuilders.termQuery(SYNONYMS_SET_FIELD, synonymSetId)
         ).setRefresh(true).setIndicesOptions(IndicesOptions.fromOptions(true, true, false, false));
+        dbqRequest.setConflicts("proceed");
 
         client.execute(DeleteByQueryAction.INSTANCE, dbqRequest, listener);
+    }
+
+    /**
+     * Returns {@code true} if {@code resultingCount} is within write limits; returns {@code false} and
+     * fails the listener if a limit would be exceeded.
+     */
+    private boolean checkSynonymRuleCount(long resultingCount, ActionListener<?> listener) {
+        if (resultingCount > maxSynonymRules) {
+            listener.onFailure(
+                new IllegalArgumentException("The number of synonym rules in a synonym set cannot exceed " + maxSynonymRules)
+            );
+            return false;
+        }
+        return checkClusterSupportsLargeSynonymSets(resultingCount, listener);
+    }
+
+    private boolean checkClusterSupportsLargeSynonymSets(long resultingCount, ActionListener<?> listener) {
+        if (resultingCount > PRE_LARGE_SETS_LIMIT
+            && clusterService.state().getMinTransportVersion().supports(SYNONYMS_LARGE_SETS) == false) {
+            listener.onFailure(
+                new ElasticsearchException(
+                    "Cannot write more than " + PRE_LARGE_SETS_LIMIT + " synonym rules until all nodes in the cluster have been upgraded"
+                )
+            );
+            return false;
+        }
+        return true;
+    }
+
+    /**
+     * Throws {@link IllegalArgumentException} if the cluster is not fully upgraded to support multiple synonym sets per filter.
+     * This must only be called at index creation time, not during shard recovery or analyzer reload, to avoid bricking the cluster.
+     */
+    public void checkClusterSupportsMultipleSynonymSets() {
+        if (clusterSupportsMultipleSynonymSets == false) {
+            throw new IllegalArgumentException(
+                "Multiple synonym sets per filter are not supported until all nodes in the cluster have been upgraded"
+            );
+        }
     }
 
     public void deleteSynonymsSet(String synonymSetId, ActionListener<AcknowledgedResponse> listener) {
@@ -778,17 +994,23 @@ public class SynonymsManagementAPIService {
         ReloadAnalyzersResponse reloadAnalyzersResponse
     ) {}
 
-    // Listeners that checks failures for IndexNotFoundException, and transforms them in ResourceNotFoundException,
+    // Listener that checks failures for IndexNotFoundException, and transforms them into ResourceNotFoundException,
     // invoking onFailure on the delegate listener
     static class DelegatingIndexNotFoundActionListener<T, R> extends DelegatingActionListener<T, R> {
 
         private final BiConsumer<ActionListener<R>, T> bc;
-        private final String synonymSetId;
+        private final String notFoundMessage;
 
         DelegatingIndexNotFoundActionListener(String synonymSetId, ActionListener<R> delegate, BiConsumer<ActionListener<R>, T> bc) {
             super(delegate);
             this.bc = bc;
-            this.synonymSetId = synonymSetId;
+            this.notFoundMessage = "synonyms set [" + synonymSetId + "] not found";
+        }
+
+        DelegatingIndexNotFoundActionListener(Set<String> synonymSetIds, ActionListener<R> delegate, BiConsumer<ActionListener<R>, T> bc) {
+            super(delegate);
+            this.bc = bc;
+            this.notFoundMessage = "synonyms sets " + synonymSetIds + " not found";
         }
 
         @Override
@@ -798,15 +1020,7 @@ public class SynonymsManagementAPIService {
 
         @Override
         public void onFailure(Exception e) {
-            Throwable cause = ExceptionsHelper.unwrapCause(e);
-            if (cause instanceof IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus) {
-                cause = cause.getCause();
-            }
-            if (cause instanceof IndexNotFoundException) {
-                delegate.onFailure(new ResourceNotFoundException("synonyms set [" + synonymSetId + "] not found"));
-                return;
-            }
-            delegate.onFailure(e);
+            delegate.onFailure(translateIndexNotFound(e, notFoundMessage));
         }
     }
 }

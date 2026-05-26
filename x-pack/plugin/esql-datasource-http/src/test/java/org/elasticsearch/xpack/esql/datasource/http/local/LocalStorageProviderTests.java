@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.http.local;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.StorageIterator;
@@ -20,9 +21,15 @@ import java.io.InputStreamReader;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.NoSuchFileException;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * Tests for LocalStorageProvider and LocalStorageObject.
@@ -119,7 +126,6 @@ public class LocalStorageProviderTests extends ESTestCase {
     }
 
     public void testFileNotFound() throws IOException {
-        // Use a temp directory path that doesn't exist (within allowed paths)
         Path tempDir = createTempDir();
         Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
 
@@ -128,7 +134,53 @@ public class LocalStorageProviderTests extends ESTestCase {
         StorageObject object = provider.newObject(path);
 
         assertFalse(object.exists());
-        expectThrows(IOException.class, () -> object.newStream());
+        expectThrows(NoSuchFileException.class, () -> object.newStream());
+    }
+
+    public void testLengthOnNonExistentFileThrows() throws IOException {
+        Path tempDir = createTempDir();
+        Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(nonExistentFile));
+        StorageObject object = provider.newObject(path);
+
+        NoSuchFileException e = expectThrows(NoSuchFileException.class, () -> object.length());
+        assertThat(e.getMessage(), containsString("nonexistent_file.txt"));
+    }
+
+    public void testLastModifiedOnNonExistentFileThrows() throws IOException {
+        Path tempDir = createTempDir();
+        Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(nonExistentFile));
+        StorageObject object = provider.newObject(path);
+
+        expectThrows(NoSuchFileException.class, () -> object.lastModified());
+    }
+
+    public void testReadBytesOnNonExistentFileThrows() throws IOException {
+        Path tempDir = createTempDir();
+        Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(nonExistentFile));
+        StorageObject object = provider.newObject(path);
+
+        ByteBuffer buf = ByteBuffer.allocate(10);
+        expectThrows(NoSuchFileException.class, () -> object.readBytes(0, buf));
+    }
+
+    public void testNewStreamRangeOnNonExistentFileThrows() throws IOException {
+        Path tempDir = createTempDir();
+        Path nonExistentFile = tempDir.resolve("nonexistent_file.txt");
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(nonExistentFile));
+        StorageObject object = provider.newObject(path);
+
+        expectThrows(NoSuchFileException.class, () -> object.newStream(0, 10));
     }
 
     public void testSupportedSchemes() {
@@ -180,6 +232,31 @@ public class LocalStorageProviderTests extends ESTestCase {
         byte[] result = new byte[5];
         buf.get(result);
         assertEquals("56789", new String(result, StandardCharsets.UTF_8));
+    }
+
+    public void testReadBytesAsyncReturnsDirectBuffer() throws Exception {
+        Path tempFile = createTempFile("test", ".txt");
+        String content = "0123456789ABCDEFGHIJ";
+        Files.writeString(tempFile, content);
+
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath path = StoragePath.of(StoragePath.fileUri(tempFile));
+        StorageObject object = provider.newObject(path);
+
+        CountDownLatch latch = new CountDownLatch(1);
+        AtomicReference<ByteBuffer> result = new AtomicReference<>();
+
+        object.readBytesAsync(5, 5, Runnable::run, ActionListener.wrap(buf -> {
+            result.set(buf);
+            latch.countDown();
+        }, e -> { throw new AssertionError("unexpected failure", e); }));
+
+        assertTrue(latch.await(5, TimeUnit.SECONDS));
+        assertNotNull(result.get());
+        assertTrue("readBytesAsync must return a direct ByteBuffer", result.get().isDirect());
+        byte[] actual = new byte[result.get().remaining()];
+        result.get().get(actual);
+        assertEquals("56789", new String(actual, StandardCharsets.UTF_8));
     }
 
     public void testReadBytesAtEndOfFile() throws IOException {
@@ -313,6 +390,22 @@ public class LocalStorageProviderTests extends ESTestCase {
         // Non-recursive should find zero files since all files are in subdirs
         List<StorageEntry> flatEntries = collectAll(provider.listObjects(prefix, false));
         assertEquals(0, flatEntries.size());
+    }
+
+    // -- glob guard --
+
+    public void testNewObjectRejectsGlobPattern() {
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath globPath = StoragePath.of("file:///tmp/multifile/*.csv.zst");
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> provider.newObject(globPath));
+        assertThat(e.getMessage(), containsString("glob pattern"));
+        assertThat(e.getMessage(), containsString("*.csv.zst"));
+    }
+
+    public void testExistsRejectsGlobPattern() throws IOException {
+        LocalStorageProvider provider = new LocalStorageProvider();
+        StoragePath globPath = StoragePath.of("file:///tmp/multifile/*.csv");
+        expectThrows(IllegalArgumentException.class, () -> provider.exists(globPath));
     }
 
     // -- helpers --

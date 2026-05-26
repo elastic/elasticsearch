@@ -39,6 +39,7 @@ import org.elasticsearch.index.mapper.blockloader.docvalues.BytesRefsFromBinaryB
 import org.elasticsearch.index.mapper.extras.SourceConfirmedTextQuery;
 import org.elasticsearch.index.mapper.extras.SourceIntervalsSource;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.search.fetch.StoredFieldsSpec;
 import org.elasticsearch.search.lookup.Source;
 
@@ -149,14 +150,21 @@ public class PatternTextFieldType extends TextFamilyFieldType {
     }
 
     private IOFunction<LeafReaderContext, CheckedIntFunction<List<Object>, IOException>> getValueFetcherProvider() {
-        return context -> {
-            var docValues = PatternTextFallbackDocValues.from(context, PatternTextFieldType.this);
-            return docId -> {
-                if (docValues != null && docValues.advanceExact(docId)) {
-                    return List.of(docValues.binaryValue().utf8ToString());
+        return context -> new CheckedIntFunction<>() {
+            boolean initialized;
+            BinaryDocValues binaryDocValues;
+
+            @Override
+            public List<Object> apply(int docId) throws IOException {
+                if (initialized == false) {
+                    binaryDocValues = PatternTextFallbackDocValues.from(context, PatternTextFieldType.this);
+                    initialized = true;
+                }
+                if (binaryDocValues != null && binaryDocValues.advanceExact(docId)) {
+                    return List.of(binaryDocValues.binaryValue().utf8ToString());
                 }
                 return List.of();
-            };
+            }
         };
     }
 
@@ -222,13 +230,15 @@ public class PatternTextFieldType extends TextFamilyFieldType {
         boolean transpositions,
         SearchExecutionContext context
     ) {
-        FuzzyQuery fuzzyQuery = new FuzzyQuery(
+        FuzzyQuery fuzzyQuery = FuzzyQueries.create(
             new Term(name(), term),
             maxDistance,
             prefixLength,
             IndexSearcher.getMaxClauseCount(),
             transpositions,
-            MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE
+            MultiTermQuery.CONSTANT_SCORE_BLENDED_REWRITE,
+            context,
+            name()
         );
         IntervalsSource fuzzyIntervals = Intervals.multiterm(fuzzyQuery.getAutomata(), IndexSearcher.getMaxClauseCount(), term);
         return toIntervalsSource(fuzzyIntervals, fuzzyQuery, context);

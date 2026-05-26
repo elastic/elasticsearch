@@ -125,11 +125,6 @@ static inline void call_f32_bulk_512(
             });
         }
 
-        f32_t res[batches];
-        apply_indexed<batches>([&](auto I) {
-            res[I] = _mm512_reduce_add_ps(sums[I]);
-        });
-
         // Masked tail for remaining dimensions
         const int remaining = dims - i;
         if (remaining > 0) {
@@ -137,12 +132,13 @@ static inline void call_f32_bulk_512(
             __m512 bi = _mm512_maskz_loadu_ps(mask, b + i);
             apply_indexed<batches>([&](auto I) {
                 __m512 ai = _mm512_maskz_loadu_ps(mask, as[I] + i);
-                __m512 partial = inner_op(ai, bi, _mm512_setzero_ps());
-                res[I] += _mm512_reduce_add_ps(partial);
+                sums[I] = inner_op(ai, bi, sums[I]);
             });
         }
 
-        std::copy_n(res, batches, results + c);
+        apply_indexed<batches>([&](auto I) {
+            results[c + I] = _mm512_reduce_add_ps(sums[I]);
+        });
     }
 
     for (; c < count; c++) {
@@ -155,6 +151,17 @@ EXPORT void vec_dotf32_bulk_2(const f32_t* a, const f32_t* b, const int32_t dims
     call_f32_bulk_512<f32_t, sequential_mapper, _mm512_fmadd_ps, vec_dotf32_2>(a, b, dims, dims, NULL, count, results);
 }
 
+EXPORT void vec_dotf32_bulk_sparse_2(
+    const void* const* addresses,
+    const f32_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results
+) {
+    call_f32_bulk_512<const f32_t*, sparse_mapper, _mm512_fmadd_ps, vec_dotf32_2>(
+        (const f32_t* const*)addresses, query, length, 0, NULL, count, results);
+}
+
 EXPORT void vec_dotf32_bulk_offsets_2(
     const f32_t* a,
     const f32_t* b,
@@ -163,11 +170,33 @@ EXPORT void vec_dotf32_bulk_offsets_2(
     const int32_t* offsets,
     const int32_t count,
     f32_t* results) {
-    call_f32_bulk_512<f32_t, offsets_mapper, _mm512_fmadd_ps, vec_dotf32_2>(a, b, dims, pitch / sizeof(f32_t), offsets, count, results);
+    call_f32_bulk_512<f32_t, offsets_mapper, _mm512_fmadd_ps, vec_dotf32_2>(
+        a, b, dims, pitch / sizeof(f32_t), offsets, count, results);
+}
+
+EXPORT void vec_dotf32_bulk8_2(
+    const f32_t* a0, const f32_t* a1, const f32_t* a2, const f32_t* a3,
+    const f32_t* a4, const f32_t* a5, const f32_t* a6, const f32_t* a7,
+    const f32_t* query, const int32_t dims, f32_t* results
+) {
+    const f32_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
+    call_f32_bulk_512<const f32_t*, sparse_mapper, _mm512_fmadd_ps, vec_dotf32_2>(
+        ptrs, query, dims, 0, NULL, 8, results);
 }
 
 EXPORT void vec_sqrf32_bulk_2(const f32_t* a, const f32_t* b, const int32_t dims, const int32_t count, f32_t* results) {
     call_f32_bulk_512<f32_t, sequential_mapper, sqrf32_512, vec_sqrf32_2>(a, b, dims, dims, NULL, count, results);
+}
+
+EXPORT void vec_sqrf32_bulk_sparse_2(
+    const void* const* addresses,
+    const f32_t* query,
+    const int32_t length,
+    const int32_t count,
+    f32_t* results
+) {
+    call_f32_bulk_512<const f32_t*, sparse_mapper, sqrf32_512, vec_sqrf32_2>(
+        (const f32_t* const*)addresses, query, length, 0, NULL, count, results);
 }
 
 EXPORT void vec_sqrf32_bulk_offsets_2(
@@ -179,4 +208,14 @@ EXPORT void vec_sqrf32_bulk_offsets_2(
     const int32_t count,
     f32_t* results) {
     call_f32_bulk_512<f32_t, offsets_mapper, sqrf32_512, vec_sqrf32_2>(a, b, dims, pitch / sizeof(f32_t), offsets, count, results);
+}
+
+EXPORT void vec_sqrf32_bulk8_2(
+    const f32_t* a0, const f32_t* a1, const f32_t* a2, const f32_t* a3,
+    const f32_t* a4, const f32_t* a5, const f32_t* a6, const f32_t* a7,
+    const f32_t* query, const int32_t dims, f32_t* results
+) {
+    const f32_t* ptrs[8] = {a0, a1, a2, a3, a4, a5, a6, a7};
+    call_f32_bulk_512<const f32_t*, sparse_mapper, sqrf32_512, vec_sqrf32_2>(
+        ptrs, query, dims, 0, NULL, 8, results);
 }

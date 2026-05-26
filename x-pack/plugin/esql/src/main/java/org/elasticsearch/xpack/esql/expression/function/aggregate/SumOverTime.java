@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.data.HistogramBlock;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -25,6 +26,8 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.histogram.ExtractHistogramComponent;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
 
 import java.io.IOException;
@@ -39,8 +42,8 @@ import static java.util.Collections.emptyList;
 public class SumOverTime extends TimeSeriesAggregateFunction
     implements
         OptionalArgument,
-        AggregateMetricDoubleNativeSupport,
         SurrogateExpression,
+        AggregateMetricDoubleNativeSupport,
         ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -49,6 +52,11 @@ public class SumOverTime extends TimeSeriesAggregateFunction
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(SumOverTime.class)
         .binary(SumOverTime::new)
+        .name("sum_over_time");
+    public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
+        .withinSeriesOverTime(SumOverTime::new)
+        .description("Returns the sum of all values in the specified time range.")
+        .example("sum_over_time(http_requests_total[5m])")
         .name("sum_over_time");
 
     @FunctionInfo(
@@ -116,13 +124,20 @@ public class SumOverTime extends TimeSeriesAggregateFunction
     }
 
     @Override
-    public Expression surrogate() {
-        return perTimeSeriesAggregation();
+    public AggregatorFunctionSupplier supplier() {
+        return perTimeSeriesAggregation().supplier();
     }
 
     @Override
-    public AggregatorFunctionSupplier supplier() {
-        return perTimeSeriesAggregation().supplier();
+    public Expression surrogate() {
+        if (field().dataType() == DataType.EXPONENTIAL_HISTOGRAM || field().dataType() == DataType.TDIGEST) {
+            return ExtractHistogramComponent.create(
+                source(),
+                new DeltaOnlyHistogramMergeOverTime(source(), field(), filter(), window()),
+                HistogramBlock.Component.SUM
+            );
+        }
+        return null;
     }
 
     @Override

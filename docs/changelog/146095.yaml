@@ -1,0 +1,5 @@
+area: Infra/Metrics
+issues: []
+pr: 146095
+summary: "ES-14041: Add regression test suite for trace/span export"
+type: enhancement

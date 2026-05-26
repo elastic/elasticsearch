@@ -175,6 +175,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     @Nullable
     private volatile ElementType thresholdElementType;
     private volatile boolean thresholdAscending;
+    private volatile boolean thresholdNullsFirst;
     @Nullable
     private volatile DynamicThreshold cachedThreshold;
 
@@ -220,11 +221,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable FilterPushdownSupport pushdownSupport,
         @Nullable Closeable onClose,
         int parallelism,
-        boolean deferredExtraction,
-        @Nullable SharedNumericThreshold.Supplier thresholdSupplier,
-        @Nullable String thresholdColumnName,
-        @Nullable ElementType thresholdElementType,
-        boolean thresholdAscending
+        boolean deferredExtraction
     ) {
         if (storageProvider == null) {
             throw new IllegalArgumentException("storageProvider cannot be null");
@@ -271,10 +268,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.onClose = onClose;
         this.parallelism = Math.max(1, parallelism);
         this.deferredExtraction = deferredExtraction;
-        this.thresholdSupplier = thresholdSupplier;
-        this.thresholdColumnName = thresholdColumnName;
-        this.thresholdElementType = thresholdElementType;
-        this.thresholdAscending = thresholdAscending;
         if (deferredExtraction && onClose != null) {
             // Hold one ref on behalf of the factory; released when operatorRefCount hits zero.
             // Each registry creation (one per driver) takes an additional ref. See deferredCloseRefCount.
@@ -338,13 +331,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private Closeable onClose;
         private int parallelism = 1;
         private boolean deferredExtraction = false;
-        @Nullable
-        private SharedNumericThreshold.Supplier thresholdSupplier;
-        @Nullable
-        private String thresholdColumnName;
-        @Nullable
-        private ElementType thresholdElementType;
-        private boolean thresholdAscending;
 
         private Builder(
             StorageProvider storageProvider,
@@ -461,18 +447,6 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
-        public Builder numericThresholdSupplier(@Nullable SharedNumericThreshold.Supplier thresholdSupplier) {
-            this.thresholdSupplier = thresholdSupplier;
-            return this;
-        }
-
-        public Builder thresholdDescriptor(@Nullable String columnName, @Nullable ElementType elementType, boolean ascending) {
-            this.thresholdColumnName = columnName;
-            this.thresholdElementType = elementType;
-            this.thresholdAscending = ascending;
-            return this;
-        }
-
         public AsyncExternalSourceOperatorFactory build() {
             return new AsyncExternalSourceOperatorFactory(
                 storageProvider,
@@ -495,11 +469,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 pushdownSupport,
                 onClose,
                 parallelism,
-                deferredExtraction,
-                thresholdSupplier,
-                thresholdColumnName,
-                thresholdElementType,
-                thresholdAscending
+                deferredExtraction
             );
         }
     }
@@ -512,13 +482,17 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         SharedNumericThreshold.Supplier thresholdSupplier,
         String columnName,
         ElementType elementType,
-        boolean ascending
+        boolean ascending,
+        boolean nullsFirst
     ) {
-        assert operatorRefCount.get() == 0 : "numeric threshold must be installed before source operators are created";
+        if (operatorRefCount.get() != 0) {
+            throw new IllegalStateException("numeric threshold must be installed before source operators are created");
+        }
         this.thresholdSupplier = thresholdSupplier;
         this.thresholdColumnName = columnName;
         this.thresholdElementType = elementType;
         this.thresholdAscending = ascending;
+        this.thresholdNullsFirst = nullsFirst;
         closeDynamicThreshold();
     }
 
@@ -893,7 +867,13 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 if (thresholdColumnName == null || thresholdElementType == null) {
                     throw new IllegalStateException("numeric threshold descriptor is incomplete");
                 }
-                threshold = new DynamicThreshold(thresholdColumnName, thresholdElementType, thresholdAscending, thresholdSupplier.get());
+                threshold = new DynamicThreshold(
+                    thresholdColumnName,
+                    thresholdElementType,
+                    thresholdAscending,
+                    thresholdNullsFirst,
+                    thresholdSupplier.get()
+                );
                 cachedThreshold = threshold;
             }
             return threshold;

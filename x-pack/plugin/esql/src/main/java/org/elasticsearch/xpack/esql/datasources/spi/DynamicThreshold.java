@@ -18,12 +18,20 @@ public final class DynamicThreshold implements Releasable {
     private final String columnName;
     private final ElementType elementType;
     private final boolean ascending;
+    private final boolean nullsFirst;
     private final SharedNumericThreshold channel;
 
-    public DynamicThreshold(String columnName, ElementType elementType, boolean ascending, SharedNumericThreshold channel) {
+    public DynamicThreshold(
+        String columnName,
+        ElementType elementType,
+        boolean ascending,
+        boolean nullsFirst,
+        SharedNumericThreshold channel
+    ) {
         this.columnName = columnName;
         this.elementType = elementType;
         this.ascending = ascending;
+        this.nullsFirst = nullsFirst;
         this.channel = channel;
     }
 
@@ -35,12 +43,32 @@ public final class DynamicThreshold implements Releasable {
         return elementType;
     }
 
-    public boolean ascending() {
-        return ascending;
+    public boolean nullsFirst() {
+        return nullsFirst;
     }
 
     public boolean dominates(long rangeMin, long rangeMax) {
+        if (channel.noFurtherCandidates()) {
+            return true;
+        }
         return channel.dominates(rangeMin, rangeMax);
+    }
+
+    public boolean dominates(long rangeMin, long rangeMax, long nullCount) {
+        if (channel.noFurtherCandidates()) {
+            return true;
+        }
+        if (nullCount > 0 && nullsFirst) {
+            return false;
+        }
+        return channel.dominates(rangeMin, rangeMax);
+    }
+
+    public boolean dominatesNulls(long nullCount) {
+        if (channel.noFurtherCandidates()) {
+            return true;
+        }
+        return nullCount > 0 && nullsFirst == false && hasBound();
     }
 
     public boolean noFurtherCandidates() {
@@ -49,6 +77,10 @@ public final class DynamicThreshold implements Releasable {
 
     public long current() {
         return channel.current();
+    }
+
+    public boolean hasBound() {
+        return ascending ? current() != Long.MAX_VALUE : current() != Long.MIN_VALUE;
     }
 
     @Override

@@ -24,13 +24,19 @@ import java.util.concurrent.atomic.LongAdder;
 public final class SharedNumericThreshold extends SideChannel {
     public static final class Supplier extends SideChannel.Supplier<SharedNumericThreshold> {
         private final boolean ascending;
+        private final boolean nullsFirst;
 
-        public Supplier(boolean ascending) {
+        public Supplier(boolean ascending, boolean nullsFirst) {
             this.ascending = ascending;
+            this.nullsFirst = nullsFirst;
         }
 
         public boolean ascending() {
             return ascending;
+        }
+
+        public boolean nullsFirst() {
+            return nullsFirst;
         }
 
         @Override

@@ -760,6 +760,8 @@ public class LocalExecutionPlanner {
      *         {@code PushTopNIntoExternalSource} already annotated the source, the BlockHash will
      *         prune during aggregation and the generic TopN above must remain as the safety net
      *         (replacing it would double-count the budget).</li>
+     *     <li>If the source operator factory is an {@link AsyncExternalSourceOperatorFactory},
+     *         the planner shares the live threshold with external format readers.</li>
      * </ul>
      *
      * <p>No plan-time multi-value exclude: the operator supports multi-valued sort keys natively
@@ -831,11 +833,10 @@ public class LocalExecutionPlanner {
         ElementType keyElementType = PlannerUtils.toElementType(sortAttribute.dataType());
         boolean asc = sortOrder.direction() == Order.OrderDirection.ASC;
         boolean nullsFirst = sortOrder.nullsPosition() == Order.NullsPosition.FIRST;
-        SharedNumericThreshold.Supplier thresholdSupplier = new SharedNumericThreshold.Supplier(asc);
+        SharedNumericThreshold.Supplier thresholdSupplier = null;
         if (source.sourceOperatorFactory instanceof AsyncExternalSourceOperatorFactory externalSourceFactory) {
-            externalSourceFactory.setNumericThresholdSupplier(thresholdSupplier, sortAttribute.name(), keyElementType, asc);
-        } else {
-            return null;
+            thresholdSupplier = new SharedNumericThreshold.Supplier(asc, nullsFirst);
+            externalSourceFactory.setNumericThresholdSupplier(thresholdSupplier, sortAttribute.name(), keyElementType, asc, nullsFirst);
         }
         return new NumericTopNOperator.NumericTopNOperatorFactory(limit, keyElementType, asc, nullsFirst, thresholdSupplier);
     }

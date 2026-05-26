@@ -292,6 +292,9 @@ public final class NumericTopNOperator implements Operator {
             threshold.markNoFurtherCandidates();
             return;
         }
+        // If the K-th heap entry is null under NULLS FIRST, there is no numeric threshold to
+        // publish yet and the heap does not track a second-best non-null bound. Readers fall
+        // back to "no numeric bound" until the heap saturates with nulls or a numeric root wins.
         if (heap.topIsNull() == false) {
             threshold.offer(decodeLong(heap.peekTop()));
             offeredCount++;

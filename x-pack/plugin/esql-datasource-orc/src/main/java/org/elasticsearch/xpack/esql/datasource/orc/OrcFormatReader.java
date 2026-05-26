@@ -778,6 +778,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         private final long[] startRows;
         private final boolean[] active;
         private final boolean[] hasStats;
+        private final boolean[] nullOnly;
+        private final long[] nullCounts;
         private final long[] rawMins;
         private final long[] rawMaxs;
 
@@ -786,6 +788,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             long[] startRows,
             boolean[] active,
             boolean[] hasStats,
+            boolean[] nullOnly,
+            long[] nullCounts,
             long[] rawMins,
             long[] rawMaxs
         ) {
@@ -793,6 +797,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             this.startRows = startRows;
             this.active = active;
             this.hasStats = hasStats;
+            this.nullOnly = nullOnly;
+            this.nullCounts = nullCounts;
             this.rawMins = rawMins;
             this.rawMaxs = rawMaxs;
         }
@@ -814,6 +820,8 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             long[] startRows = new long[stripes.size() + 1];
             boolean[] active = new boolean[stripes.size()];
             boolean[] hasStats = new boolean[stripes.size()];
+            boolean[] nullOnly = new boolean[stripes.size()];
+            long[] nullCounts = new long[stripes.size()];
             long[] rawMins = new long[stripes.size()];
             long[] rawMaxs = new long[stripes.size()];
             long row = 0L;
@@ -833,16 +841,21 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                         long nulls = stripe.getNumberOfRows() - stats.getNumberOfValues();
                         Long min = rawMin(stats, sortType, threshold.elementType());
                         Long max = rawMax(stats, sortType, threshold.elementType());
-                        if (nulls == 0 && min != null && max != null) {
+                        if (min != null && max != null) {
                             hasStats[i] = true;
+                            nullCounts[i] = nulls;
                             rawMins[i] = min;
                             rawMaxs[i] = max;
+                        } else if (stats.getNumberOfValues() == 0 && nulls > 0) {
+                            hasStats[i] = true;
+                            nullOnly[i] = true;
+                            nullCounts[i] = nulls;
                         }
                     }
                 }
             }
             startRows[stripes.size()] = row;
-            return new StripeSkipTable(threshold, startRows, active, hasStats, rawMins, rawMaxs);
+            return new StripeSkipTable(threshold, startRows, active, hasStats, nullOnly, nullCounts, rawMins, rawMaxs);
         }
 
         boolean noFurtherCandidates() {
@@ -870,7 +883,9 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 && stripeIndex < active.length
                 && active[stripeIndex]
                 && hasStats[stripeIndex]
-                && threshold.dominates(rawMins[stripeIndex], rawMaxs[stripeIndex]);
+                && (nullOnly[stripeIndex]
+                    ? threshold.dominatesNulls(nullCounts[stripeIndex])
+                    : threshold.dominates(rawMins[stripeIndex], rawMaxs[stripeIndex], nullCounts[stripeIndex]));
         }
 
         int nextNonDominatedStripe(int fromStripe) {

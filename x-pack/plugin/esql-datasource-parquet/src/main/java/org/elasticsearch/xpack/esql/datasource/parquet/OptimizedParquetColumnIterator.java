@@ -458,12 +458,15 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             return false;
         }
         Statistics<?> statistics = sortColumn.getStatistics();
-        if (statistics == null || statistics.isEmpty() || statistics.hasNonNullValue() == false || statistics.getNumNulls() > 0) {
+        if (statistics == null || statistics.isEmpty()) {
             return false;
+        }
+        if (statistics.hasNonNullValue() == false) {
+            return dynamicThreshold.dominatesNulls(statistics.getNumNulls());
         }
         Long rawMin = rawValueFromStats(statistics.genericGetMin());
         Long rawMax = rawValueFromStats(statistics.genericGetMax());
-        return rawMin != null && rawMax != null && dynamicThreshold.dominates(rawMin, rawMax);
+        return rawMin != null && rawMax != null && dynamicThreshold.dominates(rawMin, rawMax, statistics.getNumNulls());
     }
 
     private RowRanges thresholdRowRanges(int rowGroupOrdinal, BlockMetaData block) {
@@ -479,6 +482,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         List<ByteBuffer> minValues = columnIndex.getMinValues();
         List<ByteBuffer> maxValues = columnIndex.getMaxValues();
         List<Boolean> nullPages = columnIndex.getNullPages();
+        List<Long> nullCounts = columnIndex.getNullCounts();
         if (minValues.size() != pageCount || maxValues.size() != pageCount) {
             return null;
         }
@@ -487,12 +491,20 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
             long pageStart = offsetIndex.getFirstRowIndex(page);
             long pageEnd = (page + 1 < pageCount) ? offsetIndex.getFirstRowIndex(page + 1) : block.getRowCount();
             if (nullPages != null && page < nullPages.size() && Boolean.TRUE.equals(nullPages.get(page))) {
-                surviving.add(new long[] { pageStart, pageEnd });
+                if (dynamicThreshold.dominatesNulls(pageEnd - pageStart) == false) {
+                    surviving.add(new long[] { pageStart, pageEnd });
+                }
                 continue;
             }
             Long rawMin = rawValueFromPageIndex(minValues.get(page));
             Long rawMax = rawValueFromPageIndex(maxValues.get(page));
-            if (rawMin == null || rawMax == null || dynamicThreshold.dominates(rawMin, rawMax) == false) {
+            boolean hasNullCount = nullCounts != null && page < nullCounts.size();
+            if (hasNullCount == false && dynamicThreshold.nullsFirst()) {
+                surviving.add(new long[] { pageStart, pageEnd });
+                continue;
+            }
+            long nullCount = hasNullCount ? nullCounts.get(page) : 0L;
+            if (rawMin == null || rawMax == null || dynamicThreshold.dominates(rawMin, rawMax, nullCount) == false) {
                 surviving.add(new long[] { pageStart, pageEnd });
             }
         }
@@ -539,6 +551,7 @@ final class OptimizedParquetColumnIterator implements CloseableIterator<Page>, C
         if (value == null || value.remaining() == 0) {
             return null;
         }
+        // Parquet page-index bounds use the type's plain encoding; numeric plain values are little-endian.
         ByteBuffer ordered = value.duplicate().order(ByteOrder.LITTLE_ENDIAN);
         return switch (dynamicThreshold.elementType()) {
             case LONG -> sortColumnPrimitiveType.getPrimitiveTypeName() == PrimitiveType.PrimitiveTypeName.INT64 ? ordered.getLong() : null;

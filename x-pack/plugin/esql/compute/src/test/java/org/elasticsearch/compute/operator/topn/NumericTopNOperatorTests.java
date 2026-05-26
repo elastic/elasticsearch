@@ -56,7 +56,7 @@ public class NumericTopNOperatorTests extends ComputeTestCase {
         List<Long> values = List.of(1L, 2L, 100L, 99L, 98L);
         for (boolean asc : List.of(true, false)) {
             BlockFactory blockFactory = blockFactory();
-            SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(asc);
+            SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(asc, false);
             try (SharedNumericThreshold threshold = supplier.get()) {
                 Operator operator = new NumericTopNOperator.NumericTopNOperatorFactory(2, ElementType.LONG, asc, false, supplier).get(
                     new DriverContext(blockFactory.bigArrays(), blockFactory, null)
@@ -74,7 +74,7 @@ public class NumericTopNOperatorTests extends ComputeTestCase {
 
     public void testNullSaturationMarksNoFurtherCandidates() {
         for (boolean asc : List.of(true, false)) {
-            SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(asc);
+            SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(asc, true);
             try (SharedNumericThreshold threshold = supplier.get()) {
                 BlockFactory blockFactory = blockFactory();
                 int count = 20;
@@ -96,7 +96,7 @@ public class NumericTopNOperatorTests extends ComputeTestCase {
 
     public void testNullSaturationDoesNotMarkForNullsLast() {
         for (boolean asc : List.of(true, false)) {
-            SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(asc);
+            SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(asc, false);
             try (SharedNumericThreshold threshold = supplier.get()) {
                 BlockFactory blockFactory = blockFactory();
                 int count = 20;

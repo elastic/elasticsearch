@@ -22,7 +22,7 @@ import static org.hamcrest.Matchers.sameInstance;
 
 public class SharedNumericThresholdTests extends ComputeTestCase {
     public void testAscendingThresholdTightensToMinimumOffer() {
-        try (SharedNumericThreshold threshold = new SharedNumericThreshold.Supplier(true).get()) {
+        try (SharedNumericThreshold threshold = new SharedNumericThreshold.Supplier(true, false).get()) {
             assertFalse(threshold.dominates(Long.MAX_VALUE, Long.MAX_VALUE));
             threshold.offer(10);
             threshold.offer(20);
@@ -34,7 +34,7 @@ public class SharedNumericThresholdTests extends ComputeTestCase {
     }
 
     public void testDescendingThresholdTightensToMaximumOffer() {
-        try (SharedNumericThreshold threshold = new SharedNumericThreshold.Supplier(false).get()) {
+        try (SharedNumericThreshold threshold = new SharedNumericThreshold.Supplier(false, false).get()) {
             assertFalse(threshold.dominates(Long.MIN_VALUE, Long.MIN_VALUE));
             threshold.offer(10);
             threshold.offer(20);
@@ -47,7 +47,7 @@ public class SharedNumericThresholdTests extends ComputeTestCase {
 
     public void testConcurrentOffers() throws Exception {
         boolean ascending = randomBoolean();
-        SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(ascending);
+        SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(ascending, randomBoolean());
         ExecutorService executor = Executors.newFixedThreadPool(4);
         List<Future<?>> futures = new ArrayList<>();
         long expected = ascending ? Long.MAX_VALUE : Long.MIN_VALUE;
@@ -75,8 +75,8 @@ public class SharedNumericThresholdTests extends ComputeTestCase {
 
     public void testMarkNoFurtherCandidatesCollapsesThreshold() {
         try (
-            SharedNumericThreshold asc = new SharedNumericThreshold.Supplier(true).get();
-            SharedNumericThreshold desc = new SharedNumericThreshold.Supplier(false).get()
+            SharedNumericThreshold asc = new SharedNumericThreshold.Supplier(true, true).get();
+            SharedNumericThreshold desc = new SharedNumericThreshold.Supplier(false, true).get()
         ) {
             asc.markNoFurtherCandidates();
             desc.markNoFurtherCandidates();
@@ -90,7 +90,7 @@ public class SharedNumericThresholdTests extends ComputeTestCase {
     }
 
     public void testSupplierSharesUntilLastCloseThenRebuilds() {
-        SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(true);
+        SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(true, randomBoolean());
         SharedNumericThreshold first = supplier.get();
         SharedNumericThreshold second = supplier.get();
         assertThat(second, sameInstance(first));

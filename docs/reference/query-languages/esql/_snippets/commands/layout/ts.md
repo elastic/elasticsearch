@@ -64,11 +64,12 @@ If there is no `STATS` command in the query, the output of the `TS` command gets
 
 ## When to use TS vs FROM
 
-`TS` is the right choice for aggregating metrics. It's aware of time series
-semantics, commonly provides better performance, and avoids correctness issues
-that [`FROM`](/reference/query-languages/esql/commands/from.md) `| STATS` runs into
-on raw metric data. Two common examples where `FROM` silently produces wrong
-results that `TS` handles correctly:
+`TS` is the right choice for aggregating metrics. It's optimized for time series
+data and avoids correctness issues that
+[`FROM`](/reference/query-languages/esql/commands/from.md) `| STATS` runs into on
+raw metric data. The two most common examples where `FROM` silently produces
+wrong results that `TS` handles correctly are counter handling and uneven
+publish intervals for metrics.
 
 ### Counters need deltas, not raw sums
 

@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -228,10 +229,247 @@ public class ResolveViewShadowTests extends ESTestCase {
         assertWarnings(NO_LIMIT_WARNING);
     }
 
+    // ── ExcludeShadowedClusters tests ─────────────────────────────────────────────────────────────
+
+    /**
+     * When a shadow is resolved, its cluster aliases must be removed from every {@link EsRelation}
+     * inside the sibling view-body branch. This is the core requirement from esql-planning#795:
+     * a linked project that has a remote index with the same name as the local view must NOT also
+     * run the view body.
+     *
+     * <p>In {@link org.elasticsearch.xpack.esql.view.ViewResolver} the view-body branch is always
+     * keyed by the <em>view name</em> (e.g. {@code "v1"}), and the shadow branch is keyed
+     * {@code "v1#shadow"}. The {@code ExcludeShadowedClusters} rule strips the {@code "#shadow"}
+     * suffix to find the matching view-body key.
+     *
+     * <p>Setup: ViewUnionAll with key {@code "v1"} → UR {@code "source_idx"} (the view body),
+     * and key {@code "v1#shadow"} → shadow. {@code "source_idx"} resolves to an {@link EsRelation}
+     * present on both the local cluster and {@code "remote1"}. The shadow resolves to an
+     * {@link EsRelation} for {@code "v1"} present only on {@code "remote1"}.
+     *
+     * <p>Expected: the surviving ViewUnionAll has two branches, and the view-body's
+     * {@code EsRelation("source_idx")} no longer includes {@code "remote1"}.
+     */
+    public void testShadowExcludesClustersFromViewBody() {
+        var mapping = LoadMapping.loadMapping("mapping-one-field.json");
+        EsIndex sourceIdx = new EsIndex(
+            "source_idx",
+            mapping,
+            Map.of("source_idx", IndexMode.STANDARD, "remote1:source_idx", IndexMode.STANDARD),
+            Map.of("", List.of("source_idx"), "remote1", List.of("source_idx")),
+            Map.of("", List.of("source_idx"), "remote1", List.of("source_idx"))
+        );
+        EsIndex shadowIdx = new EsIndex(
+            "v1",
+            mapping,
+            Map.of("remote1:v1", IndexMode.STANDARD),
+            Map.of("remote1", List.of("v1")),
+            Map.of("remote1", List.of("v1"))
+        );
+        var analyzer = analyzer().addIndex(sourceIdx).addLenientShadow(shadowIdx).buildAnalyzer();
+
+        // Key "v1" = view body; "v1#shadow" = shadow — matching the ViewResolver convention.
+        LogicalPlan plan = analyzer.analyze(viewUnionAllOf("v1", strictUR("source_idx"), new ViewShadowRelation(EMPTY, "v1", List.of())));
+
+        var limit = as(plan, Limit.class);
+        var unionAll = as(limit.child(), ViewUnionAll.class);
+        assertEquals("expected two children (view body + shadow), got: " + unionAll, 2, unionAll.children().size());
+
+        EsRelation viewBodyRel = null;
+        EsRelation shadowRel = null;
+        for (LogicalPlan child : unionAll.children()) {
+            EsRelation rel = as(unwrapProject(child), EsRelation.class);
+            if (rel.indexPattern().equals("source_idx")) {
+                viewBodyRel = rel;
+            } else if (rel.indexPattern().equals("v1")) {
+                shadowRel = rel;
+            }
+        }
+        assertNotNull("expected a view-body EsRelation for source_idx", viewBodyRel);
+        assertNotNull("expected a shadow EsRelation for v1", shadowRel);
+
+        // The shadow covers remote1 — verify it is excluded from the view body.
+        assertFalse(
+            "remote1 should be excluded from view-body EsRelation because the shadow covers it",
+            viewBodyRel.concreteIndices().containsKey("remote1")
+        );
+        assertFalse("remote1 should be excluded from view-body originalIndices", viewBodyRel.originalIndices().containsKey("remote1"));
+        assertFalse(
+            "remote1:source_idx should be excluded from view-body indexNameWithModes",
+            viewBodyRel.indexNameWithModes().containsKey("remote1:source_idx")
+        );
+        // Local cluster data is untouched.
+        assertTrue("local cluster should remain in view-body EsRelation", viewBodyRel.concreteIndices().containsKey(""));
+
+        // The shadow EsRelation itself is unchanged.
+        assertTrue("shadow should still have remote1", shadowRel.concreteIndices().containsKey("remote1"));
+
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    /**
+     * When the shadow is <em>not</em> resolved (no lenient match → stripped by
+     * {@code ViewCompactionPostIndexResolution}), the view-body {@link EsRelation} must be
+     * left unchanged. There is nothing to exclude.
+     */
+    public void testNoClustersExcludedWhenShadowNotResolved() {
+        var mapping = LoadMapping.loadMapping("mapping-one-field.json");
+        EsIndex sourceIdx = new EsIndex(
+            "source_idx",
+            mapping,
+            Map.of("source_idx", IndexMode.STANDARD, "remote1:source_idx", IndexMode.STANDARD),
+            Map.of("", List.of("source_idx"), "remote1", List.of("source_idx")),
+            Map.of("", List.of("source_idx"), "remote1", List.of("source_idx"))
+        );
+        // No lenient shadow registered → shadow stays unresolved → stripped.
+        var analyzer = analyzer().addIndex(sourceIdx).buildAnalyzer();
+
+        // Key "v1" = view body; "v1#shadow" = shadow — matching the ViewResolver convention.
+        LogicalPlan plan = analyzer.analyze(viewUnionAllOf("v1", strictUR("source_idx"), new ViewShadowRelation(EMPTY, "v1", List.of())));
+
+        var limit = as(plan, Limit.class);
+        // Shadow stripped → single survivor, ViewUnionAll collapses.
+        EsRelation viewBodyRel = as(unwrapProject(limit.child()), EsRelation.class);
+        assertEquals("source_idx", viewBodyRel.indexPattern());
+
+        // remote1 must still be present — no shadow was resolved so nothing was excluded.
+        assertTrue(
+            "remote1 should remain in view-body EsRelation when shadow is not resolved",
+            viewBodyRel.concreteIndices().containsKey("remote1")
+        );
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    /**
+     * A shadow for cluster {@code "remote1"} must not accidentally exclude data from cluster
+     * {@code "remote2"}. Only the exact cluster aliases from the resolved shadow's
+     * {@link EsRelation#concreteIndices()} are removed.
+     */
+    public void testShadowExcludesOnlyItsClusters() {
+        var mapping = LoadMapping.loadMapping("mapping-one-field.json");
+        EsIndex sourceIdx = new EsIndex(
+            "source_idx",
+            mapping,
+            Map.of("source_idx", IndexMode.STANDARD, "remote1:source_idx", IndexMode.STANDARD, "remote2:source_idx", IndexMode.STANDARD),
+            Map.of("", List.of("source_idx"), "remote1", List.of("source_idx"), "remote2", List.of("source_idx")),
+            Map.of("", List.of("source_idx"), "remote1", List.of("source_idx"), "remote2", List.of("source_idx"))
+        );
+        // Shadow only covers remote1.
+        EsIndex shadowIdx = new EsIndex(
+            "v1",
+            mapping,
+            Map.of("remote1:v1", IndexMode.STANDARD),
+            Map.of("remote1", List.of("v1")),
+            Map.of("remote1", List.of("v1"))
+        );
+        var analyzer = analyzer().addIndex(sourceIdx).addLenientShadow(shadowIdx).buildAnalyzer();
+
+        // Key "v1" = view body; "v1#shadow" = shadow — matching the ViewResolver convention.
+        LogicalPlan plan = analyzer.analyze(viewUnionAllOf("v1", strictUR("source_idx"), new ViewShadowRelation(EMPTY, "v1", List.of())));
+
+        var limit = as(plan, Limit.class);
+        var unionAll = as(limit.child(), ViewUnionAll.class);
+        EsRelation viewBodyRel = unionAll.children()
+            .stream()
+            .map(c -> as(unwrapProject(c), EsRelation.class))
+            .filter(r -> r.indexPattern().equals("source_idx"))
+            .findFirst()
+            .orElseThrow();
+
+        // remote1 excluded (covered by shadow), remote2 and local untouched.
+        assertFalse("remote1 should be excluded", viewBodyRel.concreteIndices().containsKey("remote1"));
+        assertTrue("remote2 should remain", viewBodyRel.concreteIndices().containsKey("remote2"));
+        assertTrue("local cluster should remain", viewBodyRel.concreteIndices().containsKey(""));
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    /**
+     * Two view branches (views "a" and "b") share the same ViewUnionAll. Only view "a" has a
+     * matching shadow on {@code "clusterx"}. After analysis, branch "a" must have {@code "clusterx"}
+     * removed from its {@link EsRelation} leaves, but branch "b" must be completely unchanged —
+     * there is no shadow claiming its clusters.
+     *
+     * <p>This is the canonical multi-view case from esql-planning#795: the ExcludeShadowedClusters
+     * rule must pair each shadow with <em>its own</em> view branch rather than broadcasting the
+     * exclusion across all non-shadow branches.
+     */
+    public void testShadowExcludesOnlyMatchingViewBranch() {
+        var mapping = LoadMapping.loadMapping("mapping-one-field.json");
+        // Both source indices exist on local + clusterx.
+        EsIndex sourceA = new EsIndex(
+            "source_a",
+            mapping,
+            Map.of("source_a", IndexMode.STANDARD, "clusterx:source_a", IndexMode.STANDARD),
+            Map.of("", List.of("source_a"), "clusterx", List.of("source_a")),
+            Map.of("", List.of("source_a"), "clusterx", List.of("source_a"))
+        );
+        EsIndex sourceB = new EsIndex(
+            "source_b",
+            mapping,
+            Map.of("source_b", IndexMode.STANDARD, "clusterx:source_b", IndexMode.STANDARD),
+            Map.of("", List.of("source_b"), "clusterx", List.of("source_b")),
+            Map.of("", List.of("source_b"), "clusterx", List.of("source_b"))
+        );
+        // Only view "a" has a remote index on clusterx; "b" has no shadow.
+        EsIndex shadowA = new EsIndex(
+            "a",
+            mapping,
+            Map.of("clusterx:a", IndexMode.STANDARD),
+            Map.of("clusterx", List.of("a")),
+            Map.of("clusterx", List.of("a"))
+        );
+
+        var analyzer = analyzer().addIndex(sourceA).addIndex(sourceB).addLenientShadow(shadowA).buildAnalyzer();
+
+        // ViewUnionAll: branch "a" → source_a, branch "b" → source_b, shadow "a#shadow".
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("a", strictUR("source_a"));
+        branches.put("b", strictUR("source_b"));
+        branches.put("a#shadow", new ViewShadowRelation(EMPTY, "a", List.of()));
+        ViewUnionAll vua = new ViewUnionAll(EMPTY, branches, List.of());
+
+        LogicalPlan plan = analyzer.analyze(vua);
+
+        var limit = as(plan, Limit.class);
+        var unionAll = as(limit.child(), ViewUnionAll.class);
+        assertEquals("expected three branches after analysis, got: " + unionAll, 3, unionAll.children().size());
+
+        EsRelation relA = null;
+        EsRelation relB = null;
+        for (LogicalPlan child : unionAll.children()) {
+            EsRelation rel = as(unwrapProject(child), EsRelation.class);
+            if (rel.indexPattern().equals("source_a")) {
+                relA = rel;
+            } else if (rel.indexPattern().equals("source_b")) {
+                relB = rel;
+            }
+            // "a" shadow EsRelation is also present but not checked here.
+        }
+        assertNotNull("expected EsRelation for source_a", relA);
+        assertNotNull("expected EsRelation for source_b", relB);
+
+        // Branch "a": clusterx must be excluded (shadow covers it).
+        assertFalse("clusterx should be excluded from view-a's EsRelation", relA.concreteIndices().containsKey("clusterx"));
+        assertTrue("local cluster should remain in view-a's EsRelation", relA.concreteIndices().containsKey(""));
+
+        // Branch "b": clusterx must NOT be excluded (no shadow for view "b").
+        assertTrue("clusterx should remain in view-b's EsRelation — no shadow claimed it", relB.concreteIndices().containsKey("clusterx"));
+        assertTrue("local cluster should remain in view-b's EsRelation", relB.concreteIndices().containsKey(""));
+
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
     private static UnresolvedRelation strictUR(String pattern) {
         return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, pattern), false, List.of(), IndexMode.STANDARD, null, "FROM");
     }
 
+    /**
+     * Builds a two-branch {@link ViewUnionAll} that mirrors the structure produced by
+     * {@link org.elasticsearch.xpack.esql.view.ViewResolver}: the {@code strictName} key is the
+     * <em>view name</em> (so it matches {@code shadow.viewName()}), and the shadow is keyed
+     * {@code shadow.viewName() + "#shadow"}. Tests that want the {@code ExcludeShadowedClusters}
+     * rule to fire must pass the view name as {@code strictName}, not the source-index name.
+     */
     private static ViewUnionAll viewUnionAllOf(String strictName, LogicalPlan strict, ViewShadowRelation shadow) {
         LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
         children.put(strictName, strict);

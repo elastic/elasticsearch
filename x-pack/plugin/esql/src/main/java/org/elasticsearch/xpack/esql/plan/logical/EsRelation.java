@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -187,5 +189,50 @@ public class EsRelation extends LeafPlan {
 
     public EsRelation withIndexMode(IndexMode indexMode) {
         return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
+    }
+
+    /**
+     * Returns a new {@link EsRelation} with the given cluster aliases removed from
+     * {@link #originalIndices()}, {@link #concreteIndices()}, and {@link #indexNameWithModes()}.
+     * <p>
+     * Used by the {@code ExcludeShadowedClusters} analyzer rule: when a linked-project remote index
+     * (resolved via a {@link ViewShadowRelation}) shares a name with the local view, the view body
+     * must NOT run on that cluster — only the remote index should.
+     * </p>
+     * <p>
+     * If no entries are removed the original instance is returned unchanged.
+     * </p>
+     *
+     * @param clustersToExclude cluster aliases to drop (use {@code ""} for the local cluster,
+     *                          or the remote alias string for linked projects)
+     */
+    public EsRelation withoutClusters(Set<String> clustersToExclude) {
+        if (clustersToExclude.isEmpty()) {
+            return this;
+        }
+        boolean modified = false;
+        Map<String, List<String>> newOriginalIndices = new HashMap<>(originalIndices);
+        Map<String, List<String>> newConcreteIndices = new HashMap<>(concreteIndices);
+        for (String cluster : clustersToExclude) {
+            if (newOriginalIndices.remove(cluster) != null) {
+                modified = true;
+            }
+            if (newConcreteIndices.remove(cluster) != null) {
+                modified = true;
+            }
+        }
+        Map<String, IndexMode> newIndexNameWithModes = new HashMap<>(indexNameWithModes);
+        for (var it = newIndexNameWithModes.entrySet().iterator(); it.hasNext();) {
+            String qualifiedName = it.next().getKey();
+            String clusterAlias = RemoteClusterAware.getClusterAlias(RemoteClusterAware.splitIndexName(qualifiedName));
+            if (clustersToExclude.contains(clusterAlias)) {
+                it.remove();
+                modified = true;
+            }
+        }
+        if (modified == false) {
+            return this;
+        }
+        return new EsRelation(source(), indexPattern, indexMode, newOriginalIndices, newConcreteIndices, newIndexNameWithModes, attrs);
     }
 }

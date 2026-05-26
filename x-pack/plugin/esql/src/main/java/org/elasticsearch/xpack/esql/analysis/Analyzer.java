@@ -149,6 +149,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
+import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.Fuse;
 import org.elasticsearch.xpack.esql.plan.logical.fuse.FuseScoreEval;
 import org.elasticsearch.xpack.esql.plan.logical.inference.Completion;
@@ -237,6 +238,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveConfigurationAware(),
             new ResolveTable(),
             new ResolveViewShadow(),
+            new ExcludeShadowedClusters(),
             new ViewCompactionPostIndexResolution(),
             new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
@@ -524,6 +526,85 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
             return ViewCompaction.postIndexResolution(plan);
+        }
+    }
+
+    /**
+     * Runs between {@link ResolveViewShadow} and {@link ViewCompactionPostIndexResolution}: for
+     * each {@link ViewUnionAll} that contains a resolved shadow (a {@link ViewShadowRelation} that
+     * {@code ResolveViewShadow} has replaced with an {@link EsRelation}), removes the shadow's
+     * cluster aliases from every {@link EsRelation} inside the <em>sibling</em> view-body branches.
+     *
+     * <p>
+     * <b>Rationale:</b>
+     * When a linked project (CPS) has an index whose name matches a local view name, the shadow
+     * mechanism routes that project's data through the resolved remote {@code EsRelation} (the
+     * shadow branch). Without this rule the local view body would <em>also</em> run on that
+     * linked project, executing the view's source queries there in parallel — effectively reading
+     * from the same project twice under two different code paths. That violates the invariant that
+     * a single project must be covered by exactly one branch.
+     * </p>
+     * <p>
+     * The fix is straightforward: the shadow's resolved {@code EsRelation} already encodes which
+     * cluster aliases are "claimed" by the remote index. We subtract those aliases from every
+     * {@code EsRelation} leaf in the sibling view-body branches via
+     * {@link EsRelation#withoutClusters(Set)}. If a source index in the view body existed only on
+     * the now-excluded cluster(s), its {@code EsRelation} becomes empty for those fields, but
+     * that is correct — that cluster is served by the shadow, not the view.
+     * </p>
+     */
+    private static class ExcludeShadowedClusters extends Rule<LogicalPlan, LogicalPlan> {
+
+        @Override
+        public LogicalPlan apply(LogicalPlan plan) {
+            return plan.transformDown(ViewUnionAll.class, ExcludeShadowedClusters::excludeFromViewBody);
+        }
+
+        private static final String SHADOW_SUFFIX = "#shadow";
+
+        private static ViewUnionAll excludeFromViewBody(ViewUnionAll vua) {
+            // Build a per-view-name map of cluster aliases claimed by each resolved shadow.
+            // Shadow entry keys have the form "<viewName>#shadow"
+            // (see ViewResolver.replaceViewsUnresolvedRelation); null keys arise from unnamed
+            // user-written subqueries and are never shadows. Critically, each shadow is paired
+            // with its own view branch — the shadow for view "a" must only remove clusters from
+            // branch "a", not from sibling branch "b" which has no corresponding shadow.
+            Map<String, Set<String>> shadowClustersByView = new HashMap<>();
+            for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
+                String key = entry.getKey();
+                if (key != null && key.endsWith(SHADOW_SUFFIX) && entry.getValue() instanceof EsRelation shadowRel) {
+                    Set<String> clusters = shadowRel.concreteIndices().keySet();
+                    if (clusters.isEmpty() == false) {
+                        String viewName = key.substring(0, key.length() - SHADOW_SUFFIX.length());
+                        shadowClustersByView.computeIfAbsent(viewName, k -> new HashSet<>()).addAll(clusters);
+                    }
+                }
+            }
+            if (shadowClustersByView.isEmpty()) {
+                return vua;
+            }
+
+            // For each non-shadow branch, strip only the clusters claimed by *that branch's own
+            // shadow*. Branches whose view has no resolved shadow are left completely untouched.
+            LinkedHashMap<String, LogicalPlan> newSubqueries = new LinkedHashMap<>();
+            boolean modified = false;
+            for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
+                String key = entry.getKey();
+                LogicalPlan child = entry.getValue();
+                if (key != null && key.endsWith(SHADOW_SUFFIX)) {
+                    newSubqueries.put(key, child);
+                } else {
+                    Set<String> clustersToExclude = key != null ? shadowClustersByView.get(key) : null;
+                    if (clustersToExclude != null) {
+                        LogicalPlan newChild = child.transformDown(EsRelation.class, rel -> rel.withoutClusters(clustersToExclude));
+                        modified |= (newChild != child);
+                        newSubqueries.put(key, newChild);
+                    } else {
+                        newSubqueries.put(key, child);
+                    }
+                }
+            }
+            return modified ? new ViewUnionAll(vua.source(), newSubqueries, vua.output()) : vua;
         }
     }
 

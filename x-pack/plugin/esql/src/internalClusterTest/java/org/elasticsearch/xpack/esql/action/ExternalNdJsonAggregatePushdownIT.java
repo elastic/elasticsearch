@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
@@ -53,6 +55,22 @@ public class ExternalNdJsonAggregatePushdownIT extends AbstractEsqlIntegTestCase
     protected QueryPragmas getPragmas() {
         // See parallel comment in ExternalCsvCountPushdownIT.getPragmas.
         return new QueryPragmas(Settings.builder().put("parsing_parallelism", 1).build());
+    }
+
+    /**
+     * Pins every query to one coordinator. The reconciled schema cache is per-coordinator, not
+     * cluster-replicated, so the cold scan and the warm short-circuit must hit the same node; the
+     * default {@code run()} routes to a random node per call, which would land the warm query on a
+     * coordinator whose cache the cold scan never enriched (see {@code ExternalCsvMultiNodePushdownIT},
+     * which pins to node 0 for the same reason).
+     */
+    @Override
+    public EsqlQueryResponse run(EsqlQueryRequest request, TimeValue timeout) {
+        try {
+            return client(internalCluster().getMasterName()).execute(EsqlQueryAction.INSTANCE, request).actionGet(timeout);
+        } catch (ElasticsearchTimeoutException e) {
+            throw new AssertionError("timeout", e);
+        }
     }
 
     public void testCountStarColdThenWarmShortCircuits() throws Exception {

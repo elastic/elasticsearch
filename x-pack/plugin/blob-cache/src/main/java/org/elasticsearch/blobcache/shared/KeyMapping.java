@@ -77,7 +77,8 @@ class KeyMapping<Key1, Key2, Value> {
         }
     }
 
-    public long countMatchingKey2s(Predicate<Key2> predicate) {
+    // used by tests
+    long countMatchingKey2s(Predicate<Key2> predicate) {
         long count = 0;
         for (ConcurrentHashMap<Key2, Value> map : mapping.values()) {
             count += countMatchingKey2s(map, predicate);

@@ -67,6 +67,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
     private static final ByteSizeValue CACHE_SIZE = ByteSizeValue.ofKb(256);
     private static final long BOOST_WINDOW_MILLIS = TimeValue.timeValueDays(7).millis();
     private static final long ONE_DAY_MILLIS = TimeValue.timeValueDays(1).millis();
+    // we avoid current timestamp to ease potential test failures reproduction
     private static final long BOOST_WINDOW_END = Instant.parse("2026-01-01T00:00:00Z").toEpochMilli();
     private final String BOOSTED_IDX = randomIdentifier();
     private final String NON_BOOSTED_IDX = randomIdentifier();
@@ -77,18 +78,16 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
     }
 
     @Override
-    public int getUploadMaxCommits() {
-        // Keep compound commits in the virtual BCC's pending list until we explicitly flush, so the
-        // timestampFieldValueRange assertion in indexDocuments has something to inspect.
-        return Integer.MAX_VALUE;
-    }
-
-    @Override
     protected Settings.Builder nodeSettings() {
         // Disable all background warmers so nothing populates the cache between test steps
-        return super.nodeSettings().put(StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED.getKey(), false)
+        return super.nodeSettings()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(StatelessOnlinePrewarmingService.STATELESS_ONLINE_PREWARMING_ENABLED.getKey(), false)
             .put(SearchCommitPrefetcherDynamicSettings.PREFETCH_COMMITS_UPON_NOTIFICATIONS_ENABLED_SETTING.getKey(), false)
-            .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), false);
+            .put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), false)
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), Integer.MAX_VALUE)
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1));
+
     }
 
     public void testNonBoostedSearchesEvictBoostedData() {
@@ -114,15 +113,15 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         // and so the boost-window bounds can be asserted against compound-commit metadata below.
         final long boostWindowEndInMillis = BOOST_WINDOW_END + randomLongBetween(0, TimeValue.timeValueDays(365).millis());
         final long boostWindowStartInMillis = boostWindowEndInMillis - BOOST_WINDOW_MILLIS + ONE_DAY_MILLIS;
-        final long preBoostWindowEndInMillis = boostWindowEndInMillis - BOOST_WINDOW_MILLIS - 2 * ONE_DAY_MILLIS;
-        final long preBoostWindowStartInMillis = preBoostWindowEndInMillis - 30L * ONE_DAY_MILLIS;
+        final long nonBoostWindowEndInMillis = boostWindowEndInMillis - BOOST_WINDOW_MILLIS - 2 * ONE_DAY_MILLIS;
+        final long nonBoostWindowStartInMillis = nonBoostWindowEndInMillis - 30L * ONE_DAY_MILLIS;
         // Non-boosted index is sized to exceed the cache: many segments ensure non-boosted searches
         // span more cache regions than the cache holds, so LFU eviction must displace every boosted region.
-        indexDocuments(masterAndIndexNodeName, 10, NON_BOOSTED_IDX, 10_000, preBoostWindowStartInMillis, preBoostWindowEndInMillis);
+        indexDocuments(masterAndIndexNodeName, 10, NON_BOOSTED_IDX, 10_000, nonBoostWindowStartInMillis, nonBoostWindowEndInMillis);
         indexDocuments(masterAndIndexNodeName, 10, BOOSTED_IDX, 1_000, boostWindowStartInMillis, boostWindowEndInMillis);
 
         final StatelessSharedBlobCacheService cacheService = getCacheService();
-        logger.info(
+        logger.debug(
             "cache regions after ingesting docs: boosted={}, non-boosted={}",
             cacheRegionsForIndex(cacheService, BOOSTED_IDX),
             cacheRegionsForIndex(cacheService, NON_BOOSTED_IDX)
@@ -133,7 +132,7 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         searchBoostedData(BOOSTED_IDX);
 
         final SharedBlobCacheService.Stats statsAfterBoostSearch = cacheService.getStats();
-        logger.info(
+        logger.debug(
             "boosted cache regions after searching boosted docs: boosted={}, non-boosted={}",
             cacheRegionsForIndex(cacheService, BOOSTED_IDX),
             cacheRegionsForIndex(cacheService, NON_BOOSTED_IDX)
@@ -148,11 +147,13 @@ public class BoostedDataEvictionIT extends AbstractStatelessPluginIntegTestCase 
         // boosted regions are evicted first under the LFU clock.
         searchNonBoostedData(NON_BOOSTED_IDX);
 
-        logger.info(
+        logger.debug(
             "boosted cache regions after searching non-boosted docs: boosted={}, non-boosted={}",
             cacheRegionsForIndex(cacheService, BOOSTED_IDX),
             cacheRegionsForIndex(cacheService, NON_BOOSTED_IDX)
         );
+
+        // TODO this is the current behavior we want to get rid off, as a part of caching infrastructure improvements
         assertThat(
             "boosted regions must have been fully evicted by non-boosted searches",
             cacheRegionsForIndex(cacheService, BOOSTED_IDX),

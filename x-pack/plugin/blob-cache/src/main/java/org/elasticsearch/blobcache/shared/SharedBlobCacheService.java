@@ -2434,6 +2434,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             decayAndNewEpochTask.spawnIfNotRunning(currentEpoch);
         }
 
+        // used by tests
         long countCachedRegions(Predicate<KeyType> predicate) {
             return keyMapping.countMatchingKey2s(regionKey -> predicate.test(regionKey.file()));
         }

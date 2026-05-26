@@ -51,10 +51,9 @@ public class TransformContext {
     private volatile boolean shouldRecreateDestinationIndex = false;
     private volatile AuthorizationState authState;
     private volatile int pageSize = 0;
-    // Atomic so concurrent _update calls landing on the same node (each invoking refreshFromStore)
-    // can't orphan a credential via a torn read-modify-write on a plain volatile field.
+    // Atomic so the indexer's onStart credential-swap (replacePersistedCredential) cannot tear
+    // against a concurrent reader using getPersistedCloudCredential to wrap an outbound client.
     private final AtomicReference<PersistedCloudCredential> persistedCloudCredential = new AtomicReference<>();
-    private final AtomicReference<PersistedCloudCredential> pendingPersistedCloudCredential = new AtomicReference<>();
 
     /**
      * If the destination index is blocked (e.g. during a reindex), the Transform will fail to write to it.
@@ -316,54 +315,16 @@ public class TransformContext {
         return persistedCloudCredential.getAndSet(next);
     }
 
-    @Nullable
-    PersistedCloudCredential getPendingPersistedCloudCredential() {
-        return pendingPersistedCloudCredential.get();
-    }
-
     /**
-     * Atomically queues {@code next} as the pending credential, to be promoted at the start of the
-     * next checkpoint (see {@code ClientTransformIndexer.onStart}). Returns the displaced pending
-     * credential (if any) for the caller to revoke + close — e.g. when the user submits two
-     * {@code _update}s in quick succession without a checkpoint completing between them.
-     */
-    @Nullable
-    PersistedCloudCredential setPendingPersistedCloudCredential(@Nullable PersistedCloudCredential next) {
-        return pendingPersistedCloudCredential.getAndSet(next);
-    }
-
-    /**
-     * Promotes any pending credential to active and returns the displaced active credential for
-     * the caller to revoke + close. Returns {@code null} if there is no pending credential.
-     *
-     * <p>This is not strictly one-atomic-op (it does two {@code getAndSet}s), but the only writer
-     * is {@code ClientTransformIndexer.onStart} which runs once per checkpoint on a single thread.
-     * A concurrent {@code refreshFromStore} landing between the two writes will either see the
-     * freshly-promoted active and swap-immediately (revoking the just-promoted credential) or
-     * queue another pending — no orphan.
-     */
-    @Nullable
-    PersistedCloudCredential promotePendingPersistedCloudCredential() {
-        PersistedCloudCredential pending = pendingPersistedCloudCredential.getAndSet(null);
-        if (pending == null) {
-            return null;
-        }
-        return replacePersistedCredential(pending);
-    }
-
-    /**
-     * Releases the held active and pending cloud credentials. Idempotent. Does NOT revoke with UIAM —
-     * shutdown may be transient (node restart) and the credentials may still be valid; revocation
-     * happens at delete time and after a successful rotation swap.
+     * Releases the held active cloud credential. Idempotent. Does NOT revoke with UIAM — shutdown
+     * may be transient (node restart) and the credential may still be valid; revocation happens
+     * at delete time and after a successful rotation swap (see
+     * {@code ClientTransformIndexer.doMaybeRefreshCloudToken}).
      */
     void close() {
         PersistedCloudCredential prevActive = replacePersistedCredential(null);
         if (prevActive != null) {
             prevActive.close();
-        }
-        PersistedCloudCredential prevPending = setPendingPersistedCloudCredential(null);
-        if (prevPending != null) {
-            prevPending.close();
         }
     }
 

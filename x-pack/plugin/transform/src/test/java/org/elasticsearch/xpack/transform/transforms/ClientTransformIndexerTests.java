@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -100,10 +101,12 @@ import java.util.stream.IntStream;
 
 import static org.elasticsearch.common.bytes.BytesReferenceTestUtils.equalBytes;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.sameInstance;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
@@ -298,14 +301,51 @@ public class ClientTransformIndexerTests extends ESTestCase {
         }
     }
 
-    public void testOnStartPromotesPendingCloudCredential() throws InterruptedException {
-        var config = TransformConfigTests.randomTransformConfig();
+    public void testDoMaybeRefreshCloudTokenSameIdIsNoop() throws InterruptedException {
+        var config = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setCredentialId("k1").build();
+        var sameConfig = new TransformConfig.Builder(config).build();
         try (var threadPool = createThreadPool()) {
             var client = new PitMockClient(threadPool, false);
+            var configManager = mock(IndexBasedTransformConfigManager.class);
+            var cloudCredentialManager = mock(TransformCloudCredentialManager.class);
+            var services = new TransformServices(
+                configManager,
+                mock(TransformCheckpointService.class),
+                mock(TransformAuditor.class),
+                new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
+                mock(TransformNode.class),
+                mock(CrossProjectModeDecider.class),
+                projectId -> false,
+                mock(ProjectResolver.class),
+                cloudCredentialManager
+            );
+
+            var indexer = createIndexer(services, client, config);
+
+            this.<Void>assertAsync(listener -> indexer.doMaybeRefreshCloudToken(config, sameConfig, listener), v -> {
+                verify(configManager, never()).getTransformCloudCredentialByTokenId(any(), anyBoolean(), any());
+                verify(cloudCredentialManager, never()).revokeAndClose(any(), any());
+            });
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testDoMaybeRefreshCloudTokenSwapAndRevoke() throws InterruptedException {
+        var prior = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setCredentialId("k1").build();
+        var next = new TransformConfig.Builder(prior).setCredentialId("k2").build();
+        try (var threadPool = createThreadPool()) {
+            var client = new PitMockClient(threadPool, false);
+            var configManager = mock(IndexBasedTransformConfigManager.class);
+            var freshlyLoaded = new PersistedCloudCredential("k2", new SecureString("v".toCharArray()));
+            doAnswer(invocation -> {
+                ActionListener<PersistedCloudCredential> l = invocation.getArgument(2);
+                l.onResponse(freshlyLoaded);
+                return null;
+            }).when(configManager).getTransformCloudCredentialByTokenId(eq("k2"), anyBoolean(), any());
 
             var cloudCredentialManager = mock(TransformCloudCredentialManager.class);
             var services = new TransformServices(
-                mock(IndexBasedTransformConfigManager.class),
+                configManager,
                 mock(TransformCheckpointService.class),
                 mock(TransformAuditor.class),
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
@@ -317,10 +357,8 @@ public class ClientTransformIndexerTests extends ESTestCase {
             );
 
             var context = mock(TransformContext.class);
-            var active = new PersistedCloudCredential("active-id", new SecureString("v".toCharArray()));
-            var pending = new PersistedCloudCredential("pending-id", new SecureString("v".toCharArray()));
-            when(context.getPendingPersistedCloudCredential()).thenReturn(pending);
-            when(context.promotePendingPersistedCloudCredential()).thenReturn(active);
+            var displaced = new PersistedCloudCredential("k1", new SecureString("v".toCharArray()));
+            when(context.replacePersistedCredential(eq(freshlyLoaded))).thenReturn(displaced);
 
             var indexer = new MockClientTransformIndexer(
                 mock(ThreadPool.class),
@@ -333,7 +371,7 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 null,
                 new ParentTaskAssigningClient(client, new TaskId("dummy-node:123456")),
                 mock(TransformIndexerStats.class),
-                config,
+                prior,
                 null,
                 new TransformCheckpoint(
                     "transform",
@@ -354,20 +392,29 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 false
             );
 
-            indexer.applyPendingCloudCredentialIfAny();
-
-            verify(context).promotePendingPersistedCloudCredential();
-            verify(cloudCredentialManager).revokeAndClose(eq(config.getId()), eq(active));
+            this.<Void>assertAsync(listener -> indexer.doMaybeRefreshCloudToken(prior, next, listener), v -> {
+                verify(context).replacePersistedCredential(eq(freshlyLoaded));
+                verify(cloudCredentialManager).revokeAndClose(eq(prior.getId()), eq(displaced));
+            });
         }
     }
 
-    public void testOnStartWithoutPendingCloudCredentialIsNoop() throws InterruptedException {
-        var config = TransformConfigTests.randomTransformConfig();
+    public void testDoMaybeRefreshCloudTokenLoadFailurePropagates() throws InterruptedException {
+        var prior = new TransformConfig.Builder(TransformConfigTests.randomTransformConfig()).setCredentialId("k1").build();
+        var next = new TransformConfig.Builder(prior).setCredentialId("k2").build();
         try (var threadPool = createThreadPool()) {
             var client = new PitMockClient(threadPool, false);
+            var configManager = mock(IndexBasedTransformConfigManager.class);
+            var failure = new ElasticsearchException("kaboom");
+            doAnswer(invocation -> {
+                ActionListener<PersistedCloudCredential> l = invocation.getArgument(2);
+                l.onFailure(failure);
+                return null;
+            }).when(configManager).getTransformCloudCredentialByTokenId(eq("k2"), anyBoolean(), any());
+
             var cloudCredentialManager = mock(TransformCloudCredentialManager.class);
             var services = new TransformServices(
-                mock(IndexBasedTransformConfigManager.class),
+                configManager,
                 mock(TransformCheckpointService.class),
                 mock(TransformAuditor.class),
                 new TransformScheduler(Clock.systemUTC(), mock(ThreadPool.class), Settings.EMPTY, TimeValue.ZERO),
@@ -378,10 +425,16 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 cloudCredentialManager
             );
 
-            var indexer = createIndexer(services, client, config);
+            var indexer = createIndexer(services, client, prior);
 
-            indexer.applyPendingCloudCredentialIfAny();
-
+            var caught = new AtomicReference<Exception>();
+            var latch = new java.util.concurrent.CountDownLatch(1);
+            indexer.doMaybeRefreshCloudToken(prior, next, ActionListener.wrap(v -> latch.countDown(), e -> {
+                caught.set(e);
+                latch.countDown();
+            }));
+            assertTrue(latch.await(10, java.util.concurrent.TimeUnit.SECONDS));
+            assertThat(caught.get(), sameInstance(failure));
             verify(cloudCredentialManager, never()).revokeAndClose(any(), any());
         }
     }

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests;
 
 import java.io.IOException;
 
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.TRANSFORM_CLOUD_TOKEN;
 import static org.elasticsearch.xpack.core.transform.transforms.TransformConfigTests.randomTransformConfig;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
@@ -90,7 +91,7 @@ public class ValidateTransformActionRequestTests extends AbstractWireSerializing
     public void testCloudCredentialDroppedWhenWireVersionTooOld() throws IOException {
         Request original = new Request(randomTransformConfig(), randomBoolean(), randomTimeValue(), randomCloudCredential());
 
-        var olderVersion = TransportVersionUtils.randomVersionNotSupporting(Request.TRANSFORM_VALIDATE_CLOUD_CREDENTIAL);
+        var olderVersion = TransportVersionUtils.randomVersionNotSupporting(TRANSFORM_CLOUD_TOKEN);
         Request copy = copyWriteable(original, getNamedWriteableRegistry(), instanceReader(), olderVersion);
         try {
             // Older receivers can't decode the new optional field, so it must round-trip as null.

@@ -396,10 +396,13 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     private void putTransformConfiguration(TransformConfigManager configManager, String transformId) {
-        configManager.putTransformConfiguration(
-            TransformConfigTests.randomTransformConfig(transformId, TimeValue.timeValueMillis(1), TransformConfigVersion.CURRENT),
-            ActionListener.<Boolean>noop().delegateResponse((l, e) -> fail(e))
-        );
+        putTransformConfiguration(configManager, transformId, null);
+    }
+
+    private void putTransformConfiguration(TransformConfigManager configManager, String transformId, String credentialId) {
+        var base = TransformConfigTests.randomTransformConfig(transformId, TimeValue.timeValueMillis(1), TransformConfigVersion.CURRENT);
+        var config = credentialId == null ? base : new TransformConfig.Builder(base).setCredentialId(credentialId).build();
+        configManager.putTransformConfiguration(config, ActionListener.<Boolean>noop().delegateResponse((l, e) -> fail(e)));
     }
 
     public void testNodeOperationStartupRetryWithGetConfigFailure() throws Exception {
@@ -475,15 +478,16 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     public void testNodeOperationLoadsCloudCredentialOnFirstTry() throws Exception {
         assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
 
+        var transformId = "testCloudCredentialLoad";
         var persisted = new PersistedCloudCredential("an-id", new SecureString("v".toCharArray()));
         var transformsConfigManager = new InMemoryTransformConfigManager();
-        transformsConfigManager.putTransformCloudCredential("testCloudCredentialLoad", persisted, ActionListener.<Boolean>noop());
+        transformsConfigManager.putTransformCloudCredential(transformId, persisted, ActionListener.<Boolean>noop());
 
         var transformScheduler = new TransformScheduler(Clock.systemUTC(), threadPool, fastRetry(), TimeValue.ZERO);
         var taskExecutor = buildTaskExecutor(transformServices(transformsConfigManager, transformScheduler));
 
-        var params = taskParams("testCloudCredentialLoad");
-        putTransformConfiguration(transformsConfigManager, "testCloudCredentialLoad");
+        var params = taskParams(transformId);
+        putTransformConfiguration(transformsConfigManager, transformId, "an-id");
         var task = mockTransformTask();
         taskExecutor.nodeOperation(task, params, mock());
 
@@ -495,6 +499,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     public void testNodeOperationRetriesCloudCredentialLoadOnTransientFailure() throws Exception {
         assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
 
+        var transformId = "testCloudCredentialRetry";
         var persisted = new PersistedCloudCredential("an-id", new SecureString("v".toCharArray()));
         // Fail twice so we see both (a) the direct first-attempt failure that triggers the scheduler
         // retry path and (b) the scheduler-driven retry's first attempt failing — which flips the
@@ -502,30 +507,30 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         var remainingFailures = new java.util.concurrent.atomic.AtomicInteger(2);
         var transformsConfigManager = new InMemoryTransformConfigManager() {
             @Override
-            public void getTransformCloudCredential(
-                String transformId,
+            public void getTransformCloudCredentialByTokenId(
+                String tokenId,
                 boolean allowNoMatch,
                 ActionListener<PersistedCloudCredential> listener
             ) {
                 if (remainingFailures.getAndDecrement() > 0) {
                     listener.onFailure(new IllegalStateException("system index momentarily unavailable"));
                 } else {
-                    super.getTransformCloudCredential(transformId, allowNoMatch, listener);
+                    super.getTransformCloudCredentialByTokenId(tokenId, allowNoMatch, listener);
                 }
             }
         };
-        transformsConfigManager.putTransformCloudCredential("testCloudCredentialRetry", persisted, ActionListener.<Boolean>noop());
+        transformsConfigManager.putTransformCloudCredential(transformId, persisted, ActionListener.<Boolean>noop());
 
         var transformScheduler = new TransformScheduler(Clock.systemUTC(), threadPool, fastRetry(), TimeValue.ZERO);
         var taskExecutor = buildTaskExecutor(transformServices(transformsConfigManager, transformScheduler));
 
-        var params = taskParams("testCloudCredentialRetry");
-        putTransformConfiguration(transformsConfigManager, "testCloudCredentialRetry");
+        var params = taskParams(transformId);
+        putTransformConfiguration(transformsConfigManager, transformId, "an-id");
         var task = mockTransformTask();
         taskExecutor.nodeOperation(task, params, mock());
 
         // first attempt failed and queued a scheduler retry; trigger it now instead of waiting
-        transformScheduler.scheduleNow("testCloudCredentialRetry");
+        transformScheduler.scheduleNow(transformId);
 
         // scheduler-driven retry's first attempt also failed, flipping state to "Retrying transform start."
         verify(task).persistStateToClusterState(argThat(state -> {
@@ -535,7 +540,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
         }), any());
 
         // trigger the next scheduler tick — this time the load succeeds
-        transformScheduler.scheduleNow("testCloudCredentialRetry");
+        transformScheduler.scheduleNow(transformId);
 
         verify(task.getContext()).setPersistedCloudCredential(persisted);
         verify(task).start(isNull(), any());

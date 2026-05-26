@@ -111,19 +111,31 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         expectThrows(IllegalStateException.class, () -> credential.internalApiKey().length());
     }
 
-    public void testLoadAndRevokeIsNoopWhenFlagOff() {
+    public void testLoadAndRevokeByTokenIdIsNoopWhenTokenIdNull() {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+        var apiKeyService = mock(InternalCloudApiKeyService.class);
+        var configManager = mock(TransformConfigManager.class);
+        var auditor = mock(TransformAuditor.class);
+        var future = ActionTestUtils.<Void>assertNoFailureListener(r -> assertNull(r));
+
+        newManager(apiKeyService, configManager, auditor).loadAndRevokeByTokenId(TRANSFORM_ID, null, future);
+
+        verifyNoInteractions(apiKeyService, configManager, auditor);
+    }
+
+    public void testLoadAndRevokeByTokenIdIsNoopWhenFlagOff() {
         assumeFalse("Only relevant if feature flag is OFF", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
         var auditor = mock(TransformAuditor.class);
         var future = ActionTestUtils.<Void>assertNoFailureListener(r -> assertNull(r));
 
-        newManager(apiKeyService, configManager, auditor).loadAndRevoke(TRANSFORM_ID, future);
+        newManager(apiKeyService, configManager, auditor).loadAndRevokeByTokenId(TRANSFORM_ID, "some-token", future);
 
         verifyNoInteractions(apiKeyService, configManager, auditor);
     }
 
-    public void testLoadAndRevokeRevokesWhenCredentialPresent() {
+    public void testLoadAndRevokeByTokenIdRevokesWhenCredentialPresent() {
         assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
@@ -133,7 +145,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
             ActionListener<PersistedCloudCredential> l = invocation.getArgument(2);
             l.onResponse(credential);
             return null;
-        }).when(configManager).getTransformCloudCredential(eq(TRANSFORM_ID), eq(true), any());
+        }).when(configManager).getTransformCloudCredentialByTokenId(eq(credential.id()), eq(true), any());
         doAnswer(invocation -> {
             ActionListener<Void> l = invocation.getArgument(1);
             l.onResponse(null);
@@ -141,14 +153,14 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         }).when(apiKeyService).revokeCloudAuthentication(eq(credential), any());
 
         var future = ActionTestUtils.<Void>assertNoFailureListener(r -> assertNull(r));
-        newManager(apiKeyService, configManager, auditor).loadAndRevoke(TRANSFORM_ID, future);
+        newManager(apiKeyService, configManager, auditor).loadAndRevokeByTokenId(TRANSFORM_ID, credential.id(), future);
 
         verify(apiKeyService).revokeCloudAuthentication(eq(credential), any());
         verify(auditor).info(eq(TRANSFORM_ID), eq("revoked cloud credential [" + credential.id() + "]"));
         expectThrows(IllegalStateException.class, () -> credential.internalApiKey().length());
     }
 
-    public void testLoadAndRevokeProceedsOnLoadFailure() {
+    public void testLoadAndRevokeByTokenIdProceedsOnLoadFailure() {
         assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
@@ -157,16 +169,16 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
             ActionListener<PersistedCloudCredential> l = invocation.getArgument(2);
             l.onFailure(new RuntimeException("system index unavailable"));
             return null;
-        }).when(configManager).getTransformCloudCredential(eq(TRANSFORM_ID), eq(true), any());
+        }).when(configManager).getTransformCloudCredentialByTokenId(eq("missing"), eq(true), any());
 
         var future = ActionTestUtils.<Void>assertNoFailureListener(r -> assertNull(r));
-        newManager(apiKeyService, configManager, auditor).loadAndRevoke(TRANSFORM_ID, future);
+        newManager(apiKeyService, configManager, auditor).loadAndRevokeByTokenId(TRANSFORM_ID, "missing", future);
 
         // no credential loaded -> no revoke call and no audit
         verifyNoInteractions(apiKeyService, auditor);
     }
 
-    public void testLoadRevokeAndDeleteHappyPath() {
+    public void testLoadRevokeAndDeleteByTokenIdHappyPath() {
         assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
@@ -176,7 +188,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
             ActionListener<PersistedCloudCredential> l = invocation.getArgument(2);
             l.onResponse(credential);
             return null;
-        }).when(configManager).getTransformCloudCredential(eq(TRANSFORM_ID), eq(true), any());
+        }).when(configManager).getTransformCloudCredentialByTokenId(eq(credential.id()), eq(true), any());
         doAnswer(invocation -> {
             ActionListener<Void> l = invocation.getArgument(1);
             l.onResponse(null);
@@ -186,17 +198,17 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
             ActionListener<Boolean> l = invocation.getArgument(1);
             l.onResponse(true);
             return null;
-        }).when(configManager).deleteTransformCloudCredential(eq(TRANSFORM_ID), any());
+        }).when(configManager).deleteCloudCredentialByTokenId(eq(credential.id()), any());
 
         var future = ActionTestUtils.<Void>assertNoFailureListener(r -> assertNull(r));
-        newManager(apiKeyService, configManager, auditor).loadRevokeAndDelete(TRANSFORM_ID, future);
+        newManager(apiKeyService, configManager, auditor).loadRevokeAndDeleteByTokenId(TRANSFORM_ID, credential.id(), future);
 
         verify(apiKeyService).revokeCloudAuthentication(eq(credential), any());
-        verify(configManager).deleteTransformCloudCredential(eq(TRANSFORM_ID), any());
+        verify(configManager).deleteCloudCredentialByTokenId(eq(credential.id()), any());
         verify(auditor).info(eq(TRANSFORM_ID), eq("revoked cloud credential [" + credential.id() + "]"));
     }
 
-    public void testLoadRevokeAndDeleteContinuesOnDeleteFailure() {
+    public void testLoadRevokeAndDeleteByTokenIdContinuesOnDeleteFailure() {
         assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
@@ -206,7 +218,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
             ActionListener<PersistedCloudCredential> l = invocation.getArgument(2);
             l.onResponse(credential);
             return null;
-        }).when(configManager).getTransformCloudCredential(eq(TRANSFORM_ID), eq(true), any());
+        }).when(configManager).getTransformCloudCredentialByTokenId(eq(credential.id()), eq(true), any());
         doAnswer(invocation -> {
             ActionListener<Void> l = invocation.getArgument(1);
             l.onResponse(null);
@@ -216,36 +228,42 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
             ActionListener<Boolean> l = invocation.getArgument(1);
             l.onFailure(new RuntimeException("system index unavailable"));
             return null;
-        }).when(configManager).deleteTransformCloudCredential(eq(TRANSFORM_ID), any());
+        }).when(configManager).deleteCloudCredentialByTokenId(eq(credential.id()), any());
 
         var future = ActionTestUtils.<Void>assertNoFailureListener(r -> assertNull(r));
-        newManager(apiKeyService, configManager, auditor).loadRevokeAndDelete(TRANSFORM_ID, future);
+        newManager(apiKeyService, configManager, auditor).loadRevokeAndDeleteByTokenId(TRANSFORM_ID, credential.id(), future);
 
         verify(apiKeyService).revokeCloudAuthentication(eq(credential), any());
-        verify(configManager).deleteTransformCloudCredential(eq(TRANSFORM_ID), any());
+        verify(configManager).deleteCloudCredentialByTokenId(eq(credential.id()), any());
     }
 
-    public void testLoadRevokeAndDeleteIsNoopWhenFlagOff() {
+    public void testLoadRevokeAndDeleteByTokenIdIsNoopWhenTokenIdNull() {
+        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
+        var apiKeyService = mock(InternalCloudApiKeyService.class);
+        var configManager = mock(TransformConfigManager.class);
+        var auditor = mock(TransformAuditor.class);
+
+        var future = ActionTestUtils.<Void>assertNoFailureListener(r -> assertNull(r));
+        newManager(apiKeyService, configManager, auditor).loadRevokeAndDeleteByTokenId(TRANSFORM_ID, null, future);
+
+        verifyNoInteractions(apiKeyService, configManager, auditor);
+    }
+
+    public void testLoadRevokeAndDeleteByTokenIdIsNoopWhenFlagOff() {
         assumeFalse("Only relevant if feature flag is OFF", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
         var auditor = mock(TransformAuditor.class);
 
         var future = ActionTestUtils.<Void>assertNoFailureListener(r -> assertNull(r));
-        newManager(apiKeyService, configManager, auditor).loadRevokeAndDelete(TRANSFORM_ID, future);
+        newManager(apiKeyService, configManager, auditor).loadRevokeAndDeleteByTokenId(TRANSFORM_ID, "some-token", future);
 
         verifyNoInteractions(apiKeyService, configManager, auditor);
     }
 
-    public void testMintAndPersistAuditsFirstMintWhenNoPriorCredential() {
+    public void testMintAndPersistReturnsNewTokenIdAndAudits() {
         assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-        runMintAndPersistAuditTest(null, "minted cloud credential [new-id]");
-    }
-
-    public void testMintAndPersistAuditsRotationWhenPriorCredentialExists() {
-        assumeTrue("Only relevant if feature flag is enabled", TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled());
-        var prior = new PersistedCloudCredential("old-id", new SecureString("v".toCharArray()));
-        runMintAndPersistAuditTest(prior, "rotated cloud credential, new [new-id], previous [old-id]");
+        runMintAndPersistAuditTest("minted cloud credential [new-id]");
     }
 
     public void testWrapWithUiamIfPresentReturnsRawClientWhenCredentialIsNull() {
@@ -342,7 +360,7 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         assertThat(threadContext.getHeader(SecondaryAuthentication.THREAD_CTX_KEY), equalTo(secondaryAuthHeader));
     }
 
-    private void runMintAndPersistAuditTest(PersistedCloudCredential prior, String expectedAuditMessage) {
+    private void runMintAndPersistAuditTest(String expectedAuditMessage) {
         var apiKeyService = mock(InternalCloudApiKeyService.class);
         var configManager = mock(TransformConfigManager.class);
         var auditor = mock(TransformAuditor.class);
@@ -354,13 +372,6 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
         var callerCredential = new CloudCredential(new SecureString("caller-cred".toCharArray()));
         when(credentialManager.hasCloudManagedCredential(threadContext)).thenReturn(true);
         when(credentialManager.extractCloudManagedCredential(threadContext)).thenReturn(callerCredential);
-
-        // mintAndPersist loads prior first for rekey detection
-        doAnswer(invocation -> {
-            ActionListener<PersistedCloudCredential> l = invocation.getArgument(2);
-            l.onResponse(prior);
-            return null;
-        }).when(configManager).getTransformCloudCredential(eq(TRANSFORM_ID), eq(true), any());
 
         // grant returns a fresh persisted credential with a known id
         var newPersisted = new PersistedCloudCredential("new-id", new SecureString("new-key".toCharArray()));
@@ -378,10 +389,12 @@ public class TransformCloudCredentialManagerTests extends ESTestCase {
 
         var manager = new TransformCloudCredentialManager(threadPool, null, credentialManager, apiKeyService, configManager, auditor);
 
-        var future = ActionTestUtils.<Void>assertNoFailureListener(r -> assertNull(r));
+        var capturedTokenId = new AtomicReference<String>();
+        var future = ActionTestUtils.<String>assertNoFailureListener(capturedTokenId::set);
         manager.mintAndPersist(TRANSFORM_ID, future);
 
         verify(auditor).info(eq(TRANSFORM_ID), eq(expectedAuditMessage));
+        assertThat(capturedTokenId.get(), equalTo("new-id"));
     }
 
     private static TransformCloudCredentialManager newManager(

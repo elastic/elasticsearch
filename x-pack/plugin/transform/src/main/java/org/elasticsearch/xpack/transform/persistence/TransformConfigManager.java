@@ -210,36 +210,48 @@ public interface TransformConfigManager {
     void refresh(ActionListener<Boolean> listener);
 
     String CLOUD_CREDENTIAL_DOC_TYPE = "data_frame_transform_cloud_credential";
+    String CLOUD_CREDENTIAL_TOKEN_ID_FIELD = "token_id";
+    String CLOUD_CREDENTIAL_TRANSFORM_ID_FIELD = "transform_id";
 
-    static String cloudCredentialDocumentId(String transformId) {
-        return CLOUD_CREDENTIAL_DOC_TYPE + "-" + transformId;
+    /**
+     * The storage document id for a cloud credential. Cloud credentials are keyed by their UIAM
+     * {@code tokenId}, not the owning {@code transformId}: minting a new credential during update
+     * creates a new document so the prior credential remains intact until the indexer's {@code onStart}
+     * (running task) or the update action (stopped task) explicitly revokes and deletes it.
+     */
+    static String cloudCredentialDocumentId(String tokenId) {
+        return CLOUD_CREDENTIAL_DOC_TYPE + "-" + tokenId;
     }
 
     /**
-     * Persist a cloud credential for the given transform.
+     * Persist a cloud credential. The credential is written under id {@code cloudCredentialDocumentId(credential.id())}
+     * using {@code op_type=create} so a duplicate {@code tokenId} fails fast with a version conflict
+     * (callers can then surface a transactional error rather than silently overwriting). The body
+     * additionally carries {@code token_id} and {@code transform_id} fields so future sweeps can
+     * reconcile orphans by transform.
      *
-     * @param transformId the transform id
-     * @param credential  the credential envelope to persist
+     * @param transformId the owning transform id (recorded in the document body)
+     * @param credential  the credential envelope to persist (its {@code id()} is the storage key)
      * @param listener    listener to call after request
      */
     void putTransformCloudCredential(String transformId, PersistedCloudCredential credential, ActionListener<Boolean> listener);
 
     /**
-     * Get the persisted cloud credential for the given transform.
+     * Load a previously persisted cloud credential by its UIAM {@code tokenId}.
      *
-     * @param transformId  the transform id
+     * @param tokenId      the UIAM token id (the credential's {@code id()})
      * @param allowNoMatch if true, return null when no credential exists; otherwise fail with ResourceNotFoundException
      * @param listener     listener to call with the credential or null
      */
-    void getTransformCloudCredential(String transformId, boolean allowNoMatch, ActionListener<PersistedCloudCredential> listener);
+    void getTransformCloudCredentialByTokenId(String tokenId, boolean allowNoMatch, ActionListener<PersistedCloudCredential> listener);
 
     /**
-     * Delete the persisted cloud credential for the given transform.
+     * Delete a persisted cloud credential by its UIAM {@code tokenId}.
      *
-     * @param transformId the transform id
-     * @param listener    listener to call after request (true if deleted, false if not found)
+     * @param tokenId  the UIAM token id (the credential's {@code id()})
+     * @param listener listener to call after request (true if deleted, false if not found)
      */
-    void deleteTransformCloudCredential(String transformId, ActionListener<Boolean> listener);
+    void deleteCloudCredentialByTokenId(String tokenId, ActionListener<Boolean> listener);
 
     default boolean isLatestTransformIndex(String indexName) {
         return TransformInternalIndexConstants.LATEST_INDEX_NAME.equals(indexName);

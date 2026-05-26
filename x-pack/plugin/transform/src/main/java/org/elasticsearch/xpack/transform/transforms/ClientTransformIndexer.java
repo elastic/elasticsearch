@@ -460,31 +460,50 @@ class ClientTransformIndexer extends TransformIndexer {
     }
 
     @Override
-    protected void onStart(long now, ActionListener<Boolean> listener) {
-        applyPendingCloudCredentialIfAny();
-        super.onStart(now, listener);
-    }
-
-    @Override
     protected void afterFinishOrFailure() {
         closePointInTime(super::afterFinishOrFailure);
     }
 
     /**
-     * Promotes a pending cloud credential queued by {@code TransformTask.refreshFromStore} (when the
-     * indexer was mid-run at update time) and revokes the previously-active credential. Called once
-     * per run from {@link #onStart} — before the new checkpoint's {@code createCheckpoint},
-     * {@code doGetInitialProgress}, and any subsequent search/bulk runs — so the new credential is in
-     * effect for every outbound call of this checkpoint. The previous checkpoint has already drained
-     * (we're past its {@code afterFinishOrFailure}), so no in-flight call still references the
-     * credential being revoked.
+     * Invoked from {@link TransformIndexer#onStart} after a fresh {@link TransformConfig} has been
+     * loaded from the index. If the {@code credentialId} on the config has changed since the last
+     * checkpoint, fetch the new persisted credential from storage, swap it onto the context, and
+     * then revoke + delete the prior credential at UIAM. The previous checkpoint has already
+     * drained (we're past its {@code afterFinishOrFailure}), so no in-flight call still references
+     * the credential being revoked.
+     *
+     * <p>If anything in this chain fails, propagate the failure — {@code onStart} treats it as a
+     * checkpoint failure, which {@code TransformFailureHandler} will retry per the configured
+     * {@code num_failure_retries}.
      */
-    void applyPendingCloudCredentialIfAny() {
-        if (context.getPendingPersistedCloudCredential() == null) {
+    @Override
+    protected void doMaybeRefreshCloudToken(TransformConfig priorConfig, TransformConfig newConfig, ActionListener<Void> listener) {
+        String priorId = priorConfig == null ? null : priorConfig.getCredentialId();
+        String newId = newConfig == null ? null : newConfig.getCredentialId();
+        if (Objects.equals(priorId, newId)) {
+            listener.onResponse(null);
             return;
         }
-        PersistedCloudCredential displaced = context.promotePendingPersistedCloudCredential();
-        transformCloudCredentialManager.revokeAndClose(getJobId(), displaced);
+
+        if (newId == null) {
+            // Config no longer carries a credentialId: drop the in-memory token and revoke the prior.
+            PersistedCloudCredential displaced = context.replacePersistedCredential(null);
+            if (displaced != null) {
+                transformCloudCredentialManager.revokeAndClose(getJobId(), displaced);
+            }
+            listener.onResponse(null);
+            return;
+        }
+
+        transformsConfigManager.getTransformCloudCredentialByTokenId(newId, false, listener.delegateFailureAndWrap((l, next) -> {
+            PersistedCloudCredential displaced = context.replacePersistedCredential(next);
+            if (displaced != null) {
+                // revokeAndClose closes the displaced credential; it is safe to fire-and-forget
+                // since we have already promoted the new credential onto the context.
+                transformCloudCredentialManager.revokeAndClose(getJobId(), displaced);
+            }
+            l.onResponse(null);
+        }));
     }
 
     @Override

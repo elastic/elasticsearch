@@ -282,6 +282,11 @@ public class TransformIndexerTests extends ESTestCase {
         }
 
         @Override
+        protected void doMaybeRefreshCloudToken(TransformConfig priorConfig, TransformConfig newConfig, ActionListener<Void> listener) {
+            listener.onResponse(null);
+        }
+
+        @Override
         protected void onFinish(ActionListener<Void> listener) {
             while (runBeforeOnFinish.isEmpty() == false) {
                 runBeforeOnFinish.poll().run();

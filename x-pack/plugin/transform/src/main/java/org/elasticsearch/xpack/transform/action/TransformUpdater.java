@@ -20,6 +20,7 @@ import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -162,67 +163,87 @@ public class TransformUpdater {
             listener::onFailure
         );
 
-        // <4> Update the transform
-        ActionListener<Map<String, String>> validateTransformListener = ActionListener.wrap(destIndexMappings -> {
-            // If it is a noop or dry run don't write the doc
-            // skip when:
-            // - config is in the latest index
-            // - rewrite did not change the config
-            // - update is not making any changes
-            if (config.getVersion() != null
-                && config.getVersion().onOrAfter(TransformInternalIndexConstants.INDEX_VERSION_LAST_CHANGED)
-                && updatedConfig.equals(config)) {
-                listener.onResponse(new UpdateResult(updatedConfig, authStateHolder.get(), UpdateResult.Status.NONE));
-                return;
-            }
-
-            if (dryRun) {
-                listener.onResponse(new UpdateResult(updatedConfig, authStateHolder.get(), UpdateResult.Status.NEEDS_UPDATE));
-                return;
-            }
+        // <5> Write the (possibly credential-stamped) config; on failure, roll back the just-minted
+        // credential so we don't leak it at UIAM.
+        ActionListener<Tuple<Map<String, String>, String>> writeConfigListener = listener.delegateFailureAndWrap((l, tuple) -> {
+            var destIndexMappings = tuple.v1();
+            var newTokenId = tuple.v2();
+            var configToWrite = newTokenId == null ? updatedConfig : updatedConfig.withCredentialId(newTokenId);
 
             updateTransformConfiguration(
                 client,
                 transformConfigManager,
                 auditor,
                 indexNameExpressionResolver,
-                updatedConfig,
+                configToWrite,
                 destIndexMappings,
                 seqNoPrimaryTermAndIndex,
                 clusterState,
                 destIndexSettings,
                 ActionListener.wrap(r -> updateTransformListener.onResponse(null), configWriteFailure -> {
-                    if (cloudCredentialManager == null) {
+                    if (cloudCredentialManager == null || newTokenId == null) {
                         // Reset / Upgrade callers never minted a credential, so nothing to compensate.
-                        listener.onFailure(configWriteFailure);
+                        l.onFailure(configWriteFailure);
                         return;
                     }
-                    logger.debug("[{}] config update failed after credential mint, compensating revoke + delete", updatedConfig.getId());
-                    cloudCredentialManager.loadRevokeAndDelete(
+                    logger.debug(
+                        "[{}] config update failed after credential mint [{}], compensating revoke + delete",
                         updatedConfig.getId(),
-                        ActionListener.running(() -> listener.onFailure(configWriteFailure))
+                        newTokenId
+                    );
+                    cloudCredentialManager.loadRevokeAndDeleteByTokenId(
+                        updatedConfig.getId(),
+                        newTokenId,
+                        ActionListener.running(() -> l.onFailure(configWriteFailure))
                     );
                 })
             );
-        }, listener::onFailure);
+        });
 
-        // <3> Mint cloud credential if UIAM is present
-        ActionListener<Map<String, String>> mintCredentialListener = listener.delegateFailureAndWrap((l, destIndexMappings) -> {
-            if (dryRun == false && TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && cloudCredentialManager != null) {
+        // <4> Mint cloud credential if UIAM is present. Runs after the noop/dryRun short-circuits in
+        // <3> so a noop update never mints an orphan credential at UIAM.
+        ActionListener<Map<String, String>> mintCredentialListener = writeConfigListener.delegateFailureAndWrap((l, destIndexMappings) -> {
+            if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && cloudCredentialManager != null) {
                 cloudCredentialManager.mintAndPersist(
                     updatedConfig.getId(),
-                    l.delegateFailureIgnoreResponseAndWrap(ignored -> validateTransformListener.onResponse(destIndexMappings))
+                    l.delegateFailureAndWrap((ll, newTokenId) -> ll.onResponse(Tuple.tuple(destIndexMappings, newTokenId)))
                 );
             } else {
-                validateTransformListener.onResponse(destIndexMappings);
+                l.onResponse(Tuple.tuple(destIndexMappings, null));
             }
         });
 
+        // <3> Short-circuit noop / dryRun before minting so we don't pay UIAM round-trips or leak
+        // credentials for updates that won't write anything. The noop / dryRun branches respond on
+        // the outer `listener` directly (they bypass mint + write entirely).
+        ActionListener<Map<String, String>> validateTransformListener = mintCredentialListener.delegateFailureAndWrap(
+            (l, destIndexMappings) -> {
+                // If it is a noop or dry run don't write the doc
+                // skip when:
+                // - config is in the latest index
+                // - rewrite did not change the config
+                // - update is not making any changes
+                if (config.getVersion() != null
+                    && config.getVersion().onOrAfter(TransformInternalIndexConstants.INDEX_VERSION_LAST_CHANGED)
+                    && updatedConfig.equals(config)) {
+                    listener.onResponse(new UpdateResult(updatedConfig, authStateHolder.get(), UpdateResult.Status.NONE));
+                    return;
+                }
+
+                if (dryRun) {
+                    listener.onResponse(new UpdateResult(updatedConfig, authStateHolder.get(), UpdateResult.Status.NEEDS_UPDATE));
+                    return;
+                }
+
+                l.onResponse(destIndexMappings);
+            }
+        );
+
         // <2> Validate source and destination indices
-        ActionListener<AuthorizationState> checkPrivilegesListener = ActionListener.wrap(authState -> {
+        ActionListener<AuthorizationState> checkPrivilegesListener = validateTransformListener.delegateFailureAndWrap((l, authState) -> {
             authStateHolder.set(authState);
-            validateTransform(updatedConfig, client, deferValidation, timeout, cloudCredentialManager, mintCredentialListener);
-        }, listener::onFailure);
+            validateTransform(updatedConfig, client, deferValidation, timeout, cloudCredentialManager, l);
+        });
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
         if (checkAccess && XPackSettings.SECURITY_ENABLED.get(settings)) {

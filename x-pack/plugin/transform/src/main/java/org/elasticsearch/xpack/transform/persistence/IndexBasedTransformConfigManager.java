@@ -676,7 +676,23 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         DeleteByQueryRequest request = createDeleteByQueryRequest();
 
         request.indices(TransformInternalIndexConstants.INDEX_NAME_PATTERN, TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED);
-        QueryBuilder query = QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId);
+        // Config / checkpoints / stats / authorization-state all carry the transform id under the "id"
+        // field. Cloud credential docs key the storage doc by the UIAM tokenId (not transformId), so
+        // they instead carry the owning transform id under "transform_id" — match both shapes so a
+        // delete still leaves no orphans.
+        QueryBuilder query = QueryBuilders.boolQuery()
+            .should(QueryBuilders.termQuery(TransformField.ID.getPreferredName(), transformId))
+            .should(
+                QueryBuilders.boolQuery()
+                    .filter(
+                        QueryBuilders.termQuery(
+                            TransformField.INDEX_DOC_TYPE.getPreferredName(),
+                            TransformConfigManager.CLOUD_CREDENTIAL_DOC_TYPE
+                        )
+                    )
+                    .filter(QueryBuilders.termQuery(TransformConfigManager.CLOUD_CREDENTIAL_TRANSFORM_ID_FIELD, transformId))
+            )
+            .minimumShouldMatch(1);
         request.setQuery(query);
         request.setRefresh(true);
 
@@ -858,18 +874,25 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             );
             return;
         }
+        var tokenId = credential.id();
         try (XContentBuilder builder = XContentFactory.jsonBuilder()) {
             builder.startObject();
             builder.field(TransformField.INDEX_DOC_TYPE.getPreferredName(), CLOUD_CREDENTIAL_DOC_TYPE);
-            builder.field(TransformField.ID.getPreferredName(), transformId);
+            // owning transform id (recorded for future sweep-by-transform; not the storage key)
+            builder.field(TransformConfigManager.CLOUD_CREDENTIAL_TRANSFORM_ID_FIELD, transformId);
+            // UIAM token id, mirrored into the body so it is queryable independent of the doc id
+            builder.field(TransformConfigManager.CLOUD_CREDENTIAL_TOKEN_ID_FIELD, tokenId);
             builder.field("persisted_credential", credential);
             builder.endObject();
 
+            // op_type=create so a duplicate tokenId fails fast with a version conflict — callers can
+            // then surface the failure rather than silently overwriting a credential they did not
+            // intend to displace.
             IndexRequest indexRequest = new IndexRequest(TransformInternalIndexConstants.LATEST_INDEX_NAME).opType(
-                DocWriteRequest.OpType.INDEX
+                DocWriteRequest.OpType.CREATE
             )
                 .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
-                .id(TransformConfigManager.cloudCredentialDocumentId(transformId))
+                .id(TransformConfigManager.cloudCredentialDocumentId(tokenId))
                 .source(builder);
 
             executeAsyncWithOrigin(TransportIndexAction.TYPE, indexRequest, listener.delegateFailureAndWrap((l, r) -> l.onResponse(true)));
@@ -879,8 +902,12 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
     }
 
     @Override
-    public void getTransformCloudCredential(String transformId, boolean allowNoMatch, ActionListener<PersistedCloudCredential> listener) {
-        QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformConfigManager.cloudCredentialDocumentId(transformId));
+    public void getTransformCloudCredentialByTokenId(
+        String tokenId,
+        boolean allowNoMatch,
+        ActionListener<PersistedCloudCredential> listener
+    ) {
+        QueryBuilder queryBuilder = QueryBuilders.termQuery("_id", TransformConfigManager.cloudCredentialDocumentId(tokenId));
         SearchRequest searchRequest = client.prepareSearch(
             TransformInternalIndexConstants.INDEX_NAME_PATTERN,
             TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
@@ -891,7 +918,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 if (allowNoMatch) {
                     l.onResponse(null);
                 } else {
-                    l.onFailure(new ResourceNotFoundException("No cloud credential found for transform [" + transformId + "]"));
+                    l.onFailure(new ResourceNotFoundException("No cloud credential found for token [" + tokenId + "]"));
                 }
                 return;
             }
@@ -903,7 +930,6 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     XContentType.JSON
                 )
             ) {
-                // advance to the persisted_credential field
                 XContentParser.Token token = parser.nextToken();
                 assert token == XContentParser.Token.START_OBJECT;
                 String fieldName;
@@ -921,19 +947,19 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     }
                 }
                 if (credential == null) {
-                    l.onFailure(new ElasticsearchParseException("Failed to parse cloud credential for transform [" + transformId + "]"));
+                    l.onFailure(new ElasticsearchParseException("Failed to parse cloud credential for token [" + tokenId + "]"));
                 } else {
                     l.onResponse(credential);
                 }
             } catch (Exception e) {
-                logger.error("Failed to parse cloud credential for transform [{}]", transformId);
+                logger.error("Failed to parse cloud credential for token [{}]", tokenId);
                 l.onFailure(e);
             }
         }));
     }
 
     @Override
-    public void deleteTransformCloudCredential(String transformId, ActionListener<Boolean> listener) {
+    public void deleteCloudCredentialByTokenId(String tokenId, ActionListener<Boolean> listener) {
         if (isUpgrading()) {
             listener.onFailure(
                 conflictStatusException("Cannot delete Transform cloud credential while the Transform feature is upgrading.")
@@ -945,7 +971,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
             TransformInternalIndexConstants.INDEX_NAME_PATTERN,
             TransformInternalIndexConstants.INDEX_NAME_PATTERN_DEPRECATED
         );
-        deleteByQueryRequest.setQuery(QueryBuilders.termQuery("_id", TransformConfigManager.cloudCredentialDocumentId(transformId)));
+        deleteByQueryRequest.setQuery(QueryBuilders.termQuery("_id", TransformConfigManager.cloudCredentialDocumentId(tokenId)));
 
         executeAsyncWithOrigin(DeleteByQueryAction.INSTANCE, deleteByQueryRequest, listener.delegateFailureAndWrap((l, response) -> {
             if ((response.getBulkFailures().isEmpty() && response.getSearchFailures().isEmpty()) == false) {

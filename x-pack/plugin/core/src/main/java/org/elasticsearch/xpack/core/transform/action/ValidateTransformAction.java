@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.core.transform.action;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -29,6 +28,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.core.transform.transforms.TransformConfig.TRANSFORM_CLOUD_TOKEN;
+
 public class ValidateTransformAction extends ActionType<ValidateTransformAction.Response> {
 
     public static final ValidateTransformAction INSTANCE = new ValidateTransformAction();
@@ -39,10 +40,6 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements Releasable {
-
-        static final TransportVersion TRANSFORM_VALIDATE_CLOUD_CREDENTIAL = TransportVersion.fromName(
-            "transform_validate_cloud_credential"
-        );
 
         private final TransformConfig config;
         private final boolean deferValidation;
@@ -67,7 +64,7 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
             super(in);
             this.config = new TransformConfig(in);
             this.deferValidation = in.readBoolean();
-            if (in.getTransportVersion().supports(TRANSFORM_VALIDATE_CLOUD_CREDENTIAL)) {
+            if (in.getTransportVersion().supports(TRANSFORM_CLOUD_TOKEN)) {
                 this.cloudCredential = in.readOptionalWriteable(CloudCredential::new);
             } else {
                 this.cloudCredential = null;
@@ -105,7 +102,7 @@ public class ValidateTransformAction extends ActionType<ValidateTransformAction.
             super.writeTo(out);
             this.config.writeTo(out);
             out.writeBoolean(this.deferValidation);
-            if (out.getTransportVersion().supports(TRANSFORM_VALIDATE_CLOUD_CREDENTIAL)) {
+            if (out.getTransportVersion().supports(TRANSFORM_CLOUD_TOKEN)) {
                 out.writeOptionalWriteable(this.cloudCredential);
             }
         }

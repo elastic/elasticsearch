@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.rest.RestStatus;
@@ -133,11 +134,14 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
             return;
         }
 
-        // <4> Create the transform
-        ActionListener<Void> mintCredentialListener = listener.delegateFailureAndWrap((l, unused) -> putTransform(config, l));
+        // <4> Create the transform, stamping the minted tokenId (if any) onto the config so the
+        // running task and indexer can later load the credential by id.
+        ActionListener<String> mintCredentialListener = listener.delegateFailureAndWrap(
+            (l, mintedTokenId) -> putTransform(config.withCredentialId(mintedTokenId), mintedTokenId, l)
+        );
 
         // <3> Mint cloud credential if UIAM is present (no-op when the feature is off: mintAndPersist
-        // sees no caller credential and short-circuits without touching the system index).
+        // sees no caller credential and responds with a null tokenId).
         ActionListener<ValidateTransformAction.Response> validateTransformListener = mintCredentialListener
             .delegateFailureIgnoreResponseAndWrap(l -> cloudCredentialManager.mintAndPersist(transformId, l));
 
@@ -211,7 +215,11 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
         return state.blocks().globalBlockedException(projectResolver.getProjectId(), ClusterBlockLevel.METADATA_WRITE);
     }
 
-    private void putTransform(TransformConfig originalConfig, ActionListener<AcknowledgedResponse> listener) {
+    private void putTransform(
+        TransformConfig originalConfig,
+        @Nullable String mintedTokenId,
+        ActionListener<AcknowledgedResponse> listener
+    ) {
         var config = transformConfigAutoMigration.migrate(originalConfig);
         var transformId = config.getId();
         transformConfigManager.putTransformConfiguration(config, ActionListener.wrap(unused -> {
@@ -226,8 +234,15 @@ public class TransportPutTransformAction extends AcknowledgedTransportMasterNode
 
             listener.onResponse(AcknowledgedResponse.TRUE);
         }, configWriteFailure -> {
-            logger.debug("[{}] config write failed after credential mint, compensating revoke + delete", transformId);
-            cloudCredentialManager.loadRevokeAndDelete(transformId, ActionListener.running(() -> listener.onFailure(configWriteFailure)));
+            // Roll back the just-minted credential so we never leave an orphan at UIAM nor an
+            // empty/leaked storage doc. mintedTokenId is null when no UIAM context was present (the
+            // helper short-circuits in that case).
+            logger.debug("[{}] config write failed after credential mint [{}], compensating revoke + delete", transformId, mintedTokenId);
+            cloudCredentialManager.loadRevokeAndDeleteByTokenId(
+                transformId,
+                mintedTokenId,
+                ActionListener.running(() -> listener.onFailure(configWriteFailure))
+            );
         }));
     }
 }

@@ -125,16 +125,27 @@ public class TransportDeleteTransformAction extends AcknowledgedTransportMasterN
             listener::onFailure
         );
 
-        // <3> Revoke the persisted cloud credential before removing the storage doc. The big DBQ in
-        // step <4> (deleteTransform) catches the credential storage doc itself, so we use
-        // loadAndRevoke (no separate doc delete). Best-effort: load and revoke failures are logged
-        // inside the helper and delete proceeds regardless; the serverless revoke API is idempotent
-        // so a future retry / GC sweep can clean up any dangling UIAM key.
+        // <3> Revoke the persisted cloud credential at UIAM before removing the storage doc. The big
+        // DBQ in step <4> (deleteTransform) catches the credential storage doc itself by transform_id,
+        // so we only need to invoke UIAM revocation here. The credentialId lives on the TransformConfig
+        // so we load that first. Best-effort: load and revoke failures are logged but delete still
+        // proceeds, and the serverless revoke API is idempotent so a future retry can clean up any
+        // dangling UIAM key.
         ActionListener<AcknowledgedResponse> deleteDestIndexListener = listener.delegateFailureIgnoreResponseAndWrap(
-            l -> cloudCredentialManager.loadAndRevoke(
-                request.getId(),
-                ActionListener.running(() -> deleteTransformListener.onResponse(AcknowledgedResponse.TRUE))
-            )
+            l -> transformConfigManager.getTransformConfiguration(request.getId(), ActionListener.wrap(config -> {
+                cloudCredentialManager.loadAndRevokeByTokenId(
+                    request.getId(),
+                    config.getCredentialId(),
+                    ActionListener.running(() -> deleteTransformListener.onResponse(AcknowledgedResponse.TRUE))
+                );
+            }, configLoadFailure -> {
+                // Config load failure shouldn't block delete (transform may be partially-installed)
+                logger.warn(
+                    () -> "[" + request.getId() + "] config load failed before credential revoke, proceeding with delete",
+                    configLoadFailure
+                );
+                deleteTransformListener.onResponse(AcknowledgedResponse.TRUE);
+            }))
         );
 
         // <2> Delete destination index if requested

@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Releasables;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.SecurityContext;
 import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
@@ -121,56 +120,39 @@ public class TransformCloudCredentialManager {
 
     /**
      * If the current thread context carries a cloud-managed credential, mints a new internal API key
-     * from it and persists the result. If no cloud credential is present, performs a best-effort
-     * revoke + cleanup of any previously stored credential for the given transform.
+     * from it and persists the result under a tokenId-keyed storage doc, returning the new tokenId
+     * via the listener. If no cloud credential is present (feature off or no UIAM context), responds
+     * with {@code null} and does <b>no</b> cleanup of any prior credential — that responsibility now
+     * belongs to the caller (typically by threading the prior {@code TransformConfig#getCredentialId}
+     * through to a {@link #loadRevokeAndDeleteByTokenId} call after the config write succeeds).
      *
      * <p><b>SecureString consumption contract:</b>
      * {@link InternalCloudApiKeyService#grantCloudAuthentication} consumes the input credential's
      * {@code SecureString} synchronously before it returns (the serverless implementation
      * deserializes the bytes into a {@code CloudToken} on the calling thread, then dispatches the
-     * UIAM request asynchronously using the token). Closing {@code callerCredential} in the async
-     * listener is therefore safe and does not race the in-flight grant call.
+     * UIAM request asynchronously using the token). Closing {@code callerCredential} via
+     * {@link ActionListener#releaseAfter} in the async listener is therefore safe.
      *
-     * @param transformId the transform id
-     * @param listener    called with {@code null} on completion (success or cleanup)
+     * @param transformId the transform id (recorded in the credential doc body for sweep-by-transform)
+     * @param listener    called with the new UIAM tokenId on success, or {@code null} when no
+     *                    caller credential was present in the thread context
      */
-    public void mintAndPersist(String transformId, ActionListener<Void> listener) {
-        // Extract the caller credential up front, under the user's secondary auth when present.
-        // The subsequent prior-credential load is async, and by the time its listener fires the
-        // secondary-auth stash is long gone, so we can't re-extract from the thread context later.
+    public void mintAndPersist(String transformId, ActionListener<String> listener) {
         CloudCredential callerCredential = currentCallerCredential();
         if (callerCredential == null) {
-            logger.debug("[{}] no cloud credential in thread context, revoking + cleaning up any stored credential", transformId);
-            loadRevokeAndDelete(transformId, listener);
+            // Feature off or no UIAM context: nothing to mint and nothing to clean up here. The
+            // caller already holds the prior credentialId (if any) on the existing TransformConfig
+            // and can revoke it explicitly via loadRevokeAndDeleteByTokenId once the config write
+            // succeeds.
+            listener.onResponse(null);
             return;
         }
 
-        // Detect rekey vs first-mint: load the prior id (if any) before granting. The prior
-        // credential itself is revoked later by the deferred-swap path; we only need its id for the
-        // audit row here, so we close immediately and let the swap path do the actual revoke.
-        configManager.getTransformCloudCredential(
-            transformId,
-            true,
-            ActionListener.releaseAfter(listener.delegateFailureAndWrap((l, prior) -> {
-                String priorId = prior == null ? null : prior.id();
-                Releasables.close(prior);
-                mintAndPersistAfterPriorLoad(transformId, callerCredential, priorId, l);
-            }), callerCredential)
-        );
-    }
-
-    private void mintAndPersistAfterPriorLoad(
-        String transformId,
-        CloudCredential callerCredential,
-        @Nullable String priorId,
-        ActionListener<Void> listener
-    ) {
         logger.debug("[{}] minting internal cloud API key from caller credential", transformId);
-
         apiKeyService.grantCloudAuthentication(
             callerCredential,
             "transform:" + transformId,
-            listener.delegateFailureAndWrap((l, grantResult) -> {
+            ActionListener.releaseAfter(listener.delegateFailureAndWrap((l, grantResult) -> {
                 var persisted = grantResult.persistedCredential();
                 logger.debug("[{}] granted cloud API key [{}], persisting", transformId, persisted.id());
 
@@ -178,15 +160,11 @@ public class TransformCloudCredentialManager {
                     transformId,
                     persisted,
                     ActionListener.releaseAfter(l.delegateFailureAndWrap((ll, success) -> {
-                        if (priorId != null) {
-                            auditor.info(transformId, "rotated cloud credential, new [" + persisted.id() + "], previous [" + priorId + "]");
-                        } else {
-                            auditor.info(transformId, "minted cloud credential [" + persisted.id() + "]");
-                        }
-                        ll.onResponse(null);
+                        auditor.info(transformId, "minted cloud credential [" + persisted.id() + "]");
+                        ll.onResponse(persisted.id());
                     }), persisted)
                 );
-            })
+            }), callerCredential)
         );
     }
 
@@ -219,53 +197,62 @@ public class TransformCloudCredentialManager {
     }
 
     /**
-     * Loads the persisted cloud credential for {@code transformId} from storage and revokes it
+     * Loads the persisted cloud credential for {@code tokenId} from storage and revokes it
      * (best-effort, via {@link #revokeAndClose}). Always notifies {@code listener} with {@code null}
      * on completion — load failures are logged but never propagate because the idempotent UIAM
-     * revoke is safe to retry via a future GC sweep. Callers chain the next step (e.g. delete the
-     * full transform) off the listener. No-op when the feature flag is off.
+     * revoke is safe to retry via a future GC sweep. No-op when the feature flag is off or
+     * {@code tokenId} is null.
      *
      * <p>Use this when the caller will subsequently remove the credential storage doc itself
-     * (e.g. via a transform-wide DBQ in {@code deleteTransform}). For compensating cleanup paths
-     * where the caller owns the credential-doc delete too, use {@link #loadRevokeAndDelete}.
+     * (e.g. via {@code deleteTransform}'s transform-wide DBQ which also targets credential docs).
+     * For compensating cleanup paths where the caller owns the credential-doc delete too, use
+     * {@link #loadRevokeAndDeleteByTokenId}.
+     *
+     * @param transformId the owning transform id (audit attribution only)
+     * @param tokenId     the UIAM tokenId of the credential to revoke; null skips the operation
      */
-    public void loadAndRevoke(String transformId, ActionListener<Void> listener) {
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
+    public void loadAndRevokeByTokenId(String transformId, @Nullable String tokenId, ActionListener<Void> listener) {
+        if (tokenId == null || TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
             listener.onResponse(null);
             return;
         }
-        configManager.getTransformCloudCredential(transformId, true, ActionListener.wrap(credential -> {
+        configManager.getTransformCloudCredentialByTokenId(tokenId, true, ActionListener.wrap(credential -> {
             revokeAndClose(transformId, credential);
             listener.onResponse(null);
         }, e -> {
-            logger.warn(() -> "[" + transformId + "] failed to load cloud credential during revoke; proceeding", e);
+            logger.warn(() -> "[" + transformId + "] failed to load cloud credential [" + tokenId + "] during revoke; proceeding", e);
             listener.onResponse(null);
         }));
     }
 
     /**
-     * Loads + revokes (via {@link #loadAndRevoke}) and then removes the credential storage doc for
-     * {@code transformId}. Best-effort throughout: a load or revoke failure is logged but the
+     * Loads + revokes (via {@link #loadAndRevokeByTokenId}) and then removes the credential storage
+     * doc for {@code tokenId}. Best-effort throughout: a load or revoke failure is logged but the
      * storage delete still runs; a delete failure is logged but the listener still completes. No-op
-     * when the feature flag is off.
+     * when the feature flag is off or {@code tokenId} is null.
      *
      * <p>Use this in compensating-cleanup paths where the caller owns the credential-doc delete
-     * (e.g. {@code TransportPutTransformAction.putTransform}'s config-write-failure branch).
+     * (e.g. config-write-failure rollback in PUT/UPDATE) and in the running-task credential swap
+     * path inside the indexer.
+     *
+     * @param transformId the owning transform id (audit attribution only)
+     * @param tokenId     the UIAM tokenId of the credential to revoke + delete; null skips both
      */
-    public void loadRevokeAndDelete(String transformId, ActionListener<Void> listener) {
-        if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
-            // The storage doc only exists when the feature is on, so skip both load+revoke and the
-            // storage DBQ entirely. Matches the no-op contract of loadAndRevoke + revokeAndClose.
+    public void loadRevokeAndDeleteByTokenId(String transformId, @Nullable String tokenId, ActionListener<Void> listener) {
+        if (tokenId == null || TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
+            // The storage doc only exists when the feature is on and a tokenId was minted; either
+            // condition false means there's nothing to clean up here.
             listener.onResponse(null);
             return;
         }
-        loadAndRevoke(
+        loadAndRevokeByTokenId(
             transformId,
-            ActionListener.running(() -> configManager.deleteTransformCloudCredential(transformId, ActionListener.wrap(deleted -> {
-                logger.trace("[{}] cleanup of stored credential: deleted={}", transformId, deleted);
+            tokenId,
+            ActionListener.running(() -> configManager.deleteCloudCredentialByTokenId(tokenId, ActionListener.wrap(deleted -> {
+                logger.trace("[{}] cleanup of stored credential [{}]: deleted={}", transformId, tokenId, deleted);
                 listener.onResponse(null);
             }, deleteFailure -> {
-                logger.warn(() -> "[" + transformId + "] cloud credential storage delete failed", deleteFailure);
+                logger.warn(() -> "[" + transformId + "] cloud credential storage delete for [" + tokenId + "] failed", deleteFailure);
                 listener.onResponse(null);
             })))
         );

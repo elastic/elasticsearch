@@ -159,13 +159,6 @@ public class ParquetTestingIT extends ESRestTestCase {
         "bad_data/PARQUET-1481.parquet"
     );
 
-    // TODO: https://github.com/elastic/esql-planning/issues/819
-    /**
-     * Good data files that currently return HTTP 500 from production code instead of being read successfully.
-     * Each entry is a production bug -- the file should be readable but the server crashes.
-     */
-    private static final Set<String> GOOD_DATA_RETURNS_500 = Set.of("data/datapage_v2_empty_datapage.snappy.parquet");
-
     /**
      * Files where timestamp value comparison is skipped because INT96 timestamp
      * conversion is implementation-specific and ESQL may clamp or interpret extreme
@@ -257,17 +250,6 @@ public class ParquetTestingIT extends ESRestTestCase {
 
     private void testGoodData(String url) throws Exception {
         logger.info("Testing good data: {}", parquetFile);
-
-        if (GOOD_DATA_RETURNS_500.contains(parquetFile)) {
-            ResponseException ex = expectThrows(
-                ResponseException.class,
-                () -> runEsqlSync(requestObjectBuilder().query(buildQuery(url, 100000)), new AssertWarnings.NoWarnings(), null)
-            );
-            int status = ex.getResponse().getStatusLine().getStatusCode();
-            assertEquals("Known-buggy file " + parquetFile + " expected 500 but got " + status, 500, status);
-            logger.warn("KNOWN BUG: {} returns HTTP 500 instead of readable data", parquetFile);
-            return;
-        }
 
         byte[] parquetBytes = downloadFile(url);
         GroundTruth groundTruth = readGroundTruth(parquetBytes);

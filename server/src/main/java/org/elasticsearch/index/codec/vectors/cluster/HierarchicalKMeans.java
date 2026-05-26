@@ -658,7 +658,7 @@ public class HierarchicalKMeans {
 
         Random random = new Random(42L);
         int n = vectors.size();
-        int sampleSize = Math.min(n, Math.max(needed * 64, 4096));
+        int sampleSize = (int) Math.min(n, Math.max(needed * 64L, 4096L));
 
         // Reservoir-sample sampleSize vector indices, deterministic with seed 42.
         int[] sample = new int[sampleSize];

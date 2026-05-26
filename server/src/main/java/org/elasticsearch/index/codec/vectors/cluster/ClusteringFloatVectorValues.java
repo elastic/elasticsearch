@@ -23,7 +23,7 @@ import static org.elasticsearch.index.codec.vectors.cluster.HierarchicalKMeans.N
  * A {@link FloatVectorValues} that adds best-centroid computation.
  */
 public abstract sealed class ClusteringFloatVectorValues extends FloatVectorValues permits KMeansFloatVectorValues,
-    ClusteringFloatVectorValuesSlice, OffsetTableFloatVectorValues, ConcatenatedClusteringFloatVectorValues {
+    ClusteringFloatVectorValuesSlice, ConcatenatedClusteringFloatVectorValues {
 
     // the minimum distance that is considered to be "far enough" to a centroid in order to compute the soar distance.
     // For vectors that are closer than this distance to the centroid don't get spilled because they are well represented

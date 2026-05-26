@@ -99,7 +99,20 @@ public class TieredMergeStrategy {
         }
     }
 
-    public record Concatenation(ClusteringFloatVectorValues seedCentroids, int[] clusterSizes) implements MergeAction {
+    /**
+     * Concatenation merge action.
+     *
+     * @param seedCentroids      prior centroids concatenated from segments that provided them
+     * @param clusterSizes       per-prior-centroid vector counts (aligned with {@code seedCentroids})
+     * @param coveredVectorCount sum of {@code segmentSizes[i]} for segments that contributed priors;
+     *                           may be less than the total merged vector count when some input
+     *                           segments do not surface prior centroids (e.g. 9.2/ES940 indices).
+     *                           Used by {@link HierarchicalKMeans#clusterByConcatenation} to size
+     *                           {@code k} without biasing toward the covered portion's density.
+     */
+    public record Concatenation(ClusteringFloatVectorValues seedCentroids, int[] clusterSizes, int coveredVectorCount)
+        implements
+            MergeAction {
         @Override
         public Strategy strategy() {
             return Strategy.CONCATENATION;
@@ -108,7 +121,7 @@ public class TieredMergeStrategy {
         @Override
         public KMeansResult execute(HierarchicalKMeans kmeans, ClusteringFloatVectorValues vectors, int vectorsPerCluster)
             throws IOException {
-            return kmeans.clusterByConcatenation(vectors, seedCentroids, clusterSizes, vectorsPerCluster);
+            return kmeans.clusterByConcatenation(vectors, seedCentroids, clusterSizes, coveredVectorCount, vectorsPerCluster);
         }
     }
 
@@ -133,11 +146,14 @@ public class TieredMergeStrategy {
                 List<ClusteringFloatVectorValues> parts = new ArrayList<>();
                 List<int[]> sizesParts = new ArrayList<>();
                 int totalSizes = 0;
-                for (IVFVectorsReader.CentroidData data : centroidData) {
+                int coveredVectorCount = 0;
+                for (int i = 0; i < centroidData.length; i++) {
+                    IVFVectorsReader.CentroidData data = centroidData[i];
                     if (data != null) {
                         parts.add(data.centroids());
                         sizesParts.add(data.clusterSizes());
                         totalSizes += data.clusterSizes().length;
+                        coveredVectorCount += segmentSizes[i];
                     }
                 }
                 int[] allClusterSizes = new int[totalSizes];
@@ -149,7 +165,7 @@ public class TieredMergeStrategy {
                 ClusteringFloatVectorValues concatenated = new ConcatenatedClusteringFloatVectorValues(
                     parts.toArray(new ClusteringFloatVectorValues[0])
                 );
-                yield new Concatenation(concatenated, allClusterSizes);
+                yield new Concatenation(concatenated, allClusterSizes, coveredVectorCount);
             }
             case FULL_REBUILD -> new FullRebuild();
         };

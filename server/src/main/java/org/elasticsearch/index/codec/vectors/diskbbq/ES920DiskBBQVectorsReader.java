@@ -22,7 +22,6 @@ import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
 import org.elasticsearch.index.codec.vectors.cluster.NeighborQueue;
-import org.elasticsearch.index.codec.vectors.cluster.OffsetTableFloatVectorValues;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.simdvec.ES91OSQVectorsScorer;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
@@ -643,92 +642,13 @@ public class ES920DiskBBQVectorsReader extends IVFVectorsReader<IVFVectorsReader
     }
 
     @Override
-    public CentroidData readCentroidData(FieldInfo fieldInfo) throws IOException {
-        FieldEntry entry = fields.get(fieldInfo.number);
-        if (entry == null || entry.numCentroids == 0) {
-            return null;
-        }
-        int dimension = fieldInfo.getVectorDimension();
-        int numCentroids = entry.numCentroids;
-        int[] clusterSizes = new int[numCentroids];
-
-        // The posting slice owns the centroid bytes for the streaming view; keep it open and
-        // hand it to CentroidData so it lives as long as the streaming view does.
-        IndexInput postingSlice = entry.postingListSlice(ivfClusters);
-        boolean success = false;
-        try {
-            long[] centroidOffsets;
-            try (IndexInput centroidSlice = entry.centroidSlice(ivfCentroids)) {
-                // skip the maxPostingListSize VInt at the start of the posting list data
-                postingSlice.readVInt();
-
-                // Read the posting list offsets from the centroid file. Each posting list begins
-                // with: dim floats (the centroid), then int (dot product), then VInt (cluster size).
-                long[] postingOffsets = readPostingListOffsets(centroidSlice, numCentroids, dimension);
-
-                // First pass: read cluster sizes only (skip past the centroid bytes and dot product).
-                centroidOffsets = postingOffsets;
-                final long centroidBytes = (long) dimension * Float.BYTES;
-                for (int c = 0; c < numCentroids; c++) {
-                    postingSlice.seek(postingOffsets[c] + centroidBytes + Integer.BYTES);
-                    clusterSizes[c] = postingSlice.readVInt();
-                }
-            }
-
-            OffsetTableFloatVectorValues centroids = new OffsetTableFloatVectorValues(
-                postingSlice,
-                centroidOffsets,
-                numCentroids,
-                dimension
-            );
-            CentroidData data = new CentroidData(centroids, clusterSizes, entry.globalCentroid, postingSlice);
-            success = true;
-            return data;
-        } finally {
-            if (success == false) {
-                postingSlice.close();
-            }
-        }
-    }
-
-    /**
-     * Read posting list offsets from the centroid file.
-     * Handles both parent and no-parent centroid file formats.
-     */
-    private static long[] readPostingListOffsets(IndexInput centroidSlice, int numCentroids, int dimension) throws IOException {
-        long[] offsets = new long[numCentroids];
-        int numParents = centroidSlice.readVInt();
-        long centroidQuantizeSize = dimension + 3 * Float.BYTES + Integer.BYTES;
-
-        if (numParents == 0) {
-            // No-parent format: quantized centroids are bulk-written, then offset table
-            // Skip quantized centroid data (bulk written).
-            // Each centroid is centroidQuantizeSize bytes, written in bulk groups.
-            long quantizedDataSize = centroidQuantizeSize * numCentroids;
-            centroidSlice.skipBytes(quantizedDataSize);
-            // Now read the offset table
-            for (int i = 0; i < numCentroids; i++) {
-                offsets[i] = centroidSlice.readLong();
-                centroidSlice.readLong(); // skip length
-            }
-        } else {
-            // Parent format: skip all parent/child data to reach the offset table at the end.
-            int maxChildrenSize = centroidSlice.readVInt();
-            // Skip parent centroids
-            long parentDataSize = centroidQuantizeSize * numParents;
-            centroidSlice.skipBytes(parentDataSize);
-            // Skip parent index entries (Int offset, Int numChildren per parent)
-            centroidSlice.skipBytes((long) numParents * 2 * Integer.BYTES);
-            // Skip all child centroids
-            long childDataSize = centroidQuantizeSize * numCentroids;
-            centroidSlice.skipBytes(childDataSize);
-            // Now read the offset table
-            for (int i = 0; i < numCentroids; i++) {
-                offsets[i] = centroidSlice.readLong();
-                centroidSlice.readLong(); // skip length
-            }
-        }
-        return offsets;
+    public CentroidData readCentroidData(FieldInfo fieldInfo) {
+        // The 9.2.0 (ES920) on-disk layout interleaves centroid bytes with per-posting-list
+        // metadata, which would require a bespoke streaming reader to surface here. Since the
+        // adaptive merge strategy tolerates per-segment nulls (segments without priors simply
+        // contribute their vector counts to the coverage-aware concatenation budget), we skip
+        // exposing priors for 9.2 indices and let those segments age out via normal merges.
+        return null;
     }
 
 }

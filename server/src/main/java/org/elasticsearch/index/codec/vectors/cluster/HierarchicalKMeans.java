@@ -826,16 +826,22 @@ public class HierarchicalKMeans {
      * assignment (see {@link #reduceVarianceAware}), bounding meta-cluster size variance
      * without running a full balancing solver.
      *
-     * @param vectors           the merged vectors
-     * @param allPriorCentroids centroids concatenated from all input segments
-     * @param clusterSizes      number of vectors per centroid in the prior segments
-     * @param targetSize        target vectors per cluster
+     * @param vectors            the merged vectors
+     * @param allPriorCentroids  centroids concatenated from all input segments that provided priors
+     * @param clusterSizes       number of vectors per centroid in the prior segments
+     * @param coveredVectorCount sum of vector counts from segments that contributed priors. Equal to
+     *                           {@code vectors.size()} when every input segment exposed priors; smaller
+     *                           when some segments did not (e.g. legacy formats whose reader returns
+     *                           {@code null} from {@code readCentroidData}). Used to extrapolate the
+     *                           prior's density to the uncovered remainder without inflating {@code k}.
+     * @param targetSize         target vectors per cluster
      * @return clustering result
      */
     public KMeansResult clusterByConcatenation(
         ClusteringFloatVectorValues vectors,
         ClusteringFloatVectorValues allPriorCentroids,
         int[] clusterSizes,
+        int coveredVectorCount,
         int targetSize
     ) throws IOException {
         if (vectors.size() == 0) {
@@ -848,22 +854,34 @@ public class HierarchicalKMeans {
         int k = Math.clamp((int) ((vectors.size() + targetSize / 2.0f) / (float) targetSize), 2, MAXK);
 
         // Also consider prior clustering density: if prior segments had smaller
-        // average cluster size, we need more centroids to maintain that granularity
+        // average cluster size, we need more centroids to maintain that granularity.
+        // The mean is computed over the COVERED portion only, so the extrapolation to a
+        // kFromPrior must scale by coverage rather than dividing the total vector count by
+        // a covered-only density (which over-inflates k in mixed-coverage merges, e.g. when
+        // ES940/ES920 segments merge with next-gen ones).
         double meanClusterSize = 0;
         for (int s : clusterSizes) {
             meanClusterSize += s;
         }
-        meanClusterSize /= clusterSizes.length;
+        if (clusterSizes.length > 0) {
+            meanClusterSize /= clusterSizes.length;
+        }
+        int effectiveCovered = coveredVectorCount > 0 ? coveredVectorCount : vectors.size();
         if (meanClusterSize > 0 && meanClusterSize < targetSize) {
-            int kFromPrior = (int) (vectors.size() / meanClusterSize);
+            // Extrapolate covered density to the full corpus: priors imply priorCount centroids
+            // for the covered subset, so the full corpus needs priorCount * (total / covered).
+            int kFromPrior = (int) Math.round((double) clusterSizes.length * vectors.size() / effectiveCovered);
             k = Math.clamp(Math.max(k, kFromPrior), 2, MAXK);
         }
 
         int priorCount = allPriorCentroids.size();
 
         // Pre-check: the prior is too degenerate to give us useful seeds. Bail to full rebuild
-        // before we waste compute on a clustering we'd just throw away.
-        if (priorIsDegenerate(priorCount, clusterSizes, k)) {
+        // before we waste compute on a clustering we'd just throw away. The threshold is scaled
+        // by coverage so a prior that adequately covers its own segments isn't penalised just
+        // because other segments lacked priors.
+        int coverageScaledK = (int) Math.ceil((double) k * effectiveCovered / vectors.size());
+        if (priorIsDegenerate(priorCount, clusterSizes, coverageScaledK)) {
             logger.debug("clusterByConcatenation: prior is degenerate, falling back to full rebuild");
             return cluster(vectors, targetSize);
         }

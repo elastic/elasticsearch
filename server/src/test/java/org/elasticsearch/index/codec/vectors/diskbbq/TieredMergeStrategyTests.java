@@ -149,6 +149,30 @@ public class TieredMergeStrategyTests extends ESTestCase {
         assertEquals(40, ((TieredMergeStrategy.Concatenation) action).seedCentroids().size());
     }
 
+    public void testConcatenationCoveredVectorCountExcludesNullSegments() {
+        TieredMergeStrategy strategy = new TieredMergeStrategy(64);
+        // Segments 0 + 1 surface priors; segment 2 does not (e.g. legacy ES920/ES940 reader returns null).
+        int[] sizes = { 3000, 4000, 2000 };
+        int[] centroids = { 20, 20, 0 };
+        IVFVectorsReader.CentroidData[] data = makeCentroidData(centroids);
+        data[2] = null;
+        TieredMergeStrategy.MergeAction action = strategy.selectAction(sizes, centroids, data);
+        TieredMergeStrategy.Concatenation concat = (TieredMergeStrategy.Concatenation) action;
+        // coveredVectorCount only counts the segments that contributed priors (3000 + 4000),
+        // not the 2000 vectors from the segment with null centroid data.
+        assertEquals(7000, concat.coveredVectorCount());
+    }
+
+    public void testConcatenationCoveredVectorCountFullCoverage() {
+        TieredMergeStrategy strategy = new TieredMergeStrategy(64);
+        int[] sizes = { 3000, 4000 };
+        int[] centroids = { 20, 20 };
+        IVFVectorsReader.CentroidData[] data = makeCentroidData(centroids);
+        TieredMergeStrategy.MergeAction action = strategy.selectAction(sizes, centroids, data);
+        TieredMergeStrategy.Concatenation concat = (TieredMergeStrategy.Concatenation) action;
+        assertEquals(7000, concat.coveredVectorCount());
+    }
+
     /**
      * Helper that runs selectAction via synthetic centroid data and verifies the strategy.
      */

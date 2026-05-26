@@ -1195,6 +1195,45 @@ public class DatafeedConfigTests extends AbstractBWCSerializationTestCase<Datafe
         );
     }
 
+    public void testIsCPSAllowed_throwsOnNullDecider() {
+        NullPointerException e = expectThrows(NullPointerException.class, () -> DatafeedConfig.isCPSAllowed(null, true));
+        assertThat(e.getMessage(), equalTo("crossProjectModeDecider must not be null"));
+    }
+
+    public void testIsCPSAllowed_returnsFalseWhenFeatureFlagDisabled() {
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+        assertThat(DatafeedConfig.isCPSAllowed(decider, false), equalTo(false));
+    }
+
+    public void testIsCPSAllowed_returnsFalseWhenClusterCPSDisabled() {
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", false).build()
+            );
+        assertThat(DatafeedConfig.isCPSAllowed(decider, true), equalTo(false));
+    }
+
+    public void testIsCPSAllowed_returnsTrueWhenBothEnabled() {
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+        assertThat(DatafeedConfig.isCPSAllowed(decider, true), equalTo(true));
+    }
+
+    /** Mirrors the put/update datafeed guard: {@code project_routing} is rejected when cluster CPS is on but the ML flag is off. */
+    public void testIsCPSAllowed_rejectsProjectRoutingGapUsedByDatafeedManager() {
+        org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
+            new org.elasticsearch.search.crossproject.CrossProjectModeDecider(
+                Settings.builder().put("serverless.cross_project.enabled", true).build()
+            );
+        String projectRouting = "project-a";
+        assertThat(projectRouting != null && DatafeedConfig.isCPSAllowed(decider, false) == false, equalTo(true));
+    }
+
     public void testWithCrossProjectModeIfEnabled_GivenNullDatafeed() {
         org.elasticsearch.search.crossproject.CrossProjectModeDecider decider =
             new org.elasticsearch.search.crossproject.CrossProjectModeDecider(Settings.EMPTY);

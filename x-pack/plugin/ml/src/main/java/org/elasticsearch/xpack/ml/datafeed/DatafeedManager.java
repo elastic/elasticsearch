@@ -226,7 +226,7 @@ public final class DatafeedManager {
             // This validation is applied to the updated config (after the update is applied to the existing config).
             BiConsumer<DatafeedConfig, ActionListener<Boolean>> wrappedValidator = (updatedConfig, validatorListener) -> {
                 // Validate project_routing requires CPS to be enabled in the environment
-                if (updatedConfig.getProjectRouting() != null && crossProjectModeDecider.crossProjectEnabled() == false) {
+                if (updatedConfig.getProjectRouting() != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
                     validatorListener.onFailure(
                         new ElasticsearchStatusException(
                             "project_routing is only supported in environments that support cross-project calls",
@@ -332,7 +332,7 @@ public final class DatafeedManager {
         DatafeedConfig.validateAggregations(request.getDatafeed().getParsedAggregations(xContentRegistry));
 
         // Validate project_routing requires CPS to be enabled in the environment.
-        if (request.getDatafeed().getProjectRouting() != null && crossProjectModeDecider.crossProjectEnabled() == false) {
+        if (request.getDatafeed().getProjectRouting() != null && DatafeedConfig.isCPSAllowed(crossProjectModeDecider) == false) {
             listener.onFailure(
                 new ElasticsearchStatusException(
                     "project_routing is only supported in environments that support cross-project calls",

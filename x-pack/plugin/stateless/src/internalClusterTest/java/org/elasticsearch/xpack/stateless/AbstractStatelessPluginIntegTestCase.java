@@ -39,6 +39,7 @@ import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.fs.FsBlobContainer;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.ClusterSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -224,6 +225,15 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         }
     }
 
+    // A test-only plugin to register settings for cache boost preference so that it can be exercised in stateless ITs
+    // without the need for the serverless plugin.
+    public static class CacheBoostPreferenceSettingsPlugin extends Plugin {
+        @Override
+        public List<Setting<?>> getSettings() {
+            return List.of(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING);
+        }
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final var plugins = new ArrayList<Class<? extends Plugin>>();
@@ -236,6 +246,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         var plugins = new ArrayList<Class<? extends Plugin>>();
         plugins.add(BlobCachePlugin.class);
         plugins.add(TestUtils.StatelessPluginWithTrialLicense.class);
+        plugins.add(CacheBoostPreferenceSettingsPlugin.class);
         plugins.add(MockTransportService.TestPlugin.class);
         plugins.add(SystemIndexTestPlugin.class);
         if (addMockFsRepository) {
@@ -396,6 +407,10 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             builder.put(SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING.getKey(), randomBoolean());
         }
         builder.put(SearchCommitPrefetcherDynamicSettings.STATELESS_SEARCH_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean());
+        // Sometimes explicitly set the setting to `false` which doubles as a test for the setting being registered
+        if (randomBoolean()) {
+            builder.put(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING.getKey(), false);
+        }
         return builder;
     }
 
@@ -1352,5 +1367,4 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
             .put(ConcurrentMultiPartUploadsMockFsRepository.MULTIPART_UPLOAD_PART_SIZE, partSize)
             .build();
     }
-
 }

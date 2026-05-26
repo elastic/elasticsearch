@@ -9,6 +9,7 @@
 
 package org.elasticsearch.workloadidentity;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
@@ -55,13 +56,16 @@ public final class WorkloadIdentityIssuerSettings {
     /**
      * Activation predicate for the workload-identity feature on this node. The module itself is
      * always loaded, but the issuer client only reaches over the network when {@link #ISSUER_URL_SETTING}
-     * is present. This is the single signal consumers should use to determine if workload-identity available
-     * on this cluster; SSL and HTTP settings are configuration of an already-active client.
+     * is configured with a non-blank value. This is the single signal consumers should use to
+     * determine if workload-identity is available on this cluster; SSL and HTTP settings are
+     * configuration of an already-active client. A blank or whitespace-only value is treated as
+     * unset so that an unusable URL takes the "feature off" branch rather than failing at node
+     * startup.
      *
-     * @return {@code true} when {@link #ISSUER_URL_SETTING} is set on this node.
+     * @return {@code true} when {@link #ISSUER_URL_SETTING} is set to a non-blank value on this node.
      */
     public static boolean isEnabled(Settings settings) {
-        return ISSUER_URL_SETTING.exists(settings);
+        return Strings.hasText(ISSUER_URL_SETTING.get(settings));
     }
 
     /**

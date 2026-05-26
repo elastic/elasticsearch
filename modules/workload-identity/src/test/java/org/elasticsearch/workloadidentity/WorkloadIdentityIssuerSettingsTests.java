@@ -14,9 +14,9 @@ import org.elasticsearch.test.ESTestCase;
 
 /**
  * Locks in the activation contract: workload-identity is enabled on a node iff
- * {@link WorkloadIdentityIssuerSettings#ISSUER_URL_SETTING} is set. Other transport settings
- * (SSL paths, HTTP timeouts, cache skew) are configuration of an already-active client and
- * must not gate activation on their own.
+ * {@link WorkloadIdentityIssuerSettings#ISSUER_URL_SETTING} is set to a non-blank value.
+ * Other transport settings (SSL paths, HTTP timeouts, cache skew) are configuration of an
+ * already-active client and must not gate activation on their own.
  */
 public class WorkloadIdentityIssuerSettingsTests extends ESTestCase {
 
@@ -27,6 +27,20 @@ public class WorkloadIdentityIssuerSettingsTests extends ESTestCase {
                 Settings.builder().put(WorkloadIdentityIssuerSettings.ISSUER_URL_SETTING.getKey(), "https://issuer.example/").build()
             )
         );
+    }
+
+    public void testBlankIssuerUrlIsTreatedAsUnset() {
+        // An explicitly-set but blank URL is unusable and should take the "feature off" branch
+        // rather than falling through to a downstream URI-parse failure at node startup.
+        for (String blank : new String[] { "", " ", "\t", "   " }) {
+            final Settings settings = Settings.builder()
+                .put(WorkloadIdentityIssuerSettings.ISSUER_URL_SETTING.getKey(), blank)
+                .build();
+            assertFalse(
+                "blank issuer URL must not enable workload-identity",
+                WorkloadIdentityIssuerSettings.isEnabled(settings)
+            );
+        }
     }
 
     public void testTransportSettingsAloneDoNotEnableTheFeature() {

@@ -28,6 +28,7 @@ teardown:
 # Smoke test: SLM is green with no policies configured (default cluster state).
 "basic SLM health indicator test":
   - do:
+      # This will, by default, run with verbose=true
       health_report: { }
 
   - is_true: cluster_name
@@ -36,6 +37,7 @@ teardown:
   - match: { indicators.slm.status: "green" }
   - match: { indicators.slm.symptom: "No Snapshot Lifecycle Management policies configured" }
   - match: { indicators.slm.details.slm_status: "RUNNING" }
+    # With verbose=true set, the health report always puts the count in the response, even if 0
   - match: { indicators.slm.details.policies: 0 }
 
 ---

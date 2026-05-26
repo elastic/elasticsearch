@@ -435,6 +435,39 @@ public class CCSPointInTimeIT extends AbstractMultiClustersTestCase {
         assertFalse(cluster.isTimedOut());
     }
 
+    /**
+     * Verifies that per-cluster statuses are finalized to SUCCESSFUL when the remote cluster
+     * returns zero matching shards ({@code getNumShards() == 0}).
+     * <p>
+     * In this scenario {@link AbstractSearchAsyncAction#start()} short-circuits and calls
+     * {@code sendSearchResponse} directly, bypassing {@code getNextPhase()}. The
+     * {@code sendSearchResponse} override in {@code OpenPointInTimePhase} must still drive
+     * {@code finalizeClusterStatuses} so that the remote cluster object transitions from
+     * RUNNING to SUCCESSFUL.
+     */
+    public void testOpenPITClustersStatusWithZeroMatchingRemoteShards() {
+        // Target only the remote cluster with a wildcard that matches no existing indices.
+        // The remote cluster responds to TransportSearchShardsAction with 0 shards, so
+        // getNumShards() == 0 and AbstractSearchAsyncAction.start() takes the early-exit path.
+        OpenPointInTimeRequest request = new OpenPointInTimeRequest(REMOTE_CLUSTER + ":nonexistent_*");
+        request.keepAlive(TimeValue.timeValueMinutes(1));
+
+        final OpenPointInTimeResponse response = client(LOCAL_CLUSTER).execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();
+        try {
+            SearchResponse.Clusters clusters = response.getClusters();
+            assertTrue(clusters.hasRemoteClusters());
+            assertThat(clusters.getTotal(), equalTo(1));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.SUCCESSFUL), equalTo(1));
+            assertThat(clusters.getClusterStateCount(SearchResponse.Cluster.Status.RUNNING), equalTo(0));
+
+            SearchResponse.Cluster remoteCluster = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteCluster);
+            assertAllSuccessfulShards(remoteCluster, 0, 0);
+        } finally {
+            closePointInTime(response.getPointInTimeId());
+        }
+    }
+
     private BytesReference openPointInTime(String[] indices, TimeValue keepAlive) {
         OpenPointInTimeRequest request = new OpenPointInTimeRequest(indices).keepAlive(keepAlive);
         final OpenPointInTimeResponse response = client().execute(TransportOpenPointInTimeAction.TYPE, request).actionGet();

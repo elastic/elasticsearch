@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -422,6 +423,15 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
                 false
             ) {
                 @Override
+                public void sendSearchResponse(
+                    SearchResponseSections internalSearchResponse,
+                    AtomicArray<SearchPhaseResult> queryResults
+                ) {
+                    finalizeClusterStatuses(clusters, shardsIts, skippedByClusterAlias, buildShardFailures(), timeProvider);
+                    super.sendSearchResponse(internalSearchResponse, queryResults);
+                }
+
+                @Override
                 protected void executePhaseOnShard(
                     SearchShardIterator shardIt,
                     Transport.Connection connection,
@@ -447,11 +457,9 @@ public class TransportOpenPointInTimeAction extends HandledTransportAction<OpenP
 
                 @Override
                 protected SearchPhase getNextPhase() {
-                    final ShardSearchFailure[] shardFailures = buildShardFailures();
                     return new SearchPhase(getName()) {
                         @Override
                         protected void run() {
-                            finalizeClusterStatuses(clusters, shardsIts, skippedByClusterAlias, shardFailures, timeProvider);
                             sendSearchResponse(SearchResponseSections.EMPTY_WITH_TOTAL_HITS, results.getAtomicArray());
                         }
                     };

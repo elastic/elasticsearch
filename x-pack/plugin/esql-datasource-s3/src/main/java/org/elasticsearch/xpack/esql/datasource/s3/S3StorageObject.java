@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.datasource.s3;
 
 import software.amazon.awssdk.core.ResponseInputStream;
+import software.amazon.awssdk.http.Abortable;
 import software.amazon.awssdk.services.s3.S3AsyncClient;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.GetObjectRequest;
@@ -19,6 +20,8 @@ import software.amazon.awssdk.services.s3.model.S3Exception;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
@@ -34,6 +37,8 @@ import java.util.concurrent.Executor;
  * Supports full and range reads, metadata retrieval, and optional native async via S3AsyncClient.
  */
 public final class S3StorageObject implements StorageObject {
+    private static final Logger logger = LogManager.getLogger(S3StorageObject.class);
+
     private final S3Client s3Client;
     private final S3AsyncClient s3AsyncClient;
     private final String bucket;
@@ -181,6 +186,22 @@ public final class S3StorageObject implements StorageObject {
     }
 
     @Override
+    public void abortStream(InputStream stream) throws IOException {
+        if (stream instanceof Abortable abortable) {
+            abortable.abort();
+        } else {
+            logger.trace(
+                () -> Strings.format(
+                    "abortStream received non-Abortable stream [%s] for [%s]; falling back to close() which may drain the body",
+                    stream.getClass().getName(),
+                    path
+                )
+            );
+            stream.close();
+        }
+    }
+
+    @Override
     public StoragePath path() {
         return path;
     }
@@ -298,7 +319,7 @@ public final class S3StorageObject implements StorageObject {
             return;
         }
         if (length > Integer.MAX_VALUE) {
-            // The async path materializes the response into a single byte[]; ranges larger than 2 GiB
+            // The async path materializes the response into a single direct ByteBuffer; ranges larger than 2 GiB
             // are not supportable here. Callers needing larger reads must split the range or fall
             // back to the streaming sync path via newStream(position, length).
             listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
@@ -311,22 +332,23 @@ public final class S3StorageObject implements StorageObject {
         GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
 
         // Use a custom transformer instead of AsyncResponseTransformer.toBytes() so each chunk is
-        // copied straight into the final pre-sized byte[] (single chunk-to-destination copy),
+        // copied straight into a pre-sized direct ByteBuffer (single chunk-to-destination copy),
         // rather than the SDK's default BAOS-based pipeline which materializes the body 3+ times.
         // See KnownLengthAsyncResponseTransformer for the full rationale.
-        s3AsyncClient.getObject(request, new KnownLengthAsyncResponseTransformer<>((int) length))
-            .whenComplete((responseBytes, throwable) -> {
-                if (throwable != null) {
-                    Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
-                    if (cause instanceof NoSuchKeyException) {
-                        listener.onFailure(new IOException("Object not found: " + path, cause));
-                    } else {
-                        listener.onFailure(cause instanceof Exception ex ? ex : new RuntimeException(cause));
-                    }
-                    return;
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>((int) length);
+        s3AsyncClient.getObject(request, transformer).whenComplete((buffer, throwable) -> {
+            if (throwable != null) {
+                Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
+                if (cause instanceof NoSuchKeyException) {
+                    listener.onFailure(new IOException("Object not found: " + path, cause));
+                } else {
+                    listener.onFailure(cause instanceof Exception ex ? ex : new RuntimeException(cause));
                 }
+                return;
+            }
 
-                GetObjectResponse response = responseBytes.response();
+            GetObjectResponse response = transformer.response();
+            if (response != null) {
                 if (cachedLastModified == null) {
                     cachedLastModified = response.lastModified();
                 }
@@ -336,12 +358,10 @@ public final class S3StorageObject implements StorageObject {
                         cachedLength = total;
                     }
                 }
+            }
 
-                // Safe to use asByteArrayUnsafe(): the byte[] inside responseBytes was allocated by our
-                // KnownLengthAsyncResponseTransformer above and is not retained anywhere else after the
-                // CompletableFuture completes. Wrapping it directly avoids one final defensive copy.
-                listener.onResponse(ByteBuffer.wrap(responseBytes.asByteArrayUnsafe()));
-            });
+            listener.onResponse(buffer);
+        });
     }
 
     @Override

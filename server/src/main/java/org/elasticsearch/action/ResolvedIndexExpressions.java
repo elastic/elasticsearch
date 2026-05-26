@@ -95,6 +95,15 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             expressions.add(new ResolvedIndexExpression(original, LocalExpressions.NONE, remoteExpressions));
         }
 
+        public void setAllLocalExpressionsToNone() {
+            for (int i = 0; i < expressions.size(); i++) {
+                ResolvedIndexExpression current = expressions.get(i);
+                if (current.localExpressions() != LocalExpressions.NONE) {
+                    expressions.set(i, new ResolvedIndexExpression(current.original(), LocalExpressions.NONE, current.remoteExpressions()));
+                }
+            }
+        }
+
         /**
          * Exclude the given expressions from the local expressions of all prior added {@link ResolvedIndexExpression}.
          */

@@ -189,7 +189,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
 
     private record Update(RateLimitSettings rateLimitSettings) {
 
-        private static ConstructingObjectParser<CohereRerankServiceSettings.Update, Void> PARSER = new ConstructingObjectParser<>(
+        private static final ConstructingObjectParser<CohereRerankServiceSettings.Update, Void> PARSER = new ConstructingObjectParser<>(
             ModelConfigurations.SERVICE_SETTINGS,
             false,
             a -> new CohereRerankServiceSettings.Update((RateLimitSettings) a[0])

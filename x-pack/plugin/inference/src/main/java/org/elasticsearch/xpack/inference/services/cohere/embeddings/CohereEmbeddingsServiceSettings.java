@@ -70,10 +70,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         }
 
         void setMaxInputTokens(Integer maxInputTokens) {
-            if (maxInputTokens != null && maxInputTokens <= 0) {
-                throw new IllegalArgumentException("max_input_tokens must be a positive integer");
-            }
-            this.maxInputTokens = maxInputTokens;
+            this.maxInputTokens = validateMaxInputTokens(maxInputTokens);
         }
 
         void setEmbeddingType(String embeddingType) {
@@ -87,9 +84,16 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         }
     }
 
+    private static Integer validateMaxInputTokens(Integer maxInputTokens) {
+        if (maxInputTokens != null && maxInputTokens <= 0) {
+            throw new IllegalArgumentException("max_input_tokens must be a positive integer");
+        }
+        return maxInputTokens;
+    }
+
     private record Update(RateLimitSettings rateLimitSettings, Integer maxInputTokens) {
 
-        private static ConstructingObjectParser<Update, Void> PARSER = new ConstructingObjectParser<>(
+        private static final ConstructingObjectParser<Update, Void> PARSER = new ConstructingObjectParser<>(
             ModelConfigurations.SERVICE_SETTINGS,
             false,
             a -> new Update((RateLimitSettings) a[0], (Integer) a[1])
@@ -102,6 +106,11 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
                 new ParseField(RateLimitSettings.FIELD_NAME)
             );
             PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(MAX_INPUT_TOKENS));
+        }
+
+        private Update(RateLimitSettings rateLimitSettings, Integer maxInputTokens) {
+            this.rateLimitSettings = rateLimitSettings;
+            this.maxInputTokens = validateMaxInputTokens(maxInputTokens);
         }
 
         public CohereEmbeddingsServiceSettings mergeInto(CohereEmbeddingsServiceSettings existing) {
@@ -240,7 +249,7 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
 
     @Override
     public DenseVectorFieldMapper.ElementType elementType() {
-        return embeddingType == null ? DenseVectorFieldMapper.ElementType.FLOAT : embeddingType.toElementType();
+        return embeddingType.toElementType();
     }
 
     @Override

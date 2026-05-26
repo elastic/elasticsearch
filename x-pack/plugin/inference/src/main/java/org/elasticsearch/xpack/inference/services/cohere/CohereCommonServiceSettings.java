@@ -240,7 +240,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
 
         public void setDeprecatedModelId(String deprecatedModelId) {
             this.deprecatedModelId = deprecatedModelId;
-            if (deprecatedModelId != null && context == ConfigurationParseContext.REQUEST) {
+            if (context == ConfigurationParseContext.REQUEST) {
                 logger.info("The cohere [service_settings.model] field is deprecated. Please use [service_settings.model_id] instead.");
             }
         }

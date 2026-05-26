@@ -584,12 +584,24 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
         );
     }
 
-    public void testParse_GivenMaxInputTokensIsNegativeInt() {
+    public void testFromMap_GivenMaxInputTokensIsNegativeInt() {
         testFromMap_GivenExpectedParseException(
             Map.of(ServiceFields.MODEL_ID, "test-model-id", ServiceFields.MAX_INPUT_TOKENS, randomNegativeInt()),
             "max_input_tokens",
             "max_input_tokens must be a positive integer"
         );
+    }
+
+    public void testUpdate_GivenMaxInputTokensIsNegativeInt() {
+        CohereEmbeddingsServiceSettings instance = createTestInstance();
+
+        var e = expectThrows(
+            XContentParseException.class,
+            () -> instance.updateServiceSettings(Map.of(ServiceFields.MAX_INPUT_TOKENS, randomNegativeInt()))
+        );
+
+        assertThat(e.getMessage(), containsString("Failed to build [service_settings] after last required field arrived"));
+        assertThat(e.getCause().getMessage(), containsString("max_input_tokens must be a positive integer"));
     }
 
     private void testFromMap_GivenExpectedParseException(Map<String, Object> serviceSettings, String field, String expectedMessage) {

@@ -94,10 +94,10 @@ public enum CohereEmbeddingType {
 
     /**
      * Before TransportVersions::ML_INFERENCE_COHERE_EMBEDDINGS_ADDED element
-     * type was persisted as a CohereEmbeddingType enum. After
-     * DenseVectorFieldMapper.ElementType was used.
+     * type was persisted as a {@link CohereEmbeddingType} enum. After
+     * {@link DenseVectorFieldMapper.ElementType} was used.
      * <p>
-     * Parse either and convert to a CohereEmbeddingType.
+     * Parse either and convert to a {@link CohereEmbeddingType}.
      *
      * @param value the value to parse
      */

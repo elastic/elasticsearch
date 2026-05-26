@@ -189,7 +189,7 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
 
     private record Update(RateLimitSettings rateLimitSettings) {
 
-        private static ConstructingObjectParser<CohereCompletionServiceSettings.Update, Void> PARSER = new ConstructingObjectParser<>(
+        private static final ConstructingObjectParser<CohereCompletionServiceSettings.Update, Void> PARSER = new ConstructingObjectParser<>(
             ModelConfigurations.SERVICE_SETTINGS,
             false,
             a -> new CohereCompletionServiceSettings.Update((RateLimitSettings) a[0])

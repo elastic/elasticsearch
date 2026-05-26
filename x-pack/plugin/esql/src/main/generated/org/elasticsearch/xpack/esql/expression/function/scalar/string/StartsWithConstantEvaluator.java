@@ -16,6 +16,8 @@ import java.util.Optional;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanBlock;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
@@ -27,11 +29,11 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
 /**
- * {@link ExpressionEvaluator} implementation for {@link JsonExtract}.
+ * {@link ExpressionEvaluator} implementation for {@link StartsWith}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(JsonExtractConstantEvaluator.class);
+public abstract class StartsWithConstantEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(StartsWithConstantEvaluator.class);
 
   private final Source source;
 
@@ -41,14 +43,14 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
 
   private Warnings warnings;
 
-  public JsonExtractConstantEvaluator(Source source, ExpressionEvaluator str,
+  public StartsWithConstantEvaluator(Source source, ExpressionEvaluator str,
       DriverContext driverContext) {
     this.source = source;
     this.str = str;
     this.driverContext = driverContext;
   }
 
-  protected abstract JsonPath path();
+  protected abstract BytesRef prefix();
 
   protected String pathLabel() {
     return "jit-folded";
@@ -61,7 +63,7 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
       if (strVector == null) {
         return eval(page.getPositionCount(), strBlock);
       }
-      return eval(page.getPositionCount(), strVector);
+      return eval(page.getPositionCount(), strVector).asBlock();
     }
   }
 
@@ -72,8 +74,8 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
     return baseRamBytesUsed;
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefBlock strBlock) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+  public BooleanBlock eval(int positionCount, BytesRefBlock strBlock) {
+    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         switch (strBlock.getValueCount(p)) {
@@ -88,28 +90,18 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
               continue position;
         }
         BytesRef str = strBlock.getBytesRef(strBlock.getFirstValueIndex(p), strScratch);
-        try {
-          JsonExtract.processConstant(result, str, path());
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
+        result.appendBoolean(StartsWith.processConstant(str, prefix()));
       }
       return result.build();
     }
   }
 
-  public BytesRefBlock eval(int positionCount, BytesRefVector strVector) {
-    try(BytesRefBlock.Builder result = driverContext.blockFactory().newBytesRefBlockBuilder(positionCount)) {
+  public BooleanVector eval(int positionCount, BytesRefVector strVector) {
+    try(BooleanVector.FixedBuilder result = driverContext.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
       BytesRef strScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
         BytesRef str = strVector.getBytesRef(p, strScratch);
-        try {
-          JsonExtract.processConstant(result, str, path());
-        } catch (IllegalArgumentException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
+        result.appendBoolean(p, StartsWith.processConstant(str, prefix()));
       }
       return result.build();
     }
@@ -117,7 +109,7 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
 
   @Override
   public String toString() {
-    return "JsonExtractConstantEvaluator[" + "str=" + str + ", path=" + path() + "]" + " (" + pathLabel() + ")";
+    return "StartsWithConstantEvaluator[" + "str=" + str + ", prefix=" + prefix() + "]" + " (" + pathLabel() + ")";
   }
 
   @Override
@@ -137,31 +129,31 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
 
     private final ExpressionEvaluator.Factory str;
 
-    private final JsonPath path;
+    private final BytesRef prefix;
 
-    public Factory(Source source, ExpressionEvaluator.Factory str, JsonPath path) {
+    public Factory(Source source, ExpressionEvaluator.Factory str, BytesRef prefix) {
       this.source = source;
       this.str = str;
-      this.path = path;
+      this.prefix = prefix;
     }
 
     @Override
-    public JsonExtractConstantEvaluator get(DriverContext context) {
-      Optional<Class<? extends JsonExtractConstantEvaluator>> constantSpecializedClassOpt = ConstantMethodResultSpecializer.SHARED.specializeReference(JsonExtractConstantEvaluator.class, "path", JsonPath.class, this.path);
+    public StartsWithConstantEvaluator get(DriverContext context) {
+      Optional<Class<? extends StartsWithConstantEvaluator>> constantSpecializedClassOpt = ConstantMethodResultSpecializer.SHARED.specializeReference(StartsWithConstantEvaluator.class, "prefix", BytesRef.class, this.prefix);
       if (constantSpecializedClassOpt.isPresent()) {
-        Class<? extends JsonExtractConstantEvaluator> constantSpecializedClass = constantSpecializedClassOpt.get();
+        Class<? extends StartsWithConstantEvaluator> constantSpecializedClass = constantSpecializedClassOpt.get();
         try {
-          return (JsonExtractConstantEvaluator) constantSpecializedClass.getConstructors()[0].newInstance(source, str.get(context), context);
+          return (StartsWithConstantEvaluator) constantSpecializedClass.getConstructors()[0].newInstance(source, str.get(context), context);
         } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
-          throw new IllegalStateException("failed to construct specialized evaluator for JsonExtractConstantEvaluator", e);
+          throw new IllegalStateException("failed to construct specialized evaluator for StartsWithConstantEvaluator", e);
         }
       }
-      return new Standard(source, str.get(context), this.path, context);
+      return new Standard(source, str.get(context), this.prefix, context);
     }
 
     @Override
     public String toString() {
-      return "JsonExtractConstantEvaluator[" + "str=" + str + ", path=" + path + "]";
+      return "StartsWithConstantEvaluator[" + "str=" + str + ", prefix=" + prefix + "]";
     }
   }
 
@@ -171,18 +163,18 @@ public abstract class JsonExtractConstantEvaluator implements ExpressionEvaluato
    * instance field — no JIT-time constant folding, but the per-row work
    * runs correctly. The Factory chooses between this and the constant-specialized subclass.
    */
-  public static final class Standard extends JsonExtractConstantEvaluator {
-    private final JsonPath path;
+  public static final class Standard extends StartsWithConstantEvaluator {
+    private final BytesRef prefix;
 
-    public Standard(Source source, ExpressionEvaluator str, JsonPath path,
+    public Standard(Source source, ExpressionEvaluator str, BytesRef prefix,
         DriverContext driverContext) {
       super(source, str, driverContext);
-      this.path = path;
+      this.prefix = prefix;
     }
 
     @Override
-    protected final JsonPath path() {
-      return path;
+    protected final BytesRef prefix() {
+      return prefix;
     }
 
     @Override

@@ -57,7 +57,7 @@ $$$data-streams-lifecycle-signalling-error-retry-interval$$$
 stack: ga 9.5
 ```
 
-The following settings control the behavior of the frozen tier transition, which automatically converts data stream backing indices to [searchable snapshots](docs-content://deploy-manage/tools/snapshot-and-restore/searchable-snapshots.md) on the frozen tier.
+The following settings control the behavior of the frozen tier transition, which automatically converts data stream backing indices to [searchable snapshots](docs-content://deploy-manage/tools/snapshot-and-restore/searchable-snapshots.md) on the frozen tier. Note that the conversions happen on the currently elected master node.
 
 $$$dlm-frozen-transition-poll-interval$$$
 
@@ -66,13 +66,13 @@ $$$dlm-frozen-transition-poll-interval$$$
 
 $$$dlm-frozen-transition-max-concurrency$$$
 
-`dlm.frozen_transition.max_concurrency`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) The maximum number of backing indices that the frozen transition service converts concurrently. Must be between `1` and `100`. Defaults to `10`.
+`dlm.frozen.transition.thread_pool.size`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) The maximum number of backing indices that the frozen transition service converts concurrently. Defaults to the smaller of either 2x the CPU core count of the node or `100`.
 
 $$$dlm-frozen-transition-max-queue-size$$$
 
-`dlm.frozen_transition.max_queue_size`
-:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) The maximum number of backing indices that can be queued for frozen conversion at any given time. Indices submitted beyond this limit are skipped until the next poll cycle. Must be between `1` and `10000`. Defaults to `500`.
+`dlm.frozen.transition.thread_pool.queue_size`
+:   ([Static](docs-content://deploy-manage/stack-settings.md#static-cluster-setting), integer) The maximum number of backing indices that can be queued for frozen conversion at any given time. Indices submitted beyond this limit are skipped until the next poll cycle. Defaults to the smaller of either 20x the CPU core count of the node or `1000`.
 
 $$$dlm-frozen-cleanup-poll-interval$$$
 

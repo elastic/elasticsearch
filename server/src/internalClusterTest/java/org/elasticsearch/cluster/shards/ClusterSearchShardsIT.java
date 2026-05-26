@@ -188,8 +188,7 @@ public class ClusterSearchShardsIT extends ESIntegTestCase {
         createIndex("slice-disabled");
         ensureGreen("slice-disabled");
 
-        ClusterSearchShardsRequest request = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "slice-disabled").routing("s1")
-            .searchSlice("s1");
+        ClusterSearchShardsRequest request = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, "slice-disabled").searchSlice("s1");
         IllegalArgumentException e = safeAwaitAndUnwrapFailure(
             IllegalArgumentException.class,
             ClusterSearchShardsResponse.class,

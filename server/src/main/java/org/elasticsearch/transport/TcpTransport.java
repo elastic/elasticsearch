@@ -132,7 +132,7 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
     private final HandlingTimeTracker outboundHandlingTimeTracker = new HandlingTimeTracker();
     private final OutboundHandler outboundHandler;
     private final InboundHandler inboundHandler;
-    private final ResponseHandlers responseHandlers = new ResponseHandlers();
+    private final ResponseHandlers responseHandlers;
     private final RequestHandlers requestHandlers = new RequestHandlers();
 
     private final AtomicLong outboundConnectionCount = new AtomicLong(); // also used as a correlation ID for open/close logs
@@ -152,6 +152,9 @@ public abstract class TcpTransport extends AbstractLifecycleComponent implements
         this.threadPool = threadPool;
         this.circuitBreakerService = circuitBreakerService;
         this.networkService = networkService;
+        this.responseHandlers = new ResponseHandlers(
+            () -> circuitBreakerService.getBreaker(CircuitBreaker.IN_FLIGHT_REQUESTS)
+        );
         String nodeName = Node.NODE_NAME_SETTING.get(settings);
 
         this.rstOnClose = TransportSettings.RST_ON_CLOSE.get(settings);

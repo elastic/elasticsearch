@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 
 public interface Transport extends LifecycleComponent {
 
@@ -163,17 +164,32 @@ public interface Transport extends LifecycleComponent {
         TransportResponseHandler<T> handler,
         Connection connection,
         String action,
-        long requestId
+        long requestId,
+        long ramBytesEstimate
     ) {};
 
     /**
      * A registry of response handlers for in-flight transport requests. Keeps a map of request IDs to their
      * relevant {@link Transport.ResponseContext} so that when a peer response is received, the appropriate handler can be invoked.
+     * <p>
+     * If a {@link CircuitBreaker} supplier is provided, each handler's {@link TransportResponseHandler#ramBytesUsed()} is reserved in
+     * that breaker when the handler is added and released when it is removed, so that excessive accumulation of in-flight handlers
+     * causes a {@link org.elasticsearch.common.breaker.CircuitBreakingException} rather than an {@link OutOfMemoryError}.
      */
     final class ResponseHandlers {
         private final Map<Long, ResponseContext<? extends TransportResponse>> handlers = ConcurrentCollections
             .newConcurrentMapWithAggressiveConcurrency();
         private final AtomicLong requestIdGenerator = new AtomicLong();
+        @Nullable
+        private final Supplier<CircuitBreaker> circuitBreaker;
+
+        public ResponseHandlers() {
+            this(null);
+        }
+
+        public ResponseHandlers(@Nullable Supplier<CircuitBreaker> circuitBreaker) {
+            this.circuitBreaker = circuitBreaker;
+        }
 
         /**
          * Returns <code>true</code> if the give request ID has a context associated with it.
@@ -187,7 +203,11 @@ public interface Transport extends LifecycleComponent {
          * <code>null</code> if no context is associated with this request ID.
          */
         public ResponseContext<? extends TransportResponse> remove(long requestId) {
-            return handlers.remove(requestId);
+            ResponseContext<? extends TransportResponse> context = handlers.remove(requestId);
+            if (context != null) {
+                releaseBytes(context);
+            }
+            return context;
         }
 
         /**
@@ -201,7 +221,9 @@ public interface Transport extends LifecycleComponent {
             String action
         ) {
             long requestId = newRequestId();
-            ResponseContext<? extends TransportResponse> holder = new ResponseContext<>(handler, connection, action, requestId);
+            long ramBytesEstimate = reserveBytes(handler, action);
+            ResponseContext<? extends TransportResponse> holder = new ResponseContext<>(handler, connection, action, requestId,
+                ramBytesEstimate);
             ResponseContext<? extends TransportResponse> existing = handlers.put(requestId, holder);
             assert existing == null : "request ID already in use: " + requestId;
             return holder;
@@ -225,6 +247,7 @@ public interface Transport extends LifecycleComponent {
                 if (predicate.test(holder)) {
                     ResponseContext<? extends TransportResponse> remove = handlers.remove(entry.getKey());
                     if (remove != null) {
+                        releaseBytes(holder);
                         holders.add(holder);
                     }
                 }
@@ -242,11 +265,29 @@ public interface Transport extends LifecycleComponent {
             final TransportMessageListener listener
         ) {
             ResponseContext<? extends TransportResponse> context = handlers.remove(requestId);
+            if (context != null) {
+                releaseBytes(context);
+            }
             listener.onResponseReceived(requestId, context);
             if (context == null) {
                 return null;
             } else {
                 return context.handler();
+            }
+        }
+
+        private long reserveBytes(TransportResponseHandler<? extends TransportResponse> handler, String action) {
+            if (circuitBreaker == null) {
+                return 0;
+            }
+            long bytes = handler.ramBytesUsed();
+            circuitBreaker.get().addEstimateBytesAndMaybeBreak(bytes, action);
+            return bytes;
+        }
+
+        private void releaseBytes(ResponseContext<? extends TransportResponse> context) {
+            if (circuitBreaker != null && context.ramBytesEstimate() > 0) {
+                circuitBreaker.get().addWithoutBreaking(-context.ramBytesEstimate());
             }
         }
     }

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.transport;
 
+import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -30,6 +31,15 @@ public interface TransportResponseHandler<T extends TransportResponse> extends W
     void handleResponse(T response);
 
     void handleException(TransportException exp);
+
+    /**
+     * Returns an estimate of the RAM bytes used by this handler instance, used for circuit breaker accounting of in-flight request
+     * handlers. The default is a shallow estimate of this object only; implementations that hold significant referenced state should
+     * override to provide a more accurate value.
+     */
+    default long ramBytesUsed() {
+        return RamUsageEstimator.shallowSizeOf(this);
+    }
 
     /**
      * Implementation of {@link TransportResponseHandler} that handles the empty response {@link ActionResponse.Empty}.

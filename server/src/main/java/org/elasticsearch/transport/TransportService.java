@@ -1546,6 +1546,11 @@ public class TransportService extends AbstractLifecycleComponent
         }
 
         @Override
+        public long ramBytesUsed() {
+            return org.apache.lucene.util.RamUsageEstimator.shallowSizeOf(this) + delegate.ramBytesUsed();
+        }
+
+        @Override
         public String toString() {
             return getClass().getSimpleName() + "[" + delegate.toString() + "]";
         }

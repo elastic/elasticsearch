@@ -287,11 +287,11 @@ public class OAuth2TokenCacheTests extends ESTestCase {
 
     // --- helpers ---
 
-    private OAuth2TokenCache createEnabledCache() {
+    private static OAuth2TokenCache createEnabledCache() {
         return createEnabledCache(Settings.EMPTY, mock(Client.class));
     }
 
-    private OAuth2TokenCache createEnabledCache(Settings settings, Client client) {
+    public static OAuth2TokenCache createEnabledCache(Settings settings, Client client) {
         var clusterService = Utils.mockClusterService(settings);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         var featureService = mock(FeatureService.class);

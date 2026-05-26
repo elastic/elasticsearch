@@ -49,7 +49,7 @@ public class ClearOAuth2TokenCacheAction extends BroadcastMessageAction<ClearOAu
     }
 
     @Override
-    protected void receiveMessage(ClearOAuth2TokenMessage message) {
+    public void receiveMessage(ClearOAuth2TokenMessage message) {
         cache.invalidateLocal(message.key());
     }
 

@@ -65,24 +65,18 @@ public interface WorkloadIdentityIssuerClient {
     }
 
     /**
-     * Parameters for a single {@code POST /token} request.
+     * Parameters for a single {@code POST /token} request. Only {@code audience} is caller-supplied;
+     * the issuer derives the other JWT claims from the mTLS connection.
      *
      * @param audience the {@code aud} claim to embed in the JWT, identifying the cloud-provider
-     *                 resource that will validate it (e.g. an AWS IAM role ARN, an Azure federated
-     *                 identity credential subject, a GCP workload identity pool audience).
-     * @param region   the logical region the caller is in, or {@code null} to let the issuer
-     *                 derive it from request metadata.
+     *                 resource that will validate it (e.g. an AWS IAM role ARN).
      */
-    record IssueTokenRequest(String audience, String region) {
+    record IssueTokenRequest(String audience) {
         public IssueTokenRequest {
             Objects.requireNonNull(audience, "audience must not be null");
             if (audience.isEmpty()) {
                 throw new IllegalArgumentException("audience must not be empty");
             }
-        }
-
-        public IssueTokenRequest(String audience) {
-            this(audience, null);
         }
     }
 
@@ -90,19 +84,14 @@ public interface WorkloadIdentityIssuerClient {
      * Successful response from the {@code POST /token} endpoint.
      *
      * @param token     the signed JWT in compact serialization form (header.payload.signature)
-     * @param issuedAt  the {@code iat} claim value, as an instant
      * @param expiresAt the {@code exp} claim value, as an instant
      */
-    record IssueTokenResponse(String token, Instant issuedAt, Instant expiresAt) {
+    record IssueTokenResponse(String token, Instant expiresAt) {
         public IssueTokenResponse {
             Objects.requireNonNull(token, "token must not be null");
-            Objects.requireNonNull(issuedAt, "issuedAt must not be null");
             Objects.requireNonNull(expiresAt, "expiresAt must not be null");
             if (token.isEmpty()) {
                 throw new IllegalArgumentException("token must not be empty");
-            }
-            if (expiresAt.isBefore(issuedAt)) {
-                throw new IllegalArgumentException("expiresAt [" + expiresAt + "] must not be before issuedAt [" + issuedAt + "]");
             }
         }
     }

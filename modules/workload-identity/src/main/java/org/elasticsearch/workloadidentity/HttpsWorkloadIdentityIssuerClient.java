@@ -58,17 +58,22 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  * POST <issuer-url>/token  HTTP/1.1
  * Content-Type: application/json
  *
- * { "audience": "<aud-value>", "region": "<region>" }
+ * { "aud": "<aud-value>" }
  * }</pre>
- * The {@code region} field is omitted when {@code null}.
+ * The {@code aud} value is opaque to the issuer and is copied verbatim into the JWT's {@code aud}
+ * claim; the customer's CSP validates it against their trust policy. The region the issuer uses to
+ * select a signing key and embed in the {@code iss} claim is derived from the SNI hostname the
+ * node connects to (see {@link WorkloadIdentityIssuerSettings#ISSUER_URL_SETTING}) and is not
+ * carried in the request body.
  *
  * <h2>Response shape</h2>
  * <pre>{@code
  * 200 OK
  * Content-Type: application/json
  *
- * { "token": "<jwt>", "issued_at_epoch_seconds": 1716000000, "expires_at_epoch_seconds": 1716003600 }
+ * { "token": "<jwt>", "expires_at": 1716003600 }
  * }</pre>
+ * The {@code expires_at} field is parsed as epoch seconds.
  */
 public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentityIssuerClient {
 
@@ -78,7 +83,7 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
 
     /**
      * Soft ceiling on the number of cached entries. The cardinality of {@link IssueTokenRequest}
-     * keys ({@code audience} + {@code region}) is structurally bounded today by node-scope
+     * keys ({@code audience}) is structurally bounded today by node-scope
      * configuration (data sources / credentials), and entries self-evict at
      * {@code expires_at - refresh_before_expiry}, so production traffic should never approach this
      * cap. It exists as defense-in-depth: any future caller that lets user-controlled values flow
@@ -94,26 +99,24 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
     static final int MAX_CACHE_ENTRIES = 1024;
 
     private static final ParseField TOKEN_FIELD = new ParseField("token");
-    private static final ParseField ISSUED_AT_FIELD = new ParseField("issued_at_epoch_seconds");
-    private static final ParseField EXPIRES_AT_FIELD = new ParseField("expires_at_epoch_seconds");
+    private static final ParseField EXPIRES_AT_FIELD = new ParseField("expires_at");
 
     /**
      * Parses the workload-identity-issuer JSON token response. Unknown fields are tolerated so the
      * issuer can introduce additive fields without breaking clients. Required-field absence and
      * type mismatches are surfaced by the parser as {@code XContentParseException} (a subclass of
      * {@link IllegalArgumentException}); the {@link IssueTokenResponse} canonical constructor
-     * performs cross-field validation ({@code expiresAt >= issuedAt}, non-empty token) and may
-     * itself throw {@link IllegalArgumentException}. Both are rewrapped in
-     * {@link WorkloadIdentityIssuerException} at the call site.
+     * performs field validation (non-empty token, non-null expiresAt) and may itself throw
+     * {@link IllegalArgumentException}. Both are rewrapped in {@link WorkloadIdentityIssuerException}
+     * at the call site.
      */
     private static final ConstructingObjectParser<IssueTokenResponse, Void> RESPONSE_PARSER = new ConstructingObjectParser<>(
         "workload_identity_issuer_response",
         true,
-        args -> new IssueTokenResponse((String) args[0], Instant.ofEpochSecond((Long) args[1]), Instant.ofEpochSecond((Long) args[2]))
+        args -> new IssueTokenResponse((String) args[0], Instant.ofEpochSecond((Long) args[1]))
     );
     static {
         RESPONSE_PARSER.declareString(constructorArg(), TOKEN_FIELD);
-        RESPONSE_PARSER.declareLong(constructorArg(), ISSUED_AT_FIELD);
         RESPONSE_PARSER.declareLong(constructorArg(), EXPIRES_AT_FIELD);
     }
 
@@ -340,10 +343,7 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
     private static byte[] renderRequestBody(IssueTokenRequest request) throws IOException {
         try (XContentBuilder builder = JsonXContent.contentBuilder()) {
             builder.startObject();
-            builder.field("audience", request.audience());
-            if (request.region() != null) {
-                builder.field("region", request.region());
-            }
+            builder.field("aud", request.audience());
             builder.endObject();
             return Strings.toString(builder).getBytes(StandardCharsets.UTF_8);
         }

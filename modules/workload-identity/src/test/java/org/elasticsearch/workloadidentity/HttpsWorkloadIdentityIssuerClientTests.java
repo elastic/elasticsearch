@@ -160,8 +160,7 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
                 final String body = """
                     {
                       "token": "header.payload.sig",
-                      "issued_at_epoch_seconds": 1716000000,
-                      "expires_at_epoch_seconds": 1716003600
+                      "expires_at": 1716003600
                     }
                     """;
                 final byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
@@ -176,16 +175,14 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
         };
 
         try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
-            final IssueTokenResponse response = awaitToken(harness, new IssueTokenRequest("arn:aws:iam::1:role/r", "us-east-1"));
+            final IssueTokenResponse response = awaitToken(harness, new IssueTokenRequest("arn:aws:iam::1:role/r"));
             assertEquals("header.payload.sig", response.token());
-            assertEquals(1716000000L, response.issuedAt().getEpochSecond());
             assertEquals(1716003600L, response.expiresAt().getEpochSecond());
         }
 
-        // The handler ran on a server-side thread; both captures must be visible because the
+        // The handler ran on a server-side thread; the capture must be visible because the
         // future completes only after the server has fully written its response.
-        assertThat(capturedBody.get(), containsString("\"audience\":\"arn:aws:iam::1:role/r\""));
-        assertThat(capturedBody.get(), containsString("\"region\":\"us-east-1\""));
+        assertThat(capturedBody.get(), containsString("\"aud\":\"arn:aws:iam::1:role/r\""));
 
         final Certificate[] certs = capturedClientCerts.get();
         assertNotNull("client cert chain must reach the server (mTLS handshake)", certs);
@@ -193,38 +190,6 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
         assertThat(certs[0], instanceOf(X509Certificate.class));
         final X509Certificate clientCert = (X509Certificate) certs[0];
         assertEquals("CN=client", clientCert.getSubjectX500Principal().getName());
-    }
-
-    /**
-     * The {@code region} field is omitted from the JSON body when the caller does not supply one.
-     */
-    public void testRegionIsOmittedWhenNotProvided() throws Exception {
-        final AtomicReference<String> capturedBody = new AtomicReference<>();
-        handler = exchange -> {
-            try {
-                capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
-                final byte[] bytes = """
-                    {
-                      "token": "abc.def.ghi",
-                      "issued_at_epoch_seconds": 100,
-                      "expires_at_epoch_seconds": 200
-                    }
-                    """.getBytes(StandardCharsets.UTF_8);
-                exchange.sendResponseHeaders(200, bytes.length);
-                try (OutputStream os = exchange.getResponseBody()) {
-                    os.write(bytes);
-                }
-            } catch (IOException e) {
-                throw new AssertionError(e);
-            }
-        };
-
-        try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
-            awaitToken(harness, new IssueTokenRequest("some-audience"));
-        }
-
-        assertThat(capturedBody.get(), containsString("\"audience\":\"some-audience\""));
-        assertThat("region must not leak into the wire format when null", capturedBody.get(), not(containsString("region")));
     }
 
     /**
@@ -247,7 +212,7 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
 
         try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
             final PlainActionFuture<IssueTokenResponse> future = new PlainActionFuture<>();
-            harness.client.issueToken(new IssueTokenRequest("aud", "us-east-1"), future);
+            harness.client.issueToken(new IssueTokenRequest("aud"), future);
             final ExecutionException ex = expectThrows(ExecutionException.class, () -> future.get(10, TimeUnit.SECONDS));
             assertThat(ex.getCause(), instanceOf(WorkloadIdentityIssuerException.class));
             final WorkloadIdentityIssuerException cause = (WorkloadIdentityIssuerException) ex.getCause();
@@ -281,7 +246,7 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
         try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
             MockLog.assertThatLogger(() -> {
                 final PlainActionFuture<IssueTokenResponse> future = new PlainActionFuture<>();
-                harness.client.issueToken(new IssueTokenRequest("aud", "us-east-1"), future);
+                harness.client.issueToken(new IssueTokenRequest("aud"), future);
                 final ExecutionException ex = expectThrows(ExecutionException.class, () -> future.get(10, TimeUnit.SECONDS));
                 assertThat(ex.getCause(), instanceOf(WorkloadIdentityIssuerException.class));
             },
@@ -312,7 +277,7 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
         };
 
         try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
-            final WorkloadIdentityIssuerException cause = awaitFailure(harness, new IssueTokenRequest("aud", "us-east-1"));
+            final WorkloadIdentityIssuerException cause = awaitFailure(harness, new IssueTokenRequest("aud"));
             assertEquals(200, cause.statusCode());
             assertThat(cause.getMessage(), containsString("empty response body"));
         }
@@ -326,7 +291,7 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
         respondWith200JsonBody("not json {{".getBytes(StandardCharsets.UTF_8));
 
         try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
-            final WorkloadIdentityIssuerException cause = awaitFailure(harness, new IssueTokenRequest("aud", "us-east-1"));
+            final WorkloadIdentityIssuerException cause = awaitFailure(harness, new IssueTokenRequest("aud"));
             assertEquals(200, cause.statusCode());
             assertThat(cause.getMessage(), containsString("failed to parse"));
             assertThat(cause.getCause(), instanceOf(IllegalArgumentException.class));
@@ -341,41 +306,15 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
     public void testMissingRequiredFieldFailsListener() throws Exception {
         respondWith200JsonBody("""
             {
-              "issued_at_epoch_seconds": 100,
-              "expires_at_epoch_seconds": 200
+              "expires_at": 200
             }
             """.getBytes(StandardCharsets.UTF_8));
 
         try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
-            final WorkloadIdentityIssuerException cause = awaitFailure(harness, new IssueTokenRequest("aud", "us-east-1"));
+            final WorkloadIdentityIssuerException cause = awaitFailure(harness, new IssueTokenRequest("aud"));
             assertEquals(200, cause.statusCode());
             assertThat(cause.getMessage(), containsString("failed to parse"));
             assertThat(cause.getCause(), instanceOf(IllegalArgumentException.class));
-        }
-    }
-
-    /**
-     * Cross-field validation in the {@link IssueTokenResponse} canonical constructor (here
-     * {@code expiresAt < issuedAt}) is caught by {@code parseSuccess} alongside parser exceptions.
-     * {@code ConstructingObjectParser} wraps the constructor failure in one or more
-     * {@code XContentParseException}s, so we walk the cause chain to find the original
-     * {@link IllegalArgumentException} rather than asserting a fixed nesting depth.
-     */
-    public void testExpiresBeforeIssuedFailsListener() throws Exception {
-        respondWith200JsonBody("""
-            {
-              "token": "header.payload.sig",
-              "issued_at_epoch_seconds": 200,
-              "expires_at_epoch_seconds": 100
-            }
-            """.getBytes(StandardCharsets.UTF_8));
-
-        try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
-            final WorkloadIdentityIssuerException cause = awaitFailure(harness, new IssueTokenRequest("aud", "us-east-1"));
-            assertEquals(200, cause.statusCode());
-            assertThat(cause.getMessage(), containsString("failed to parse"));
-            assertThat(cause.getCause(), instanceOf(IllegalArgumentException.class));
-            assertThat(rootCauseMessage(cause), containsString("must not be before"));
         }
     }
 
@@ -389,17 +328,15 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
         respondWith200JsonBody("""
             {
               "token": "header.payload.sig",
-              "issued_at_epoch_seconds": 1716000000,
-              "expires_at_epoch_seconds": 1716003600,
+              "expires_at": 1716003600,
               "future_field": "added by a newer issuer",
               "nested_future_field": { "k": 1 }
             }
             """.getBytes(StandardCharsets.UTF_8));
 
         try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
-            final IssueTokenResponse response = awaitToken(harness, new IssueTokenRequest("aud", "us-east-1"));
+            final IssueTokenResponse response = awaitToken(harness, new IssueTokenRequest("aud"));
             assertEquals("header.payload.sig", response.token());
-            assertEquals(1716000000L, response.issuedAt().getEpochSecond());
             assertEquals(1716003600L, response.expiresAt().getEpochSecond());
         }
     }
@@ -463,7 +400,7 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
 
         try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
             installCountingHandlerOver(callCount, farFutureEpochSecond);
-            final IssueTokenRequest request = new IssueTokenRequest("aud", "us-east-1");
+            final IssueTokenRequest request = new IssueTokenRequest("aud");
             final IssueTokenResponse first = awaitToken(harness, request);
             final IssueTokenResponse second = awaitToken(harness, request);
             assertEquals("second issuance must come from the cache", 1, callCount.get());
@@ -505,7 +442,7 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
         };
 
         try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
-            final IssueTokenRequest request = new IssueTokenRequest("aud", "us-east-1");
+            final IssueTokenRequest request = new IssueTokenRequest("aud");
 
             final int concurrency = randomIntBetween(4, 8);
             final List<PlainActionFuture<IssueTokenResponse>> futures = new ArrayList<>(concurrency);
@@ -547,10 +484,10 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
 
         try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
             installCountingHandlerOver(callCount, farFutureEpochSecond);
-            awaitToken(harness, new IssueTokenRequest("aud", "us-east-1"));
-            awaitToken(harness, new IssueTokenRequest("aud", "eu-west-1"));
-            awaitToken(harness, new IssueTokenRequest("aud", null));
-            assertEquals("each (audience, region) tuple is a distinct cache key", 3, callCount.get());
+            awaitToken(harness, new IssueTokenRequest("aud-a"));
+            awaitToken(harness, new IssueTokenRequest("aud-b"));
+            awaitToken(harness, new IssueTokenRequest("aud-c"));
+            assertEquals("each distinct audience is a distinct cache key", 3, callCount.get());
         }
     }
 
@@ -571,12 +508,12 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
 
         try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build(), cap)) {
             installCountingHandlerOver(callCount, farFutureEpochSecond);
-            final IssueTokenRequest cached = new IssueTokenRequest("aud-1", "us-east-1");
+            final IssueTokenRequest cached = new IssueTokenRequest("aud-1");
             awaitToken(harness, cached);
             assertEquals("first issuance fills the single-entry cache", 1, callCount.get());
 
             // First overflow: bypass cache, dispatch a fresh fetch, and emit a one-shot WARN.
-            final IssueTokenRequest overflow = new IssueTokenRequest("aud-2", "us-east-1");
+            final IssueTokenRequest overflow = new IssueTokenRequest("aud-2");
             MockLog.assertThatLogger(
                 () -> awaitTokenUnchecked(harness, overflow),
                 HttpsWorkloadIdentityIssuerClient.class,
@@ -625,7 +562,7 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
             )
         ) {
             handler = exchange -> respondWithToken(exchange, (System.currentTimeMillis() / 1000) + 1, callCount);
-            final IssueTokenRequest request = new IssueTokenRequest("aud", "us-east-1");
+            final IssueTokenRequest request = new IssueTokenRequest("aud");
             awaitToken(harness, request);
             assertEquals(1, callCount.get());
             assertBusy(() -> {
@@ -659,7 +596,7 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
         };
 
         try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
-            final IssueTokenRequest request = new IssueTokenRequest("aud", "us-east-1");
+            final IssueTokenRequest request = new IssueTokenRequest("aud");
             final PlainActionFuture<IssueTokenResponse> firstAttempt = new PlainActionFuture<>();
             harness.client.issueToken(request, firstAttempt);
             expectThrows(ExecutionException.class, () -> firstAttempt.get(10, TimeUnit.SECONDS));
@@ -696,7 +633,7 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
             // a no-op the second time around.)
             harness.manager.close();
 
-            final IssueTokenRequest request = new IssueTokenRequest("aud", "us-east-1");
+            final IssueTokenRequest request = new IssueTokenRequest("aud");
 
             final PlainActionFuture<IssueTokenResponse> first = new PlainActionFuture<>();
             harness.client.issueToken(request, first);
@@ -735,7 +672,7 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
             // the eviction schedule in HttpsWorkloadIdentityIssuerClient#scheduleEviction will be
             // the only call to the 3-arg schedule(...) overload and will hit the catch.
             throwingPool.rejecting.set(true);
-            final IssueTokenRequest request = new IssueTokenRequest("aud", "us-east-1");
+            final IssueTokenRequest request = new IssueTokenRequest("aud");
 
             awaitToken(harness, request);
             // The catch block runs tokens.remove(...) on the IO reactor thread after the future
@@ -762,12 +699,7 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
             callCount.incrementAndGet();
         }
         try {
-            final long issuedAtEpochSeconds = System.currentTimeMillis() / 1000;
-            final String body = "{\"token\":\"header.payload.sig\",\"issued_at_epoch_seconds\":"
-                + issuedAtEpochSeconds
-                + ",\"expires_at_epoch_seconds\":"
-                + expiresAtEpochSeconds
-                + "}";
+            final String body = "{\"token\":\"header.payload.sig\",\"expires_at\":" + expiresAtEpochSeconds + "}";
             final byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
             exchange.getResponseHeaders().add("Content-Type", "application/json");
             exchange.sendResponseHeaders(200, bytes.length);
@@ -838,20 +770,6 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
         final ExecutionException ex = expectThrows(ExecutionException.class, () -> future.get(10, TimeUnit.SECONDS));
         assertThat(ex.getCause(), instanceOf(WorkloadIdentityIssuerException.class));
         return (WorkloadIdentityIssuerException) ex.getCause();
-    }
-
-    /**
-     * Walks the cause chain of {@code throwable} and returns the deepest non-null message. Used to
-     * assert on the original {@link IllegalArgumentException} from the {@code IssueTokenResponse}
-     * canonical constructor without being coupled to how many {@code XContentParseException}
-     * wrappers {@code ConstructingObjectParser} happens to add along the way.
-     */
-    private static String rootCauseMessage(Throwable throwable) {
-        Throwable current = throwable;
-        while (current.getCause() != null && current.getCause() != current) {
-            current = current.getCause();
-        }
-        return current.getMessage();
     }
 
     /**

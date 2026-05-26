@@ -33,7 +33,8 @@ public final class WorkloadIdentityIssuerSettings {
 
     /**
      * Base URL of the workload-identity-issuer internal token endpoint. Must be {@code https}.
-     * Token requests are issued as {@code POST <base-url>/token}.
+     * Token requests are issued as {@code POST <base-url>/token}. Elasticsearch treats the URL
+     * as opaque; the issuer derives any deployment-specific routing from the SNI hostname.
      */
     public static final Setting<String> ISSUER_URL_SETTING = Setting.simpleString(SETTING_PREFIX + "issuer.url", Property.NodeScope);
 

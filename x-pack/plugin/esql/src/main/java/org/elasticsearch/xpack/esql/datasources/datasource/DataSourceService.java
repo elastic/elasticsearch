@@ -80,10 +80,7 @@ public class DataSourceService {
         return DataSourceMetadata.get(projectMetadata);
     }
 
-    /**
-     * Validate the put-data-source request and build the domain {@link DataSource}. Callable from the
-     * coordinator (pre-check) and from inside the CAS task (authoritative re-validate).
-     */
+    /** Validate the put-data-source request and build the domain {@link DataSource}. Runs coordinator-side. */
     public DataSource validatePutDataSource(PutDataSourceAction.Request request) {
         DataSourceValidator validator = validatorsByType.get(request.type());
         if (validator == null) {

@@ -22,6 +22,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 import org.elasticsearch.xpack.inference.Utils;
 import org.elasticsearch.xpack.inference.common.InferenceIdAndProject;
+import org.elasticsearch.xpack.inference.common.InferenceIdAndProjectTests;
 import org.junit.After;
 import org.junit.Before;
 
@@ -39,12 +40,20 @@ public class ClearOAuth2TokenCacheActionTests extends AbstractBWCWireSerializati
     ClearOAuth2TokenCacheAction.ClearOAuth2TokenMessage> {
 
     private ThreadPool threadPool;
-    private ClusterService clusterService;
+    private OAuth2TokenCache cache;
+    private ClearOAuth2TokenCacheAction action;
 
     @Before
     public void init() throws Exception {
-        clusterService = mockClusterService();
         threadPool = createThreadPool(inferenceUtilityExecutors());
+        ClusterService clusterService = mockClusterService();
+        cache = OAuth2TokenCacheTests.createEnabledCache(Settings.EMPTY, mock(Client.class));
+        action = new ClearOAuth2TokenCacheAction(
+            MockUtils.setupTransportServiceWithThreadpoolExecutor(),
+            clusterService,
+            mock(ActionFilters.class),
+            cache
+        );
     }
 
     @After
@@ -59,7 +68,7 @@ public class ClearOAuth2TokenCacheActionTests extends AbstractBWCWireSerializati
 
     @Override
     protected ClearOAuth2TokenCacheAction.ClearOAuth2TokenMessage createTestInstance() {
-        return new ClearOAuth2TokenCacheAction.ClearOAuth2TokenMessage(randomKey());
+        return new ClearOAuth2TokenCacheAction.ClearOAuth2TokenMessage(InferenceIdAndProjectTests.randomInstance());
     }
 
     @Override
@@ -67,16 +76,11 @@ public class ClearOAuth2TokenCacheActionTests extends AbstractBWCWireSerializati
         ClearOAuth2TokenCacheAction.ClearOAuth2TokenMessage instance
     ) throws IOException {
         return new ClearOAuth2TokenCacheAction.ClearOAuth2TokenMessage(
-            randomValueOtherThan(instance.key(), ClearOAuth2TokenCacheActionTests::randomKey)
+            randomValueOtherThan(instance.key(), InferenceIdAndProjectTests::randomInstance)
         );
     }
 
     public void testReceiveMessage_RemovesEntryFromCache() {
-        var cache = OAuth2TokenCacheTests.createEnabledCache(Settings.EMPTY, mock(Client.class));
-
-        var transportService = MockUtils.setupTransportServiceWithThreadpoolExecutor();
-        var action = new ClearOAuth2TokenCacheAction(transportService, clusterService, mock(ActionFilters.class), cache);
-
         var token = new CachedToken(randomAlphaOfLength(20), Instant.now().plus(Duration.ofHours(1)));
         var fetchCount = new AtomicInteger();
         OAuth2TokenSupplier supplier = listener -> {
@@ -102,9 +106,31 @@ public class ClearOAuth2TokenCacheActionTests extends AbstractBWCWireSerializati
         assertThat(retrievedToken, is(token));
     }
 
-    private static InferenceIdAndProject randomKey() {
-        var projectId = randomBoolean() ? ProjectId.DEFAULT : ProjectId.fromId(randomAlphaOfLength(8));
-        return new InferenceIdAndProject(randomAlphaOfLength(10), projectId);
+    public void testReceiveMessage_DoesNotModifyCacheForUnknownKey() {
+        var token = new CachedToken(randomAlphaOfLength(20), Instant.now().plus(Duration.ofHours(1)));
+        var fetchCount = new AtomicInteger();
+        OAuth2TokenSupplier supplier = listener -> {
+            fetchCount.incrementAndGet();
+            listener.onResponse(token);
+        };
+
+        var inferenceId1 = "inference-id1";
+        var future1 = new TestPlainActionFuture<CachedToken>();
+        cache.getToken(inferenceId1, supplier, future1);
+        var retrievedToken = future1.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+        assertThat(fetchCount.get(), is(1));
+        assertThat(retrievedToken, is(token));
+
+        // Invalidating a non-existent key should not affect the existing cache entry for inferenceId1
+        action.receiveMessage(
+            new ClearOAuth2TokenCacheAction.ClearOAuth2TokenMessage(new InferenceIdAndProject("inference-id2", ProjectId.DEFAULT))
+        );
+
+        var future2 = new TestPlainActionFuture<CachedToken>();
+        cache.getToken(inferenceId1, supplier, future2);
+        future2.actionGet(ESTestCase.TEST_REQUEST_TIMEOUT);
+        assertThat(fetchCount.get(), is(1));
+        assertThat(retrievedToken, is(token));
     }
 
     @Override

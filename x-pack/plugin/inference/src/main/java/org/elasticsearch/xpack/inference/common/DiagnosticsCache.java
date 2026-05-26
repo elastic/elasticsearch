@@ -17,13 +17,13 @@ import org.elasticsearch.xpack.core.inference.action.GetInferenceDiagnosticsActi
  * their specific feature flag. Safe defaults (count = 0, empty stats) are returned automatically
  * when {@link #cacheEnabled()} is false.
  */
-public abstract class DiagnosticsCache<K, V> {
+public abstract class DiagnosticsCache<V> {
 
-    private static final Cache.Stats EMPTY = new Cache.Stats(0, 0, 0);
+    static final Cache.Stats EMPTY = new Cache.Stats(0, 0, 0);
 
-    protected final Cache<K, V> cache;
+    protected final Cache<InferenceIdAndProject, V> cache;
 
-    protected DiagnosticsCache(Cache<K, V> cache) {
+    protected DiagnosticsCache(Cache<InferenceIdAndProject, V> cache) {
         this.cache = cache;
     }
 

@@ -94,7 +94,7 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
         );
     }
 
-    private static GetInferenceDiagnosticsAction.NodeResponse.Stats toCacheStats(DiagnosticsCache<?, ?> cache) {
+    private static GetInferenceDiagnosticsAction.NodeResponse.Stats toCacheStats(DiagnosticsCache<?> cache) {
         if (cache.cacheEnabled() == false) {
             return null;
         }

@@ -35,7 +35,7 @@ import java.util.List;
  * The cache is invalidated via the {@link ClearInferenceEndpointCacheAction} so that every node gets the invalidation
  * message.
  */
-public class InferenceEndpointRegistry extends DiagnosticsCache<InferenceIdAndProject, Model> {
+public class InferenceEndpointRegistry extends DiagnosticsCache<Model> {
 
     /**
      * The maximum number of keys to store within the cache.

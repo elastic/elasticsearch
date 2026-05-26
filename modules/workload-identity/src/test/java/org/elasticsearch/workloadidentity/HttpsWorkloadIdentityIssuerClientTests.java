@@ -17,6 +17,7 @@ import com.sun.net.httpserver.HttpsServer;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.logging.Loggers;
@@ -149,6 +150,7 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
     public void testSuccessfulTokenIssuance() throws Exception {
         final AtomicReference<String> capturedBody = new AtomicReference<>();
         final AtomicReference<Certificate[]> capturedClientCerts = new AtomicReference<>();
+        final long expiresAtSeconds = (System.currentTimeMillis() / 1000) + 3_600;
         handler = exchange -> {
             try {
                 capturedClientCerts.set(exchange.getSSLSession().getPeerCertificates());
@@ -157,13 +159,12 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
             }
             try {
                 capturedBody.set(new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8));
-                final String body = """
+                final byte[] bytes = """
                     {
                       "token": "header.payload.sig",
-                      "expires_at": 1716003600
+                      "expires_at": %s
                     }
-                    """;
-                final byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+                    """.formatted(expiresAtSeconds).getBytes(StandardCharsets.UTF_8);
                 exchange.getResponseHeaders().add("Content-Type", "application/json");
                 exchange.sendResponseHeaders(200, bytes.length);
                 try (OutputStream os = exchange.getResponseBody()) {
@@ -177,7 +178,7 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
         try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
             final IssueTokenResponse response = awaitToken(harness, new IssueTokenRequest("arn:aws:iam::1:role/r"));
             assertEquals("header.payload.sig", response.token());
-            assertEquals(1716003600L, response.expiresAt().getEpochSecond());
+            assertEquals(expiresAtSeconds, response.expiresAt().getEpochSecond());
         }
 
         // The handler ran on a server-side thread; the capture must be visible because the
@@ -319,25 +320,99 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
     }
 
     /**
+     * A response whose {@code expires_at} is clearly in the past is rejected by
+     * {@code validateExpiry}.
+     */
+    public void testExpiresAtInThePastFailsListener() throws Exception {
+        final long pastEpochSeconds = (System.currentTimeMillis() / 1000) - 60;
+        respondWith200JsonBody("""
+            {
+              "token": "header.payload.sig",
+              "expires_at": %s
+            }
+            """.formatted(pastEpochSeconds).getBytes(StandardCharsets.UTF_8));
+
+        try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
+            final WorkloadIdentityIssuerException cause = awaitFailure(harness, new IssueTokenRequest("aud"));
+            assertEquals(200, cause.statusCode());
+            assertThat(cause.getMessage(), containsString("is in the past"));
+        }
+    }
+
+    /**
+     * A response whose {@code expires_at} is more than {@link HttpsWorkloadIdentityIssuerClient#MAX_TOKEN_LIFETIME_SECONDS}
+     * in the future is rejected by the sanity ceiling in {@code validateExpiry}. Primarily a guard
+     * against response-encoding bugs (e.g. epoch-millis read as epoch-seconds) and arithmetic-overflow
+     * values in downstream eviction scheduling.
+     */
+    public void testExpiresAtTooFarInFutureFailsListener() throws Exception {
+        final long farFutureEpochSeconds = (System.currentTimeMillis() / 1000)
+            + HttpsWorkloadIdentityIssuerClient.MAX_TOKEN_LIFETIME_SECONDS + 60;
+        respondWith200JsonBody("""
+            {
+              "token": "header.payload.sig",
+              "expires_at": %s
+            }
+            """.formatted(farFutureEpochSeconds).getBytes(StandardCharsets.UTF_8));
+
+        try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
+            final WorkloadIdentityIssuerException cause = awaitFailure(harness, new IssueTokenRequest("aud"));
+            assertEquals(200, cause.statusCode());
+            assertThat(cause.getMessage(), containsString("exceeds the maximum acceptable lifetime"));
+        }
+    }
+
+    /**
+     * A response whose {@code expires_at} parses to a valid {@code long} but is outside the range
+     * accepted by {@link java.time.Instant#ofEpochSecond(long)} surfaces as
+     * {@link WorkloadIdentityIssuerException} with the {@link java.time.DateTimeException} preserved
+     * in the cause chain. The lambda's {@code DateTimeException} is wrapped by
+     * {@code ConstructingObjectParser} as an {@code XContentParseException} (which extends
+     * {@code IllegalArgumentException}), so the test walks the cause chain rather than asserting on
+     * the immediate cause type.
+     */
+    public void testExpiresAtBeyondInstantRangeFailsListener() throws Exception {
+        // Long.MAX_VALUE - 999 is well beyond Instant.MAX.getEpochSecond() (~3.15e16), but well
+        // within long range, so the JSON parser accepts it and Instant.ofEpochSecond rejects it.
+        respondWith200JsonBody("""
+            {
+              "token": "header.payload.sig",
+              "expires_at": 9223372036854774808
+            }
+            """.getBytes(StandardCharsets.UTF_8));
+
+        try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
+            final WorkloadIdentityIssuerException cause = awaitFailure(harness, new IssueTokenRequest("aud"));
+            assertEquals(200, cause.statusCode());
+            assertThat(cause.getMessage(), containsString("failed to parse"));
+            assertTrue(
+                "DateTimeException must appear somewhere in the cause chain",
+                ExceptionsHelper.unwrapCausesAndSuppressed(cause, t -> t instanceof java.time.DateTimeException).isPresent()
+            );
+        }
+    }
+
+    /**
      * The response parser is configured with {@code ignoreUnknownFields=true} so the issuer can
      * introduce additive fields without breaking older clients. This test pins that contract by
      * injecting a payload with an extra top-level field and asserting the known fields still parse
      * cleanly.
      */
     public void testUnknownFieldsInSuccessResponseAreIgnored() throws Exception {
+        final long expiresAtSeconds = (System.currentTimeMillis() / 1000) + 3_600;
         respondWith200JsonBody("""
             {
               "token": "header.payload.sig",
-              "expires_at": 1716003600,
+              "expires_at": %s,
               "future_field": "added by a newer issuer",
-              "nested_future_field": { "k": 1 }
+              "nested_future_field": {"k": 1}
             }
-            """.getBytes(StandardCharsets.UTF_8));
+            """.formatted(expiresAtSeconds).getBytes(StandardCharsets.UTF_8));
 
         try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
             final IssueTokenResponse response = awaitToken(harness, new IssueTokenRequest("aud"));
             assertEquals("header.payload.sig", response.token());
-            assertEquals(1716003600L, response.expiresAt().getEpochSecond());
+            assertEquals(expiresAtSeconds, response.expiresAt().getEpochSecond());
         }
     }
 

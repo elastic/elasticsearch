@@ -98,6 +98,15 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
      */
     static final int MAX_CACHE_ENTRIES = 1024;
 
+    /**
+     * Sanity ceiling on the lifetime of an issued token. A response whose {@code expires_at} is
+     * more than this far in the future is rejected as a parse failure. Guards against
+     * response-encoding bugs (e.g. epoch-millis read as epoch-seconds) and against values that
+     * would overflow {@link Instant#toEpochMilli()} downstream. Not a policy bound on issuer
+     * lifetime.
+     */
+    static final long MAX_TOKEN_LIFETIME_SECONDS = TimeValue.timeValueDays(365).seconds();
+
     private static final ParseField TOKEN_FIELD = new ParseField("token");
     private static final ParseField EXPIRES_AT_FIELD = new ParseField("expires_at");
 
@@ -282,6 +291,8 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
     }
 
     private void scheduleEviction(IssueTokenRequest request, SubscribableListener<IssueTokenResponse> entry, IssueTokenResponse response) {
+        // toEpochMilli() is safe here by construction: every cached response has passed
+        // validateExpiry, which caps expiresAt within MAX_TOKEN_LIFETIME_SECONDS of now.
         final long delayMillis = Math.max(0L, response.expiresAt().toEpochMilli() - System.currentTimeMillis() - refreshBeforeExpiryMillis);
         try {
             threadPool.schedule(() -> tokens.remove(request, entry), TimeValue.timeValueMillis(delayMillis), threadPool.generic());
@@ -382,12 +393,41 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
         if (body.length == 0) {
             throw new WorkloadIdentityIssuerException("empty response body from workload-identity-issuer", status);
         }
+        final IssueTokenResponse response;
         try (XContentParser parser = JsonXContent.jsonXContent.createParser(XContentParserConfiguration.EMPTY, body)) {
-            return RESPONSE_PARSER.parse(parser, null);
+            response = RESPONSE_PARSER.parse(parser, null);
         } catch (IllegalArgumentException e) {
-            // Covers both XContentParseException (parser-level: missing field, wrong type) and any
-            // IllegalArgumentException raised by the IssueTokenResponse canonical constructor.
+            // Covers XContentParseException (parser-level: missing field, wrong type), any
+            // IllegalArgumentException raised by the IssueTokenResponse canonical constructor, and
+            // (via the XContentParseException wrapper) DateTimeException raised by Instant.ofEpochSecond
+            // when the parsed epoch-seconds value is outside the representable Instant range.
             throw new WorkloadIdentityIssuerException("failed to parse workload-identity-issuer response: " + e.getMessage(), status, e);
+        }
+        validateExpiry(response, status);
+        return response;
+    }
+
+    /**
+     * Sanity-checks {@code expires_at} for encoding bugs (e.g. epoch-millis read as epoch-seconds),
+     * not freshness.
+     */
+    private static void validateExpiry(IssueTokenResponse response, int status) {
+        final long expiresAtSeconds = response.expiresAt().getEpochSecond();
+        final long nowSeconds = System.currentTimeMillis() / 1000;
+        if (expiresAtSeconds < nowSeconds) {
+            throw new WorkloadIdentityIssuerException(
+                "workload-identity-issuer returned a token whose expires_at [" + response.expiresAt() + "] is in the past",
+                status
+            );
+        }
+        if (expiresAtSeconds - nowSeconds > MAX_TOKEN_LIFETIME_SECONDS) {
+            throw new WorkloadIdentityIssuerException(
+                "workload-identity-issuer returned a token whose expires_at ["
+                    + response.expiresAt()
+                    + "] exceeds the maximum acceptable lifetime of "
+                    + TimeValue.timeValueSeconds(MAX_TOKEN_LIFETIME_SECONDS),
+                status
+            );
         }
     }
 

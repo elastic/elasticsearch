@@ -261,7 +261,7 @@ public record TestConfiguration(
             new ParameterHelp(
                 "auto_calibrate",
                 "boolean",
-                "IVF (bbq_disk): enable per-segment manifold calibration on flush and merge hooks (experimental; "
+                "ivf only: enable per-segment manifold calibration on flush and merge hooks (experimental; "
                     + "requires sufficient vectors per segment for calibration to take effect)."
             ),
             new ParameterHelp("num_candidates", "array[int]", "HNSW: number of candidates (efSearch) to consider per query."),

@@ -770,14 +770,13 @@ public class KnnSearcher {
             float mappingOversample = searchParameters.overSamplingFactor() > 0f
                 ? searchParameters.overSamplingFactor()
                 : DenseVectorFieldMapper.DEFAULT_OVERSAMPLE;
-            Float queryOversample = searchParameters.overSamplingFactor() > 1f ? searchParameters.overSamplingFactor() : null;
             int quantBits = testConfiguration.quantizeBits() != null ? testConfiguration.quantizeBits() : 4;
             var ivfQueryConfigResolver = IvfQueryConfigResolver.from(
                 testConfiguration.autoCalibrate(),
                 doPrecondition,
                 quantBits,
                 mappingOversample,
-                queryOversample
+                null // we don't differentiate between mapping and query oversample here
             );
             if (sliced) {
                 knnQuery = new IVFKnnFloatSlicedVectorQuery(

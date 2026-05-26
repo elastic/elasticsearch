@@ -531,7 +531,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("[routing] cannot be used with point in time", validationErrors.validationErrors().get(0));
         }
-        {
+        if (SliceIndexing.SLICE_FEATURE_FLAG.isEnabled()) {
             SearchRequest searchRequest = new SearchRequest().searchSlice("slice-1")
                 .source(new SearchSourceBuilder().pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY)));
             ActionRequestValidationException validationErrors = searchRequest.validate();
@@ -550,6 +550,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     }
 
     public void testSearchSliceDerivesRoutingAndProvenance() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest();
         request.routing("manual");
         request.searchSlice("s1,s2");
@@ -564,6 +565,7 @@ public class SearchRequestTests extends AbstractSearchTestCase {
     }
 
     public void testClearingSearchSliceClearsDerivedRouting() {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         SearchRequest request = new SearchRequest().searchSlice("s1");
         request.searchSlice(null);
         assertNull(request.searchSlice());

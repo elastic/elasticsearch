@@ -103,4 +103,18 @@ public interface IpLocationInfoCollector {
     default void vpn(boolean val) {}
 
     default void service(String service) {}
+
+    default void anycast(boolean val) {}
+
+    default void mobile(boolean val) {}
+
+    default void satellite(boolean val) {}
+
+    default void dmaCode(String code) {}
+
+    default void geonameId(String id) {}
+
+    default void asnChangedDate(String date) {}
+
+    default void geoChangedDate(String date) {}
 }

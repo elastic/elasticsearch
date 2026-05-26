@@ -384,6 +384,8 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
             entry("ipinfo standard_privacy.mmdb", "privacy"),
 
             // database_type strings from test files:
+            // ipinfo_plus_sample.mmdb
+            entry("ipinfo bundle_location_plus_sample.mmdb", "bundle_location_plus"),
             // ip_asn_sample.mmdb
             entry("ipinfo ip_asn_sample.mmdb", "asn"),
             // ip_country_asn_sample.mmdb
@@ -433,6 +435,223 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         }
     }
 
+    public void testPlusStandard() {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
+        String databaseName = "ipinfo_plus_sample.mmdb";
+        String ip = "1.0.0.0";
+        assertExpectedLookupResults(
+            databaseName,
+            ip,
+            new IpinfoIpDataLookups.Plus(Database.IpinfoPlus.properties()),
+            Map.ofEntries(
+                entry("ip", ip),
+                entry("network", "1.0.0.0/31"),
+                entry("city_name", "Sydney"),
+                entry("region_name", "New South Wales"),
+                entry("region_iso_code", "NSW"),
+                entry("country_name", "Australia"),
+                entry("country_iso_code", "AU"),
+                entry("continent_name", "Oceania"),
+                entry("continent_code", "OC"),
+                entry("location", Map.of("lat", -33.86785, "lon", 151.20732)),
+                entry("timezone", "Australia/Sydney"),
+                entry("postal_code", "1001"),
+                entry("geoname_id", "2147714"),
+                entry("accuracy_radius", 5000),
+                entry("asn", 13335L),
+                entry("organization_name", "Cloudflare, Inc."),
+                entry("domain", "cloudflare.com"),
+                entry("type", "hosting"),
+                entry("asn_changed_date", "2021-05-01"),
+                entry("geo_changed_date", "2026-02-08"),
+                entry("anonymous", false),
+                entry("anycast", true),
+                entry("hosting", true),
+                entry("mobile", false),
+                entry("satellite", false),
+                entry("proxy", false),
+                entry("relay", false),
+                entry("tor", false),
+                entry("vpn", false)
+            ),
+            Map.ofEntries(
+                entry("asn", "asn"),
+                entry("as_name", "organization_name"),
+                entry("as_domain", "domain"),
+                entry("as_type", "type"),
+                entry("as_changed", "asn_changed_date"),
+                entry("geo_changed", "geo_changed_date"),
+                entry("city", "city_name"),
+                entry("region", "region_name"),
+                entry("region_code", "region_iso_code"),
+                entry("country", "country_name"),
+                entry("country_code", "country_iso_code"),
+                entry("continent", "continent_name"),
+                entry("continent_code", "continent_code"),
+                entry("latitude", "location"),
+                entry("longitude", "location"),
+                entry("timezone", "timezone"),
+                entry("postal_code", "postal_code"),
+                entry("geoname_id", "geoname_id"),
+                entry("radius", "accuracy_radius"),
+                entry("is_anonymous", "anonymous"),
+                entry("is_anycast", "anycast"),
+                entry("is_hosting", "hosting"),
+                entry("is_mobile", "mobile"),
+                entry("is_satellite", "satellite"),
+                entry("is_proxy", "proxy"),
+                entry("is_relay", "relay"),
+                entry("is_tor", "tor"),
+                entry("is_vpn", "vpn")
+            ),
+            Set.of("ip", "location", "network"),
+            Set.of()
+        );
+    }
+
+    public void testPlusAnonymousVpn() {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
+        String databaseName = "ipinfo_plus_sample.mmdb";
+        String ip = "1.0.0.2";
+        assertExpectedLookupResults(
+            databaseName,
+            ip,
+            new IpinfoIpDataLookups.Plus(Database.IpinfoPlus.properties()),
+            Map.ofEntries(
+                entry("ip", ip),
+                entry("network", "1.0.0.2/32"),
+                entry("city_name", "Sydney"),
+                entry("region_name", "New South Wales"),
+                entry("region_iso_code", "NSW"),
+                entry("country_name", "Australia"),
+                entry("country_iso_code", "AU"),
+                entry("continent_name", "Oceania"),
+                entry("continent_code", "OC"),
+                entry("location", Map.of("lat", -33.86785, "lon", 151.20732)),
+                entry("timezone", "Australia/Sydney"),
+                entry("postal_code", "1001"),
+                entry("geoname_id", "2147714"),
+                entry("accuracy_radius", 5000),
+                entry("asn", 13335L),
+                entry("organization_name", "Cloudflare, Inc."),
+                entry("domain", "cloudflare.com"),
+                entry("type", "hosting"),
+                entry("asn_changed_date", "2021-05-01"),
+                entry("geo_changed_date", "2026-02-08"),
+                entry("anonymous", true),
+                entry("anycast", true),
+                entry("hosting", true),
+                entry("mobile", false),
+                entry("satellite", false),
+                entry("proxy", false),
+                entry("relay", false),
+                entry("tor", false),
+                entry("vpn", true)
+            ),
+            Map.ofEntries(
+                entry("asn", "asn"),
+                entry("as_name", "organization_name"),
+                entry("as_domain", "domain"),
+                entry("as_type", "type"),
+                entry("as_changed", "asn_changed_date"),
+                entry("geo_changed", "geo_changed_date"),
+                entry("city", "city_name"),
+                entry("region", "region_name"),
+                entry("region_code", "region_iso_code"),
+                entry("country", "country_name"),
+                entry("country_code", "country_iso_code"),
+                entry("continent", "continent_name"),
+                entry("continent_code", "continent_code"),
+                entry("latitude", "location"),
+                entry("longitude", "location"),
+                entry("timezone", "timezone"),
+                entry("postal_code", "postal_code"),
+                entry("geoname_id", "geoname_id"),
+                entry("radius", "accuracy_radius"),
+                entry("is_anonymous", "anonymous"),
+                entry("is_anycast", "anycast"),
+                entry("is_hosting", "hosting"),
+                entry("is_mobile", "mobile"),
+                entry("is_satellite", "satellite"),
+                entry("is_proxy", "proxy"),
+                entry("is_relay", "relay"),
+                entry("is_tor", "tor"),
+                entry("is_vpn", "vpn")
+            ),
+            Set.of("ip", "location", "network"),
+            Set.of()
+        );
+    }
+
+    public void testPlusInvariants() {
+        assumeFalse("https://github.com/elastic/elasticsearch/issues/114266", Constants.WINDOWS);
+
+        final Set<String> knownColumns = Set.of(
+            "asn",
+            "as_name",
+            "as_domain",
+            "as_type",
+            "as_changed",
+            "geo_changed",
+            "city",
+            "region",
+            "region_code",
+            "country",
+            "country_code",
+            "continent",
+            "continent_code",
+            "latitude",
+            "longitude",
+            "timezone",
+            "postal_code",
+            "geoname_id",
+            "radius",
+            "is_anonymous",
+            "is_anycast",
+            "is_hosting",
+            "is_mobile",
+            "is_satellite",
+            "is_proxy",
+            "is_relay",
+            "is_tor",
+            "is_vpn"
+        );
+
+        Path databasePath = resolveSharedDatabase(sharedDbDir, "ipinfo/ipinfo_plus_sample.mmdb");
+        assertDatabaseInvariants(databasePath, (ip, row) -> {
+            for (String key : row.keySet()) {
+                assertThat("unexpected column [" + key + "]", knownColumns.contains(key), is(true));
+            }
+
+            if (row.containsKey("asn")) {
+                String asn = (String) row.get("asn");
+                assertThat(asn, startsWith("AS"));
+                Long parsed = parseAsn(asn);
+                assertThat(parsed, notNullValue());
+            }
+
+            assertThat(row.get("latitude"), notNullValue());
+            assertThat(row.get("longitude"), notNullValue());
+            assertThat(row.get("radius"), notNullValue());
+
+            for (String booleanColumn : Set.of(
+                "is_anonymous",
+                "is_anycast",
+                "is_hosting",
+                "is_mobile",
+                "is_satellite",
+                "is_proxy",
+                "is_relay",
+                "is_tor",
+                "is_vpn"
+            )) {
+                Object val = row.get(booleanColumn);
+                assertThat(booleanColumn + " should be non-null", val, notNullValue());
+                assertThat(booleanColumn + " should be Boolean", val instanceof Boolean, is(true));
+            }
+        });
+    }
+
     public void testDatabaseTypeParsing() throws IOException {
         // this test is a little bit overloaded -- it's testing that we're getting the expected sorts of
         // database_type strings from these files, *and* it's also testing that we dispatch on those strings
@@ -448,6 +667,7 @@ public class IpinfoIpDataLookupsTests extends ESTestCase {
         assertThat(parseDatabaseFromType("asn_sample.mmdb"), is(Database.AsnV2));
         assertThat(parseDatabaseFromType("ip_country_sample.mmdb"), is(Database.CountryV2));
         assertThat(parseDatabaseFromType("privacy_detection_sample.mmdb"), is(Database.PrivacyDetection));
+        assertThat(parseDatabaseFromType("ipinfo_plus_sample.mmdb"), is(Database.IpinfoPlus));
 
         // additional cases where we're bailing early on types we don't support
         assertThat(IpDataLookupFactories.getDatabase("ipinfo ip_country_asn_sample.mmdb"), nullValue());

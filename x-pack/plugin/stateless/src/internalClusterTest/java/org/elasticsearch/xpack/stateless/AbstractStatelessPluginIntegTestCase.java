@@ -239,6 +239,7 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         final var plugins = new ArrayList<Class<? extends Plugin>>();
         plugins.addAll(super.nodePlugins());
         plugins.addAll(getRequiredNodePlugins(addMockFsRepository()));
+        plugins.add(CacheBoostPreferenceSettingsPlugin.class);
         return List.copyOf(plugins);
     }
 
@@ -246,7 +247,6 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         var plugins = new ArrayList<Class<? extends Plugin>>();
         plugins.add(BlobCachePlugin.class);
         plugins.add(TestUtils.StatelessPluginWithTrialLicense.class);
-        plugins.add(CacheBoostPreferenceSettingsPlugin.class);
         plugins.add(MockTransportService.TestPlugin.class);
         plugins.add(SystemIndexTestPlugin.class);
         if (addMockFsRepository) {

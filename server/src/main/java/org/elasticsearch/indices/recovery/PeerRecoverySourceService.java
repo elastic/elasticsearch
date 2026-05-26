@@ -481,13 +481,12 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
         void awaitEmpty() {
             assert lifecycle.stoppedOrClosed();
-            if (empty()) {
+            if (isEmpty()) {
                 return;
             }
-
             final CountDownLatch emptyLatch = new CountDownLatch(1);
             final RecoveryScheduleListener listener = () -> {
-                if (empty()) {
+                if (isEmpty()) {
                     emptyLatch.countDown();
                 }
             };
@@ -504,7 +503,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
         }
 
-        private synchronized boolean empty() {
+        private synchronized boolean isEmpty() {
             return activeRecoveries.isEmpty() && pendingRecoveries.isEmpty();
         }
 

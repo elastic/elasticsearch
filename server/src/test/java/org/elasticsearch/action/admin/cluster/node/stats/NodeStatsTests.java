@@ -658,7 +658,7 @@ public class NodeStatsTests extends ESTestCase {
         recoveryStats.addThrottleTime(++iota);
         indicesCommonStats.getRecoveryStats().add(recoveryStats);
 
-        indicesCommonStats.getBulk().add(new BulkStats(++iota, ++iota, ++iota, ++iota, ++iota, ++iota));
+        indicesCommonStats.getBulk().add(new BulkStats(++iota, ++iota, ++iota, ++iota, ++iota));
         indicesCommonStats.getShards().add(new ShardCountStats(++iota));
 
         indicesCommonStats.getDenseVectorStats().add(new DenseVectorStats(++iota));

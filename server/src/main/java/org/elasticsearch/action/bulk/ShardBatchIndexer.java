@@ -13,7 +13,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.FeatureFlag;
@@ -30,7 +29,6 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
@@ -89,20 +87,18 @@ public final class ShardBatchIndexer {
      * corresponding row in the batch using an {@link EirfRowXContentParser}.
      */
     static void performBatchIndexOnPrimary(
-        final Task task,
         final BulkItemRequest[] items,
         final EirfBatch batch,
         final BulkPrimaryExecutionContext context,
         final ActionListener<Void> listener
     ) {
         ActionListener.run(listener, l -> {
-            doBatchIndexOnPrimary(task, items, batch, context.getPrimary(), context);
+            doBatchIndexOnPrimary(items, batch, context.getPrimary(), context);
             l.onResponse(null);
         });
     }
 
     private static void doBatchIndexOnPrimary(
-        final Task task,
         final BulkItemRequest[] items,
         final EirfBatch batch,
         final IndexShard primary,
@@ -129,26 +125,11 @@ public final class ShardBatchIndexer {
             return;
         }
 
-        assert task == null || task instanceof ReplicationTask;
-
         for (int chunkStart = 0; chunkStart < items.length; chunkStart += BATCH_CHUNK_SIZE) {
             final int chunkEnd = Math.min(chunkStart + BATCH_CHUNK_SIZE, items.length);
             final List<Engine.Index> operations = ShardBatchMapper.parseMappings(items, batch, primary, chunkEnd, chunkStart, resolution);
             if (operations == null) {
                 return;
-            }
-
-            if (task != null && ((ReplicationTask) task).isCancelled()) {
-                for (Engine.Index index : operations) {
-                    assert context.hasMoreOperationsToExecute();
-                    context.setRequestToExecute(context.getCurrent());
-                    context.markOperationAsExecuted(
-                        new Engine.IndexResult(((ReplicationTask) task).getTaskCancelledException(), index.version(), index.id())
-                    );
-                    context.markAsCompleted(context.getExecutionResult());
-                }
-                context.getPrimary().getBulkOperationListener().recordCancelledBulkItems(operations.size());
-                continue;
             }
 
             final List<Engine.IndexResult> results = primary.applyIndexOperationBatchOnPrimary(operations);

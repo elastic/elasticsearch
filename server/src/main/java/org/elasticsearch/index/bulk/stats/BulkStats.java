@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.bulk.stats;
 
-import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -32,7 +31,6 @@ public class BulkStats implements Writeable, ToXContentFragment {
     private long totalSizeInBytes = 0;
     private long avgTimeInMillis = 0;
     private long avgSizeInBytes = 0;
-    private long totalCancelledItems = 0;
 
     public BulkStats() {
 
@@ -44,25 +42,14 @@ public class BulkStats implements Writeable, ToXContentFragment {
         totalSizeInBytes = in.readVLong();
         avgTimeInMillis = in.readVLong();
         avgSizeInBytes = in.readVLong();
-        if (in.getTransportVersion().supports(IncrementalBulkService.CANCELLABLE_BULK_OPERATIONS)) {
-            totalCancelledItems = in.readVLong();
-        }
     }
 
-    public BulkStats(
-        long totalOperations,
-        long totalTimeInMillis,
-        long totalSizeInBytes,
-        long avgTimeInMillis,
-        long avgSizeInBytes,
-        long totalCancelledItems
-    ) {
+    public BulkStats(long totalOperations, long totalTimeInMillis, long totalSizeInBytes, long avgTimeInMillis, long avgSizeInBytes) {
         this.totalOperations = totalOperations;
         this.totalTimeInMillis = totalTimeInMillis;
         this.totalSizeInBytes = totalSizeInBytes;
         this.avgTimeInMillis = avgTimeInMillis;
         this.avgSizeInBytes = avgSizeInBytes;
-        this.totalCancelledItems = totalCancelledItems;
     }
 
     public void add(BulkStats bulkStats) {
@@ -82,7 +69,6 @@ public class BulkStats implements Writeable, ToXContentFragment {
         this.totalOperations += bulkStats.totalOperations;
         this.totalTimeInMillis += bulkStats.totalTimeInMillis;
         this.totalSizeInBytes += bulkStats.totalSizeInBytes;
-        this.totalCancelledItems += bulkStats.totalCancelledItems;
     }
 
     public long getTotalSizeInBytes() {
@@ -113,10 +99,6 @@ public class BulkStats implements Writeable, ToXContentFragment {
         return avgSizeInBytes;
     }
 
-    public long getTotalCancelledItems() {
-        return totalCancelledItems;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeVLong(totalOperations);
@@ -124,9 +106,6 @@ public class BulkStats implements Writeable, ToXContentFragment {
         out.writeVLong(totalSizeInBytes);
         out.writeVLong(avgTimeInMillis);
         out.writeVLong(avgSizeInBytes);
-        if (out.getTransportVersion().supports(IncrementalBulkService.CANCELLABLE_BULK_OPERATIONS)) {
-            out.writeVLong(totalCancelledItems);
-        }
     }
 
     @Override
@@ -137,7 +116,6 @@ public class BulkStats implements Writeable, ToXContentFragment {
         builder.field(Fields.TOTAL_SIZE_IN_BYTES, totalSizeInBytes);
         builder.humanReadableField(Fields.AVG_TIME_IN_MILLIS, Fields.AVG_TIME, getAvgTime());
         builder.field(Fields.AVG_SIZE_IN_BYTES, avgSizeInBytes);
-        builder.field(Fields.TOTAL_CANCELLED_OPERATIONS, totalCancelledItems);
         builder.endObject();
         return builder;
     }
@@ -156,13 +134,12 @@ public class BulkStats implements Writeable, ToXContentFragment {
             && Objects.equals(this.totalTimeInMillis, that.totalTimeInMillis)
             && Objects.equals(this.totalSizeInBytes, that.totalSizeInBytes)
             && Objects.equals(this.avgTimeInMillis, that.avgTimeInMillis)
-            && Objects.equals(this.avgSizeInBytes, that.avgSizeInBytes)
-            && Objects.equals(this.totalCancelledItems, that.totalCancelledItems);
+            && Objects.equals(this.avgSizeInBytes, that.avgSizeInBytes);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalOperations, totalTimeInMillis, totalSizeInBytes, avgTimeInMillis, avgSizeInBytes, totalCancelledItems);
+        return Objects.hash(totalOperations, totalTimeInMillis, totalSizeInBytes, avgTimeInMillis, avgSizeInBytes);
     }
 
     static final class Fields {
@@ -174,6 +151,5 @@ public class BulkStats implements Writeable, ToXContentFragment {
         static final String TOTAL_SIZE_IN_BYTES = "total_size_in_bytes";
         static final String AVG_TIME_IN_MILLIS = "avg_time_in_millis";
         static final String AVG_SIZE_IN_BYTES = "avg_size_in_bytes";
-        static final String TOTAL_CANCELLED_OPERATIONS = "total_cancelled_items";
     }
 }

@@ -21,7 +21,6 @@ import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.WriteRequest.RefreshPolicy;
-import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportWriteAction.WritePrimaryResult;
 import org.elasticsearch.action.update.UpdateHelper;
 import org.elasticsearch.action.update.UpdateRequest;
@@ -66,7 +65,6 @@ import org.mockito.stubbing.Stubbing;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.CyclicBarrier;
@@ -99,14 +97,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
     private final ShardId shardId = new ShardId("index", "_na_", 0);
     private final Settings idxSettings = indexSettings(IndexVersion.current(), 1, 0).build();
-    private final ReplicationTask task = new ReplicationTask(
-        randomLong(),
-        randomIdentifier(),
-        randomIdentifier(),
-        randomIdentifier(),
-        null,
-        Map.of()
-    );
 
     private final Settings pressureSettings = Settings.builder()
         .put(IndexingPressure.MAX_COORDINATING_BYTES.getKey(), "10KB")
@@ -253,7 +243,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         final CountDownLatch latch = new CountDownLatch(1);
         TransportShardBulkAction.performOnPrimary(
-            task,
             bulkShardRequest,
             shard,
             null,
@@ -1176,7 +1165,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         final CountDownLatch latch = new CountDownLatch(1);
         TransportShardBulkAction.performOnPrimary(
-            task,
             bulkShardRequest,
             shard,
             updateHelper,
@@ -1258,7 +1246,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
             final CountDownLatch latch = new CountDownLatch(1);
             TransportShardBulkAction.performOnPrimary(
-                task,
                 bulkShardRequest,
                 shard,
                 null,
@@ -1326,7 +1313,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         final CountDownLatch latch = new CountDownLatch(1);
         TransportShardBulkAction.performOnPrimary(
-            task,
             bulkShardRequest,
             shard,
             null,
@@ -1386,7 +1372,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         AssertionError error = expectThrows(
             AssertionError.class,
             () -> TransportShardBulkAction.performOnPrimary(
-                task,
                 bulkShardRequest,
                 shard,
                 updateHelper,
@@ -1447,7 +1432,6 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
 
         final CountDownLatch latch = new CountDownLatch(1);
         TransportShardBulkAction.performOnPrimary(
-            task,
             bulkShardRequest,
             shard,
             updateHelper,

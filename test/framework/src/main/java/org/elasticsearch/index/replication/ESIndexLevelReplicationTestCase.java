@@ -34,7 +34,6 @@ import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.action.support.replication.ReplicationRequest;
 import org.elasticsearch.action.support.replication.ReplicationResponse;
-import org.elasticsearch.action.support.replication.ReplicationTask;
 import org.elasticsearch.action.support.replication.TransportReplicationAction;
 import org.elasticsearch.action.support.replication.TransportReplicationAction.ReplicaResponse;
 import org.elasticsearch.action.support.replication.TransportWriteAction;
@@ -89,7 +88,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Future;
@@ -113,14 +111,6 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
     protected final Index index = new Index("test", "uuid");
     private final ShardId shardId = new ShardId(index, 0);
     protected final String indexMapping = "{ \"_doc\": {} }";
-    private final ReplicationTask task = new ReplicationTask(
-        randomLong(),
-        randomIdentifier(),
-        randomIdentifier(),
-        randomIdentifier(),
-        null,
-        Map.of()
-    );
 
     protected ReplicationGroup createGroup(int replicas) throws IOException {
         return createGroup(replicas, Settings.EMPTY);
@@ -889,7 +879,6 @@ public abstract class ESIndexLevelReplicationTestCase extends IndexShardTestCase
         try (Releasable ignored = permitAcquiredFuture.actionGet()) {
             MappingUpdatePerformer noopMappingUpdater = (_update, _shardId, _listener1) -> {};
             TransportShardBulkAction.performOnPrimary(
-                task,
                 request,
                 primary,
                 null,

@@ -65,7 +65,6 @@ import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.tasks.Task;
-import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportRequestOptions;
 import org.elasticsearch.transport.TransportService;
@@ -181,7 +180,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
 
     @Override
     protected void dispatchedShardOperationOnPrimary(
-        Task task,
         BulkShardRequest request,
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> outerListener
@@ -196,7 +194,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         long startBatchTime = System.nanoTime();
         if (ShardBatchIndexer.canUseBatchIndexing(request, batchIndexingEnabled)) {
             ShardBatchIndexer.performBatchIndexOnPrimary(
-                task,
                 request.items(),
                 request.getBulkShardBatch().getEirfBatch(),
                 context,
@@ -221,7 +218,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                             delegate.onFailure(e);
                             return;
                         }
-                        performSequentialOnPrimary(task, request, delegate, context, startBatchTime);
+                        performSequentialOnPrimary(request, delegate, context, startBatchTime);
                     }
                 })
             );
@@ -232,12 +229,11 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
                 listener.onFailure(e);
                 return;
             }
-            performSequentialOnPrimary(task, request, listener, context, startBatchTime);
+            performSequentialOnPrimary(request, listener, context, startBatchTime);
         }
     }
 
     private void performSequentialOnPrimary(
-        final Task task,
         final BulkShardRequest request,
         final ActionListener<PrimaryResult<BulkShardRequest, BulkShardResponse>> listener,
         final BulkPrimaryExecutionContext batchContext,
@@ -250,7 +246,7 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             logger,
             threadPool.getThreadContext()
         );
-        performOnPrimary(task, request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
+        performOnPrimary(request, primary, updateHelper, threadPool::absoluteTimeInMillis, (update, shardId, mappingListener) -> {
             assert update != null;
             assert shardId != null;
             mappingUpdatedAction.updateMappingOnMaster(shardId.getIndex(), update, mappingListener);
@@ -297,7 +293,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     public static void performOnPrimary(
-        Task task,
         BulkShardRequest request,
         IndexShard primary,
         UpdateHelper updateHelper,
@@ -308,7 +303,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         Executor executor
     ) {
         performOnPrimary(
-            task,
             request,
             primary,
             updateHelper,
@@ -323,7 +317,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     public static void performOnPrimary(
-        Task task,
         BulkShardRequest request,
         IndexShard primary,
         UpdateHelper updateHelper,
@@ -336,7 +329,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         DocumentParsingProvider documentParsingProvider
     ) {
         performOnPrimary(
-            task,
             request,
             primary,
             updateHelper,
@@ -353,7 +345,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
     }
 
     private static void performOnPrimary(
-        Task task,
         BulkShardRequest request,
         IndexShard primary,
         UpdateHelper updateHelper,
@@ -374,13 +365,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             @Override
             protected void doRun() throws Exception {
                 while (context.hasMoreOperationsToExecute()) {
-                    assert task == null || task instanceof ReplicationTask;
-                    if (task != null && ((ReplicationTask) task).isCancelled()) {
-                        cancelExecuteBulkItemRequest((ReplicationTask) task, context);
-                        context.getPrimary().getBulkOperationListener().recordCancelledBulkItems(1);
-                        continue;
-                    }
-
                     if (executeBulkItemRequest(
                         context,
                         updateHelper,
@@ -873,10 +857,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
             final BulkItemResponse response = item.getPrimaryResponse();
             final Engine.Result operationResult;
             if (item.getPrimaryResponse().isFailed()) {
-                if (response.getFailure().getCause() instanceof TaskCancelledException) {
-                    continue; // ignore replication is primary indexing is cancelled.
-                }
-
                 if (response.getFailure().getSeqNo() == SequenceNumbers.UNASSIGNED_SEQ_NO) {
                     continue; // ignore replication as we didn't generate a sequence number for this request.
                 }

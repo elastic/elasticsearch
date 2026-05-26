@@ -18,9 +18,4 @@ public interface BulkOperationListener {
      */
     default void afterBulk(long bulkShardSizeInBytes, long tookInNanos) {}
 
-    /**
-     * @param count
-     */
-    default void recordCancelledBulkItems(long count) {}
-
 }

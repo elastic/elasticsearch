@@ -95,7 +95,6 @@ public class TransportBulkShardOperationsAction extends TransportWriteAction<
 
     @Override
     protected void dispatchedShardOperationOnPrimary(
-        Task task,
         BulkShardOperationsRequest request,
         IndexShard primary,
         ActionListener<PrimaryResult<BulkShardOperationsRequest, BulkShardOperationsResponse>> listener

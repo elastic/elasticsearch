@@ -848,7 +848,7 @@ public class VerifierTests extends ESTestCase {
             .error(
                 "FROM decades | LIMIT 1 BY date_range",
                 equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V5.isEnabled()
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled()
                         ? "1:27: cannot group by on [date_range] type for grouping [date_range]"
                         : "1:27: Cannot use field [date_range] with unsupported type [date_range]"
                 )
@@ -877,7 +877,7 @@ public class VerifierTests extends ESTestCase {
             .error(
                 "FROM decades | STATS count(*) BY date_range",
                 equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V5.isEnabled()
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled()
                         ? "1:34: cannot group by on [date_range] type for grouping [date_range]"
                         : "1:34: Cannot use field [date_range] with unsupported type [date_range]"
                 )
@@ -1486,7 +1486,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testDateRangeSorting() {
-        assumeTrue("Requires DATE_RANGE_FIELD_TYPE_V5 capability", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V5.isEnabled());
+        assumeTrue("Requires DATE_RANGE_FIELD_TYPE_V6 capability", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
         analyzer().addIndex("decades", "mapping-decades.json")
             .stripErrorPrefix(true)
             .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));

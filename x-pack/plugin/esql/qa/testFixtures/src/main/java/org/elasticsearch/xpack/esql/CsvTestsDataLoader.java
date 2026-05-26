@@ -101,6 +101,9 @@ public class CsvTestsDataLoader {
     private static final TestDataset UL_LOGS = new TestDataset("ul_logs");
     private static final TestDataset SAMPLE_DATA = new TestDataset("sample_data");
     private static final TestDataset MV_SAMPLE_DATA = new TestDataset("mv_sample_data");
+    private static final TestDataset EVENT_ALERTS = new TestDataset("event_alerts");
+    private static final TestDataset EVENT_LOGS = new TestDataset("event_logs");
+    private static final TestDataset EVENT_EMPTY = new TestDataset("event_empty").noData();
     private static final TestDataset SAMPLE_DATA_STR = SAMPLE_DATA.withIndex("sample_data_str")
         .withTypeMapping(Map.of("client_ip", "keyword"));
     private static final TestDataset SAMPLE_DATA_TS_LONG = SAMPLE_DATA.withIndex("sample_data_ts_long")
@@ -219,6 +222,9 @@ public class CsvTestsDataLoader {
         Map.entry(SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE.indexName, SAMPLE_DATA_PARTIAL_MAPPING_NO_SOURCE),
         Map.entry(SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE.indexName, SAMPLE_DATA_PARTIAL_MAPPING_EXCLUDED_SOURCE),
         Map.entry(MV_SAMPLE_DATA.indexName, MV_SAMPLE_DATA),
+        Map.entry(EVENT_ALERTS.indexName, EVENT_ALERTS),
+        Map.entry(EVENT_LOGS.indexName, EVENT_LOGS),
+        Map.entry(EVENT_EMPTY.indexName, EVENT_EMPTY),
         Map.entry(ALERTS.indexName, ALERTS),
         Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),
         Map.entry(SAMPLE_DATA_TS_LONG.indexName, SAMPLE_DATA_TS_LONG),

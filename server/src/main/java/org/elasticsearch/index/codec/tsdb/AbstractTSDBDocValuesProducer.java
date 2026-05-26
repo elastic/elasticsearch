@@ -144,6 +144,9 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
                 }
                 this.readContext = new NumericReadContext(1 << blockShift, formatConfig);
                 readFields(in, state.fieldInfos, version, blockShift);
+                if (version < TSDBDocValuesFormatConfig.VERSION_SKIPPER_MAX_VALUE_COUNT) {
+                    inferMaxValueCounts(state.fieldInfos);
+                }
             } catch (Throwable exception) {
                 priorE = exception;
             } finally {
@@ -2025,6 +2028,53 @@ public abstract class AbstractTSDBDocValuesProducer extends DocValuesProducer {
         }
 
         return new DocValuesSkipperEntry(offset, length, minValue, maxValue, docCount, maxDocID, maxValueCount);
+    }
+
+    private void inferMaxValueCounts(FieldInfos fieldInfos) {
+        for (IntObjectHashMap.IntObjectCursor<DocValuesSkipperEntry> cursor : skippers) {
+            DocValuesSkipperEntry entry = cursor.value;
+            if (entry.maxValueCount == -1 && entry.docCount != 0) {
+                FieldInfo info = fieldInfos.fieldInfo(cursor.key);
+                if (info != null) {
+                    int inferred = -1;
+                    switch (info.getDocValuesType()) {
+                        case NUMERIC, SORTED -> inferred = 1;
+                        case SORTED_NUMERIC -> {
+                            SortedNumericEntry sne = sortedNumerics.get(cursor.key);
+                            if (sne != null && sne.numValues == sne.numDocsWithField) {
+                                inferred = 1;
+                            }
+                        }
+                        case SORTED_SET -> {
+                            SortedSetEntry sse = sortedSets.get(cursor.key);
+                            if (sse != null) {
+                                if (sse.singleValueEntry != null) {
+                                    inferred = 1;
+                                } else if (sse.ordsEntry != null && sse.ordsEntry.numValues == sse.ordsEntry.numDocsWithField) {
+                                    inferred = 1;
+                                }
+                            }
+                        }
+                        case BINARY, NONE -> {
+                        }
+                    }
+                    if (inferred != -1) {
+                        skippers.put(
+                            cursor.key,
+                            new DocValuesSkipperEntry(
+                                entry.offset,
+                                entry.length,
+                                entry.minValue,
+                                entry.maxValue,
+                                entry.docCount,
+                                entry.maxDocId,
+                                inferred
+                            )
+                        );
+                    }
+                }
+            }
+        }
     }
 
     private void readNumericField(IndexInput meta, NumericEntry entry, int numericBlockShift) throws IOException {

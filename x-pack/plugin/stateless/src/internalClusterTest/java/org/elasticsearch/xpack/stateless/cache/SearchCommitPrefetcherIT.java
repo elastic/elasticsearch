@@ -241,8 +241,9 @@ public class SearchCommitPrefetcherIT extends AbstractStatelessPluginIntegTestCa
         assertNoRunningAndQueueTasks(threadPool, ThreadPool.Names.REFRESH, preIngestTasksRefreshPool);
         assertNoRunningAndQueueTasks(threadPool, prewarmThreadPool, preIngestTasksPrewarmingPool);
 
+        var afterFlush = bytesReadFromBlobStore.get();
         // we should have prefetched the latest commit generation only
-        assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(bytesReadFromBlobStore.get() - beforeNewCommit)));
+        assertBusy(() -> assertThat(searchEngine.getTotalPrefetchedBytes(), is(afterFlush - beforeNewCommit)));
     }
 
     public void testSkipFetchingForSearchIdleIndices() throws Exception {

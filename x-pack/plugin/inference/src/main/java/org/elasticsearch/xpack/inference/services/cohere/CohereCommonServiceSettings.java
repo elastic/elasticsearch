@@ -36,7 +36,6 @@ import java.net.URI;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
@@ -167,7 +166,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
     }
 
     public CohereCommonServiceSettings update(CommonUpdate update) {
-        RateLimitSettings updatedRateLimitSettings = Optional.ofNullable(update.rateLimitSettings).orElse(this.rateLimitSettings);
+        RateLimitSettings updatedRateLimitSettings = Objects.requireNonNullElse(update.rateLimitSettings, this.rateLimitSettings);
         return new CohereCommonServiceSettings(this.uri, this.modelId, updatedRateLimitSettings, this.apiVersion);
     }
 

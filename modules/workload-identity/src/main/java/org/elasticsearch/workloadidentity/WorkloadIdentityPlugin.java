@@ -85,7 +85,7 @@ public class WorkloadIdentityPlugin extends Plugin implements ExtensiblePlugin {
             this.httpClientManager = manager;
             manager.start();
         } else {
-            logger.info(
+            logger.debug(
                 "workload-identity is not enabled on this node; set [{}] to enable",
                 WorkloadIdentityIssuerSettings.ISSUER_URL_SETTING.getKey()
             );

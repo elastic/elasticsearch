@@ -8,13 +8,13 @@
 package org.elasticsearch.xpack.ilm.action;
 
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockUtils;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ilm.action.DeleteLifecycleAction;
+import org.elasticsearch.xpack.ilm.LifecycleMetadataService;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.mockito.Mockito.mock;
@@ -28,7 +28,7 @@ public class TransportDeleteLifecycleActionTests extends ESTestCase {
             mock(ClusterService.class),
             threadPool,
             mock(ActionFilters.class),
-            mock(ProjectResolver.class)
+            mock(LifecycleMetadataService.class)
         );
         assertEquals(ReservedLifecycleAction.NAME, putAction.reservedStateHandlerName().get());
 

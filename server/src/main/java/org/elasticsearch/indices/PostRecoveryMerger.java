@@ -23,7 +23,6 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
-import org.elasticsearch.indices.recovery.RecoveryFailedException;
 import org.elasticsearch.indices.recovery.RecoveryListener;
 import org.elasticsearch.indices.recovery.RecoveryState;
 import org.elasticsearch.logging.LogManager;
@@ -98,7 +97,7 @@ class PostRecoveryMerger {
         }
 
         final var shardId = shardRouting.shardId();
-        return new RecoveryListener() {
+        return new RecoveryListener.DelegatingRecoveryListener(recoveryListener) {
             @Override
             public void onRecoveryDone(
                 RecoveryState state,
@@ -106,12 +105,7 @@ class PostRecoveryMerger {
                 ShardLongFieldRange eventIngestedMillisFieldRange
             ) {
                 postRecoveryMergeRunner.enqueueTask(new PostRecoveryMerge(shardId));
-                recoveryListener.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
-            }
-
-            @Override
-            public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
-                recoveryListener.onRecoveryFailure(e, sendShardFailure);
+                super.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
             }
         };
     }

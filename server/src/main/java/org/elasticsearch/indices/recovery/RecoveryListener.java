@@ -12,13 +12,25 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 
 public interface RecoveryListener {
+    /**
+     * Called when recovery finishes successfully.
+     */
     void onRecoveryDone(
         RecoveryState state,
         ShardLongFieldRange timestampMillisFieldRange,
         ShardLongFieldRange eventIngestedMillisFieldRange
     );
 
+    /**
+     * Called when recovery fails with an exception.
+     */
     void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure);
+
+    /**
+     * Called when recovery is canceled.
+     * E.g. recovering shard has been closed.
+     */
+    default void onRecoveryCanceled() {}
 
     static RecoveryListener runAfter(RecoveryListener listener, Runnable runAfter) {
         return new RecoveryListener() {
@@ -43,6 +55,42 @@ public interface RecoveryListener {
                     runAfter.run();
                 }
             }
+
+            @Override
+            public void onRecoveryCanceled() {
+                try {
+                    listener.onRecoveryCanceled();
+                } finally {
+                    runAfter.run();
+                }
+            }
         };
+    }
+
+    class DelegatingRecoveryListener implements RecoveryListener {
+        private final RecoveryListener delegate;
+
+        public DelegatingRecoveryListener(RecoveryListener delegate) {
+            this.delegate = delegate;
+        }
+
+        @Override
+        public void onRecoveryDone(
+            RecoveryState state,
+            ShardLongFieldRange timestampMillisFieldRange,
+            ShardLongFieldRange eventIngestedMillisFieldRange
+        ) {
+            delegate.onRecoveryDone(state, timestampMillisFieldRange, eventIngestedMillisFieldRange);
+        }
+
+        @Override
+        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {
+            delegate.onRecoveryFailure(e, sendShardFailure);
+        }
+
+        @Override
+        public void onRecoveryCanceled() {
+            delegate.onRecoveryCanceled();
+        }
     }
 }

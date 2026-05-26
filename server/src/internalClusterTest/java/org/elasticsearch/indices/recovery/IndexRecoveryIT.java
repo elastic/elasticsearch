@@ -136,6 +136,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
@@ -2337,6 +2338,105 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
         fileChunkLatch.countDown();
         assertThat(shardsThatStartedRecovery, hasSize(1));
+    }
+
+    /// In {@link ThrottlingRecoveryService}, the next enqueued recovery is dispatched when active recovery terminates.
+    /// This test make sure that this happens, even if active recovery is {@link RecoveryTarget#cancel(String) canceled}.
+    public void testActivePeerRecoveryListenerNotifiedOnIndexDelete() {
+        internalCluster().startMasterOnlyNode();
+        final var sourceNode = internalCluster().startDataOnlyNode();
+        final var indexToDelete = "index-to-delete";
+        final var indexToRecover = "index-to-recover";
+        createIndex(indexToDelete, indexSettings(1, 0).build());
+        createIndex(indexToRecover, indexSettings(1, 0).build());
+
+        // Ensure committed segments exist, so FILE_CHUNK actions are issued
+        for (int i = 0; i < 50; i++) {
+            indexDoc(indexToDelete, Integer.toString(i), "f", randomAlphaOfLength(10));
+            indexDoc(indexToRecover, Integer.toString(i), "f", randomAlphaOfLength(10));
+            refresh(indexToDelete);
+            refresh(indexToRecover);
+        }
+        flush(indexToDelete);
+        flush(indexToRecover);
+        ensureGreen(indexToDelete);
+        ensureGreen(indexToRecover);
+
+        final var fileChunkLatch = new CountDownLatch(1);
+        final var recoveryRequestsBarrier = new CyclicBarrier(2);
+        final Set<String> shardsThatStartedRecovery = ConcurrentHashMap.newKeySet();
+        final var transportService = MockTransportService.getInstance(sourceNode);
+
+        transportService.addRequestHandlingBehavior(PeerRecoverySourceService.Actions.START_RECOVERY, (handler, request, channel, task) -> {
+            handler.messageReceived(request, channel, task);
+            safeAwait(recoveryRequestsBarrier);
+        });
+
+        // Stall the recovery and keeps its target recovery slot occupied.
+        transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(PeerRecoveryTargetService.Actions.FILE_CHUNK)) {
+                if (request instanceof RecoveryFileChunkRequest fileChunkRequest) {
+                    shardsThatStartedRecovery.add(fileChunkRequest.shardId().toString());
+                }
+                safeAwait(fileChunkLatch);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // Don't rebalance when new node joins
+        updateClusterSettings(
+            Settings.builder()
+                .put(EnableAllocationDecider.CLUSTER_ROUTING_REBALANCE_ENABLE_SETTING.getKey(), EnableAllocationDecider.Rebalance.NONE)
+        );
+        // Target node only has 1 slot for concurrent recovery
+        String targetNode = internalCluster().startDataOnlyNode(
+            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+        );
+        // Increase replica count to 1 to start recovery of first index on target node
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(indexToDelete)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+
+        // Wait for request to reach source node
+        safeAwait(recoveryRequestsBarrier);
+        var recoveryStats = clusterAdmin().prepareNodesStats(targetNode)
+            .clear()
+            .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
+            .get()
+            .getNodes()
+            .getFirst()
+            .getIndices()
+            .getRecoveryStats();
+        assertThat("expected one running recovery", recoveryStats.currentAsTarget(), equalTo(1));
+
+        // Increase replica count to 1 to start second recovery on target node
+        assertAcked(
+            indicesAdmin().prepareUpdateSettings(indexToRecover)
+                .setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
+        );
+
+        // We expect the new recovery to be enqueued on target
+        recoveryStats = clusterAdmin().prepareNodesStats(targetNode)
+            .clear()
+            .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
+            .get()
+            .getNodes()
+            .getFirst()
+            .getIndices()
+            .getRecoveryStats();
+        assertThat("expected one running recovery", recoveryStats.currentAsTarget(), equalTo(1));
+
+        // When we delete the first recovering index, target node should start the next enqueued recovery
+        assertAcked(indicesAdmin().prepareDelete(indexToDelete));
+        fileChunkLatch.countDown();
+
+        safeAwait(recoveryRequestsBarrier);
+        recoveryRequestsBarrier.reset();
+
+        // Both indices should have started recovery
+        ensureGreen(indexToRecover);
+        assertThat(shardsThatStartedRecovery, hasSize(2));
     }
 
     private void assertGlobalCheckpointIsStableAndSyncedInAllNodes(String indexName, List<String> nodes, int shard) throws Exception {

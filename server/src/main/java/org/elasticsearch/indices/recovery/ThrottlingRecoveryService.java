@@ -12,6 +12,8 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -25,7 +27,7 @@ import java.util.function.Consumer;
  * Limit the number of concurrent recoveries. Slots are filled when dispatching a recovery task
  * to the executor and released when {@link RecoveryListener} terminates
  * ({@link RecoveryListener#onRecoveryDone} / {@link RecoveryListener#onRecoveryFailure}),
- * through a callback to {@link #closeAndFillSlots()}.
+ * through a callback to {@link #closeAndFillSlots(RecoveryTask)}.
  * <p>
  * Max number of concurrent recovery slots are controlled by setting {@link #INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING}
  * which can be dynamically updated. If limit is increased, pending tasks will be dispatched up to the new limit.
@@ -52,7 +54,8 @@ public final class ThrottlingRecoveryService {
     // Recoveries that has been dispatched to executor and not yet reached closeAndMaybeDispatch
     private final AtomicInteger runningRecoveries = new AtomicInteger(0);
     // Queue of recoveries waiting to be dispatched
-    private final Queue<Runnable> pendingRecoveries = new ConcurrentLinkedQueue<>();
+    private final Queue<RecoveryTask> pendingRecoveries = new ConcurrentLinkedQueue<>();
+    private final Logger logger = LogManager.getLogger(ThrottlingRecoveryService.class);
 
     public ThrottlingRecoveryService(Executor executor, ClusterService clusterService) {
         this.executor = executor;
@@ -66,6 +69,11 @@ public final class ThrottlingRecoveryService {
      * on provided listener.
      */
     public void enqueue(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
+        logger.trace(
+            "enqueue recovery: recoverySource: [{}], shardId: [{}]",
+            recoveryState.getRecoverySource(),
+            recoveryState.getShardId()
+        );
         pendingRecoveries.add(asRecoveryTask(recoveryListener, recoveryState, task));
         fillSlots();
     }
@@ -75,19 +83,8 @@ public final class ThrottlingRecoveryService {
      * Add exception handling to task by passing exceptions to listener.
      * Return a Runnable, ready to be dispatched to Executor or put on the pending queue.
      */
-    private Runnable asRecoveryTask(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
-        RecoveryListener closingListener = RecoveryListener.runAfter(recoveryListener, this::closeAndFillSlots);
-        return new AbstractRunnable() {
-            @Override
-            public void onFailure(Exception e) {
-                closingListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true);
-            }
-
-            @Override
-            protected void doRun() {
-                task.accept(closingListener);
-            }
-        };
+    private RecoveryTask asRecoveryTask(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
+        return new RecoveryTask(recoveryListener, recoveryState, task);
     }
 
     /**
@@ -97,8 +94,13 @@ public final class ThrottlingRecoveryService {
         int current;
         while ((current = runningRecoveries.get()) < maxConcurrentRecoveries && !pendingRecoveries.isEmpty()) {
             if (runningRecoveries.compareAndSet(current, current + 1)) {
-                Runnable nextTask = pendingRecoveries.poll();
+                RecoveryTask nextTask = pendingRecoveries.poll();
                 if (nextTask != null) {
+                    logger.trace(
+                        "dispatch recovery: recoverySource: [{}], shardId: [{}]",
+                        nextTask.recoveryState.getRecoverySource(),
+                        nextTask.recoveryState.getShardId()
+                    );
                     executor.execute(nextTask);
                 } else {
                     runningRecoveries.decrementAndGet();
@@ -107,7 +109,12 @@ public final class ThrottlingRecoveryService {
         }
     }
 
-    private void closeAndFillSlots() {
+    private void closeAndFillSlots(RecoveryTask recoveryTask) {
+        logger.trace(
+            "--> close recovery: recoverySource: [{}], shardId: [{}]",
+            recoveryTask.recoveryState.getRecoverySource(),
+            recoveryTask.recoveryState.getShardId()
+        );
         int current = runningRecoveries.decrementAndGet();
         assert current >= 0 : "negative number of running recoveries " + current;
         fillSlots();
@@ -118,6 +125,28 @@ public final class ThrottlingRecoveryService {
         this.maxConcurrentRecoveries = newMaxConcurrentRecoveries;
         if (oldMax < newMaxConcurrentRecoveries) {
             fillSlots();
+        }
+    }
+
+    private class RecoveryTask extends AbstractRunnable {
+        private final RecoveryListener listener;
+        private final RecoveryState recoveryState;
+        private final Consumer<RecoveryListener> task;
+
+        private RecoveryTask(RecoveryListener recoveryListener, RecoveryState recoveryState, Consumer<RecoveryListener> task) {
+            this.recoveryState = recoveryState;
+            this.task = task;
+            this.listener = RecoveryListener.runAfter(recoveryListener, () -> closeAndFillSlots(this));
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true);
+        }
+
+        @Override
+        protected void doRun() throws Exception {
+            task.accept(listener);
         }
     }
 }

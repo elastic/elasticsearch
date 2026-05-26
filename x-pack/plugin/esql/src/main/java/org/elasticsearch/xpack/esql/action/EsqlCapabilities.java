@@ -1418,16 +1418,16 @@ public class EsqlCapabilities {
         TO_COUNTER,
 
         /**
-         * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
-         */
-        TO_LOWER_EMPTY_STRING,
-
-        /**
          * Support for {@code TO_GAUGE} function and the {@code ::gauge} cast operator, which converts
          * {@code counter_long}, {@code counter_integer}, and {@code counter_double} values to their
          * plain numeric (gauge) equivalents.
          */
         TO_GAUGE,
+
+        /**
+         * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
+         */
+        TO_LOWER_EMPTY_STRING,
 
         /**
          * Support for INCREASE, DELTA timeseries aggregations.

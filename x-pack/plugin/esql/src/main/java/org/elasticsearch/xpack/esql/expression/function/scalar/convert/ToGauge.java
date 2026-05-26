@@ -58,8 +58,8 @@ public class ToGauge extends AbstractConvertFunction {
     );
 
     @FunctionInfo(
-        returnType = { "long", "integer", "double" },
         appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.5.0") },
+        returnType = { "long", "integer", "double" },
         description = """
             Converts a counter value to its gauge (plain numeric) equivalent. The output type is determined by the input:
             `counter_long` converts to `long`, `counter_integer` to `integer`, and `counter_double` to `double`.
@@ -72,8 +72,7 @@ public class ToGauge extends AbstractConvertFunction {
             Applying `TO_GAUGE` to a field that is a genuine monotonically increasing counter, rather than a \
             misclassified gauge, will produce raw cumulative counter values instead of gauge samples. \
             Results from aggregations on such values are not meaningful.
-            ::::\
-            """,
+            ::::""",
         examples = @Example(file = "k8s-timeseries-avg-over-time", tag = "toGauge")
     )
     public ToGauge(
@@ -103,7 +102,8 @@ public class ToGauge extends AbstractConvertFunction {
 
     /**
      * Returns the plain numeric variant of the input type: {@code counter_long→long}, etc.
-     * Plain numeric inputs pass through unchanged.
+     * Plain numeric inputs pass through unchanged. Returns the input type unchanged when it
+     * is not yet resolved or has no counter variant to strip ({@link DataType#noCounter()} default branch).
      */
     @Override
     public DataType dataType() {

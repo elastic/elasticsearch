@@ -218,27 +218,41 @@ public class ExternalSourceCacheService implements Closeable {
                 continue;
             }
             long mtimeMillis = ((Number) mtimeObj).longValue();
+            // Match must include the config fingerprint to prevent cross-pollination: SchemaCacheKey
+            // is keyed on path + mtime + formatType + formatConfig + endpoint + region, so the SAME
+            // file can have multiple distinct entries — one per (formatType, formatConfig) tuple.
+            // A query under WITH {"header_row": true} interprets row counts differently from one
+            // under WITH {"header_row": false}, even on identical bytes. Without the fingerprint
+            // gate we would enrich every matching entry with stats that describe only one
+            // interpretation. Each format-reader's metadata() writes its CONFIG_FINGERPRINT_KEY
+            // into the entry's safeMetadata at planning time, so the comparison here is symmetric.
+            Object contributionFingerprint = mergedStats.get(ExternalStatsCache.CONFIG_FINGERPRINT_KEY);
             for (SchemaCacheKey key : schemaCache.keys()) {
-                if (path.equals(key.canonicalPath()) && key.lastModifiedEpochMillis() == mtimeMillis) {
-                    SchemaCacheEntry existing = schemaCache.get(key);
-                    if (existing == null) {
-                        continue;
-                    }
-                    Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
-                    enriched.putAll(mergedStats);
-                    SchemaCacheEntry replaced = new SchemaCacheEntry(
-                        existing.columnNames(),
-                        existing.columnTypes(),
-                        existing.columnNullabilities(),
-                        existing.columnSynthetics(),
-                        existing.sourceType(),
-                        existing.location(),
-                        enriched,
-                        existing.connectorConfig(),
-                        existing.cachedAtMillis()
-                    );
-                    schemaCache.put(key, replaced);
+                if (path.equals(key.canonicalPath()) == false || key.lastModifiedEpochMillis() != mtimeMillis) {
+                    continue;
                 }
+                SchemaCacheEntry existing = schemaCache.get(key);
+                if (existing == null) {
+                    continue;
+                }
+                Object existingFingerprint = existing.safeMetadata().get(ExternalStatsCache.CONFIG_FINGERPRINT_KEY);
+                if (java.util.Objects.equals(existingFingerprint, contributionFingerprint) == false) {
+                    continue;
+                }
+                Map<String, Object> enriched = new HashMap<>(existing.safeMetadata());
+                enriched.putAll(mergedStats);
+                SchemaCacheEntry replaced = new SchemaCacheEntry(
+                    existing.columnNames(),
+                    existing.columnTypes(),
+                    existing.columnNullabilities(),
+                    existing.columnSynthetics(),
+                    existing.sourceType(),
+                    existing.location(),
+                    enriched,
+                    existing.connectorConfig(),
+                    existing.cachedAtMillis()
+                );
+                schemaCache.put(key, replaced);
             }
         }
     }

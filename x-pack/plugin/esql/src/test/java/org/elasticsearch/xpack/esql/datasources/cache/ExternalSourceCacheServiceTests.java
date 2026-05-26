@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.StorageEntry;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -327,6 +328,44 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         Map<String, Object> configNoCreds = Map.of("delimiter", "|", "format", "csv");
         SchemaCacheKey key2 = SchemaCacheKey.build("s3://b/f.csv", 1000L, ".csv", configNoCreds);
         assertEquals(key1.formatConfig(), key2.formatConfig());
+    }
+
+    public void testReconcileSourceStatsDiscriminatesOnConfigFingerprint() throws Exception {
+        // Two queries over the SAME file under different WITH options produce two distinct
+        // SchemaCacheEntry records that share (path, mtime) but differ on formatConfig. Each
+        // carries its own CONFIG_FINGERPRINT_KEY in safeMetadata. A stats contribution from a
+        // scan under one config must enrich ONLY that config's entry, never cross-pollinate the
+        // sibling — otherwise the second interpretation serves a row count it never produced.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "s3://bucket/data/file.csv";
+            long mtime = 1000L;
+            SchemaCacheKey keyHeader = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv", "header_row", true));
+            SchemaCacheKey keyNoHeader = SchemaCacheKey.build(path, mtime, ".csv", Map.of("format", "csv", "header_row", false));
+
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
+            );
+            service.getOrComputeSchema(
+                keyHeader,
+                k -> SchemaCacheEntry.from(schema, "csv", path, Map.of(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, "fp-header"), Map.of())
+            );
+            service.getOrComputeSchema(
+                keyNoHeader,
+                k -> SchemaCacheEntry.from(schema, "csv", path, Map.of(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, "fp-noheader"), Map.of())
+            );
+
+            Map<String, Object> stats = new LinkedHashMap<>();
+            stats.put(ExternalStatsCache.MTIME_MILLIS_KEY, mtime);
+            stats.put(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, "fp-header");
+            stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 42L);
+            service.reconcileSourceStats(Map.of(path, stats));
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(keyHeader, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(42L, enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+
+            SchemaCacheEntry untouched = service.getOrComputeSchema(keyNoHeader, k -> { throw new AssertionError("should be cached"); });
+            assertFalse(untouched.safeMetadata().containsKey(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        }
     }
 
     public void testListingCacheKeyCredentialHash() {

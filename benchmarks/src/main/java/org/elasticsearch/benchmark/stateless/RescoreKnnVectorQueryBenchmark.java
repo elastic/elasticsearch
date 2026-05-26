@@ -19,6 +19,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.codec.Elasticsearch93Lucene104Codec;
 import org.elasticsearch.index.codec.vectors.es93.ES93FlatVectorFormat;
 import org.elasticsearch.search.vectors.KnnScoreDocQuery;
@@ -48,6 +49,20 @@ import java.util.Set;
  *
  * <p>Cold/hot cache state and simulated first-byte latency are inherited @Params from
  * {@link AbstractStatelessQueryBenchmark}.
+ *
+ * <h2>Measuring the object-store prefetch feature flag</h2>
+ *
+ * <pre>{@code
+ * ./gradlew -p benchmarks run --args '
+ *   RescoreKnnVectorQueryBenchmark -p cacheState=COLD -p firstByteLatencyMs=100
+ *   -jvmArgsAppend "-Des.stateless_object_store_prefetch_feature_flag_enabled=true"
+ * '
+ *
+ * ./gradlew -p benchmarks run --args '
+ *   RescoreKnnVectorQueryBenchmark -p cacheState=COLD -p firstByteLatencyMs=100
+ *   -jvmArgsAppend "-Des.stateless_object_store_prefetch_feature_flag_enabled=false"
+ * '
+ * }</pre>
  */
 @Fork(value = 1, jvmArgsPrepend = { "--add-modules=jdk.incubator.vector" })
 public class RescoreKnnVectorQueryBenchmark extends AbstractStatelessQueryBenchmark {
@@ -69,6 +84,11 @@ public class RescoreKnnVectorQueryBenchmark extends AbstractStatelessQueryBenchm
 
     private float[] queryVector;
     private int[] candidateDocIds;
+
+    @Override
+    protected Settings extraNodeSettings() {
+        return Settings.builder().putList("node.roles", "search").build();
+    }
 
     @Override
     protected IndexWriterConfig indexWriterConfig() {

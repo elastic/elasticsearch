@@ -219,6 +219,7 @@ public class MetricValidator {
             Map.entry("es.recovery.translog.operations.total", TRANSLOG_ATTRIBUTES),
             Map.entry("es.reindex.completion.total", REINDEX_ATTRIBUTES),
             Map.entry("es.reindex.duration.histogram", REINDEX_ATTRIBUTES),
+            Map.entry("es.reindex.relocation.total", REINDEX_ATTRIBUTES),
             Map.entry("es.repositories.exceptions.histogram", REPO_ATTRIBUTES),
             Map.entry("es.repositories.exceptions.request_range_not_satisfied.total", REPO_ATTRIBUTES),
             Map.entry("es.repositories.exceptions.total", REPO_ATTRIBUTES),

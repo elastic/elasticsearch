@@ -174,22 +174,22 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                     throw new ParsingException(source(labelCtx), "Unrecognized label matcher [{}]", kind);
                 }
 
-                String value;
+                var matcherValues = new ArrayList<String>();
                 Source valueSource;
                 PromqlBaseParser.LabelValueContext valueCtx = labelCtx.labelValue();
-                TerminalNode valueNode = valueCtx.NAMED_OR_POSITIONAL_PARAM();
+                TerminalNode paramNode = valueCtx.NAMED_OR_POSITIONAL_PARAM();
 
-                if (valueNode == null) {
+                if (paramNode == null) {
                     var v = valueCtx.STRING();
                     if (v == null) {
                         throw new ParsingException(source(valueCtx), "Expected label value");
                     }
-                    value = string(v);
+                    matcherValues.add(string(v));
                     valueSource = source(v);
                 } else {
-                    valueSource = source(valueNode);
-                    var paramName = valueNode.getText();
-                    var param = ExpressionBuilder.paramByNameOrPosition(valueNode, valueSource, params());
+                    valueSource = source(paramNode);
+                    var paramName = paramNode.getText();
+                    var param = ExpressionBuilder.paramByNameOrPosition(paramNode, valueSource, params());
                     if (param == null) {
                         throw new ParsingException(valueSource, "Parameter [{}] value not found", paramName);
                     }
@@ -203,48 +203,33 @@ public class PromqlLogicalPlanBuilder extends PromqlExpressionBuilder {
                         if (values.isEmpty()) {
                             throw new ParsingException(valueSource, "Parameter [{}] cannot be an empty list", paramName);
                         }
-
-                        boolean implicitMultiValue = matcher.isRegex() == false;
-
-                        // If the parameter is multi-value, implicitly cast to regex.
-                        // E.g. _foo={a,b} {label=?_foo} is treated as {label=~"\"a\"|\"b\""}.
-                        matcher = switch (matcher) {
-                            case EQ -> LabelMatcher.Matcher.REG;
-                            case NEQ -> LabelMatcher.Matcher.NREG;
-                            default -> matcher;
-                        };
-
-                        var sb = new StringBuilder(values.size() * 8);
                         for (var item : values) {
-                            if (sb.isEmpty() == false) {
-                                sb.append('|');
-                            }
-                            sb.append(
-                                implicitMultiValue
-                                    ? PromqlParserUtils.quote(toStringValue(valueSource, paramName, item))
-                                    : toStringValue(valueSource, paramName, item)
-                            );
+                            matcherValues.add(toStringValue(valueSource, paramName, item));
                         }
-                        value = sb.toString();
                     } else {
-                        value = toStringValue(valueSource, paramName, v);
+                        matcherValues.add(toStringValue(valueSource, paramName, v));
                     }
                 }
 
                 // __name__ with explicit matcher
                 if (NAME.equals(labelName)) {
                     if (identifierId) {
-                        throw new ParsingException(source(nameCtx), "Metric name must not be defined twice: [{}] or [{}]", id, value);
+                        throw new ParsingException(
+                            source(nameCtx),
+                            "Metric name must not be defined twice: [{}] or [{}]",
+                            id,
+                            matcherValues.getFirst()
+                        );
                     }
-                    // set id/series from first label-based name
+                    // set id/series from the first label-based name
                     if (id == null) {
-                        id = value;
+                        id = matcherValues.getFirst();
                         series = new UnresolvedAttribute(valueSource, id);
                     }
                 }
 
-                // always add label matcher
-                LabelMatcher label = new LabelMatcher(labelName, value, matcher);
+                // always add a label matcher
+                LabelMatcher label = new LabelMatcher(labelName, matcherValues, matcher);
                 labels.add(label);
                 labelExpressions.add(new UnresolvedAttribute(source(nameCtx), labelName));
 

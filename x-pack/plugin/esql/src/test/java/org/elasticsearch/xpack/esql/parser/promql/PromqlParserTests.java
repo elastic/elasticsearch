@@ -459,15 +459,15 @@ public class PromqlParserTests extends ESTestCase {
         List<LabelMatcher> matchers = as(plan.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
         assertThat(matchers, hasSize(3));
         assertThat(matchers.get(0).name(), equalTo("__name__"));
-        assertThat(matchers.get(0).value(), equalTo("foo"));
+        assertThat(matchers.get(0).getFirstValue(), equalTo("foo"));
         assertThat(matchers.get(0).isNegation(), equalTo(false));
 
         assertThat(matchers.get(1).name(), equalTo("host"));
-        assertThat(matchers.get(1).value(), equalTo("host-1"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("host-1"));
         assertThat(matchers.get(1).isNegation(), equalTo(true));
 
         assertThat(matchers.get(2).name(), equalTo("host"));
-        assertThat(matchers.get(2).value(), equalTo("host-2"));
+        assertThat(matchers.get(2).getFirstValue(), equalTo("host-2"));
         assertThat(matchers.get(2).isNegation(), equalTo(true));
     }
 
@@ -655,9 +655,9 @@ public class PromqlParserTests extends ESTestCase {
         List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
         assertThat(matchers, hasSize(2));
         assertThat(matchers.get(0).name(), equalTo("__name__"));
-        assertThat(matchers.get(0).value(), equalTo("foo"));
+        assertThat(matchers.get(0).getFirstValue(), equalTo("foo"));
         assertThat(matchers.get(1).name(), equalTo("host"));
-        assertThat(matchers.get(1).value(), equalTo("server-1"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("server-1"));
         assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.EQ));
     }
 
@@ -669,7 +669,7 @@ public class PromqlParserTests extends ESTestCase {
         List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
         assertThat(matchers, hasSize(2));
         assertThat(matchers.get(1).name(), equalTo("host"));
-        assertThat(matchers.get(1).value(), equalTo("server-1"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("server-1"));
     }
 
     public void testLabelMatcherWithRegexParam() {
@@ -682,7 +682,7 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(matchers, hasSize(2));
         assertThat(matchers.get(1).name(), equalTo("host"));
         // Passed through as-is - user controls the regex
-        assertThat(matchers.get(1).value(), equalTo("server-.*"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("server-.*"));
         assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.REG));
     }
 
@@ -705,7 +705,7 @@ public class PromqlParserTests extends ESTestCase {
     }
 
     public void testLabelMatcherWithMultiValueParamRegex() {
-        // Multi-value param with regex matcher should join escaped values with '|'
+        // Multi-value param with regex matcher creates a multi-value LabelMatcher
         PromqlCommand promql = as(
             TEST_PARSER.parseQuery(
                 "PROMQL index=test step=5m foo{service=~?_services}",
@@ -716,8 +716,8 @@ public class PromqlParserTests extends ESTestCase {
         List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
         assertThat(matchers, hasSize(2));
         assertThat(matchers.get(1).name(), equalTo("service"));
-        // Simple alphanumeric values don't need escaping
-        assertThat(matchers.get(1).value(), equalTo("api|web|worker"));
+        assertThat(matchers.get(1).isMultiValue(), equalTo(true));
+        assertThat(matchers.get(1).values(), equalTo(List.of("api", "web", "worker")));
         assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.REG));
     }
 
@@ -727,12 +727,13 @@ public class PromqlParserTests extends ESTestCase {
             PromqlCommand.class
         );
         List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
-        assertThat(matchers.get(1).value(), equalTo("test|dev"));
+        assertThat(matchers.get(1).isMultiValue(), equalTo(true));
+        assertThat(matchers.get(1).values(), equalTo(List.of("test", "dev")));
         assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.NREG));
     }
 
-    public void testLabelMatcherWithMultiValueRegexParamNoEscape() {
-        // When user explicitly uses =~ with multi-value, they opt into regex - no escaping
+    public void testLabelMatcherWithMultiValueRegexParam() {
+        // When user explicitly uses =~ with multi-value, each value is treated as a regex pattern
         PromqlCommand promql = as(
             TEST_PARSER.parseQuery(
                 "PROMQL index=test step=5m foo{host=~?_hosts}",
@@ -741,13 +742,13 @@ public class PromqlParserTests extends ESTestCase {
             PromqlCommand.class
         );
         List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
-        // Passed through as-is - user controls the regex patterns
-        assertThat(matchers.get(1).value(), equalTo("server.*|web-[0-9]+"));
+        assertThat(matchers.get(1).isMultiValue(), equalTo(true));
+        assertThat(matchers.get(1).values(), equalTo(List.of("server.*", "web-[0-9]+")));
+        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.REG));
     }
 
-    public void testLabelMatcherWithMultiValueExactParamEscaped() {
-        // When using = with multi-value, we promote to =~ but escape metacharacters for literal matching
-        // This is the Kibana variable control use case
+    public void testLabelMatcherWithMultiValueExactParamLiteral() {
+        // Multi-value with = creates multi-value LabelMatcher (translated to IN clause at optimizer)
         PromqlCommand promql = as(
             TEST_PARSER.parseQuery(
                 "PROMQL index=test step=5m foo{host=?_hosts}",
@@ -756,9 +757,10 @@ public class PromqlParserTests extends ESTestCase {
             PromqlCommand.class
         );
         List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
-        // Dots escaped for literal matching because user didn't opt into regex (used = not =~)
-        assertThat(matchers.get(1).value(), equalTo("k8s\\.pod\\.name|service\\.api"));
-        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.REG));
+        // Values preserved as literals without escaping
+        assertThat(matchers.get(1).isMultiValue(), equalTo(true));
+        assertThat(matchers.get(1).values(), equalTo(List.of("k8s.pod.name", "service.api")));
+        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.EQ));
     }
 
     public void testLabelMatcherWithSingleValueRegexParamNoEscape() {
@@ -768,7 +770,7 @@ public class PromqlParserTests extends ESTestCase {
             PromqlCommand.class
         );
         List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
-        assertThat(matchers.get(1).value(), equalTo("k8s.pod.*"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("k8s.pod.*"));
         assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.REG));
     }
 
@@ -780,7 +782,7 @@ public class PromqlParserTests extends ESTestCase {
         );
         List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
         // No escaping for exact match - the value is used literally by Automata.makeString
-        assertThat(matchers.get(1).value(), equalTo("k8s.pod.name"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("k8s.pod.name"));
         assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.EQ));
     }
 
@@ -792,7 +794,7 @@ public class PromqlParserTests extends ESTestCase {
         );
         List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
         assertThat(matchers.get(1).name(), equalTo("status_code"));
-        assertThat(matchers.get(1).value(), equalTo("200"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("200"));
     }
 
     public void testLabelMatcherWithBooleanParam() {
@@ -801,7 +803,7 @@ public class PromqlParserTests extends ESTestCase {
             PromqlCommand.class
         );
         List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
-        assertThat(matchers.get(1).value(), equalTo("true"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("true"));
     }
 
     public void testLabelMatcherWithMultipleParams() {
@@ -821,11 +823,12 @@ public class PromqlParserTests extends ESTestCase {
         List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
         assertThat(matchers, hasSize(4));
         assertThat(matchers.get(1).name(), equalTo("host"));
-        assertThat(matchers.get(1).value(), equalTo("server-1"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("server-1"));
         assertThat(matchers.get(2).name(), equalTo("env"));
-        assertThat(matchers.get(2).value(), equalTo("prod"));
+        assertThat(matchers.get(2).getFirstValue(), equalTo("prod"));
         assertThat(matchers.get(3).name(), equalTo("service"));
-        assertThat(matchers.get(3).value(), equalTo("api|web"));
+        assertThat(matchers.get(3).isMultiValue(), equalTo(true));
+        assertThat(matchers.get(3).values(), equalTo(List.of("api", "web")));
     }
 
     public void testLabelMatcherParamUnknownError() {
@@ -837,7 +840,7 @@ public class PromqlParserTests extends ESTestCase {
     }
 
     public void testLabelMatcherMultiValueWithExactMatcher() {
-        // Multi-value params with = are promoted to =~ with escaped values for literal matching
+        // Multi-value params with = create a multi-value LabelMatcher (translated to IN clause)
         PromqlCommand promql = as(
             TEST_PARSER.parseQuery(
                 "PROMQL index=test step=5m foo{host=?_hosts}",
@@ -848,23 +851,25 @@ public class PromqlParserTests extends ESTestCase {
         List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
         assertThat(matchers, hasSize(2));
         assertThat(matchers.get(1).name(), equalTo("host"));
-        // Values escaped for literal matching (no metacharacters in these values)
-        assertThat(matchers.get(1).value(), equalTo("server-1|server-2"));
-        // Promoted from EQ to REG for multi-value
-        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.REG));
+        // Multi-value preserved as list
+        assertThat(matchers.get(1).isMultiValue(), equalTo(true));
+        assertThat(matchers.get(1).values(), equalTo(List.of("server-1", "server-2")));
+        // Stays as EQ (translated to IN at optimizer level)
+        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.EQ));
     }
 
     public void testLabelMatcherMultiValueWithNegationMatcher() {
-        // Multi-value params with != are promoted to !~ with escaped values
+        // Multi-value params with != create a multi-value LabelMatcher (translated to NOT IN clause)
         PromqlCommand promql = as(
             TEST_PARSER.parseQuery("PROMQL index=test step=5m foo{env!=?_envs}", paramsAsConstant("_envs", List.of("test", "dev"))),
             PromqlCommand.class
         );
         List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
         assertThat(matchers.get(1).name(), equalTo("env"));
-        assertThat(matchers.get(1).value(), equalTo("test|dev"));
-        // Promoted from NEQ to NREG for multi-value
-        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.NREG));
+        assertThat(matchers.get(1).isMultiValue(), equalTo(true));
+        assertThat(matchers.get(1).values(), equalTo(List.of("test", "dev")));
+        // Stays as NEQ (translated to NOT IN at optimizer level)
+        assertThat(matchers.get(1).matcher(), equalTo(LabelMatcher.Matcher.NEQ));
     }
 
     public void testLabelMatcherEmptyListParamError() {
@@ -885,9 +890,9 @@ public class PromqlParserTests extends ESTestCase {
         List<LabelMatcher> matchers = as(promql.promqlPlan(), InstantSelector.class).labelMatchers().matchers();
         assertThat(matchers, hasSize(3));
         assertThat(matchers.get(1).name(), equalTo("host"));
-        assertThat(matchers.get(1).value(), equalTo("server-1"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("server-1"));
         assertThat(matchers.get(2).name(), equalTo("env"));
-        assertThat(matchers.get(2).value(), equalTo("prod"));
+        assertThat(matchers.get(2).getFirstValue(), equalTo("prod"));
     }
 
     public void testLabelMatcherParamInRangeSelector() {
@@ -899,7 +904,7 @@ public class PromqlParserTests extends ESTestCase {
         assertThat(rangeSelectors, hasSize(1));
         List<LabelMatcher> matchers = rangeSelectors.getFirst().labelMatchers().matchers();
         assertThat(matchers.get(1).name(), equalTo("host"));
-        assertThat(matchers.get(1).value(), equalTo("server-1"));
+        assertThat(matchers.get(1).getFirstValue(), equalTo("server-1"));
     }
 
     public void testLabelMatcherSameParamUsedMultipleTimes() {
@@ -910,7 +915,7 @@ public class PromqlParserTests extends ESTestCase {
         List<InstantSelector> selectors = promql.promqlPlan().collect(InstantSelector.class);
         assertThat(selectors, hasSize(2));
         for (InstantSelector selector : selectors) {
-            assertThat(selector.labelMatchers().matchers().get(1).value(), equalTo("server-1"));
+            assertThat(selector.labelMatchers().matchers().get(1).getFirstValue(), equalTo("server-1"));
         }
     }
 

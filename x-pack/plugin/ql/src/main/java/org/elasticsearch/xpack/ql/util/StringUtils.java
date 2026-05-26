@@ -374,11 +374,6 @@ public final class StringUtils {
         };
     }
 
-    public static Tuple<String, String> splitQualifiedIndex(String indexName) {
-        String[] split = RemoteClusterAware.splitIndexName(indexName);
-        return Tuple.tuple(split[0], split[1]);
-    }
-
     public static String qualifyAndJoinIndices(String cluster, String[] indices) {
         StringJoiner sj = new StringJoiner(",");
         for (String index : indices) {

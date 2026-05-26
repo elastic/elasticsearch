@@ -52,7 +52,6 @@ import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.index.Index;
@@ -99,6 +98,7 @@ import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.transport.RemoteClusterAware.QualifiedIndexExpression;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -207,9 +207,9 @@ public class PainlessExecuteAction {
             }
 
             ContextSetup(String index, BytesReference document, QueryBuilder query) {
-                Tuple<String, String> clusterAliasAndIndex = parseClusterAliasAndIndex(index);
-                this.clusterAlias = clusterAliasAndIndex.v1();
-                this.index = clusterAliasAndIndex.v2();
+                var clusterAliasAndIndex = parseClusterAliasAndIndex(index);
+                this.clusterAlias = clusterAliasAndIndex.clusterAlias();
+                this.index = clusterAliasAndIndex.indexExpression();
                 this.document = document;
                 this.query = query;
             }
@@ -235,26 +235,26 @@ public class PainlessExecuteAction {
              * @throws IllegalArgumentException if the indexExpression starts or ends with the REMOTE_CLUSTER_INDEX_SEPARATOR (":")
              *         (ignoring whitespace)
              */
-            static Tuple<String, String> parseClusterAliasAndIndex(String indexExpression) {
+            static QualifiedIndexExpression parseClusterAliasAndIndex(String indexExpression) {
                 if (indexExpression == null) {
-                    return new Tuple<>(null, null);
+                    return new QualifiedIndexExpression(null, null);
                 }
                 String trimmed = indexExpression.trim();
-                String[] parts = RemoteClusterAware.splitIndexName(trimmed);
+                var parts = RemoteClusterAware.splitIndexName(trimmed);
                 // The parser here needs to ensure that the indexExpression is not of the form "remote1:blogs,remote2:blogs"
                 // because (1) only a single index is allowed for Painless Execute and
                 // (2) if this method returns Tuple("remote1", "blogs,remote2:blogs") that will not fail with "index not found".
                 // Instead, it will fail with the inaccurate and confusing error message:
                 // "Cross-cluster calls are not supported in this context but remote indices were requested: [blogs,remote1:blogs]"
                 // which comes later out of the IndexNameExpressionResolver pathway this code uses.
-                if ((parts[0] != null && parts[1].isEmpty())
-                    || parts[1].contains(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR))) {
+                if ((parts.clusterAlias() != null && parts.indexExpression().isEmpty())
+                    || parts.indexExpression().contains(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR))) {
                     throw new IllegalArgumentException(
                         "Unable to parse one single valid index name from the provided index: [" + indexExpression + "]"
                     );
                 }
 
-                return new Tuple<>(parts[0], parts[1]);
+                return parts;
             }
 
             public String getClusterAlias() {
@@ -587,8 +587,8 @@ public class PainlessExecuteAction {
         static void removeClusterAliasFromIndexExpression(Request request) {
             String index = request.index();
             if (index != null) {
-                String[] split = RemoteClusterAware.splitIndexName(index);
-                if (split[0] != null) {
+                var split = RemoteClusterAware.splitIndexName(index);
+                if (split.clusterAlias() != null) {
                     /*
                      * if the cluster alias is null and the index field has a clusterAlias (clusterAlias:index notation)
                      * that means this is executing on a remote cluster (it was forwarded by the querying cluster).
@@ -596,7 +596,7 @@ public class PainlessExecuteAction {
                      * We need to strip off the clusterAlias from the index before executing the script locally,
                      * so it will resolve to a local index
                      */
-                    request.index(split[1]);
+                    request.index(split.indexExpression());
                 }
             }
         }

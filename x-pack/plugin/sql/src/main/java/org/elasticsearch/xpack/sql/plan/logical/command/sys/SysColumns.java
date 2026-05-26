@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.sql.plan.logical.command.sys;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.ql.expression.Attribute;
 import org.elasticsearch.xpack.ql.expression.predicate.regex.LikePattern;
 import org.elasticsearch.xpack.ql.index.EsIndex;
@@ -45,7 +46,6 @@ import static org.elasticsearch.xpack.ql.type.DataTypes.SHORT;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isPrimitive;
 import static org.elasticsearch.xpack.ql.type.DataTypes.isString;
 import static org.elasticsearch.xpack.ql.util.StringUtils.isQualified;
-import static org.elasticsearch.xpack.ql.util.StringUtils.splitQualifiedIndex;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.displaySize;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDataType;
 import static org.elasticsearch.xpack.sql.type.SqlDataTypes.metaSqlDateTimeSub;
@@ -216,7 +216,16 @@ public class SysColumns extends Command {
         Pattern columnMatcher,
         Mode mode
     ) {
-        fillInRows(clusterName, splitQualifiedIndex(indexName).v2(), mapping, prefix, rows, columnMatcher, Counter.newCounter(), mode);
+        fillInRows(
+            clusterName,
+            RemoteClusterAware.splitIndexName(indexName).indexExpression(),
+            mapping,
+            prefix,
+            rows,
+            columnMatcher,
+            Counter.newCounter(),
+            mode
+        );
     }
 
     private static void fillInRows(

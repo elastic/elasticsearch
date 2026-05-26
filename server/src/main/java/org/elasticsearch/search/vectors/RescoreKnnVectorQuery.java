@@ -28,15 +28,14 @@ import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.VectorScorer;
 import org.elasticsearch.common.lucene.search.Queries;
-import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.search.profile.query.QueryProfiler;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.Callable;
 
 /**
  * A Lucene {@link Query} that applies vector-based rescoring to an inner query's results.
@@ -203,8 +202,6 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
     }
 
     private static class DirectRescoreKnnVectorQuery extends Query {
-        private static final int PREFETCH_BUFFER_SIZE = 100;
-
         private final float[] floatTarget;
         private final String fieldName;
         private final Query innerQuery;
@@ -228,8 +225,7 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
             }
             assert innerRewritten.getClass() != MatchAllDocsQuery.class;
 
-            List<ScoreDoc> results = new ArrayList<>(10);
-            List<CheckedRunnable<IOException>> buffer = new LinkedList<>();
+            List<Callable<ScoreDoc>> callables = new ArrayList<>();
             for (var leaf : indexSearcher.getIndexReader().leaves()) {
                 var knnVectorValues = leaf.reader().getFloatVectorValues(fieldName);
                 if (knnVectorValues == null) {
@@ -245,17 +241,12 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
                 if (scorer == null) {
                     continue;
                 }
-                var filterIterator = scorer.iterator();
-                rescoreIndividually(leaf.docBase, knnVectorValues, buffer, results, filterIterator);
+                rescoreIndividually(leaf.docBase, knnVectorValues, callables, scorer.iterator());
             }
 
-            for (var runnable : buffer) {
-                runnable.run();
-            }
-            buffer.clear();
-            // Remove any remaining sentinel values
-            ScoreDoc[] arrayResults = results.toArray(new ScoreDoc[0]);
-            return new KnnScoreDocQuery(arrayResults, indexSearcher.getIndexReader());
+            List<ScoreDoc> taskResults = indexSearcher.getTaskExecutor().invokeAll(callables);
+            ScoreDoc[] results = taskResults.stream().filter(Objects::nonNull).toArray(ScoreDoc[]::new);
+            return new KnnScoreDocQuery(results, indexSearcher.getIndexReader());
         }
 
         @Override
@@ -279,14 +270,15 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
         }
 
         /**
-         * Adds rescoring work to {@code buffer}. If {@code buffer} is non-empty after this call,
-         * the caller must run the queued {@link CheckedRunnable}s to materialize results into {@code queue}.
+         * Populates {@code callables} with one scoring task per matching document. Each callable
+         * uses its own independent {@link VectorScorer} (via {@link FloatVectorValues#copy()}) so
+         * the task executor can run them concurrently. Prefetch hints are issued on the calling
+         * thread before each callable is added, so IO is pipelined with task execution.
          */
         private void rescoreIndividually(
             int docBase,
             FloatVectorValues knnVectorValues,
-            List<CheckedRunnable<IOException>> buffer,
-            List<ScoreDoc> queue,
+            List<Callable<ScoreDoc>> callables,
             DocIdSetIterator filterIterator
         ) throws IOException {
             final int vectorByteSize = knnVectorValues.getVectorByteLength();
@@ -295,31 +287,21 @@ public abstract class RescoreKnnVectorQuery extends Query implements QueryProfil
 
             KnnVectorValues.DocIndexIterator vectorIter = knnVectorValues.iterator();
             DocIdSetIterator conjunction = ConjunctionUtils.intersectIterators(List.of(vectorIter, filterIterator));
-            // using bulk doesn't get us anywhere; this is expected to be extremely sparse
-            VectorScorer scorer = knnVectorValues.rescorer(floatTarget);
             int doc;
             while ((doc = conjunction.nextDoc()) != DocIdSetIterator.NO_MORE_DOCS) {
                 assert doc == vectorIter.docID();
                 final int docID = doc;
                 final int ord = vectorIter.index();
 
-                if (buffer.size() == PREFETCH_BUFFER_SIZE) {
-                    for (var runnable : buffer) {
-                        runnable.run();
-                    }
-                    buffer.clear();
-                }
-
                 if (input != null) {
                     input.prefetch((long) ord * vectorByteSize, vectorByteSize);
                 }
-                buffer.add(() -> {
-                    int target = scorer.iterator().advance(docID);
+                callables.add(() -> {
+                    VectorScorer taskScorer = knnVectorValues.copy().rescorer(floatTarget);
+                    int target = taskScorer.iterator().advance(docID);
                     assert target == docID;
-                    float score = scorer.score();
-                    if (Float.isNaN(score) == false) {
-                        queue.add(new ScoreDoc(docID + docBase, score));
-                    }
+                    float score = taskScorer.score();
+                    return Float.isNaN(score) ? null : new ScoreDoc(docID + docBase, score);
                 });
             }
         }

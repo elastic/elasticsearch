@@ -9,11 +9,9 @@ package org.elasticsearch.xpack.slm;
 
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotStatus;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotsStatusResponse;
-import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.SnapshotsInProgress;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -477,20 +475,19 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
         });
     }
 
-    private SnapshotLifecyclePolicyMetadata getPolicyMetadata(String policyName) {
-        ClusterState state = client().admin().cluster().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT)).actionGet().getState();
-        SnapshotLifecycleMetadata slmMetadata = state.metadata().getProject(ProjectId.DEFAULT).custom(SnapshotLifecycleMetadata.TYPE);
-        SnapshotLifecyclePolicyMetadata policyMetadata = slmMetadata.getSnapshotConfigurations().get(policyName);
-        assertThat(policyMetadata, notNullValue());
-        return policyMetadata;
-    }
-
     private void waitForNoSnapshotsInProgress() throws Exception {
         assertBusy(() -> assertTrue(SnapshotsInProgress.get(internalCluster().clusterService().state()).isEmpty()));
     }
 
-    private void assertInvocationsSinceLastSuccess(String policyName, long expectedInvocations) throws Exception {
-        assertBusy(() -> assertThat(getPolicyMetadata(policyName).getInvocationsSinceLastSuccess(), equalTo(expectedInvocations)));
+    private void assertInvocationsSinceLastSuccess(String policyName, long expectedInvocations) {
+        awaitClusterState(state -> {
+            SnapshotLifecycleMetadata slmMetadata = state.metadata().getProject(ProjectId.DEFAULT).custom(SnapshotLifecycleMetadata.TYPE);
+            if (slmMetadata == null) {
+                return false;
+            }
+            SnapshotLifecyclePolicyMetadata policyMetadata = slmMetadata.getSnapshotConfigurations().get(policyName);
+            return policyMetadata != null && policyMetadata.getInvocationsSinceLastSuccess() == expectedInvocations;
+        });
     }
 
     private List<String> executePolicies(String node, List<String> policies) throws Exception {

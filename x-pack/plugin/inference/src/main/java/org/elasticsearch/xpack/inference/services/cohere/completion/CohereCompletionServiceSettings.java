@@ -14,13 +14,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.CommonUpdate;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -187,25 +186,16 @@ public class CohereCompletionServiceSettings extends FilteredXContentObject impl
         return Objects.hash(commonSettings);
     }
 
-    private record Update(RateLimitSettings rateLimitSettings) {
+    private static class Update extends CommonUpdate {
 
-        private static final ConstructingObjectParser<CohereCompletionServiceSettings.Update, Void> PARSER = new ConstructingObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
-            false,
-            a -> new CohereCompletionServiceSettings.Update((RateLimitSettings) a[0])
-        );
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
 
         static {
-            PARSER.declareObject(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> RateLimitSettings.createParser(false).apply(p, null),
-                new ParseField(RateLimitSettings.FIELD_NAME)
-            );
+            CohereCommonServiceSettings.declareCommonUpdatableFields(PARSER);
         }
 
         public CohereCompletionServiceSettings mergeInto(CohereCompletionServiceSettings existing) {
-            RateLimitSettings updatedRateLimitSettings = rateLimitSettings != null ? rateLimitSettings : existing.rateLimitSettings();
-            return new CohereCompletionServiceSettings(existing.commonSettings().update(updatedRateLimitSettings));
+            return new CohereCompletionServiceSettings(existing.commonSettings().update(this));
         }
     }
 }

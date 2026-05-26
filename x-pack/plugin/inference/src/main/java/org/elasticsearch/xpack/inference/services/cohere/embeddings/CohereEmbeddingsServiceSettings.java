@@ -16,7 +16,6 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -24,6 +23,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings;
+import org.elasticsearch.xpack.inference.services.cohere.CohereCommonServiceSettings.CommonUpdate;
 import org.elasticsearch.xpack.inference.services.cohere.CohereServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
@@ -91,41 +91,6 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
         return maxInputTokens;
     }
 
-    private record Update(RateLimitSettings rateLimitSettings, Integer maxInputTokens) {
-
-        private static final ConstructingObjectParser<Update, Void> PARSER = new ConstructingObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
-            false,
-            a -> new Update((RateLimitSettings) a[0], (Integer) a[1])
-        );
-
-        static {
-            PARSER.declareObject(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> RateLimitSettings.createParser(false).apply(p, null),
-                new ParseField(RateLimitSettings.FIELD_NAME)
-            );
-            PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), new ParseField(MAX_INPUT_TOKENS));
-        }
-
-        private Update(RateLimitSettings rateLimitSettings, Integer maxInputTokens) {
-            this.rateLimitSettings = rateLimitSettings;
-            this.maxInputTokens = validateMaxInputTokens(maxInputTokens);
-        }
-
-        public CohereEmbeddingsServiceSettings mergeInto(CohereEmbeddingsServiceSettings existing) {
-            RateLimitSettings updatedRateLimitSettings = rateLimitSettings != null ? rateLimitSettings : existing.rateLimitSettings();
-            Integer updatedMaxInputTokens = maxInputTokens != null ? maxInputTokens : existing.maxInputTokens();
-            return new CohereEmbeddingsServiceSettings(
-                existing.commonSettings().update(updatedRateLimitSettings),
-                existing.similarity(),
-                existing.dimensions(),
-                updatedMaxInputTokens,
-                existing.embeddingType()
-            );
-        }
-    }
-
     private static final ObjectParser<Builder, ConfigurationParseContext> REQUEST_PARSER = createParser(
         false,
         ConfigurationParseContext.REQUEST
@@ -159,6 +124,33 @@ public class CohereEmbeddingsServiceSettings extends FilteredXContentObject impl
     public static CohereEmbeddingsServiceSettings fromMap(Map<String, Object> map, ConfigurationParseContext context) {
         var parser = context == ConfigurationParseContext.REQUEST ? REQUEST_PARSER : PERSISTENT_PARSER;
         return CohereCommonServiceSettings.fromMap(map, context, parser);
+    }
+
+    private static class Update extends CommonUpdate {
+
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
+
+        static {
+            CohereCommonServiceSettings.declareCommonUpdatableFields(PARSER);
+            PARSER.declareInt(Update::setMaxInputTokens, new ParseField(MAX_INPUT_TOKENS));
+        }
+
+        private Integer maxInputTokens;
+
+        private void setMaxInputTokens(Integer maxInputTokens) {
+            this.maxInputTokens = validateMaxInputTokens(maxInputTokens);
+        }
+
+        public CohereEmbeddingsServiceSettings mergeInto(CohereEmbeddingsServiceSettings existing) {
+            Integer updatedMaxInputTokens = maxInputTokens != null ? maxInputTokens : existing.maxInputTokens();
+            return new CohereEmbeddingsServiceSettings(
+                existing.commonSettings().update(this),
+                existing.similarity(),
+                existing.dimensions(),
+                updatedMaxInputTokens,
+                existing.embeddingType()
+            );
+        }
     }
 
     private final CohereCommonServiceSettings commonSettings;

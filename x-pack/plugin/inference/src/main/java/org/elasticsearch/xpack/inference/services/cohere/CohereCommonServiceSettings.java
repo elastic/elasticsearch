@@ -36,6 +36,7 @@ import java.net.URI;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createOptionalUri;
@@ -93,7 +94,7 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         }
         parser.declareObject(
             Builder::setRateLimitSettings,
-            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT).parse(p, null),
+            (p, c) -> RateLimitSettings.createParser(c == ConfigurationParseContext.PERSISTENT).apply(p, null),
             new ParseField(RateLimitSettings.FIELD_NAME)
         );
         // api_key appears in the same JSON block as service settings in REST requests; DefaultSecretSettings extracts it separately.
@@ -165,7 +166,8 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
         return modelId;
     }
 
-    public CohereCommonServiceSettings update(RateLimitSettings updatedRateLimitSettings) {
+    public CohereCommonServiceSettings update(CommonUpdate update) {
+        RateLimitSettings updatedRateLimitSettings = Optional.ofNullable(update.rateLimitSettings).orElse(this.rateLimitSettings);
         return new CohereCommonServiceSettings(this.uri, this.modelId, updatedRateLimitSettings, this.apiVersion);
     }
 
@@ -288,6 +290,23 @@ public class CohereCommonServiceSettings extends FilteredXContentObject implemen
             return parser.apply(xParser, context).build();
         } catch (IOException e) {
             throw new ElasticsearchParseException("Failed to parse [{}]", e, ModelConfigurations.SERVICE_SETTINGS);
+        }
+    }
+
+    public static void declareCommonUpdatableFields(AbstractObjectParser<? extends CommonUpdate, Void> parser) {
+        parser.declareObject(
+            CommonUpdate::setRateLimitSettings,
+            (p, c) -> RateLimitSettings.createParser(false).apply(p, null),
+            new ParseField(RateLimitSettings.FIELD_NAME)
+        );
+    }
+
+    public static class CommonUpdate {
+
+        protected RateLimitSettings rateLimitSettings;
+
+        private void setRateLimitSettings(RateLimitSettings rateLimitSettings) {
+            this.rateLimitSettings = rateLimitSettings;
         }
     }
 }

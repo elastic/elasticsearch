@@ -600,7 +600,7 @@ public class CohereEmbeddingsServiceSettingsTests extends AbstractCohereServiceS
             () -> instance.updateServiceSettings(Map.of(ServiceFields.MAX_INPUT_TOKENS, randomNegativeInt()))
         );
 
-        assertThat(e.getMessage(), containsString("Failed to build [service_settings] after last required field arrived"));
+        assertThat(e.getMessage(), containsString("failed to parse field [max_input_tokens]"));
         assertThat(e.getCause().getMessage(), containsString("max_input_tokens must be a positive integer"));
     }
 

@@ -14,9 +14,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.ModelConfigurations;
-import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
@@ -187,25 +185,16 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
         return Strings.toString(this);
     }
 
-    private record Update(RateLimitSettings rateLimitSettings) {
+    private static class Update extends CohereCommonServiceSettings.CommonUpdate {
 
-        private static final ConstructingObjectParser<CohereRerankServiceSettings.Update, Void> PARSER = new ConstructingObjectParser<>(
-            ModelConfigurations.SERVICE_SETTINGS,
-            false,
-            a -> new CohereRerankServiceSettings.Update((RateLimitSettings) a[0])
-        );
+        private static final ObjectParser<Update, Void> PARSER = new ObjectParser<>(ModelConfigurations.SERVICE_SETTINGS, Update::new);
 
         static {
-            PARSER.declareObject(
-                ConstructingObjectParser.optionalConstructorArg(),
-                (p, c) -> RateLimitSettings.createParser(false).apply(p, null),
-                new ParseField(RateLimitSettings.FIELD_NAME)
-            );
+            CohereCommonServiceSettings.declareCommonUpdatableFields(PARSER);
         }
 
         public CohereRerankServiceSettings mergeInto(CohereRerankServiceSettings existing) {
-            RateLimitSettings updatedRateLimitSettings = rateLimitSettings != null ? rateLimitSettings : existing.rateLimitSettings();
-            return new CohereRerankServiceSettings(existing.commonSettings().update(updatedRateLimitSettings));
+            return new CohereRerankServiceSettings(existing.commonSettings().update(this));
         }
     }
 }

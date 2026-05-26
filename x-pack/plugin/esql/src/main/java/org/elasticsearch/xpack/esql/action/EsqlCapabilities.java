@@ -2885,6 +2885,11 @@ public class EsqlCapabilities {
          */
         DEDUP_COMMAND(Build.current().isSnapshot()),
 
+        /**
+         * Support for COALESCE with date_range type.
+         */
+        COALESCE_DATE_RANGE(Build.current().isSnapshot()),
+
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.
         ;

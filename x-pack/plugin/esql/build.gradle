@@ -28,7 +28,7 @@ esplugin {
   name = 'x-pack-esql'
   description = 'The plugin that powers ESQL for Elasticsearch'
   classname = 'org.elasticsearch.xpack.esql.plugin.EsqlPlugin'
-  extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml']
+  extendedPlugins = ['x-pack-esql-core', 'lang-painless', 'x-pack-ml', 'x-pack-encryption']
 }
 
 base {
@@ -38,6 +38,7 @@ base {
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(xpackModule('ml'))
+  compileOnly project(':x-pack:plugin:encryption:spi')
   compileOnly project(path: xpackModule('mapper-aggregate-metric'))
   compileOnly project(path: xpackModule('downsample'))
   implementation project(xpackModule('kql'))

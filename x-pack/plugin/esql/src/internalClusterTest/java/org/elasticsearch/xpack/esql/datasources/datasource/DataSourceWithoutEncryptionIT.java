@@ -25,7 +25,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * Verifies the plaintext-fallback behavior when no {@link org.elasticsearch.xpack.core.crypto.EncryptionService}
+ * Verifies the plaintext-fallback behavior when no {@link org.elasticsearch.xpack.encryption.spi.EncryptionService}
  * is bound on the node — the producer-side path that lets ES|QL data sources work on dev clusters / laptops
  * where {@code xpack.security} isn't enabled. Cluster runs without {@link TestEncryptionServicePlugin}, so
  * the encryption holder stays null and secret PUTs land in cluster state as plaintext Strings (not encrypted

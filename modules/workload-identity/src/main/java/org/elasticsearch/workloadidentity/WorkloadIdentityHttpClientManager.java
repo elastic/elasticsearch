@@ -104,7 +104,12 @@ public final class WorkloadIdentityHttpClientManager implements Closeable {
     private static PoolingNHttpClientConnectionManager createConnectionManager(SSLIOSessionStrategy sslStrategy) {
         final ConnectingIOReactor ioReactor;
         try {
-            ioReactor = new DefaultConnectingIOReactor(IOReactorConfig.custom().setSoKeepAlive(true).build());
+            // Override the IOReactorConfig default of availableProcessors(): this client is low-QPS and
+            // single-host, and concurrent callers share in-flight fetches (HttpsWorkloadIdentityIssuerClient#tokens),
+            // so one dispatcher suffices and keeps the thread footprint independent of host CPU count.
+            ioReactor = new DefaultConnectingIOReactor(
+                IOReactorConfig.custom().setSoKeepAlive(true).setIoThreadCount(1).build()
+            );
         } catch (IOReactorException e) {
             throw new ElasticsearchException("failed to initialize workload-identity HTTP client manager", e);
         }
@@ -121,15 +126,17 @@ public final class WorkloadIdentityHttpClientManager implements Closeable {
         if (closed.compareAndSet(false, true) == false) {
             return;
         }
-        try {
-            connectionEvictor.close();
-        } catch (Exception e) {
-            logger.warn("failed to close workload-identity connection evictor", e);
-        }
+        // Close the HC client first so its blocking shutdown of the IO reactor and connection
+        // manager runs while the evictor is still scheduled; then cancel further evictor passes.
         try {
             httpClient.close();
         } catch (IOException e) {
             logger.warn("failed to close workload-identity HTTP client", e);
+        }
+        try {
+            connectionEvictor.close();
+        } catch (Exception e) {
+            logger.warn("failed to close workload-identity connection evictor", e);
         }
     }
 }

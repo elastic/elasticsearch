@@ -435,9 +435,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.csv.CsvFormatSpecIT
   method: test {csv-spec:csv-union-by-name.multiFileUnionByNameRecipe [LOCAL]}
   issue: https://github.com/elastic/elasticsearch/issues/149127
-- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
-  method: testGetVirtualBatchedCompoundCommitShouldNotStuckForConcurrentShardClose
-  issue: https://github.com/elastic/elasticsearch/issues/149188
 - class: org.elasticsearch.xpack.stateless.cache.SharedBlobCacheWarmingServiceIT
   method: testSearchShardShouldRecoverWhenWarmingFailsOnGetConnection
   issue: https://github.com/elastic/elasticsearch/issues/149195
@@ -597,3 +594,9 @@ tests:
 - class: org.elasticsearch.indices.state.OpenCloseIndexIT
   method: testTranslogStats
   issue: https://github.com/elastic/elasticsearch/issues/149852
+- class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
+  method: testVirtualBatchedCompoundCommitUploadMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/149864
+- class: org.elasticsearch.search.TelemetryMetrics.ShardSearchPhaseAPMMetricsTests
+  method: testUniformCanMatchMetricAttributesWhenPlentyOfDocumentsInIndex
+  issue: https://github.com/elastic/elasticsearch/issues/149874

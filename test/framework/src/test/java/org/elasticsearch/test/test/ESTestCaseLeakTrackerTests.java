@@ -52,6 +52,15 @@ public class ESTestCaseLeakTrackerTests extends ESTestCase {
         // After decRef(), the TrackedResource is removed from activeTrackers; @After verifies no leaks.
     }
 
+    public void testTeardownWithoutBeforeDoesNotThrow() throws Exception {
+        new SkippedBeforeFixture().verifyNoOutstandingLeakTrackerLeaks();
+    }
+
+    private static final class SkippedBeforeFixture extends ESTestCase {
+        // before() intentionally not called — simulates setUp() throwing AssumptionViolatedException
+        // before @Before methods run, which leaves testLeakWindow null.
+    }
+
     private static final class UnclosedWrapFixture extends ESTestCase {
         void assertTeardownDetectsLeak() throws Exception {
             before();

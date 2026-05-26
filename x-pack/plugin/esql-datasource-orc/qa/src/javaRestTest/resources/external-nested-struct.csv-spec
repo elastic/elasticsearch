@@ -85,3 +85,69 @@ id:integer | event.action:keyword
 3          | null
 6          | null
 ;
+
+// Filter pushdown on a nested KEYWORD leaf. The Parquet / ORC readers translate this to
+// a FilterPredicate / SearchArgument against the dotted column path and prune row groups /
+// stripes whose statistics rule out the value (see ParquetPushedExpressions /
+// OrcPushedExpressions). FilterExec re-applies the conjunct to catch any leakage.
+nestedWhereEquals
+required_capability: external_command
+required_capability: external_source_nested_struct_projection
+EXTERNAL "{{nested_events}}"
+| WHERE event.action == "login"
+| KEEP id, event.action
+| SORT id;
+
+id:integer | event.action:keyword
+1          | "login"
+4          | "login"
+;
+
+// IS NULL pushdown on a nested leaf. The reader stats expose the per-leaf null count, so
+// a fully-non-null row group / stripe can be pruned; rows that survive are re-checked.
+nestedWhereIsNull
+required_capability: external_command
+required_capability: external_source_nested_struct_projection
+EXTERNAL "{{nested_events}}"
+| WHERE event.outcome IS NULL
+| KEEP id, event.outcome
+| SORT id;
+
+id:integer | event.outcome:keyword
+4          | null
+6          | null
+;
+
+// Mixed aggregate pushdown: MIN(id)/MAX(id) over a nested grouping key. The aggregate
+// itself is pushed (column-level stats publish min/max for the dotted leaf "id"), the
+// grouping by event.action is evaluated post-read. Exercises both the nested-stats
+// publication path (T2 / T3) and grouping over a nested key.
+nestedStatsMinMax
+required_capability: external_command
+required_capability: external_source_nested_struct_projection
+EXTERNAL "{{nested_events}}"
+| STATS min_id = MIN(id), max_id = MAX(id) BY event.action
+| SORT event.action;
+
+min_id:integer | max_id:integer | event.action:keyword
+1              | 4              | "login"
+2              | 2              | "logout"
+5              | 5              | "read"
+3              | 6              | null
+;
+
+// Combined filter on a nested leaf and a top-level column, plus projection of another
+// nested leaf the predicate doesn't reference. Exercises the dotted-path resolver
+// alongside top-level pushdown, and verifies that nested columns referenced only by the
+// projection still appear (no over-pruning when a sibling leaf is filtered).
+nestedFilterAndProjectMixed
+required_capability: external_command
+required_capability: external_source_nested_struct_projection
+EXTERNAL "{{nested_events}}"
+| WHERE event.action == "login" AND id > 2
+| KEEP id, event.outcome
+| SORT id;
+
+id:integer | event.outcome:keyword
+4          | null
+;

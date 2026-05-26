@@ -555,6 +555,61 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
     }
 
     /**
+     * Defense-in-depth bound on the token cache: once {@code MAX_CACHE_ENTRIES} keys are resident,
+     * new (uncached) request keys must bypass the cache and dispatch a one-shot HTTP fetch rather
+     * than grow the map without bound. Existing cached keys must continue to serve cache hits, and
+     * the saturation WARN must fire at most once per saturation episode.
+     *
+     * <p>The harness here is built with the package-private constructor that exposes the cap so the
+     * test can drive saturation at a tiny cap value (cap=1) without minting the full
+     * {@link HttpsWorkloadIdentityIssuerClient#MAX_CACHE_ENTRIES} distinct tokens.
+     */
+    public void testCacheBypassWhenAtCapacity() throws Exception {
+        final AtomicInteger callCount = new AtomicInteger();
+        final long farFutureEpochSecond = (System.currentTimeMillis() / 1000) + 3_600;
+        final int cap = 1;
+
+        try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build(), cap)) {
+            installCountingHandlerOver(callCount, farFutureEpochSecond);
+            final IssueTokenRequest cached = new IssueTokenRequest("aud-1", "us-east-1");
+            awaitToken(harness, cached);
+            assertEquals("first issuance fills the single-entry cache", 1, callCount.get());
+
+            // First overflow: bypass cache, dispatch a fresh fetch, and emit a one-shot WARN.
+            final IssueTokenRequest overflow = new IssueTokenRequest("aud-2", "us-east-1");
+            MockLog.assertThatLogger(
+                () -> awaitTokenUnchecked(harness, overflow),
+                HttpsWorkloadIdentityIssuerClient.class,
+                new MockLog.SeenEventExpectation(
+                    "cache-at-capacity warn",
+                    HttpsWorkloadIdentityIssuerClient.class.getCanonicalName(),
+                    Level.WARN,
+                    "*workload-identity token cache is at capacity*"
+                )
+            );
+            assertEquals("overflow request must drive a network fetch", 2, callCount.get());
+
+            // Re-issuing the overflowed key must drive another fetch (it was not cached) and the
+            // WARN must NOT fire again within the same saturation episode.
+            MockLog.assertThatLogger(
+                () -> awaitTokenUnchecked(harness, overflow),
+                HttpsWorkloadIdentityIssuerClient.class,
+                new MockLog.UnseenEventExpectation(
+                    "cache-at-capacity warn (suppressed)",
+                    HttpsWorkloadIdentityIssuerClient.class.getCanonicalName(),
+                    Level.WARN,
+                    "*workload-identity token cache is at capacity*"
+                )
+            );
+            assertEquals("overflowed entries must not be cached; second issuance must refetch", 3, callCount.get());
+
+            // The entry cached before saturation must still serve cache hits.
+            awaitToken(harness, cached);
+            assertEquals("entries cached before saturation must continue to serve hits", 3, callCount.get());
+        }
+    }
+
+    /**
      * A short-lived token is evicted at {@code expiresAt - refresh_before_expiry}, after which
      * the next caller pays the cost of a fresh HTTP fetch.
      */
@@ -761,6 +816,19 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
     }
 
     /**
+     * Variant of {@link #awaitToken} that rethrows any checked exception as an
+     * {@link AssertionError}, so the call site can be used inside a {@link Runnable} (e.g. the
+     * lambda passed to {@link MockLog#assertThatLogger}) without declaring {@code throws}.
+     */
+    private static void awaitTokenUnchecked(ClientHarness harness, IssueTokenRequest request) {
+        try {
+            awaitToken(harness, request);
+        } catch (Exception e) {
+            throw new AssertionError("issueToken failed unexpectedly", e);
+        }
+    }
+
+    /**
      * Awaits a token request that is expected to fail, asserts the cause is a
      * {@link WorkloadIdentityIssuerException}, and returns it for further assertions.
      */
@@ -821,6 +889,14 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
         }
 
         ClientHarness(Settings settings, ThreadPool threadPool) {
+            this(settings, threadPool, HttpsWorkloadIdentityIssuerClient.MAX_CACHE_ENTRIES);
+        }
+
+        ClientHarness(Settings settings, int maxCacheEntries) {
+            this(settings, new TestThreadPool(HttpsWorkloadIdentityIssuerClientTests.class.getSimpleName()), maxCacheEntries);
+        }
+
+        ClientHarness(Settings settings, ThreadPool threadPool, int maxCacheEntries) {
             this.threadPool = threadPool;
             final Environment environment = TestEnvironment.newEnvironment(settings);
             this.sslConfig = new WorkloadIdentitySslConfig(settings, environment);
@@ -829,7 +905,7 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
             // before requests are dispatched (mirrors the production WorkloadIdentityPlugin
             // lifecycle, which starts the manager from createComponents).
             this.manager.start();
-            this.client = new HttpsWorkloadIdentityIssuerClient(settings, manager, threadPool);
+            this.client = new HttpsWorkloadIdentityIssuerClient(settings, manager, threadPool, maxCacheEntries);
         }
 
         @Override

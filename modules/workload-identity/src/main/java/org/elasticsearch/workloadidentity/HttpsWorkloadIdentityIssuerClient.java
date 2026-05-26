@@ -45,6 +45,7 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -74,6 +75,23 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
     private static final Logger logger = LogManager.getLogger(HttpsWorkloadIdentityIssuerClient.class);
 
     private static final String TOKEN_PATH = "/token";
+
+    /**
+     * Soft ceiling on the number of cached entries. The cardinality of {@link IssueTokenRequest}
+     * keys ({@code audience} + {@code region}) is structurally bounded today by node-scope
+     * configuration (data sources / credentials), and entries self-evict at
+     * {@code expires_at - refresh_before_expiry}, so production traffic should never approach this
+     * cap. It exists as defense-in-depth: any future caller that lets user-controlled values flow
+     * into a {@link IssueTokenRequest} would otherwise grow the map without bound. Once the cap is
+     * reached, new (uncached) request keys bypass the cache and dispatch a one-shot HTTP fetch
+     * rather than failing the listener; existing entries continue to serve cache hits normally.
+     *
+     * <p>The cap is enforced by a non-atomic {@code size()} check immediately before
+     * {@code putIfAbsent}, so under contention the map size may briefly exceed this value by up to
+     * O(concurrent cache missers). The transient overshoot is bounded by request concurrency and
+     * is acceptable for a defense-in-depth bound; it is not relied upon for correctness.
+     */
+    static final int MAX_CACHE_ENTRIES = 1024;
 
     private static final ParseField TOKEN_FIELD = new ParseField("token");
     private static final ParseField ISSUED_AT_FIELD = new ParseField("issued_at_epoch_seconds");
@@ -105,21 +123,49 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
     private final long maxResponseSizeBytes;
     private final ThreadPool threadPool;
     private final long refreshBeforeExpiryMillis;
+    private final int maxCacheEntries;
 
     /**
      * Tokens cached, keyed by request shape. The value is a {@link SubscribableListener} so that
      * concurrent missing callers for the same key share a single in-flight HTTP fetch. Each entry
      * is removed by a scheduled task at {@code expiresAt - refresh_before_expiry}, so a hit
-     * against this map is always fresh by construction.
+     * against this map is always fresh by construction. Bounded above by {@link #maxCacheEntries};
+     * see {@link #MAX_CACHE_ENTRIES}.
      */
     private final ConcurrentMap<IssueTokenRequest, SubscribableListener<IssueTokenResponse>> tokens = ConcurrentCollections
         .newConcurrentMap();
+
+    /**
+     * Single-shot guard so that the WARN log in {@link #issueToken} fires at most once per
+     * "saturation episode": flipped to {@code true} the first time the cap is hit, reset to
+     * {@code false} the next time a successful caching insertion proves there is room again. A
+     * sustained-saturation period therefore yields one log line, not one per request.
+     */
+    private final AtomicBoolean cacheAtCapacityLogged = new AtomicBoolean();
 
     public HttpsWorkloadIdentityIssuerClient(
         Settings settings,
         WorkloadIdentityHttpClientManager httpClientManager,
         ThreadPool threadPool
     ) {
+        this(settings, httpClientManager, threadPool, MAX_CACHE_ENTRIES);
+    }
+
+    /**
+     * Package-private constructor that exposes the cache cap as an explicit parameter so unit tests
+     * can drive the saturation path without minting {@link #MAX_CACHE_ENTRIES} distinct tokens. Not
+     * a public extension point: production callers should always use the {@code Settings}-based
+     * constructor, which pins the cap to {@link #MAX_CACHE_ENTRIES}.
+     */
+    HttpsWorkloadIdentityIssuerClient(
+        Settings settings,
+        WorkloadIdentityHttpClientManager httpClientManager,
+        ThreadPool threadPool,
+        int maxCacheEntries
+    ) {
+        if (maxCacheEntries < 1) {
+            throw new IllegalArgumentException("maxCacheEntries must be >= 1, got [" + maxCacheEntries + "]");
+        }
         this.httpClientManager = Objects.requireNonNull(httpClientManager, "httpClientManager");
         this.threadPool = Objects.requireNonNull(threadPool, "threadPool");
         this.tokenEndpoint = resolveTokenEndpoint(WorkloadIdentityIssuerSettings.ISSUER_URL_SETTING.get(settings));
@@ -136,6 +182,7 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
         this.maxResponseSizeBytes = maxResponseSize.getBytes();
 
         this.refreshBeforeExpiryMillis = WorkloadIdentityIssuerSettings.TOKEN_CACHE_REFRESH_BEFORE_EXPIRY.get(settings).millis();
+        this.maxCacheEntries = maxCacheEntries;
     }
 
     // Package-private for direct unit testing in ResolveTokenEndpointTests.
@@ -189,12 +236,33 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
     public void issueToken(IssueTokenRequest request, ActionListener<IssueTokenResponse> listener) {
         Objects.requireNonNull(request, "request must not be null");
         Objects.requireNonNull(listener, "listener must not be null");
-        SubscribableListener<IssueTokenResponse> fresh = new SubscribableListener<>();
-        SubscribableListener<IssueTokenResponse> existing = tokens.putIfAbsent(request, fresh);
+        // Cache hit (resolved or in-flight): attach and return.
+        SubscribableListener<IssueTokenResponse> existing = tokens.get(request);
         if (existing != null) {
             existing.addListener(listener);
             return;
         }
+        // Saturation guard: rather than grow the map without bound (or reject the caller), bypass
+        // the cache and dispatch a one-shot uncached fetch. The size check is intentionally racy
+        // with respect to the putIfAbsent below, so the cap is a soft ceiling that may be exceeded
+        // by O(concurrent missers) under contention; for a defense-in-depth bound that is fine.
+        if (tokens.size() >= maxCacheEntries) {
+            if (cacheAtCapacityLogged.compareAndSet(false, true)) {
+                logger.warn("workload-identity token cache is at capacity [{}]; bypassing cache for new request keys", maxCacheEntries);
+            }
+            fetchToken(request, listener);
+            return;
+        }
+        SubscribableListener<IssueTokenResponse> fresh = new SubscribableListener<>();
+        SubscribableListener<IssueTokenResponse> raced = tokens.putIfAbsent(request, fresh);
+        if (raced != null) {
+            raced.addListener(listener);
+            return;
+        }
+        // A successful insertion proves the cap is not pinned, so the next time the cap is hit we
+        // want to surface another WARN. Idempotent reset: cheap on the steady-state cache-hit path
+        // (we only get here on the cache-miss path).
+        cacheAtCapacityLogged.set(false);
         startFetch(request, fresh);
         fresh.addListener(listener);
     }

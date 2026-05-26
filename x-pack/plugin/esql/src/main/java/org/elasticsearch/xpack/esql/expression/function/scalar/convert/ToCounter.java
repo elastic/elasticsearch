@@ -14,6 +14,8 @@ import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesTo;
+import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecycle;
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -59,7 +61,10 @@ public class ToCounter extends AbstractConvertFunction {
         (source, field) -> field
     );
 
-    @FunctionInfo(returnType = { "counter_long", "counter_integer", "counter_double" }, description = """
+    @FunctionInfo(
+        appliesTo = { @FunctionAppliesTo(lifeCycle = FunctionAppliesToLifecycle.GA, version = "9.5.0") },
+        returnType = { "counter_long", "counter_integer", "counter_double" },
+        description = """
         Converts a numeric value to its counter equivalent. The output type is determined by the input:
         `long` converts to `counter_long`, `integer` to `counter_integer`, and `double` to `counter_double`.
         No values are modified; only the type annotation changes. If the input is already a counter, the \
@@ -70,7 +75,9 @@ public class ToCounter extends AbstractConvertFunction {
         Applying `TO_COUNTER` to a field that is a genuine gauge, rather than a misclassified counter, \
         will produce raw gauge values with counter semantics. Results from aggregations on such values \
         are not meaningful.
-        ::::""", examples = @Example(file = "k8s-timeseries-rate", tag = "toCounter"))
+        ::::""",
+        examples = @Example(file = "k8s-timeseries-rate", tag = "toCounter")
+    )
     public ToCounter(
         Source source,
         @Param(

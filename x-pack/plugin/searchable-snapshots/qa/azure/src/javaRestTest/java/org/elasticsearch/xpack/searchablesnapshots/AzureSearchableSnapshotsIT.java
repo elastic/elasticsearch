@@ -69,7 +69,7 @@ public class AzureSearchableSnapshotsIT extends AbstractSearchableSnapshotsRestT
         .setting("xpack.searchable.snapshot.shared_cache.size", "16MB")
         .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
         .setting("xpack.searchable_snapshots.cache_fetch_async_thread_pool.keep_alive", "0ms")
-        .apply(builder -> TEST_TRUST_STORE.apply(builder, true))
+        .apply(builder -> TEST_TRUST_STORE.apply(builder, USE_FIXTURE))
         .build();
 
     @ClassRule(order = 1)

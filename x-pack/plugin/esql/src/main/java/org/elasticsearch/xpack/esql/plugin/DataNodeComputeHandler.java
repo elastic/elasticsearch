@@ -349,7 +349,24 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                         groupTask = parentTask;
                         onGroupFailure = runOnTaskFailure;
                     }
-                    try (var computeListener = new ComputeListener(threadPool, onGroupFailure, l.map(ignored -> null))) {
+                    // Mirror the indexed path (startComputeOnDataNodes): forward the inner
+                    // ComputeListener's accumulated DriverCompletionInfo (driver + plan profiles)
+                    // into a dedicated parentComputeListener.acquireCompute() slot.
+                    final ActionListener<DriverCompletionInfo> profileSlot = parentComputeListener.acquireCompute();
+                    final ActionListener<Void> outerL = l;
+                    try (var computeListener = new ComputeListener(threadPool, onGroupFailure, ActionListener.wrap(info -> {
+                        try {
+                            profileSlot.onResponse(info);
+                        } finally {
+                            outerL.onResponse(null);
+                        }
+                    }, e -> {
+                        try {
+                            profileSlot.onFailure(e);
+                        } finally {
+                            outerL.onFailure(e);
+                        }
+                    }))) {
                         var dataNodeRequest = new DataNodeRequest(
                             childSessionId,
                             configuration,
@@ -371,7 +388,7 @@ final class DataNodeComputeHandler implements TransportRequestHandler<DataNodeRe
                             groupTask,
                             TransportRequestOptions.EMPTY,
                             new ActionListenerResponseHandler<>(
-                                computeListener.acquireCompute().map(r -> r.completionInfo()),
+                                computeListener.acquireCompute().map(DataNodeComputeResponse::completionInfo),
                                 DataNodeComputeResponse::new,
                                 searchExecutor
                             )

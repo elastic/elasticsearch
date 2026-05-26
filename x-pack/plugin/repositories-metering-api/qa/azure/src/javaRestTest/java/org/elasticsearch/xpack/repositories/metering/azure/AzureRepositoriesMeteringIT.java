@@ -63,7 +63,7 @@ public class AzureRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPI
             () -> "ignored;DefaultEndpointsProtocol=https;BlobEndpoint=" + fixture.getAddress(),
             s -> USE_FIXTURE
         )
-        .apply(builder -> TEST_TRUST_STORE.apply(builder, true))
+        .apply(builder -> TEST_TRUST_STORE.apply(builder, USE_FIXTURE))
         .build();
 
     @ClassRule(order = 1)

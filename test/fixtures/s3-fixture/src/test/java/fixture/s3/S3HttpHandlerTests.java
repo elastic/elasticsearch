@@ -467,6 +467,7 @@ public class S3HttpHandlerTests extends ESTestCase {
         expectParseAmzChunkedFailure("header of chunk [1] was too long", 0, new BytesArray(randomAlphaOfLength(149) + "\r\n"));
         expectParseAmzChunkedFailure("header of chunk [1] was too short", 0, new BytesArray("\n"));
         expectParseAmzChunkedFailure("header of chunk [1] not terminated with [\\r\\n]", 0, new BytesArray("abc\n"));
+        expectParseAmzChunkedFailure("header of chunk [1] did not match expected pattern", 0, new BytesArray("z\r\n"));
 
         try (var out = new BytesStreamOutput()) {
             writeAmzChunkedBodyChunk(out, singleChunkData);

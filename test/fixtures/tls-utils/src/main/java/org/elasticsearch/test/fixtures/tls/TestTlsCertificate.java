@@ -75,6 +75,10 @@ public record TestTlsCertificate(X509Certificate certificate, PrivateKey private
 
     /**
      * Base64-encoded PKCS#8 representation of a test-only 2048-bit RSA private key. Must not be used outside of tests.
+     * <p>
+     * RSA private keys contain only the raw key material, no extra metadata, so there's no issue with hard-coding this: all the interesting
+     * stuff relates to the metadata attached to the certificate which is generated programmatically below. Moreover, generating a fresh key
+     * each time can be a little costly so there is an advantage to fixing this key here.
      */
     private static final String PKCS8_PRIVATE_KEY = """
         MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQCqaV+24/U47HEVkcB6Rn4hpfOOESs59KqqWF4itkg78E8MyNWmDgGC47C/29x6ysVKlEd0BYhdwpjeHLd\

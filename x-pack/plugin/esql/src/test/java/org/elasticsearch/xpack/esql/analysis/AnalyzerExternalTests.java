@@ -256,6 +256,37 @@ public class AnalyzerExternalTests extends ESTestCase {
     }
 
     /**
+     * Explicit {@code KEEP _file.path} surfaces the virtual column in the final plan output —
+     * naming a virtual column by KEEP is the one way it reaches the result.
+     */
+    public void testKeepFileMetadataByNameSurfaces() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+
+        var plan = external().query("EXTERNAL \"" + S3_PATH + "\" | KEEP `_file.path` | LIMIT 3");
+        List<String> outputNames = plan.output().stream().map(Attribute::name).toList();
+        assertEquals("explicit KEEP _file.path must surface it", List.of("_file.path"), outputNames);
+    }
+
+    /**
+     * {@code DROP <data column>} resolves to a Project that carries every surviving column forward,
+     * including the {@code _file.*} virtual columns the EXTERNAL shim made resolvable. That carry-
+     * forward is NOT "the user kept it": no {@code _file.*} column may reach the final output.
+     * This is the regression guard for the {@code EXTERNAL | DROP | LIMIT} leak.
+     */
+    public void testDropDoesNotSurfaceFileMetadata() {
+        assumeTrue("requires EXTERNAL command capability", EsqlCapabilities.Cap.EXTERNAL_COMMAND.isEnabled());
+
+        var plan = external().query("EXTERNAL \"" + S3_PATH + "\" | DROP first_name | LIMIT 3");
+        for (Attribute attr : plan.output()) {
+            assertFalse("Virtual attribute " + attr.name() + " must not surface through DROP", attr instanceof VirtualAttribute);
+            assertFalse(
+                "_file.* column " + attr.name() + " must not surface through DROP",
+                FileMetadataColumns.NAMES.contains(attr.name())
+            );
+        }
+    }
+
+    /**
      * {@code KEEP _file*} pattern resolves all five {@code _file.*} columns.
      * Verified by piping into STATS (since the final plan output strips virtual columns).
      */

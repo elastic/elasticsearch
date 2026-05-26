@@ -233,8 +233,7 @@ public class ExternalRelation extends LeafPlan implements ExecutesOn.Coordinator
      * Returns the pre-enrichment Unified schema — the data-only view that {@link SchemaReconciliation}
      * built the per-file {@link org.elasticsearch.xpack.esql.datasources.ColumnMapping}s against. The
      * post-enrichment {@code metadata.schema()} includes partition attributes appended by
-     * {@code ExternalSourceResolver#enrichSchemaWithPartitionColumns} and {@code _file.*}
-     * virtual columns appended by {@code enrichSchemaWithFileMetadataColumns}; both are wider
+     * {@code ExternalSourceResolver#enrichSchemaWithPartitionColumns}, which is wider
      * than the per-file mapping. Seeding {@code ExternalSourceExec.unifiedSchema} from the
      * wider view causes {@code ColumnMapping.pruneToPerFileQuery} to read past
      * {@code index.length} when the optimizer also prunes the projection.

@@ -14,6 +14,8 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostQuery;
 import org.apache.lucene.search.DisjunctionMaxQuery;
+import org.apache.lucene.search.MatchAllDocsQuery;
+import org.apache.lucene.search.MatchNoDocsQuery;
 import org.apache.lucene.search.PhraseQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -31,6 +33,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MockFieldMapper.FakeFieldType;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.ZeroTermsQueryOption;
 import org.elasticsearch.index.search.MultiMatchQueryParser.FieldAndBoost;
 import org.elasticsearch.lucene.queries.BlendedTermQuery;
 import org.elasticsearch.plugins.Plugin;
@@ -393,5 +396,24 @@ public class MultiMatchQueryParserTests extends ESSingleNodeTestCase {
             0.0f
         );
         assertThat(query, equalTo(expected));
+    }
+
+    public void testCrossFieldsZeroTokensDoesNotThrow() throws IOException {
+        SearchExecutionContext searchExecutionContext = indexService.newSearchExecutionContext(randomInt(20), 0, null, () -> {
+            throw new UnsupportedOperationException();
+        }, null, emptyMap(), null, null);
+
+        Query noneQuery = multiMatchQuery(".").field("name.first")
+            .field("name.last")
+            .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+            .toQuery(searchExecutionContext);
+        assertThat(noneQuery, instanceOf(MatchNoDocsQuery.class));
+
+        Query allQuery = multiMatchQuery(".").field("name.first")
+            .field("name.last")
+            .type(MultiMatchQueryBuilder.Type.CROSS_FIELDS)
+            .zeroTermsQuery(ZeroTermsQueryOption.ALL)
+            .toQuery(searchExecutionContext);
+        assertThat(allQuery, instanceOf(MatchAllDocsQuery.class));
     }
 }

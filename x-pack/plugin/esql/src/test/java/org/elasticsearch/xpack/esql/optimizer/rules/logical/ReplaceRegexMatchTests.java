@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RLikePattern
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.RegexMatch;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
@@ -126,10 +127,41 @@ public class ReplaceRegexMatchTests extends ESTestCase {
         assertEquals("foo", BytesRefs.toString(sw.children().get(1).fold(FoldContext.small())));
     }
 
-    public void testLikeNoFixedPrefixUnchanged() {
+    public void testLikeContainsDecomposesToContains() {
         WildcardPattern pattern = new WildcardPattern("*foo*");
         FieldAttribute fa = getFieldAttribute();
         WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = replaceRegexMatch(wl);
+        assertEquals(Contains.class, e.getClass());
+        Contains c = (Contains) e;
+        assertEquals(fa, c.children().get(0));
+        assertEquals("foo", BytesRefs.toString(c.children().get(1).fold(FoldContext.small())));
+    }
+
+    public void testLikeContainsEscapedStar() {
+        WildcardPattern pattern = new WildcardPattern("*foo\\*bar*");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = replaceRegexMatch(wl);
+        assertEquals(Contains.class, e.getClass());
+        Contains c = (Contains) e;
+        assertEquals(fa, c.children().get(0));
+        assertEquals("foo*bar", BytesRefs.toString(c.children().get(1).fold(FoldContext.small())));
+    }
+
+    public void testLikeComplexContainsNotDecomposedToContains() {
+        // *a*b* has three unescaped stars — not a pure Contains shape; stays as WildcardLike.
+        WildcardPattern pattern = new WildcardPattern("*a*b*");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = replaceRegexMatch(wl);
+        assertEquals(WildcardLike.class, e.getClass());
+    }
+
+    public void testCaseInsensitiveContainsLikeNotDecomposed() {
+        WildcardPattern pattern = new WildcardPattern("*foo*");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern, true);
         Expression e = replaceRegexMatch(wl);
         assertEquals(WildcardLike.class, e.getClass());
     }

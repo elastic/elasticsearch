@@ -23,7 +23,7 @@ public final class FlattenedFieldArrayContext extends FieldArrayContext {
     private final String offsetsFieldName;
 
     static String getFlattenedOffsetsFieldName(String flattenedFieldName) {
-        return flattenedFieldName + OFFSETS_FIELD_NAME_SUFFIX;
+        return offsetsFieldName(flattenedFieldName);
     }
 
     FlattenedFieldArrayContext(String flattenedFieldName) {

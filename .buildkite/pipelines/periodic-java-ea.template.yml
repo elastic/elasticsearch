@@ -155,7 +155,7 @@ steps:
           buildDirectory: /dev/shm/bk
       - label: third-party / geoip
         command: |
-          .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION :modules:ingest-geoip:internalClusterTest -Dtests.jvm.argline="-Dgeoip_use_service=true"
+          .ci/scripts/run-gradle.sh -Druntime.java=$$JAVA_EA_VERSION :modules:ip-location:internalClusterTest -Dtests.jvm.argline="-Dgeoip_use_service=true"
         timeout_in_minutes: 30
         agents:
           provider: gcp

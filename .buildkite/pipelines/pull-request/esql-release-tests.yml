@@ -1,0 +1,25 @@
+config:
+  allow-labels:
+    - ":Analytics/ES|QL"
+    - ":ml/ES|QL"
+    - ":Search Relevance/ES|QL"
+    - ":StorageEngine/ES|QL"
+steps:
+  - group: esql-release-tests
+    steps:
+      - label: "{{matrix.CHECK_TASK}} / release-tests"
+        command: .buildkite/scripts/release-tests.sh {{matrix.CHECK_TASK}}
+        timeout_in_minutes: 120
+        matrix:
+          setup:
+            CHECK_TASK:
+              - releaseTestCheckEsqlEngine
+              - releaseTestCheckEsqlQa
+              - releaseTestCheckEsqlDatasourceCore
+              - releaseTestCheckEsqlDatasourceQa
+        agents:
+          provider: gcp
+          image: family/elasticsearch-ubuntu-2404
+          diskSizeGb: 350
+          machineType: n4-custom-32-98304
+          diskType: hyperdisk-balanced

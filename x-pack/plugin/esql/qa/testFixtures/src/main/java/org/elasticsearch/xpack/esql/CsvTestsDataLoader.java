@@ -133,6 +133,9 @@ public class CsvTestsDataLoader {
             "partial_mapping_sample_data.csv"
         ),
         new TestDataset("mv_sample_data"),
+        new TestDataset("event_alerts"),
+        new TestDataset("event_logs"),
+        new TestDataset("event_empty").noData(),
         new TestDataset("alerts"),
         new TestDataset("sample_data").withIndex("sample_data_str").withTypeMapping(Map.of("client_ip", "keyword")),
         new TestDataset("sample_data").withIndex("sample_data_ts_long")
@@ -252,13 +255,14 @@ public class CsvTestsDataLoader {
         new TestDataset("mmr_text_vector_keyword"),
         new TestDataset("json_logs"),
         new TestDataset("flattened_otel_logs"),
+        new TestDataset("flattened_many"),
         new TestDataset("host_threat_list").withSetting("lookup-settings.json"),
         new TestDataset(
             "metric_temporality",
             "metric_temporality-mappings.json",
             "metric_temporality.csv",
             "metric_temporality-settings.json"
-        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V6),
+        ).withRequiredCapabilities(EsqlCapabilities.Cap.TSDB_TEMPORALITY_SUPPORT_V7),
         new TestDataset("ts_window", "ts_window-mappings.json", "ts_window.csv", "ts_window-settings.json")
     ).collect(toMap(TestDataset::indexName, Function.identity()));
 
@@ -301,7 +305,10 @@ public class CsvTestsDataLoader {
         new ViewConfig("employees_not_rehired"),
         new ViewConfig("employees_all"),
         new ViewConfig("employees_extra"),
-        new ViewConfig("view_with_subquery")
+        new ViewConfig("view_with_subquery"),
+        new ViewConfig("view_row_constants", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("view_row_eval", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW)),
+        new ViewConfig("view_employees_row_subquery", List.of(EsqlCapabilities.Cap.SUBQUERY_WITH_ROW))
     ).collect(toMap(ViewConfig::name, Function.identity()));
 
     /**
@@ -638,9 +645,17 @@ public class CsvTestsDataLoader {
     }
 
     public static void loadViewsIntoEs(RestClient client) throws IOException {
+        loadViewsIntoEs(client, cap -> true);
+    }
+
+    public static void loadViewsIntoEs(RestClient client, Predicate<EsqlCapabilities.Cap> capabilityCheck) throws IOException {
         if (clusterHasViewSupport(client)) {
             logger.info("Loading views");
             for (var view : VIEW_CONFIGS.values()) {
+                if (view.requiredCapabilities.stream().allMatch(capabilityCheck) == false) {
+                    logger.info("Skipping view [{}], missing required capabilities {}", view.name, view.requiredCapabilities);
+                    continue;
+                }
                 loadView(client, view);
             }
         } else {
@@ -1417,7 +1432,11 @@ public class CsvTestsDataLoader {
         }
     }
 
-    public record ViewConfig(String name) {
+    public record ViewConfig(String name, List<EsqlCapabilities.Cap> requiredCapabilities) {
+        public ViewConfig(String name) {
+            this(name, List.of());
+        }
+
         public String loadQuery() {
             return getResourceString("/views/" + name + ".esql");
         }

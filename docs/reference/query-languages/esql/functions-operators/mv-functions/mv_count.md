@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `MV_COUNT` function [esql-mv_count]
 
-:::{include} ../../_snippets/functions/layout/mv_count.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/mv_count.md
 :::

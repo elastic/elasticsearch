@@ -869,7 +869,7 @@ public class CompletionFieldMapperTests extends MapperTestCase {
             }
             b.endArray();
         }));
-        assertCriticalWarnings(
+        assertWarnings(
             "You have defined more than ["
                 + COMPLETION_CONTEXTS_LIMIT
                 + "] completion contexts"

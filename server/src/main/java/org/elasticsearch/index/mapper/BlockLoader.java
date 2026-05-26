@@ -732,6 +732,13 @@ public interface BlockLoader {
          */
         SortedSetOrdinalsBuilder sortedSetOrdinalsBuilder(SortedSetDocValues ordinals, int count);
 
+        /**
+         * Build a reader that emits an ord-encoded BytesRef block that preserves append order (duplicates retained, no sort/dedupe). Use
+         * this when the caller drives ord ordering from a companion offsets doc value, rather than reading the natural sorted-deduped
+         * stream from {@link SortedSetDocValues}.
+         */
+        SortedSetOrdinalsBuilder arrayOrderOrdinalsBuilder(SortedSetDocValues ordinals, int count);
+
         AggregateMetricDoubleBuilder aggregateMetricDoubleBuilder(int count);
 
         LongRangeBuilder longRangeBuilder(int count);

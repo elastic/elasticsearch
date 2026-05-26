@@ -57,6 +57,8 @@ def parquetQaProject = project(xpackModule('esql-datasource-parquet:qa'))
 def parquetFixtureOutputDir = file("${parquetQaProject.buildDir}/parquet-fixtures/iceberg-fixtures")
 
 sourceSets.javaRestTest.resources.srcDir file("${parquetQaProject.buildDir}/parquet-fixtures")
+// Share static csv-spec files (e.g. external-hive-partitioned.csv-spec) with the java parquet qa module.
+sourceSets.javaRestTest.resources.srcDir file("${parquetQaProject.projectDir}/src/javaRestTest/resources")
 tasks.named('processJavaRestTestResources').configure {
   dependsOn parquetQaProject.tasks.named('generateParquetFixtures')
 }

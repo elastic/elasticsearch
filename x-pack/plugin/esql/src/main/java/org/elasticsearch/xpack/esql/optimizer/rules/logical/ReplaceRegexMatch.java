@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.regex.StringPatter
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ChangeCase;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -81,6 +82,11 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
         String suffix = wp.extractSuffix();
         if (suffix != null && raw.equals("*" + StringUtils.escapeWildcardLiteral(suffix))) {
             return new EndsWith(wl.source(), wl.field(), Literal.keyword(wl.source(), suffix));
+        }
+        // Pure *literal* — escape-aware syntactic check via WildcardPattern.shape(); not reachable
+        // from the prefix/suffix branches above (those require single-star raw equality).
+        if (wp.shape() instanceof WildcardPattern.Shape.Contains contains) {
+            return new Contains(wl.source(), wl.field(), Literal.keyword(wl.source(), contains.literal()));
         }
         if (prefix != null) {
             return new And(wl.source(), new StartsWith(wl.source(), wl.field(), Literal.keyword(wl.source(), prefix)), wl);

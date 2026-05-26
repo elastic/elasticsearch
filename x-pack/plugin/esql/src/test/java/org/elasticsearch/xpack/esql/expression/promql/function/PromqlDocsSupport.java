@@ -183,6 +183,7 @@ public final class PromqlDocsSupport {
         )
     );
     private static final Logger logger = LogManager.getLogger(PromqlDocsSupport.class);
+    private static final PromqlFunctionRegistry REGISTRY = new PromqlFunctionRegistry();
     private static final String SPEC_SITE = "https://prometheus.io/docs/prometheus/latest/querying";
     private static final String COMMENT_HEADER = "PromQL function definition for Kibana";
     private static final String COMMENT_FUNCTION = COMMENT_HEADER + ". See " + SPEC_SITE + "/functions/";
@@ -191,7 +192,7 @@ public final class PromqlDocsSupport {
     private PromqlDocsSupport() {}
 
     public static void entrypoint(DocsV3Support.Callbacks callbacks) throws Exception {
-        for (var def : PromqlFunctionRegistry.INSTANCE.allFunctions()) {
+        for (var def : REGISTRY.allFunctions()) {
             genFunctionDocs(def, callbacks);
         }
         for (var opDef : OPERATOR_DEFS) {

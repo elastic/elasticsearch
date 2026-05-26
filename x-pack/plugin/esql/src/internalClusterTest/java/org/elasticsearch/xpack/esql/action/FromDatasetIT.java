@@ -370,10 +370,10 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    public void testFromDatasetWithMetadataFieldsRejected() throws Exception {
-        // Phase 1 rejects METADATA fields on datasets at the rewriter rather than silently dropping.
-        // _index synthesis on datasets is tracked separately; _id / _source / _score have no agreed
-        // semantics yet on external sources.
+    public void testFromDatasetIndexMetadataReturnsDatasetName() throws Exception {
+        // Standard metadata fields are accepted on datasets. For the FROM <dataset> path, _index
+        // resolves to the user-facing dataset name (not the underlying resource path) for every
+        // row, matching the "_index is the dataset name" contract.
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
         assertAcked(
             client().execute(
@@ -382,12 +382,23 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
             )
         );
 
-        Exception ex = expectThrows(
-            Exception.class,
-            () -> run(syncEsqlQueryRequest("FROM employees METADATA _index | KEEP _index | LIMIT 1"), TIMEOUT)
-        );
-        assertCauseMessageContains(ex, "METADATA fields are not supported on datasets");
-        assertCauseMessageContains(ex, "employees");
+        try (
+            var response = run(
+                syncEsqlQueryRequest("FROM employees METADATA _index | SORT emp_no | KEEP emp_no, _index | LIMIT 10"),
+                TIMEOUT
+            )
+        ) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("emp_no"));
+            assertThat(columns.get(1).name(), equalTo("_index"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat(row.get(1).toString(), equalTo("employees"));
+            }
+        }
     }
 
     public void testWildcardSpanningIndexAndDatasetRejected() throws Exception {

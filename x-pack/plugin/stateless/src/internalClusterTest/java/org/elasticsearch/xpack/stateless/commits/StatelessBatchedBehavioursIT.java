@@ -140,9 +140,9 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
             final var latestUploaded = statelessCommitService.getLatestUploadedBcc(indexShard.shardId());
             assertNotNull("no BCC has been uploaded yet", latestUploaded);
             assertThat(
-                    "every bulk-phase commit must finish uploading before forceMerge() runs, otherwise the #148723 race fires",
-                    latestUploaded.lastCompoundCommit().primaryTermAndGeneration().generation(),
-                    greaterThanOrEqualTo(lastBulkPhaseGeneration)
+                "every bulk-phase commit must finish uploading before forceMerge() runs, otherwise the #148723 race fires",
+                latestUploaded.lastCompoundCommit().primaryTermAndGeneration().generation(),
+                greaterThanOrEqualTo(lastBulkPhaseGeneration)
             );
         }, 30, TimeUnit.SECONDS);
         forceMerge();

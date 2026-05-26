@@ -30,9 +30,10 @@ describe("toBuildkitePipeline end-to-end", () => {
     expect(step.key).toBe("flakiness-detection:unit");
     expect(step.parallelism).toBeUndefined();
     expect(step.env).toBeUndefined();
-    expect(step.command).toBe(
+    expect(step.command).toContain(
       ".ci/scripts/run-gradle.sh -Dtests.iters=100 -Dtests.timeoutSuite=3600000! :server:test --tests org.elasticsearch.index.IndexTests"
     );
+    expect(step.command).toContain("exit 0");
     expect(step.timeout_in_minutes).toBe(60);
     expect(step.agents.provider).toBe("gcp");
     expect(step.agents.machineType).toBe("n4-custom-32-98304");
@@ -64,6 +65,8 @@ describe("toBuildkitePipeline end-to-end", () => {
     expect(step.env).toBeDefined();
     expect(step.env!["BATCH_COMMAND_0"]).toContain("repeat-rest-test.sh");
     expect(step.env!["BATCH_COMMAND_1"]).toContain("repeat-rest-test.sh");
+    expect(step.env!["BATCH_COMMAND_0"]).toContain("exit 0");
+    expect(step.env!["BATCH_COMMAND_1"]).toContain("exit 0");
     expect(step.command).toContain("BUILDKITE_PARALLEL_JOB");
     // The `$$` escape prevents Buildkite pipeline interpolation from trying to
     // parse `${!VARNAME}` (bash indirect expansion) as a Buildkite variable,
@@ -137,8 +140,8 @@ describe("toBuildkitePipeline", () => {
     const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG);
     const step = pipeline.steps[0].steps[0];
     expect(step.parallelism).toBe(3);
-    expect(step.env?.BATCH_COMMAND_0).toBe("cmd1");
-    expect(step.env?.BATCH_COMMAND_2).toBe("cmd3");
+    expect(step.env?.BATCH_COMMAND_0).toContain("cmd1");
+    expect(step.env?.BATCH_COMMAND_2).toContain("cmd3");
   });
 
   test("does not set parallelism for a single batch", () => {
@@ -148,7 +151,7 @@ describe("toBuildkitePipeline", () => {
     const pipeline = toBuildkitePipeline(cmds, DEFAULT_AGENT_CONFIG);
     const step = pipeline.steps[0].steps[0];
     expect(step.parallelism).toBeUndefined();
-    expect(step.command).toBe("only");
+    expect(step.command).toContain("only");
   });
 
   test("batch steps upload JUnit XML artifacts; analyze step downloads them", () => {

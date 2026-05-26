@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.ann.Evaluator;
+import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.TranslationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -124,6 +125,14 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
         return Arrays.equals(str.bytes, str.offset, str.offset + prefix.length, prefix.bytes, prefix.offset, prefix.offset + prefix.length);
     }
 
+    @Evaluator(extraName = "Constant")
+    static boolean processConstant(BytesRef str, @Fixed(jitConstant = true) BytesRef prefix) {
+        if (str.length < prefix.length) {
+            return false;
+        }
+        return Arrays.equals(str.bytes, str.offset, str.offset + prefix.length, prefix.bytes, prefix.offset, prefix.offset + prefix.length);
+    }
+
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new StartsWith(source(), newChildren.get(0), newChildren.get(1));
@@ -136,6 +145,13 @@ public class StartsWith extends EsqlScalarFunction implements TranslationAware.S
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (prefix.foldable()) {
+            Object folded = prefix.fold(toEvaluator.foldCtx());
+            BytesRef constantPrefix = BytesRefs.toBytesRef(folded);
+            if (constantPrefix != null) {
+                return new StartsWithConstantEvaluator.Factory(source(), toEvaluator.apply(str), constantPrefix);
+            }
+        }
         return new StartsWithEvaluator.Factory(source(), toEvaluator.apply(str), toEvaluator.apply(prefix));
     }
 

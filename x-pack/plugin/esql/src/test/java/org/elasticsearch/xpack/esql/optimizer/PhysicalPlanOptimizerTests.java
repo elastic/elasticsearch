@@ -10368,6 +10368,32 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     /**
+     * Invariant: inline-stats right branches that contribute no remaining outputs should be pruned away before
+     * physical mapping.
+     * Defect: dead inline-stats branches could leave StubRelation in the logical tree and fail mapping.
+     * Expected: logical plan is stub-free for this query shape and physical optimization succeeds.
+     */
+    public void testInlineStatsUnusedRightBranchIsPrunedBeforePhysicalMapping() {
+        assumeTrue("INLINE STATS must be enabled", INLINE_STATS.isEnabled());
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        TestDataSource multiColumnJoinable = makeTestDataSource("multi_column_joinable", "mapping-multi_column_joinable.json");
+        String query = """
+            FROM multi_column_joinable, (FROM multi_column_joinable)
+            | EVAL x = id_int
+            | INLINE STATS d = max(x)
+            | STATS d2 = count(*)
+            """;
+
+        var logical = multiColumnJoinable.logicalOptimizer().optimize(multiColumnJoinable.analyzer.analyze(TEST_PARSER.parseQuery(query)));
+        assertThat(logical.toString(), not(containsString("StubRelation")));
+
+        PhysicalPlan plan = physicalPlan(query, multiColumnJoinable, false);
+        PhysicalPlan optimized = optimizedPlan(plan, multiColumnJoinable);
+        assertNotNull(optimized);
+    }
+
+    /**
      * ProjectExec[[first_name{f}#6]]
      * \_TopNExec[[Order[last_name{f}#9,ASC,LAST]],1000[INTEGER],null]
      *   \_ExchangeExec[[],false]

@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.ArrayList;
@@ -255,7 +256,10 @@ public final class ParallelParsingCoordinator {
             if (remaining < minSegment) {
                 break;
             }
-            try (InputStream stream = storageObject.newStream(pos, remaining)) {
+            InputStream stream = storageObject.newStream(pos, remaining);
+            // Abort rather than close: findNextRecordBoundary reads only a prefix of the range
+            // (fileLength - pos bytes), but close() on providers like S3 drains the remainder.
+            try (Closeable abortOnExit = () -> storageObject.abortStream(stream)) {
                 long skipped = reader.findNextRecordBoundary(stream);
                 if (skipped < 0) {
                     break;

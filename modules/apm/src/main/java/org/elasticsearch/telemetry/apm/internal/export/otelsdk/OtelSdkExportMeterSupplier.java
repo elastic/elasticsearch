@@ -123,10 +123,19 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     }
 
     /**
-     * Flushes the system provider first, then the health provider. The ordering is required because
-     * {@code OtlpHttpMetricExporter} records health telemetry (e.g.
-     * {@code otel.sdk.exporter.metric_data_point.exported}) into the health provider only after its HTTP
-     * export completes; the health provider must therefore flush after the system provider finishes.
+     * Flushes metrics in three sequential steps: sys → health1 → health2.
+     * <p>
+     * Two ordering constraints drive this design:
+     * <ol>
+     *   <li>{@code OtlpHttpMetricExporter} records exporter health telemetry (e.g.
+     *       {@code otel.sdk.exporter.metric_data_point.exported}) into the health provider only
+     *       after its HTTP export completes, so the health flush must follow the system flush.</li>
+     *   <li>{@code PeriodicMetricReader} records {@code otel.sdk.metric_reader.collection.duration}
+     *       in a {@code whenComplete} callback that races with the {@code forceFlush()} result
+     *       completing, so health1 may start before {@code collection.duration} is written. By the
+     *       time health1 finishes its own HTTP export, the race has resolved; health2 reliably
+     *       captures {@code collection.duration} from the system flush.</li>
+     * </ol>
      * Callers must join the result with an appropriate timeout.
      * <p>
      * The returned result always succeeds: flush is best-effort and intermediate failures are silently
@@ -145,7 +154,8 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         // Lock released before flushing to avoid holding it during async I/O.
         // close() may race here; SdkMeterProvider.forceFlush() on a stopped provider is a safe no-op.
         CompletableResultCode result = new CompletableResultCode();
-        sys.forceFlush().whenComplete(() -> health.forceFlush().whenComplete(() -> result.succeed()));
+        sys.forceFlush()
+            .whenComplete(() -> health.forceFlush().whenComplete(() -> health.forceFlush().whenComplete(() -> result.succeed())));
         return result;
     }
 

@@ -319,7 +319,7 @@ public final class S3StorageObject implements StorageObject {
             return;
         }
         if (length > Integer.MAX_VALUE) {
-            // The async path materializes the response into a single byte[]; ranges larger than 2 GiB
+            // The async path materializes the response into a single direct ByteBuffer; ranges larger than 2 GiB
             // are not supportable here. Callers needing larger reads must split the range or fall
             // back to the streaming sync path via newStream(position, length).
             listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
@@ -332,22 +332,23 @@ public final class S3StorageObject implements StorageObject {
         GetObjectRequest request = GetObjectRequest.builder().bucket(bucket).key(key).range(rangeHeader).build();
 
         // Use a custom transformer instead of AsyncResponseTransformer.toBytes() so each chunk is
-        // copied straight into the final pre-sized byte[] (single chunk-to-destination copy),
+        // copied straight into a pre-sized direct ByteBuffer (single chunk-to-destination copy),
         // rather than the SDK's default BAOS-based pipeline which materializes the body 3+ times.
         // See KnownLengthAsyncResponseTransformer for the full rationale.
-        s3AsyncClient.getObject(request, new KnownLengthAsyncResponseTransformer<>((int) length))
-            .whenComplete((responseBytes, throwable) -> {
-                if (throwable != null) {
-                    Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
-                    if (cause instanceof NoSuchKeyException) {
-                        listener.onFailure(new IOException("Object not found: " + path, cause));
-                    } else {
-                        listener.onFailure(cause instanceof Exception ex ? ex : new RuntimeException(cause));
-                    }
-                    return;
+        KnownLengthAsyncResponseTransformer<GetObjectResponse> transformer = new KnownLengthAsyncResponseTransformer<>((int) length);
+        s3AsyncClient.getObject(request, transformer).whenComplete((buffer, throwable) -> {
+            if (throwable != null) {
+                Throwable cause = throwable.getCause() != null ? throwable.getCause() : throwable;
+                if (cause instanceof NoSuchKeyException) {
+                    listener.onFailure(new IOException("Object not found: " + path, cause));
+                } else {
+                    listener.onFailure(cause instanceof Exception ex ? ex : new RuntimeException(cause));
                 }
+                return;
+            }
 
-                GetObjectResponse response = responseBytes.response();
+            GetObjectResponse response = transformer.response();
+            if (response != null) {
                 if (cachedLastModified == null) {
                     cachedLastModified = response.lastModified();
                 }
@@ -357,17 +358,10 @@ public final class S3StorageObject implements StorageObject {
                         cachedLength = total;
                     }
                 }
+            }
 
-                // Copy into a direct ByteBuffer so both the input and output sides of decompression
-                // are direct — enabling the JNI-free direct-to-direct fast path in PlainCompressionCodecFactory
-                // and avoiding GetPrimitiveArrayCritical heap-region pinning during G1GC.
-                // Use asByteArrayUnsafe() to skip the SDK's defensive Arrays.copyOf; safe because the byte[]
-                // was allocated by our KnownLengthAsyncResponseTransformer above and is not retained elsewhere.
-                byte[] data = responseBytes.asByteArrayUnsafe();
-                ByteBuffer direct = ByteBuffer.allocateDirect(data.length);
-                direct.put(data).flip();
-                listener.onResponse(direct);
-            });
+            listener.onResponse(buffer);
+        });
     }
 
     @Override

@@ -62,6 +62,57 @@ public class LongRangeBlockTests extends ESTestCase {
         }
     }
 
+    public void testExpandSingleValueBlock() {
+        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofMb(16));
+        try (LongRangeBlockBuilder builder = blockFactory.newLongRangeBlockBuilder(2)) {
+            builder.appendLongRange(10L, 20L);
+            builder.appendLongRange(30L, 40L);
+            try (LongRangeBlock block = builder.build()) {
+                assertThat(block.doesHaveMultivaluedFields(), equalTo(false));
+                try (LongRangeBlock expanded = block.expand()) {
+                    assertThat("no MVs: expand must return the same instance", expanded, sameInstance(block));
+                    assertThat(expanded.getPositionCount(), equalTo(2));
+                }
+            }
+        }
+    }
+
+    public void testExpandMultiValueBlock() {
+        BlockFactory blockFactory = BlockFactoryTests.blockFactory(ByteSizeValue.ofMb(16));
+        try (LongRangeBlockBuilder builder = blockFactory.newLongRangeBlockBuilder(2)) {
+            // Position 0: single [10, 20)
+            builder.appendLongRange(10L, 20L);
+            // Position 1: multi-valued [30, 40), [50, 60)
+            builder.from().beginPositionEntry();
+            builder.from().appendLong(30L);
+            builder.from().appendLong(50L);
+            builder.from().endPositionEntry();
+            builder.to().beginPositionEntry();
+            builder.to().appendLong(40L);
+            builder.to().appendLong(60L);
+            builder.to().endPositionEntry();
+
+            try (LongRangeBlock block = builder.build()) {
+                assertThat(block.getPositionCount(), equalTo(2));
+                assertThat(block.doesHaveMultivaluedFields(), equalTo(true));
+                try (LongRangeBlock expanded = block.expand()) {
+                    assertThat("with MVs: expand must return a new instance", expanded, not(sameInstance(block)));
+                    assertThat(expanded.getPositionCount(), equalTo(3));
+                    assertThat(expanded.getValueCount(0), equalTo(1));
+                    assertThat(expanded.getValueCount(1), equalTo(1));
+                    assertThat(expanded.getValueCount(2), equalTo(1));
+                    LongRangeBlockBuilder.LongRange scratch = new LongRangeBlockBuilder.LongRange();
+                    assertThat(expanded.getLongRange(0, scratch).from(), equalTo(10L));
+                    assertThat(expanded.getLongRange(0, scratch).to(), equalTo(20L));
+                    assertThat(expanded.getLongRange(1, scratch).from(), equalTo(30L));
+                    assertThat(expanded.getLongRange(1, scratch).to(), equalTo(40L));
+                    assertThat(expanded.getLongRange(2, scratch).from(), equalTo(50L));
+                    assertThat(expanded.getLongRange(2, scratch).to(), equalTo(60L));
+                }
+            }
+        }
+    }
+
     public void testLongRangeValueSemantics() {
         var a = new LongRangeBlockBuilder.LongRange(1L, 2L);
         var b = new LongRangeBlockBuilder.LongRange(1L, 2L);

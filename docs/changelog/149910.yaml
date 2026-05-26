@@ -1,6 +1,5 @@
 area: ES|QL
-issues:
- - 149509
+issues: []
 pr: 149910
 summary: Preserve synthetic union conversion attributes through project rewrites
 type: bug

@@ -29,25 +29,25 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
     private final int dims;
     private final byte bits;
     private final VectorScorerOSQBenchmark.DirectoryType directoryType;
-    private final ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding;
+    private final ES940OSQVectorsScorer.BitEncoding bitEncoding;
     private final VectorSimilarityFunction similarityFunction;
 
     public VectorScorerOSQBenchmarkTests(
         int dims,
         byte bits,
         VectorScorerOSQBenchmark.DirectoryType directoryType,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding,
+        ES940OSQVectorsScorer.BitEncoding bitEncoding,
         VectorSimilarityFunction similarityFunction
     ) {
         this.dims = dims;
         this.bits = bits;
         this.directoryType = directoryType;
-        this.int4Encoding = int4Encoding;
+        this.bitEncoding = bitEncoding;
         this.similarityFunction = similarityFunction;
     }
 
     public void testSingle() throws Exception {
-        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, int4Encoding, similarityFunction);
+        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, bitEncoding, similarityFunction);
 
         float[] expected = null;
         for (var impl : VectorScorerOSQBenchmark.VectorImplementation.values()) {
@@ -56,7 +56,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
             bench.dims = dims;
             bench.bits = bits;
             bench.directoryType = directoryType;
-            bench.int4Encoding = int4Encoding;
+            bench.bitEncoding = bitEncoding;
             bench.similarityFunction = similarityFunction;
             bench.setup(data);
 
@@ -76,7 +76,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
     }
 
     public void testBulk() throws Exception {
-        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, int4Encoding, similarityFunction);
+        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, bitEncoding, similarityFunction);
 
         float[] expected = null;
         for (var impl : VectorScorerOSQBenchmark.VectorImplementation.values()) {
@@ -85,7 +85,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
             bench.dims = dims;
             bench.bits = bits;
             bench.directoryType = directoryType;
-            bench.int4Encoding = int4Encoding;
+            bench.bitEncoding = bitEncoding;
             bench.similarityFunction = similarityFunction;
             bench.setup(data);
 
@@ -105,7 +105,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
     }
 
     public void testFilteredOne() throws Exception {
-        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, int4Encoding, similarityFunction);
+        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, bitEncoding, similarityFunction);
         runFilteredBenchmarks(
             data,
             VectorScorerOSQBenchmark::controlScoreBulkFilteredOne,
@@ -116,7 +116,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
     }
 
     public void testFilteredDense() throws Exception {
-        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, int4Encoding, similarityFunction);
+        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, bitEncoding, similarityFunction);
         runFilteredBenchmarks(
             data,
             VectorScorerOSQBenchmark::scoreBulkFilteredDense,
@@ -127,7 +127,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
     }
 
     public void testFilteredSparse() throws Exception {
-        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, int4Encoding, similarityFunction);
+        var data = VectorScorerOSQBenchmark.generateRandomVectorData(random(), dims, bits, bitEncoding, similarityFunction);
         runFilteredBenchmarks(
             data,
             VectorScorerOSQBenchmark::scoreBulkFilteredSparse,
@@ -184,7 +184,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
         bench.dims = dims;
         bench.bits = bits;
         bench.directoryType = directoryType;
-        bench.int4Encoding = int4Encoding;
+        bench.bitEncoding = bitEncoding;
         bench.similarityFunction = similarityFunction;
         bench.setup(data);
 
@@ -216,7 +216,7 @@ public class VectorScorerOSQBenchmarkTests extends BenchmarkTest {
             VectorScorerOSQBenchmark.class.getField("dims"),
             VectorScorerOSQBenchmark.class.getField("bits"),
             VectorScorerOSQBenchmark.class.getField("directoryType"),
-            VectorScorerOSQBenchmark.class.getField("int4Encoding"),
+            VectorScorerOSQBenchmark.class.getField("bitEncoding"),
             VectorScorerOSQBenchmark.class.getField("similarityFunction")
         );
     }

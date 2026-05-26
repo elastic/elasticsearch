@@ -32,6 +32,11 @@ final class Panama21VectorScorerFactory implements VectorScorerFactory {
     private static final DefaultVectorScorerFactory FALLBACK = new DefaultVectorScorerFactory();
 
     @Override
+    public boolean usesNative() {
+        return false;
+    }
+
+    @Override
     public ES91OSQVectorsScorer newES91OSQVectorsScorer(IndexInput input, int dimension, int bulkSize) throws IOException {
         if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
@@ -51,10 +56,12 @@ final class Panama21VectorScorerFactory implements VectorScorerFactory {
         int dimension,
         int dataLength,
         int bulkSize,
-        ES940OSQVectorsScorer.SymmetricInt4Encoding int4Encoding
+        ES940OSQVectorsScorer.BitEncoding bitEncoding
     ) throws IOException {
         if (PanamaVectorConstants.ENABLE_INTEGER_VECTORS
-            && ((queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4)) || (queryBits == 7 && indexBits == 7))) {
+            && ((queryBits == 1 && indexBits == 1)
+                || (queryBits == 4 && (indexBits == 1 || indexBits == 2 || indexBits == 4))
+                || (queryBits == 7 && indexBits == 7))) {
             IndexInput unwrappedInput = FilterIndexInput.unwrapOnlyTest(input);
             unwrappedInput = MemorySegmentAccessInputAccess.unwrap(unwrappedInput);
             if (IndexInputUtils.canUseSegmentSlices(unwrappedInput)) {
@@ -65,12 +72,12 @@ final class Panama21VectorScorerFactory implements VectorScorerFactory {
                     dimension,
                     dataLength,
                     bulkSize,
-                    int4Encoding,
+                    bitEncoding,
                     false   // native support requires heap segments
                 );
             }
         }
-        return FALLBACK.newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, int4Encoding);
+        return FALLBACK.newES940OSQVectorsScorer(input, queryBits, indexBits, dimension, dataLength, bulkSize, bitEncoding);
     }
 
     @Override

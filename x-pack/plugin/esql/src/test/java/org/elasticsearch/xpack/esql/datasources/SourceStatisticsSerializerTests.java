@@ -189,6 +189,89 @@ public class SourceStatisticsSerializerTests extends ESTestCase {
         assertNull("once poisoned, max must stay cleared", result.get(SourceStatisticsSerializer.columnMaxKey("val")));
     }
 
+    public void testMergeStatisticsAddsImplicitNullsForAbsentColumns() {
+        // File A: 100 rows, has bonus with 5 explicit nulls.
+        Map<String, Object> a = new HashMap<>();
+        a.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        a.put(SourceStatisticsSerializer.columnNullCountKey("bonus"), 5L);
+        a.put(SourceStatisticsSerializer.columnMinKey("bonus"), 10);
+        a.put(SourceStatisticsSerializer.columnMaxKey("bonus"), 50);
+        a.put(SourceStatisticsSerializer.columnSizeBytesKey("bonus"), 800L);
+
+        // File B: 200 rows, no bonus column at all (no _stats.columns.bonus.* keys).
+        Map<String, Object> b = new HashMap<>();
+        b.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 200L);
+
+        // File C: 700 rows, has bonus with 10 explicit nulls.
+        Map<String, Object> c = new HashMap<>();
+        c.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 700L);
+        c.put(SourceStatisticsSerializer.columnNullCountKey("bonus"), 10L);
+        c.put(SourceStatisticsSerializer.columnMinKey("bonus"), 20);
+        c.put(SourceStatisticsSerializer.columnMaxKey("bonus"), 70);
+        c.put(SourceStatisticsSerializer.columnSizeBytesKey("bonus"), 5600L);
+
+        Map<String, Object> result = SourceStatisticsSerializer.mergeStatistics(List.of(a, b, c));
+        assertNotNull(result);
+        assertEquals(1000L, result.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        // 5 (A explicit) + 10 (C explicit) + 200 (B implicit, every row counts as null) = 215.
+        assertEquals(215L, result.get(SourceStatisticsSerializer.columnNullCountKey("bonus")));
+        // Min/max/size_bytes only consider files where the column is present.
+        assertEquals(10, result.get(SourceStatisticsSerializer.columnMinKey("bonus")));
+        assertEquals(70, result.get(SourceStatisticsSerializer.columnMaxKey("bonus")));
+        assertEquals(6400L, result.get(SourceStatisticsSerializer.columnSizeBytesKey("bonus")));
+    }
+
+    public void testMergeStatisticsImplicitNullsAcrossMultipleColumns() {
+        // File A has only "x"; file B has only "y". Each file's row count flows to the other column.
+        Map<String, Object> a = new HashMap<>();
+        a.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        a.put(SourceStatisticsSerializer.columnNullCountKey("x"), 0L);
+
+        Map<String, Object> b = new HashMap<>();
+        b.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 250L);
+        b.put(SourceStatisticsSerializer.columnNullCountKey("y"), 7L);
+
+        Map<String, Object> result = SourceStatisticsSerializer.mergeStatistics(List.of(a, b));
+        assertNotNull(result);
+        assertEquals(350L, result.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        // x absent in B (250 rows): 0 + 250 = 250.
+        assertEquals(250L, result.get(SourceStatisticsSerializer.columnNullCountKey("x")));
+        // y absent in A (100 rows): 7 + 100 = 107.
+        assertEquals(107L, result.get(SourceStatisticsSerializer.columnNullCountKey("y")));
+    }
+
+    public void testMergeStatisticsPoisonsNullCountWhenAnyFilePresentsColumnWithoutNullCount() {
+        // File A: bonus with full stats.
+        Map<String, Object> a = new HashMap<>();
+        a.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+        a.put(SourceStatisticsSerializer.columnNullCountKey("bonus"), 5L);
+        a.put(SourceStatisticsSerializer.columnMinKey("bonus"), 10);
+        a.put(SourceStatisticsSerializer.columnMaxKey("bonus"), 50);
+        a.put(SourceStatisticsSerializer.columnSizeBytesKey("bonus"), 800L);
+
+        // File B: bonus is physically present (size_bytes set) but reader produced no null_count
+        // (rare Parquet path with stats disabled). We must not invent a count for those rows.
+        Map<String, Object> b = new HashMap<>();
+        b.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 200L);
+        b.put(SourceStatisticsSerializer.columnSizeBytesKey("bonus"), 1600L);
+
+        // File C: bonus absent entirely.
+        Map<String, Object> c = new HashMap<>();
+        c.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 700L);
+
+        Map<String, Object> result = SourceStatisticsSerializer.mergeStatistics(List.of(a, b, c));
+        assertNotNull(result);
+        assertEquals(1000L, result.get(SourceStatisticsSerializer.STATS_ROW_COUNT));
+        assertFalse(
+            "null_count must be dropped when any present file lacks a null_count value",
+            result.containsKey(SourceStatisticsSerializer.columnNullCountKey("bonus"))
+        );
+        // Min/max/size_bytes are still informative from file A (and B for size_bytes).
+        assertEquals(10, result.get(SourceStatisticsSerializer.columnMinKey("bonus")));
+        assertEquals(50, result.get(SourceStatisticsSerializer.columnMaxKey("bonus")));
+        assertEquals(2400L, result.get(SourceStatisticsSerializer.columnSizeBytesKey("bonus")));
+    }
+
     public void testMergeStatistics_sumsSizeBytes() {
         Map<String, Object> s1 = new HashMap<>();
         s1.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);

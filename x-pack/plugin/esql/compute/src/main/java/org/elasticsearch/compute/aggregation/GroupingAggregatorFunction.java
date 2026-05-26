@@ -112,12 +112,44 @@ public interface GroupingAggregatorFunction extends Releasable {
      *     This should load the input {@link Block}s and check their types and
      *     select an optimal path and return that path as an {@link AddInput}.
      * </p>
+     *  Returns {@code null} to opt out of the callback loop for this page entirely,
+     *  e.g. when the values block is all-null and contributes nothing to the aggregation.
      */
+    AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page);
+
     /**
+     * Prepare to process a single page of intermediate input.
+     * This should load the input {@link Block}s and check their types and
+     * select an optimal path and return that path as an {@link AddInput}.
+     *
      * Returns {@code null} to opt out of the callback loop for this page entirely,
      * e.g. when the values block is all-null and contributes nothing to the aggregation.
      */
-    AddInput prepareProcessRawInputPage(SeenGroupIds seenGroupIds, Page page);
+    default AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
+        return new IntermediateAddInput(this, seenGroupIds, page);
+    }
+
+    record IntermediateAddInput(GroupingAggregatorFunction fn, SeenGroupIds seenGroupIds, Page page) implements AddInput {
+        @Override
+        public void add(int positionOffset, IntArrayBlock groupIds) {
+            fn.addIntermediateInput(positionOffset, groupIds, page);
+        }
+
+        @Override
+        public void add(int positionOffset, IntBigArrayBlock groupIds) {
+            fn.addIntermediateInput(positionOffset, groupIds, page);
+        }
+
+        @Override
+        public void add(int positionOffset, IntVector groupIds) {
+            fn.addIntermediateInput(positionOffset, groupIds, page);
+        }
+
+        @Override
+        public void close() {
+
+        }
+    }
 
     /**
      * Call this to signal to the aggregation that the {@code selected}

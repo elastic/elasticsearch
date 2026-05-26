@@ -32,6 +32,7 @@ import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
@@ -2184,15 +2185,14 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
 
         private void maybeLogSlowBccUploadGenerationQueueWait(long generation, long queueWaitInMs) {
             if (queueWaitInMs >= bccUploadGenerationQueueSlowLogThresholdMillis) {
-                logger.info(
-                    () -> format(
-                        "%s batched compound commit [%s] waited [%s]ms for earlier BCC uploads on the same shard (%s still pending)",
-                        shardId,
-                        generation,
-                        queueWaitInMs,
-                        pendingUploadBccGenerations.size()
-                    )
-                );
+                final var message = new ESLogMessage(
+                    "{} batched compound commit [{}] waited [{}]ms for earlier BCC uploads on the same shard ({} still pending)",
+                    shardId,
+                    generation,
+                    queueWaitInMs,
+                    pendingUploadBccGenerations.size())
+                    .field("elasticsearch.primary.bcc_upload_queue_duration", queueWaitInMs);
+                logger.info(message);
             }
         }
 

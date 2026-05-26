@@ -7,10 +7,13 @@
 
 package org.elasticsearch.xpack.stateless.objectstore;
 
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.logging.Level;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.monitor.jvm.HotThreads;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommit;
@@ -133,6 +136,7 @@ final class UploadProgressMonitor implements Scheduler.Cancellable {
         long uploaded = progressTracker.bytesUploaded();
         long read = progressTracker.bytesRead();
         long elapsedMs = TimeUnit.NANOSECONDS.toMillis(threadPool.relativeTimeInNanos() - uploadRunStartNanos);
+        HotThreads.logLocalHotThreads(logger, Level.INFO, shardId + " bcc upload ", ReferenceDocs.LOGGING);
         logger.info(
             () -> format(
                 "%s batched compound commit upload progress [%s]: blob [%s] bytesRead=%d/%d bytesUploaded=%d/%d elapsed=%dms",

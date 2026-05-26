@@ -36,9 +36,6 @@ public record ParquetReaderStatus(
     long footerCacheMisses,
     long rowGroupsInFile,
     long rowGroupsTotal,
-    long rowGroupsPassedStats,
-    long rowGroupsPassedDictionary,
-    long rowGroupsPassedBloom,
     long rowGroupsKept,
     boolean pageIndexUsed,
     long rowsInKeptRowGroups,
@@ -58,26 +55,23 @@ public record ParquetReaderStatus(
 
     public ParquetReaderStatus(StreamInput in) throws IOException {
         this(
-            in.readVLong(),
-            in.readBoolean(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readBoolean(),
-            in.readVLong(),
-            in.readVLong(),
-            in.readBoolean(),
-            in.readBoolean(),
-            in.readStringCollectionAsList(),
-            in.readVLong(),
-            in.readMap(PerColumnStatus::new)
+            in.readVLong(),                  // rowsEmitted
+            in.readBoolean(),                // predicatePushdownUsed
+            in.readVLong(),                  // footerReadNanos
+            in.readVLong(),                  // footerSizeBytes
+            in.readVLong(),                  // footerCacheHits
+            in.readVLong(),                  // footerCacheMisses
+            in.readVLong(),                  // rowGroupsInFile
+            in.readVLong(),                  // rowGroupsTotal
+            in.readVLong(),                  // rowGroupsKept
+            in.readBoolean(),                // pageIndexUsed
+            in.readVLong(),                  // rowsInKeptRowGroups
+            in.readVLong(),                  // rowsAfterPageIndex
+            in.readBoolean(),                // lateMaterializationEnabled
+            in.readBoolean(),                // lateMaterializationUsed
+            in.readStringCollectionAsList(), // predicateColumns
+            in.readVLong(),                  // readNanos
+            in.readMap(PerColumnStatus::new) // columns
         );
     }
 
@@ -91,9 +85,6 @@ public record ParquetReaderStatus(
         out.writeVLong(footerCacheMisses);
         out.writeVLong(rowGroupsInFile);
         out.writeVLong(rowGroupsTotal);
-        out.writeVLong(rowGroupsPassedStats);
-        out.writeVLong(rowGroupsPassedDictionary);
-        out.writeVLong(rowGroupsPassedBloom);
         out.writeVLong(rowGroupsKept);
         out.writeBoolean(pageIndexUsed);
         out.writeVLong(rowsInKeptRowGroups);
@@ -136,9 +127,6 @@ public record ParquetReaderStatus(
         builder.field("footer_cache_misses", footerCacheMisses);
         builder.field("row_groups_in_file", rowGroupsInFile);
         builder.field("row_groups_total", rowGroupsTotal);
-        builder.field("row_groups_passed_stats", rowGroupsPassedStats);
-        builder.field("row_groups_passed_dictionary", rowGroupsPassedDictionary);
-        builder.field("row_groups_passed_bloom", rowGroupsPassedBloom);
         builder.field("row_groups_kept", rowGroupsKept);
         builder.field("page_index_used", pageIndexUsed);
         builder.field("rows_in_kept_row_groups", rowsInKeptRowGroups);

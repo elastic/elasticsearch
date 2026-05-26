@@ -21,7 +21,9 @@ import static org.hamcrest.Matchers.not;
 public class PerColumnStatusTests extends ESTestCase {
 
     public void testWireRoundTrip() throws Exception {
-        PerColumnStatus original = randomStatus();
+        PerColumnStatus original = new PerColumnStatus(
+            randomFrom(PerColumnStatus.MATERIALIZATION_EAGER, PerColumnStatus.MATERIALIZATION_LATE, null)
+        );
         BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
         try (StreamInput in = out.bytes().streamInput()) {
@@ -31,7 +33,7 @@ public class PerColumnStatusTests extends ESTestCase {
     }
 
     public void testWireRoundTripWithNullMaterialization() throws Exception {
-        PerColumnStatus original = new PerColumnStatus(10L, 20L, 30L, 40L, 5L, null);
+        PerColumnStatus original = new PerColumnStatus((String) null);
         BytesStreamOutput out = new BytesStreamOutput();
         original.writeTo(out);
         try (StreamInput in = out.bytes().streamInput()) {
@@ -41,50 +43,22 @@ public class PerColumnStatusTests extends ESTestCase {
         }
     }
 
-    public void testToXContentSnakeCaseKeys() throws Exception {
-        PerColumnStatus s = new PerColumnStatus(11L, 22L, 33L, 44L, 5L, PerColumnStatus.MATERIALIZATION_LATE);
+    public void testToXContent() throws Exception {
+        PerColumnStatus s = new PerColumnStatus(PerColumnStatus.MATERIALIZATION_LATE);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         s.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        String json = BytesReference.bytes(builder).utf8ToString();
-
-        assertThat(json, containsString("\"compressed_bytes\":11"));
-        assertThat(json, containsString("\"decompressed_bytes\":22"));
-        assertThat(json, containsString("\"decompression_nanos\":33"));
-        assertThat(json, containsString("\"decode_nanos\":44"));
-        assertThat(json, containsString("\"data_pages_read\":5"));
-        assertThat(json, containsString("\"materialization\":\"late\""));
+        assertThat(BytesReference.bytes(builder).utf8ToString(), containsString("\"materialization\":\"late\""));
     }
 
     public void testToXContentOmitsNullMaterialization() throws Exception {
-        PerColumnStatus s = new PerColumnStatus(0L, 0L, 0L, 0L, 0L, null);
+        PerColumnStatus s = new PerColumnStatus((String) null);
         XContentBuilder builder = XContentFactory.jsonBuilder();
         s.toXContent(builder, ToXContent.EMPTY_PARAMS);
-        String json = BytesReference.bytes(builder).utf8ToString();
-        assertThat(json, not(containsString("materialization")));
-    }
-
-    public void testNegativeAssertions() {
-        AssertionError e = expectThrows(
-            AssertionError.class,
-            () -> new PerColumnStatus(-1L, 0L, 0L, 0L, 0L, PerColumnStatus.MATERIALIZATION_EAGER)
-        );
-        assertThat(e.getMessage(), containsString("non-negative"));
+        assertThat(BytesReference.bytes(builder).utf8ToString(), not(containsString("materialization")));
     }
 
     public void testMaterializationConstants() {
         assertEquals("eager", PerColumnStatus.MATERIALIZATION_EAGER);
         assertEquals("late", PerColumnStatus.MATERIALIZATION_LATE);
-    }
-
-    private PerColumnStatus randomStatus() {
-        String mat = randomFrom(PerColumnStatus.MATERIALIZATION_EAGER, PerColumnStatus.MATERIALIZATION_LATE, null);
-        return new PerColumnStatus(
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            mat
-        );
     }
 }

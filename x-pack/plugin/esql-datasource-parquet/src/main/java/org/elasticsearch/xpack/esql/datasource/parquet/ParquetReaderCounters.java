@@ -24,10 +24,8 @@ import java.util.concurrent.atomic.LongAdder;
  * be folded into the operator-status envelope.
  * <p>
  * Counter buckets: footer ({@code footer_read_nanos}, {@code footer_size_bytes},
- * {@code row_groups_in_file}), row-group filter ({@code row_groups_total},
- * {@code row_groups_passed_stats}, {@code row_groups_passed_dictionary},
- * {@code row_groups_passed_bloom}, {@code row_groups_kept}), page index
- * ({@code page_index_used}, {@code rows_in_kept_row_groups}, {@code rows_after_page_index}),
+ * {@code row_groups_in_file}), row-group filter ({@code row_groups_total}, {@code row_groups_kept}),
+ * page index ({@code page_index_used}, {@code rows_in_kept_row_groups}, {@code rows_after_page_index}),
  * late materialization ({@code late_materialization_enabled},
  * {@code late_materialization_used}, {@code predicate_columns}),
  * aggregate ({@code read_nanos}), and a typed per-column map under {@code columns}.
@@ -45,9 +43,6 @@ public final class ParquetReaderCounters {
 
     // Row-group filter
     private final LongAdder rowGroupsTotal = new LongAdder();
-    private final LongAdder rowGroupsPassedStats = new LongAdder();
-    private final LongAdder rowGroupsPassedDictionary = new LongAdder();
-    private final LongAdder rowGroupsPassedBloom = new LongAdder();
     private final LongAdder rowGroupsKept = new LongAdder();
 
     // Predicate pushdown (set when a non-null filter predicate was passed into the read path —
@@ -89,21 +84,13 @@ public final class ParquetReaderCounters {
     }
 
     /**
-     * Records a single row-group filter pass: each {@code passed*} flag is true when the row group
-     * survived the corresponding filter level. {@code kept} is true when the row group survives all
-     * three levels and remains a candidate for column-index page filtering.
+     * Records one row group seen by the filter. {@code kept} is true when the row group survived
+     * all filter levels and remains a candidate for column-index page filtering. parquet-mr does
+     * not expose which level (stats / dictionary / bloom) rejected a group, so only the total and
+     * the survivor count are tracked.
      */
-    public void addRowGroupFiltered(boolean passedStats, boolean passedDictionary, boolean passedBloom, boolean kept) {
+    public void addRowGroupFiltered(boolean kept) {
         rowGroupsTotal.increment();
-        if (passedStats) {
-            rowGroupsPassedStats.increment();
-        }
-        if (passedDictionary) {
-            rowGroupsPassedDictionary.increment();
-        }
-        if (passedBloom) {
-            rowGroupsPassedBloom.increment();
-        }
         if (kept) {
             rowGroupsKept.increment();
         }
@@ -196,9 +183,6 @@ public final class ParquetReaderCounters {
             footerCacheMisses.sum(),
             rowGroupsInFile.sum(),
             rowGroupsTotal.sum(),
-            rowGroupsPassedStats.sum(),
-            rowGroupsPassedDictionary.sum(),
-            rowGroupsPassedBloom.sum(),
             rowGroupsKept.sum(),
             pageIndexUsed,
             rowsInKeptRowGroups.sum(),
@@ -211,58 +195,16 @@ public final class ParquetReaderCounters {
         );
     }
 
-    /** Mutable per-column counter struct. One instance per column path. */
+    /** Mutable per-column summary. One instance per column path. */
     public static final class PerColumnCounters {
-        private final LongAdder bytesCompressedRead = new LongAdder();
-        private final LongAdder bytesDecompressed = new LongAdder();
-        private final LongAdder decompressionNanos = new LongAdder();
-        private final LongAdder decodeNanos = new LongAdder();
-        private final LongAdder pagesRead = new LongAdder();
         private volatile String materialization;
-
-        public void addBytesCompressedRead(long bytes) {
-            if (bytes > 0) {
-                bytesCompressedRead.add(bytes);
-            }
-        }
-
-        public void addBytesDecompressed(long bytes) {
-            if (bytes > 0) {
-                bytesDecompressed.add(bytes);
-            }
-        }
-
-        public void addDecompressionNanos(long nanos) {
-            if (nanos > 0) {
-                decompressionNanos.add(nanos);
-            }
-        }
-
-        public void addDecodeNanos(long nanos) {
-            if (nanos > 0) {
-                decodeNanos.add(nanos);
-            }
-        }
-
-        public void addPagesRead(long pages) {
-            if (pages > 0) {
-                pagesRead.add(pages);
-            }
-        }
 
         public void setMaterialization(String m) {
             materialization = m;
         }
 
         public PerColumnStatus snapshot() {
-            return new PerColumnStatus(
-                bytesCompressedRead.sum(),
-                bytesDecompressed.sum(),
-                decompressionNanos.sum(),
-                decodeNanos.sum(),
-                pagesRead.sum(),
-                materialization
-            );
+            return new PerColumnStatus(materialization);
         }
     }
 }

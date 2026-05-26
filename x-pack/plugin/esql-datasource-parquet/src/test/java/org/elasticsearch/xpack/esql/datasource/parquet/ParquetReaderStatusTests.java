@@ -40,9 +40,6 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
             randomNonNegativeLong(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
-            randomNonNegativeLong(),
             randomBoolean(),
             randomNonNegativeLong(),
             randomNonNegativeLong(),
@@ -70,14 +67,7 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
         for (int i = 0; i < n; i++) {
             columns.put(
                 randomAlphaOfLength(8),
-                new PerColumnStatus(
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomNonNegativeLong(),
-                    randomFrom(PerColumnStatus.MATERIALIZATION_EAGER, PerColumnStatus.MATERIALIZATION_LATE, null)
-                )
+                new PerColumnStatus(randomFrom(PerColumnStatus.MATERIALIZATION_EAGER, PerColumnStatus.MATERIALIZATION_LATE, null))
             );
         }
         return columns;
@@ -94,9 +84,6 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
             instance.footerCacheMisses(),
             instance.rowGroupsInFile(),
             instance.rowGroupsTotal(),
-            instance.rowGroupsPassedStats(),
-            instance.rowGroupsPassedDictionary(),
-            instance.rowGroupsPassedBloom(),
             instance.rowGroupsKept(),
             instance.pageIndexUsed(),
             instance.rowsInKeptRowGroups(),
@@ -120,9 +107,6 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
             2L,
             3L,
             4L,
-            4L,
-            4L,
-            4L,
             2L,
             false,
             10L,
@@ -131,20 +115,18 @@ public class ParquetReaderStatusTests extends AbstractWireSerializingTestCase<Pa
             false,
             List.of("host"),
             150L,
-            Map.of("host", new PerColumnStatus(1024L, 2048L, 7L, 8L, 9L, PerColumnStatus.MATERIALIZATION_LATE))
+            Map.of("host", new PerColumnStatus(PerColumnStatus.MATERIALIZATION_LATE))
         );
         assertThat(
             toJson(status),
             equalTo(
                 "{\"format\":\"parquet\",\"rows_emitted\":100,\"predicate_pushdown_used\":true,"
                     + "\"footer_read_nanos\":5,\"footer_size_bytes\":6,\"footer_cache_hits\":1,\"footer_cache_misses\":2,"
-                    + "\"row_groups_in_file\":3,\"row_groups_total\":4,\"row_groups_passed_stats\":4,"
-                    + "\"row_groups_passed_dictionary\":4,\"row_groups_passed_bloom\":4,\"row_groups_kept\":2,"
+                    + "\"row_groups_in_file\":3,\"row_groups_total\":4,\"row_groups_kept\":2,"
                     + "\"page_index_used\":false,\"rows_in_kept_row_groups\":10,\"rows_after_page_index\":8,"
                     + "\"late_materialization_enabled\":false,\"late_materialization_used\":false,"
                     + "\"predicate_columns\":[\"host\"],\"read_nanos\":150,"
-                    + "\"columns\":{\"host\":{\"compressed_bytes\":1024,\"decompressed_bytes\":2048,"
-                    + "\"decompression_nanos\":7,\"decode_nanos\":8,\"data_pages_read\":9,\"materialization\":\"late\"}}}"
+                    + "\"columns\":{\"host\":{\"materialization\":\"late\"}}}"
             )
         );
     }

@@ -1214,12 +1214,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 keptIdx++;
             }
         }
-        // Follow-up: per-level (stats/dictionary/bloom) counts require running the three filter
-        // levels separately, which doubles I/O on dictionary/bloom passes. For now we only emit
-        // total and kept; per-level passed_* fields remain at zero. Surface them via
-        // single-pass instrumentation hooks inside parquet-mr or a custom replacement filter.
+        // parquet-mr's RowGroupFilter returns only the combined survivor set, not which level
+        // (stats / dictionary / bloom) rejected a group, so we track total and kept only.
         for (int i = 0; i < blocks.size(); i++) {
-            counters.addRowGroupFiltered(false, false, false, flags[i]);
+            counters.addRowGroupFiltered(flags[i]);
         }
         return flags;
     }

@@ -30,9 +30,6 @@ public class ParquetReaderCountersTests extends ESTestCase {
         assertEquals(0L, snap.rowGroupsInFile());
         // Row-group filter
         assertEquals(0L, snap.rowGroupsTotal());
-        assertEquals(0L, snap.rowGroupsPassedStats());
-        assertEquals(0L, snap.rowGroupsPassedDictionary());
-        assertEquals(0L, snap.rowGroupsPassedBloom());
         assertEquals(0L, snap.rowGroupsKept());
         // Page index
         assertEquals(false, snap.pageIndexUsed());
@@ -73,15 +70,12 @@ public class ParquetReaderCountersTests extends ESTestCase {
 
     public void testRowGroupFilterCounters() {
         ParquetReaderCounters c = new ParquetReaderCounters();
-        c.addRowGroupFiltered(true, true, true, true);
-        c.addRowGroupFiltered(true, false, false, false);
-        c.addRowGroupFiltered(false, false, false, false);
+        c.addRowGroupFiltered(true);
+        c.addRowGroupFiltered(false);
+        c.addRowGroupFiltered(false);
 
         var snap = c.snapshot();
         assertEquals(3L, snap.rowGroupsTotal());
-        assertEquals(2L, snap.rowGroupsPassedStats());
-        assertEquals(1L, snap.rowGroupsPassedDictionary());
-        assertEquals(1L, snap.rowGroupsPassedBloom());
         assertEquals(1L, snap.rowGroupsKept());
     }
 
@@ -125,34 +119,16 @@ public class ParquetReaderCountersTests extends ESTestCase {
 
     public void testPerColumnSnapshotShape() {
         ParquetReaderCounters c = new ParquetReaderCounters();
-        ParquetReaderCounters.PerColumnCounters host = c.perColumn("host");
-        host.addBytesCompressedRead(1024L);
-        host.addBytesDecompressed(4096L);
-        host.addDecompressionNanos(1000L);
-        host.addDecodeNanos(500L);
-        host.addPagesRead(3L);
-        host.setMaterialization(PerColumnStatus.MATERIALIZATION_LATE);
-
-        ParquetReaderCounters.PerColumnCounters status = c.perColumn("status_code");
-        status.setMaterialization(PerColumnStatus.MATERIALIZATION_EAGER);
+        c.perColumn("host").setMaterialization(PerColumnStatus.MATERIALIZATION_LATE);
+        c.perColumn("status_code").setMaterialization(PerColumnStatus.MATERIALIZATION_EAGER);
 
         var snap = c.snapshot();
         Map<String, PerColumnStatus> columns = snap.columns();
         assertNotNull("per-column snapshot must be present when at least one column was touched", columns);
         assertEquals(2, columns.size());
 
-        PerColumnStatus hostSnap = columns.get("host");
-        assertNotNull(hostSnap);
-        assertEquals(1024L, hostSnap.bytesCompressedRead());
-        assertEquals(4096L, hostSnap.bytesDecompressed());
-        assertEquals(1000L, hostSnap.decompressionNanos());
-        assertEquals(500L, hostSnap.decodeNanos());
-        assertEquals(3L, hostSnap.pagesRead());
-        assertEquals(PerColumnStatus.MATERIALIZATION_LATE, hostSnap.materialization());
-
-        PerColumnStatus statusSnap = columns.get("status_code");
-        assertNotNull(statusSnap);
-        assertEquals(PerColumnStatus.MATERIALIZATION_EAGER, statusSnap.materialization());
+        assertEquals(PerColumnStatus.MATERIALIZATION_LATE, columns.get("host").materialization());
+        assertEquals(PerColumnStatus.MATERIALIZATION_EAGER, columns.get("status_code").materialization());
     }
 
     public void testPerColumnComputeIfAbsentReturnsSameInstance() {
@@ -176,9 +152,9 @@ public class ParquetReaderCountersTests extends ESTestCase {
                     start.await();
                     for (int i = 0; i < iterationsPerThread; i++) {
                         counters.addFooterRead(13L, 1L, 0);
-                        counters.addRowGroupFiltered(true, true, true, true);
+                        counters.addRowGroupFiltered(true);
                         counters.addTotalReadNanos(7L);
-                        counters.perColumn("host").addPagesRead(1L);
+                        counters.perColumn("host").setMaterialization(PerColumnStatus.MATERIALIZATION_LATE);
                         if (i % 5 == 0) {
                             counters.addPredicateColumns(List.of("host"));
                         }
@@ -203,7 +179,7 @@ public class ParquetReaderCountersTests extends ESTestCase {
         assertEquals(expectedIters, snap.rowGroupsKept());
         assertEquals(expectedIters * 7L, snap.readNanos());
         Map<String, PerColumnStatus> columns = snap.columns();
-        assertEquals(expectedIters, columns.get("host").pagesRead());
+        assertEquals(PerColumnStatus.MATERIALIZATION_LATE, columns.get("host").materialization());
         List<String> predicates = snap.predicateColumns();
         assertEquals(List.of("host"), predicates);
     }
@@ -211,7 +187,7 @@ public class ParquetReaderCountersTests extends ESTestCase {
     public void testSnapshotIsImmutable() {
         ParquetReaderCounters c = new ParquetReaderCounters();
         c.addFooterRead(1L, 1L, 1);
-        c.perColumn("host").addPagesRead(1);
+        c.perColumn("host").setMaterialization(PerColumnStatus.MATERIALIZATION_EAGER);
         c.addPredicateColumns(List.of("host"));
         var snap = c.snapshot();
         // The collections exposed by the snapshot reject mutation.

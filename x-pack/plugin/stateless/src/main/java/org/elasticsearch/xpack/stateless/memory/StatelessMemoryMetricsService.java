@@ -329,7 +329,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
     private record NodeHeapEstimateSnapshot(String nodeId, String nodeName, long heapBytes) {}
 
     /**
-     * Estimates the heap usage for a single shard, based on: segment, number of fields and live doc byte counts.
+     * Estimates the heap usage for a single shard, based on: segment, number of fields, live doc byte counts and postings bytes.
      */
     public long estimateShardMemoryUsageInBytes(ShardMemoryMetrics metrics) {
         final var fixedShardOverhead = this.fixedShardMemoryOverhead;

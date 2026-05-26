@@ -431,12 +431,10 @@ public class MetricsInfoOperator implements Operator {
      * so that the output preserves the cluster qualifier (e.g. {@code remote:k8s}).
      */
     static String resolveDataStreamName(String indexName) {
-        String[] split = RemoteClusterAware.splitIndexName(indexName);
-        String clusterAlias = split[0];
-        String localName = split[1];
-        Matcher m = BACKING_INDEX_PATTERN.matcher(localName);
-        String resolved = m.matches() ? m.group(1) : localName;
-        return RemoteClusterAware.buildRemoteIndexName(clusterAlias, resolved);
+        var split = RemoteClusterAware.splitIndexName(indexName);
+        Matcher m = BACKING_INDEX_PATTERN.matcher(split.indexExpression());
+        String resolved = m.matches() ? m.group(1) : split.indexExpression();
+        return RemoteClusterAware.buildRemoteIndexName(split.clusterAlias(), resolved);
     }
 
     private List<MetricInfoRow> mergeRowsBySignature(Map<MetricInfoKey, MetricInfo> metricsByKey) {

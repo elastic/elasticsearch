@@ -88,8 +88,8 @@ public class CrossProjectIndexExpressionsRewriter {
             return;
         }
 
-        String[] splitResource = RemoteClusterAware.splitIndexName(indexExpression);
-        String requestedProjectAlias = splitResource[0];
+        var splitResource = RemoteClusterAware.splitIndexName(indexExpression);
+        String requestedProjectAlias = splitResource.clusterAlias();
         assert requestedProjectAlias != null : "Expected a project alias for a qualified resource but was null";
         if (isExclusionExpression(requestedProjectAlias)) {
             requestedProjectAlias = requestedProjectAlias.substring(1);
@@ -251,13 +251,11 @@ public class CrossProjectIndexExpressionsRewriter {
         if (pattern.isEmpty() || pattern.charAt(0) != EXCLUSION_PREFIX) {
             return false;
         }
-        String[] split = RemoteClusterAware.splitIndexName(pattern.substring(1));
-        String alias = split[0];
-        String index = split[1];
-        if (alias == null || "*".equals(index) == false) {
+        var split = RemoteClusterAware.splitIndexName(pattern.substring(1));
+        if (split.clusterAlias() == null || "*".equals(split.indexExpression()) == false) {
             return false;
         }
-        return ProjectRoutingResolver.ORIGIN.equals(alias) || Regex.simpleMatch(alias, originProjectAlias);
+        return ProjectRoutingResolver.ORIGIN.equals(split.clusterAlias()) || Regex.simpleMatch(split.clusterAlias(), originProjectAlias);
     }
 
     public record IndexRewriteResult(

@@ -382,14 +382,10 @@ public class CrossProjectIndexResolutionValidator {
     }
 
     public static String[] splitQualifiedResource(String resource) {
-        String[] splitResource = RemoteClusterAware.splitIndexName(resource);
-        assert splitResource.length == 2
-            : "Expected two strings (project and indexExpression) for a qualified resource ["
-                + resource
-                + "], but found ["
-                + splitResource.length
-                + "]";
-        return splitResource;
+        var splitResource = RemoteClusterAware.splitIndexName(resource);
+        assert splitResource.indexExpression().indexOf(':') == -1
+            : "Expected (project:indexExpression) qualified resource but found [" + resource + "]";
+        return new String[] { splitResource.clusterAlias(), splitResource.indexExpression() };
     }
 
     // TODO optimize with a precomputed Map<String, ResolvedIndexExpression.LocalExpressions> instead
@@ -407,10 +403,10 @@ public class CrossProjectIndexResolutionValidator {
 
     private static String asOriginExpression(String originalExpression) {
         var split = RemoteClusterAware.splitIndexName(originalExpression);
-        if (split[0] == null || split[0].indexOf('*') == -1) {
+        if (split.clusterAlias() == null || split.clusterAlias().indexOf('*') == -1) {
             return originalExpression;
         }
-        return RemoteClusterAware.buildRemoteIndexName("_origin", split[1]);
+        return RemoteClusterAware.buildRemoteIndexName("_origin", split.indexExpression());
     }
 
     private static ElasticsearchException checkResolutionFailure(

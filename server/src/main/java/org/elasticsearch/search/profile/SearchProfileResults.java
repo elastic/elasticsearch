@@ -219,11 +219,9 @@ public final class SearchProfileResults implements Writeable, ToXContentFragment
         Matcher m = SHARD_ID_DECOMPOSITION.matcher(compositeId);
         if (m.find()) {
             String nodeId = m.group(1);
-            String[] tokens = RemoteClusterAware.splitIndexName(m.group(2));
-            String cluster = tokens[0];
-            String indexName = tokens[1];
+            var split = RemoteClusterAware.splitIndexName(m.group(2));
             int shardId = Integer.parseInt(m.group(3));
-            return new ShardProfileId(nodeId, indexName, shardId, cluster);
+            return new ShardProfileId(nodeId, split.indexExpression(), shardId, split.clusterAlias());
         } else {
             assert false : "Unable to match input against expected pattern of [nodeId][indexName][shardId]. Input: " + compositeId;
             logger.warn("Unable to match input against expected pattern of [nodeId][indexName][shardId]. Input: {}", compositeId);

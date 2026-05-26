@@ -568,15 +568,15 @@ public class ViewResolver {
         if (pattern.startsWith("-")) {
             return true;
         }
-        String[] split = RemoteClusterAware.splitIndexName(pattern);
-        return split[0] != null && split[1].startsWith("-");
+        var split = RemoteClusterAware.splitIndexName(pattern);
+        return split.clusterAlias() != null && split.indexExpression().startsWith("-");
     }
 
     /**
      * @return {@code true} if the pattern is a wildcard (one containing *)
      */
     private static boolean patternIsWildcard(String pattern) {
-        return RemoteClusterAware.parseLocalIndexName(pattern).contains("*");
+        return RemoteClusterAware.splitIndexName(pattern).indexExpression().contains("*");
     }
 
     /**

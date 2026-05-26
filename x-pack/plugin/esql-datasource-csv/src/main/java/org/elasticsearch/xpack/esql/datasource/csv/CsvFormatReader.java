@@ -1835,10 +1835,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         errorPolicy.mode()
                     );
                 }
-                // Cache only on clean whole-file drain. Same gate handles FAIL_FAST and SKIP_ROW:
-                // any observed errors suppress the write, so we never cache a policy-dependent count.
+                // The captured row count is accurate as long as no rows were DROPPED. NULL_FIELD
+                // null-fills a malformed field but preserves the row, so rowsEmittedForCache still
+                // matches the file's true row count even though errorCount > 0 — that read is safe to
+                // cache. SKIP_ROW drops rows (rowsSkipped > 0), making the count policy-dependent:
+                // suppress the whole-file write, and poison parallel chunks so the coordinator
+                // discards the file rather than committing an under-counted sum. (FAIL_FAST aborts
+                // before EOF, so naturallyExhausted already gates it out.)
                 if (cacheableObject != null && naturallyExhausted && pinnedMtimeMillis >= 0 && schema != null) {
-                    if (errorCount == 0) {
+                    if (rowsSkipped == 0) {
                         java.util.Map<String, ExternalStatsCache.ColumnStats> cols = columnStats == null
                             ? java.util.Map.of()
                             : columnStats.snapshot();
@@ -1854,12 +1859,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         // publishes a finalize marker at clean whole-file completion so the coordinator's
                         // reconciler only commits the merge then.
                         publishToCaptureSink(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord, schema, sizeInBytesFromLength());
-                    } else if (chunkMode && rowsSkipped > 0) {
-                        // Poison only when rows were actually dropped (rowsSkipped > 0 — incremented
-                        // by onRowError under SKIP_ROW + structural failures). NULL_FIELD increments
-                        // errorCount but NOT rowsSkipped: that path null-fills the bad field and
-                        // preserves the row, so rowsEmittedForCache still matches the file's true
-                        // row count and no poison is needed.
+                    } else if (chunkMode) {
+                        // rowsSkipped > 0 here: a parallel chunk dropped rows mid-scan, so its partial
+                        // would under-count. Poison the file — the reconciler discards every contribution.
                         java.util.Map<String, Object> poison = new java.util.HashMap<>();
                         poison.put(ExternalStatsCache.MTIME_MILLIS_KEY, pinnedMtimeMillis);
                         poison.put(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);

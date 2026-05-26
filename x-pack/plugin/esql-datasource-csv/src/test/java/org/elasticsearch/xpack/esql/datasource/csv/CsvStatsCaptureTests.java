@@ -173,6 +173,38 @@ public class CsvStatsCaptureTests extends ESTestCase {
         assertEquals(body.getBytes(StandardCharsets.UTF_8).length, cached.get().bytesRead().getAsLong());
     }
 
+    /**
+     * NULL_FIELD null-fills a malformed field but PRESERVES the row, so a parallel chunk's row count
+     * stays accurate. The chunk must still publish its partial (so the file's COUNT(*) sum stays
+     * complete) and must NOT poison the file — poison is reserved for SKIP_ROW, which drops rows.
+     */
+    public void testNullFieldChunkPublishesFullCountWithoutPoison() throws Exception {
+        ErrorPolicy nullField = new ErrorPolicy(ErrorPolicy.Mode.NULL_FIELD, 10, 1.0, false);
+        // 3 data rows; row 2 has a non-integer in column n → null-filled, row preserved.
+        StorageObject o = obj("id:integer,n:integer\n1,10\n2,not-an-int\n3,30\n");
+        FormatReadContext ctx = FormatReadContext.builder().batchSize(10).recordAligned(true).errorPolicy(nullField).build();
+        java.util.Map<String, java.util.List<java.util.Map<String, Object>>> sink =
+            org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.newSink();
+        try (
+            var handle = org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.bind(sink);
+            CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)
+        ) {
+            drain(it);
+        }
+        java.util.List<java.util.Map<String, Object>> contributions = sink.get(o.path().toString());
+        assertNotNull("NULL_FIELD chunk must still publish its partial — its row count is accurate", contributions);
+        boolean anyPoison = contributions.stream().anyMatch(c -> Boolean.TRUE.equals(c.get(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY)));
+        assertFalse("NULL_FIELD preserves rows, so the chunk must not poison the file", anyPoison);
+        long published = contributions.stream()
+            .filter(c -> c.containsKey(org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.STATS_ROW_COUNT))
+            .mapToLong(
+                c -> ((Number) c.get(org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.STATS_ROW_COUNT)).longValue()
+            )
+            .max()
+            .orElse(-1L);
+        assertEquals("the chunk's published row count must include the null-filled row", 3L, published);
+    }
+
     private StorageObject streamOnlyObj(String csv) {
         byte[] bytes = csv.getBytes(StandardCharsets.UTF_8);
         String uniquePath = "memory://" + UUID.randomUUID() + ".csv.bz2";

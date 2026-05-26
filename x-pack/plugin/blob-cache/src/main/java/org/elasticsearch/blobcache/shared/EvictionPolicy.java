@@ -52,4 +52,17 @@ public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> 
      * both been removed and unlinked in the cache.
      */
     void onEvicted(CacheFileRegion<KeyType> region);
+
+    /**
+     * Returns {@code true} if this policy supports a degraded eviction pass.
+     * <p>
+     * When the first eviction pass (with {@code degraded=false}) fails to free any region,
+     * the cache service checks this flag. If it returns {@code true}, a second pass is made
+     * with {@code degraded=true}, signalling {@link #canEvict} to relax its protection
+     * criteria so that otherwise-protected regions become eligible for eviction.
+     * <p>
+     * Policies that do not distinguish between normal and degraded modes (e.g., a policy
+     * that treats all entries as evictable) should return {@code false}.
+     */
+    boolean supportDegradation();
 }

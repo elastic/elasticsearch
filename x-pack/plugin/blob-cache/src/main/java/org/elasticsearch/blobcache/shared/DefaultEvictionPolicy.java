@@ -24,4 +24,9 @@ public class DefaultEvictionPolicy<KeyType extends SharedBlobCacheService.KeyBas
 
     @Override
     public void onEvicted(CacheFileRegion<KeyType> region) {}
+
+    @Override
+    public boolean supportDegradation() {
+        return false;
+    }
 }

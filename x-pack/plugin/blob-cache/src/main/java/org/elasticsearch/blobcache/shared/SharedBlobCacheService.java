@@ -2424,9 +2424,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (result != null) {
                 return result;
             }
-
-            // Second pass: graceful degradation (degraded = true)
-            return maybeEvictAndTakeWithPolicy(incoming, evictedNotification, epoch.get(), true);
+            if (evictionPolicy.supportDegradation()) {
+                // Second pass: graceful degradation (degraded = true)
+                return maybeEvictAndTakeWithPolicy(incoming, evictedNotification, epoch.get(), true);
+            }
+            return null; // Give up
         }
 
         private SharedBytes.IO maybeEvictAndTakeWithPolicy(
@@ -2435,6 +2437,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final long currentEpoch,
             final boolean degraded
         ) {
+            assert degraded == false || evictionPolicy.supportDegradation();
             SharedBytes.IO result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, 0, degraded);
             if (degraded == false && freqs[0].count < freq0DecayScheduleThreshold && freeRegions.isEmpty()) {
                 maybeScheduleDecayAndNewEpoch(currentEpoch);
@@ -2453,8 +2456,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                     return result;
                 }
             }
-            // give up
-            return null;
+            return null; // Give up
         }
 
         private SharedBytes.IO maybeEvictAndTakeForFrequency(

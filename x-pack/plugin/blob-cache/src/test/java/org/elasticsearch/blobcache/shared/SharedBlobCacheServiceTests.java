@@ -3214,6 +3214,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                     oldCount.decrementAndGet();
                 }
             }
+
+            @Override
+            public boolean supportDegradation() {
+                return true;
+            }
         };
 
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();

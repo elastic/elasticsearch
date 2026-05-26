@@ -401,6 +401,86 @@ public class FromDatasetIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testFromDatasetIdMetadataRendersLocationAndRowPosition() throws Exception {
+        // End-to-end proof of the _id composition path on a non-Parquet format (CSV). The CSV reader
+        // is not ColumnExtractorAware, so _rowPosition is synthesized by VirtualColumnIterator's
+        // per-file counter and _id renders as <location>:<file-local offset>. The three fixture rows
+        // sit at file-local offsets 0, 1, 2 — independent of any other file's row count.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        try (var response = run(syncEsqlQueryRequest("FROM employees METADATA _id | SORT emp_no | KEEP emp_no, _id | LIMIT 10"), TIMEOUT)) {
+            List<? extends ColumnInfo> columns = response.columns();
+            assertThat(columns, hasSize(2));
+            assertThat(columns.get(0).name(), equalTo("emp_no"));
+            assertThat(columns.get(1).name(), equalTo("_id"));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+
+            // Sorted by emp_no (1, 2, 3), so the rows line up with file-local offsets 0, 1, 2.
+            // Every id shares a common <location>: prefix and differs only in the trailing offset.
+            List<String> ids = new ArrayList<>();
+            for (List<Object> row : rows) {
+                ids.add(row.get(1).toString());
+            }
+            for (int i = 0; i < ids.size(); i++) {
+                String id = ids.get(i);
+                int sep = id.lastIndexOf(':');
+                assertThat("rendered _id [" + id + "] must contain a location:offset separator", sep, org.hamcrest.Matchers.greaterThan(0));
+                assertThat("file-local row offset", id.substring(sep + 1), equalTo(Integer.toString(i)));
+            }
+            String prefix0 = ids.get(0).substring(0, ids.get(0).lastIndexOf(':'));
+            for (String id : ids) {
+                assertThat("all rows come from the same file, so share one location prefix", id, org.hamcrest.Matchers.startsWith(prefix0));
+            }
+        }
+    }
+
+    public void testFromDatasetStandardMetadataNeverFails() throws Exception {
+        // Standing contract: every standard metadata name is accepted, returning a value or SQL NULL,
+        // but never an error. _index carries the dataset name; _version carries the file mtime; the
+        // rest (no relevance scoring, no per-row _ignored, etc.) come back as NULL columns. None may
+        // be dropped and none may crash the query.
+        assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest("local_ds", Map.of())));
+        assertAcked(
+            client().execute(
+                PutDatasetAction.INSTANCE,
+                putDatasetRequest("employees", "local_ds", csvFixture.toUri().toString(), Map.of("format", "csv"))
+            )
+        );
+
+        // _data_tier is snapshot-only in MetadataAttribute.ATTRIBUTES_MAP; omit it so the query is
+        // valid in non-snapshot builds. _score, _tsid, _size, _ignored, _index_mode have no value on
+        // external rows and must render as NULL columns rather than being dropped or erroring.
+        String query = "FROM employees METADATA _index, _version, _ignored, _index_mode, _tsid, _size, _score "
+            + "| SORT emp_no "
+            + "| KEEP emp_no, _index, _version, _ignored, _index_mode, _tsid, _size, _score "
+            + "| LIMIT 10";
+
+        try (var response = run(syncEsqlQueryRequest(query), TIMEOUT)) {
+            List<String> names = response.columns().stream().map(ColumnInfo::name).toList();
+            assertThat(names, equalTo(List.of("emp_no", "_index", "_version", "_ignored", "_index_mode", "_tsid", "_size", "_score")));
+
+            List<List<Object>> rows = getValuesList(response);
+            assertThat(rows, hasSize(3));
+            for (List<Object> row : rows) {
+                assertThat("_index is the dataset name", row.get(1).toString(), equalTo("employees"));
+                // _ignored, _index_mode, _tsid, _size, _score have no external value: NULL.
+                assertThat("_ignored is null on external rows", row.get(3), org.hamcrest.Matchers.nullValue());
+                assertThat("_index_mode is null on external rows", row.get(4), org.hamcrest.Matchers.nullValue());
+                assertThat("_tsid is null on external rows", row.get(5), org.hamcrest.Matchers.nullValue());
+                assertThat("_size is null on external rows", row.get(6), org.hamcrest.Matchers.nullValue());
+                assertThat("_score is null on external rows", row.get(7), org.hamcrest.Matchers.nullValue());
+            }
+        }
+    }
+
     public void testWildcardSpanningIndexAndDatasetRejected() throws Exception {
         // Real index plus a dataset, both matching the same wildcard. The resolver expands the
         // pattern through IndexAbstractionResolver and finds both abstractions; the rewriter buckets

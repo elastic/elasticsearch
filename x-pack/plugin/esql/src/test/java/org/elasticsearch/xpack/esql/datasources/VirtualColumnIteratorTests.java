@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -208,6 +209,40 @@ public class VirtualColumnIteratorTests extends ESTestCase {
         IntBlock yearBlock = result.getBlock(1);
         for (int i = 0; i < 5; i++) {
             assertEquals(2024, yearBlock.getInt(i));
+        }
+    }
+
+    /**
+     * Regression: when the reader does not emit a {@code _rowPosition} column (CSV / NDJSON / ORC),
+     * the iterator must synthesize {@code _id} from a per-file running counter rather than reading a
+     * (non-existent) {@code _rowPosition} data block. The counter continues across pages of the
+     * same file.
+     */
+    public void testIdSynthesizedFromCounterWhenNoRowPositionColumn() {
+        List<Attribute> fullOutput = List.of(attr("data", DataType.INTEGER), partAttr(ExternalMetadataColumns.ID, DataType.KEYWORD));
+        Set<String> partitionCols = new LinkedHashSet<>(List.of(ExternalMetadataColumns.ID));
+        BytesRef idPrefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"));
+
+        VirtualColumnIterator it = new VirtualColumnIterator(emptyDelegate(), fullOutput, partitionCols, Map.of(), blockFactory, idPrefix);
+
+        Page page1 = it.inject(new Page(3, new Block[] { blockFactory.newConstantIntBlockWith(1, 3) }));
+        try {
+            BytesRefBlock ids1 = page1.getBlock(1);
+            assertEquals("s3://bucket/data.csv:0", asString(ids1, 0));
+            assertEquals("s3://bucket/data.csv:1", asString(ids1, 1));
+            assertEquals("s3://bucket/data.csv:2", asString(ids1, 2));
+        } finally {
+            page1.releaseBlocks();
+        }
+
+        // Second page of the same file: the counter must continue from 3, not restart at 0.
+        Page page2 = it.inject(new Page(2, new Block[] { blockFactory.newConstantIntBlockWith(9, 2) }));
+        try {
+            BytesRefBlock ids2 = page2.getBlock(1);
+            assertEquals("s3://bucket/data.csv:3", asString(ids2, 0));
+            assertEquals("s3://bucket/data.csv:4", asString(ids2, 1));
+        } finally {
+            page2.releaseBlocks();
         }
     }
 
@@ -460,5 +495,11 @@ public class VirtualColumnIteratorTests extends ESTestCase {
 
     private static Attribute partAttr(String name, DataType type) {
         return new ReferenceAttribute(Source.EMPTY, null, name, type);
+    }
+
+    private static String asString(BytesRefBlock block, int position) {
+        BytesRef ref = new BytesRef();
+        block.getBytesRef(block.getFirstValueIndex(position), ref);
+        return ref.utf8ToString();
     }
 }

@@ -48,16 +48,19 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
     private final int[] partitionColumnIndices;
     /**
      * Per-file prefix bytes for {@code _id} composition, or {@code null} when {@code _id} is not
-     * projected. When non-null, the iterator finds the data-page channel holding
-     * {@link ColumnExtractor#ROW_POSITION_COLUMN} and composes {@code <prefix><rowPosition>}
-     * per row into the {@code _id} output slot, instead of looking up a constant value.
+     * projected. When non-null, the iterator composes {@code <prefix><rowPosition>} per row into
+     * the {@code _id} output slot via one of two paths: from the reader-emitted
+     * {@link ColumnExtractor#ROW_POSITION_COLUMN} block when {@link #rowPositionDataChannel} is
+     * non-negative (deferred-extraction-capable readers), or from the per-file {@link #fileRowOffset}
+     * counter otherwise (readers that cannot emit {@code _rowPosition}).
      */
     @Nullable
     private final BytesRef idPrefix;
     /**
      * Index of {@link ColumnExtractor#ROW_POSITION_COLUMN} within {@link #dataColumnIndices}
-     * (i.e. position in the incoming data page's block list), or {@code -1} when not present.
-     * Required (non-negative) whenever {@link #idPrefix} is set.
+     * (i.e. position in the incoming data page's block list), or {@code -1} when the reader does
+     * not emit it. When {@link #idPrefix} is set and this is {@code -1}, {@code _id} positions are
+     * synthesized from {@link #fileRowOffset} instead.
      */
     private final int rowPositionDataChannel;
     /** Index of {@code _id} within {@link #fullOutput}, or {@code -1} when not present. */
@@ -142,11 +145,17 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
         this.sourceOutputIndex = sourceIdx;
         this.rowPositionDataChannel = rowPosChannelInData;
         this.dataColumnNames = dataNames.toArray(new String[0]);
-        Check.isTrue(
-            idPrefix == null || (idIdx >= 0 && rowPosChannelInData >= 0),
-            "idPrefix supplied but _id slot or _rowPosition data channel missing from fullOutput"
-        );
+        Check.isTrue(idPrefix == null || idIdx >= 0, "idPrefix supplied but _id slot missing from fullOutput");
     }
+
+    /**
+     * Per-file running row offset for the {@code _id} synthesis path used when the reader does not
+     * emit {@link ColumnExtractor#ROW_POSITION_COLUMN} (every format except the
+     * deferred-extraction-capable readers). Starts at 0 because this iterator is constructed once
+     * per file, advances by each page's position count. Unused when {@link #rowPositionDataChannel}
+     * is non-negative (the reader-emitted block carries the positions instead).
+     */
+    private long fileRowOffset = 0;
 
     @Override
     public boolean hasNext() {
@@ -216,9 +225,18 @@ final class VirtualColumnIterator implements CloseableIterator<Page> {
             for (int idx : partitionColumnIndices) {
                 Attribute attr = fullOutput.get(idx);
                 if (idx == idOutputIndex && idPrefix != null) {
-                    // Compose <prefix>:<rowPosition> per row from the data page's _rowPosition block.
-                    Block rowPosBlock = dataPage.getBlock(rowPositionDataChannel);
-                    blocks[idx] = ExternalRowIdentity.composePage(idPrefix, (LongBlock) rowPosBlock, blockFactory);
+                    if (rowPositionDataChannel >= 0) {
+                        // Deferred-extraction-capable reader (Parquet-class) emitted _rowPosition on
+                        // the data page: compose <prefix><rowPosition> from the encoded block.
+                        Block rowPosBlock = dataPage.getBlock(rowPositionDataChannel);
+                        blocks[idx] = ExternalRowIdentity.composePage(idPrefix, (LongBlock) rowPosBlock, blockFactory);
+                    } else {
+                        // Reader cannot emit _rowPosition (CSV / NDJSON / ORC / ...): synthesize
+                        // file-local positions from the per-file running counter. composePage renders
+                        // <prefix><fileRowOffset + i> for this page, then we advance the counter.
+                        blocks[idx] = ExternalRowIdentity.composePage(idPrefix, fileRowOffset, positions, blockFactory);
+                        fileRowOffset += positions;
+                    }
                 } else if (idx == sourceOutputIndex) {
                     // Materialize _source from this row's data column values: project the data
                     // blocks already pulled off the page above into a (names, blocks) pair and

@@ -39,6 +39,37 @@ public class ExternalRowIdentityTests extends ESTestCase {
     }
 
     /**
+     * Counter path for readers that do not emit {@code _rowPosition} (CSV / NDJSON / ORC / ...):
+     * the iterator passes a file-local start offset + page position count, and composePage renders
+     * {@code <prefix><startOffset + i>} for each row. No extractor-id packing, so values render
+     * verbatim.
+     */
+    public void testComposeFromOffsetRange() {
+        BytesRef prefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"));
+        try (BytesRefBlock ids = ExternalRowIdentity.composePage(prefix, 100L, 3, blockFactory)) {
+            assertEquals(3, ids.getPositionCount());
+            assertEquals("s3://bucket/data.csv:100", asString(ids, 0));
+            assertEquals("s3://bucket/data.csv:101", asString(ids, 1));
+            assertEquals("s3://bucket/data.csv:102", asString(ids, 2));
+        }
+    }
+
+    public void testComposeFromOffsetZeroBased() {
+        BytesRef prefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"));
+        try (BytesRefBlock ids = ExternalRowIdentity.composePage(prefix, 0L, 2, blockFactory)) {
+            assertEquals("s3://bucket/data.csv:0", asString(ids, 0));
+            assertEquals("s3://bucket/data.csv:1", asString(ids, 1));
+        }
+    }
+
+    public void testComposeFromOffsetEmptyPage() {
+        BytesRef prefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"));
+        try (BytesRefBlock ids = ExternalRowIdentity.composePage(prefix, 5L, 0, blockFactory)) {
+            assertEquals(0, ids.getPositionCount());
+        }
+    }
+
+    /**
      * Same physical row across two query runs with different extractor ids must produce the same
      * {@code _id} string. The extractor id occupies the high bits of the {@code _rowPosition}
      * encoded value; the {@code _id} composer masks it off and renders only the physical position.

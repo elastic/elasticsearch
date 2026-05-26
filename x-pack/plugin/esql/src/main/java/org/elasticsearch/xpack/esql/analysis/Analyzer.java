@@ -2706,6 +2706,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
+            // Virtual columns (today: _file.* and the standard metadata names on external datasets)
+            // are kept out of default output, the same way the implicit `*` expansion drops them via
+            // excludeExternalMetadata. But once the user names one explicitly — KEEP _index,
+            // KEEP _file.path — it must reach the result, even when later commands (SORT, LIMIT, ...)
+            // sit above the KEEP and make the relation's output, not the projection, the plan's top
+            // node. We therefore strip a virtual attribute only when no explicit projection in the
+            // plan named it. A `*`-expansion Project never lists virtual columns, so this does not
+            // accidentally retain them for `KEEP *`.
+            Set<String> explicitlyProjected = explicitlyProjectedVirtualNames(plan);
             List<Attribute> output = plan.output();
             List<Attribute> newOutput = new ArrayList<>(output.size());
             for (Attribute attr : output) {
@@ -2713,15 +2722,31 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (attr.synthetic() && attr != NO_FIELDS.getFirst()) {
                     continue;
                 }
-                // Virtual columns (today: _file.*) are hidden from default output.
-                // Users add them explicitly via KEEP _file.path, etc.
-                if (attr instanceof VirtualAttribute) {
+                if (attr instanceof VirtualAttribute && explicitlyProjected.contains(attr.name()) == false) {
                     continue;
                 }
                 newOutput.add(attr);
             }
 
             return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);
+        }
+
+        /**
+         * Names of every {@link VirtualAttribute} that appears in the projections of some
+         * {@link Project} node in the plan — i.e. the virtual columns the user pulled in by name
+         * (KEEP _index, KEEP _file.path). Used to decide which virtual columns survive into the
+         * final output instead of being hidden as default-output noise.
+         */
+        private static Set<String> explicitlyProjectedVirtualNames(LogicalPlan plan) {
+            Set<String> names = new HashSet<>();
+            plan.forEachDown(Project.class, project -> {
+                for (NamedExpression projection : project.projections()) {
+                    if (projection instanceof VirtualAttribute) {
+                        names.add(projection.name());
+                    }
+                }
+            });
+            return names;
         }
     }
 

@@ -467,6 +467,21 @@ final class PageColumnReader implements Releasable {
         if (currentEncoding.usesDictionary()) {
             useFallbackReader = false;
             dictDecoder.init(currentValueBytes);
+            if (dictionary != null) {
+                int bw = dictDecoder.bitWidth();
+                int maxRepresentable = bw == 0 ? 0 : (1 << bw) - 1;
+                if (dictionary.getMaxId() > maxRepresentable) {
+                    throw new QlIllegalArgumentException(
+                        "Dictionary index bit width ["
+                            + bw
+                            + "] is too small for dictionary with ["
+                            + (dictionary.getMaxId() + 1)
+                            + "] entries in column ["
+                            + descriptor
+                            + "]"
+                    );
+                }
+            }
         } else if (currentEncoding == Encoding.PLAIN || currentEncoding == Encoding.BIT_PACKED) {
             useFallbackReader = false;
             plainDecoder.init(currentValueBytes);

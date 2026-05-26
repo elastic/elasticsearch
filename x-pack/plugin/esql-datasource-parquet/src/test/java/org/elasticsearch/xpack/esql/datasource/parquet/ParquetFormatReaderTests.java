@@ -15,6 +15,7 @@ import org.apache.parquet.example.data.simple.SimpleGroupFactory;
 import org.apache.parquet.filter2.compat.FilterCompat;
 import org.apache.parquet.filter2.predicate.FilterApi;
 import org.apache.parquet.filter2.predicate.FilterPredicate;
+import org.apache.parquet.format.PageHeader;
 import org.apache.parquet.hadoop.ParquetWriter;
 import org.apache.parquet.hadoop.example.ExampleParquetWriter;
 import org.apache.parquet.hadoop.metadata.CompressionCodecName;
@@ -42,6 +43,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.UninitializedArrays;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
@@ -3099,5 +3101,61 @@ public class ParquetFormatReaderTests extends ESTestCase {
             assertEquals(unsignedBits, ((LongBlock) page.getBlock(0)).getLong(0));
             assertFalse(iterator.hasNext());
         }
+    }
+
+    public void testDictionaryBitWidthTooSmallRaisesError() throws Exception {
+        MessageType schema = Types.buildMessage()
+            .required(PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("name")
+            .named("test_schema");
+
+        byte[] validFile = createParquetFile(schema, f -> {
+            List<Group> groups = new ArrayList<>();
+            for (int i = 0; i < 20; i++) {
+                groups.add(f.newGroup().append("name", i % 2 == 0 ? "alpha" : "beta"));
+            }
+            return groups;
+        }, CompressionCodecName.UNCOMPRESSED);
+
+        int bitWidthByteOffset = findDictBitWidthOffset(validFile);
+        assertTrue("bit width byte should be 1 for a 2-entry dictionary", validFile[bitWidthByteOffset] == 1);
+
+        byte[] corrupted = Arrays.copyOf(validFile, validFile.length);
+        corrupted[bitWidthByteOffset] = 0;
+
+        StorageObject storageObject = createStorageObject(corrupted, "memory://corrupted.parquet");
+        ParquetFormatReader reader = new ParquetFormatReader(blockFactory);
+        Exception ex = expectThrows(Exception.class, () -> {
+            try (CloseableIterator<Page> iter = reader.read(storageObject, null, 100)) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        });
+        assertThat(ex.getMessage(), containsString("Dictionary index bit width [0]"));
+        assertThat(ex.getMessage(), containsString("too small for dictionary with [2] entries"));
+        assertThat(ex.getCause(), instanceOf(QlIllegalArgumentException.class));
+    }
+
+    /**
+     * Locates the file offset of the RLE bit-width byte in the first data page of the first
+     * column. Requires an uncompressed file with a single required dictionary-encoded column.
+     * Scans from the start of the column data (after the 4-byte PAR1 magic): the first page is
+     * the dictionary page, the second is the first data page, and the bit-width byte is the
+     * first byte of the data page's payload.
+     */
+    private static int findDictBitWidthOffset(byte[] fileBytes) throws IOException {
+        int pos = 4; // skip PAR1 magic
+        ByteArrayInputStream stream = new ByteArrayInputStream(fileBytes, pos, fileBytes.length - pos);
+
+        PageHeader dictPageHeader = org.apache.parquet.format.Util.readPageHeader(stream);
+        int dictHeaderSize = (fileBytes.length - pos) - stream.available();
+        pos += dictHeaderSize + dictPageHeader.getCompressed_page_size();
+        stream = new ByteArrayInputStream(fileBytes, pos, fileBytes.length - pos);
+
+        org.apache.parquet.format.Util.readPageHeader(stream);
+        int dataHeaderSize = (fileBytes.length - pos) - stream.available();
+        return pos + dataHeaderSize;
     }
 }

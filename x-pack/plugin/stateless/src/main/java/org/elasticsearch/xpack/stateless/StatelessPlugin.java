@@ -929,7 +929,7 @@ public class StatelessPlugin extends Plugin
         var indexTierPartitionedMemoryModel = new PartitionedMemoryModel<>(
             "index",
             services.telemetryProvider().getMeterRegistry(),
-            () -> statelessMemoryMetricsService.get().buildPartitionContext(),
+            () -> statelessMemoryMetricsService.get().buildIndexTierPartitionContext(),
             new IndexMetadataPartition(clusterService.getClusterSettings()),
             new IndexingPressurePartition(clusterService.getClusterSettings()),
             new IndexBuffersPartition(clusterService.getClusterSettings()),

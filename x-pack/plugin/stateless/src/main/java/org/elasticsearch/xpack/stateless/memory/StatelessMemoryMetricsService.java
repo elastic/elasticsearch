@@ -855,7 +855,7 @@ public class StatelessMemoryMetricsService implements ClusterStateListener {
      * cost is {@link #computeShardHeapUsage} (shard-level infrastructure, excluding index-level
      * mapping overhead which is the responsibility of {@code IndexMetadataPartition}).
      */
-    public IndexTierPartitionContext buildPartitionContext() {
+    public IndexTierPartitionContext buildIndexTierPartitionContext() {
         long largestShardCostBytes = 0;
         long totalShardCostBytes = 0;
         for (ShardMemoryMetrics metrics : shardMemoryMetrics.values()) {

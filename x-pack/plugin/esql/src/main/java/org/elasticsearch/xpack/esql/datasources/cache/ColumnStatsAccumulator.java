@@ -22,9 +22,11 @@ import java.util.Map;
 
 /**
  * Accumulates per-column null count + min + max across the pages of a single cold scan.
- * Tracked types: BOOLEAN, INTEGER, LONG (incl. DATETIME / DATE_NANOS / COUNTER_LONG / UNSIGNED_LONG),
- * DOUBLE (incl. COUNTER_DOUBLE), KEYWORD / TEXT / IP / VERSION. Untracked types contribute null counts
- * only — min and max stay null so the warm path bails out rather than serving an unbounded answer.
+ * Tracked types: BOOLEAN, INTEGER (incl. COUNTER_INTEGER), LONG (incl. DATETIME / DATE_NANOS /
+ * COUNTER_LONG), DOUBLE (incl. COUNTER_DOUBLE), KEYWORD / TEXT / IP. UNSIGNED_LONG and VERSION are
+ * deliberately untracked (their stored byte order disagrees with the type's semantic order); all
+ * other types are untracked too. Untracked types contribute null counts only — min and max stay
+ * null so the warm path bails out rather than serving an unbounded answer.
  * <p>
  * Hot-path discipline: the iterator passes blocks by their position index in the page (not by name)
  * via {@link #acceptBlockAt(int, Block)} — accumulator state is held in a flat array so each block

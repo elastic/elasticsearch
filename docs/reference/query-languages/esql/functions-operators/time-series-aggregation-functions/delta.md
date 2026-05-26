@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `DELTA` function [esql-delta]
 
-:::{include} ../../_snippets/functions/layout/delta.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/delta.md
 :::

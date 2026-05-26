@@ -113,7 +113,6 @@ public class ReindexPitKeepAliveIT extends ESIntegTestCase {
      * {@link org.elasticsearch.action.search.OpenPointInTimeRequest#keepAlive()}.
      */
     public void testClusterSettingControlsLocalReindexOpenPitKeepAlive() throws Exception {
-        assumeTrue("reindex PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final TimeValue configured = TimeValue.timeValueMinutes(randomIntBetween(10, 20));
         assertAcked(

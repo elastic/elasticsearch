@@ -253,7 +253,7 @@ public class MissingValuesTests extends ESTestCase {
             }
             Arrays.sort(values[i]);
         }
-        SortedNumericLongValues asNumericValues = new SortedNumericLongValues() {
+        SortedNumericLongValues asNumericValues = new SortedNumericLongValues(null) {
 
             int doc = -1;
             int i;
@@ -301,7 +301,7 @@ public class MissingValuesTests extends ESTestCase {
             }
             Arrays.sort(values[i]);
         }
-        SortedNumericDoubleValues asNumericValues = new SortedNumericDoubleValues() {
+        SortedNumericDoubleValues asNumericValues = new SortedNumericDoubleValues(null) {
 
             int doc = -1;
             int i;

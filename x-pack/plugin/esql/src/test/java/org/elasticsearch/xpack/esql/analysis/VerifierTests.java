@@ -487,6 +487,10 @@ public class VerifierTests extends ESTestCase {
             equalTo("1:23: nested aggregations [max(salary)] not allowed inside other aggregations [max(max(salary))]")
         );
         defaultAnalyzer().error(
+            "from test | stats w_avg = weighted_avg(salary, count(*)) by first_name",
+            equalTo("1:48: nested aggregations [count(*)] not allowed inside other aggregations " + "[weighted_avg(salary, count(*))]")
+        );
+        defaultAnalyzer().error(
             "from test | stats count(avg(first_name)) by first_name",
             equalTo(
                 "1:25: argument of [avg(first_name)] must be [aggregate_metric_double,"
@@ -844,7 +848,7 @@ public class VerifierTests extends ESTestCase {
             .error(
                 "FROM decades | LIMIT 1 BY date_range",
                 equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V5.isEnabled()
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled()
                         ? "1:27: cannot group by on [date_range] type for grouping [date_range]"
                         : "1:27: Cannot use field [date_range] with unsupported type [date_range]"
                 )
@@ -873,7 +877,7 @@ public class VerifierTests extends ESTestCase {
             .error(
                 "FROM decades | STATS count(*) BY date_range",
                 equalTo(
-                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V5.isEnabled()
+                    EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled()
                         ? "1:34: cannot group by on [date_range] type for grouping [date_range]"
                         : "1:34: Cannot use field [date_range] with unsupported type [date_range]"
                 )
@@ -884,6 +888,22 @@ public class VerifierTests extends ESTestCase {
                 "FROM test | STATS count(*) BY dense_vector",
                 equalTo("1:31: cannot group by on [dense_vector] type for grouping [dense_vector]")
             );
+    }
+
+    public void testFlattenedAllowedInLimitBy() {
+        assumeTrue("requires GROUP_BY_FLATTENED capability", EsqlCapabilities.Cap.GROUP_BY_FLATTENED.isEnabled());
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | LIMIT 1 BY resource.attributes");
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | LIMIT 1 BY attributes");
+    }
+
+    public void testFlattenedAllowedInStatsBy() {
+        assumeTrue("requires GROUP_BY_FLATTENED capability", EsqlCapabilities.Cap.GROUP_BY_FLATTENED.isEnabled());
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | STATS count(*) BY attributes");
+        analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json")
+            .query("FROM flattened_otel_logs | STATS count(*) BY resource.attributes");
     }
 
     public void testDoubleRenamingField() {
@@ -1465,6 +1485,13 @@ public class VerifierTests extends ESTestCase {
         index.error("FROM flattened_otel_logs | SORT resource.attributes | LIMIT 3", equalTo("1:33: cannot sort on flattened"));
     }
 
+    public void testDateRangeSorting() {
+        assumeTrue("Requires DATE_RANGE_FIELD_TYPE_V6 capability", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
+        analyzer().addIndex("decades", "mapping-decades.json")
+            .stripErrorPrefix(true)
+            .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));
+    }
+
     public void testFieldExtractFirstArgumentMustBeFlattened() {
         assumeTrue("Requires FIELD_EXTRACT_FUNCTION capability", EsqlCapabilities.Cap.FIELD_EXTRACT_FUNCTION.isEnabled());
         var index = analyzer().addIndex("flattened_otel_logs", "mapping-flattened_otel_logs.json").stripErrorPrefix(true);
@@ -1795,6 +1822,13 @@ public class VerifierTests extends ESTestCase {
                     containsString("[" + functionName + "] " + functionType + " cannot be used after MV_EXPAND")
                 )
             );
+        if (EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled()) {
+            fullText().error(
+                "from test | dedup | where " + functionInvocation,
+                containsString("[" + functionName + "] " + functionType + " cannot be used after DEDUP")
+            );
+        }
+
     }
 
     public void testFullTextFunctionsAfterFork() {
@@ -4194,6 +4228,19 @@ public class VerifierTests extends ESTestCase {
         k8s().error("TS k8s | SORT @timestamp | TS_INFO", containsString("TS_INFO cannot be used after SORT command"));
     }
 
+    public void testDedupRejectsAggregateMetricDouble() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        k8sDownsampled().error(
+            "FROM k8s | KEEP network.eth0.tx | DEDUP",
+            containsString("cannot group by on [aggregate_metric_double] type for grouping [network.eth0.tx]")
+        );
+    }
+
+    public void testDedupRejectsAggregateMetricDoubleWhenInSchema() {
+        assumeTrue("requires DEDUP", EsqlCapabilities.Cap.DEDUP_COMMAND.isEnabled());
+        k8sDownsampled().error("FROM k8s | DEDUP", containsString("cannot group by on [aggregate_metric_double] type for grouping"));
+    }
+
     private void checkVectorFunctionsNullArgs(String functionInvocation) throws Exception {
         fullText().query("from test | eval similarity = " + functionInvocation);
     }
@@ -4343,6 +4390,10 @@ public class VerifierTests extends ESTestCase {
 
     private static TestAnalyzer k8s() {
         return analyzer().addK8s().stripErrorPrefix(true);
+    }
+
+    private static TestAnalyzer k8sDownsampled() {
+        return analyzer().addK8sDownsampled().stripErrorPrefix(true);
     }
 
     private static TestAnalyzer lookupJoinFullText() {

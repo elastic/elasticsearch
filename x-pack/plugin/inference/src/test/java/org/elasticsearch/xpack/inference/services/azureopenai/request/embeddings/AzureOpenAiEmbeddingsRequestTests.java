@@ -71,9 +71,10 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(API_KEY_HEADER).getValue(), is(apiKey));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap.size(), equalTo(InputType.isSpecified(inputType) ? 3 : 2));
+        assertThat(requestMap.size(), equalTo(InputType.isSpecified(inputType) ? 4 : 3));
         assertThat(requestMap.get("input"), is(List.of(input)));
         assertThat(requestMap.get("user"), is(user));
+        assertThat(requestMap.get("encoding_format"), is("base64"));
         if (InputType.isSpecified(inputType)) {
             assertThat(requestMap.get("input_type"), is(inputType.toString()));
         }
@@ -100,9 +101,10 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer " + entraId));
 
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap.size(), equalTo(InputType.isSpecified(inputType) ? 3 : 2));
+        assertThat(requestMap.size(), equalTo(InputType.isSpecified(inputType) ? 4 : 3));
         assertThat(requestMap.get("input"), is(List.of(input)));
         assertThat(requestMap.get("user"), is(user));
+        assertThat(requestMap.get("encoding_format"), is("base64"));
         if (InputType.isSpecified(inputType)) {
             assertThat(requestMap.get("input_type"), is(inputType.toString()));
         }
@@ -117,8 +119,9 @@ public class AzureOpenAiEmbeddingsRequestTests extends ESTestCase {
 
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
         var requestMap = entityAsMap(httpPost.getEntity().getContent());
-        assertThat(requestMap, aMapWithSize(1));
+        assertThat(requestMap, aMapWithSize(2));
         assertThat(requestMap.get("input"), is(List.of("ab")));
+        assertThat(requestMap.get("encoding_format"), is("base64"));
     }
 
     public void testIsTruncated_ReturnsTrue() {

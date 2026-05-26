@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.Settings;
@@ -68,7 +69,8 @@ import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.TaskRelocatedException;
-import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.index.reindex.WorkerBulkByPaginatedSearchTaskState;
+import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;
 import org.elasticsearch.reindex.remote.RemoteReindexingUtils;
@@ -78,6 +80,8 @@ import org.elasticsearch.script.ReindexMetadata;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -106,6 +110,7 @@ import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
 import java.util.function.BooleanSupplier;
 import java.util.function.Consumer;
+import java.util.function.Function;
 import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
@@ -146,6 +151,7 @@ public class Reindexer {
     private final FeatureService featureService;
     private final TaskResultsService taskResultsService;
     private final TimeValue reindexShutdownGracePeriod;
+    private final CircuitBreaker requestBreaker;
 
     Reindexer(
         ClusterService clusterService,
@@ -160,7 +166,8 @@ public class Reindexer {
         TransportService transportService,
         ReindexRelocationNodePicker relocationNodePicker,
         FeatureService featureService,
-        TaskResultsService taskResultsService
+        TaskResultsService taskResultsService,
+        CircuitBreakerService circuitBreakerService
     ) {
         this.clusterService = clusterService;
         this.reindexSettings = Objects.requireNonNull(reindexSettings);
@@ -177,6 +184,7 @@ public class Reindexer {
         this.featureService = featureService;
         this.taskResultsService = Objects.requireNonNull(taskResultsService);
         this.reindexShutdownGracePeriod = ShutdownPrepareService.MAXIMUM_REINDEXING_TIMEOUT_SETTING.get(clusterService.getSettings());
+        this.requestBreaker = Objects.requireNonNull(circuitBreakerService.getBreaker(CircuitBreaker.REQUEST));
     }
 
     public void initTask(BulkByPaginatedSearchTask task, ReindexRequest request, ActionListener<Void> listener) {
@@ -237,7 +245,7 @@ public class Reindexer {
         // todo: move relocations to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
         final ActionListener<BulkByScrollResponse> responseListener = wrapWithMetrics(
-            listenerWithRelocations(task, request, relocationResponseListenerWithMetrics(reindexMetrics), listener),
+            listenerWithRelocations(task, request, relocationResponseLoggingListener(task), listener),
             reindexMetrics,
             task,
             request
@@ -274,6 +282,7 @@ public class Reindexer {
                 Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
                 executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, null);
             } else {
+                normalizeRequestOnOpeningPit(request);
                 openPitAndExecute(task, request, bulkClient, responseListener);
             }
         }
@@ -305,7 +314,9 @@ public class Reindexer {
                 listener,
                 remoteVersion,
                 reindexShutdownGracePeriod,
-                bulkByScrollSearchContextMetrics
+                bulkByScrollSearchContextMetrics,
+                reindexSettings,
+                requestBreaker
             );
             searchAction.start();
         };
@@ -331,6 +342,25 @@ public class Reindexer {
             remoteVersion,
             workerAction
         );
+    }
+
+    /// Performs normalization required on the `ReindexRequest` when using PIT.
+    private void normalizeRequestOnOpeningPit(ReindexRequest request) {
+        SearchSourceBuilder source = request.getSearchRequest().source();
+        // If we are performing a sliced operation and not sharing a PIT between slices, we have to disable some optimizations to guarantee
+        // consistency. This applies for manually sliced operations, when source.slice() is non-null on the request when we open the PIT.
+        // It does not apply for automatically sliced operations, which share a PIT: for the parent request, source.slice() will be null;
+        // for the children, we will not call this method because the PIT was already opened for the parent.
+        if (source != null && source.slice() != null) {
+            // If the user has not specified a slicing field, use _id (instead of Lucene ID, the default for PIT slicing) for ensure
+            // consistency if document updates occur between slices:
+            if (source.slice().getField() == null) {
+                source.slice(new SliceBuilder(IdFieldMapper.NAME, source.slice().getId(), source.slice().getMax()));
+            }
+            // We also have to disable slicing by shard to maintain slice consistency in the presence of resharding, which can cause
+            // the set of documents on a shard to change between slices when PIT is not shared.
+            source.slice(SliceBuilder.withoutShardOptimization(source.slice()));
+        }
     }
 
     /**
@@ -527,6 +557,7 @@ public class Reindexer {
                         Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
                         executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, version);
                     } else {
+                        normalizeRequestOnOpeningPit(request);
                         openRemotePitAndExecute(task, request, bulkClient, listener, restClient, version);
                     }
                 }
@@ -605,18 +636,22 @@ public class Reindexer {
         });
     }
 
-    /** Listener to call on a relocation response to record metrics. Visible for testing. */
-    static ActionListener<ResumeBulkByScrollResponse> relocationResponseListenerWithMetrics(@Nullable final ReindexMetrics metrics) {
-        return ActionListener.assertOnce(
-            metrics == null ? ActionListener.noop() : ActionListener.wrap(resp -> metrics.recordRelocationSuccess(), e -> {
-                if (e instanceof TaskCancelledException) {
-                    // Failure metrics should represent genuine failures, task cancellation is expected from user operation,
-                    // so skipping emitting metric
-                    return;
-                }
-                metrics.recordRelocationFailure(e);
-            })
-        );
+    /// Listener to log the outcome of a relocation on the **source** node. These logs are used for dashboards.
+    ///
+    /// We log instead of emitting a metric because the source is being shut down (SIGTERM is what triggered the
+    /// relocation), and the metrics agent stops publishing on SIGTERM — so any source-side metric would be dropped.
+    ///
+    /// Visible for testing.
+    static ActionListener<ResumeBulkByScrollResponse> relocationResponseLoggingListener(final BulkByPaginatedSearchTask task) {
+        return ActionListener.assertOnce(ActionListener.wrap(resp -> {
+            logger.info("reindex task [{}] relocation succeeded on source node", task.getId());
+        }, e -> {
+            if (e instanceof TaskCancelledException) {
+                // task cancellation exception is expected from user operation, should not count as a failure
+                return;
+            }
+            logger.warn(() -> Strings.format("reindex task [%s] relocation failed on source node", task.getId()), e);
+        }));
     }
 
     /**
@@ -650,13 +685,14 @@ public class Reindexer {
         }
         final boolean isRemote = request.getRemoteInfo() != null;
         final ReindexMetrics.SlicingMode slicingMode = ReindexMetrics.resolveSlicingMode(request);
+        final boolean relocated = task.isRelocatedTask();
         return new ActionListener<>() {
             private void recordDuration() {
                 // handles relocations
                 long elapsedTimeSeconds = TimeUnit.MILLISECONDS.toSeconds(
                     currentTimeMillisSupplier.getAsLong() - task.relocationOrigin().originalStartTimeMillis()
                 );
-                metrics.recordTookTime(elapsedTimeSeconds, isRemote, slicingMode);
+                metrics.recordTookTime(elapsedTimeSeconds, isRemote, slicingMode, relocated);
             }
 
             @Override
@@ -682,9 +718,9 @@ public class Reindexer {
                         .findFirst();
                     if (searchExceptionSample.isPresent() || bulkExceptionSample.isPresent()) {
                         Throwable e = searchExceptionSample.orElseGet(bulkExceptionSample::get);
-                        metrics.recordFailure(isRemote, slicingMode, e);
+                        metrics.recordFailure(isRemote, slicingMode, relocated, e);
                     } else {
-                        metrics.recordSuccess(isRemote, slicingMode);
+                        metrics.recordSuccess(isRemote, slicingMode, relocated);
                     }
                     listener.onResponse(bulkByScrollResponse);
                 } finally {
@@ -695,7 +731,7 @@ public class Reindexer {
             @Override
             public void onFailure(Exception e) {
                 try {
-                    metrics.recordFailure(isRemote, slicingMode, e);
+                    metrics.recordFailure(isRemote, slicingMode, relocated, e);
                     listener.onFailure(e);
                 } finally {
                     recordDuration();
@@ -744,6 +780,8 @@ public class Reindexer {
             try {
                 sourceTaskResult = task.result(clusterService.localNode(), new TaskRelocatedException());
             } catch (IOException e) {
+                // Relocation never made it to the destination; notify the logging listener so the failure is recorded
+                onRelocationResponseListener.onFailure(e);
                 l.onFailure(e);
                 return;
             }
@@ -788,9 +826,6 @@ public class Reindexer {
     private void initTaskForRelocationIfEnabled(final BulkByPaginatedSearchTask task) {
         // todo: move initialization to BulkByPaginatedSearchParallelizationHelper rather than having it in Reindexer, makes it generic
         // for update-by-query and delete-by-query
-        if (ReindexPlugin.REINDEX_RESILIENCE_ENABLED == false) {
-            return;
-        }
         // set up reindex relocation, specifically the supplier which says which node to relocate to.
         // we have 3 states to handle:
         // 1. leader which has >= 2 subslices: initialized with a centralized node picker. workers will fetch this and use it.
@@ -934,12 +969,12 @@ public class Reindexer {
      * but this makes no attempt to do any of them so it can be as simple
      * possible.
      */
-    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByScrollAction<ReindexRequest, TransportReindexAction> {
+    static class AsyncIndexBySearchAction extends AbstractAsyncBulkByPaginatedSearchAction<ReindexRequest, TransportReindexAction> {
         /**
-         * Mapper for the {@code _id} of the destination index used to
+         * Transformer for the {@code _id} of the destination index used to
          * normalize {@code _id}s landing in the index.
          */
-        private final IdFieldMapper destinationIndexIdMapper;
+        private final Function<String, String> destinationIndexIdMapper;
 
         /**
          * List of threads created by this process. Usually actions don't create threads in Elasticsearch. Instead they use the builtin
@@ -962,7 +997,9 @@ public class Reindexer {
             ActionListener<BulkByScrollResponse> listener,
             @Nullable Version remoteVersion,
             TimeValue maxTaskShutdownGracePeriod,
-            @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics
+            @Nullable BulkByScrollSearchContextMetrics bulkByScrollSearchContextMetrics,
+            ReindexSettings reindexSettings,
+            CircuitBreaker requestBreaker
         ) {
             super(
                 task,
@@ -985,9 +1022,12 @@ public class Reindexer {
                 bulkByScrollSearchContextMetrics,
                 BulkByScrollSearchContextMetrics.TaskKind.REINDEX,
                 request.getRemoteInfo() != null,
-                maxTaskShutdownGracePeriod
+                maxTaskShutdownGracePeriod,
+                reindexSettings,
+                requestBreaker,
+                "reindex_bulk_batch"
             );
-            this.destinationIndexIdMapper = destinationIndexMode(state).idFieldMapperForReindex();
+            this.destinationIndexIdMapper = destinationIndexMode(state).idTransformerForReindex();
         }
 
         private IndexMode destinationIndexMode(ProjectState state) {
@@ -1092,7 +1132,7 @@ public class Reindexer {
             }
 
             // id and source always come from the found doc. Scripts can change them but they operate on the index request.
-            index.id(destinationIndexIdMapper.reindexId(doc.getId()));
+            index.id(destinationIndexIdMapper.apply(doc.getId()));
 
             // the source xcontent type and destination could be different
             final XContentType sourceXContentType = doc.getXContentType();
@@ -1178,7 +1218,7 @@ public class Reindexer {
             private ReindexScript.Factory reindex;
 
             ReindexScriptApplier(
-                WorkerBulkByScrollTaskState taskWorker,
+                WorkerBulkByPaginatedSearchTaskState taskWorker,
                 ScriptService scriptService,
                 Script script,
                 Map<String, Object> params,

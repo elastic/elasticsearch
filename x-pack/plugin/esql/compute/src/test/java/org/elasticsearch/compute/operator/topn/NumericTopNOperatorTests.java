@@ -129,7 +129,16 @@ public class NumericTopNOperatorTests extends ComputeTestCase {
     }
 
     private List<Page> runTopN(Operator op, BlockFactory blockFactory, List<Long> values, boolean[] nullMask) {
-        List<Page> input = pagesFor(blockFactory, values, nullMask);
+        return runTopN(op, () -> pagesFor(blockFactory, values, nullMask));
+    }
+
+    /**
+     * Drive {@code op} with the pages produced by {@code inputSupplier}. The supplier indirection
+     * exists so callers can run two operators on freshly-built copies of the same logical input
+     * — pages are released after consumption, so a single {@code List<Page>} can't be reused.
+     */
+    private List<Page> runTopN(Operator op, java.util.function.Supplier<List<Page>> inputSupplier) {
+        List<Page> input = inputSupplier.get();
         List<Page> output = new ArrayList<>();
         try {
             for (Page p : input) {
@@ -203,13 +212,15 @@ public class NumericTopNOperatorTests extends ComputeTestCase {
         assertThat("both operators must emit the same total row count", numRows, equalTo(refRows));
         assertThat("at most K rows", refRows, lessThanOrEqualTo((long) k));
         // The generic TopNOperator is non-stable across equal sort keys: its underlying Lucene
-        // {@link org.apache.lucene.util.PriorityQueue} drains equal-key rows in heap-internal
-        // order. The numeric operator is stable on {@code _rowPosition} ascending by design.
-        // To compare under a single canonical ordering, materialise both results into
-        // {@code [(sortKey, rowPosition)]} lists and sort each by {@code (sortKey, rowPosition
-        // ASC)} before comparing — this collapses the drain-order ambiguity while still
-        // catching any mismatch in heap content (which rows survived) or in the surviving
-        // payload ({@code _rowPosition} values).
+        // PriorityQueue drains equal-key rows in heap-internal order, and at the K-th boundary
+        // any of several tied rows may survive. The numeric operator's stable
+        // {@code _rowPosition} ASC tiebreak picks a single specific row. So a row-position-level
+        // comparison is too strict — both operators may return valid Top-K answers that disagree
+        // on which boundary-tied row position survived. The right invariant is "same surviving
+        // sort-key multiset" (catches wrong threshold, wrong direction, missing/duplicate rows,
+        // missing nulls). The {@code _rowPosition} payload is exercised by the typed-correctness
+        // tests below, which compare against an independent ranking helper using the same
+        // {@code _rowPosition}-ASC tiebreak as the operator.
         List<long[]> refRowsList = canonicalize(reference);
         List<long[]> numRowsList = canonicalize(numeric);
         assertThat("canonicalized row count", numRowsList.size(), equalTo(refRowsList.size()));
@@ -217,10 +228,9 @@ public class NumericTopNOperatorTests extends ComputeTestCase {
             long[] r = refRowsList.get(i);
             long[] m = numRowsList.get(i);
             assertThat("sort key null flag at row " + i, m[2], equalTo(r[2]));
-            if (r[2] == 0) { // not null
+            if (r[2] == 0) {
                 assertThat("sort key value at row " + i, m[0], equalTo(r[0]));
             }
-            assertThat("row position at row " + i, m[1], equalTo(r[1]));
         }
     }
 
@@ -259,39 +269,433 @@ public class NumericTopNOperatorTests extends ComputeTestCase {
         return out;
     }
 
-    public void testRejectMultiValuedSortKey() {
+    /**
+     * MV correctness: feed multi-valued LONG sort keys through {@link NumericTopNOperator} and
+     * assert the surviving set equals the K most-competitive rows under the same composite
+     * ordering the operator uses internally (MV-min for ASC, MV-max for DESC, empty slot = null,
+     * then {@code _rowPosition} ASC tiebreak).
+     *
+     * <p>This is structurally the same check as
+     * {@code runTypeCorrectness(ElementType.LONG, ...)} but with MV inputs instead of
+     * single-valued. The comparison is against an independently-computed reference (not the
+     * generic operator) so we avoid the generic operator's heap-internal-order ambiguity at the
+     * K boundary.
+     */
+    public void testMultiValuedUnorderedLongCorrectness() {
+        runMvLongCorrectness(/*mvSortedAscending*/ false);
+    }
+
+    /**
+     * MV correctness on the {@code SORTED_ASCENDING} path: the builder marks the block as having
+     * sorted MV ordering, so {@link LongSortKeyExtractor#extractorFor(LongBlock, boolean)} picks
+     * the O(1) {@code MinFromAscendingBlock} / {@code MaxFromAscendingBlock} variant. The check
+     * verifies the optimised path produces the same surviving set as the unordered scan would.
+     */
+    public void testMultiValuedAscendingLongCorrectness() {
+        runMvLongCorrectness(/*mvSortedAscending*/ true);
+    }
+
+    /**
+     * MV correctness for INT, DOUBLE, and BOOLEAN — covers the per-type extractors'
+     * {@code MinFromUnorderedBlock} / {@code MaxFromUnorderedBlock} branches. The LONG MV tests
+     * above already cover the {@code MinFromAscendingBlock} / {@code MaxFromAscendingBlock}
+     * branches, and those branches are structurally identical across types (single read at
+     * {@code firstValueIndex} or {@code firstValueIndex + valueCount - 1}), so we don't
+     * duplicate the ascending-MV variant for every type.
+     */
+    public void testMultiValuedIntCorrectness() {
+        runMvTypedCorrectness(ElementType.INT);
+    }
+
+    public void testMultiValuedDoubleCorrectness() {
+        runMvTypedCorrectness(ElementType.DOUBLE);
+    }
+
+    public void testMultiValuedBooleanCorrectness() {
+        runMvTypedCorrectness(ElementType.BOOLEAN);
+    }
+
+    private void runMvTypedCorrectness(ElementType elementType) {
+        boolean asc = randomBoolean();
+        boolean nullsFirst = randomBoolean();
+        int n = randomIntBetween(50, 400);
+        int k = randomIntBetween(1, Math.min(40, n));
+        // For each input row, randomly pick 0/1/2-or-more values of the type, then reduce them
+        // to a single "competing" value the way the operator's extractor will. Track:
+        // - the raw MV slot (to build the input block),
+        // - the reduced typed value (to feed the independent ranking helper).
+        boolean[] nullMask = new boolean[n];
+        Object reduced = switch (elementType) {
+            case INT -> new int[n];
+            case DOUBLE -> new double[n];
+            case BOOLEAN -> new boolean[n];
+            default -> throw new AssertionError(elementType);
+        };
+        List<Object> rowValues = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            int kind = randomInt(2);
+            if (kind == 1) {
+                nullMask[i] = true;
+                rowValues.add(null);
+                continue;
+            }
+            int sz = kind == 0 ? 1 : randomIntBetween(2, 5);
+            switch (elementType) {
+                case INT -> {
+                    int[] vs = new int[sz];
+                    int best = 0;
+                    for (int j = 0; j < sz; j++) {
+                        vs[j] = randomIntBetween(-1000, 1000);
+                        if (j == 0) {
+                            best = vs[j];
+                        } else {
+                            best = asc ? Math.min(best, vs[j]) : Math.max(best, vs[j]);
+                        }
+                    }
+                    ((int[]) reduced)[i] = best;
+                    rowValues.add(vs);
+                }
+                case DOUBLE -> {
+                    double[] vs = new double[sz];
+                    double best = 0;
+                    for (int j = 0; j < sz; j++) {
+                        vs[j] = randomDoubleBetween(-1000.0, 1000.0, true);
+                        if (j == 0) {
+                            best = vs[j];
+                        } else {
+                            best = asc ? Math.min(best, vs[j]) : Math.max(best, vs[j]);
+                        }
+                    }
+                    ((double[]) reduced)[i] = best;
+                    rowValues.add(vs);
+                }
+                case BOOLEAN -> {
+                    boolean[] vs = new boolean[sz];
+                    boolean best = false;
+                    for (int j = 0; j < sz; j++) {
+                        vs[j] = randomBoolean();
+                        if (j == 0) {
+                            best = vs[j];
+                        } else if (asc) {
+                            best = best && vs[j]; // min: any false → false
+                        } else {
+                            best = best || vs[j]; // max: any true → true
+                        }
+                    }
+                    ((boolean[]) reduced)[i] = best;
+                    rowValues.add(vs);
+                }
+                default -> throw new AssertionError(elementType);
+            }
+        }
+
         BlockFactory blockFactory = blockFactory();
-        try (Operator op = numeric(blockFactory, 5, true, false)) {
-            Page page;
-            try (
-                LongBlock.Builder sortBuilder = blockFactory.newLongBlockBuilder(2);
-                LongBlock.Builder rpBuilder = blockFactory.newLongBlockBuilder(2)
-            ) {
-                sortBuilder.beginPositionEntry();
-                sortBuilder.appendLong(1L);
-                sortBuilder.appendLong(2L);
-                sortBuilder.endPositionEntry();
-                sortBuilder.appendLong(3L);
-                rpBuilder.appendLong(0);
-                rpBuilder.appendLong(1);
-                LongBlock sortBlock = sortBuilder.build();
-                LongBlock rpBlock;
-                boolean built = false;
+        List<Integer> survivors = new ArrayList<>();
+        try (
+            Operator op = new NumericTopNOperator.NumericTopNOperatorFactory(k, elementType, asc, nullsFirst).get(
+                new DriverContext(blockFactory.bigArrays(), blockFactory, null)
+            )
+        ) {
+            for (Page p : typedMvPagesFor(blockFactory, elementType, rowValues, nullMask)) {
+                op.addInput(p);
+            }
+            op.finish();
+            while (op.isFinished() == false) {
+                Page out = op.getOutput();
+                if (out != null) {
+                    try {
+                        LongBlock rp = out.getBlock(NumericTopNOperator.ROW_POSITION_CHANNEL);
+                        for (int pos = 0; pos < out.getPositionCount(); pos++) {
+                            survivors.add((int) rp.getLong(rp.getFirstValueIndex(pos)));
+                        }
+                    } finally {
+                        out.releaseBlocks();
+                    }
+                }
+            }
+        }
+        List<Integer> ranked = independentRanking(elementType, reduced, nullMask, asc, nullsFirst);
+        assertSubsetWithBoundaryTies(elementType, reduced, nullMask, asc, nullsFirst, ranked, survivors, k);
+    }
+
+    /**
+     * Build typed 2-channel pages where the sort-key slot at each position is the MV list from
+     * {@code rowValues} (or null when {@code nullMask[i]} is set). Mirrors {@link #typedPagesFor}
+     * but uses MV builders.
+     */
+    private List<Page> typedMvPagesFor(BlockFactory blockFactory, ElementType elementType, List<Object> rowValues, boolean[] nullMask) {
+        int n = nullMask.length;
+        if (n == 0) {
+            return List.of();
+        }
+        int pageSize = randomIntBetween(1, Math.max(1, n));
+        List<Page> out = new ArrayList<>();
+        int p = 0;
+        while (p < n) {
+            int end = Math.min(p + pageSize, n);
+            int sz = end - p;
+            Block sortBlock = buildTypedMvSortBlock(blockFactory, elementType, rowValues, nullMask, p, sz);
+            LongBlock rpBlock;
+            boolean success = false;
+            try (LongBlock.Builder rpBuilder = blockFactory.newLongBlockBuilder(sz)) {
+                for (int i = 0; i < sz; i++) {
+                    rpBuilder.appendLong(p + i);
+                }
                 try {
                     rpBlock = rpBuilder.build();
-                    built = true;
+                    success = true;
                 } finally {
-                    if (built == false) {
+                    if (success == false) {
                         sortBlock.close();
                     }
                 }
-                page = new Page(sortBlock, rpBlock);
             }
-            IllegalStateException e = expectThrows(IllegalStateException.class, () -> op.addInput(page));
-            assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("multi-valued"));
-            assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("MV_MIN"));
-            assertThat(e.getMessage(), org.hamcrest.Matchers.containsString("MV_MAX"));
+            out.add(new Page(sortBlock, rpBlock));
+            p = end;
         }
+        return out;
+    }
+
+    private Block buildTypedMvSortBlock(
+        BlockFactory blockFactory,
+        ElementType elementType,
+        List<Object> rowValues,
+        boolean[] nullMask,
+        int start,
+        int sz
+    ) {
+        return switch (elementType) {
+            case INT -> {
+                try (IntBlock.Builder b = blockFactory.newIntBlockBuilder(sz)) {
+                    for (int i = 0; i < sz; i++) {
+                        int abs = start + i;
+                        if (nullMask[abs]) {
+                            b.appendNull();
+                            continue;
+                        }
+                        int[] vs = (int[]) rowValues.get(abs);
+                        if (vs.length == 1) {
+                            b.appendInt(vs[0]);
+                        } else {
+                            b.beginPositionEntry();
+                            for (int v : vs) {
+                                b.appendInt(v);
+                            }
+                            b.endPositionEntry();
+                        }
+                    }
+                    yield b.build();
+                }
+            }
+            case DOUBLE -> {
+                try (DoubleBlock.Builder b = blockFactory.newDoubleBlockBuilder(sz)) {
+                    for (int i = 0; i < sz; i++) {
+                        int abs = start + i;
+                        if (nullMask[abs]) {
+                            b.appendNull();
+                            continue;
+                        }
+                        double[] vs = (double[]) rowValues.get(abs);
+                        if (vs.length == 1) {
+                            b.appendDouble(vs[0]);
+                        } else {
+                            b.beginPositionEntry();
+                            for (double v : vs) {
+                                b.appendDouble(v);
+                            }
+                            b.endPositionEntry();
+                        }
+                    }
+                    yield b.build();
+                }
+            }
+            case BOOLEAN -> {
+                try (BooleanBlock.Builder b = blockFactory.newBooleanBlockBuilder(sz)) {
+                    for (int i = 0; i < sz; i++) {
+                        int abs = start + i;
+                        if (nullMask[abs]) {
+                            b.appendNull();
+                            continue;
+                        }
+                        boolean[] vs = (boolean[]) rowValues.get(abs);
+                        if (vs.length == 1) {
+                            b.appendBoolean(vs[0]);
+                        } else {
+                            b.beginPositionEntry();
+                            for (boolean v : vs) {
+                                b.appendBoolean(v);
+                            }
+                            b.endPositionEntry();
+                        }
+                    }
+                    yield b.build();
+                }
+            }
+            default -> throw new AssertionError(elementType);
+        };
+    }
+
+    private void runMvLongCorrectness(boolean mvSortedAscending) {
+        boolean asc = randomBoolean();
+        boolean nullsFirst = randomBoolean();
+        int n = randomIntBetween(50, 600);
+        int k = randomIntBetween(1, Math.min(40, n));
+        // Three flavours per row: single-value, empty MV (treated as null), and a non-empty MV
+        // list. The mix forces the extractor through every branch.
+        List<long[]> rows = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            int kind = randomInt(2);
+            switch (kind) {
+                case 0 -> rows.add(new long[] { randomLong() });
+                case 1 -> rows.add(new long[] {});
+                default -> {
+                    int sz = randomIntBetween(2, 5);
+                    long[] vs = new long[sz];
+                    for (int j = 0; j < sz; j++) {
+                        vs[j] = randomLong();
+                    }
+                    if (mvSortedAscending) {
+                        java.util.Arrays.sort(vs);
+                    }
+                    rows.add(vs);
+                }
+            }
+        }
+        // Reduce each input row to its competing scalar (null for empty slots) so the
+        // independent ranking helper can rank under the same ordering the operator computes.
+        boolean[] nullMask = new boolean[n];
+        long[] reduced = new long[n];
+        for (int i = 0; i < n; i++) {
+            long[] vs = rows.get(i);
+            if (vs.length == 0) {
+                nullMask[i] = true;
+            } else {
+                long best = vs[0];
+                for (int j = 1; j < vs.length; j++) {
+                    best = asc ? Math.min(best, vs[j]) : Math.max(best, vs[j]);
+                }
+                reduced[i] = best;
+            }
+        }
+
+        BlockFactory blockFactory = blockFactory();
+        List<Integer> survivors;
+        try (Operator op = numeric(blockFactory, k, asc, nullsFirst)) {
+            for (Page p : mvPagesFor(blockFactory, rows, mvSortedAscending)) {
+                op.addInput(p);
+            }
+            op.finish();
+            survivors = new ArrayList<>();
+            while (op.isFinished() == false) {
+                Page out = op.getOutput();
+                if (out != null) {
+                    try {
+                        LongBlock rpBlock = out.getBlock(NumericTopNOperator.ROW_POSITION_CHANNEL);
+                        for (int pos = 0; pos < out.getPositionCount(); pos++) {
+                            survivors.add((int) rpBlock.getLong(rpBlock.getFirstValueIndex(pos)));
+                        }
+                    } finally {
+                        out.releaseBlocks();
+                    }
+                }
+            }
+        }
+
+        // Independent ranking under the operator's composite order (LONG comparator, asc/desc,
+        // nulls per nullsFirst, _rowPosition ASC tiebreak — exactly the ordering
+        // {@link #compareForRanking} encodes for ElementType.LONG).
+        List<Integer> ranked = independentRankingLong(reduced, nullMask, asc, nullsFirst);
+        assertSubsetWithBoundaryTies(ElementType.LONG, reduced, nullMask, asc, nullsFirst, ranked, survivors, k);
+    }
+
+    /**
+     * Specialised version of {@link #independentRanking} for LONG sort keys. Inlined to avoid
+     * widening {@code compareForRanking}'s {@code switch} just to support MV LONG; the typed
+     * correctness tests already cover the INT / DOUBLE / BOOLEAN paths for single values.
+     */
+    private List<Integer> independentRankingLong(long[] reduced, boolean[] nullMask, boolean asc, boolean nullsFirst) {
+        int n = nullMask.length;
+        List<Integer> indices = new ArrayList<>(n);
+        for (int i = 0; i < n; i++) {
+            indices.add(i);
+        }
+        indices.sort((a, b) -> {
+            boolean na = nullMask[a];
+            boolean nb = nullMask[b];
+            if (na != nb) {
+                return na == nullsFirst ? -1 : 1;
+            }
+            if (na) {
+                return Integer.compare(a, b);
+            }
+            int cmp = Long.compare(reduced[a], reduced[b]);
+            if (asc == false) {
+                cmp = -cmp;
+            }
+            if (cmp != 0) {
+                return cmp;
+            }
+            return Integer.compare(a, b);
+        });
+        return indices;
+    }
+
+    /**
+     * Build pages where each input row may have zero, one, or many values in the sort-key slot.
+     * The {@code _rowPosition} column stays dense and strictly increasing (one row position per
+     * page position), matching the contract the external source guarantees.
+     */
+    private List<Page> mvPagesFor(BlockFactory blockFactory, List<long[]> rows, boolean mvSortedAscending) {
+        int n = rows.size();
+        if (n == 0) {
+            return List.of();
+        }
+        int pageSize = randomIntBetween(1, Math.max(1, n));
+        List<Page> out = new ArrayList<>();
+        int p = 0;
+        while (p < n) {
+            int end = Math.min(p + pageSize, n);
+            int sz = end - p;
+            LongBlock sortBlock;
+            LongBlock rowPositionBlock;
+            boolean success = false;
+            try (
+                LongBlock.Builder sortBuilder = blockFactory.newLongBlockBuilder(sz);
+                LongBlock.Builder rpBuilder = blockFactory.newLongBlockBuilder(sz)
+            ) {
+                if (mvSortedAscending) {
+                    sortBuilder.mvOrdering(Block.MvOrdering.SORTED_ASCENDING);
+                }
+                for (int i = 0; i < sz; i++) {
+                    int abs = p + i;
+                    long[] vs = rows.get(abs);
+                    if (vs.length == 0) {
+                        sortBuilder.appendNull();
+                    } else if (vs.length == 1) {
+                        sortBuilder.appendLong(vs[0]);
+                    } else {
+                        sortBuilder.beginPositionEntry();
+                        for (long v : vs) {
+                            sortBuilder.appendLong(v);
+                        }
+                        sortBuilder.endPositionEntry();
+                    }
+                    rpBuilder.appendLong(abs);
+                }
+                sortBlock = sortBuilder.build();
+                try {
+                    rowPositionBlock = rpBuilder.build();
+                    success = true;
+                } finally {
+                    if (success == false) {
+                        sortBlock.close();
+                    }
+                }
+            }
+            out.add(new Page(sortBlock, rowPositionBlock));
+            p = end;
+        }
+        return out;
     }
 
     public void testEmptyInput() {

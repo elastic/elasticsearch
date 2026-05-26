@@ -760,11 +760,10 @@ public class LocalExecutionPlanner {
      *         (replacing it would double-count the budget).</li>
      * </ul>
      *
-     * <p>Plan-time multi-value exclude is deliberately omitted: there is no general "is this
-     * attribute single-valued" predicate in ESQL today and the runtime operator already throws
-     * an {@link IllegalStateException} with an {@code MV_MIN}/{@code MV_MAX} rewrite hint on the
-     * first multi-valued page, so any missed plan-time classification produces a clear error
-     * rather than a silent miscompute.
+     * <p>No plan-time multi-value exclude: the operator supports multi-valued sort keys natively
+     * via {@code NumericSortKeyExtractor} (MV-min for ASC, MV-max for DESC, empty MV slot treated
+     * as null). This matches the generic {@code TopNOperator}'s behaviour through its
+     * {@code KeyExtractorForX} family, so the substitution is semantics-preserving on MV input.
      */
     private NumericTopNOperator.NumericTopNOperatorFactory tryBuildNumericTopN(
         TopNExec topNExec,
@@ -783,11 +782,14 @@ public class LocalExecutionPlanner {
         if (isNumericTopNSupportedSortType(sortAttribute.dataType()) == false) {
             return null;
         }
-        // The narrowed source produced by InsertExternalFieldExtraction has exactly two channels:
-        // the sort key at channel 0 and the synthetic _rowPosition column at channel 1. Anything
-        // else (additional eager columns, the sort key not at channel 0) means the rewrite either
-        // hasn't run or kept extra columns and the specialised operator's 2-channel layout cannot
-        // consume the input — fall back to the generic operator.
+        // Two guards, working at different layers. The first one (the layout check) is the real
+        // gate on what {@link NumericTopNOperator#addInput} actually sees: if any intervening
+        // {@link UnaryExec} on the spine — pushed filter, residual evaluator, future plan-node
+        // insertion — adds a column, it shows up in {@code source.layout} and disqualifies the
+        // rewrite. The second one (the source-output check below) is a belt-and-braces guard
+        // against an ExternalSourceExec that was never narrowed in the first place (e.g. the
+        // rule didn't run, or kept extras). Together they reject everything that isn't the exact
+        // narrowed shape the operator expects: [sortKey, _rowPosition] with sortKey at channel 0.
         if (source.layout.numberOfChannels() != 2) {
             return null;
         }
@@ -839,6 +841,19 @@ public class LocalExecutionPlanner {
      * {@link ElementType#LONG} at planning time (see {@link PlannerUtils#toElementType}), so they
      * go through the LONG path. Keeping the predicate here rather than on the operator lets the
      * planner cleanly skip the optimisation without instantiating the factory.
+     *
+     * <p>Deliberately excluded:
+     * <ul>
+     *     <li>{@code UNSIGNED_LONG}: maps to {@link ElementType#LONG} but the operator's
+     *         {@code ~raw} encoding does not preserve unsigned ordering. Supporting it needs a
+     *         different encoding ({@code raw ^ Long.MIN_VALUE}, sign-bit flip) and is parked for
+     *         a follow-up.</li>
+     *     <li>{@code FLOAT}, {@code HALF_FLOAT}, {@code SCALED_FLOAT}: ESQL widens these to
+     *         {@link DataType#DOUBLE} at load time, so a sort attribute with one of these data
+     *         types never reaches this predicate in practice — {@link PlannerUtils#toElementType}
+     *         throws on them outright. Listing them here as "rejected" would be misleading; the
+     *         load-time widening already routes them through the DOUBLE branch.</li>
+     * </ul>
      */
     private static boolean isNumericTopNSupportedSortType(DataType dataType) {
         return dataType == DataType.LONG

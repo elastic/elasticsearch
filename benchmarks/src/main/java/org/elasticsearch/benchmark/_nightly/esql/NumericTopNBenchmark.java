@@ -134,6 +134,7 @@ public class NumericTopNBenchmark {
 
     private Operator operator() {
         if ("generic".equals(impl)) {
+            SharedMinCompetitive.Supplier noThreshold = null;
             return new TopNOperator(
                 BLOCK_FACTORY,
                 BLOCK_FACTORY.breaker(),
@@ -144,7 +145,7 @@ public class NumericTopNBenchmark {
                 8 * 1024,
                 Long.MAX_VALUE,
                 TopNOperator.InputOrdering.NOT_SORTED,
-                (SharedMinCompetitive.Supplier) null
+                noThreshold
             );
         }
         if ("numericTernaryHeap".equals(impl)) {

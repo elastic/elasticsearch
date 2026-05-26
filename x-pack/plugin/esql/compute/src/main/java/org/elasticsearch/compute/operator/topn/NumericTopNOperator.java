@@ -12,12 +12,9 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BooleanBlock;
-import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
-import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
@@ -45,17 +42,21 @@ import java.util.Locale;
  *     <li>Exactly one sort key.</li>
  *     <li>Sort key {@link ElementType} is {@link ElementType#LONG}, {@link ElementType#INT},
  *         {@link ElementType#DOUBLE}, or {@link ElementType#BOOLEAN}. ESQL DATETIME and
- *         DATE_NANOS map to LONG at planning time, so they go through the LONG path.</li>
+ *         DATE_NANOS map to LONG at planning time, so they go through the LONG path. ESQL FLOAT,
+ *         HALF_FLOAT and SCALED_FLOAT widen to DOUBLE on load so they reach this operator as
+ *         {@link org.elasticsearch.compute.data.DoubleBlock}.</li>
  *     <li>Input page has exactly 2 channels in this fixed order:
- *         {@code [sortKey, _rowPosition]}. Enforced by the
- *         {@code ReplaceTopNWithNumericTopN} optimizer rule, asserted at runtime.</li>
- *     <li>Sort key may contain nulls but must be single-valued: multi-valued blocks trigger
- *         {@link IllegalStateException} at runtime with a rewrite hint.</li>
+ *         {@code [sortKey, _rowPosition]}. Enforced by
+ *         {@code LocalExecutionPlanner.tryBuildNumericTopN()}, asserted at runtime.</li>
+ *     <li>Sort key may contain nulls and may be multi-valued. Multi-values are reduced to the
+ *         most-favourable single value for the configured direction (MV-min for ASC, MV-max for
+ *         DESC) — exactly the semantics the generic {@code TopNOperator} applies via its
+ *         {@code KeyExtractorForX} family. An empty MV slot is treated as a null. See
+ *         {@link NumericSortKeyExtractor} for the per-type breakdown.</li>
  * </ul>
  *
  * <p>Out of scope (deferred PRs): cross-driver shared threshold, row-group skipping in the
- * external source, multi-key sorts, byte-keyed sorts, FLOAT / UNSIGNED_LONG / HALF_FLOAT /
- * SCALED_FLOAT sort keys.
+ * external source, multi-key sorts, byte-keyed sorts, UNSIGNED_LONG sort keys.
  */
 public final class NumericTopNOperator implements Operator {
 
@@ -69,9 +70,9 @@ public final class NumericTopNOperator implements Operator {
     public static final int ROW_POSITION_CHANNEL = 1;
 
     /**
-     * Factory wired in by {@code LocalExecutionPlanner.planNumericTopN()}. Carries the topN
+     * Factory wired in by {@code LocalExecutionPlanner.tryBuildNumericTopN()}. Carries the topN
      * limit, the sort element type, and the sort order (asc/desc, nulls position) — everything
-     * else (channel layout) is fixed by the rule's precondition.
+     * else (channel layout) is fixed by the planner's precondition check.
      */
     public record NumericTopNOperatorFactory(int topCount, ElementType elementType, boolean asc, boolean nullsFirst)
         implements
@@ -168,19 +169,15 @@ public final class NumericTopNOperator implements Operator {
     @Override
     public void addInput(Page page) {
         long start = System.nanoTime();
+        // Capture the position count up front: the finally block updates the {@code rowsReceived}
+        // counter after {@code page.releaseBlocks()} has been called, and we don't want to depend
+        // on {@code Page#getPositionCount()} continuing to return the right value after release.
+        int positions = page.getPositionCount();
         try {
             assert page.getBlockCount() == 2
                 : "NumericTopNOperator expects a 2-channel page [sortKey, _rowPosition]; got blockCount=" + page.getBlockCount();
             Block sortBlock = page.getBlock(SORT_KEY_CHANNEL);
             LongBlock rowPositionBlock = page.getBlock(ROW_POSITION_CHANNEL);
-
-            if (sortBlock.mayHaveMultivaluedFields()) {
-                throw new IllegalStateException(
-                    "NumericTopNOperator requires single-valued sort keys; "
-                        + "got a multi-valued page in the sort key channel. "
-                        + "Wrap the sort key with MV_MIN(...) or MV_MAX(...)."
-                );
-            }
 
             // The _rowPosition column is emitted by AsyncExternalSourceOperatorFactory in
             // deferredExtraction mode and is, by contract, always a dense non-null LongVector.
@@ -189,103 +186,39 @@ public final class NumericTopNOperator implements Operator {
             LongVector rowPositionVector = rowPositionBlock.asVector();
             assert rowPositionVector != null : "_rowPosition channel must be a non-nullable LongVector";
 
-            int positions = page.getPositionCount();
-            switch (elementType) {
-                case LONG -> ingestLong((LongBlock) sortBlock, rowPositionVector, positions);
-                case INT -> ingestInt((IntBlock) sortBlock, rowPositionVector, positions);
-                case DOUBLE -> ingestDouble((DoubleBlock) sortBlock, rowPositionVector, positions);
-                case BOOLEAN -> ingestBoolean((BooleanBlock) sortBlock, rowPositionVector, positions);
-                default -> throw new IllegalStateException(
-                    "Unreachable: assertSupportedType already validated elementType [" + elementType + "]"
-                );
+            // Build the per-type, per-direction, per-page extractor once and let the inner loop
+            // see a single monomorphic instance. The dispatch matches KeyExtractorForX.extractorFor
+            // so MV semantics (MV-min for ASC, MV-max for DESC, empty MV = null) are exactly the
+            // ones the generic TopNOperator would have applied to the same page.
+            NumericSortKeyExtractor extractor = extractorFor(sortBlock);
+            for (int p = 0; p < positions; p++) {
+                boolean isNull = extractor.isNullAt(p);
+                long encoded = isNull ? 0L : extractor.encodedAt(p);
+                ingest(encoded, rowPositionVector.getLong(p), isNull);
             }
         } finally {
             page.releaseBlocks();
             pagesReceived++;
-            rowsReceived += page.getPositionCount();
+            rowsReceived += positions;
             receiveNanos += System.nanoTime() - start;
         }
     }
 
-    private void ingestLong(LongBlock sortBlock, LongVector rowPositionVector, int positions) {
-        LongVector v = sortBlock.asVector();
-        if (v != null) {
-            for (int p = 0; p < positions; p++) {
-                ingest(encodeLong(v.getLong(p)), rowPositionVector.getLong(p), false);
-            }
-        } else {
-            for (int p = 0; p < positions; p++) {
-                long rp = rowPositionVector.getLong(p);
-                if (sortBlock.isNull(p)) {
-                    ingest(0L, rp, true);
-                } else {
-                    long raw = sortBlock.getLong(sortBlock.getFirstValueIndex(p));
-                    ingest(encodeLong(raw), rp, false);
-                }
-            }
-        }
-    }
-
-    private void ingestInt(IntBlock sortBlock, LongVector rowPositionVector, int positions) {
-        IntVector v = sortBlock.asVector();
-        if (v != null) {
-            for (int p = 0; p < positions; p++) {
-                // Widen to long: signed extension preserves ordering, so the encoded value is
-                // identical to LONG's identity encoding under both ASC and DESC.
-                ingest(encodeLong(v.getInt(p)), rowPositionVector.getLong(p), false);
-            }
-        } else {
-            for (int p = 0; p < positions; p++) {
-                long rp = rowPositionVector.getLong(p);
-                if (sortBlock.isNull(p)) {
-                    ingest(0L, rp, true);
-                } else {
-                    int raw = sortBlock.getInt(sortBlock.getFirstValueIndex(p));
-                    ingest(encodeLong(raw), rp, false);
-                }
-            }
-        }
-    }
-
-    private void ingestDouble(DoubleBlock sortBlock, LongVector rowPositionVector, int positions) {
-        DoubleVector v = sortBlock.asVector();
-        if (v != null) {
-            for (int p = 0; p < positions; p++) {
-                // {@link NumericUtils#doubleToSortableLong} maps doubles to longs preserving
-                // numeric order (handles signed zeros, NaNs, and the sign bit correctly). The
-                // resulting long can then be encoded the same way as a LONG sort key.
-                ingest(encodeLong(NumericUtils.doubleToSortableLong(v.getDouble(p))), rowPositionVector.getLong(p), false);
-            }
-        } else {
-            for (int p = 0; p < positions; p++) {
-                long rp = rowPositionVector.getLong(p);
-                if (sortBlock.isNull(p)) {
-                    ingest(0L, rp, true);
-                } else {
-                    double raw = sortBlock.getDouble(sortBlock.getFirstValueIndex(p));
-                    ingest(encodeLong(NumericUtils.doubleToSortableLong(raw)), rp, false);
-                }
-            }
-        }
-    }
-
-    private void ingestBoolean(BooleanBlock sortBlock, LongVector rowPositionVector, int positions) {
-        BooleanVector v = sortBlock.asVector();
-        if (v != null) {
-            for (int p = 0; p < positions; p++) {
-                ingest(encodeLong(v.getBoolean(p) ? 1L : 0L), rowPositionVector.getLong(p), false);
-            }
-        } else {
-            for (int p = 0; p < positions; p++) {
-                long rp = rowPositionVector.getLong(p);
-                if (sortBlock.isNull(p)) {
-                    ingest(0L, rp, true);
-                } else {
-                    boolean raw = sortBlock.getBoolean(sortBlock.getFirstValueIndex(p));
-                    ingest(encodeLong(raw ? 1L : 0L), rp, false);
-                }
-            }
-        }
+    /**
+     * Build the per-type extractor for {@code sortBlock} under the configured direction. Picking
+     * the extractor concrete class is the operator's only per-page type-dispatch — the rest of
+     * {@link #addInput(Page)} stays type-free.
+     */
+    private NumericSortKeyExtractor extractorFor(Block sortBlock) {
+        return switch (elementType) {
+            case LONG -> LongSortKeyExtractor.extractorFor((LongBlock) sortBlock, asc);
+            case INT -> IntSortKeyExtractor.extractorFor((IntBlock) sortBlock, asc);
+            case DOUBLE -> DoubleSortKeyExtractor.extractorFor((DoubleBlock) sortBlock, asc);
+            case BOOLEAN -> BooleanSortKeyExtractor.extractorFor((BooleanBlock) sortBlock, asc);
+            default -> throw new IllegalStateException(
+                "Unreachable: assertSupportedType already validated elementType [" + elementType + "]"
+            );
+        };
     }
 
     /**
@@ -312,26 +245,11 @@ public final class NumericTopNOperator implements Operator {
     }
 
     /**
-     * Encode the raw sort value so that, under the configured order, a "more competitive" raw
-     * value maps to a larger encoded long. {@link PrimitiveTernaryHeap} is a min-heap, so the
-     * root after K inserts is the smallest encoded = the least competitive survivor = the
-     * rejection threshold for the next row.
-     *
-     * <ul>
-     *     <li>DESC (largest raw wins): {@code encoded = raw}. Root = smallest raw survivor.</li>
-     *     <li>ASC (smallest raw wins): {@code encoded = ~raw}. Bitwise complement is the
-     *         monotonically-decreasing involution on signed longs that flips the order without
-     *         the overflow trap of unary negation (which is undefined for {@link Long#MIN_VALUE}).
-     *         Root = largest raw survivor (its complement is smallest in encoded space).</li>
-     * </ul>
-     */
-    private long encodeLong(long raw) {
-        return asc ? ~raw : raw;
-    }
-
-    /**
-     * Inverse of {@link #encodeLong(long)}: bitwise NOT is its own inverse, so this is a
-     * one-liner. Kept named so the call sites in {@link #buildOutput()} document intent.
+     * Undo the per-direction bit flip applied by
+     * {@link NumericSortKeyExtractor#encode(long, boolean)}. Bitwise NOT is its own inverse, so
+     * this is a one-liner. Kept named so the call sites in {@link #buildOutput()} document
+     * intent. Decoding stays here because the operator owns the round-trip back to the per-type
+     * raw form in {@link #buildSortBlock}.
      */
     private long decodeLong(long encoded) {
         return asc ? ~encoded : encoded;
@@ -512,11 +430,8 @@ public final class NumericTopNOperator implements Operator {
 
     @Override
     public Status status() {
-        // {@code minCompetitiveUpdates} is null here — the numeric operator doesn't yet publish a
-        // cross-driver shared threshold (PR 2 / PR 3 work), so there is no "tracked" counter to
-        // report. Passing 0 would lie by suggesting the threshold is being tracked but never
-        // updated; null is the explicit "not tracked" sentinel that the status field's nullable
-        // {@link Integer} type was designed for.
+        // TODO: publish minCompetitiveUpdates once SharedNumericThreshold lands; null is the
+        // "not tracked" sentinel for now.
         return new TopNOperatorStatus(
             receiveNanos,
             emitNanos,

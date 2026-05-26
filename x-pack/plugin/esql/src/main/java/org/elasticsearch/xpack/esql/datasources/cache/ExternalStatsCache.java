@@ -28,7 +28,10 @@ import java.util.OptionalLong;
  */
 public final class ExternalStatsCache {
 
-    /** mtime (epoch millis) published into {@code SourceMetadata.sourceMetadata()} so the warm-path cache lookup can avoid a storage round-trip. */
+    /**
+     * mtime (epoch millis) published into {@code SourceMetadata.sourceMetadata()} so the warm-path
+     * cache lookup can avoid a storage round-trip.
+     */
     public static final String MTIME_MILLIS_KEY = "_stats.file_mtime_millis";
 
     /**

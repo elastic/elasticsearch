@@ -135,55 +135,60 @@ public class ExternalSourceCacheService implements Closeable {
             if (anyPoisoned || (anyPartial && anyFinalize == false)) {
                 continue;
             }
-            // Strip the gate markers before merging so the well-known _stats.* keys are clean for
-            // SourceStatisticsSerializer.mergeStatistics, AND drop the finalize-marker-only entry
-            // (it carries no per-file stats of its own — just the completion signal).
-            java.util.List<Map<String, Object>> cleaned = new java.util.ArrayList<>(contributions.size());
+            // Two contribution shapes reach here, and they combine differently:
+            // * WHOLE-FILE (no PARTIAL_CHUNK_KEY): a complete-file read whose row count already
+            // covers the entire file. The same file can be read whole more than once in a single
+            // query (e.g. a schema-probe pass plus the data scan on the non-seekable compressed
+            // path), yielding duplicate complete counts. These must be DEDUPLICATED, never summed
+            // — summing two complete reads doubles COUNT(*).
+            // * PARTIAL chunks (PARTIAL_CHUNK_KEY): each covers a disjoint slice of the file and is
+            // summed via mergeStatistics. The partial/finalize gate above guarantees the slice set
+            // is complete before we commit.
+            // A whole-file read is authoritative: if the file was read whole at all, that read wins
+            // and any partials are redundant.
+            java.util.List<Map<String, Object>> wholeFile = new java.util.ArrayList<>(contributions.size());
+            java.util.List<Map<String, Object>> partials = new java.util.ArrayList<>(contributions.size());
             for (Map<String, Object> contribution : contributions) {
-                if (Boolean.TRUE.equals(contribution.get(ExternalStatsCache.FINALIZE_CHUNKS_KEY))
-                    && contribution.containsKey(
-                        org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.STATS_ROW_COUNT
-                    ) == false) {
+                if (contribution.containsKey(
+                    org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.STATS_ROW_COUNT
+                ) == false) {
+                    // finalize-marker-only entry: completion signal, carries no per-file stats.
                     continue;
                 }
-                if (contribution.containsKey(ExternalStatsCache.PARTIAL_CHUNK_KEY)
-                    || contribution.containsKey(ExternalStatsCache.FINALIZE_CHUNKS_KEY)
-                    || contribution.containsKey(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY)) {
-                    Map<String, Object> stripped = new HashMap<>(contribution);
-                    stripped.remove(ExternalStatsCache.PARTIAL_CHUNK_KEY);
-                    stripped.remove(ExternalStatsCache.FINALIZE_CHUNKS_KEY);
-                    stripped.remove(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY);
-                    cleaned.add(stripped);
-                } else {
-                    cleaned.add(contribution);
+                boolean isPartial = contribution.containsKey(ExternalStatsCache.PARTIAL_CHUNK_KEY);
+                Map<String, Object> stripped = new HashMap<>(contribution);
+                stripped.remove(ExternalStatsCache.PARTIAL_CHUNK_KEY);
+                stripped.remove(ExternalStatsCache.FINALIZE_CHUNKS_KEY);
+                stripped.remove(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY);
+                (isPartial ? partials : wholeFile).add(stripped);
+            }
+            Map<String, Object> mergedForFile = null;
+            if (wholeFile.isEmpty() == false) {
+                // Deduplicate duplicate complete reads — true duplicates are identical; pick the
+                // one with the largest row count as a defensive tie-break.
+                mergedForFile = wholeFile.get(0);
+                for (Map<String, Object> c : wholeFile) {
+                    if (rowCountOf(c) > rowCountOf(mergedForFile)) {
+                        mergedForFile = c;
+                    }
                 }
-            }
-            if (cleaned.isEmpty()) {
-                continue;
-            }
-            Map<String, Object> mergedForFile;
-            if (cleaned.size() == 1) {
-                mergedForFile = cleaned.get(0);
-            } else {
-                mergedForFile = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.mergeStatistics(cleaned);
+            } else if (partials.size() == 1) {
+                mergedForFile = partials.get(0);
+            } else if (partials.isEmpty() == false) {
+                mergedForFile = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.mergeStatistics(partials);
                 // mergeStatistics rebuilds the map from scratch and only retains the well-known
-                // _stats.row_count / _stats.size_bytes / _stats.columns.* keys. The reconciler
-                // below relies on MTIME_MILLIS_KEY (to find the matching SchemaCacheEntry via
-                // its lastModifiedEpochMillis axis) and CONFIG_FINGERPRINT_KEY (to disambiguate
-                // schema entries that share path+mtime but differ on WITH options); without
-                // re-attaching them the multi-chunk merge would never commit. All chunks of a
-                // file are read by a single format-reader instance through one FormatReadContext,
-                // so they share the same pinned mtime (set at iterator open) and the same config
-                // fingerprint — pulling either off cleaned.get(0) is safe. The finalize-marker
-                // entry has already been dropped from cleaned by the gate at the top of the loop,
-                // so cleaned.get(0) is always a chunk-partial with chunk-pinned mtime, never the
-                // finalize-marker's close-time mtime.
+                // _stats.row_count / _stats.size_bytes / _stats.columns.* keys. The reconciler below
+                // relies on MTIME_MILLIS_KEY (to find the matching SchemaCacheEntry via its
+                // lastModifiedEpochMillis axis) and CONFIG_FINGERPRINT_KEY (to disambiguate schema
+                // entries that share path+mtime but differ on WITH options); re-attach both. All
+                // chunks of a file are read by one format-reader instance through one
+                // FormatReadContext, so they share the same pinned mtime and config fingerprint.
                 if (mergedForFile != null) {
-                    Object mtime = cleaned.get(0).get(ExternalStatsCache.MTIME_MILLIS_KEY);
+                    Object mtime = partials.get(0).get(ExternalStatsCache.MTIME_MILLIS_KEY);
                     if (mtime != null) {
                         mergedForFile.put(ExternalStatsCache.MTIME_MILLIS_KEY, mtime);
                     }
-                    Object fingerprint = cleaned.get(0).get(ExternalStatsCache.CONFIG_FINGERPRINT_KEY);
+                    Object fingerprint = partials.get(0).get(ExternalStatsCache.CONFIG_FINGERPRINT_KEY);
                     if (fingerprint != null) {
                         mergedForFile.put(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, fingerprint);
                     }
@@ -194,6 +199,11 @@ public class ExternalSourceCacheService implements Closeable {
             }
         }
         reconcileSourceStats(merged);
+    }
+
+    private static long rowCountOf(Map<String, Object> stats) {
+        Object rc = stats.get(org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.STATS_ROW_COUNT);
+        return rc instanceof Number n ? n.longValue() : -1L;
     }
 
     /**

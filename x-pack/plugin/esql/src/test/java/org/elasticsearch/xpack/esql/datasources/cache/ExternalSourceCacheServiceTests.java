@@ -368,6 +368,41 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         }
     }
 
+    public void testReconcileDeduplicatesDuplicateWholeFileContributions() throws Exception {
+        // A whole-file read can be captured more than once for the same file in a single query
+        // (e.g. a schema-probe pass plus the data scan on the non-seekable compressed path). Each
+        // contribution already covers the entire file, so they must be DEDUPLICATED, not summed —
+        // summing two complete reads would double COUNT(*). Only PARTIAL_CHUNK contributions, which
+        // partition the file, may be summed.
+        try (ExternalSourceCacheService service = new ExternalSourceCacheService(defaultSettings())) {
+            String path = "file:///data/employees.csv.bz2";
+            long mtime = 1000L;
+            SchemaCacheKey key = SchemaCacheKey.build(path, mtime, ".bz2", Map.of("format", "csv"));
+            List<Attribute> schema = List.of(
+                new ReferenceAttribute(Source.EMPTY, null, "id", DataType.LONG, Nullability.FALSE, null, false)
+            );
+            service.getOrComputeSchema(
+                key,
+                k -> SchemaCacheEntry.from(schema, "csv", path, Map.of(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, "fp"), Map.of())
+            );
+
+            Map<String, Object> wholeFileA = new LinkedHashMap<>();
+            wholeFileA.put(ExternalStatsCache.MTIME_MILLIS_KEY, mtime);
+            wholeFileA.put(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, "fp");
+            wholeFileA.put(SourceStatisticsSerializer.STATS_ROW_COUNT, 100L);
+            Map<String, Object> wholeFileB = new LinkedHashMap<>(wholeFileA);
+
+            service.reconcileSourceStatsFromContributions(Map.of(path, List.of(wholeFileA, wholeFileB)));
+
+            SchemaCacheEntry enriched = service.getOrComputeSchema(key, k -> { throw new AssertionError("should be cached"); });
+            assertEquals(
+                "duplicate whole-file reads must dedup, not sum",
+                100L,
+                enriched.safeMetadata().get(SourceStatisticsSerializer.STATS_ROW_COUNT)
+            );
+        }
+    }
+
     public void testListingCacheKeyCredentialHash() {
         long[] hash1 = ListingCacheKey.computeCredentialHash(Map.of("access_key", "key1", "secret_key", "sec1"));
         long[] hash2 = ListingCacheKey.computeCredentialHash(Map.of("access_key", "key2", "secret_key", "sec1"));

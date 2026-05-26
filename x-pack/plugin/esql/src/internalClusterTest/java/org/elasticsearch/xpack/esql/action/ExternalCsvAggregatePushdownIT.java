@@ -30,7 +30,10 @@ import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.EXTERNAL_
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 import static org.hamcrest.Matchers.equalTo;
 
-/** Cold-then-warm: first run populates the cache; second run is rewritten to LocalSourceExec. Mirrors {@link ExternalParquetCountPushdownIT}. */
+/**
+ * Cold-then-warm: first run populates the cache; second run is rewritten to LocalSourceExec.
+ * Mirrors {@link ExternalParquetCountPushdownIT}.
+ */
 public class ExternalCsvAggregatePushdownIT extends AbstractEsqlIntegTestCase {
 
     public static final class EsqlEnterpriseWithDatasourceExtensions extends EsqlPluginWithEnterpriseOrTrialLicense {

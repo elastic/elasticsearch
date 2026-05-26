@@ -8,11 +8,12 @@
 package org.elasticsearch.xpack.esql.core.type;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 
 import java.io.IOException;
+import java.util.Collection;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
 
 public abstract sealed class TypeConflictedField extends EsField permits InvalidMappedField, CompactInvalidMappedField {
     public TypeConflictedField(
@@ -29,11 +30,24 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
         super(in);
     }
 
-    /**
-     * Pre-rendered, user-facing error message describing the conflict. Built from the full input map at construction time so it
-     * survives the index-list truncation done by {@link CompactInvalidMappedField}.
-     */
-    public abstract String errorMessage();
+    @Override
+    public EsField getExactField() {
+        throw new QlIllegalArgumentException("Field [" + getName() + "] is invalid, cannot access it");
+    }
+
+    @Override
+    public Exact getExactInfo() {
+        return new Exact(false, "Field [" + getName() + "] is invalid, cannot access it");
+    }
+
+    private String cachedErrorMessage;
+
+    public String errorMessage() {
+        if (cachedErrorMessage == null) {
+            cachedErrorMessage = makeErrorMessage();
+        }
+        return cachedErrorMessage;
+    }
 
     /**
      * Per-source-type indices in which the field appears with that type. Note that {@link CompactInvalidMappedField} caps each set
@@ -48,41 +62,40 @@ public abstract sealed class TypeConflictedField extends EsField permits Invalid
     /** Source data types observed for this field across all indices. */
     public abstract Set<DataType> types();
 
-    // Utility functions used by implementors.
+    abstract Map<String, Sample> samples();
 
-    static String makeErrorMessage(Map<String, Set<String>> typesToIndices, boolean includeInsistKeyword) {
-        StringBuilder errorMessage = new StringBuilder();
-        var isInsistKeywordOnlyKeyword = includeInsistKeyword && typesToIndices.containsKey(DataType.KEYWORD.typeName()) == false;
-        errorMessage.append("mapped as [");
-        errorMessage.append(typesToIndices.size() + (isInsistKeywordOnlyKeyword ? 1 : 0));
-        errorMessage.append("] incompatible types: ");
+    record Sample(Collection<String> kept, int total) {}
+
+    private String makeErrorMessage() {
+        StringBuilder sb = new StringBuilder();
+        var typesToSample = samples();
+        boolean includeInsistKeyword = isPotentiallyUnmapped();
+        boolean prependInsistKeyword = includeInsistKeyword && samples().containsKey(DataType.KEYWORD.typeName()) == false;
+        sb.append("mapped as [");
+        sb.append(typesToSample.size() + (prependInsistKeyword ? 1 : 0));
+        sb.append("] incompatible types: ");
         boolean first = true;
-        if (isInsistKeywordOnlyKeyword) {
+        if (prependInsistKeyword) {
             first = false;
-            errorMessage.append("[keyword] due to loading from _source");
+            sb.append("[keyword] due to loading from _source");
         }
-        for (Map.Entry<String, Set<String>> e : typesToIndices.entrySet()) {
+        for (Map.Entry<String, Sample> entry : typesToSample.entrySet()) {
             if (first) {
                 first = false;
             } else {
-                errorMessage.append(", ");
+                sb.append(", ");
             }
-            errorMessage.append("[");
-            errorMessage.append(e.getKey());
-            errorMessage.append("] ");
-            if (e.getKey().equals(DataType.KEYWORD.typeName()) && includeInsistKeyword) {
-                errorMessage.append("due to loading from _source and in ");
-            } else {
-                errorMessage.append("in ");
-            }
-            if (e.getValue().size() <= 3) {
-                errorMessage.append(e.getValue());
-            } else {
-                errorMessage.append(e.getValue().stream().sorted().limit(3).collect(Collectors.toList()));
-                errorMessage.append(" and [" + (e.getValue().size() - 3) + "] other ");
-                errorMessage.append(e.getValue().size() == 4 ? "index" : "indices");
+            sb.append("[").append(entry.getKey()).append("] ");
+            sb.append(
+                entry.getKey().equals(DataType.KEYWORD.typeName()) && includeInsistKeyword ? "due to loading from _source and in " : "in "
+            );
+            Sample sample = entry.getValue();
+            sb.append(sample.kept());
+            int extras = sample.total() - sample.kept().size();
+            if (extras > 0) {
+                sb.append(" and [").append(extras).append("] other ").append(sample.total() == 4 ? "index" : "indices");
             }
         }
-        return errorMessage.toString();
+        return sb.toString();
     }
 }

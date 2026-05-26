@@ -7,9 +7,6 @@
 
 package org.elasticsearch.xpack.esql.core.type;
 
-import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
-
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -27,13 +24,11 @@ import java.util.stream.Collectors;
  */
 public final class InvalidMappedField extends TypeConflictedField {
 
+    /** How many index names per source type to spell out in {@link #errorMessage()} before collapsing the rest into "and [N] other". */
+    private static final int MAX_INDICES_TO_DISPLAY = 3;
+
     private final Map<String, Set<String>> typesToIndices;
     private final boolean isPotentiallyUnmapped;
-    /**
-     * Lazily derived from {@link #typesToIndices} and {@link #isPotentiallyUnmapped} on first access; not part of
-     * {@link #equals(Object)} / {@link #hashCode()}.
-     */
-    private String cachedErrorMessage;
 
     public InvalidMappedField(String name, Map<String, Set<String>> typesToIndices) {
         // Use a mutable map: IndexResolver may add child fields into the properties of a conflicting parent field later.
@@ -64,20 +59,21 @@ public final class InvalidMappedField extends TypeConflictedField {
         super(name, DataType.UNSUPPORTED, properties, false, type);
         this.typesToIndices = typesToIndices;
         this.isPotentiallyUnmapped = isPotentiallyUnmapped;
-        this.cachedErrorMessage = null;
     }
 
     @Override
-    public void writeContent(StreamOutput out) {
-        throw new UnsupportedOperationException("InvalidMappedField must never leave the coordinator");
+    Map<String, Sample> samples() {
+        Map<String, Sample> samples = new TreeMap<>();
+        typesToIndices.forEach((type, indices) -> samples.put(type, toSample(indices)));
+        return samples;
     }
 
-    @Override
-    public String errorMessage() {
-        if (cachedErrorMessage == null) {
-            cachedErrorMessage = makeErrorMessage(typesToIndices, isPotentiallyUnmapped);
-        }
-        return cachedErrorMessage;
+    private static Sample toSample(Set<String> indices) {
+        // At or below the display cap we show the full set in its original iteration order; above it we sort and take the first few so
+        // the rendered list is deterministic.
+        return indices.size() <= MAX_INDICES_TO_DISPLAY
+            ? new Sample(indices, indices.size())
+            : new Sample(indices.stream().sorted().limit(MAX_INDICES_TO_DISPLAY).toList(), indices.size());
     }
 
     @Override
@@ -93,17 +89,6 @@ public final class InvalidMappedField extends TypeConflictedField {
         }
 
         return false;
-    }
-
-    @Override
-    public EsField getExactField() {
-        throw new QlIllegalArgumentException("Field [" + getName() + "] is invalid, cannot access it");
-
-    }
-
-    @Override
-    public Exact getExactInfo() {
-        return new Exact(false, "Field [" + getName() + "] is invalid, cannot access it");
     }
 
     @Override

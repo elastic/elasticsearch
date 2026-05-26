@@ -7,9 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.http.local;
 
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -32,7 +30,7 @@ import java.time.Instant;
  * - Range reads via RandomAccessFile for columnar formats
  * - File metadata (size, last modified)
  */
-public final class LocalStorageObject implements StorageObject {
+public final class LocalStorageObject extends AbstractMeteredStorageObject {
     private final Path filePath;
     private final StoragePath storagePath;
 
@@ -40,8 +38,6 @@ public final class LocalStorageObject implements StorageObject {
     private Long cachedLength;
     private Instant cachedLastModified;
     private Boolean cachedExists;
-
-    private final StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
 
     public LocalStorageObject(Path filePath) {
         if (filePath == null) {
@@ -158,11 +154,6 @@ public final class LocalStorageObject implements StorageObject {
     @Override
     public StoragePath path() {
         return storagePath;
-    }
-
-    @Override
-    public StorageObjectMetrics metrics() {
-        return counters.snapshot();
     }
 
     private void checkFileExists() throws NoSuchFileException {

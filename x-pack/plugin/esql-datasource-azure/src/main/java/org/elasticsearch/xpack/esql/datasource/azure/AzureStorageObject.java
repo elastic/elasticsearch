@@ -14,9 +14,8 @@ import com.azure.storage.blob.models.BlobRequestConditions;
 import com.azure.storage.blob.models.BlobStorageException;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
@@ -31,7 +30,7 @@ import java.util.concurrent.Executor;
  * StorageObject implementation for Azure Blob Storage.
  * Supports full and range reads, and metadata retrieval with caching.
  */
-public final class AzureStorageObject implements StorageObject {
+public final class AzureStorageObject extends AbstractMeteredStorageObject {
     private final BlobClient blobClient;
     private final BlobAsyncClient blobAsyncClient;
     private final String container;
@@ -41,8 +40,6 @@ public final class AzureStorageObject implements StorageObject {
     private volatile Long cachedLength;
     private volatile Instant cachedLastModified;
     private volatile Boolean cachedExists;
-
-    private final StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
 
     public AzureStorageObject(BlobClient blobClient, String container, String blobName, StoragePath path) {
         this(blobClient, null, container, blobName, path);
@@ -228,7 +225,7 @@ public final class AzureStorageObject implements StorageObject {
     @Override
     public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
         if (blobAsyncClient == null) {
-            StorageObject.super.readBytesAsync(position, length, executor, listener);
+            super.readBytesAsync(position, length, executor, listener);
             return;
         }
 
@@ -274,12 +271,9 @@ public final class AzureStorageObject implements StorageObject {
         return blobAsyncClient != null;
     }
 
-    // TODO: wire retry counts via an Azure SDK HttpPipelinePolicy interceptor;
-    // retries managed inside the SDK are not yet visible to counters.addRetry().
-    @Override
-    public StorageObjectMetrics metrics() {
-        return counters.snapshot();
-    }
+    // TODO: wire retry counts via an Azure SDK HttpPipelinePolicy interceptor; retries managed
+    // inside the SDK are not yet visible to counters.addRetry(). Metering field + metrics() live
+    // in AbstractMeteredStorageObject.
 
     @Override
     public String toString() {

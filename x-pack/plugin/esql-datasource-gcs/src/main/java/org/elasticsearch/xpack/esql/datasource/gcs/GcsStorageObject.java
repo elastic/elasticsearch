@@ -15,9 +15,7 @@ import com.google.cloud.storage.StorageException;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -44,7 +42,7 @@ import java.util.concurrent.Executor;
  *       non-blocking like {@code HttpClient.sendAsync()} or {@code S3AsyncClient}.</li>
  * </ul>
  */
-public final class GcsStorageObject implements StorageObject {
+public final class GcsStorageObject extends AbstractMeteredStorageObject {
     private final Storage storage;
     private final String bucket;
     private final String objectName;
@@ -56,7 +54,7 @@ public final class GcsStorageObject implements StorageObject {
 
     // TODO: GCS retries are managed inside RetryHelper at the Storage client layer; intercepting
     // them here would require wrapping the Storage instance. Not counted in this PR.
-    private final StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+    // Metering counters field + metrics() live in AbstractMeteredStorageObject.
 
     public GcsStorageObject(Storage storage, String bucket, String objectName, StoragePath path) {
         if (storage == null) {
@@ -313,11 +311,6 @@ public final class GcsStorageObject implements StorageObject {
 
     String objectName() {
         return objectName;
-    }
-
-    @Override
-    public StorageObjectMetrics metrics() {
-        return counters.snapshot();
     }
 
     @Override

@@ -11,9 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -42,7 +40,7 @@ import java.util.concurrent.Executor;
  *   <li>Metadata retrieval via HEAD requests</li>
  * </ul>
  */
-public final class HttpStorageObject implements StorageObject {
+public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
     private final HttpClient client;
     private final StoragePath path;
@@ -53,8 +51,6 @@ public final class HttpStorageObject implements StorageObject {
     private Long cachedLength;
     private Instant cachedLastModified;
     private Boolean cachedExists;
-
-    private final StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
 
     /**
      * Creates an HttpStorageObject without pre-known metadata.
@@ -252,11 +248,6 @@ public final class HttpStorageObject implements StorageObject {
     @Override
     public boolean supportsNativeAsync() {
         return true;
-    }
-
-    @Override
-    public StorageObjectMetrics metrics() {
-        return counters.snapshot();
     }
 
     // === Private helper methods ===

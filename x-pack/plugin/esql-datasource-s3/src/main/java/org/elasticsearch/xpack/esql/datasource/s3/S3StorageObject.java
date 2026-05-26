@@ -22,9 +22,8 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetricsCounters;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.datasources.utils.ContentRangeParser;
 
@@ -38,7 +37,7 @@ import java.util.concurrent.Executor;
  * StorageObject implementation for S3 using AWS SDK v2.
  * Supports full and range reads, metadata retrieval, and optional native async via S3AsyncClient.
  */
-public final class S3StorageObject implements StorageObject {
+public final class S3StorageObject extends AbstractMeteredStorageObject {
     private static final Logger logger = LogManager.getLogger(S3StorageObject.class);
 
     private final S3Client s3Client;
@@ -51,9 +50,9 @@ public final class S3StorageObject implements StorageObject {
     private volatile Instant cachedLastModified;
     private volatile Boolean cachedExists;
 
-    // TODO: AWS retries are managed via the SDK's ExecutionInterceptor / RetryStrategy at the
-    // S3Client layer; intercepting them here would require wrapping the client. Not counted in this PR.
-    private final StorageObjectMetricsCounters counters = new StorageObjectMetricsCounters();
+    // Retries: AWS manages them via the SDK ExecutionInterceptor / RetryStrategy at the S3Client
+    // layer; intercepting them here would require wrapping the client. Not counted in this PR.
+    // The metering counters field + metrics() live in AbstractMeteredStorageObject.
 
     public S3StorageObject(S3Client s3Client, String bucket, String key, StoragePath path) {
         this(s3Client, null, bucket, key, path);
@@ -319,7 +318,7 @@ public final class S3StorageObject implements StorageObject {
     @Override
     public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
         if (s3AsyncClient == null) {
-            StorageObject.super.readBytesAsync(position, length, executor, listener);
+            super.readBytesAsync(position, length, executor, listener);
             return;
         }
 
@@ -383,11 +382,6 @@ public final class S3StorageObject implements StorageObject {
     @Override
     public boolean supportsNativeAsync() {
         return s3AsyncClient != null;
-    }
-
-    @Override
-    public StorageObjectMetrics metrics() {
-        return counters.snapshot();
     }
 
     @Override

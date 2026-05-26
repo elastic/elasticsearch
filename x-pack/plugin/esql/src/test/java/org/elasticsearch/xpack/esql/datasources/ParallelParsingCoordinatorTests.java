@@ -42,6 +42,8 @@ import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ParallelParsingCoordinatorTests extends ESTestCase {
 
@@ -278,6 +280,65 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             }
         });
         assertNotNull("Should propagate rejection error", ex);
+    }
+
+    /**
+     * Regression guard: {@code OrderedParallelIterator} used to submit every segment
+     * at once with no cap on concurrently-open range streams; the fix dispatches them in a sliding window of
+     * {@link ParallelParsingCoordinator#MAX_CONCURRENT_OPEN_SEGMENTS}.
+     * <p>
+     * {@link StreamCountingStorageObject} records the peak concurrently-open positional range streams; each
+     * open lingers briefly so segment threads overlap, with no "wait until all open" barrier so the test
+     * cannot deadlock either way. FAILS on the old code (peak == executor thread count); PASSES with the cap.
+     */
+    public void testConcurrentOpenSegmentsAreCapped() throws Exception {
+        final int parallelism = 12;
+        final int cap = ParallelParsingCoordinator.MAX_CONCURRENT_OPEN_SEGMENTS;
+
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 1200; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%05d", i)).append("\n");
+        }
+        byte[] content = sb.toString().getBytes(StandardCharsets.UTF_8);
+
+        StreamCountingStorageObject obj = new StreamCountingStorageObject(content);
+        LineFormatReader reader = new LineFormatReader(blockFactory());
+
+        int segmentCount = ParallelParsingCoordinator.computeSegments(reader, obj, content.length, parallelism, reader.minimumSegmentSize())
+            .size();
+        assertThat("test needs more segments than the cap to be meaningful", segmentCount, Matchers.greaterThan(cap));
+        obj.resetPeak(); // computeSegments probe-opens are sequential + aborted; don't fold them into the parse-phase peak
+
+        // More executor threads than the cap, so the OLD (uncapped) code would open up to `poolSize`
+        // streams at once -- the assertion below would then see peak > cap.
+        int poolSize = cap + 4;
+        ExecutorService exec = Executors.newFixedThreadPool(poolSize);
+        try {
+            try (
+                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, parallelism, exec)
+            ) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+
+        int peak = obj.peakConcurrent();
+        assertThat("sanity: more parse-phase range streams opened than the cap", obj.totalOpens(), Matchers.greaterThan(cap));
+        assertThat(
+            "peak concurrently-open range streams ["
+                + peak
+                + "] must not exceed the cap ["
+                + cap
+                + "] (opened "
+                + obj.totalOpens()
+                + " total). FAILS on the old uncapped code (peak == executor thread count); PASSES with the window cap.",
+            peak,
+            Matchers.lessThanOrEqualTo(cap)
+        );
     }
 
     public void testParallelReadPropagatesError() throws Exception {
@@ -1151,6 +1212,86 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         @Override
         public StoragePath path() {
             return StoragePath.of("mem://test");
+        }
+    }
+
+    /**
+     * In-memory {@link StorageObject} that records the peak number of positional range streams
+     * ({@code newStream(pos,len)}) open at once. Segment workers always read through the positional overload
+     * (via {@link RangeStorageObject}), so this captures the concurrently-open-segment count. Each open
+     * lingers a few ms so overlapping threads coincide -- a plain delay, not a barrier, so it cannot
+     * deadlock. The whole-file {@code newStream()} overload is not counted (segment workers never use it).
+     */
+    private static class StreamCountingStorageObject implements StorageObject {
+        private final byte[] data;
+        private final AtomicInteger open = new AtomicInteger();
+        private final AtomicInteger peak = new AtomicInteger();
+        private final AtomicInteger total = new AtomicInteger();
+
+        StreamCountingStorageObject(byte[] data) {
+            this.data = data;
+        }
+
+        @Override
+        public InputStream newStream() {
+            return new ByteArrayInputStream(data);
+        }
+
+        @Override
+        public InputStream newStream(long position, long length) {
+            int now = open.incrementAndGet();
+            peak.accumulateAndGet(now, Math::max);
+            total.incrementAndGet();
+            // Linger so concurrently-open segment streams overlap in time; plain sleep, no barrier.
+            try {
+                Thread.sleep(50);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            return new ByteArrayInputStream(data, (int) position, (int) length) {
+                private boolean closed = false;
+
+                @Override
+                public void close() {
+                    if (closed == false) {
+                        closed = true;
+                        open.decrementAndGet();
+                    }
+                }
+            };
+        }
+
+        void resetPeak() {
+            peak.set(0);
+            total.set(0);
+        }
+
+        int peakConcurrent() {
+            return peak.get();
+        }
+
+        int totalOpens() {
+            return total.get();
+        }
+
+        @Override
+        public long length() {
+            return data.length;
+        }
+
+        @Override
+        public Instant lastModified() {
+            return Instant.EPOCH;
+        }
+
+        @Override
+        public boolean exists() {
+            return true;
+        }
+
+        @Override
+        public StoragePath path() {
+            return StoragePath.of("mem://stream-counting");
         }
     }
 }

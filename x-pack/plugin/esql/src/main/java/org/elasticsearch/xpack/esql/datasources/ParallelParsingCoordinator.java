@@ -50,6 +50,14 @@ public final class ParallelParsingCoordinator {
 
     private static final Logger logger = LogManager.getLogger(ParallelParsingCoordinator.class);
 
+    /**
+     * Cap on segments whose read streams are open at once within a single file. Each open segment holds a
+     * range stream (one S3 {@code GetObject}) plus, for NDJSON, a per-segment {@code byte[]}; the consumer
+     * drains in order, so only the head segments need be open. Bounds open streams independent of file
+     * count/length.
+     */
+    static final int MAX_CONCURRENT_OPEN_SEGMENTS = 4;
+
     private ParallelParsingCoordinator() {}
 
     /**
@@ -223,6 +231,7 @@ public final class ParallelParsingCoordinator {
             batchSize,
             segments,
             executor,
+            Math.max(1, Math.min(parallelism, MAX_CONCURRENT_OPEN_SEGMENTS)),
             effectivePolicy,
             splitIncludesFileLeader,
             readSchema
@@ -307,6 +316,9 @@ public final class ParallelParsingCoordinator {
         @org.elasticsearch.core.Nullable
         private final List<Attribute> readSchema;
 
+        private final List<long[]> segments;
+        private final Executor executor;
+        private final int maxConcurrentSegments;
         private final List<BlockingQueue<Page>> segmentQueues;
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
         private final CountDownLatch allDone;
@@ -322,6 +334,7 @@ public final class ParallelParsingCoordinator {
             int batchSize,
             List<long[]> segments,
             Executor executor,
+            int maxConcurrentSegments,
             ErrorPolicy errorPolicy,
             boolean splitIncludesFileLeader,
             List<Attribute> readSchema
@@ -333,6 +346,9 @@ public final class ParallelParsingCoordinator {
             this.errorPolicy = errorPolicy;
             this.splitIncludesFileLeader = splitIncludesFileLeader;
             this.readSchema = readSchema;
+            this.segments = segments;
+            this.executor = executor;
+            this.maxConcurrentSegments = Math.max(1, Math.min(maxConcurrentSegments, segments.size()));
             this.allDone = new CountDownLatch(segments.size());
 
             this.segmentQueues = new ArrayList<>(segments.size());
@@ -340,15 +356,35 @@ public final class ParallelParsingCoordinator {
                 segmentQueues.add(new ArrayBlockingQueue<>(16));
             }
 
-            for (int i = 0; i < segments.size(); i++) {
-                final int segIdx = i;
-                final long[] seg = segments.get(i);
+            // Sliding-window dispatch: submit the first maxConcurrentSegments; each segment on completion
+            // submits the one that many positions ahead (see parseSegment's finally). Bounds open streams
+            // without stalling the in-order consumer, which runs on the driver thread so the head segment
+            // always progresses. A permit acquired inside parseSegment would instead deadlock: a later
+            // segment could hold it while blocked on a full queue, starving the head the consumer waits on.
+            int initial = Math.min(this.maxConcurrentSegments, segments.size());
+            for (int i = 0; i < initial; i++) {
+                submitSegment(i);
+            }
+        }
+
+        /**
+         * Submits the segment at {@code startIndex}. On {@link RejectedExecutionException} (executor shutting
+         * down) it cannot run, so we poison its queue, count it down, and cascade to the next in the
+         * window-chain ({@code startIndex + maxConcurrentSegments}) so no latch is left dangling on teardown.
+         */
+        private void submitSegment(int startIndex) {
+            int segIdx = startIndex;
+            while (segIdx < segments.size()) {
+                final int idx = segIdx;
+                final long[] seg = segments.get(idx);
                 try {
-                    executor.execute(() -> parseSegment(segIdx, seg[0], seg[1]));
+                    executor.execute(() -> parseSegment(idx, seg[0], seg[1]));
+                    return;
                 } catch (RejectedExecutionException e) {
                     firstError.compareAndSet(null, e);
-                    enqueuePoison(segmentQueues.get(segIdx));
+                    enqueuePoison(segmentQueues.get(idx));
                     allDone.countDown();
+                    segIdx += maxConcurrentSegments;
                 }
             }
         }
@@ -356,6 +392,10 @@ public final class ParallelParsingCoordinator {
         private void parseSegment(int segmentIndex, long offset, long length) {
             BlockingQueue<Page> queue = segmentQueues.get(segmentIndex);
             try {
+                // Teardown or earlier failure: skip opening a stream; finally still poisons + cascades.
+                if (closed || firstError.get() != null) {
+                    return;
+                }
                 boolean lastSplit = segmentIndex == segmentQueues.size() - 1;
                 StorageObject segObj = new RangeStorageObject(storageObject, offset, length);
 
@@ -399,6 +439,11 @@ public final class ParallelParsingCoordinator {
             } finally {
                 enqueuePoison(queue);
                 allDone.countDown();
+                // Slide the window: this stream is now closed, so the segment maxConcurrentSegments ahead may open.
+                int next = segmentIndex + maxConcurrentSegments;
+                if (next < segments.size()) {
+                    submitSegment(next);
+                }
             }
         }
 

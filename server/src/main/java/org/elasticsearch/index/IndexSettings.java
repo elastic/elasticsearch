@@ -204,8 +204,7 @@ public final class IndexSettings {
         -1,
         -1,
         Property.Dynamic,
-        Property.IndexScope,
-        Property.ServerlessPublic
+        Property.IndexScope
     );
 
     /**

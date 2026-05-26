@@ -10,7 +10,9 @@ package org.elasticsearch.xpack.esql.parser;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
@@ -23,6 +25,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Keep;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
+import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.Subquery;
 import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.plan.logical.UnionAll;
@@ -55,6 +58,10 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
 
     private static void requireWhereInSubquery() {
         assumeTrue("Requires WHERE IN subquery support", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY.isEnabled());
+    }
+
+    private static void requireSubqueryWithRow() {
+        assumeTrue("Requires subquery with ROW as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
     }
 
     // subquery in the from command
@@ -832,8 +839,228 @@ public class SubqueryWithTSCommandTests extends AbstractStatementParserTests {
         assertEquals(IndexMode.STANDARD, relation.indexMode());
     }
 
+    private static void assertRowField(LogicalPlan plan, String aliasName, int aliasValue) {
+        Row row = as(plan, Row.class);
+        assertEquals(1, row.fields().size());
+        Alias alias = row.fields().get(0);
+        assertEquals(aliasName, alias.name());
+        Literal literal = as(alias.child(), Literal.class);
+        assertEquals(aliasValue, literal.value());
+    }
+
     private static String fromOrTS(boolean fromContext) {
         return fromContext ? "FROM" : "TS";
+    }
+
+    // mixed FROM, ROW and TS subqueries
+
+    /**
+     * An index pattern alongside a TS subquery and a ROW subquery. Each subquery branch keeps its
+     * own source-command flavour while sharing the outer {@link UnionAll}.
+     *
+     * UnionAll[[]]
+     * |_UnresolvedRelation[]
+     * |_Subquery[]
+     * | \_UnresolvedRelation[, TIME_SERIES]
+     * \_Subquery[]
+     *   \_Row[[1[INTEGER] AS x]]
+     */
+    public void testIndexPatternWithTSAndRowSubqueries() {
+        requireSubqueryInFromCommand();
+        requireSubqueryWithRow();
+        var mainQueryIndexPattern = randomIndexPatterns();
+        var tsSubqueryIndexPattern = randomIndexPatterns();
+        String query = LoggerMessageFormat.format(null, """
+            FROM {}, (TS {}), (ROW x = 1)
+            """, mainQueryIndexPattern, tsSubqueryIndexPattern);
+
+        LogicalPlan plan = query(query);
+        UnionAll unionAll = as(plan, UnionAll.class);
+        List<LogicalPlan> children = unionAll.children();
+        assertEquals(3, children.size());
+        // branch 1
+        assertStandardRelation(children.get(0), mainQueryIndexPattern);
+        // branch 2
+        Subquery tsSubquery = as(children.get(1), Subquery.class);
+        assertTSRelation(tsSubquery.plan(), tsSubqueryIndexPattern);
+        // branch 3
+        Subquery rowSubquery = as(children.get(2), Subquery.class);
+        assertRowField(rowSubquery.plan(), "x", 1);
+    }
+
+    /**
+     * Mix of all three subquery flavours alongside a main index pattern. Each branch carries its
+     * own trailing {@code WHERE} to verify processing commands are kept independently per branch.
+     *
+     * UnionAll[[]]
+     * |_UnresolvedRelation[]
+     * |_Subquery[]
+     * | \_Filter[?x &gt; 1[INTEGER]]
+     * |   \_UnresolvedRelation[, TIME_SERIES]
+     * |_Subquery[]
+     * | \_Filter[?x &gt; 1[INTEGER]]
+     * |   \_UnresolvedRelation[]
+     * \_Subquery[]
+     *   \_Filter[?x &gt; 0[INTEGER]]
+     *     \_Row[[1[INTEGER] AS x]]
+     */
+    public void testIndexPatternWithTSFromAndRowSubqueries() {
+        requireSubqueryInFromCommand();
+        requireSubqueryWithRow();
+        var mainQueryIndexPattern = randomIndexPatterns();
+        var tsSubqueryIndexPattern = randomIndexPatterns();
+        var fromSubqueryIndexPattern = randomIndexPatterns();
+        String query = LoggerMessageFormat.format(null, """
+            FROM {}, (TS {} | WHERE x > 1), (FROM {} | WHERE x > 1), (ROW x = 1 | WHERE x > 0)
+            """, mainQueryIndexPattern, tsSubqueryIndexPattern, fromSubqueryIndexPattern);
+
+        LogicalPlan plan = query(query);
+        UnionAll unionAll = as(plan, UnionAll.class);
+        List<LogicalPlan> children = unionAll.children();
+        assertEquals(4, children.size());
+        // branch 1
+        assertStandardRelation(children.get(0), mainQueryIndexPattern);
+        // branch 2: TS subquery
+        Subquery tsSubquery = as(children.get(1), Subquery.class);
+        Filter tsFilter = as(tsSubquery.plan(), Filter.class);
+        assertEquals("x", as(as(tsFilter.condition(), GreaterThan.class).left(), Attribute.class).name());
+        assertTSRelation(tsFilter.child(), tsSubqueryIndexPattern);
+        // branch 3: FROM subquery
+        Subquery fromSubquery = as(children.get(2), Subquery.class);
+        Filter fromFilter = as(fromSubquery.plan(), Filter.class);
+        assertStandardRelation(fromFilter.child(), fromSubqueryIndexPattern);
+        // branch 4: ROW subquery
+        Subquery rowSubquery = as(children.get(3), Subquery.class);
+        Filter rowFilter = as(rowSubquery.plan(), Filter.class);
+        assertEquals("x", as(as(rowFilter.condition(), GreaterThan.class).left(), Attribute.class).name());
+        assertRowField(rowFilter.child(), "x", 1);
+    }
+
+    /**
+     * Mix of all three subquery flavours with no main index pattern. The outer {@link UnionAll}
+     * has three {@link Subquery} children — one per source command.
+     *
+     * UnionAll[[]]
+     * |_Subquery[]
+     * | \_UnresolvedRelation[, TIME_SERIES]
+     * |_Subquery[]
+     * | \_Row[[1[INTEGER] AS x]]
+     * \_Subquery[]
+     *   \_UnresolvedRelation[]
+     */
+    public void testTSRowAndFromSubqueriesOnly() {
+        requireSubqueryInFromCommand();
+        requireSubqueryWithRow();
+        var tsSubqueryIndexPattern = randomIndexPatterns();
+        var fromSubqueryIndexPattern = randomIndexPatterns();
+        String query = LoggerMessageFormat.format(null, """
+            FROM (TS {}), (ROW x = 1), (FROM {})
+            """, tsSubqueryIndexPattern, fromSubqueryIndexPattern);
+
+        LogicalPlan plan = query(query);
+        UnionAll unionAll = as(plan, UnionAll.class);
+        List<LogicalPlan> children = unionAll.children();
+        assertEquals(3, children.size());
+        // branch 1: TS subquery
+        Subquery tsSubquery = as(children.get(0), Subquery.class);
+        assertTSRelation(tsSubquery.plan(), tsSubqueryIndexPattern);
+        // branch 2: ROW subquery
+        Subquery rowSubquery = as(children.get(1), Subquery.class);
+        assertRowField(rowSubquery.plan(), "x", 1);
+        // branch 3: FROM subquery
+        Subquery fromSubquery = as(children.get(2), Subquery.class);
+        assertStandardRelation(fromSubquery.plan(), fromSubqueryIndexPattern);
+    }
+
+    /**
+     * A TS subquery and a ROW subquery both nested inside an outer FROM subquery. The outer
+     * {@link UnionAll} has the main index pattern and a {@link Subquery} wrapping an inner
+     * {@link UnionAll} that holds the inner FROM source plus the TS and ROW subqueries.
+     *
+     * UnionAll[[]]
+     * |_UnresolvedRelation[]
+     * \_Subquery[]
+     *   \_UnionAll[[]]
+     *     |_UnresolvedRelation[]
+     *     |_Subquery[]
+     *     | \_UnresolvedRelation[, TIME_SERIES]
+     *     \_Subquery[]
+     *       \_Row[[1[INTEGER] AS x]]
+     */
+    public void testTSAndRowSubqueriesNestedInsideFromSubquery() {
+        requireSubqueryInFromCommand();
+        requireSubqueryWithRow();
+        var outerIndexPattern = randomIndexPatterns();
+        var innerIndexPattern = randomIndexPatterns();
+        var tsSubqueryIndexPattern = randomIndexPatterns();
+        String query = LoggerMessageFormat.format(null, """
+            FROM {}, (FROM {}, (TS {}), (ROW x = 1))
+            """, outerIndexPattern, innerIndexPattern, tsSubqueryIndexPattern);
+
+        LogicalPlan plan = query(query);
+        UnionAll outerUnion = as(plan, UnionAll.class);
+        List<LogicalPlan> outerChildren = outerUnion.children();
+        assertEquals(2, outerChildren.size());
+        // outer branch 1
+        assertStandardRelation(outerChildren.get(0), outerIndexPattern);
+        // outer branch 2: FROM subquery wrapping the inner UnionAll
+        Subquery outerSubquery = as(outerChildren.get(1), Subquery.class);
+        UnionAll innerUnion = as(outerSubquery.plan(), UnionAll.class);
+        List<LogicalPlan> innerChildren = innerUnion.children();
+        assertEquals(3, innerChildren.size());
+        // inner branch 1: index pattern
+        assertStandardRelation(innerChildren.get(0), innerIndexPattern);
+        // inner branch 2: TS subquery
+        Subquery innerTSSubquery = as(innerChildren.get(1), Subquery.class);
+        assertTSRelation(innerTSSubquery.plan(), tsSubqueryIndexPattern);
+        // inner branch 3: ROW subquery
+        Subquery innerRowSubquery = as(innerChildren.get(2), Subquery.class);
+        assertRowField(innerRowSubquery.plan(), "x", 1);
+    }
+
+    /**
+     * IN-subquery whose FROM body mixes all three source flavours: an index pattern, a TS subquery
+     * and a ROW subquery. The mix produces a {@link UnionAll} with the index pattern as the bare
+     * leaf followed by a {@link Subquery}-wrapped TS {@link UnresolvedRelation} and a
+     * {@link Subquery}-wrapped {@link Row}.
+     *
+     * Filter[InSubquery[?x, UnionAll[[]]]]
+     * \_UnresolvedRelation[]
+     *
+     * Where the IN subquery's UnionAll has three children:
+     * UnresolvedRelation[sub], Subquery[UnresolvedRelation[, TIME_SERIES]] and Subquery[Row[x=1]].
+     */
+    public void testWhereInSubqueryWithMixedTSRowAndFromSources() {
+        requireWhereInSubquery();
+        requireSubqueryInFromCommand();
+        requireSubqueryWithRow();
+        boolean fromContext = randomBoolean();
+        var mainQueryIndexPattern = randomIndexPatterns();
+        var fromSubqueryIndexPattern = randomIndexPatterns();
+        var tsSubqueryIndexPattern = randomIndexPatterns();
+        String query = LoggerMessageFormat.format(null, """
+            {} {}
+            | WHERE x IN (FROM {}, (TS {}), (ROW x = 1))
+            """, fromOrTS(fromContext), mainQueryIndexPattern, fromSubqueryIndexPattern, tsSubqueryIndexPattern);
+
+        LogicalPlan plan = query(query);
+        Filter filter = as(plan, Filter.class);
+        InSubquery inSubquery = as(filter.condition(), InSubquery.class);
+        assertEquals("x", as(inSubquery.value(), UnresolvedAttribute.class).name());
+
+        UnionAll unionAll = as(inSubquery.subquery(), UnionAll.class);
+        List<LogicalPlan> children = unionAll.children();
+        assertEquals(3, children.size());
+        // branch 1: index pattern
+        assertStandardRelation(children.get(0), fromSubqueryIndexPattern);
+        // branch 2: TS subquery
+        Subquery tsSubquery = as(children.get(1), Subquery.class);
+        assertTSRelation(tsSubquery.plan(), tsSubqueryIndexPattern);
+        // branch 3: ROW subquery
+        Subquery rowSubquery = as(children.get(2), Subquery.class);
+        assertRowField(rowSubquery.plan(), "x", 1);
+        // main
+        validateRelation(filter.child(), fromContext, mainQueryIndexPattern);
     }
 
     // negative tests

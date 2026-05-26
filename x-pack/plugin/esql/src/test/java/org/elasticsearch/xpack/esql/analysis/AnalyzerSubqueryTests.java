@@ -3519,6 +3519,85 @@ public class AnalyzerSubqueryTests extends ESTestCase {
     }
 
     /*
+     * Four subqueries mixing TS, FROM and ROW source commands alongside the main FROM index pattern.
+     * The {@link UnionAll} has four branches: main FROM test, a TS subquery with a time-series
+     * aggregation, a FROM sample_data subquery with a regular {@link Aggregate}, and a {@link Row}
+     * subquery. Verifies that all three subquery flavours coexist under one {@link UnionAll} with
+     * the expected per-branch leaf nodes.
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[_meta_field{r}#..., emp_no{r}#..., ..., rate{r}#..., cluster{r}#..., cnt{r}#..., synthetic{r}#...]]
+     *   |_Project[[..., rate{r}#..., cluster{r}#..., cnt{r}#..., synthetic{r}#...]]
+     *   | \_Eval[[null[DOUBLE] AS rate#..., null[KEYWORD] AS cluster#..., null[LONG] AS cnt#..., null[INTEGER] AS synthetic#...]]
+     *   |   \_EsRelation[test][_meta_field{f}#..., emp_no{f}#..., first_name{f}#..]
+     *   |_Project[[..., rate{r}#..., cluster{f}#..., cnt{r}#..., synthetic{r}#...]]
+     *   | \_Eval[[..., null[LONG] AS cnt#..., null[INTEGER] AS synthetic#...]]
+     *   |   \_Subquery[]
+     *   |     \_TimeSeriesAggregate[...]
+     *   |       \_EsRelation[k8s][TIME_SERIES][...]
+     *   |_Project[[..., rate{r}#..., cluster{r}#..., cnt{r}#..., synthetic{r}#...]]
+     *   | \_Eval[[..., null[DOUBLE] AS rate#..., null[KEYWORD] AS cluster#..., null[INTEGER] AS synthetic#...]]
+     *   |   \_Subquery[]
+     *   |     \_Aggregate[[],[COUNT(*) AS cnt]]
+     *   |       \_EsRelation[sample_data][...]
+     *   \_Project[[..., rate{r}#..., cluster{r}#..., cnt{r}#..., synthetic{r}#...]]
+     *     \_Eval[[..., null[DOUBLE] AS rate#..., null[KEYWORD] AS cluster#..., null[LONG] AS cnt#...]]
+     *       \_Subquery[]
+     *         \_Row[[1[INTEGER] AS synthetic]]
+     */
+    public void testMultipleSubqueriesInFromWithMixedTsRowAndFromSubqueries() {
+        assumeTrue("Requires subquery with TS source support", EsqlCapabilities.Cap.SUBQUERY_WITH_TS.isEnabled());
+        assumeTrue("Requires subquery with ROW source support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        LogicalPlan plan = basic().addK8sDownsampled().addSampleData().query("""
+            FROM test,
+              (TS k8s | STATS rate = max(rate(network.total_bytes_in)) BY cluster),
+              (FROM sample_data | STATS cnt = count(*)),
+              (ROW synthetic = 1)
+            """);
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(4, unionAll.children().size());
+
+        // Branch 0: main FROM test
+        Project testProject = as(unionAll.children().get(0), Project.class);
+        Eval testNullEval = as(testProject.child(), Eval.class);
+        EsRelation testRelation = as(testNullEval.child(), EsRelation.class);
+        assertEquals("test", testRelation.indexPattern());
+        assertEquals(IndexMode.STANDARD, testRelation.indexMode());
+
+        // Branch 1: TS k8s subquery with TimeSeriesAggregate
+        Project tsProject = as(unionAll.children().get(1), Project.class);
+        Eval tsNullEval = as(tsProject.child(), Eval.class);
+        Subquery tsSubquery = as(tsNullEval.child(), Subquery.class);
+        TimeSeriesAggregate tsAggregate = as(tsSubquery.child(), TimeSeriesAggregate.class);
+        EsRelation tsRelation = as(tsAggregate.child(), EsRelation.class);
+        assertEquals("k8s", tsRelation.indexPattern());
+        assertEquals(IndexMode.TIME_SERIES, tsRelation.indexMode());
+
+        // Branch 2: FROM sample_data subquery with regular Aggregate
+        Project sampleProject = as(unionAll.children().get(2), Project.class);
+        Eval sampleNullEval = as(sampleProject.child(), Eval.class);
+        Subquery sampleSubquery = as(sampleNullEval.child(), Subquery.class);
+        Aggregate sampleAggregate = as(sampleSubquery.child(), Aggregate.class);
+        assertFalse(sampleAggregate instanceof TimeSeriesAggregate);
+        EsRelation sampleRelation = as(sampleAggregate.child(), EsRelation.class);
+        assertEquals("sample_data", sampleRelation.indexPattern());
+        assertEquals(IndexMode.STANDARD, sampleRelation.indexMode());
+
+        // Branch 3: ROW subquery wrapping a Row leaf
+        Project rowProject = as(unionAll.children().get(3), Project.class);
+        Eval rowNullEval = as(rowProject.child(), Eval.class);
+        Subquery rowSubquery = as(rowNullEval.child(), Subquery.class);
+        Row row = as(rowSubquery.child(), Row.class);
+        assertEquals(1, row.fields().size());
+        assertEquals("synthetic", row.fields().get(0).name());
+        Literal rowLiteral = as(row.fields().get(0).child(), Literal.class);
+        assertEquals(1, rowLiteral.value());
+        assertEquals(INTEGER, rowLiteral.dataType());
+    }
+
+    /*
      * TS subquery with chained processing commands ({@code WHERE | EVAL | KEEP}) — verifies the subquery
      * preserves the per-command tree and that the {@link EsRelation} remains in
      * {@link IndexMode#TIME_SERIES}. Mirrors the pattern of FROM subqueries with processing commands.

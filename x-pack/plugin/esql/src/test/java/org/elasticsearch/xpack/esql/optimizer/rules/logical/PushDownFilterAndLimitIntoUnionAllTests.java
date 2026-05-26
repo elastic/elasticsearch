@@ -1842,4 +1842,104 @@ public class PushDownFilterAndLimitIntoUnionAllTests extends AbstractLogicalPlan
         EsRelation tsRelation = as(tsFilter.child(), EsRelation.class);
         assertEquals("k8s", tsRelation.indexPattern());
     }
+
+    /*
+     * Push-down test mixing all three subquery flavours in a single UnionAll: a main FROM
+     * index pattern (sample_data), a TS subquery, a FROM subquery and a ROW subquery. The outer
+     * "@timestamp > 2024-01-01" predicate is pushed past the UnionAll into every branch:
+     * - sample_data branch: the predicate lands directly above the EsRelation.
+     * - TS k8s branch: combined with the inner WHERE @timestamp > 2025-10-07; constant folding
+     *   collapses the AND to the stricter "@timestamp > 2025-10-07".
+     * - FROM sample_data subquery: combined with the inner WHERE client_ip == "172.21.0.5".
+     * - ROW branch: the pushed-down filter constant-folds against the literal
+     *   (2026-01-01 > 2024-01-01 == true), so the Filter is removed and the LocalRelation is
+     *   preserved under the Subquery wrapper.
+     *
+     * Limit[1000[INTEGER],false,false]
+     * \_UnionAll[[@timestamp{r}#..., client_ip{r}#..., ..., cluster{r}#..., ..., pod{r}#...]]
+     *   |_Project[[@timestamp{f}#..., client_ip{f}#..., event_duration{f}#..., message{f}#..., ...]]
+     *   | \_Eval[[null fills for missing k8s fields]]
+     *   |   \_Filter[@timestamp{f}#... > 1704067200000[DATETIME]]
+     *   |     \_EsRelation[sample_data][@timestamp{f}#..., client_ip{f}#..., event_duration{f}#..]
+     *   |_Project[[@timestamp{f}#..., client_ip{r}#..., ..., cluster{f}#..., ..., pod{f}#...]]
+     *   | \_Eval[[null fills for sample_data fields, TOLONG/TODOUBLE counter demotions]]
+     *   |   \_Subquery[]
+     *   |     \_Filter[@timestamp{f}#... > 1759795200000[DATETIME]]
+     *   |       \_EsRelation[k8s][@timestamp{f}#..., client.ip{f}#..., cluster{f}#..., ..]
+     *   |_Project[[@timestamp{f}#..., client_ip{f}#..., event_duration{f}#..., message{f}#..., ...]]
+     *   | \_Eval[[null fills for missing k8s fields]]
+     *   |   \_Subquery[]
+     *   |     \_Filter[client_ip{f}#... == 172.21.0.5[IP] AND @timestamp{f}#... > 1704067200000[DATETIME]]
+     *   |       \_EsRelation[sample_data][@timestamp{f}#..., client_ip{f}#..., event_duration{f}#..]
+     *   \_Project[[@timestamp{r}#..., client_ip{r}#..., ..., cluster{r}#..., ..., pod{r}#...]]
+     *     \_Eval[[null fills for every column except @timestamp]]
+     *       \_Subquery[]
+     *         \_LocalRelation[[@timestamp{r}#...], Page[...]]
+     */
+    public void testPushDownSimpleFilterPastUnionAllWithMixedTsRowAndFromSubqueries() {
+        checkSubqueryWithTSCommand();
+        assumeTrue("Requires subquery with row as source command support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
+        var plan = planSubquery("""
+            FROM sample_data,
+                 (TS k8s | WHERE @timestamp > "2025-10-07"),
+                 (FROM sample_data | WHERE client_ip == "172.21.0.5"),
+                 (ROW @timestamp = "2026-01-01T00:00:00.000Z"::datetime)
+            | WHERE @timestamp > "2024-01-01"
+            """);
+
+        Configuration configuration = randomConfigurationBuilder().zoneId(ZoneOffset.UTC).build();
+
+        Limit limit = as(plan, Limit.class);
+        UnionAll unionAll = as(limit.child(), UnionAll.class);
+        assertEquals(4, unionAll.children().size());
+
+        // branch 0 — sample_data main: outer @timestamp filter pushed past Eval directly above EsRelation.
+        Project sampleProject = as(unionAll.children().get(0), Project.class);
+        Eval sampleEval = as(sampleProject.child(), Eval.class);
+        Filter sampleFilter = as(sampleEval.child(), Filter.class);
+        GreaterThan sampleGt = as(sampleFilter.condition(), GreaterThan.class);
+        assertEquals("@timestamp", as(sampleGt.left(), FieldAttribute.class).name());
+        Literal sampleValue = as(sampleGt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2024-01-01", DataType.DATETIME, configuration), sampleValue.value());
+        EsRelation sampleRelation = as(sampleFilter.child(), EsRelation.class);
+        assertEquals("sample_data", sampleRelation.indexPattern());
+
+        // branch 1 — TS k8s: outer predicate combined with the inner WHERE; constant folding
+        // collapses "@timestamp > 2024-01-01 AND @timestamp > 2025-10-07" to the stricter
+        // "@timestamp > 2025-10-07".
+        Project tsProject = as(unionAll.children().get(1), Project.class);
+        Eval tsEval = as(tsProject.child(), Eval.class);
+        Subquery tsSubquery = as(tsEval.child(), Subquery.class);
+        Filter tsFilter = as(tsSubquery.child(), Filter.class);
+        GreaterThan tsGt = as(tsFilter.condition(), GreaterThan.class);
+        assertEquals("@timestamp", as(tsGt.left(), FieldAttribute.class).name());
+        Literal tsValue = as(tsGt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2025-10-07", DataType.DATETIME, configuration), tsValue.value());
+        EsRelation tsRelation = as(tsFilter.child(), EsRelation.class);
+        assertEquals("k8s", tsRelation.indexPattern());
+
+        // branch 2 — FROM sample_data subquery: outer @timestamp filter combined with the inner
+        // WHERE client_ip == "172.21.0.5". The And keeps the subquery's original filter on the
+        // left and the pushed-down predicate on the right.
+        Project fromProject = as(unionAll.children().get(2), Project.class);
+        Eval fromEval = as(fromProject.child(), Eval.class);
+        Subquery fromSubquery = as(fromEval.child(), Subquery.class);
+        Filter fromFilter = as(fromSubquery.child(), Filter.class);
+        And fromAnd = as(fromFilter.condition(), And.class);
+        // right side: pushed-down @timestamp predicate
+        GreaterThan fromOuterGt = as(fromAnd.right(), GreaterThan.class);
+        assertEquals("@timestamp", as(fromOuterGt.left(), FieldAttribute.class).name());
+        Literal fromOuterValue = as(fromOuterGt.right(), Literal.class);
+        assertEquals(EsqlDataTypeConverter.convert("2024-01-01", DataType.DATETIME, configuration), fromOuterValue.value());
+        EsRelation fromRelation = as(fromFilter.child(), EsRelation.class);
+        assertEquals("sample_data", fromRelation.indexPattern());
+
+        // branch 3 — ROW @timestamp = 2026-01-01: pushed-down "@timestamp > 2024-01-01" folds to
+        // true against the literal, so the Filter node is removed and only the LocalRelation
+        // remains under the Subquery wrapper.
+        Project rowProject = as(unionAll.children().get(3), Project.class);
+        Eval rowEval = as(rowProject.child(), Eval.class);
+        Subquery rowSubquery = as(rowEval.child(), Subquery.class);
+        as(rowSubquery.child(), LocalRelation.class);
+    }
 }

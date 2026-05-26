@@ -597,3 +597,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.VirtualBatchedCompoundCommitsIT
   method: testVirtualBatchedCompoundCommitUploadMetrics
   issue: https://github.com/elastic/elasticsearch/issues/149864
+- class: org.elasticsearch.search.TelemetryMetrics.ShardSearchPhaseAPMMetricsTests
+  method: testUniformCanMatchMetricAttributesWhenPlentyOfDocumentsInIndex
+  issue: https://github.com/elastic/elasticsearch/issues/149874

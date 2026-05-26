@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 144427
+summary: Improve error message for object mapping conflicts in ESQL
+type: enhancement

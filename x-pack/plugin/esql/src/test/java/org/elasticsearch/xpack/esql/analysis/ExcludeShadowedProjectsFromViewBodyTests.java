@@ -37,10 +37,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 
 /**
- * Tests for the {@code Analyzer.ResolveViewShadow} and {@code ExcludeShadowedProjectsFromViewBody}
- * analyzer rules. Each test builds a small plan tree by hand (since {@link ViewShadowRelation} has no
- * surface syntax) and supplies the {@link AnalyzerContext#optionalLinkedResolution()} map directly —
- * the same map that {@code EsqlSession}'s lenient field-caps pass populates in production — to verify:
+ * Tests for the {@code Analyzer.ExcludeShadowedProjectsFromViewBody} analyzer rule. Each test builds a
+ * small plan tree by hand (since {@link ViewShadowRelation} has no surface syntax) and supplies the
+ * {@link AnalyzerContext#optionalLinkedResolution()} map directly — the same map that
+ * {@code EsqlSession}'s lenient field-caps pass populates in production — to verify:
  * <ul>
  *   <li>shadow with a valid lenient resolution → replaced with {@code EsRelation};</li>
  *   <li>shadow with no lenient entry (or an invalid resolution) → left unresolved, then stripped
@@ -59,36 +59,15 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
  * "No limit defined" warning that {@code AddImplicitLimit} adds since the test inputs are bare
  * relations.
  */
-public class ResolveViewShadowTests extends ESTestCase {
+public class ExcludeShadowedProjectsFromViewBodyTests extends ESTestCase {
 
     private static final Source EMPTY = Source.EMPTY;
     private static final String NO_LIMIT_WARNING = "No limit defined, adding default limit of [1000]";
 
     /**
-     * Shadow with a valid lenient {@link IndexResolution} → replaced with an {@link EsRelation}
-     * over the resolved remote index's mapping.
-     */
-    public void testShadowResolvesToEsRelationWhenLenientMatches() {
-        EsIndex remoteV1 = EsIndexGenerator.esIndex("v1", LoadMapping.loadMapping("mapping-one-field.json"));
-        var analyzer = analyzer().addLenientShadow(remoteV1).buildAnalyzer();
-
-        LogicalPlan plan = analyzer.analyze(new ViewShadowRelation(EMPTY, "v1", List.of()));
-
-        var limit = as(plan, Limit.class);
-        var esRelation = as(unwrapProject(limit.child()), EsRelation.class);
-        assertEquals("v1", esRelation.indexPattern());
-        // The mapping has emp_no — confirms the shadow's EsRelation carries the remote index's fields.
-        assertTrue(
-            "expected emp_no field in the resolved EsRelation, got: " + esRelation.output(),
-            esRelation.output().stream().map(Attribute::name).anyMatch("emp_no"::equals)
-        );
-        assertWarnings(NO_LIMIT_WARNING);
-    }
-
-    /**
-     * Shadow with no lenient match → falls through {@code ResolveViewShadow} unchanged. With a
-     * strict sibling in a {@link ViewUnionAll}, {@code ViewCompactionPostIndexResolution}'s strip
-     * removes the unresolved shadow; the surviving sibling is the strict {@link EsRelation}.
+     * Shadow with no lenient match → left unresolved. With a strict sibling in a
+     * {@link ViewUnionAll}, {@code ViewCompactionPostIndexResolution}'s strip removes the unresolved
+     * shadow; the surviving sibling is the strict {@link EsRelation}.
      */
     public void testShadowStrippedWhenNoLenientMatch() {
         EsIndex strictIdx = EsIndexGenerator.esIndex("strict_idx", LoadMapping.loadMapping("mapping-one-field.json"));
@@ -144,8 +123,16 @@ public class ResolveViewShadowTests extends ESTestCase {
         assertEquals("expected two children, got: " + unionAll, 2, unionAll.children().size());
         // Each child resolves to an EsRelation (possibly under analyzer-inserted Project wrappers
         // for output alignment across the UnionAll branches).
-        var indexNames = unionAll.children().stream().map(c -> as(unwrapProject(c), EsRelation.class).indexPattern()).sorted().toList();
-        assertEquals(List.of("strict_idx", "v1"), indexNames);
+        var byPattern = unionAll.children()
+            .stream()
+            .map(c -> as(unwrapProject(c), EsRelation.class))
+            .collect(Collectors.toMap(EsRelation::indexPattern, r -> r));
+        assertEquals(Set.of("strict_idx", "v1"), byPattern.keySet());
+        // The shadow's EsRelation carries the remote index's fields (the mapping has emp_no).
+        assertTrue(
+            "expected emp_no field in the shadow's EsRelation, got: " + byPattern.get("v1").output(),
+            byPattern.get("v1").output().stream().map(Attribute::name).anyMatch("emp_no"::equals)
+        );
         assertWarnings(NO_LIMIT_WARNING);
     }
 
@@ -157,14 +144,21 @@ public class ResolveViewShadowTests extends ESTestCase {
     public void testShadowLookupKeyIncludesExclusions() {
         ViewShadowRelation shadow = new ViewShadowRelation(EMPTY, "v1", List.of("-stale-*"));
         assertEquals("v1,-stale-*", shadow.optionalLinkedPattern().indexPattern());
+        EsIndex strictIdx = EsIndexGenerator.esIndex("strict_idx", LoadMapping.loadMapping("mapping-one-field.json"));
         EsIndex remoteV1 = EsIndexGenerator.esIndex("v1", LoadMapping.loadMapping("mapping-one-field.json"));
-        var analyzer = analyzer().addLenientShadow(shadow.optionalLinkedPattern(), IndexResolution.valid(remoteV1)).buildAnalyzer();
+        var analyzer = analyzer().addIndex(strictIdx)
+            .addLenientShadow(shadow.optionalLinkedPattern(), IndexResolution.valid(remoteV1))
+            .buildAnalyzer();
 
-        LogicalPlan plan = analyzer.analyze(shadow);
+        LogicalPlan plan = analyzer.analyze(viewUnionAllOf("strict_idx", strictUR("strict_idx"), shadow));
 
-        var limit = as(plan, Limit.class);
-        var esRelation = as(unwrapProject(limit.child()), EsRelation.class);
-        assertEquals("v1", esRelation.indexPattern());
+        // The shadow resolved under its full pattern key (view name + exclusions): a v1 branch is present.
+        var indexNames = as(as(plan, Limit.class).child(), ViewUnionAll.class).children()
+            .stream()
+            .map(c -> as(unwrapProject(c), EsRelation.class).indexPattern())
+            .sorted()
+            .toList();
+        assertEquals(List.of("strict_idx", "v1"), indexNames);
         assertWarnings(NO_LIMIT_WARNING);
     }
 
@@ -188,10 +182,14 @@ public class ResolveViewShadowTests extends ESTestCase {
             .addIndex(EsIndexGenerator.esIndex("strict_idx", LoadMapping.loadMapping("mapping-one-field.json")))
             .buildAnalyzer();
 
-        // matchedShadow alone: resolves to EsRelation.
-        LogicalPlan matchedPlan = analyzer.analyze(matchedShadow);
-        var matchedEs = as(unwrapProject(as(matchedPlan, Limit.class).child()), EsRelation.class);
-        assertEquals("my-data", matchedEs.indexPattern());
+        // matchedShadow in a union: its exclusion-bearing pattern resolves to a remote index.
+        LogicalPlan matchedPlan = analyzer.analyze(viewUnionAllOf("strict_idx", strictUR("strict_idx"), matchedShadow));
+        var matchedNames = as(as(matchedPlan, Limit.class).child(), ViewUnionAll.class).children()
+            .stream()
+            .map(c -> as(unwrapProject(c), EsRelation.class).indexPattern())
+            .sorted()
+            .toList();
+        assertEquals(List.of("my-data", "strict_idx"), matchedNames);
 
         // emptyShadow paired with a strict UR: stripped, leaving just the strict EsRelation.
         LogicalPlan emptyPlan = analyzer.analyze(viewUnionAllOf("strict_idx", strictUR("strict_idx"), emptyShadow));
@@ -408,11 +406,11 @@ public class ResolveViewShadowTests extends ESTestCase {
         // inner ViewUnionAll: v2 = FROM source-idx, plus v2's shadow
         LinkedHashMap<String, LogicalPlan> inner = new LinkedHashMap<>();
         inner.put("v2", strictUR("source-idx"));
-        inner.put("v2" + ViewShadowRelation.NAME_SUFFIX, new ViewShadowRelation(EMPTY, "v2", List.of()));
+        inner.put("v2#shadow", new ViewShadowRelation(EMPTY, "v2", List.of()));
         // outer ViewUnionAll: v = FROM v2, plus v's shadow
         LinkedHashMap<String, LogicalPlan> outer = new LinkedHashMap<>();
         outer.put("v", new ViewUnionAll(EMPTY, inner, List.of()));
-        outer.put("v" + ViewShadowRelation.NAME_SUFFIX, new ViewShadowRelation(EMPTY, "v", List.of()));
+        outer.put("v#shadow", new ViewShadowRelation(EMPTY, "v", List.of()));
 
         LogicalPlan plan = analyzer.analyze(new ViewUnionAll(EMPTY, outer, List.of()));
 

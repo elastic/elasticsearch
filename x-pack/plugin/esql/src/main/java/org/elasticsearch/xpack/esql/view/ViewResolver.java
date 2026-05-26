@@ -390,7 +390,7 @@ public class ViewResolver {
                     for (var view : response.views()) {
                         ViewShadowRelation shadow = viewShadows.get(view.name());
                         if (shadow != null) {
-                            subqueries.add(new ViewPlan(view.name() + ViewShadowRelation.NAME_SUFFIX, shadow));
+                            subqueries.add(new ViewPlan(view.name() + "#shadow", shadow));
                         }
                     }
                 }

@@ -34,10 +34,9 @@ import java.util.Objects;
  *       field-caps pass over them (linked projects only — {@code IndexResolver.FLAT_WORLD_OPTIONS}),
  *       landing results in {@code AnalyzerContext.optionalLinkedResolution}, keyed by
  *       {@link #optionalLinkedPattern()}.</li>
- *   <li>In the Initialize batch, {@code ExcludeShadowedProjectsFromViewBody} resolves in-union
- *       shadows against that map (replacing a matched shadow with the remote index's
- *       {@code EsRelation}) and removes the owning projects from the paired view body;
- *       {@code ResolveViewShadow} resolves any standalone shadow not inside a {@link ViewUnionAll}.</li>
+ *   <li>In the Initialize batch, {@code ExcludeShadowedProjectsFromViewBody} resolves the shadows
+ *       against that map (replacing a matched shadow with the remote index's {@code EsRelation}) and
+ *       removes the owning projects from the paired view body.</li>
  *   <li>{@code ViewCompactionPostIndexResolution} strips any still-unresolved shadow, then flattens
  *       nested {@link ViewUnionAll}s and unwraps {@code NamedSubquery} wrappers. Per Strategy A in
  *       <a href="https://github.com/elastic/esql-planning/issues/543">esql-planning#543</a>, sibling
@@ -60,15 +59,6 @@ import java.util.Objects;
  * <em>indices</em> with the same name as a local view.
  */
 public class ViewShadowRelation extends LeafPlan implements Unresolvable {
-
-    /**
-     * Suffix appended to a view name to key its shadow branch inside the per-level
-     * {@link ViewUnionAll}, distinguishing it from the strict view-body branch (keyed by the bare
-     * view name) so both can coexist in the named-subqueries map. It is purely a map-key
-     * disambiguator: the {@code Analyzer} pairs a shadow with its body by the view name the shadow
-     * carries ({@link #viewName()}), not by parsing this suffix.
-     */
-    public static final String NAME_SUFFIX = "#shadow";
 
     private final String viewName;
     private final List<String> exclusions;

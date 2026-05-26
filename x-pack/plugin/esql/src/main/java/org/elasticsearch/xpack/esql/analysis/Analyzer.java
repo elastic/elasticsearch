@@ -238,7 +238,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new ResolveConfigurationAware(),
             new ResolveTable(),
             new ExcludeShadowedProjectsFromViewBody(),
-            new ResolveViewShadow(),
             new ViewCompactionPostIndexResolution(),
             new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
@@ -470,58 +469,18 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Resolves a standalone {@link ViewShadowRelation} (one not inside a {@link ViewUnionAll}, which
-     * {@link ExcludeShadowedProjectsFromViewBody} handles) against
-     * {@link AnalyzerContext#optionalLinkedResolution()} — the lenient field-caps results keyed by the
-     * shadow's {@link ViewShadowRelation#optionalLinkedPattern()} (view name + applicable exclusions, so
-     * the same view at different exclusion positions can resolve differently). A valid resolution
-     * replaces the shadow with the remote index's {@link EsRelation}; otherwise the shadow is left for
-     * {@link ViewCompactionPostIndexResolution} to strip.
-     */
-    private static class ResolveViewShadow extends ParameterizedAnalyzerRule<ViewShadowRelation, AnalyzerContext> {
-
-        @Override
-        protected LogicalPlan rule(ViewShadowRelation shadow, AnalyzerContext context) {
-            IndexResolution resolution = context.optionalLinkedResolution().get(shadow.optionalLinkedPattern());
-            if (resolution == null || resolution.isValid() == false) {
-                // No remote index found (or lookup didn't run yet) — leave the shadow alone for
-                // ViewCompactionPostIndexResolution to strip.
-                return shadow;
-            }
-            return esRelationForShadow(shadow, resolution);
-        }
-    }
-
-    /**
-     * Builds the {@link EsRelation} that a matched {@link ViewShadowRelation} resolves to — the remote
-     * index sharing the local view's name. Shared by {@link ResolveViewShadow} (standalone shadows)
-     * and {@link ExcludeShadowedProjectsFromViewBody} (in-union shadows).
-     */
-    private static EsRelation esRelationForShadow(ViewShadowRelation shadow, IndexResolution resolution) {
-        EsIndex esIndex = resolution.get();
-        var attributes = mappingAsAttributes(shadow.source(), esIndex.mapping());
-        return new EsRelation(
-            shadow.source(),
-            esIndex.name(),
-            IndexMode.STANDARD,
-            esIndex.originalIndices(),
-            esIndex.concreteIndices(),
-            esIndex.indexNameWithModes(),
-            attributes.isEmpty() ? NO_FIELDS : attributes
-        );
-    }
-
-    /**
      * Excludes a linked project from a local view's body when that project owns an <em>index</em>
      * sharing the view's name: the index wins on its own project, so the view must not run there and
      * the project contributes only via its index (the resolved shadow branch). The owning projects
      * come from the matched shadow's {@link EsRelation#concreteIndices()} and are removed from the
      * body — paired by the view name the shadow carries — via {@link EsRelation#withoutClusters}.
      * <p>
-     * Resolving the in-union shadows here and running bottom-up means an inner shadow is already an
-     * {@link EsRelation} when an enclosing collision prunes its subtree, so an outer collision also
-     * excludes inner same-named indexes. {@link ResolveViewShadow} still resolves any standalone
-     * shadow. See <a href="https://github.com/elastic/esql-planning/issues/795">esql-planning#795</a>.
+     * This rule resolves the in-union shadows itself. A {@link ViewShadowRelation} is always emitted
+     * inside a {@link ViewUnionAll}, so every shadow flows through here (an unmatched one is left for
+     * {@link ViewCompactionPostIndexResolution} to strip). Running bottom-up means an inner shadow is
+     * already an {@link EsRelation} when an enclosing collision prunes its subtree, so an outer
+     * collision also excludes inner same-named indexes. See
+     * <a href="https://github.com/elastic/esql-planning/issues/795">esql-planning#795</a>.
      */
     private static class ExcludeShadowedProjectsFromViewBody extends ParameterizedAnalyzerRule<ViewUnionAll, AnalyzerContext> {
 
@@ -535,9 +494,19 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (child instanceof ViewShadowRelation shadow) {
                     IndexResolution resolution = context.optionalLinkedResolution().get(shadow.optionalLinkedPattern());
                     if (resolution != null && resolution.isValid()) {
-                        projectsByView.computeIfAbsent(shadow.viewName(), k -> new HashSet<>())
-                            .addAll(resolution.get().concreteIndices().keySet());
-                        children.put(entry.getKey(), esRelationForShadow(shadow, resolution));
+                        EsIndex esIndex = resolution.get();
+                        var attributes = mappingAsAttributes(shadow.source(), esIndex.mapping());
+                        EsRelation resolved = new EsRelation(
+                            shadow.source(),
+                            esIndex.name(),
+                            IndexMode.STANDARD,
+                            esIndex.originalIndices(),
+                            esIndex.concreteIndices(),
+                            esIndex.indexNameWithModes(),
+                            attributes.isEmpty() ? NO_FIELDS : attributes
+                        );
+                        projectsByView.computeIfAbsent(shadow.viewName(), k -> new HashSet<>()).addAll(esIndex.concreteIndices().keySet());
+                        children.put(entry.getKey(), resolved);
                         continue;
                     }
                 }

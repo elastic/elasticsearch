@@ -298,9 +298,8 @@ public class WorkerBulkByPaginatedSearchTaskState implements SuccessfullyProcess
     }
 
     /// Atomically reads the current RPS and sets a flag preventing further rethrottle via
-    /// {@link #rethrottleWithRelocationGuard}. Only valid for non-sliced workers.
+    /// {@link #rethrottleWithRelocationGuard}. Only valid for non-child workers.
     public float captureRequestsPerSecondForRelocation() {
-        assert sliceId == null : "should only be called on non-sliced workers";
         synchronized (delayedPrepareBulkRequestReference) {
             capturedRpsForRelocation = true;
             return requestsPerSecond;

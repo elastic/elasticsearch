@@ -19,12 +19,15 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges;
+import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges.DatasourcePrivileges.DatasourcePermissionGroup;
 
 import java.io.ByteArrayOutputStream;
 import java.util.Arrays;
 import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class ConfigurableClusterPrivilegesTests extends ESTestCase {
 
@@ -37,6 +40,20 @@ public class ConfigurableClusterPrivilegesTests extends ESTestCase {
                 final ConfigurableClusterPrivilege[] copy = ConfigurableClusterPrivileges.readArray(in);
                 assertThat(copy, equalTo(original));
                 assertThat(original, equalTo(copy));
+            }
+        }
+    }
+
+    public void testReadArrayRoundTripsEmptyDatasourcePrivileges() throws Exception {
+        var emptyPrivilege = new ConfigurableClusterPrivileges.DatasourcePrivileges(List.of());
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            ConfigurableClusterPrivileges.writeArray(out, new ConfigurableClusterPrivilege[] { emptyPrivilege });
+            NamedWriteableRegistry registry = new NamedWriteableRegistry(new XPackClientPlugin().getNamedWriteables());
+            try (StreamInput in = new NamedWriteableAwareStreamInput(out.bytes().streamInput(), registry)) {
+                ConfigurableClusterPrivilege[] copy = ConfigurableClusterPrivileges.readArray(in);
+                assertThat(copy.length, equalTo(1));
+                assertThat(copy[0], instanceOf(ConfigurableClusterPrivileges.DatasourcePrivileges.class));
+                assertThat(copy[0], equalTo(emptyPrivilege));
             }
         }
     }
@@ -61,7 +78,7 @@ public class ConfigurableClusterPrivilegesTests extends ESTestCase {
     }
 
     private ConfigurableClusterPrivilege[] buildSecurityPrivileges() {
-        return switch (randomIntBetween(0, 4)) {
+        return switch (randomIntBetween(0, 5)) {
             case 0 -> new ConfigurableClusterPrivilege[0];
             case 1 -> new ConfigurableClusterPrivilege[] { ManageApplicationPrivilegesTests.buildPrivileges() };
             case 2 -> new ConfigurableClusterPrivilege[] { WriteProfileDataPrivilegesTests.buildPrivileges() };
@@ -70,6 +87,15 @@ public class ConfigurableClusterPrivilegesTests extends ESTestCase {
                 ManageApplicationPrivilegesTests.buildPrivileges(),
                 WriteProfileDataPrivilegesTests.buildPrivileges(),
                 ManageRolesPrivilegesTests.buildPrivileges() };
+            case 5 -> new ConfigurableClusterPrivilege[] {
+                new DatasourcePrivileges(
+                    List.of(
+                        new DatasourcePermissionGroup(
+                            new String[] { "ds_" + randomAlphaOfLength(4) + "*" },
+                            new String[] { DatasourcePrivileges.PRIVILEGE_READ, DatasourcePrivileges.PRIVILEGE_READ_METADATA }
+                        )
+                    )
+                ) };
             default -> throw new IllegalStateException("Unexpected value");
         };
     }

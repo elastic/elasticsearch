@@ -831,4 +831,8 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
         }
     }
 
+    @Override
+    protected IndexOptions defaultDisabledIndexOption() {
+        return IndexOptions.DOCS;
+    }
 }

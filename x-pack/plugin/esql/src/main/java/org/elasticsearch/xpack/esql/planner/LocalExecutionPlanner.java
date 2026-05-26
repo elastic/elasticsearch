@@ -114,6 +114,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.datasources.DeferredExtractionCapable;
 import org.elasticsearch.xpack.esql.datasources.ExternalFieldExtractOperator;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
+import org.elasticsearch.xpack.esql.datasources.FileMetadataColumns;
 import org.elasticsearch.xpack.esql.datasources.OperatorFactoryRegistry;
 import org.elasticsearch.xpack.esql.datasources.PartitionMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -134,6 +135,7 @@ import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.inference.InferenceService;
 import org.elasticsearch.xpack.esql.inference.completion.CompletionOperator;
 import org.elasticsearch.xpack.esql.inference.rerank.RerankOperator;
+import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
@@ -186,6 +188,7 @@ import org.elasticsearch.xpack.esql.session.EsqlCCSUtils;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -1440,6 +1443,12 @@ public class LocalExecutionPlanner {
             projectedColumns.add(attr.name());
         }
 
+        // ProjectAwayColumns inserts a single synthetic attribute when all real columns are pruned.
+        // Treat it the same as empty, so the decoder takes the row-count-only fast path.
+        if (projectedColumns.size() == 1 && ProjectAwayColumns.ALL_FIELDS_PROJECTED.equals(projectedColumns.getFirst())) {
+            projectedColumns = List.of();
+        }
+
         int pushedLimit = externalSource.pushedLimit();
 
         // Shrink buffer for small limits
@@ -1474,11 +1483,19 @@ public class LocalExecutionPlanner {
                 instanceCount = Math.min(splitCount, maxParallelism);
             }
         }
-        Set<String> partitionColumnNames = Set.of();
+        // Carries every name VirtualColumnIterator should materialise: Hive-style partition columns
+        // plus always-on _file.* metadata. Passed through SourceOperatorContext.partitionColumnNames
+        // (legacy method name kept to avoid an SPI rename on this PR).
+        Set<String> virtualColumnNames = new LinkedHashSet<>();
         if (fileList != null) {
             PartitionMetadata pm = fileList.partitionMetadata();
             if (pm != null && pm.isEmpty() == false) {
-                partitionColumnNames = pm.partitionColumns().keySet();
+                virtualColumnNames.addAll(pm.partitionColumns().keySet());
+            }
+        }
+        for (Attribute attr : externalSource.output()) {
+            if (FileMetadataColumns.isFileMetadataColumn(attr.name())) {
+                virtualColumnNames.add(attr.name());
             }
         }
 
@@ -1498,7 +1515,7 @@ public class LocalExecutionPlanner {
             .pushedExpressions(externalSource.pushedExpressions())
             .fileList(fileList)
             .schemaMap(externalSource.schemaMap())
-            .partitionColumnNames(partitionColumnNames)
+            .partitionColumnNames(virtualColumnNames)
             .sliceQueue(sliceQueue)
             .parsingParallelism(context.queryPragmas().parsingParallelism())
             .parallelism(instanceCount)

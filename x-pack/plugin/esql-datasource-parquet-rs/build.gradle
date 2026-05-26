@@ -244,6 +244,9 @@ ext.testsEnabled = switch(OS.current()) {
   case OS.LINUX -> {
     // The native lib requires glibc >= 2.30, (max version from 'nm -D ./libesql_parquet_rs.so | grep '@GLIBC')
     // RedHat 8 and derived distros have glibc 2.28, disable tests on those.
+    //
+    // This is a stopgap solution that needs to be reevaluated when development of this module restarts.
+    // See https://github.com/elastic/elasticsearch/issues/149917
     Version glibcVersion = java.util.Optional.ofNullable(System.getenv("GLIBC_VERSION"))
       .map(v -> Version.fromString(v, Version.Mode.RELAXED))
       .orElse(null)

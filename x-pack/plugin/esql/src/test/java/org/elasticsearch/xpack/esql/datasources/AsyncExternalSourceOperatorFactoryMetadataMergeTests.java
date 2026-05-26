@@ -139,7 +139,7 @@ public class AsyncExternalSourceOperatorFactoryMetadataMergeTests extends ESTest
     private Page runMultiFilePathWithIndex(BytesRef hivePartitionValue) throws Exception {
         StoragePath filePath = StoragePath.of("s3://bucket/data/year=2026/_index=" + hivePartitionValue.utf8ToString() + "/f.parquet");
         List<StorageEntry> entries = List.of(new StorageEntry(filePath, 100, Instant.EPOCH));
-        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/**/f.parquet");
+        FileList fileList = GlobExpander.fileListOf(entries, "s3://bucket/data/**" + "/f.parquet");
 
         FormatReader formatReader = new SingleIntPageFormatReader();
         StorageProvider storageProvider = new StubStorageProvider();

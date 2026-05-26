@@ -1486,7 +1486,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testDateRangeSorting() {
-        assumeTrue("Requires DATE_RANGE_FIELD_TYPE_V5 capability", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V5.isEnabled());
+        assumeTrue("Requires DATE_RANGE_FIELD_TYPE_V6 capability", EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled());
         analyzer().addIndex("decades", "mapping-decades.json")
             .stripErrorPrefix(true)
             .error("FROM decades | SORT date_range", equalTo("1:21: cannot sort on date_range"));

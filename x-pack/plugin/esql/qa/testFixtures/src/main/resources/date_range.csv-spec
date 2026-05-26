@@ -728,34 +728,6 @@ decade:integer | date_range:date_range
 1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
 ;
 
-rangeIntersectsPushdownMultiValue
-required_capability: date_range_field_type_v6
-
-FROM mv_decades
-| WHERE RANGE_INTERSECTS(date_range, TO_DATE_RANGE("1800-01-01..2100-01-01"))
-| KEEP decade, date_range
-| SORT decade
-;
-warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
-warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
-
-decade:integer | date_range:date_range
-1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
-;
-
-rangeContainsPushdownMultiValue
-required_capability: date_range_field_type_v6
-
-FROM mv_decades
-| WHERE RANGE_CONTAINS(date_range, TO_DATETIME("1905-01-01"))
-| KEEP decade, date_range
-| SORT decade
-;
-
-decade:integer | date_range:date_range
-1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
-;
-
 
 ###############################################
 # RANGE_CONTAINS tests
@@ -804,6 +776,19 @@ ROW outer = TO_DATE_RANGE("1900-01-01..2000-01-01"),
 
 contains_inner:boolean | contains_overlap:boolean
 true                   | false
+;
+
+rangeContainsPushdownMultiValue
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| WHERE RANGE_CONTAINS(date_range, TO_DATETIME("1905-01-01"))
+| KEEP decade, date_range
+| SORT decade
+;
+
+decade:integer | date_range:date_range
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
 ;
 
 
@@ -1099,6 +1084,21 @@ warningRegex:java.lang.IllegalArgumentException: single-value function encounter
 
 decade:integer | event_dates:date
 1900           | 1905-06-01T00:00:00.000Z
+;
+
+rangeIntersectsPushdownMultiValue
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| WHERE RANGE_INTERSECTS(date_range, TO_DATE_RANGE("1800-01-01..2100-01-01"))
+| KEEP decade, date_range
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | date_range:date_range
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
 ;
 
 

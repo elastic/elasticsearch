@@ -54,7 +54,6 @@ public class RangeIntersectsPushdownTests extends ESTestCase {
     public void testDateFieldWithLiteralRange() {
         RangeIntersects fn = new RangeIntersects(Source.EMPTY, dateField("hire_date"), rangeLiteral(FROM, TO));
         var query = fn.asQuery(LucenePushdownPredicates.DEFAULT, TranslatorHandler.TRANSLATOR_HANDLER);
-        // Default INTERSECTS (date field): no explicit relation needed.
         assertThat(
             query,
             equalTo(
@@ -67,7 +66,7 @@ public class RangeIntersectsPushdownTests extends ESTestCase {
                     false,
                     DEFAULT_DATE_TIME_FORMATTER.pattern(),
                     null,
-                    null
+                    ShapeRelation.INTERSECTS
                 )
             )
         );

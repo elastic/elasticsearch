@@ -254,9 +254,7 @@ public class RangeIntersects extends EsqlScalarFunction implements SurrogateExpr
             upper = dateTimeToString(r.to());
             includeUpper = false;
         }
-        // For a date field the default INTERSECTS relation is implicit; for a date_range field we set it explicitly.
-        ShapeRelation relation = attribute.dataType() == DATE_RANGE ? ShapeRelation.INTERSECTS : null;
-        return new RangeQuery(source(), name, lower, true, upper, includeUpper, format, null, relation);
+        return new RangeQuery(source(), name, lower, true, upper, includeUpper, format, null, ShapeRelation.INTERSECTS);
     }
 
     @Override

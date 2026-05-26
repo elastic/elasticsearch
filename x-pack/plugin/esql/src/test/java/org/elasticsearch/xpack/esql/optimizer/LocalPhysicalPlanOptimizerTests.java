@@ -2883,6 +2883,7 @@ public class LocalPhysicalPlanOptimizerTests extends AbstractLocalPhysicalPlanOp
                 rangeQuery("event_dates").from("1960-01-01T00:00:00.000Z", true)
                     .to("1970-01-01T00:00:00.000Z", false)
                     .format("strict_date_optional_time")
+                    .relation("intersects")
             )
         );
         assertThat(esQueryExec.query().toString(), equalTo(expected.toString()));

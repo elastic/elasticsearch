@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.ArrayUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
@@ -546,6 +547,31 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("[preference] cannot be used with point in time", validationErrors.validationErrors().get(0));
         }
+    }
+
+    public void testSearchSliceDerivesRoutingAndProvenance() {
+        SearchRequest request = new SearchRequest();
+        request.routing("manual");
+        request.searchSlice("s1,s2");
+        assertEquals("s1,s2", request.searchSlice());
+        assertEquals("s1,s2", request.routing());
+        assertTrue(request.isRoutingFromSlice());
+
+        request.searchSlice(SliceIndexing.SLICE_ALL);
+        assertEquals(SliceIndexing.SLICE_ALL, request.searchSlice());
+        assertNull(request.routing());
+        assertTrue(request.isRoutingFromSlice());
+    }
+
+    public void testClearingSearchSliceClearsDerivedRouting() {
+        SearchRequest request = new SearchRequest().searchSlice("s1");
+        request.searchSlice(null);
+        assertNull(request.searchSlice());
+        assertFalse(request.isRoutingFromSlice());
+        assertNull(request.routing());
+
+        request.routing("manual");
+        assertEquals("manual", request.routing());
     }
 
     public void testCopyConstructor() throws IOException {

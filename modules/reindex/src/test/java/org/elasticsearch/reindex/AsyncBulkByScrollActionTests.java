@@ -1402,6 +1402,27 @@ public class AsyncBulkByScrollActionTests extends ESTestCase {
         assertThat(sendBulkInvocations.get(), equalTo(0));
     }
 
+    public void testCopyRoutingPropagatesSliceRoutingProvenanceToWriteRequests() {
+        DummyAsyncBulkByScrollAction action = new DummyAsyncBulkByScrollAction();
+        testRequest.getSearchRequest().searchSlice("slice-1");
+
+        IndexRequest indexRequest = new IndexRequest().index("test").id("1");
+        DeleteRequest deleteRequest = new DeleteRequest("test", "1");
+        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(indexRequest), "slice-1");
+        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(deleteRequest), "slice-1");
+
+        assertThat(indexRequest.routing(), equalTo("slice-1"));
+        assertTrue(indexRequest.isRoutingFromSlice());
+        assertThat(deleteRequest.routing(), equalTo("slice-1"));
+        assertTrue(deleteRequest.isRoutingFromSlice());
+
+        testRequest.getSearchRequest().searchSlice(null);
+        IndexRequest routingRequest = new IndexRequest().index("test").id("2");
+        action.copyRouting(AbstractAsyncBulkByPaginatedSearchAction.wrap(routingRequest), "routing-value");
+        assertThat(routingRequest.routing(), equalTo("routing-value"));
+        assertFalse(routingRequest.isRoutingFromSlice());
+    }
+
     /**
      * Complementary to {@link #testPartialScrollRequestFinishing}: {@link AbstractAsyncBulkByPaginatedSearchAction#finishHim} runs first
      * and wins {@link AbstractAsyncBulkByPaginatedSearchAction#currentScrollResponse}'s {@code getAndSet(null)}, releasing unconsumed hits.

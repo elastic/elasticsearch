@@ -17,6 +17,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesBuilder;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
@@ -183,13 +184,20 @@ public class SchemaUtilTests extends ESTestCase {
                 listener -> SchemaUtil.getSourceFieldMappings(
                     client,
                     emptyMap(),
-                    new SourceConfig(new String[] { "index-1" }, QueryConfig.matchAll(), emptyMap(), projectRouting),
+                    new SourceConfig(
+                        new String[] { "index-1" },
+                        QueryConfig.matchAll(),
+                        emptyMap(),
+                        IndicesOptions.CPS_LENIENT_EXPAND_OPEN,
+                        projectRouting
+                    ),
                     new String[] { "field-1" },
                     listener
                 ),
                 mappings -> {
                     assertNotNull(client.lastFieldCapsRequest);
                     assertThat(client.lastFieldCapsRequest.getProjectRouting(), is(equalTo(projectRouting)));
+                    assertThat(client.lastFieldCapsRequest.indicesOptions(), is(equalTo(IndicesOptions.CPS_LENIENT_EXPAND_OPEN)));
                 }
             );
         }

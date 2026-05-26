@@ -1032,7 +1032,6 @@ public class TranslogTests extends ESTestCase {
                             case CREATE, INDEX -> indexOp("" + id, id, primaryTerm.get(), Long.toString(id));
                             case DELETE -> new Translog.Delete(Long.toString(id), id, primaryTerm.get());
                             case NO_OP -> new Translog.NoOp(id, 1, Long.toString(id));
-                            case BATCH -> throw new AssertionError("unreachable: BATCH excluded from singleOpTypes");
                         };
                         Translog.Location location = translog.add(op);
                         tracker.markSeqNoAsProcessed(id);
@@ -2452,7 +2451,6 @@ public class TranslogTests extends ESTestCase {
                             1 + randomInt(100000)
                         );
                         case NO_OP -> new Translog.NoOp(seqNoGenerator.getAndIncrement(), primaryTerm.get(), randomAlphaOfLength(16));
-                        case BATCH -> throw new AssertionError("unreachable: BATCH excluded from randomFrom");
                     };
 
                     Translog.Location loc = add(op);

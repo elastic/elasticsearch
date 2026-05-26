@@ -679,9 +679,9 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
      */
     public Location add(final IndexBatch batch) throws IOException {
         try (RecyclerBytesStreamOutput out = new RecyclerBytesStreamOutput(bigArrays.bytesRefRecycler())) {
-            writeHeaderWithSize(out, batch);
+            writeBatchHeaderWithSize(out, batch);
             final BytesReference header = out.bytes();
-            Serialized serialized = Serialized.create(header, null, new CRC32());
+            Serialized serialized = Serialized.create(header, ReleasableBytesReference.unwrap(batch.batchData()), new CRC32());
 
             readLock.lock();
             try {
@@ -717,7 +717,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
         }
     }
 
-    public record Serialized(BytesReference header, @Nullable BytesReference source, int length, int checksum) {
+    public record Serialized(BytesReference header, @Nullable BytesReference payload, int length, int checksum) {
 
         public Serialized(BytesReference header, @Nullable BytesReference source, int checksum) {
             this(header, source, header.length() + (source == null ? 0 : source.length()) + 4, checksum);
@@ -728,7 +728,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
             DataOutput out = EndiannessReverserUtil.wrapDataOutput(new ByteArrayDataOutput(checksumBytes));
             out.writeInt(checksum);
             BytesArray checksum = new BytesArray(checksumBytes);
-            return source == null ? CompositeBytesReference.of(header, checksum) : CompositeBytesReference.of(header, source, checksum);
+            return payload == null ? CompositeBytesReference.of(header, checksum) : CompositeBytesReference.of(header, payload, checksum);
         }
 
         public static Serialized create(BytesReference header, @Nullable BytesReference source, Checksum checksum) throws IOException {
@@ -758,8 +758,8 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         public void writeToTranslogBuffer(RecyclerBytesStreamOutput buffer) throws IOException {
             header.writeTo(buffer);
-            if (source != null) {
-                source.writeTo(buffer);
+            if (payload != null) {
+                payload.writeTo(buffer);
             }
             buffer.writeInt(checksum);
         }
@@ -1204,43 +1204,35 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
     /**
      * Marker for an entry on the transaction log. Either a single-document {@link Operation}
-     * (Index/Delete/NoOp) or an EIRF row {@link IndexBatch} carrying N documents in one record.
-     * <p>
-     * Batches are deliberately <em>not</em> a subclass of {@link Operation}: an Operation has one
-     * seqNo and every downstream consumer (snapshots, version resolution, recovery) treats it as
-     * such. Snapshots explode batches back into individual {@link Index} ops on read.
+     * (Index/Delete/NoOp) or an batch {@link IndexBatch} carrying N documents in one record.
      */
     public sealed interface Record permits Operation, IndexBatch {
+
         long primaryTerm();
-    }
 
-    /**
-     * Reads the type byte and the body of either an {@link Operation} or an {@link IndexBatch}.
-     * Does not consume a size prefix or verify a checksum — use
-     * {@link #readRecord(BufferedChecksumStreamInput)} when reading framed on-disk records.
-     */
-    public static Record readRecordBody(final StreamInput input) throws IOException {
-        final Translog.Operation.Type type = Translog.Operation.Type.fromId(input.readByte());
-        return switch (type) {
-            case CREATE, INDEX -> Index.readFrom(input);
-            case DELETE -> Delete.readFrom(input);
-            case NO_OP -> new NoOp(input);
-            case BATCH -> IndexBatch.readFrom(input);
-        };
-    }
-
-    /**
-     * A generic interface representing an operation performed on the transaction log.
-     * Each is associated with a type.
-     */
-    public abstract static sealed class Operation implements Writeable, Record permits Delete, Index, NoOp {
-        public enum Type {
+        /**
+         * Wire-level tag for every record kind that can appear in a translog file. Both
+         * {@link Operation} sub-types and {@link IndexBatch} records share this single-byte tag
+         * space,.
+         * <p>
+         * Note: byte ids for the non-batch values must match the corresponding
+         * {@link Operation.Type} constants
+         */
+        enum Type {
             @Deprecated
             CREATE((byte) 1),
             INDEX((byte) 2),
             DELETE((byte) 3),
             NO_OP((byte) 4),
             BATCH((byte) 5);
+
+            // Verify that the ids shared with Operation.Type stay in sync.
+            static {
+                assert CREATE.id == Operation.Type.CREATE.id();
+                assert INDEX.id == Operation.Type.INDEX.id();
+                assert DELETE.id == Operation.Type.DELETE.id();
+                assert NO_OP.id == Operation.Type.NO_OP.id();
+            }
 
             private final byte id;
 
@@ -1261,6 +1253,50 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
                     case 5 -> BATCH;
                     default -> throw new IllegalArgumentException("no type mapped for [" + id + "]");
                 };
+            }
+        }
+    }
+
+    /**
+     * Reads the type byte and the body of either an {@link Operation} or an {@link IndexBatch}.
+     * Does not consume a size prefix or verify a checksum — use
+     * {@link #readRecord(BufferedChecksumStreamInput)} when reading framed on-disk records.
+     */
+    public static Record readRecordBody(final StreamInput input) throws IOException {
+        final Record.Type type = Record.Type.fromId(input.readByte());
+        return switch (type) {
+            case CREATE, INDEX -> Index.readFrom(input);
+            case DELETE -> Delete.readFrom(input);
+            case NO_OP -> new NoOp(input);
+            case BATCH -> IndexBatch.readFrom(input);
+        };
+    }
+
+    /**
+     * A generic interface representing an operation performed on the transaction log.
+     * Each is associated with a type.
+     */
+    public abstract static sealed class Operation implements Writeable, Record permits Delete, Index, NoOp {
+
+        /**
+         * The type of a single-document operation.
+         */
+        // TODO: Eventually remove and migrate all usages to Record Type
+        public enum Type {
+            @Deprecated
+            CREATE((byte) 1),
+            INDEX((byte) 2),
+            DELETE((byte) 3),
+            NO_OP((byte) 4);
+
+            private final byte id;
+
+            Type(byte id) {
+                this.id = id;
+            }
+
+            public byte id() {
+                return this.id;
             }
         }
 
@@ -1291,7 +1327,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
          * {@link IndexBatch}; use {@link Translog#readRecordBody(StreamInput)} for batch-aware reads.
          */
         public static Operation readOperation(final StreamInput input) throws IOException {
-            final Translog.Operation.Type type = Translog.Operation.Type.fromId(input.readByte());
+            final Record.Type type = Record.Type.fromId(input.readByte());
             return switch (type) {
                 // the de-serialization logic in Index was identical to that of Create when create was deprecated
                 case CREATE, INDEX -> Index.readFrom(input);
@@ -1780,7 +1816,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * A translog record holding an EIRF row batch: a single on-disk record that carries N documents
+     * A translog record holding an EIRF batch: a single on-disk record that carries N documents
      * (the {@link #batchData} bytes) plus per-document metadata needed for replay.
      */
     public record IndexBatch(BytesReference batchData, long primaryTerm, List<Op> ops) implements Writeable, Record {
@@ -1910,7 +1946,7 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeByte(Operation.Type.BATCH.id());
+            out.writeByte(Record.Type.BATCH.id());
             writeBody(out);
         }
 
@@ -2132,18 +2168,31 @@ public class Translog extends AbstractIndexShardComponent implements IndexShardC
     }
 
     /**
-     * Writes a length-prefixed {@link IndexBatch} record (size + BATCH type byte + body) to the
-     * given buffer, matching the on-disk framing used by {@link TranslogHeaderWriter} for
-     * single-op records.
+     * Writes a length-prefixed {@link IndexBatch} metadata header (size + BATCH type byte + all
+     * body fields except the {@code batchData} bytes themselves) to the given buffer. The
+     * {@code batchData} payload is intentionally omitted so the caller can pass it as
+     * {@link Serialized#payload}, avoiding an extra copy of the EIRF payload — mirroring how
+     * {@link TranslogHeaderWriter#writeIndexHeader} writes the {@link Index} header without the
+     * source body and the caller carries the source {@link BytesReference} separately.
+     *
+     * <p>The size prefix is back-patched to account for the deferred {@code batchData} bytes and
+     * the 4-byte trailing checksum, so on-disk layout is identical to writing the full body
+     * inline.
      */
-    public static void writeHeaderWithSize(RecyclerBytesStreamOutput out, Translog.IndexBatch batch) throws IOException {
+    public static void writeBatchHeaderWithSize(RecyclerBytesStreamOutput out, Translog.IndexBatch batch) throws IOException {
         final long start = out.position();
         out.skip(Integer.BYTES);
-        out.writeByte(Translog.Operation.Type.BATCH.id());
-        batch.writeBody(out);
+        out.writeByte(Translog.Record.Type.BATCH.id());
+        out.writeVInt(IndexBatch.EXPERIMENTAL_PRE_RELEASE);
+        out.writeLong(batch.primaryTerm());
+        out.writeInt(batch.ops().size());
+        for (IndexBatch.Op op : batch.ops()) {
+            op.writeTo(out);
+        }
+        out.writeVInt(batch.batchData().length());
         final long end = out.position();
-        // total operation size on disk = (bytes after the size int) + 4 bytes for trailing checksum
-        final int operationSize = (int) (end - Integer.BYTES - start) + Integer.BYTES;
+        // total operation size on disk = (bytes after the size int) + batchData bytes + 4-byte trailing checksum
+        final int operationSize = Math.toIntExact(end - Integer.BYTES - start) + batch.batchData().length() + Integer.BYTES;
         out.seek(start);
         out.writeInt(operationSize);
         out.seek(end);

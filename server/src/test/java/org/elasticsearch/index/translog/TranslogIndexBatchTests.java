@@ -158,7 +158,7 @@ public class TranslogIndexBatchTests extends ESTestCase {
             batch.writeTo(out);
             try (StreamInput in = out.bytes().streamInput()) {
                 final byte typeByte = in.readByte();
-                assertEquals(Translog.Operation.Type.BATCH.id(), typeByte);
+                assertEquals(Translog.Record.Type.BATCH.id(), typeByte);
                 final Translog.IndexBatch read = Translog.IndexBatch.readFrom(in);
                 assertEquals(batch, read);
                 final Translog.IndexBatch.IndexOp op0 = (Translog.IndexBatch.IndexOp) read.ops().get(0);

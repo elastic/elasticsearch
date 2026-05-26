@@ -57,9 +57,8 @@ public class BulkShardOperationsTests extends IndexShardTestCase {
         for (int i = 0; i < numOps; i++) {
             final String id = Integer.toString(i);
             final long seqNo = i;
-            // BATCH is not relevant because the batches are exploded into individual ops in the translog snapshot
-            final Translog.Operation.Type type = randomValueOtherThanMany(
-                t -> t == Translog.Operation.Type.CREATE || t == Translog.Operation.Type.BATCH,
+            final Translog.Operation.Type type = randomValueOtherThan(
+                Translog.Operation.Type.CREATE,
                 () -> randomFrom(Translog.Operation.Type.values())
             );
             switch (type) {

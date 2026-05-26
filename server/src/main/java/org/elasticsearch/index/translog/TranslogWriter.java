@@ -295,7 +295,6 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
             assert minSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
             assert maxSeqNo != SequenceNumbers.NO_OPS_PERFORMED || operationCounter == 0;
 
-            // TODO: Eventually a batch should just be a range of seqNo continuous.
             for (Translog.IndexBatch.Op op : ops) {
                 final long seqNo = op.seqNo();
                 minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);

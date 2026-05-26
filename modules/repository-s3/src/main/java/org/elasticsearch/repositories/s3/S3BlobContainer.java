@@ -575,7 +575,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             .contentLength(contentLength)
             .storageClass(s3BlobStore.getStorageClass())
             .acl(s3BlobStore.getCannedACL())
-            .checksumAlgorithm(ChecksumAlgorithm.SHA256);
+            .checksumAlgorithm(ChecksumAlgorithm.SHA256 /* TODO NOCOMMIT make this user-configurable */);
         if (s3BlobStore.serverSideEncryption()) {
             putRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
         }

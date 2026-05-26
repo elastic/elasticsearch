@@ -412,8 +412,8 @@ class S3Repository extends MeteredBlobStoreRepository {
     }
 
     /**
-     * Validates explicit {@link #DATA_STORAGE_CLASS_SETTING} / {@link #METADATA_STORAGE_CLASS_SETTING} values during repository construction
-     * so misconfiguration surfaces when the repository is registered rather than on first blob store access.
+     * Validates explicit {@link #DATA_STORAGE_CLASS_SETTING} / {@link #METADATA_STORAGE_CLASS_SETTING} values during repository
+     * construction so misconfiguration surfaces when the repository is registered rather than on first blob store access.
      */
     private static void validatePerPurposeStorageClassIfSpecified(String repositoryName, String settingKey, String value) {
         if (Strings.hasText(value) == false) {

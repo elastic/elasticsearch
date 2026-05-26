@@ -62,10 +62,10 @@ public class ParquetReaderCountersTests extends ESTestCase {
 
     public void testFooterCacheHitMissCounters() {
         ParquetReaderCounters c = new ParquetReaderCounters();
-        c.recordFooterCacheMiss();
-        c.recordFooterCacheHit();
-        c.recordFooterCacheHit();
-        c.recordFooterCacheHit();
+        c.recordFooterCache(false);
+        c.recordFooterCache(true);
+        c.recordFooterCache(true);
+        c.recordFooterCache(true);
 
         Map<String, Object> snap = c.snapshot();
         assertEquals(3L, snap.get("footer_cache_hits"));

@@ -95,14 +95,16 @@ public final class OrcReaderCounters {
         }
     }
 
-    /** Records a footer-cache hit (parsed ORC tail reused without re-parsing). */
-    public void recordFooterCacheHit() {
-        footerCacheHits.increment();
-    }
-
-    /** Records a footer-cache miss (tail parsed and inserted into the cache). */
-    public void recordFooterCacheMiss() {
-        footerCacheMisses.increment();
+    /**
+     * Records one footer-cache lookup: {@code hit == true} when the parsed ORC tail was reused,
+     * {@code false} when this caller parsed and inserted it.
+     */
+    public void recordFooterCache(boolean hit) {
+        if (hit) {
+            footerCacheHits.increment();
+        } else {
+            footerCacheMisses.increment();
+        }
     }
 
     public Map<String, Object> snapshot() {

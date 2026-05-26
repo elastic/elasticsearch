@@ -414,11 +414,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     return ParquetFileReader.readFooter(adapter, readOptionsBuilder().build(), stream);
                 }
             });
-            if (missed[0]) {
-                counters.recordFooterCacheMiss();
-            } else {
-                counters.recordFooterCacheHit();
-            }
+            counters.recordFooterCache(missed[0] == false);
             return footer;
         } catch (ExecutionException e) {
             // rethrowStructural handles Error/IOException/CircuitBreakingException/

@@ -153,14 +153,16 @@ public final class ParquetReaderCounters {
         }
     }
 
-    /** Records a footer-cache hit (parsed footer reused without re-parsing). */
-    public void recordFooterCacheHit() {
-        footerCacheHits.increment();
-    }
-
-    /** Records a footer-cache miss (footer parsed and inserted into the cache). */
-    public void recordFooterCacheMiss() {
-        footerCacheMisses.increment();
+    /**
+     * Records one footer-cache lookup: {@code hit == true} when the parsed footer was reused,
+     * {@code false} when this caller parsed and inserted it.
+     */
+    public void recordFooterCache(boolean hit) {
+        if (hit) {
+            footerCacheHits.increment();
+        } else {
+            footerCacheMisses.increment();
+        }
     }
 
     /** Returns the per-column counters for {@code column}, creating them on first access. */

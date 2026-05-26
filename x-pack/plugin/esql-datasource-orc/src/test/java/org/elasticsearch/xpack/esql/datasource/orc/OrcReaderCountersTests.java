@@ -35,9 +35,9 @@ public class OrcReaderCountersTests extends ESTestCase {
 
     public void testFooterCacheHitMissCounters() {
         OrcReaderCounters counters = new OrcReaderCounters();
-        counters.recordFooterCacheMiss();
-        counters.recordFooterCacheHit();
-        counters.recordFooterCacheHit();
+        counters.recordFooterCache(false);
+        counters.recordFooterCache(true);
+        counters.recordFooterCache(true);
 
         Map<String, Object> snap = counters.snapshot();
         assertEquals(2L, snap.get("footer_cache_hits"));

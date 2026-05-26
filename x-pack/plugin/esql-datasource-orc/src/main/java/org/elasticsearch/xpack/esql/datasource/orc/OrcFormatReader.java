@@ -218,11 +218,7 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                     return ReaderImpl.extractFileTail(r.getSerializedFileFooter());
                 }
             });
-            if (missed[0]) {
-                counters.recordFooterCacheMiss();
-            } else {
-                counters.recordFooterCacheHit();
-            }
+            counters.recordFooterCache(missed[0] == false);
             return tail;
         } catch (ExecutionException e) {
             // rethrowStructural handles Error/IOException/CircuitBreakingException/

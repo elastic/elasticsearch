@@ -348,9 +348,8 @@ public sealed class FieldAttribute extends TypedAttribute permits TimeSeriesMeta
 
     /**
      * Renders the FieldAttribute as {@code [<qual>.]<name>{f[(SubclassName)][$]}#id}. Identifier
-     * mentions route through the supplied
-     * {@link org.elasticsearch.xpack.esql.core.tree.NodeStringMapper}; in LIMITED mode the
-     * EsField subclass marker is suppressed to keep the rendering compact.
+     * mentions route through the supplied {@link NodeStringMapper}; in LIMITED mode the EsField
+     * subclass marker is suppressed to keep the rendering compact.
      */
     @Override
     public void nodeString(StringBuilder sb, NodeStringFormat format, NodeStringMapper mapper) {

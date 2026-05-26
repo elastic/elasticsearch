@@ -182,11 +182,7 @@ public class Grok extends RegexExtract implements TelemetryAware, SortPreserving
      * {@code mapper.column}. The optional type-coercion suffix after the second colon passes
      * through.
      */
-    public static void rewriteGrokPattern(
-        StringBuilder sb,
-        String pattern,
-        org.elasticsearch.xpack.esql.core.tree.NodeStringMapper mapper
-    ) {
+    public static void rewriteGrokPattern(StringBuilder sb, String pattern, NodeStringMapper mapper) {
         if (pattern == null || pattern.isEmpty()) {
             return;
         }

@@ -28,10 +28,12 @@ import java.util.Set;
 import java.util.TreeMap;
 
 /**
- * Thin facade over {@link AnonymizationContext} and the {@code Node.anonymizedString} hook chain.
- * Each pipeline stage's tree is walked by its own per-class {@code anonymizedSelf} overrides; this
- * class only carries the per-submission context and renders the schema artifact (which has its
- * own format requirements separate from the plan toString shape).
+ * Thin facade over {@link AnonymizationContext}. Each pipeline stage's tree is rendered via
+ * {@code plan.toString(NodeStringFormat.FULL, mapper)} where the mapper is the context's
+ * {@link NodeStringMapper} view — every {@code nodeString} override that mentions an identifier or
+ * literal asks the mapper for the value to emit, and the mapper interns each one via the per-
+ * submission token maps. This class also renders the schema artifact (which has its own format
+ * requirements separate from the plan toString shape).
  */
 public final class PlanAnonymizer {
 

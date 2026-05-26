@@ -128,11 +128,7 @@ public class UnresolvedNamePattern extends UnresolvedNamedExpression {
      * between metacharacters routes through {@code mapper.column}. Backslash escapes the next
      * character (treated as literal).
      */
-    public static void rewriteWildcardPattern(
-        StringBuilder sb,
-        String pattern,
-        org.elasticsearch.xpack.esql.core.tree.NodeStringMapper mapper
-    ) {
+    public static void rewriteWildcardPattern(StringBuilder sb, String pattern, NodeStringMapper mapper) {
         if (pattern == null || pattern.isEmpty()) {
             return;
         }

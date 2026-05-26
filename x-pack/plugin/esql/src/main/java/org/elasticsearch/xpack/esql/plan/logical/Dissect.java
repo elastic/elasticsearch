@@ -164,11 +164,7 @@ public class Dissect extends RegexExtract implements TelemetryAware, SortPreserv
      * {@code +} (append) modifier right after the open brace — that's structural, preserved
      * verbatim. Separator characters between captures pass through.
      */
-    public static void rewriteDissectPattern(
-        StringBuilder sb,
-        String pattern,
-        org.elasticsearch.xpack.esql.core.tree.NodeStringMapper mapper
-    ) {
+    public static void rewriteDissectPattern(StringBuilder sb, String pattern, NodeStringMapper mapper) {
         if (pattern == null || pattern.isEmpty()) {
             return;
         }

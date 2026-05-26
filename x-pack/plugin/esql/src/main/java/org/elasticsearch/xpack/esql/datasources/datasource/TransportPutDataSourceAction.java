@@ -50,11 +50,9 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
         );
         this.dataSourceService = dataSourceService;
         this.encryptionService = encryptionService;
-        // EsqlPlugin couples the datasources feature to the project-encryption-key feature, so an
-        // EncryptionService is always bound when this action is registered — hence a hard injection
-        // rather than optional. This action is constructed on every node at startup; push the service
-        // into the shared DataSourceCredentials so the data-node decryption step (the lazy wrappers in
-        // DataSourceModule) reads through the same instance.
+        // The feature is coupled to project-encryption-key, so the service is always bound here (hard, not
+        // optional, injection). Constructed on every node at startup; hand it to the shared
+        // DataSourceCredentials for the data-node decryption path.
         credentials.setEncryptionService(encryptionService);
     }
 

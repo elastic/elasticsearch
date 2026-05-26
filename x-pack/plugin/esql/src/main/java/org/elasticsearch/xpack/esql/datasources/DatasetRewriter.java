@@ -235,9 +235,9 @@ public final class DatasetRewriter {
     }
 
     /**
-     * Parent settings overlaid by dataset settings. A secret's raw value is forwarded as-is: an
-     * encrypted secret carries an {@code EncryptedData}, which the data-node decryption step recognizes
-     * by type and materializes to plaintext; a null-valued secret and non-secrets pass through unchanged.
+     * Parent settings overlaid by dataset settings. A secret's raw value forwards as-is — an encrypted
+     * secret carries an {@code EncryptedData} the data-node decryption step recognizes by type; non-secrets
+     * and null secrets pass through.
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();

@@ -21,23 +21,15 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Decrypts secret values at the catalog-invocation point. The single per-node instance is created
- * by {@code EsqlPlugin.createComponents}; {@code TransportPutDataSourceAction} (constructed on every
- * node at startup, with {@link EncryptionService} as a hard injection) pushes the service into it. The
- * lazy wrappers in {@code DataSourceModule} hold the same instance and call {@link #decryptInPlace} on
- * every connector call to materialize plaintext from {@link EncryptedData} carriers just before the
- * connector uses them.
+ * Decrypts secret values at the connector boundary. Created once per node by {@code EsqlPlugin}, with the
+ * {@link EncryptionService} pushed in from {@code TransportPutDataSourceAction}'s ctor; the lazy wrappers
+ * in {@code DataSourceModule} call {@link #decryptInPlace} before each connector use.
  *
- * <p>{@code EsqlPlugin} couples the data-source feature to the project-encryption-key feature, so a node
- * serving a data source always has the service bound. The strict path below guards the otherwise
- * impossible unbound state: if an
- * {@link EncryptedData} reaches the connector boundary but no service is bound to decrypt it, the call
- * fails with {@code 503} — passing the SDK opaque bytes it can't read would surface as a confusing auth
- * error or worse.
+ * <p>The data-source feature is coupled to the project-encryption-key feature, so the service is always
+ * bound when a data source is served; the {@code 503} below guards the otherwise-impossible unbound case.
  *
- * <p>TODO(#149194): the volatile-slot pattern mirrors the same per-project mismatch the linked issue
- * flags inside {@code PrimaryEncryptionKeyService}. When that lands and the service becomes
- * project-aware, replace the slot with a per-call lookup that carries {@code ProjectId} context.
+ * <p>TODO(#149194): the volatile slot mirrors the per-project mismatch in {@code PrimaryEncryptionKeyService};
+ * make it a per-call {@code ProjectId} lookup once that lands.
  */
 public final class DataSourceCredentials {
 

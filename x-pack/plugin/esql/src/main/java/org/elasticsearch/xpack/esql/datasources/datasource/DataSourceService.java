@@ -93,21 +93,14 @@ public class DataSourceService {
         return new DataSource(request.name(), request.type(), request.description(), validated);
     }
 
-    /**
-     * Create or replace a data source. When {@code encryptionService} is bound, every secret in the
-     * request is encrypted master-side. When it isn't, a secret-bearing request is rejected with
-     * {@code 503} ({@link #applyEncryption}) — secrets are never written to cluster state in clear
-     * text. A request with no secrets needs no service and is stored as-is, so data sources without
-     * credentials work on any cluster.
-     */
+    /** Create or replace a data source. Secrets are encrypted master-side ({@link #applyEncryption}). */
     public void putDataSource(
         ProjectId projectId,
         PutDataSourceAction.Request request,
         @Nullable EncryptionService encryptionService,
         ActionListener<AcknowledgedResponse> listener
     ) {
-        // Validate and encrypt off the cluster-state update thread. Encryption is expensive and must not
-        // run inside the CAS task body — the master would block on every concurrent PUT otherwise.
+        // Encrypt off the CAS task thread: it's expensive and would block the master on every concurrent PUT.
         final DataSource validated = validatePutDataSource(request);
         final DataSourceSettings stored = applyEncryption(validated.name(), validated.settings(), encryptionService);
         final DataSource encrypted = new DataSource(validated.name(), validated.type(), validated.description(), stored);
@@ -137,13 +130,10 @@ public class DataSourceService {
     }
 
     /**
-     * Apply master-side encryption to a data source's settings: every secret with a non-null value is
-     * replaced by an {@link EncryptedData} carrier. Encryption is required for storing secrets — when no
-     * {@code encryptionService} is available and the request carries a secret, the PUT is rejected with
-     * {@code 503} rather than storing plaintext. A request with no secrets needs no service and passes
-     * through (so data sources without credentials work on any cluster).
+     * Replace every non-null secret with an {@link EncryptedData} carrier. Rejects with {@code 503} when a
+     * secret is present but no {@code encryptionService} is bound — secrets are never stored as plaintext.
+     * Settings with no secrets pass through unchanged.
      */
-    // Package-private for unit testing of the encrypt transform in isolation.
     static DataSourceSettings applyEncryption(
         String dataSourceName,
         DataSourceSettings settings,
@@ -165,8 +155,7 @@ public class DataSourceService {
         for (var entry : settings) {
             String key = entry.getKey();
             DataSourceSetting setting = entry.getValue();
-            // Encrypt fresh secrets only: a null-valued secret has nothing to protect, and a value that is
-            // already an EncryptedData carrier (defensive: replay paths) must not be double-encrypted.
+            // Skip null-valued secrets (nothing to protect) and already-encrypted carriers (no double-encryption).
             if (setting.secret() && setting.rawValue() != null && setting.isEncrypted() == false) {
                 result.put(key, encryptSecret(setting.rawValue(), encryptionService));
             } else {
@@ -177,11 +166,9 @@ public class DataSourceService {
     }
 
     /**
-     * Encrypt one plaintext value of any type into a secret setting carrying an {@link EncryptedData}.
-     * The value is serialized with {@code writeGenericValue} so non-String secrets round-trip to their
-     * original type on decrypt; the intermediate plaintext byte buffer is zeroed in {@code finally}.
-     * (The original value object still lives in the caller's settings until the cluster-state task
-     * completes — narrowing that lifetime is Phase 2.)
+     * Serialize the value with {@code writeGenericValue} (so non-String secrets round-trip) and encrypt it;
+     * the plaintext buffer is zeroed after. The source value object outlives this call until the CAS task
+     * completes — narrowing that is Phase 2.
      */
     private static DataSourceSetting encryptSecret(Object value, EncryptionService encryptionService) {
         byte[] plaintext = serializeValue(value);

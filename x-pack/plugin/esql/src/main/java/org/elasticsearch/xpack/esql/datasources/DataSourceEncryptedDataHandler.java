@@ -20,13 +20,10 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * Re-encrypts every stored data-source secret under the active project encryption key when the key rotates.
- * Without this, retiring a key would leave secrets encrypted under a key the encryption service can no longer
- * decrypt, making the data sources permanently unusable. The rotation coordinator drives this handler for the
- * {@link DataSourceMetadata} custom; it is contributed via {@link EsqlEncryptedDataHandlerProvider}.
- *
- * <p>Re-encryption preserves the encrypted payload bytes verbatim — the bytes are an opaque
- * {@code writeGenericValue} blob the handler never interprets. Only the wrapping key changes.
+ * Re-encrypts every stored data-source secret under the active project encryption key on rotation —
+ * without it, retiring a key would strand secrets undecryptable. Driven by the rotation coordinator for
+ * the {@link DataSourceMetadata} custom; contributed via {@link EsqlEncryptedDataHandlerProvider}. The
+ * payload is an opaque {@code writeGenericValue} blob, preserved verbatim — only the wrapping key changes.
  */
 public final class DataSourceEncryptedDataHandler implements EncryptedDataHandler<DataSourceMetadata> {
 

@@ -20,11 +20,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
-/**
- * Immutable collection of {@link DataSourceSetting} values keyed by name. Pre-computes
- * collection-level properties (does any setting carry a real secret?) at construction so callers
- * don't re-derive them at every site.
- */
+/** Immutable collection of {@link DataSourceSetting} keyed by name; pre-computes {@link #hasSecrets()}. */
 public final class DataSourceSettings implements Writeable, Iterable<Map.Entry<String, DataSourceSetting>> {
 
     public static final DataSourceSettings EMPTY = new DataSourceSettings(Map.of());
@@ -33,8 +29,7 @@ public final class DataSourceSettings implements Writeable, Iterable<Map.Entry<S
     private final boolean hasSecrets;
 
     public DataSourceSettings(Map<String, DataSourceSetting> source) {
-        // Defensive copy: unmodifiableMap is only a view, so without copying, a later mutation of the
-        // caller's map would leak through this "immutable" collection.
+        // Defensive copy — unmodifiableMap only wraps, so the source map could otherwise mutate through us.
         this.underlying = Collections.unmodifiableMap(new HashMap<>(Objects.requireNonNull(source, "source")));
         boolean any = false;
         for (DataSourceSetting s : this.underlying.values()) {

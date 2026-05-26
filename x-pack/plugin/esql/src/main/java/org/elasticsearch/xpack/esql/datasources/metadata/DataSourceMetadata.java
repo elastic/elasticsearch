@@ -95,11 +95,10 @@ public final class DataSourceMetadata extends AbstractNamedDiffable<Metadata.Pro
 
     @Override
     public EnumSet<Metadata.XContentContext> context() {
-        // GATEWAY only. API is excluded because the raw XContent contains plaintext secret setting values, which must
-        // not appear in GET /_cluster/state; the CRUD REST layer exposes data sources separately via a masked path
-        // (presentationValue). SNAPSHOT is excluded because snapshot restore has no mechanism to re-provision secrets,
-        // so restoring a cluster state containing data sources would produce unusable configurations. Snapshot support
-        // is tracked as a future milestone and will require a key-availability story for restore.
+        // GATEWAY only. Excluded from API so secret values (even encrypted) don't surface in
+        // GET /_cluster/state — the CRUD REST layer exposes data sources via a masked path instead.
+        // Excluded from SNAPSHOT because restore can't re-provision keys, so restored data sources would
+        // be undecryptable; snapshot support is a future milestone needing a key-availability story.
         return EnumSet.of(Metadata.XContentContext.GATEWAY);
     }
 

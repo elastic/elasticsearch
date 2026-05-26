@@ -23,18 +23,11 @@ import java.io.IOException;
 import java.util.Objects;
 
 /**
- * A validated data source setting value paired with its sensitivity classification, stored in
- * cluster state as part of data source metadata.
- *
- * <p>A non-secret setting holds its plaintext value (whatever type the validator produced). A secret
- * setting holds an {@link EncryptedData} ciphertext carrier directly — never raw plaintext — unless
- * its value is {@code null} (nothing to encrypt). The carrier is the discriminator: both serialization
- * paths delegate to {@link EncryptedData}'s own {@link Writeable}/{@link ToXContentObject}
- * implementations rather than re-encoding bytes, and reads reconstruct it the same way.
- *
- * <p>Access values via {@link #rawValue()} (the raw stored object — an {@link EncryptedData} for an
- * encrypted secret) or {@link #nonSecretValue()} (asserts {@code !secret}). The consumer-side
- * decryption step materializes plaintext from the carrier just before the connector consumes it.
+ * A data source setting value plus its secret/non-secret classification, stored in cluster state. A
+ * non-secret holds its plaintext value; a secret holds an {@link EncryptedData} carrier directly (or
+ * {@code null}), never raw plaintext — {@code value instanceof EncryptedData} is the discriminator.
+ * Serialization delegates to {@link EncryptedData}'s own {@link Writeable}/{@link ToXContentObject}
+ * rather than re-encoding the bytes.
  */
 public final class DataSourceSetting implements Writeable, ToXContentObject {
 

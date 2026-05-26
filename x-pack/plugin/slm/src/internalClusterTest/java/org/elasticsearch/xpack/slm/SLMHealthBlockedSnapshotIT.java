@@ -321,15 +321,15 @@ public class SLMHealthBlockedSnapshotIT extends AbstractSnapshotIntegTestCase {
     private void deletePartialSnapshots(String repoName) throws Exception {
         for (SnapshotInfo snapshotInfo : clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get().getSnapshots()) {
             if (snapshotInfo.state() == SnapshotState.PARTIAL || snapshotInfo.state() == SnapshotState.FAILED) {
-                assertAcked(clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotInfo.snapshotId().getName()).get());
+                assertAcked(
+                    clusterAdmin().prepareDeleteSnapshot(TEST_REQUEST_TIMEOUT, repoName, snapshotInfo.snapshotId().getName()).get()
+                );
             }
         }
     }
 
     private void stopSlm() throws Exception {
-        assertAcked(
-            client().execute(StopSLMAction.INSTANCE, new StopSLMAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)).get()
-        );
+        assertAcked(client().execute(StopSLMAction.INSTANCE, new StopSLMAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)).get());
         assertBusy(
             () -> assertThat(
                 client().execute(GetSLMStatusAction.INSTANCE, new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))

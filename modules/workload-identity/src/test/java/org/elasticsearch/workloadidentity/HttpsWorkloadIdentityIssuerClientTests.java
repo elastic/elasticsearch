@@ -18,6 +18,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -37,6 +38,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient.IssueTokenRequest;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient.IssueTokenResponse;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient.WorkloadIdentityIssuerException;
+import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.BeforeClass;
 
@@ -48,7 +50,10 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.List;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.concurrent.TimeUnit;
@@ -112,6 +117,10 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
             server.stop(0);
             server = null;
         }
+    }
+
+    @After
+    public void resetHandler() {
         handler = exchange -> {};
     }
 
@@ -459,6 +468,72 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
             final IssueTokenResponse second = awaitToken(harness, request);
             assertEquals("second issuance must come from the cache", 1, callCount.get());
             assertEquals(first, second);
+        }
+    }
+
+    /**
+     * Concurrent in-flight callers for the same {@link IssueTokenRequest} share a single HTTP
+     * fetch via the cache's {@link SubscribableListener}: the first caller wins the
+     * {@code putIfAbsent} and dispatches the request; subsequent callers attach to the same
+     * unresolved listener and receive the same {@link IssueTokenResponse} instance when it
+     * resolves.
+     *
+     * <p>Complements {@link #testCachedTokenIsReusedAcrossCallsWithSameRequest}, which covers
+     * the post-resolution cache-hit path. Here we hold the mock server inside the handler so
+     * that all callers enter {@code issueToken} while the fetch is still in flight, then release
+     * the server and assert (a) every future resolves to the same response instance and (b) the
+     * server saw exactly one request.
+     */
+    public void testConcurrentCallersForSameRequestShareSingleHttpFetch() throws Exception {
+        final AtomicInteger callCount = new AtomicInteger();
+        final CountDownLatch serverEntered = new CountDownLatch(1);
+        final CountDownLatch releaseServer = new CountDownLatch(1);
+        final long farFutureEpochSecond = (System.currentTimeMillis() / 1000) + 3_600;
+
+        handler = exchange -> {
+            callCount.incrementAndGet();
+            serverEntered.countDown();
+            try {
+                if (releaseServer.await(10, TimeUnit.SECONDS) == false) {
+                    throw new AssertionError("test did not release the server within 10s");
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new AssertionError("interrupted while waiting for test to release the server", e);
+            }
+            respondWithToken(exchange, farFutureEpochSecond);
+        };
+
+        try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
+            final IssueTokenRequest request = new IssueTokenRequest("aud", "us-east-1");
+
+            final int concurrency = randomIntBetween(4, 8);
+            final List<PlainActionFuture<IssueTokenResponse>> futures = new ArrayList<>(concurrency);
+            try {
+                for (int i = 0; i < concurrency; i++) {
+                    final PlainActionFuture<IssueTokenResponse> future = new PlainActionFuture<>();
+                    harness.client.issueToken(request, future);
+                    futures.add(future);
+                }
+                // Confirm the first request has actually reached the server before releasing it;
+                // by this point, callers 2..N have all run putIfAbsent against the entry the
+                // winning caller published, so they must be attached to the same listener.
+                assertTrue("server handler must have been entered by the in-flight fetch", serverEntered.await(10, TimeUnit.SECONDS));
+            } finally {
+                // Ensure the server thread is released even if the assertions above fail, so
+                // harness close() does not hang waiting for outstanding HTTP requests.
+                releaseServer.countDown();
+            }
+
+            final IssueTokenResponse first = futures.get(0).get(10, TimeUnit.SECONDS);
+            for (int i = 1; i < concurrency; i++) {
+                assertSame(
+                    "all concurrent callers must observe the same IssueTokenResponse instance",
+                    first,
+                    futures.get(i).get(10, TimeUnit.SECONDS)
+                );
+            }
+            assertEquals("concurrent callers must collapse onto a single HTTP fetch", 1, callCount.get());
         }
     }
 

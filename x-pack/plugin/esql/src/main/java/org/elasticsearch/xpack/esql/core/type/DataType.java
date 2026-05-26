@@ -490,12 +490,6 @@ public enum DataType implements Writeable {
         .filter(t -> t.supportedVersion().underConstruction())
         .collect(Collectors.toSet());
 
-    /**
-     * The identifier used in the {@code ::gauge} cast operator. This is a virtual cast target —
-     * not a real {@link DataType} — that resolves to the plain numeric variant of the input's counter type.
-     */
-    public static final String GAUGE_CAST_NAME = "gauge";
-
     private final String typeName;
 
     private final String name;
@@ -599,6 +593,12 @@ public enum DataType implements Writeable {
      * not a real {@link DataType} — that resolves to the counter variant of the input's numeric type.
      */
     public static final String COUNTER_CAST_NAME = "counter";
+
+    /**
+     * The identifier used in the {@code ::gauge} cast operator. This is a virtual cast target —
+     * not a real {@link DataType} — that resolves to the gauge (plain numeric) variant of the input's counter type.
+     */
+    public static final String GAUGE_CAST_NAME = "gauge";
 
     public static Collection<DataType> types() {
         return TYPES;

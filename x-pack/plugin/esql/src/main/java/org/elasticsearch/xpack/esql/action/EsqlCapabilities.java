@@ -420,9 +420,29 @@ public class EsqlCapabilities {
         FLATTENED_DATATYPE(Build.current().isSnapshot()),
 
         /**
+         * Flattened field keys are returned in alphabetical order.
+         */
+        FLATTENED_DATATYPE_SORTED_KEYS(Build.current().isSnapshot()),
+
+        /**
+         * Flattened fields apply {@code null_value} replacement when loading from {@code _source},
+         * matching the doc-values behaviour applied at index time.
+         */
+        FLATTENED_DATATYPE_NULL_VALUE(Build.current().isSnapshot()),
+
+        /**
          * Support for the {@code field_extract} function, which reads a sub-key from a {@code flattened} field root.
          */
         FIELD_EXTRACT_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Pushdown optimizations for {@code field_extract(<flattened root>, "<literal key>")}: block-loader
+         * fusion that reads the keyed sub-field's doc values directly, and Lucene query pushdown for
+         * {@code ==}, {@code !=}, and {@code IN} against the same shape. Tests that depend on the fused
+         * multi-value output or on the {@code SingleValueQuery} warning text must require this capability
+         * so they skip on mixed clusters where any data node still runs the per-row evaluator.
+         */
+        FIELD_EXTRACT_FLATTENED_PUSHDOWN(Build.current().isSnapshot()),
 
         /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
@@ -832,6 +852,11 @@ public class EsqlCapabilities {
         BUCKET_WHOLE_NUMBER_AS_SPAN,
 
         /**
+         * Expose resolved bucket interval in {@code _meta} on {@code BUCKET} grouping columns.
+         */
+        COLUMN_METADATA_BUCKET(Build.current().isSnapshot()),
+
+        /**
          * Allow mixed numeric types in coalesce
          */
         MIXED_NUMERIC_TYPES_IN_COALESCE,
@@ -902,6 +927,11 @@ public class EsqlCapabilities {
          * Fix sorting not allowed on _source and counters.
          */
         SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
+
+        /**
+         * Fix sorting not allowed on histogram and _tsid.
+         */
+        SORTING_ON_HISTOGRAM_AND_TSID_FORBIDDEN,
 
         /**
          * Fix {@code SORT} when the {@code _source} field is not a sort key but
@@ -1271,12 +1301,28 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
 
         /**
+         * Carry over synthetic convert-function attributes introduced by
+         * {@code ResolveUnionTypesInUnionAll} through intermediate {@code Project} nodes (e.g. those
+         * produced by {@code RENAME}, {@code KEEP}, or {@code DROP}) sitting above the {@code UnionAll}.
+         * Without this, the synthetic {@code $$<field>$converted_to$<type>} attribute referenced by the
+         * rewritten convert function would not be visible above the {@code Project}, producing a plan
+         * with missing references that fails the optimizer's plan consistency check.
+         * https://github.com/elastic/elasticsearch/issues/149509
+         */
+        SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES,
+
+        /**
          * Support IN non-correlated subqueries in WHERE command.
          * TODO: drop the {@code Build.current().isSnapshot()} gate (and the matching
          * {@code {this.isDevVersion()}?} predicates in InExpression.g4 / EsqlBaseParser.g4)
          * once the InSubquery feature graduates from snapshot-only to production.
          */
         WHERE_IN_SUBQUERY(Build.current().isSnapshot()),
+
+        /**
+         * Support ROW as a source command inside subquery in the from command.
+         */
+        SUBQUERY_WITH_ROW(Build.current().isSnapshot()),
 
         /**
          * Support for views in cluster state (and REST API).
@@ -1683,6 +1729,11 @@ public class EsqlCapabilities {
         TSTEP_BUCKET_COUNT(TSTEP.isEnabled()),
 
         /**
+         * Support lower-open upper-closed boundaries (*;*] in addition to lower-closed upper-open [*;*)
+         */
+        FIX_TSTEP_BUCKET_ROUNDING(TSTEP.isEnabled()),
+
+        /**
          * Allow qualifiers in attribute names.
          */
         NAME_QUALIFIERS(Build.current().isSnapshot()),
@@ -1840,12 +1891,13 @@ public class EsqlCapabilities {
 
         /**
          * Support for the DATE_RANGE field type, RANGE_WITHIN, TO_DATE_RANGE(string), RANGE_MIN, RANGE_MAX.
-         * V5: TO_DATE_RANGE(string) honors the query timezone (Configuration); malformed input now produces a
-         * warning + null (via the standard {@code warnExceptions} path) rather than an assertion error
-         * in production. RANGE_MIN/MAX/WITHIN evaluators are now generated and warn on multi-valued input
-         * instead of silently aggregating across values.
+         * TO_DATE_RANGE(string) honors the query timezone (Configuration); malformed input produces a
+         * warning + null. RANGE_MIN/MAX/WITHIN/INTERSECTS return {@code null} when any argument is
+         * multi-valued (consistent with ES|QL null-for-MV semantics). The Lucene pushdown uses
+         * {@code RECHECK} so the row-level evaluator rechecks each candidate and returns {@code null}
+         * for multi-valued positions, which {@code FilterOperator} treats as {@code false}.
          */
-        DATE_RANGE_FIELD_TYPE_V5(Build.current().isSnapshot()),
+        DATE_RANGE_FIELD_TYPE_V6(Build.current().isSnapshot()),
 
         /**
          * Network direction function.
@@ -2130,6 +2182,12 @@ public class EsqlCapabilities {
         PROMQL_ABSENT_LABEL_MATCHING,
 
         /**
+         * Support for the {@code TS_COLLAPSE} pipe command, which collapses PromQL results
+         * into one multi-valued row per series.
+         */
+        TS_COLLAPSE,
+
+        /**
          * Support for`WITHOUT` grouping function
          * that excludes specific dimensions from time-series grouping.
          */
@@ -2404,6 +2462,42 @@ public class EsqlCapabilities {
         EXTERNAL_CSV_HEADER_ROW_OPTION(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
 
         /**
+         * Per-file planner-resolved read schema is threaded down to runtime readers via
+         * {@code FileSplit.readSchema()}. Pins each file's column layout to the planner's view,
+         * preventing reader self-inference that drifts across files in a multi-file glob.
+         */
+        EXTERNAL_SOURCE_READ_SCHEMA(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
+         * Always-on {@code _file.*} virtual columns ({@code _file.path}, {@code _file.name}, {@code _file.directory},
+         * {@code _file.size}, {@code _file.modified}) added to every external-source schema. Older coordinators do
+         * not know these columns and fail verification with {@code Unknown column [_file.*]} when CCQ routes a query
+         * against a remote cluster on a pre-feature build, so {@code fileMetadata*} csv-spec tests must be gated on
+         * this capability rather than on {@link #EXTERNAL_COMMAND}.
+         */
+        EXTERNAL_SOURCE_FILE_METADATA_COLUMNS(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
+         * Support for projecting nested STRUCT subfields (e.g. {@code event.action}) from
+         * Parquet (Java) and ORC external sources. Gated so format readers that do not yet
+         * implement nested support (parquet-rs, csv, ndjson, etc.) skip the csv-spec tests
+         * until they catch up.
+         *
+         * <p>Tracks: elastic/esql-planning#435 (this PR) and elastic/esql-planning#320
+         * (correctness gap for Parquet-Java MAP/STRUCT/nested LIST).
+         */
+        EXTERNAL_SOURCE_NESTED_STRUCT_PROJECTION(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
+         * Multi-file external UNION_BY_NAME widens cross-file type disagreements to KEYWORD
+         * instead of throwing at planning time. The reconciler emits a warning header per
+         * affected column, the per-file ColumnMapping carries a stringification cast, and the
+         * reader's output is adapted via SchemaAdaptingIterator. STRICT mode still throws.
+         * See esql-planning#794.
+         */
+        EXTERNAL_UNION_BY_NAME_KEYWORD_FALLBACK(DataSourceMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()),
+
+        /**
          * {@code FROM <dataset>} resolved through the same pipeline as {@code FROM <index>} (Phase 1: dataset-only patterns).
          * Gated on the same flag as {@link #EXTERNAL_COMMAND}.
          */
@@ -2558,7 +2652,7 @@ public class EsqlCapabilities {
         /**
          * TSDB Temporality support which is guarded by a feature flag.
          */
-        TSDB_TEMPORALITY_SUPPORT_V6(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
+        TSDB_TEMPORALITY_SUPPORT_V7(IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG),
 
         /**
          * Support the null column type for the CHANGE_POINT command
@@ -2687,7 +2781,7 @@ public class EsqlCapabilities {
         /**
          * Support query approximation with LOOKUP JOIN
          */
-        APPROXIMATION_LOOKUP_JOIN(Build.current().isSnapshot()),
+        APPROXIMATION_LOOKUP_JOIN_V2(Build.current().isSnapshot()),
 
         /**
          * Support query approximation with INLINE STATS
@@ -2721,6 +2815,14 @@ public class EsqlCapabilities {
         INFERENCE_ACCEPT_TIMEOUT,
 
         /**
+         * Fix on multi-values that were unrolled and were still producing warnings in expressions
+         * that do not accept multi-values
+         *
+         * See https://github.com/elastic/elasticsearch/issues/134706
+         */
+        FIX_UNROLLED_FOLDABLE_MV_WARNING,
+
+        /**
          * Fix for SET reporting wrong line/column number (-1:-1) in validation errors.
          * see <a href="https://github.com/elastic/elasticsearch/issues/145873">ES|QL: wrong line/column number #145873</a>
          */
@@ -2739,10 +2841,71 @@ public class EsqlCapabilities {
         APPROXIMATION_FIX_MIN_SOURCE_ROW_COUNT,
 
         /**
+         * Fix for column pruning when FORK branches return no columns.
+         */
+        FORK_PROJECT_AWAY_COLUMNS_FIX,
+
+        /**
+         * Fix for histogram block loaders (tdigest, exponential_histogram) passing {@code nullsFiltered=true} to
+         * sub-block-loaders for min, max and sum. Those sub-fields can be absent for empty histograms even when the
+         * histogram field itself is present, so the null-filtered guarantee does not hold for them.
+         * See <a href="https://github.com/elastic/elasticsearch/issues/147854">#147854</a>
+         */
+        FIX_HISTOGRAM_BLOCKLOADERS_ISNULL,
+
+        /**
          * Fix for {@code CompoundOutputEval} commands not implementing {@code SortAgnostic}, causing {@code PruneRedundantOrderBy} to
          * fail when a SORT precedes these commands.
          */
         FIX_COMPOUND_OUTPUT_EVAL_SORT_AGNOSTIC,
+
+        /**
+         * Support for the {@code ==} operator on the root of a {@code flattened} field in ES|QL.
+         */
+        FN_EQUALS_FLATTENED(Build.current().isSnapshot()),
+
+        /**
+         * Support for the {@code !=} operator on the root of a {@code flattened} field in ES|QL.
+         */
+        FN_NOT_EQUALS_FLATTENED(Build.current().isSnapshot()),
+
+        /**
+         * Support for using a {@code flattened} field as a grouping key in
+         * {@code STATS … BY} and {@code LIMIT N BY}.
+         */
+        GROUP_BY_FLATTENED(Build.current().isSnapshot()),
+
+        /**
+         * Fix for {@code ReorderLimitProjectAndOrderBy} unconditionally lifting an {@code OrderBy} above a renaming/dropping
+         * {@code Project}: it now rewrites the {@code OrderBy}'s references through the {@code Project}'s aliases (so a sort on
+         * a renamed column stays valid) and bails out of the swap if a referenced column is dropped altogether.
+         * <p>
+         *     See <a href="https://github.com/elastic/elasticsearch/issues/148612">#148612</a>.
+         * </p>
+         */
+        FIX_REORDER_LIMIT_PROJECT_AND_ORDER_BY_PRESERVES_REFS,
+
+        /**
+         * Support query approximation with FORK and subqueries.
+         */
+        APPROXIMATION_FORK(Build.current().isSnapshot()),
+
+        /**
+         * Support FIRST aggregation on extended types: version, unsigned_long, geo_point,
+         * cartesian_point, geo_shape, cartesian_shape, geohash, geotile, geohex.
+         */
+        FIRST_AGG_EXTENDED_TYPES,
+
+        /**
+         * Support for the {@code DEDUP} command, which removes duplicate rows from the result set.
+         * Snapshot-only.
+         */
+        DEDUP_COMMAND(Build.current().isSnapshot()),
+
+        /**
+         * Support for COALESCE with date_range type.
+         */
+        COALESCE_DATE_RANGE(Build.current().isSnapshot()),
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

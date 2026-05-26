@@ -25,9 +25,16 @@ import java.util.Set;
  */
 public class NdJsonDataSourcePlugin extends Plugin implements DataSourcePlugin {
 
+    /**
+     * Per-dataset configuration keys accepted by the NDJSON format reader.
+     * Must stay in sync with {@code NdJsonFormatReader.RECOGNIZED_KEYS}; verified
+     * by {@code NdJsonFormatReaderRecognizedKeysTests.testFormatSpecConfigKeysMatchRecognizedKeys}.
+     */
+    static final Set<String> FORMAT_CONFIG_KEYS = Set.of("schema_sample_size", "segment_size");
+
     @Override
     public Set<FormatSpec> formatSpecs() {
-        return Set.of(new FormatSpec("ndjson", Set.of(".ndjson", ".jsonl", ".json")));
+        return Set.of(new FormatSpec("ndjson", Set.of(".ndjson", ".jsonl", ".json"), FORMAT_CONFIG_KEYS));
     }
 
     @Override

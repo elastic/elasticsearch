@@ -15,11 +15,11 @@ import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
 import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporterBuilder;
 import io.opentelemetry.instrumentation.runtimetelemetry.RuntimeTelemetry;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
 import io.opentelemetry.sdk.metrics.export.AggregationTemporalitySelector;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
-import io.opentelemetry.sdk.resources.Resource;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -28,7 +28,6 @@ import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 
@@ -70,12 +69,12 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         var metricHealthReader = PeriodicMetricReader.builder(createOTLPExporter(MeterProvider.noop()))
             .setInterval(intervalTimeValue.toDuration())
             .build();
-        var metricHealthProvider = sdkMeterProvider(metricHealthReader);
+        var metricHealthProvider = sdkMeterProvider(metricHealthReader, settings);
 
         var reader = PeriodicMetricReader.builder(createOTLPExporter(metricHealthProvider))
             .setInterval(intervalTimeValue.toDuration())
             .build();
-        var systemMeterProvider = sdkMeterProvider(reader);
+        var systemMeterProvider = sdkMeterProvider(reader, settings);
         var otelSdk = OpenTelemetrySdk.builder().setMeterProvider(systemMeterProvider).build();
 
         // RuntimeTelemetry uses JMX (Java 8+) and JFR (Java 17+) to collect JVM metrics. See https://ela.st/otel-runtime-telemetry
@@ -83,11 +82,8 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         return new OTelMetricsResources(systemMeterProvider, metricHealthProvider, runtimeTelemetry);
     }
 
-    private static SdkMeterProvider sdkMeterProvider(PeriodicMetricReader reader) {
-        return SdkMeterProvider.builder()
-            .setResource(Resource.builder().put("service.name", "elasticsearch").build())
-            .registerMetricReader(reader)
-            .build();
+    private static SdkMeterProvider sdkMeterProvider(PeriodicMetricReader reader, Settings settings) {
+        return SdkMeterProvider.builder().setResource(OtelSdkResource.get(settings)).registerMetricReader(reader).build();
     }
 
     private OtlpHttpMetricExporter createOTLPExporter(MeterProvider healthExportMeterProvider) {
@@ -126,18 +122,31 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         return null;
     }
 
+    /**
+     * Flushes the system provider first, then the health provider. The ordering is required because
+     * {@code OtlpHttpMetricExporter} records health telemetry (e.g.
+     * {@code otel.sdk.exporter.metric_data_point.exported}) into the health provider only after its HTTP
+     * export completes; the health provider must therefore flush after the system provider finishes.
+     * Callers must join the result with an appropriate timeout.
+     * <p>
+     * The returned result always succeeds: flush is best-effort and intermediate failures are silently
+     * ignored, consistent with the contract of {@link MeterSupplier#attemptFlushMetrics()}.
+     */
     @Override
-    public void attemptFlushMetrics() {
+    public CompletableResultCode attemptFlushMetrics() {
+        SdkMeterProvider sys, health;
         synchronized (mutex) {
-            if (resources != null) {
-                resources.systemMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
-                resources.meterHealthMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
-                // PeriodicMetricReader records collection.duration after
-                // each collection, so a second cycle is required to collect and export it.
-                resources.systemMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
-                resources.meterHealthMeterProvider.forceFlush().join(10, TimeUnit.SECONDS);
+            if (resources == null) {
+                return CompletableResultCode.ofSuccess();
             }
+            sys = resources.systemMeterProvider;
+            health = resources.meterHealthMeterProvider;
         }
+        // Lock released before flushing to avoid holding it during async I/O.
+        // close() may race here; SdkMeterProvider.forceFlush() on a stopped provider is a safe no-op.
+        CompletableResultCode result = new CompletableResultCode();
+        sys.forceFlush().whenComplete(() -> health.forceFlush().whenComplete(() -> result.succeed()));
+        return result;
     }
 
     @Override

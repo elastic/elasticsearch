@@ -56,7 +56,13 @@ public final class BulkByScrollWireSerializingTestUtils {
         SearchModule searchModule = new SearchModule(Settings.EMPTY, Collections.emptyList());
         entries.addAll(searchModule.getNamedWriteables());
         entries.addAll(ClusterModule.getNamedWriteables());
-        entries.add(new NamedWriteableRegistry.Entry(Task.Status.class, BulkByScrollTask.Status.NAME, BulkByScrollTask.Status::new));
+        entries.add(
+            new NamedWriteableRegistry.Entry(
+                Task.Status.class,
+                BulkByPaginatedSearchTask.Status.NAME,
+                BulkByPaginatedSearchTask.Status::new
+            )
+        );
         entries.add(
             new NamedWriteableRegistry.Entry(
                 ResumeInfo.WorkerResumeInfo.class,

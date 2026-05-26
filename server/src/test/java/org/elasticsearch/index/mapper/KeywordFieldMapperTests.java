@@ -1484,7 +1484,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final MapperService mapperService = createMapperService(
             Settings.builder()
-                .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName())
+                .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
                 .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
                 .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), false)
                 .build(),
@@ -1496,14 +1496,14 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         );
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
-        assertTrue(mapper.fieldType().indexType().hasTerms());
+        assertFalse(mapper.fieldType().indexType().hasTerms());
         assertFalse(mapper.fieldType().indexType().hasDocValuesSkipper());
     }
 
     public void testFieldTypeWithSkipDocValues_ColumnarLogsDbMode() throws IOException {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName())
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
             .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
             .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
             .build();
@@ -1521,7 +1521,7 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     public void testFieldTypeDefault_ColumnarLogsDbMode_NonSortField() throws IOException {
         assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
         final Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR_LOGSDB.getName())
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
             .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
             .build();
         final MapperService mapperService = createMapperService(settings, mapping(b -> {
@@ -1532,8 +1532,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().hasDocValues());
-        assertTrue(mapper.fieldType().indexType().hasTerms());
-        assertFalse(mapper.fieldType().indexType().hasDocValuesSkipper());
+        assertFalse(mapper.fieldType().indexType().hasTerms());
+        assertTrue(mapper.fieldType().indexType().hasDocValuesSkipper());
     }
 
     public void testValueIsStoredWhenItExceedsIgnoreAboveAndFieldIsNotAMultiField() throws IOException {
@@ -1713,5 +1713,20 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         // Binary values have no text representation; the keyword field must be skipped without NPE.
         ParsedDocument doc = mapper.parse(source);
         assertThat(doc.rootDoc().getFields("field"), empty());
+    }
+
+    public void testColumnarKeywordArrayOrderRoundTrip() throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name()).build();
+        DocumentMapper mapper = createMapperService(settings, mapping(b -> b.startObject("field").field("type", "keyword").endObject()))
+            .documentMapper();
+
+        String v1 = randomAlphanumericOfLength(4);
+        String v2 = randomAlphanumericOfLength(4);
+        String v3 = randomAlphanumericOfLength(4);
+        // Duplicate v2 — sorted-deduped doc-values order would collapse it; arrival order must be preserved.
+        assertThat(syntheticSource(mapper, b -> {
+            b.array("field", v2, v1, v3, v2);
+            b.field("@timestamp", Instant.now().toEpochMilli());
+        }), containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",\"" + v3 + "\",\"" + v2 + "\"]"));
     }
 }

@@ -1103,6 +1103,14 @@ public class EsqlCapabilities {
         FIX_STATS_MV_CONSTANT_FOLD,
 
         /**
+         * Fix on multi-values that were unrolled and were still producing warnings in expressions
+         * that do not accept multi-values
+         *
+         * See https://github.com/elastic/elasticsearch/issues/134706
+         */
+        FIX_UNROLLED_FOLDABLE_MV_WARNING,
+
+        /**
          * Fix for {@code _index LIKE} not supporting the {@code ?} wildcard character.
          * see <a href="https://github.com/elastic/elasticsearch/issues/146364">ES|QL: _index LIKE with ? #146364</a>
          */

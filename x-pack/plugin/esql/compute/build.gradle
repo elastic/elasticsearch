@@ -21,6 +21,7 @@ dependencies {
   compileOnly project(xpackModule('ml'))
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
+  implementation 'org.ow2.asm:asm:9.9'  // ConstantMethodResultSpecializer: runtime bytecode generation for @Fixed(jitConstant=true) evaluators
   api project(':libs:arrow')
   api project(':libs:exponential-histogram')
   implementation project(':libs:swisshash')
@@ -1266,6 +1267,7 @@ tasks.named('stringTemplates').configure {
     props.forEach { p ->
       def properties = [:]
       p.forEach { k, v -> properties["v_" + k] = v }
+      properties["v_TailArray"] = properties["v_boolean"] ? "ByteArray" : properties["v_Array"]
       template {
         it.properties = properties
         it.inputFile = inputFile

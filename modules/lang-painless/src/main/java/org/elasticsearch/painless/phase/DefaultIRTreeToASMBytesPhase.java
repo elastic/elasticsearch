@@ -240,12 +240,23 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             );
         }
 
+        boolean needsCancelPollField = irClassNode.getFunctionsNodes().stream().anyMatch(f -> f.hasCondition(IRCCancellationCheck.class));
+
+        if (needsCancelPollField) {
+            classVisitor.visitField(Opcodes.ACC_PRIVATE, WriterConstants.CANCEL_POLL_FIELD, "I", null, null).visitEnd();
+        }
+
         // Write the constructor:
         MethodWriter constructor = classWriter.newMethodWriter(Opcodes.ACC_PUBLIC, init);
         constructor.visitCode();
         constructor.loadThis();
         constructor.loadArgs();
         constructor.invokeConstructor(Type.getType(scriptClassInfo.getBaseClass()), init);
+        if (needsCancelPollField) {
+            constructor.loadThis();
+            constructor.push(WriterConstants.CANCELLATION_POLL_INTERVAL);
+            constructor.putField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
+        }
         constructor.returnValue();
         constructor.endMethod();
 
@@ -318,22 +329,27 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.visitCode();
 
-        // Initialize the loop-guard locals once. The runtime branch in writeBranchedLoopGuard
-        // picks between cancellation and legacy at each backedge based on the cancelRunnable
-        // value, which can change per execution via _setCancellationCheck.
+        // For opted-in functions: capture the cancellation runnable once at entry and immediately
+        // apply a persistent-counter decrement so that function calls (not just loop back-edges)
+        // count toward the next cancellation poll. The counter lives in $cancelPoll on the
+        // script instance so it accumulates across execute() invocations.
+        // When the runnable is null the branch in writeBranchedLoopGuard falls through to the
+        // legacy per-function loop counter unchanged.
         boolean cancellation = irFunctionNode.hasCondition(IRCCancellationCheck.class);
         int maxLoopCounter = irFunctionNode.getDecorationValue(IRDMaxLoopCounter.class);
 
         if (cancellation) {
             Variable cancelRunnable = writeScope.defineInternalVariable(Runnable.class, "cancelRunnable");
-            Variable poll = writeScope.defineInternalVariable(int.class, "poll");
 
             methodWriter.loadThis();
             methodWriter.invokeInterface(WriterConstants.BASE_INTERFACE_TYPE, WriterConstants.GET_CANCELLATION_CHECK);
             methodWriter.visitVarInsn(Opcodes.ASTORE, cancelRunnable.getSlot());
 
-            methodWriter.push(WriterConstants.CANCELLATION_POLL_INTERVAL);
-            methodWriter.visitVarInsn(Opcodes.ISTORE, poll.getSlot());
+            Label skipEntry = new Label();
+            methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
+            methodWriter.ifNull(skipEntry);
+            writePersistentCancellationDecrement(methodWriter, cancelRunnable.getSlot());
+            methodWriter.mark(skipEntry);
         }
 
         if (maxLoopCounter > 0) {
@@ -363,7 +379,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
     /**
      * Shared loop-guard emission. Opted-in functions emit
-     * {@code if (cancelRunnable != null) writeCancellationCheck else writeLoopCounter} so the
+     * {@code if (cancelRunnable != null) persistentDecrement() else writeLoopCounter} so the
      * inactive counter pays no per-iteration cost (important: an int counter pre-set to
      * {@link Integer#MAX_VALUE} still trips after ~2 s of tight looping). Non-opted-in
      * functions emit only the legacy counter (or nothing, when {@code legacyForNonOptedIn} is
@@ -385,20 +401,11 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             return;
         }
 
-        Variable poll = writeScope.getInternalVariable("poll");
-
         if (loop == null) {
-            // No legacy fallback to choose between — just skip the cancellation check when
-            // the runnable is null.
             Label skip = new Label();
             methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
             methodWriter.ifNull(skip);
-            methodWriter.writeCancellationCheck(
-                cancelRunnable.getSlot(),
-                poll.getSlot(),
-                WriterConstants.CANCELLATION_POLL_INTERVAL,
-                location
-            );
+            writePersistentCancellationDecrement(methodWriter, cancelRunnable.getSlot());
             methodWriter.mark(skip);
             return;
         }
@@ -408,11 +415,39 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         methodWriter.visitVarInsn(Opcodes.ALOAD, cancelRunnable.getSlot());
         methodWriter.ifNull(legacyPath);
-        methodWriter.writeCancellationCheck(cancelRunnable.getSlot(), poll.getSlot(), WriterConstants.CANCELLATION_POLL_INTERVAL, location);
+        writePersistentCancellationDecrement(methodWriter, cancelRunnable.getSlot());
         methodWriter.goTo(end);
         methodWriter.mark(legacyPath);
         methodWriter.writeLoopCounter(loop.getSlot(), location);
         methodWriter.mark(end);
+    }
+
+    /**
+     * Decrements the persistent {@link WriterConstants#CANCEL_POLL_FIELD} on {@code this} and,
+     * when it reaches zero, invokes the cancellation runnable and resets the counter.
+     * The caller must have already verified that the runnable is non-null.
+     */
+    private static void writePersistentCancellationDecrement(MethodWriter methodWriter, int runnableSlot) {
+        Label skip = new Label();
+
+        // --this.$cancelPoll; if ($cancelPoll > 0) skip;
+        methodWriter.loadThis();
+        methodWriter.loadThis();
+        methodWriter.getField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
+        methodWriter.push(-1);
+        methodWriter.math(MethodWriter.ADD, Type.INT_TYPE);
+        methodWriter.visitInsn(Opcodes.DUP_X1);  // [newVal, this, newVal] — copy int below the object ref
+        methodWriter.putField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
+        methodWriter.ifZCmp(MethodWriter.GT, skip);
+
+        // counter reached zero: run the cancellation check and reset
+        methodWriter.visitVarInsn(Opcodes.ALOAD, runnableSlot);
+        methodWriter.invokeInterface(WriterConstants.RUNNABLE_TYPE, WriterConstants.RUNNABLE_RUN);
+        methodWriter.loadThis();
+        methodWriter.push(WriterConstants.CANCELLATION_POLL_INTERVAL);
+        methodWriter.putField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
+
+        methodWriter.mark(skip);
     }
 
     @Override

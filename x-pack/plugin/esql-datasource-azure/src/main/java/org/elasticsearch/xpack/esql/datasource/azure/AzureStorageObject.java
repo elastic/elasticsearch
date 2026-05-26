@@ -229,7 +229,7 @@ public final class AzureStorageObject implements StorageObject {
         BlobRange range = new BlobRange(position, length);
         blobAsyncClient.downloadWithResponse(range, null, null, false)
             .flatMapMany(response -> response.getValue())
-            .reduce(ByteBuffer.allocate(Math.toIntExact(length)), (acc, buf) -> {
+            .reduce(ByteBuffer.allocateDirect(Math.toIntExact(length)), (acc, buf) -> {
                 if (buf.remaining() > acc.remaining()) {
                     throw new IllegalStateException("Server returned more bytes than requested (" + length + ")");
                 }

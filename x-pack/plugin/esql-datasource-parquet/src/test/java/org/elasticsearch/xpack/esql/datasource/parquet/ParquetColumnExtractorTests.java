@@ -83,7 +83,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         ParquetMetadata footer;
         try (
             ParquetFileReader fr = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(so),
+                new ParquetStorageObjectAdapter(so, blockFactory.arrowAllocator()),
                 PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
             )
         ) {
@@ -300,7 +300,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         ParquetMetadata fullFooter;
         try (
             ParquetFileReader fr = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(so),
+                new ParquetStorageObjectAdapter(so, blockFactory.arrowAllocator()),
                 PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
             )
         ) {
@@ -394,7 +394,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         ParquetMetadata fullFooter;
         try (
             ParquetFileReader fr = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(new TrackingStorageObject(data)),
+                new ParquetStorageObjectAdapter(new TrackingStorageObject(data), blockFactory.arrowAllocator()),
                 PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
             )
         ) {
@@ -471,7 +471,7 @@ public class ParquetColumnExtractorTests extends ESTestCase {
         ParquetMetadata fullFooter;
         try (
             ParquetFileReader fr = ParquetFileReader.open(
-                new ParquetStorageObjectAdapter(new TrackingStorageObject(data)),
+                new ParquetStorageObjectAdapter(new TrackingStorageObject(data), blockFactory.arrowAllocator()),
                 PlainParquetReadOptions.builder(new PlainCompressionCodecFactory()).build()
             )
         ) {

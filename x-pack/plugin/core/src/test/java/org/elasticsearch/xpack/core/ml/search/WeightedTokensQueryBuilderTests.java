@@ -196,25 +196,25 @@ public class WeightedTokensQueryBuilderTests extends AbstractQueryTestCase<Weigh
     @Override
     public void testFromXContent() throws IOException {
         super.testFromXContent();
-        assertCriticalWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
+        assertWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
     }
 
     @Override
     public void testUnknownField() throws IOException {
         super.testUnknownField();
-        assertCriticalWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
+        assertWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
     }
 
     @Override
     public void testUnknownObjectException() throws IOException {
         super.testUnknownObjectException();
-        assertCriticalWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
+        assertWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
     }
 
     @Override
     public void testValidOutput() throws IOException {
         super.testValidOutput();
-        assertCriticalWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
+        assertWarnings(WeightedTokensQueryBuilder.WEIGHTED_TOKENS_DEPRECATION_MESSAGE);
     }
 
     public void testPruningIsAppliedCorrectly() throws IOException {

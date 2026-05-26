@@ -82,6 +82,14 @@ class RangeStorageObject implements StorageObject {
     }
 
     @Override
+    public void abortStream(InputStream stream) throws IOException {
+        // Forward to the underlying StorageObject so providers like S3 can perform a
+        // non-draining abort (e.g. Abortable.abort()). Falling through to the SPI default
+        // stream.close() would drain the entire response body for partial reads.
+        delegate.abortStream(stream);
+    }
+
+    @Override
     public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
         if (position >= this.length) {
             listener.onResponse(ByteBuffer.allocate(0));

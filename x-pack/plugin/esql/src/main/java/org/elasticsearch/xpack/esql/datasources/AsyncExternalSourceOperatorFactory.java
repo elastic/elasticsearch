@@ -1195,6 +1195,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         FileSplit fileSplit = (FileSplit) leaf;
         List<String> cols = dataProjectedColumns();
 
+        // TODO: inject SharedNumericThreshold row-group skip check here, before the read
+        // dispatch below — avoids the I/O cost rather than paying for it and discarding.
         CloseableIterator<Page> pages = null;
         try {
             FormatReader fileReader = readerForFile(fileSplit);
@@ -1720,7 +1722,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 try {
                     decompressed = codec.decompress(raw);
                 } catch (Exception e) {
-                    raw.close();
+                    try {
+                        obj.abortStream(raw);
+                    } catch (IOException abortEx) {
+                        e.addSuppressed(abortEx);
+                    }
                     throw e;
                 }
                 try {
@@ -1739,7 +1745,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         perFileReadSchema
                     );
                 } catch (Exception e) {
-                    decompressed.close();
+                    try {
+                        obj.abortStream(raw);
+                    } catch (IOException abortEx) {
+                        e.addSuppressed(abortEx);
+                    }
                     throw e;
                 }
             }

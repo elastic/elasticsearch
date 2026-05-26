@@ -213,41 +213,32 @@ public final class HttpStorageObject implements StorageObject {
             listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
             return;
         }
+        if (length > Integer.MAX_VALUE) {
+            listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
+            return;
+        }
 
         HttpRequest request = buildRangeRequest(position, length);
 
         long startNanos = System.nanoTime();
-        // Use native async HTTP - no blocking, no extra threads needed
-        client.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray()).whenComplete((response, throwable) -> {
+        client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length)).whenComplete((response, throwable) -> {
             if (throwable != null) {
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
-                listener.onFailure(throwable instanceof Exception ex ? ex : new RuntimeException(throwable));
+                // Wrap with path context so stack-trace-only triage names the offending URL.
+                // The original cause (CompletionException, body subscriber's IOException, transport
+                // error, etc.) is preserved in the cause chain.
+                listener.onFailure(new IOException("HTTP read failed for " + path, throwable));
                 return;
             }
 
             int statusCode = response.statusCode();
-            // 206 = Partial Content (successful range request)
-            // 200 = OK (server doesn't support ranges but returned full content - need to slice)
-            if (statusCode == HttpStatus.SC_PARTIAL_CONTENT) {
-                byte[] body = response.body();
-                counters.addRequest(System.nanoTime() - startNanos, body.length);
-                listener.onResponse(ByteBuffer.wrap(body));
-            } else if (statusCode == HttpStatus.SC_OK) {
-                // Server doesn't support Range requests, slice the response
-                byte[] fullBody = response.body();
-                int bodyLength = fullBody.length;
-                if (position >= bodyLength) {
-                    counters.addRequest(System.nanoTime() - startNanos, bodyLength);
-                    listener.onFailure(
-                        new IOException("Position " + position + " is beyond content length " + bodyLength + " for " + path)
-                    );
-                    return;
-                }
-                int actualLength = (int) Math.min(length, bodyLength - position);
-                byte[] slice = new byte[actualLength];
-                System.arraycopy(fullBody, (int) position, slice, 0, actualLength);
-                counters.addRequest(System.nanoTime() - startNanos, bodyLength);
-                listener.onResponse(ByteBuffer.wrap(slice));
+            // The DirectByteBufferBodyHandlers.ofRangeRead handler already performs the range
+            // slicing internally for both 206 (server-side range) and 200 (full body) responses,
+            // returning a ByteBuffer scoped to the requested window.
+            if (statusCode == HttpStatus.SC_PARTIAL_CONTENT || statusCode == HttpStatus.SC_OK) {
+                ByteBuffer body = response.body();
+                counters.addRequest(System.nanoTime() - startNanos, body.remaining());
+                listener.onResponse(body);
             } else {
                 counters.addRequest(System.nanoTime() - startNanos, 0L);
                 listener.onFailure(new IOException("Range request failed for " + path + ", HTTP status: " + statusCode));

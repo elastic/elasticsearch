@@ -90,6 +90,15 @@ class RetryableStorageObject implements StorageObject {
     }
 
     @Override
+    public void abortStream(InputStream stream) throws IOException {
+        // No retry on abort: the underlying provider's abortStream is a best-effort
+        // connection-discard (e.g. S3 ResponseInputStream.abort()). If we silently fall back to
+        // the SPI default stream.close() here, providers like S3 drain the entire response body
+        // before returning, defeating the purpose of abortStream on partial-read paths.
+        delegate.abortStream(stream);
+    }
+
+    @Override
     public int readBytes(long position, ByteBuffer target) throws IOException {
         int savedPosition = target.position();
         return retryPolicy.execute(() -> {

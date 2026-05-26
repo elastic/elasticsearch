@@ -24,35 +24,24 @@ import java.util.Objects;
  * of each resolved view's recursive substitution, inside the per-resolution-level
  * {@link ViewUnionAll}.
  * <p>
- * Lifecycle, with the parts each PR is responsible for:
+ * Lifecycle:
  * <ol>
- *   <li>Emitted during view resolution alongside the strict (recursive) resolution. The shadow
- *       and its strict sibling form the strict/lenient pair for that level.
- *       <em>(landed in the {@code ViewResolver} refactor)</em></li>
- *   <li>{@code ViewCompaction.preIndexResolution} reshapes user-written {@code Subquery}/
- *       {@code UnionAll} structures into {@link ViewUnionAll} but leaves shadows in place so
- *       PreAnalyzer can still pair each shadow with its sibling at index-resolution time.
- *       <em>(landed)</em></li>
- *   <li>{@code PreAnalyzer} collects {@code ViewShadowRelation} patterns into a separate set,
- *       and {@code EsqlSession} issues a lenient field-caps request per batch
- *       ({@code ALLOW_UNAVAILABLE_TARGETS} + project routing scoped to linked projects only —
- *       {@code IndexResolver.FLAT_WORLD_OPTIONS}). Results land in
- *       {@code AnalyzerContext.optionalLinkedResolution}, keyed by the shadow's full
- *       {@link #optionalLinkedPattern()} (view name + applicable exclusions).
- *       <em>(deferred to the lenient field-caps PR)</em></li>
- *   <li>The {@code ResolveViewShadow} analyzer rule (sibling of {@code ResolveTable}, in the
- *       Initialize batch) consults {@code AnalyzerContext.optionalLinkedResolution} for this shadow's
- *       {@link #optionalLinkedPattern()}. If a remote <em>index</em> is found the shadow is replaced
- *       with a corresponding {@code EsRelation}; otherwise the shadow is left unresolved.
- *       <em>(this PR — backed by a mocked {@code optionalLinkedResolution} map until the lenient
- *       field-caps PR provides real data)</em></li>
- *   <li>{@code ViewCompactionPostIndexResolution} runs after {@code ResolveViewShadow}: any
- *       still-unresolved shadow is stripped, then nested {@link ViewUnionAll}s are flattened
- *       and remaining {@code NamedSubquery} wrappers unwrapped. Per Strategy A in
- *       <a href="https://github.com/elastic/esql-planning/issues/543">esql-planning#543</a>,
- *       sibling {@code EsRelation}s stay separate (a {@code UnionAll}/{@link ViewUnionAll}
- *       of {@code EsRelation}s) rather than being merged via a third combined field-caps call.
- *       <em>(landed)</em></li>
+ *   <li>Emitted during view resolution alongside the strict (recursive) resolution, as the lenient
+ *       half of the strict/lenient pair for that level.</li>
+ *   <li>{@code ViewCompaction.preIndexResolution} reshapes {@code Subquery}/{@code UnionAll}
+ *       structures into {@link ViewUnionAll} but leaves shadows in place.</li>
+ *   <li>{@code PreAnalyzer} collects shadow patterns and {@code EsqlSession} runs a lenient
+ *       field-caps pass over them (linked projects only — {@code IndexResolver.FLAT_WORLD_OPTIONS}),
+ *       landing results in {@code AnalyzerContext.optionalLinkedResolution}, keyed by
+ *       {@link #optionalLinkedPattern()}.</li>
+ *   <li>In the Initialize batch, {@code ExcludeShadowedProjectsFromViewBody} resolves in-union
+ *       shadows against that map (replacing a matched shadow with the remote index's
+ *       {@code EsRelation}) and removes the owning projects from the paired view body;
+ *       {@code ResolveViewShadow} resolves any standalone shadow not inside a {@link ViewUnionAll}.</li>
+ *   <li>{@code ViewCompactionPostIndexResolution} strips any still-unresolved shadow, then flattens
+ *       nested {@link ViewUnionAll}s and unwraps {@code NamedSubquery} wrappers. Per Strategy A in
+ *       <a href="https://github.com/elastic/esql-planning/issues/543">esql-planning#543</a>, sibling
+ *       {@code EsRelation}s stay separate rather than being merged via a combined field-caps call.</li>
  * </ol>
  * <p>
  * The {@link #exclusions()} list captures any exclusion patterns that appeared <em>after</em>
@@ -75,8 +64,9 @@ public class ViewShadowRelation extends LeafPlan implements Unresolvable {
     /**
      * Suffix appended to a view name to key its shadow branch inside the per-level
      * {@link ViewUnionAll}, distinguishing it from the strict view-body branch (keyed by the bare
-     * view name). The {@code Analyzer}'s shadow-completion rule relies on this pairing to find the
-     * body that belongs to a resolved shadow.
+     * view name) so both can coexist in the named-subqueries map. It is purely a map-key
+     * disambiguator: the {@code Analyzer} pairs a shadow with its body by the view name the shadow
+     * carries ({@link #viewName()}), not by parsing this suffix.
      */
     public static final String NAME_SUFFIX = "#shadow";
 

@@ -37,9 +37,10 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 
 /**
- * Tests for the {@code Analyzer.ResolveViewShadow} analyzer rule. Each test builds a small plan
- * tree by hand (since {@link ViewShadowRelation} has no surface syntax) and runs the analyzer
- * with mocked {@link AnalyzerContext#optionalLinkedResolution()} maps to verify the rule's behaviour:
+ * Tests for the {@code Analyzer.ResolveViewShadow} and {@code ExcludeShadowedProjectsFromViewBody}
+ * analyzer rules. Each test builds a small plan tree by hand (since {@link ViewShadowRelation} has no
+ * surface syntax) and supplies the {@link AnalyzerContext#optionalLinkedResolution()} map directly —
+ * the same map that {@code EsqlSession}'s lenient field-caps pass populates in production — to verify:
  * <ul>
  *   <li>shadow with a valid lenient resolution → replaced with {@code EsRelation};</li>
  *   <li>shadow with no lenient entry (or an invalid resolution) → left unresolved, then stripped
@@ -51,9 +52,8 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
  *       name with one exclusion list can match a remote index while another exclusion list at
  *       the same view name returns nothing.</li>
  * </ul>
- * The actual lenient field-caps integration that populates the resolution map in production is
- * deferred to a follow-up PR; this PR ensures the analyzer-side plumbing is in place and tested
- * against a mocked input.
+ * The exclusion tests ({@code testViewBody*}, {@code testNested*}) additionally verify that a linked
+ * project owning an index with a local view's name is excluded from the view body.
  * <p>
  * Each test calls {@link #assertWarnings(String...)} to acknowledge the
  * "No limit defined" warning that {@code AddImplicitLimit} adds since the test inputs are bare
@@ -234,18 +234,10 @@ public class ResolveViewShadowTests extends ESTestCase {
     }
 
     /**
-     * elastic/esql-planning#795: when a linked project owns an index with the same name as a local
-     * view, the view body must not <em>also</em> run on that project — the project's index supplies
-     * its data instead (a name cannot be both a view and an index on one project; the index wins).
-     * <p>
-     * Setup mirrors {@code FROM v1} where {@code v1} is a local view {@code FROM source-idx}: the
-     * strict body resolved flat-world across origin ({@code ""}) and linked project {@code "P"}
-     * (both have {@code source-idx}), and the shadow shows {@code "P"} also owns an index named
-     * {@code v1}. After analysis, {@code "P"} must be gone from the body's per-cluster maps (so the
-     * view stops running there) while the shadow's {@code EsRelation} for {@code "P"} survives.
-     * <p>
-     * Fails before the {@code ExcludeShadowedProjectsFromViewBody} rule: the body retains {@code "P"},
-     * double-counting that project (view body on P + P's index).
+     * View {@code v1 = FROM source-idx} resolved across origin ({@code ""}) and linked project
+     * {@code "P"}; the shadow shows {@code "P"} also owns an index named {@code v1}. The body must
+     * drop {@code "P"} (the view stops running there) while the shadow keeps {@code "P"} — otherwise
+     * {@code "P"} is double-counted (view body + its index). See esql-planning#795.
      */
     public void testViewBodyExcludesProjectOwningSameNamedIndex() {
         // Strict view body "v1": source-idx resolved on origin ("") and linked project "P".
@@ -300,11 +292,46 @@ public class ResolveViewShadowTests extends ESTestCase {
     }
 
     /**
-     * #795 edge: the colliding project is the view body's ONLY project. The view's source data lived
-     * only on the project that turns out to own a same-named index, so after excluding that project
-     * the body has no clusters left to run on — it contributes nothing, and the project's index (the
-     * shadow) supplies all of its rows. The body branch survives with empty per-cluster maps (a
-     * zero-row leaf); confirming execution treats that as no rows is left to the integration test.
+     * Only the colliding project is excluded: view body on origin, {@code P} and {@code Q}; only
+     * {@code P} owns a same-named index. The body keeps origin and {@code Q} and drops just {@code P}.
+     * See esql-planning#795.
+     */
+    public void testViewBodyExcludesOnlyTheCollidingProject() {
+        EsIndex body = new EsIndex(
+            "source-idx",
+            LoadMapping.loadMapping("mapping-one-field.json"),
+            Map.of("source-idx", IndexMode.STANDARD, "P:source-idx", IndexMode.STANDARD, "Q:source-idx", IndexMode.STANDARD),
+            Map.of("", List.of("source-idx"), "P", List.of("source-idx"), "Q", List.of("source-idx")),
+            Map.of("", List.of("source-idx"), "P", List.of("source-idx"), "Q", List.of("source-idx"))
+        );
+        EsIndex remoteV1 = new EsIndex(
+            "v1",
+            LoadMapping.loadMapping("mapping-one-field.json"),
+            Map.of("P:v1", IndexMode.STANDARD),
+            Map.of("P", List.of("v1")),
+            Map.of("P", List.of("v1"))
+        );
+        var analyzer = analyzer().addIndex("source-idx", IndexResolution.valid(body))
+            .addLenientShadow(new IndexPattern(EMPTY, "v1"), IndexResolution.valid(remoteV1))
+            .buildAnalyzer();
+
+        LogicalPlan plan = analyzer.analyze(viewUnionAllOf("v1", strictUR("source-idx"), new ViewShadowRelation(EMPTY, "v1", List.of())));
+
+        Map<String, EsRelation> byPattern = as(as(plan, Limit.class).child(), ViewUnionAll.class).children()
+            .stream()
+            .map(child -> as(unwrapProject(child), EsRelation.class))
+            .collect(Collectors.toMap(EsRelation::indexPattern, r -> r));
+
+        assertEquals("only the colliding project is dropped", Set.of("", "Q"), byPattern.get("source-idx").concreteIndices().keySet());
+        assertEquals(Set.of("P"), byPattern.get("v1").concreteIndices().keySet());
+
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    /**
+     * Edge: the colliding project is the body's only project. Excluding it leaves the body with no
+     * clusters (a zero-row leaf); the project's index supplies all rows via the shadow. Whether
+     * execution treats the empty leaf as no rows is left to the integration test. See esql-planning#795.
      */
     public void testViewBodyEmptyWhenOnlyProjectOwnsSameNamedIndex() {
         EsIndex body = new EsIndex(
@@ -342,13 +369,11 @@ public class ResolveViewShadowTests extends ESTestCase {
     }
 
     /**
-     * #795, nested case: outer view {@code v} is defined as {@code FROM v2}, an inner view over
-     * {@code source-idx}. A single linked project {@code P} owns indexes named like <em>both</em>
-     * {@code v} and {@code v2}. Because {@code v} resolves to an index on {@code P}, none of {@code v}'s
-     * definition runs on {@code P} — not the {@code source-idx} body, and not {@code P}'s {@code v2}
-     * index either; {@code P} contributes only its {@code v} index. The rule achieves this bottom-up:
-     * the inner shadow is resolved to an {@code EsRelation} before the outer collision prunes the inner
-     * subtree, so the inner {@code v2} index on {@code P} is pruned away too.
+     * Nested case: outer view {@code v = FROM v2}, inner view {@code v2 = FROM source-idx}; project
+     * {@code P} owns indexes named like both {@code v} and {@code v2}. Since {@code v} is an index on
+     * {@code P}, none of {@code v}'s definition runs there — including {@code P}'s {@code v2} index, which
+     * the bottom-up pass prunes away too. {@code P} contributes only its {@code v} index. See
+     * esql-planning#795.
      */
     public void testNestedViewExcludesProjectOwningOuterViewIndex() {
         Map<String, EsField> mapping = LoadMapping.loadMapping("mapping-one-field.json");

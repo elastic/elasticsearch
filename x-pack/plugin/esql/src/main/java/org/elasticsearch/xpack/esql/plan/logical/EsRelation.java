@@ -192,15 +192,10 @@ public class EsRelation extends LeafPlan {
     }
 
     /**
-     * Returns a copy of this relation with the given cluster aliases removed from its per-cluster
-     * {@link #originalIndices()} / {@link #concreteIndices()} maps, and from {@link #indexNameWithModes()}
-     * (whose keys are cluster-qualified). Since {@link #concreteIndices()} is the source of the
-     * per-cluster execution fan-out, dropping a cluster here means that cluster is no longer queried.
-     * <p>
-     * Used by view-shadow resolution under CPS: when a linked project owns an <em>index</em> with the
-     * same name as a local view, the view body must not also run on that project — a name cannot be
-     * both a view and an index on a single project, and the index wins on its own project. The
-     * shadow's resolved remote index supplies that project's data instead. See
+     * Returns a copy with the given cluster aliases removed from {@link #originalIndices()},
+     * {@link #concreteIndices()} and {@link #indexNameWithModes()} (the last keyed by qualified
+     * {@code cluster:index} names). Dropping a cluster stops it being queried, since
+     * {@link #concreteIndices()} drives the per-cluster fan-out. See
      * <a href="https://github.com/elastic/esql-planning/issues/795">esql-planning#795</a>.
      */
     public EsRelation withoutClusters(Set<String> clusterAliases) {

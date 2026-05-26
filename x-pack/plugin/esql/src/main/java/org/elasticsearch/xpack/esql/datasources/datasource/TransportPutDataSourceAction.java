@@ -25,21 +25,7 @@ import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
 
 public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNodeProjectAction<PutDataSourceAction.Request> {
     private final DataSourceService dataSourceService;
-    private final DataSourceCredentials credentials;
-
-    // Optional Guice injection: the encryption plugin only binds an EncryptionService when its PEK
-    // feature flag is on, so the binding may be absent. When unset, putDataSource rejects a
-    // secret-bearing request with 503 (DataSourceService.applyEncryption) rather than storing
-    // plaintext; the data-node decryption step is likewise strict about encrypted blobs without a key.
-    private volatile EncryptionService encryptionService;
-
-    @Inject(optional = true)
-    public void setEncryptionService(EncryptionService encryptionService) {
-        this.encryptionService = encryptionService;
-        // Push the service into the shared DataSourceCredentials so the data-node decryption step
-        // (called from the lazy wrappers in DataSourceModule) sees the same binding.
-        credentials.setEncryptionService(encryptionService);
-    }
+    private final EncryptionService encryptionService;
 
     @Inject
     public TransportPutDataSourceAction(
@@ -49,7 +35,8 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
         ActionFilters actionFilters,
         DataSourceService dataSourceService,
         ProjectResolver projectResolver,
-        DataSourceCredentials credentials
+        DataSourceCredentials credentials,
+        EncryptionService encryptionService
     ) {
         super(
             PutDataSourceAction.NAME,
@@ -62,7 +49,13 @@ public class TransportPutDataSourceAction extends AcknowledgedTransportMasterNod
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.dataSourceService = dataSourceService;
-        this.credentials = credentials;
+        this.encryptionService = encryptionService;
+        // EsqlPlugin couples the datasources feature to the project-encryption-key feature, so an
+        // EncryptionService is always bound when this action is registered — hence a hard injection
+        // rather than optional. This action is constructed on every node at startup; push the service
+        // into the shared DataSourceCredentials so the data-node decryption step (the lazy wrappers in
+        // DataSourceModule) reads through the same instance.
+        credentials.setEncryptionService(encryptionService);
     }
 
     @Override

@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
@@ -157,6 +158,14 @@ import java.util.function.Supplier;
 
 public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SearchPlugin {
 
+    // The data-source CRUD layer stores credentials encrypted under the project encryption key, so the
+    // feature requires the encryption capability to be active. We enforce that coupling at startup
+    // (see createComponents): the datasources feature must not run unless the project-encryption-key
+    // feature is on, which guarantees an EncryptionService is bound. The PEK flag lives in the encryption
+    // impl plugin (not the SPI we compile against), so we reference it by name; FeatureFlag resolves
+    // identically off the build + system property.
+    private static final FeatureFlag PROJECT_ENCRYPTION_KEY_FEATURE_FLAG = new FeatureFlag("project_encryption_key");
+
     public static final String ESQL_WORKER_THREAD_POOL_NAME = "esql_worker";
 
     public static final Setting<Integer> ESQL_WORKER_THREAD_POOL_SIZE = Setting.intSetting(
@@ -246,6 +255,17 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        // Data sources store credentials encrypted under the project encryption key. Refuse to start with
+        // the datasources feature on but the encryption feature off — that combination would leave the
+        // CRUD layer unable to ever store a secret. Coupling the two flags here lets the feature rely on
+        // an EncryptionService always being bound when it is active.
+        if (DatasetMetadata.ESQL_EXTERNAL_DATASOURCES_FEATURE_FLAG.isEnabled()
+            && PROJECT_ENCRYPTION_KEY_FEATURE_FLAG.isEnabled() == false) {
+            throw new IllegalStateException(
+                "ES|QL external data sources require the project encryption key feature; enable the "
+                    + "[project_encryption_key] feature flag, or disable [esql_external_datasources]"
+            );
+        }
         Settings settings = services.clusterService().getSettings();
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(
@@ -279,9 +299,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
         // Build capabilities from plugin declarations (cheap -- no I/O, no heavy deps)
         DataSourceCapabilities dataSourceCapabilities = DataSourceCapabilities.build(allDataSourcePlugins);
 
-        // Shared DataSourceCredentials holder: TransportPutDataSourceAction's @Inject(optional=true)
-        // setter pushes the EncryptionService into it; the lazy wrappers in DataSourceModule call
-        // decryptInPlace on the same instance from the read path.
+        // Shared DataSourceCredentials holder. createComponents can't reach the encryption plugin's
+        // EncryptionService binding, so TransportPutDataSourceAction's ctor (constructed on every node
+        // at startup, with EncryptionService as a hard injection) pushes it in; the lazy wrappers in
+        // DataSourceModule call decryptInPlace on the same instance from the read path.
         DataSourceCredentials dataSourceCredentials = new DataSourceCredentials();
 
         // Create DataSourceModule with all discovered plugins

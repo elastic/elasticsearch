@@ -27,6 +27,9 @@ public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> 
      * for eviction, but does not guarantee that eviction will succeed. The region may still be
      * retained if it is currently in use (e.g., held by an active writer or reader).
      * <p>
+     * A return value of {@code false} does not guarantee the region will never be evicted: forced
+     * eviction (e.g., shard closure or index deletion) bypasses this policy entirely.
+     * <p>
      * This method is called under the cache service's monitor lock and must not perform I/O.
      *
      * @param region   the existing cache region being considered for eviction

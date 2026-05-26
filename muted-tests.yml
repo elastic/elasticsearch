@@ -573,9 +573,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.EsqlSpecIT
   method: test {csv-spec:approximation.Subqueries with stats by}
   issue: https://github.com/elastic/elasticsearch/issues/149842
-- class: org.elasticsearch.xpack.stateless.recovery.IndexingShardRelocationIT
-  method: testPreferredNodeIdsAreUsedDuringRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/149851
 - class: org.elasticsearch.indices.state.OpenCloseIndexIT
   method: testTranslogStats
   issue: https://github.com/elastic/elasticsearch/issues/149852
@@ -594,3 +591,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:where-like.likeAndOr}
   issue: https://github.com/elastic/elasticsearch/issues/149900
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:where-like.likePrefixSuffix}
+  issue: https://github.com/elastic/elasticsearch/issues/149904
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:ints.valuesLongGrouped}
+  issue: https://github.com/elastic/elasticsearch/issues/149905
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:conditional.docsCaseHourlyErrorRate}
+  issue: https://github.com/elastic/elasticsearch/issues/149908
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {csv-spec:conditional.docsCaseColumnExpression}
+  issue: https://github.com/elastic/elasticsearch/issues/149920
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:where-like.likeContainsLongerLiteralOnEvalOutput}
+  issue: https://github.com/elastic/elasticsearch/issues/149921

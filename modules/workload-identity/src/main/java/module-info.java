@@ -19,8 +19,6 @@ module org.elasticsearch.workloadidentity {
     requires org.apache.httpcomponents.httpcore;
     requires org.apache.httpcomponents.httpasyncclient;
     requires org.apache.httpcomponents.httpcore.nio;
-    requires org.apache.logging.log4j;
-    requires org.apache.lucene.core;
 
     // The public extension surface (WorkloadIdentityIssuerClient and WorkloadIdentityRegistry)
     // lives in the org.elasticsearch.workloadidentity.spi module, bundled under the plugin's

@@ -35,7 +35,9 @@ public final class DataSourceSettings implements Writeable, Iterable<Map.Entry<S
     private final boolean hasSecrets;
 
     public DataSourceSettings(Map<String, DataSourceSetting> source) {
-        this.underlying = Collections.unmodifiableMap(Objects.requireNonNull(source, "source"));
+        // Defensive copy: unmodifiableMap is only a view, so without copying, a later mutation of the
+        // caller's map would leak through this "immutable" collection.
+        this.underlying = Collections.unmodifiableMap(new HashMap<>(Objects.requireNonNull(source, "source")));
         boolean any = false;
         for (DataSourceSetting s : this.underlying.values()) {
             if (s.secret() && s.rawValue() != null) {

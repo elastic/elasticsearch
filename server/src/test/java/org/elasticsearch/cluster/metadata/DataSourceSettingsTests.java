@@ -1,0 +1,93 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.cluster.metadata;
+
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.test.ESTestCase;
+
+import java.io.IOException;
+import java.util.HashMap;
+import java.util.Map;
+
+public class DataSourceSettingsTests extends ESTestCase {
+
+    public void testHasSecretsEmpty() {
+        assertFalse(DataSourceSettings.EMPTY.hasSecrets());
+        assertFalse(new DataSourceSettings(Map.of()).hasSecrets());
+    }
+
+    public void testHasSecretsAllNonSecret() {
+        Map<String, DataSourceSetting> in = new HashMap<>();
+        in.put("region", new DataSourceSetting("us-east-1", false));
+        in.put("max_retries", new DataSourceSetting(7, false));
+        assertFalse(new DataSourceSettings(in).hasSecrets());
+    }
+
+    public void testHasSecretsNullValuedSecretDoesNotCount() {
+        // A secret-classified setting with a null value carries nothing to protect, so hasSecrets()
+        // stays false — the WARN/encrypt paths gate on this, so a null secret must not trip them.
+        Map<String, DataSourceSetting> in = new HashMap<>();
+        in.put("region", new DataSourceSetting("us-east-1", false));
+        in.put("optional_secret", new DataSourceSetting(null, true));
+        assertFalse(new DataSourceSettings(in).hasSecrets());
+    }
+
+    public void testHasSecretsRealSecret() {
+        Map<String, DataSourceSetting> in = new HashMap<>();
+        in.put("region", new DataSourceSetting("us-east-1", false));
+        in.put("access_key", new DataSourceSetting("AKIA123", true));
+        assertTrue(new DataSourceSettings(in).hasSecrets());
+    }
+
+    public void testToPresentationMapMasksSecrets() {
+        Map<String, DataSourceSetting> in = new HashMap<>();
+        in.put("region", new DataSourceSetting("us-east-1", false));
+        in.put("access_key", new DataSourceSetting("AKIA123", true));
+        in.put("optional_secret", new DataSourceSetting(null, true));
+
+        Map<String, Object> masked = new DataSourceSettings(in).toPresentationMap();
+        assertEquals("us-east-1", masked.get("region"));
+        assertEquals(DataSourceSetting.MASK_SENTINEL, masked.get("access_key"));
+        // A null-valued secret still presents as the sentinel (masking is by classification, not value).
+        assertEquals(DataSourceSetting.MASK_SENTINEL, masked.get("optional_secret"));
+        expectThrows(UnsupportedOperationException.class, () -> masked.put("x", "y"));
+    }
+
+    public void testConstructorDefensivelyCopies() {
+        Map<String, DataSourceSetting> source = new HashMap<>();
+        source.put("region", new DataSourceSetting("us-east-1", false));
+        DataSourceSettings settings = new DataSourceSettings(source);
+
+        // Mutating the source after construction must not leak into the "immutable" collection.
+        source.put("injected", new DataSourceSetting("oops", false));
+        assertEquals(1, settings.size());
+        assertNull(settings.get("injected"));
+        expectThrows(UnsupportedOperationException.class, () -> settings.asMap().put("x", new DataSourceSetting("v", false)));
+    }
+
+    public void testWriteableRoundTripWithMixedSettings() throws IOException {
+        Map<String, DataSourceSetting> in = new HashMap<>();
+        in.put("region", new DataSourceSetting("us-east-1", false));
+        in.put("access_key", new DataSourceSetting(new byte[] { 1, 2, 3, 4 }, true, DataSourceSetting.EncryptionFormat.V1));
+        in.put("plaintext_secret", new DataSourceSetting("AKIA", true));
+        DataSourceSettings settings = new DataSourceSettings(in);
+
+        BytesStreamOutput out = new BytesStreamOutput();
+        settings.writeTo(out);
+        StreamInput sin = out.bytes().streamInput();
+        DataSourceSettings deserialized = new DataSourceSettings(sin);
+
+        assertEquals(settings, deserialized);
+        assertEquals(DataSourceSetting.EncryptionFormat.V1, deserialized.get("access_key").encryption());
+        assertArrayEquals(new byte[] { 1, 2, 3, 4 }, (byte[]) deserialized.get("access_key").rawValue());
+        assertTrue(deserialized.hasSecrets());
+    }
+}

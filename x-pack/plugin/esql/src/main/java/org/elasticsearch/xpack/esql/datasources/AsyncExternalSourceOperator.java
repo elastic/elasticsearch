@@ -19,6 +19,10 @@ import org.elasticsearch.compute.operator.SourceOperator;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -128,10 +132,10 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         private final long rowsEmitted;
         private final long bytesBuffered;
         private final Throwable failure;
-        private final java.util.Map<String, java.util.List<java.util.Map<String, Object>>> capturedSourceMetadata;
+        private final Map<String, List<Map<String, Object>>> capturedSourceMetadata;
 
         Status(int pagesWaiting, int pagesEmitted, long rowsEmitted, long bytesBuffered, Throwable failure) {
-            this(pagesWaiting, pagesEmitted, rowsEmitted, bytesBuffered, failure, java.util.Map.of());
+            this(pagesWaiting, pagesEmitted, rowsEmitted, bytesBuffered, failure, Map.of());
         }
 
         Status(
@@ -140,14 +144,14 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             long rowsEmitted,
             long bytesBuffered,
             Throwable failure,
-            java.util.Map<String, java.util.List<java.util.Map<String, Object>>> capturedSourceMetadata
+            Map<String, List<Map<String, Object>>> capturedSourceMetadata
         ) {
             this.pagesWaiting = pagesWaiting;
             this.pagesEmitted = pagesEmitted;
             this.rowsEmitted = rowsEmitted;
             this.bytesBuffered = bytesBuffered;
             this.failure = failure;
-            this.capturedSourceMetadata = capturedSourceMetadata == null ? java.util.Map.of() : capturedSourceMetadata;
+            this.capturedSourceMetadata = capturedSourceMetadata == null ? Map.of() : capturedSourceMetadata;
         }
 
         Status(StreamInput in) throws IOException {
@@ -159,13 +163,13 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             if (in.getTransportVersion().supports(ESQL_CAPTURED_SOURCE_METADATA)) {
                 int n = in.readVInt();
                 if (n == 0) {
-                    capturedSourceMetadata = java.util.Map.of();
+                    capturedSourceMetadata = Map.of();
                 } else {
-                    java.util.Map<String, java.util.List<java.util.Map<String, Object>>> tmp = new java.util.HashMap<>(n);
+                    Map<String, List<Map<String, Object>>> tmp = new HashMap<>(n);
                     for (int i = 0; i < n; i++) {
                         String path = in.readString();
                         int contributionCount = in.readVInt();
-                        java.util.List<java.util.Map<String, Object>> contributions = new java.util.ArrayList<>(contributionCount);
+                        List<Map<String, Object>> contributions = new ArrayList<>(contributionCount);
                         for (int j = 0; j < contributionCount; j++) {
                             contributions.add(in.readGenericMap());
                         }
@@ -174,7 +178,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
                     capturedSourceMetadata = tmp;
                 }
             } else {
-                capturedSourceMetadata = java.util.Map.of();
+                capturedSourceMetadata = Map.of();
             }
         }
 
@@ -189,11 +193,11 @@ public class AsyncExternalSourceOperator extends SourceOperator {
             out.writeException(failure);
             if (out.getTransportVersion().supports(ESQL_CAPTURED_SOURCE_METADATA)) {
                 out.writeVInt(capturedSourceMetadata.size());
-                for (java.util.Map.Entry<String, java.util.List<java.util.Map<String, Object>>> e : capturedSourceMetadata.entrySet()) {
+                for (Map.Entry<String, List<Map<String, Object>>> e : capturedSourceMetadata.entrySet()) {
                     out.writeString(e.getKey());
-                    java.util.List<java.util.Map<String, Object>> contributions = e.getValue();
+                    List<Map<String, Object>> contributions = e.getValue();
                     out.writeVInt(contributions.size());
-                    for (java.util.Map<String, Object> contribution : contributions) {
+                    for (Map<String, Object> contribution : contributions) {
                         out.writeGenericMap(contribution);
                     }
                 }
@@ -201,7 +205,7 @@ public class AsyncExternalSourceOperator extends SourceOperator {
         }
 
         @Override
-        public java.util.Map<String, java.util.List<java.util.Map<String, Object>>> capturedSourceMetadata() {
+        public Map<String, List<Map<String, Object>>> capturedSourceMetadata() {
             return capturedSourceMetadata;
         }
 

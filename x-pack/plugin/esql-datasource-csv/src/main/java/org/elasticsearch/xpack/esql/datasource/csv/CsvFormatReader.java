@@ -1855,11 +1855,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
                         // reconciler only commits the merge then.
                         publishToCaptureSink(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord, schema, sizeInBytesFromLength());
                     } else if (chunkMode && rowsSkipped > 0) {
-                        // SKIP_ROW (or any structural-failure path) actually dropped rows from this
-                        // chunk, so rowsEmittedForCache is short of the file's true row count. Poison
-                        // the file's merge. NULL_FIELD also increments errorCount but NOT rowsSkipped
-                        // — that path null-fills the bad field and keeps the row, so the count stays
-                        // accurate and no poison is needed.
+                        // Poison only when rows were actually dropped (rowsSkipped > 0 — incremented
+                        // by onRowError under SKIP_ROW + structural failures). NULL_FIELD increments
+                        // errorCount but NOT rowsSkipped: that path null-fills the bad field and
+                        // preserves the row, so rowsEmittedForCache still matches the file's true
+                        // row count and no poison is needed.
                         java.util.Map<String, Object> poison = new java.util.HashMap<>();
                         poison.put(ExternalStatsCache.MTIME_MILLIS_KEY, pinnedMtimeMillis);
                         poison.put(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);

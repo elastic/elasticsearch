@@ -74,7 +74,12 @@ public final class AsyncExternalSourceBuffer {
         return capturedSourceMetadata;
     }
 
-    /** Read by the driver thread via {@link AsyncExternalSourceOperator#status()}. */
+    /**
+     * Returns an immutable point-in-time snapshot of the capture sink. Read by the driver thread
+     * via {@link AsyncExternalSourceOperator#status()}. Returning an unmodifiable view defends
+     * against downstream callers mutating the snapshot in place, which would silently lose stats
+     * before they reach the coordinator's reconciler.
+     */
     java.util.Map<String, java.util.List<java.util.Map<String, Object>>> capturedSourceMetadataSnapshot() {
         if (capturedSourceMetadata.isEmpty()) {
             return java.util.Map.of();
@@ -85,7 +90,7 @@ public final class AsyncExternalSourceBuffer {
         for (var entry : capturedSourceMetadata.entrySet()) {
             snapshot.put(entry.getKey(), java.util.List.copyOf(entry.getValue()));
         }
-        return snapshot;
+        return java.util.Collections.unmodifiableMap(snapshot);
     }
 
     /**

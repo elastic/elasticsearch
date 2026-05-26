@@ -169,9 +169,15 @@ public class ExternalSourceCacheService implements Closeable {
                 // mergeStatistics rebuilds the map from scratch and only retains the well-known
                 // _stats.row_count / _stats.size_bytes / _stats.columns.* keys. The reconciler
                 // below relies on MTIME_MILLIS_KEY (to find the matching SchemaCacheEntry via
-                // its lastModifiedEpochMillis axis); without re-attaching it the multi-chunk
-                // merge would never commit. All chunks of a file share the same pinned mtime
-                // (set at iterator open), so pulling it off any contribution is fine.
+                // its lastModifiedEpochMillis axis) and CONFIG_FINGERPRINT_KEY (to disambiguate
+                // schema entries that share path+mtime but differ on WITH options); without
+                // re-attaching them the multi-chunk merge would never commit. All chunks of a
+                // file are read by a single format-reader instance through one FormatReadContext,
+                // so they share the same pinned mtime (set at iterator open) and the same config
+                // fingerprint — pulling either off cleaned.get(0) is safe. The finalize-marker
+                // entry has already been dropped from cleaned by the gate at the top of the loop,
+                // so cleaned.get(0) is always a chunk-partial with chunk-pinned mtime, never the
+                // finalize-marker's close-time mtime.
                 if (mergedForFile != null) {
                     Object mtime = cleaned.get(0).get(ExternalStatsCache.MTIME_MILLIS_KEY);
                     if (mtime != null) {

@@ -1301,6 +1301,17 @@ public class EsqlCapabilities {
         SUBQUERY_IN_FROM_COMMAND_UNION_TYPES_CONFLICT_RESOLUTION,
 
         /**
+         * Carry over synthetic convert-function attributes introduced by
+         * {@code ResolveUnionTypesInUnionAll} through intermediate {@code Project} nodes (e.g. those
+         * produced by {@code RENAME}, {@code KEEP}, or {@code DROP}) sitting above the {@code UnionAll}.
+         * Without this, the synthetic {@code $$<field>$converted_to$<type>} attribute referenced by the
+         * rewritten convert function would not be visible above the {@code Project}, producing a plan
+         * with missing references that fails the optimizer's plan consistency check.
+         * https://github.com/elastic/elasticsearch/issues/149509
+         */
+        SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES,
+
+        /**
          * Fix for {@code PruneColumns} leaving an inconsistent plan when an {@code INLINE STATS} sits above a {@code UnionAll}
          * (from a subquery in FROM) or a {@code Fork}.
          */

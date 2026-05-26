@@ -12,6 +12,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.LoadMapping;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.EsIndexGenerator;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
@@ -25,6 +26,7 @@ import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewShadowRelation;
 import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 
+import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -293,6 +295,111 @@ public class ResolveViewShadowTests extends ESTestCase {
         assertFalse("body's qualified index map still references P", bodyRelation.indexNameWithModes().containsKey("P:source-idx"));
         // ...but "P" still contributes via its own index "v1" through the surviving shadow branch.
         assertEquals(Set.of("P"), shadowRelation.concreteIndices().keySet());
+
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    /**
+     * #795 edge: the colliding project is the view body's ONLY project. The view's source data lived
+     * only on the project that turns out to own a same-named index, so after excluding that project
+     * the body has no clusters left to run on — it contributes nothing, and the project's index (the
+     * shadow) supplies all of its rows. The body branch survives with empty per-cluster maps (a
+     * zero-row leaf); confirming execution treats that as no rows is left to the integration test.
+     */
+    public void testViewBodyEmptyWhenOnlyProjectOwnsSameNamedIndex() {
+        EsIndex body = new EsIndex(
+            "source-idx",
+            LoadMapping.loadMapping("mapping-one-field.json"),
+            Map.of("P:source-idx", IndexMode.STANDARD),
+            Map.of("P", List.of("source-idx")),
+            Map.of("P", List.of("source-idx"))
+        );
+        EsIndex remoteV1 = new EsIndex(
+            "v1",
+            LoadMapping.loadMapping("mapping-one-field.json"),
+            Map.of("P:v1", IndexMode.STANDARD),
+            Map.of("P", List.of("v1")),
+            Map.of("P", List.of("v1"))
+        );
+        var analyzer = analyzer().addIndex("source-idx", IndexResolution.valid(body))
+            .addLenientShadow(new IndexPattern(EMPTY, "v1"), IndexResolution.valid(remoteV1))
+            .buildAnalyzer();
+
+        LogicalPlan plan = analyzer.analyze(viewUnionAllOf("v1", strictUR("source-idx"), new ViewShadowRelation(EMPTY, "v1", List.of())));
+
+        var unionAll = as(as(plan, Limit.class).child(), ViewUnionAll.class);
+        Map<String, EsRelation> byPattern = unionAll.children()
+            .stream()
+            .map(child -> as(unwrapProject(child), EsRelation.class))
+            .collect(Collectors.toMap(EsRelation::indexPattern, r -> r));
+
+        // The body runs nowhere (no clusters left after excluding the only project that has the data)...
+        assertEquals("view body should have no clusters left", Set.of(), byPattern.get("source-idx").concreteIndices().keySet());
+        // ...and the project's same-named index supplies the rows via the shadow branch.
+        assertEquals(Set.of("P"), byPattern.get("v1").concreteIndices().keySet());
+
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    /**
+     * #795, nested case: outer view {@code v} is defined as {@code FROM v2}, an inner view over
+     * {@code source-idx}. A single linked project {@code P} owns indexes named like <em>both</em>
+     * {@code v} and {@code v2}. Because {@code v} resolves to an index on {@code P}, none of {@code v}'s
+     * definition runs on {@code P} — not the {@code source-idx} body, and not {@code P}'s {@code v2}
+     * index either; {@code P} contributes only its {@code v} index. The rule achieves this bottom-up:
+     * the inner shadow is resolved to an {@code EsRelation} before the outer collision prunes the inner
+     * subtree, so the inner {@code v2} index on {@code P} is pruned away too.
+     */
+    public void testNestedViewExcludesProjectOwningOuterViewIndex() {
+        Map<String, EsField> mapping = LoadMapping.loadMapping("mapping-one-field.json");
+        // v2 body: source-idx on origin ("") and linked project "P".
+        EsIndex sourceIdx = new EsIndex(
+            "source-idx",
+            mapping,
+            Map.of("source-idx", IndexMode.STANDARD, "P:source-idx", IndexMode.STANDARD),
+            Map.of("", List.of("source-idx"), "P", List.of("source-idx")),
+            Map.of("", List.of("source-idx"), "P", List.of("source-idx"))
+        );
+        EsIndex remoteV2 = new EsIndex(
+            "v2",
+            mapping,
+            Map.of("P:v2", IndexMode.STANDARD),
+            Map.of("P", List.of("v2")),
+            Map.of("P", List.of("v2"))
+        );
+        EsIndex remoteV = new EsIndex(
+            "v",
+            mapping,
+            Map.of("P:v", IndexMode.STANDARD),
+            Map.of("P", List.of("v")),
+            Map.of("P", List.of("v"))
+        );
+
+        var analyzer = analyzer().addIndex("source-idx", IndexResolution.valid(sourceIdx))
+            .addLenientShadow(new IndexPattern(EMPTY, "v2"), IndexResolution.valid(remoteV2))
+            .addLenientShadow(new IndexPattern(EMPTY, "v"), IndexResolution.valid(remoteV))
+            .buildAnalyzer();
+
+        // inner ViewUnionAll: v2 = FROM source-idx, plus v2's shadow
+        LinkedHashMap<String, LogicalPlan> inner = new LinkedHashMap<>();
+        inner.put("v2", strictUR("source-idx"));
+        inner.put("v2" + ViewShadowRelation.NAME_SUFFIX, new ViewShadowRelation(EMPTY, "v2", List.of()));
+        // outer ViewUnionAll: v = FROM v2, plus v's shadow
+        LinkedHashMap<String, LogicalPlan> outer = new LinkedHashMap<>();
+        outer.put("v", new ViewUnionAll(EMPTY, inner, List.of()));
+        outer.put("v" + ViewShadowRelation.NAME_SUFFIX, new ViewShadowRelation(EMPTY, "v", List.of()));
+
+        LogicalPlan plan = analyzer.analyze(new ViewUnionAll(EMPTY, outer, List.of()));
+
+        Map<String, EsRelation> byPattern = new HashMap<>();
+        plan.forEachDown(EsRelation.class, r -> byPattern.put(r.indexPattern(), r));
+
+        // The view body runs on origin only — "P" is excluded since "v" is an index there.
+        assertEquals("body must drop P", Set.of(""), byPattern.get("source-idx").concreteIndices().keySet());
+        // The inner v2 index on "P" is also excluded — the whole nested definition of v is off on "P".
+        assertEquals("inner v2 index on P must be excluded", Set.of(), byPattern.get("v2").concreteIndices().keySet());
+        // "P" contributes only via its own "v" index.
+        assertEquals(Set.of("P"), byPattern.get("v").concreteIndices().keySet());
 
         assertWarnings(NO_LIMIT_WARNING);
     }

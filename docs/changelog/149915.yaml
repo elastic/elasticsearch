@@ -1,0 +1,5 @@
+pr: 149915
+summary: Exclude a linked project from a CPS view body when it owns a same-named index
+area: ES|QL
+type: bug
+issues: []

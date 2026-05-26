@@ -237,8 +237,8 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Limiter.ONCE,
             new ResolveConfigurationAware(),
             new ResolveTable(),
-            new ResolveViewShadow(),
             new ExcludeShadowedProjectsFromViewBody(),
+            new ResolveViewShadow(),
             new ViewCompactionPostIndexResolution(),
             new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
@@ -499,71 +499,84 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 // ViewCompactionPostIndexResolution to strip.
                 return shadow;
             }
-            EsIndex esIndex = resolution.get();
-            var attributes = mappingAsAttributes(shadow.source(), esIndex.mapping());
-            return new EsRelation(
-                shadow.source(),
-                esIndex.name(),
-                IndexMode.STANDARD,
-                esIndex.originalIndices(),
-                esIndex.concreteIndices(),
-                esIndex.indexNameWithModes(),
-                attributes.isEmpty() ? NO_FIELDS : attributes
-            );
+            return esRelationForShadow(shadow, resolution);
         }
     }
 
     /**
-     * Completes view-shadow resolution under CPS: when a {@link ViewShadowRelation} resolved to a
-     * remote <em>index</em> on a linked project (i.e. that project owns an index sharing the local
-     * view's name), the view body must not <em>also</em> run on that project. A name cannot be both
-     * a view and an index on the same project; the index wins on its own project, so the view is
-     * excluded there and the project contributes only via its index (the resolved shadow branch).
+     * Builds the {@link EsRelation} that a matched {@link ViewShadowRelation} resolves to — the remote
+     * index sharing the local view's name. Shared by {@link ResolveViewShadow} (standalone shadows)
+     * and {@link ExcludeShadowedProjectsFromViewBody} (in-union shadows).
+     */
+    private static EsRelation esRelationForShadow(ViewShadowRelation shadow, IndexResolution resolution) {
+        EsIndex esIndex = resolution.get();
+        var attributes = mappingAsAttributes(shadow.source(), esIndex.mapping());
+        return new EsRelation(
+            shadow.source(),
+            esIndex.name(),
+            IndexMode.STANDARD,
+            esIndex.originalIndices(),
+            esIndex.concreteIndices(),
+            esIndex.indexNameWithModes(),
+            attributes.isEmpty() ? NO_FIELDS : attributes
+        );
+    }
+
+    /**
+     * Resolves the {@link ViewShadowRelation}s inside a {@link ViewUnionAll} and excludes, from each
+     * local view's body, any linked project that owns an <em>index</em> sharing the view's name. A
+     * name cannot be both a view and an index on the same project; the index wins on its own project,
+     * so the view must not run there — the project contributes only via its index (the resolved shadow
+     * branch).
      * <p>
-     * The rule pairs each resolved shadow branch (keyed {@code <viewName>}{@link ViewShadowRelation#NAME_SUFFIX}
-     * inside the {@link ViewUnionAll}) with its strict body branch (keyed {@code <viewName>}) and
-     * removes the shadowed project(s) — read from the shadow's resolved {@link EsRelation#concreteIndices()}
-     * — from every {@link EsRelation} in the body subtree via {@link EsRelation#withoutClusters}. The
-     * body then fans out to origin and all other linked projects, but not the colliding one. For
-     * nested views the prune covers the whole body subtree, which is correct: if the outer view name
-     * collides on a project, none of its (possibly nested) definition runs there.
+     * Pairing is by the view name the shadow carries as a data field ({@link ViewShadowRelation#viewName()}),
+     * matched against the body branch keyed by that same view name. The shadow branch's own map key is
+     * never parsed, so the link does not depend on the {@code #shadow} suffix convention.
      * <p>
-     * Runs after {@link ResolveViewShadow} (which turns matched shadows into {@code EsRelation}s) and
-     * before {@link ViewCompactionPostIndexResolution} (which strips unmatched shadows and flattens
-     * the {@link ViewUnionAll}, discarding the {@code #shadow} name pairing this rule relies on). See
+     * This rule resolves in-union shadows itself (rather than leaving them all to {@link ResolveViewShadow})
+     * so that the exclusion is correct for nested views. Because it runs bottom-up
+     * ({@code transformUp}), an inner {@link ViewUnionAll} is fully resolved before an enclosing one is
+     * processed; so when an outer view-name collision prunes its body subtree via
+     * {@link EsRelation#withoutClusters}, any inner shadow — already an {@link EsRelation} by then — is
+     * pruned too. An outer collision therefore excludes the whole (possibly nested) view definition on
+     * that project, including inner same-named indexes. {@link ResolveViewShadow} still runs afterwards
+     * to resolve any standalone shadow not wrapped in a {@link ViewUnionAll}. See
      * <a href="https://github.com/elastic/esql-planning/issues/795">esql-planning#795</a>.
      */
-    private static class ExcludeShadowedProjectsFromViewBody extends Rule<LogicalPlan, LogicalPlan> {
+    private static class ExcludeShadowedProjectsFromViewBody extends ParameterizedAnalyzerRule<ViewUnionAll, AnalyzerContext> {
 
         @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformUp(ViewUnionAll.class, ExcludeShadowedProjectsFromViewBody::rewrite);
-        }
-
-        private static LogicalPlan rewrite(ViewUnionAll viewUnionAll) {
-            Map<String, LogicalPlan> namedSubqueries = viewUnionAll.namedSubqueries();
-            // Per view name, the linked projects whose same-named index the shadow resolved to.
-            Map<String, Set<String>> shadowedProjectsByView = new HashMap<>();
-            for (Map.Entry<String, LogicalPlan> entry : namedSubqueries.entrySet()) {
-                String name = entry.getKey();
-                if (name.endsWith(ViewShadowRelation.NAME_SUFFIX) && entry.getValue() instanceof EsRelation shadowRelation) {
-                    String viewName = name.substring(0, name.length() - ViewShadowRelation.NAME_SUFFIX.length());
-                    shadowedProjectsByView.put(viewName, shadowRelation.concreteIndices().keySet());
+        protected LogicalPlan rule(ViewUnionAll viewUnionAll, AnalyzerContext context) {
+            // Resolve in-union shadows, collecting per view name the linked projects owning a same-named index.
+            Map<String, Set<String>> projectsByView = new HashMap<>();
+            LinkedHashMap<String, LogicalPlan> resolvedShadows = new LinkedHashMap<>();
+            for (Map.Entry<String, LogicalPlan> entry : viewUnionAll.namedSubqueries().entrySet()) {
+                LogicalPlan child = entry.getValue();
+                if (child instanceof ViewShadowRelation shadow) {
+                    IndexResolution resolution = context.optionalLinkedResolution().get(shadow.optionalLinkedPattern());
+                    if (resolution != null && resolution.isValid()) {
+                        projectsByView.computeIfAbsent(shadow.viewName(), k -> new HashSet<>())
+                            .addAll(resolution.get().concreteIndices().keySet());
+                        resolvedShadows.put(entry.getKey(), esRelationForShadow(shadow, resolution));
+                        continue;
+                    }
                 }
+                // Body branch, or an unmatched shadow left for ViewCompactionPostIndexResolution to strip.
+                resolvedShadows.put(entry.getKey(), child);
             }
-            if (shadowedProjectsByView.isEmpty()) {
+            if (projectsByView.isEmpty()) {
                 return viewUnionAll;
             }
             LinkedHashMap<String, LogicalPlan> rewritten = new LinkedHashMap<>();
-            for (Map.Entry<String, LogicalPlan> entry : namedSubqueries.entrySet()) {
-                String name = entry.getKey();
+            for (Map.Entry<String, LogicalPlan> entry : resolvedShadows.entrySet()) {
                 LogicalPlan branch = entry.getValue();
-                // Body branches carry the bare view name (no #shadow suffix); shadow branches are left as-is.
-                Set<String> shadowedProjects = shadowedProjectsByView.get(name);
-                if (shadowedProjects != null && shadowedProjects.isEmpty() == false) {
-                    branch = branch.transformUp(EsRelation.class, esRelation -> esRelation.withoutClusters(shadowedProjects));
+                // The body branch is keyed by its view name; a shadow branch's key (view name plus a
+                // suffix) never matches a projectsByView key, so shadow branches are left untouched.
+                Set<String> excluded = projectsByView.get(entry.getKey());
+                if (excluded != null && excluded.isEmpty() == false) {
+                    branch = branch.transformUp(EsRelation.class, esRelation -> esRelation.withoutClusters(excluded));
                 }
-                rewritten.put(name, branch);
+                rewritten.put(entry.getKey(), branch);
             }
             return new ViewUnionAll(viewUnionAll.source(), rewritten, viewUnionAll.output());
         }

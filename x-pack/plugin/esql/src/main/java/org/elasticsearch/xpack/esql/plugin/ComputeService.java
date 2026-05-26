@@ -1311,6 +1311,9 @@ public class ComputeService {
         PlanTimeProfile planTimeProfile
     ) {
         long startTime = planTimeProfile == null ? 0 : System.nanoTime();
+        // Ensure LocalMapper sees the pragmas for this query.
+        org.elasticsearch.xpack.esql.planner.mapper.LocalMapper.setPragmas(configuration.pragmas());
+        try {
         PhysicalPlan source = new ExchangeSourceExec(originalPlan.source(), originalPlan.output(), originalPlan.isIntermediateAgg());
         ReductionPlan passThroughReduction = new ReductionPlan(originalPlan.replaceChild(source), originalPlan);
         if (reduceNodeLateMaterialization == false && runNodeLevelReduction == false) {
@@ -1357,6 +1360,9 @@ public class ComputeService {
         PhysicalVerifier.LOCAL_INSTANCE.verify(reductionPlan.dataNodePlan(), reductionSource.output());
 
         return reductionPlan;
+        } finally {
+            org.elasticsearch.xpack.esql.planner.mapper.LocalMapper.clearPragmas();
+        }
     }
 
     private static boolean skipConsistencyCheckAfterReductionPlanning(LogicalPlan fragment) {

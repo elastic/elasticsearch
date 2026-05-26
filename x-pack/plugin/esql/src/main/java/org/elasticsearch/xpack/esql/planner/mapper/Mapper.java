@@ -60,6 +60,25 @@ import java.util.List;
  */
 public class Mapper {
 
+    /**
+     * Thread-local pragmas used while planning. See {@link LocalMapper#currentPragmas()}.
+     */
+    private static final ThreadLocal<org.elasticsearch.xpack.esql.plugin.QueryPragmas> PRAGMAS = ThreadLocal.withInitial(
+        () -> org.elasticsearch.xpack.esql.plugin.QueryPragmas.EMPTY
+    );
+
+    public static org.elasticsearch.xpack.esql.plugin.QueryPragmas currentPragmas() {
+        return PRAGMAS.get();
+    }
+
+    public static void setPragmas(org.elasticsearch.xpack.esql.plugin.QueryPragmas pragmas) {
+        PRAGMAS.set(pragmas == null ? org.elasticsearch.xpack.esql.plugin.QueryPragmas.EMPTY : pragmas);
+    }
+
+    public static void clearPragmas() {
+        PRAGMAS.remove();
+    }
+
     public PhysicalPlan map(Versioned<LogicalPlan> versionedPlan) {
         // We ignore the version for now, but it's fine to use later for plans that work
         // differently from some version and up.
@@ -125,6 +144,15 @@ public class Mapper {
             // TODO: might be easier long term to end up with just one node and split if necessary instead of doing that always at this
             // stage
             mappedChild = addExchangeForFragment(aggregate, mappedChild);
+
+            // EXPERIMENTAL: when skip_final_aggregation pragma OR JVM flag is set, the data driver does
+            // SINGLE-mode agg so the exchange carries final output and we skip the FINAL stage.
+            // Correct only when group keys do not overlap across drivers.
+            boolean skipFinal = currentPragmas().skipFinalAggregation() || Boolean.getBoolean("esql.skip_final_agg");
+            if (skipFinal && mappedChild instanceof ExchangeExec exchange) {
+                List<Attribute> finalOutput = Aggregate.output(aggregate.aggregates());
+                return new ExchangeExec(mappedChild.source(), finalOutput, false, exchange.child());
+            }
 
             // exchange was added - use the intermediates for the output
             if (mappedChild instanceof ExchangeExec exchange) {

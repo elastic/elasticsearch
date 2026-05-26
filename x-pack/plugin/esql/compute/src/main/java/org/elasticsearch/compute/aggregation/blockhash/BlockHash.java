@@ -197,6 +197,8 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
                 return new LongIntAdaptiveBlockHash(groups, blockFactory, emitBatchSize, false);
             } else if (g1.elementType == ElementType.INT && g2.elementType == ElementType.LONG) {
                 return new LongIntAdaptiveBlockHash(groups, blockFactory, emitBatchSize, true);
+            } else if (g1.elementType == ElementType.INT && g2.elementType == ElementType.INT) {
+                return new IntIntBlockHash(blockFactory, g1.channel(), g2.channel());
             }
             // TODO: wire these with adaptive
             if (allowBrokenOptimizations) {

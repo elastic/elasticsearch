@@ -11,6 +11,9 @@ import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.BinaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
@@ -53,6 +56,28 @@ import java.util.List;
 public class LocalMapper {
 
     public static LocalMapper INSTANCE = new LocalMapper();
+
+    /**
+     * Thread-local pragmas used while planning. Set by the call site that invokes
+     * {@link #map(LogicalPlan)} so the planner can read per-query opt-in flags like
+     * {@code skip_final_aggregation} and {@code data_driver_topn_limit} without
+     * threading {@code Configuration} through every method signature.
+     */
+    private static final ThreadLocal<org.elasticsearch.xpack.esql.plugin.QueryPragmas> PRAGMAS = ThreadLocal.withInitial(
+        () -> org.elasticsearch.xpack.esql.plugin.QueryPragmas.EMPTY
+    );
+
+    public static org.elasticsearch.xpack.esql.plugin.QueryPragmas currentPragmas() {
+        return PRAGMAS.get();
+    }
+
+    public static void setPragmas(org.elasticsearch.xpack.esql.plugin.QueryPragmas pragmas) {
+        PRAGMAS.set(pragmas == null ? org.elasticsearch.xpack.esql.plugin.QueryPragmas.EMPTY : pragmas);
+    }
+
+    public static void clearPragmas() {
+        PRAGMAS.remove();
+    }
 
     private LocalMapper() {}
 
@@ -97,7 +122,33 @@ public class LocalMapper {
         //
         if (unary instanceof Aggregate aggregate) {
             List<Attribute> intermediate = MapperUtils.intermediateAttributes(aggregate);
-            return MapperUtils.aggExec(aggregate, mappedChild, AggregatorMode.INITIAL, intermediate);
+            // EXPERIMENTAL: when skip_final_aggregation pragma is set, data drivers run SINGLE mode
+            // so their output is the final result (no FINAL stage needed downstream).
+            // Correct only when group keys do not overlap across drivers.
+            org.elasticsearch.xpack.esql.plugin.QueryPragmas pragmas = currentPragmas();
+            // Pragmas don't reliably propagate to data-driver threads yet, so fall back to JVM-flag.
+            boolean skipFinal = pragmas.skipFinalAggregation() || Boolean.getBoolean("esql.skip_final_agg");
+            AggregatorMode mode = skipFinal ? AggregatorMode.SINGLE : AggregatorMode.INITIAL;
+            PhysicalPlan aggExec = MapperUtils.aggExec(aggregate, mappedChild, mode, intermediate);
+
+            // EXPERIMENTAL: when data_driver_topn_limit pragma is set, push a TopN(K) into the data driver
+            // ordered by the first aggregate column DESC. Reduces each driver's emission to K rows.
+            int topNLimit = pragmas.dataDriverTopNLimit();
+            if (topNLimit == 0) {
+                topNLimit = Integer.getInteger("esql.data_driver_topn_limit", 0);
+            }
+            if (topNLimit > 0 && mode == AggregatorMode.SINGLE && aggregate.aggregates().isEmpty() == false) {
+                Attribute sortAttr = aggregate.aggregates().get(0).toAttribute();
+                Order order = new Order(aggregate.source(), sortAttr, Order.OrderDirection.DESC, Order.NullsPosition.FIRST);
+                return new TopNExec(
+                    aggregate.source(),
+                    aggExec,
+                    List.of(order),
+                    new Literal(aggregate.source(), topNLimit, DataType.INTEGER),
+                    null
+                );
+            }
+            return aggExec;
         }
 
         if (unary instanceof Limit limit) {

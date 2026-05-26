@@ -1704,9 +1704,17 @@ public class EsqlSession {
         PhysicalPlanOptimizer physicalPlanOptimizer,
         PlanTimeProfile planTimeProfile
     ) {
-        PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan, physicalPlanOptimizer, planTimeProfile);
-        physicalPlan = PlannerUtils.integrateEsFilterIntoFragment(physicalPlan, request.filter());
-        return EstimatesRowSize.estimateRowSize(0, physicalPlan);
+        org.elasticsearch.xpack.esql.plugin.QueryPragmas pragmas = physicalPlanOptimizer.context().configuration().pragmas();
+        org.elasticsearch.xpack.esql.planner.mapper.Mapper.setPragmas(pragmas);
+        org.elasticsearch.xpack.esql.planner.mapper.LocalMapper.setPragmas(pragmas);
+        try {
+            PhysicalPlan physicalPlan = optimizedPhysicalPlan(optimizedPlan, physicalPlanOptimizer, planTimeProfile);
+            physicalPlan = PlannerUtils.integrateEsFilterIntoFragment(physicalPlan, request.filter());
+            return EstimatesRowSize.estimateRowSize(0, physicalPlan);
+        } finally {
+            org.elasticsearch.xpack.esql.planner.mapper.Mapper.clearPragmas();
+            org.elasticsearch.xpack.esql.planner.mapper.LocalMapper.clearPragmas();
+        }
     }
 
     private LogicalPlan analyzedPlan(

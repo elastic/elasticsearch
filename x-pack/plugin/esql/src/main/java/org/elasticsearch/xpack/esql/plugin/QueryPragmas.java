@@ -131,6 +131,22 @@ public final class QueryPragmas implements Writeable {
      */
     public static final Setting<Boolean> FORCE_DOC_SEQUENCE = Setting.boolSetting("force_doc_sequence", false);
 
+    /**
+     * EXPERIMENTAL / unsafe: skip the FINAL aggregation step and have data drivers emit final-mode
+     * results directly. Only valid when each group key is processed by exactly one data driver --
+     * e.g. very high-cardinality GROUP BY keys where each key has a single occurrence in the data
+     * (such as a UUID or a per-event id). Produces silently-wrong results when keys can span
+     * drivers. Off by default.
+     */
+    public static final Setting<Boolean> SKIP_FINAL_AGGREGATION = Setting.boolSetting("skip_final_aggregation", false);
+
+    /**
+     * EXPERIMENTAL / unsafe: push a TopN(K) into each data driver after its aggregation, so each
+     * driver emits at most K rows. Only meaningful when {@link #SKIP_FINAL_AGGREGATION} is also
+     * enabled AND each group key lives in exactly one driver. {@code 0} (default) disables this.
+     */
+    public static final Setting<Integer> DATA_DRIVER_TOPN_LIMIT = Setting.intSetting("data_driver_topn_limit", 0, 0);
+
     public static final QueryPragmas EMPTY = new QueryPragmas(Settings.EMPTY);
 
     private final Settings settings;
@@ -306,6 +322,20 @@ public final class QueryPragmas implements Writeable {
             return PlannerSettings.DOC_THRESHOLD_AUTO_PARTITIONING.get(settings);
         }
         return defaultThreshold;
+    }
+
+    /**
+     * EXPERIMENTAL: see {@link #SKIP_FINAL_AGGREGATION}. Only safe when each key is in one driver.
+     */
+    public boolean skipFinalAggregation() {
+        return SKIP_FINAL_AGGREGATION.get(settings);
+    }
+
+    /**
+     * EXPERIMENTAL: see {@link #DATA_DRIVER_TOPN_LIMIT}. {@code 0} = disabled.
+     */
+    public int dataDriverTopNLimit() {
+        return DATA_DRIVER_TOPN_LIMIT.get(settings);
     }
 
     public boolean isEmpty() {

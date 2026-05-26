@@ -169,7 +169,10 @@ public class PlannerUtils {
         int estimatedRowSize = fragment.estimatedRowSize();
         return switch (LocalMapper.INSTANCE.map(pipelineBreaker)) {
             case TopNExec topN -> new TopNReduction(EstimatesRowSize.estimateRowSize(estimatedRowSize, topN));
-            case AggregateExec aggExec -> getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
+            case AggregateExec aggExec -> (org.elasticsearch.xpack.esql.planner.mapper.LocalMapper.currentPragmas().skipFinalAggregation()
+                || Boolean.getBoolean("esql.skip_final_agg"))
+                ? SimplePlanReduction.NO_REDUCTION
+                : getPhysicalPlanReduction(estimatedRowSize, aggExec.withMode(AggregatorMode.INTERMEDIATE));
             case MetricsInfoExec metricsInfoExec -> getPhysicalPlanReduction(
                 estimatedRowSize,
                 new MetricsInfoExec(
@@ -286,8 +289,13 @@ public class PlannerUtils {
         var physicalOptimizer = new LocalPhysicalPlanOptimizer(
             new LocalPhysicalOptimizerContext(plannerSettings, flags, configuration, foldCtx, searchStats)
         );
-
-        return localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);
+        // Set pragmas so LocalMapper can read per-query opt-in flags during local planning.
+        org.elasticsearch.xpack.esql.planner.mapper.LocalMapper.setPragmas(configuration.pragmas());
+        try {
+            return localPlan(plan, logicalOptimizer, physicalOptimizer, planTimeProfile);
+        } finally {
+            org.elasticsearch.xpack.esql.planner.mapper.LocalMapper.clearPragmas();
+        }
     }
 
     public static PhysicalPlan localPlan(

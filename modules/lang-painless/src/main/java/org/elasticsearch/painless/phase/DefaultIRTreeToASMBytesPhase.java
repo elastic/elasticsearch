@@ -457,7 +457,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
         methodWriter.getField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
         methodWriter.push(-1);
         methodWriter.math(MethodWriter.ADD, Type.INT_TYPE);
-        methodWriter.visitInsn(Opcodes.DUP_X1);  // [newVal, scriptThis, newVal] — copy int below the object ref
+        methodWriter.dupX1();  // [newVal, scriptThis, newVal] — copy int below the object ref
         methodWriter.putField(WriterConstants.CLASS_TYPE, WriterConstants.CANCEL_POLL_FIELD, Type.INT_TYPE);
         methodWriter.ifZCmp(MethodWriter.GT, skip);
 
@@ -479,7 +479,7 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
      */
     private static void loadScriptInstance(MethodWriter methodWriter, int scriptThisSlot) {
         methodWriter.visitVarInsn(Opcodes.ALOAD, scriptThisSlot);
-        methodWriter.visitTypeInsn(Opcodes.CHECKCAST, WriterConstants.CLASS_TYPE.getInternalName());
+        methodWriter.checkCast(WriterConstants.CLASS_TYPE);
     }
 
     @Override

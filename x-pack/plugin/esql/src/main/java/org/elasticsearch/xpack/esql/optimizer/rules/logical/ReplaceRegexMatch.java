@@ -88,7 +88,8 @@ public final class ReplaceRegexMatch extends OptimizerRules.OptimizerExpressionR
         // Gated on the cluster minimum version: older remotes either lack Contains entirely or carry a
         // non-TranslationAware Contains, so on a mixed-version (e.g. cross-cluster) query we keep the
         // original WildcardLike, which every supported node serializes and translates correctly.
-        if (ctx.minimumVersion().supports(Contains.LIKE_TO_CONTAINS_VERSION) && wp.shape() instanceof WildcardPattern.Shape.Contains contains) {
+        if (ctx.minimumVersion().supports(Contains.LIKE_TO_CONTAINS_VERSION)
+            && wp.shape() instanceof WildcardPattern.Shape.Contains contains) {
             return new Contains(wl.source(), wl.field(), Literal.keyword(wl.source(), contains.literal()));
         }
         if (prefix != null) {

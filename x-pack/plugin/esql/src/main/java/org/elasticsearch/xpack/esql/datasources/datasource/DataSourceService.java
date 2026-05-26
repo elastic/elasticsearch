@@ -38,7 +38,6 @@ import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSettings;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
@@ -96,11 +95,10 @@ public class DataSourceService {
 
     /**
      * Create or replace a data source. When {@code encryptionService} is bound, every secret in the
-     * request is encrypted master-side; when it isn't, secrets are stored as plaintext and a
-     * {@code WARN} naming the data source is logged so the operator sees exactly which credentials
-     * hit the disk in clear text. The consumer-side decryption step still refuses to hand the
-     * connector an encrypted blob without a key (the only asymmetric mode is "unbound at PUT, then
-     * plaintext at FROM" — what you'd expect on a dev / no-security cluster).
+     * request is encrypted master-side. When it isn't, a secret-bearing request is rejected with
+     * {@code 503} ({@link #applyEncryption}) — secrets are never written to cluster state in clear
+     * text. A request with no secrets needs no service and is stored as-is, so data sources without
+     * credentials work on any cluster.
      */
     public void putDataSource(
         ProjectId projectId,
@@ -139,11 +137,13 @@ public class DataSourceService {
     }
 
     /**
-     * Apply master-side encryption to a data source's settings. When {@code encryptionService} is null
-     * (security plugin absent or PEK feature flag off), the settings pass through unchanged and a WARN
-     * naming the data source is logged if any of them carries a real secret.
+     * Apply master-side encryption to a data source's settings: every secret with a non-null value is
+     * replaced by an {@link EncryptedData} carrier. Encryption is required for storing secrets — when no
+     * {@code encryptionService} is available and the request carries a secret, the PUT is rejected with
+     * {@code 503} rather than storing plaintext. A request with no secrets needs no service and passes
+     * through (so data sources without credentials work on any cluster).
      */
-    // Package-private for unit testing of the encrypt-or-fallback transform in isolation.
+    // Package-private for unit testing of the encrypt transform in isolation.
     static DataSourceSettings applyEncryption(
         String dataSourceName,
         DataSourceSettings settings,
@@ -151,9 +151,12 @@ public class DataSourceService {
     ) {
         if (encryptionService == null) {
             if (settings.hasSecrets()) {
-                logger.warn(
-                    "credentials for data source [{}] are stored as plaintext because no encryption service is available",
-                    dataSourceName
+                throw new ElasticsearchStatusException(
+                    "cannot store secrets for data source ["
+                        + dataSourceName
+                        + "]: no encryption service is available. A primary encryption key must be configured before "
+                        + "data sources with credentials can be created.",
+                    RestStatus.SERVICE_UNAVAILABLE
                 );
             }
             return settings;
@@ -162,8 +165,10 @@ public class DataSourceService {
         for (var entry : settings) {
             String key = entry.getKey();
             DataSourceSetting setting = entry.getValue();
-            if (setting.secret() && setting.rawValue() instanceof String plaintext) {
-                result.put(key, encryptSecret(key, plaintext, encryptionService));
+            // Encrypt fresh secrets only: a null-valued secret has nothing to protect, and a value that is
+            // already an EncryptedData carrier (defensive: replay paths) must not be double-encrypted.
+            if (setting.secret() && setting.rawValue() != null && setting.isEncrypted() == false) {
+                result.put(key, encryptSecret(setting.rawValue(), encryptionService));
             } else {
                 result.put(key, setting);
             }
@@ -172,29 +177,31 @@ public class DataSourceService {
     }
 
     /**
-     * Encrypt one plaintext into a freshly-built ciphertext-carrying setting. The intermediate
-     * UTF-8 byte buffer is zeroed in {@code finally}; the original plaintext String reference still
-     * lives in the caller's settings until the cluster-state task completes (narrowing that
-     * lifetime is Phase 2).
+     * Encrypt one plaintext value of any type into a secret setting carrying an {@link EncryptedData}.
+     * The value is serialized with {@code writeGenericValue} so non-String secrets round-trip to their
+     * original type on decrypt; the intermediate plaintext byte buffer is zeroed in {@code finally}.
+     * (The original value object still lives in the caller's settings until the cluster-state task
+     * completes — narrowing that lifetime is Phase 2.)
      */
-    private static DataSourceSetting encryptSecret(String key, String plaintext, EncryptionService encryptionService) {
-        byte[] bytes = plaintext.getBytes(StandardCharsets.UTF_8);
+    private static DataSourceSetting encryptSecret(Object value, EncryptionService encryptionService) {
+        byte[] plaintext = serializeValue(value);
         try {
-            EncryptedData encrypted = encryptionService.encrypt(bytes);
-            BytesStreamOutput out = new BytesStreamOutput();
-            try {
-                encrypted.writeTo(out);
-            } catch (IOException e) {
-                throw new ElasticsearchStatusException(
-                    "failed to serialize encrypted value for setting [" + key + "]",
-                    RestStatus.INTERNAL_SERVER_ERROR,
-                    e
-                );
-            }
-            byte[] blob = BytesReference.toBytes(out.bytes());
-            return new DataSourceSetting(blob, true, DataSourceSetting.EncryptionFormat.V1);
+            return new DataSourceSetting(encryptionService.encrypt(plaintext), true);
         } finally {
-            Arrays.fill(bytes, (byte) 0);
+            Arrays.fill(plaintext, (byte) 0);
+        }
+    }
+
+    private static byte[] serializeValue(Object value) {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeGenericValue(value);
+            return BytesReference.toBytes(out.bytes());
+        } catch (IOException e) {
+            throw new ElasticsearchStatusException(
+                "failed to serialize secret data source setting value for encryption",
+                RestStatus.INTERNAL_SERVER_ERROR,
+                e
+            );
         }
     }
 

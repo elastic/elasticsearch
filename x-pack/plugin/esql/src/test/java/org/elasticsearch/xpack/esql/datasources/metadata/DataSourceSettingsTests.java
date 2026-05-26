@@ -10,8 +10,10 @@ package org.elasticsearch.xpack.esql.datasources.metadata;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -72,9 +74,10 @@ public class DataSourceSettingsTests extends ESTestCase {
     }
 
     public void testWriteableRoundTripWithMixedSettings() throws IOException {
+        EncryptedData carrier = new EncryptedData("test-key", "AKIA123".getBytes(StandardCharsets.UTF_8));
         Map<String, DataSourceSetting> in = new HashMap<>();
         in.put("region", new DataSourceSetting("us-east-1", false));
-        in.put("access_key", new DataSourceSetting(new byte[] { 1, 2, 3, 4 }, true, DataSourceSetting.EncryptionFormat.V1));
+        in.put("access_key", new DataSourceSetting(carrier, true));
         in.put("plaintext_secret", new DataSourceSetting("AKIA", true));
         DataSourceSettings settings = new DataSourceSettings(in);
 
@@ -84,8 +87,8 @@ public class DataSourceSettingsTests extends ESTestCase {
         DataSourceSettings deserialized = new DataSourceSettings(sin);
 
         assertEquals(settings, deserialized);
-        assertEquals(DataSourceSetting.EncryptionFormat.V1, deserialized.get("access_key").encryption());
-        assertArrayEquals(new byte[] { 1, 2, 3, 4 }, (byte[]) deserialized.get("access_key").rawValue());
+        assertTrue(deserialized.get("access_key").isEncrypted());
+        assertEquals(carrier, deserialized.get("access_key").rawValue());
         assertTrue(deserialized.hasSecrets());
     }
 }

@@ -7,31 +7,36 @@
 
 package org.elasticsearch.xpack.esql.datasources.datasource;
 
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSettings;
 
-import java.nio.charset.StandardCharsets;
+import java.io.IOException;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 /**
- * Unit tests for {@link DataSourceService#applyEncryption}, the per-setting encrypt-or-fallback
- * transform. The full putDataSource path (CAS task + cluster-state update) is covered by
- * {@code DataSourceCrudIT}; this file pins the transform in isolation.
+ * Unit tests for {@link DataSourceService#applyEncryption}, the per-setting encrypt transform. The full
+ * putDataSource path (CAS task + cluster-state update) is covered by {@code DataSourceCrudIT}; this file
+ * pins the transform in isolation.
  */
 public class DataSourceServiceEncryptionTests extends ESTestCase {
 
-    public void testNoServiceLeavesSettingsUnchanged() {
+    public void testNoServiceWithNoSecretsPassesThrough() {
         Map<String, DataSourceSetting> in = new HashMap<>();
         in.put("region", new DataSourceSetting("us-east-1", false));
-        in.put("secret_access_key", new DataSourceSetting("AKIA_plaintext", true));
+        in.put("max_retries", new DataSourceSetting(7, false));
 
         DataSourceSettings out = DataSourceService.applyEncryption("ds-test", new DataSourceSettings(in), null);
 
@@ -41,7 +46,22 @@ public class DataSourceServiceEncryptionTests extends ESTestCase {
         }
     }
 
-    public void testSecretStringIsEncryptedToV1Carrier() {
+    public void testNoServiceWithSecretsIsRejected() {
+        // Mandatory encryption: storing a secret with no service available must fail rather than persist
+        // plaintext to cluster state.
+        Map<String, DataSourceSetting> in = new HashMap<>();
+        in.put("region", new DataSourceSetting("us-east-1", false));
+        in.put("secret_access_key", new DataSourceSetting("AKIA_plaintext", true));
+
+        ElasticsearchStatusException ese = expectThrows(
+            ElasticsearchStatusException.class,
+            () -> DataSourceService.applyEncryption("ds-test", new DataSourceSettings(in), null)
+        );
+        assertEquals(RestStatus.SERVICE_UNAVAILABLE, ese.status());
+        assertThat(ese.getMessage(), containsString("no encryption service is available"));
+    }
+
+    public void testSecretStringIsEncryptedToCarrier() {
         AtomicInteger encryptCalls = new AtomicInteger();
         EncryptionService svc = countingService(encryptCalls);
 
@@ -53,11 +73,26 @@ public class DataSourceServiceEncryptionTests extends ESTestCase {
         assertEquals(1, encryptCalls.get());
         DataSourceSetting result = out.get("secret_access_key");
         assertTrue("secret flag preserved", result.secret());
-        assertEquals("discriminator is V1", DataSourceSetting.EncryptionFormat.V1, result.encryption());
-        assertTrue("isEncryptedBlob agrees with the format enum", result.isEncryptedBlob());
-        assertThat("plaintext String replaced by encrypted byte[] blob", result.rawValue(), instanceOf(byte[].class));
-        EncryptedData ed = decodeBlob((byte[]) result.rawValue());
-        assertThat(new String(ed.payload(), StandardCharsets.UTF_8), equalTo(canary));
+        assertTrue("plaintext String replaced by an EncryptedData carrier", result.isEncrypted());
+        assertThat(result.rawValue(), instanceOf(EncryptedData.class));
+        assertThat(decryptPayload((EncryptedData) result.rawValue()), equalTo(canary));
+    }
+
+    public void testNonStringSecretIsEncryptedAndRoundTripsType() {
+        // C1: a secret may carry any generic value; the payload is writeGenericValue-serialized so the
+        // original type is restored on decrypt.
+        AtomicInteger encryptCalls = new AtomicInteger();
+        EncryptionService svc = countingService(encryptCalls);
+
+        Integer canary = randomInt();
+        Map<String, DataSourceSetting> in = Map.of("secret_token", new DataSourceSetting(canary, true));
+
+        DataSourceSettings out = DataSourceService.applyEncryption("ds-test", new DataSourceSettings(in), svc);
+
+        assertEquals(1, encryptCalls.get());
+        DataSourceSetting result = out.get("secret_token");
+        assertTrue(result.isEncrypted());
+        assertThat(decryptPayload((EncryptedData) result.rawValue()), equalTo(canary));
     }
 
     public void testNullSecretValueIsPreservedWithoutCallingEncrypt() {
@@ -73,22 +108,19 @@ public class DataSourceServiceEncryptionTests extends ESTestCase {
         assertNull(result.rawValue());
     }
 
-    public void testAlreadyV1SettingIsNotDoubleEncrypted() {
+    public void testAlreadyEncryptedSettingIsNotDoubleEncrypted() {
         AtomicInteger encryptCalls = new AtomicInteger();
         EncryptionService svc = countingService(encryptCalls);
 
-        byte[] preEncrypted = encodeBlob(new EncryptedData("upstream-key", "AKIA_old".getBytes(StandardCharsets.UTF_8)));
-        Map<String, DataSourceSetting> in = Map.of(
-            "secret_access_key",
-            new DataSourceSetting(preEncrypted, true, DataSourceSetting.EncryptionFormat.V1)
-        );
+        EncryptedData preEncrypted = new EncryptedData("upstream-key", new byte[] { 1, 2, 3, 4 });
+        Map<String, DataSourceSetting> in = Map.of("secret_access_key", new DataSourceSetting(preEncrypted, true));
 
         DataSourceSettings out = DataSourceService.applyEncryption("ds-test", new DataSourceSettings(in), svc);
 
-        assertEquals("encrypt not invoked for a setting already marked V1", 0, encryptCalls.get());
+        assertEquals("encrypt not invoked for an already-encrypted setting", 0, encryptCalls.get());
         DataSourceSetting result = out.get("secret_access_key");
-        assertEquals(DataSourceSetting.EncryptionFormat.V1, result.encryption());
-        assertSame("ciphertext blob forwarded by reference", preEncrypted, result.rawValue());
+        assertTrue(result.isEncrypted());
+        assertSame("carrier forwarded by reference", preEncrypted, result.rawValue());
     }
 
     public void testMixedSettingsEncryptOnlyStringSecrets() {
@@ -106,31 +138,22 @@ public class DataSourceServiceEncryptionTests extends ESTestCase {
 
         DataSourceSettings out = DataSourceService.applyEncryption("ds-test", new DataSourceSettings(in), svc);
 
-        assertEquals("encrypt called once per String secret", 2, encryptCalls.get());
+        assertEquals("encrypt called once per non-null secret", 2, encryptCalls.get());
         assertEquals("us-east-1", out.get("region").rawValue());
-        assertEquals(DataSourceSetting.EncryptionFormat.NONE, out.get("region").encryption());
-        assertEquals(DataSourceSetting.EncryptionFormat.NONE, out.get("endpoint").encryption());
-        assertEquals(DataSourceSetting.EncryptionFormat.NONE, out.get("max_retries").encryption());
-        assertEquals(DataSourceSetting.EncryptionFormat.V1, out.get("access_key").encryption());
-        assertEquals(DataSourceSetting.EncryptionFormat.V1, out.get("secret_access_key").encryption());
-        assertEquals(ak, new String(decodeBlob((byte[]) out.get("access_key").rawValue()).payload(), StandardCharsets.UTF_8));
-        assertEquals(sk, new String(decodeBlob((byte[]) out.get("secret_access_key").rawValue()).payload(), StandardCharsets.UTF_8));
+        assertFalse(out.get("region").isEncrypted());
+        assertFalse(out.get("endpoint").isEncrypted());
+        assertFalse(out.get("max_retries").isEncrypted());
+        assertTrue(out.get("access_key").isEncrypted());
+        assertTrue(out.get("secret_access_key").isEncrypted());
+        assertEquals(ak, decryptPayload((EncryptedData) out.get("access_key").rawValue()));
+        assertEquals(sk, decryptPayload((EncryptedData) out.get("secret_access_key").rawValue()));
     }
 
-    private static byte[] encodeBlob(EncryptedData encrypted) {
-        try {
-            org.elasticsearch.common.io.stream.BytesStreamOutput out = new org.elasticsearch.common.io.stream.BytesStreamOutput();
-            encrypted.writeTo(out);
-            return org.elasticsearch.common.bytes.BytesReference.toBytes(out.bytes());
-        } catch (java.io.IOException e) {
-            throw new AssertionError(e);
-        }
-    }
-
-    private static EncryptedData decodeBlob(byte[] blob) {
-        try (org.elasticsearch.common.io.stream.StreamInput in = new org.elasticsearch.common.bytes.BytesArray(blob).streamInput()) {
-            return new EncryptedData(in);
-        } catch (java.io.IOException e) {
+    /** The counting service's payload is the writeGenericValue blob; restore the original value. */
+    private static Object decryptPayload(EncryptedData encrypted) {
+        try (StreamInput in = new BytesArray(encrypted.payload()).streamInput()) {
+            return in.readGenericValue();
+        } catch (IOException e) {
             throw new AssertionError(e);
         }
     }

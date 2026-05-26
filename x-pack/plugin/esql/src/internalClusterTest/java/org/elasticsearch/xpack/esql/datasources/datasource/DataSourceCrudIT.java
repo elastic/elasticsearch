@@ -32,7 +32,6 @@ import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 import org.elasticsearch.xpack.esql.datasources.DataSourceCredentials;
-import org.elasticsearch.xpack.esql.datasources.EncryptedSecret;
 import org.elasticsearch.xpack.esql.datasources.dataset.DeleteDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.GetDatasetAction;
 import org.elasticsearch.xpack.esql.datasources.dataset.PutDatasetAction;
@@ -138,12 +137,12 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         assertThat("plain setting value accessible", region.nonSecretValue(), equalTo("us-east-1"));
 
         assertThat("secret-prefixed setting marked secret", secret.secret(), equalTo(true));
-        assertThat("secret value must be stored as encrypted byte[] blob", secret.rawValue(), instanceOf(byte[].class));
-        byte[] blob = (byte[]) secret.rawValue();
+        assertThat("secret value must be stored as an encrypted carrier", secret.rawValue(), instanceOf(EncryptedData.class));
+        EncryptedData carrier = (EncryptedData) secret.rawValue();
 
         // E2E round-trip through DataSourceCredentials.decryptInPlace — the connector-boundary decryption step.
-        // Proves: PUT encrypts → cluster state holds byte[] blob → projection wraps it as EncryptedSecret
-        // → consumer decrypts back to the canary. The EncryptedSecret wrap is exactly what
+        // Proves: PUT encrypts → cluster state holds an EncryptedData carrier → projection forwards it by
+        // reference → consumer decrypts back to the canary. Forwarding the carrier as-is is exactly what
         // DatasetRewriter.mergeSettings produces for an encrypted secret.
         DataSourceCredentials credentials = new DataSourceCredentials();
         credentials.setEncryptionService(new EncryptionService() {
@@ -159,7 +158,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         });
         Map<String, Object> connectorInput = new HashMap<>();
         connectorInput.put("region", "us-east-1");
-        connectorInput.put("secret_access_key", new EncryptedSecret(blob));
+        connectorInput.put("secret_access_key", carrier);
         Map<String, Object> decrypted = credentials.decryptInPlace(connectorInput);
         assertThat("decryptInPlace passes non-secrets through", decrypted.get("region"), equalTo("us-east-1"));
         assertThat("decryptInPlace materialises the plaintext canary", decrypted.get("secret_access_key"), equalTo("AKIAXYZ"));
@@ -419,8 +418,8 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         // The SPI contract on DataSourceValidator.validateDataset says dataset settings carry no
         // secrets, but only convention enforces that. If a dataset key ever shadowed a parent
         // secret-keyed setting, DatasetRewriter.mergeSettings would silently overwrite the
-        // EncryptedSecret (or plaintext String, when no encryption service is bound) — losing
-        // secret-classification down the carrier path. validatePutDataset rejects the put at
+        // EncryptedData carrier — losing secret-classification down the carrier path.
+        // validatePutDataset rejects the put at
         // validate-time so the invariant is enforced where it's defined.
         final String parentDsName = "shadowing_parent";
         final String datasetName = "shadowing_ds";

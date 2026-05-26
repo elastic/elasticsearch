@@ -11,11 +11,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.EnumSerializationTestUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.smile.SmileXContent;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 
 import java.io.IOException;
 
@@ -106,72 +106,36 @@ public class DataSourceSettingTests extends ESTestCase {
         assertNotEquals(a, d);
     }
 
-    public void testPlaintextSecretMayBeAnyType() {
-        // The value's Java type is no longer a discriminator (the encryption enum is), so a NONE
-        // secret carries whatever the validator produced — no String-or-byte[] constraint.
-        new DataSourceSetting(42, true);
-        new DataSourceSetting(9_999_999_999L, true);
-        new DataSourceSetting(3.14159, true);
-        new DataSourceSetting(true, true);
-        new DataSourceSetting(new byte[] { 1, 2, 3 }, true);
-        new DataSourceSetting("plaintext", true);
-    }
-
-    public void testV1SecretMustBeByteArray() {
-        // The one surviving structural check: a V1 value *is* the ciphertext, which is bytes.
-        var ex = expectThrows(
-            IllegalArgumentException.class,
-            () -> new DataSourceSetting("not-bytes", true, DataSourceSetting.EncryptionFormat.V1)
-        );
-        assertTrue(ex.getMessage().contains("byte[] ciphertext"));
-        expectThrows(IllegalArgumentException.class, () -> new DataSourceSetting(42, true, DataSourceSetting.EncryptionFormat.V1));
-        // byte[] is the valid V1 shape
-        new DataSourceSetting(new byte[] { 1, 2, 3 }, true, DataSourceSetting.EncryptionFormat.V1);
-    }
-
-    public void testEncryptionFormatWriteableRoundTrip() throws IOException {
-        var v1 = new DataSourceSetting(new byte[] { 9, 8, 7 }, true, DataSourceSetting.EncryptionFormat.V1);
-        var deserialized = writeableRoundTrip(v1);
-        assertEquals(v1, deserialized);
-        assertEquals(DataSourceSetting.EncryptionFormat.V1, deserialized.encryption());
-        assertTrue(deserialized.isEncryptedBlob());
-    }
-
-    public void testEncryptionFormatXContentRoundTrip() throws IOException {
-        // A V1 value is a byte[]; only SMILE (the actual cluster-state persistence container) round-
-        // trips binary via its embedded-object token. JSON would base64-stringify it — which is why
-        // the plaintext cases above use JSON and this one uses SMILE.
-        assertSmileRoundTrip(new DataSourceSetting(new byte[] { 4, 5, 6 }, true, DataSourceSetting.EncryptionFormat.V1));
-        assertSmileRoundTrip(new DataSourceSetting("plain", true, DataSourceSetting.EncryptionFormat.NONE));
-        assertXContentRoundTrip(new DataSourceSetting("plain", true, DataSourceSetting.EncryptionFormat.NONE));
-    }
-
-    private void assertSmileRoundTrip(DataSourceSetting setting) throws IOException {
-        XContentBuilder builder = SmileXContent.contentBuilder();
-        setting.toXContent(builder, null);
-        XContentParser parser = createParser(SmileXContent.smileXContent, BytesReference.bytes(builder));
-        assertEquals(setting, DataSourceSetting.fromXContent(parser));
-    }
-
-    public void testAbsentEncryptionFieldParsesAsNone() throws IOException {
-        // A blob written before the encryption field existed must read back as NONE (plaintext) —
-        // it has no "encryption" key at all.
-        XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"value\":\"legacy-plaintext\",\"secret\":true}");
-        var parsed = DataSourceSetting.fromXContent(parser);
-        assertEquals(DataSourceSetting.EncryptionFormat.NONE, parsed.encryption());
-        assertFalse(parsed.isEncryptedBlob());
-        assertEquals("legacy-plaintext", parsed.rawValue());
-    }
-
-    public void testEncryptionFormatDistinguishesEquals() {
-        var none = new DataSourceSetting(new byte[] { 1 }, true, DataSourceSetting.EncryptionFormat.NONE);
-        var v1 = new DataSourceSetting(new byte[] { 1 }, true, DataSourceSetting.EncryptionFormat.V1);
-        assertNotEquals(none, v1);
-    }
-
     public void testSecretMayBeNull() {
         var setting = new DataSourceSetting(null, true);
         assertNull(setting.rawValue());
+        assertFalse(setting.isEncrypted());
+    }
+
+    public void testEncryptedSecretIsDetectedAndEqualByContent() {
+        var a = new DataSourceSetting(encryptedData("AKIA123"), true);
+        var b = new DataSourceSetting(encryptedData("AKIA123"), true);
+        assertTrue(a.isEncrypted());
+        assertEquals(a, b);
+        assertEquals(a.hashCode(), b.hashCode());
+        assertNotEquals(a, new DataSourceSetting(encryptedData("different"), true));
+    }
+
+    public void testEncryptedSecretWriteableRoundTrip() throws IOException {
+        EncryptedData carrier = encryptedData("AKIA_secret");
+        var setting = new DataSourceSetting(carrier, true);
+        var deserialized = writeableRoundTrip(setting);
+        assertEquals(setting, deserialized);
+        assertTrue(deserialized.isEncrypted());
+        assertTrue(deserialized.secret());
+        assertEquals(carrier, deserialized.rawValue());
+    }
+
+    public void testEncryptedSecretXContentRoundTrip() throws IOException {
+        // The encrypted carrier is a nested {key_id, data} object; round-trips through both JSON and the
+        // SMILE container that PersistedClusterStateService actually uses.
+        assertXContentRoundTrip(new DataSourceSetting(encryptedData("AKIA_secret"), true));
+        assertSmileRoundTrip(new DataSourceSetting(encryptedData("AKIA_secret"), true));
     }
 
     public void testXContentRoundTrip() throws IOException {
@@ -184,6 +148,13 @@ public class DataSourceSettingTests extends ESTestCase {
         assertXContentRoundTrip(new DataSourceSetting(3.14159, false));
         assertXContentRoundTrip(new DataSourceSetting(true, false));
         assertXContentRoundTrip(new DataSourceSetting(null, false));
+    }
+
+    private void assertSmileRoundTrip(DataSourceSetting setting) throws IOException {
+        XContentBuilder builder = SmileXContent.contentBuilder();
+        setting.toXContent(builder, null);
+        XContentParser parser = createParser(SmileXContent.smileXContent, BytesReference.bytes(builder));
+        assertEquals(setting, DataSourceSetting.fromXContent(parser));
     }
 
     private void assertXContentRoundTrip(DataSourceSetting setting) throws IOException {
@@ -202,14 +173,7 @@ public class DataSourceSettingTests extends ESTestCase {
         return new DataSourceSetting(in);
     }
 
-    public void testEncryptionFormatWireOrdinals() {
-        // StreamOutput.writeEnum encodes by ordinal — pin the ordinal-to-name mapping so a refactor
-        // that reorders the constants fails loudly here rather than silently corrupting cluster-state
-        // wire shape. Required by StreamOutput.writeEnum's contract.
-        EnumSerializationTestUtils.assertEnumSerialization(
-            DataSourceSetting.EncryptionFormat.class,
-            DataSourceSetting.EncryptionFormat.NONE,
-            DataSourceSetting.EncryptionFormat.V1
-        );
+    private static EncryptedData encryptedData(String plaintext) {
+        return new EncryptedData("test-key", plaintext.getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 }

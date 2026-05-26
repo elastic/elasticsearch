@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -39,12 +38,16 @@ public class DataSourceCredentialsTests extends ESTestCase {
         }
     };
 
-    /** Encrypt the given plaintext and wrap it as the {@link EncryptedSecret} the connector map carries. */
-    private static EncryptedSecret encryptedSecret(String plaintext) throws IOException {
-        EncryptedData encrypted = IDENTITY.encrypt(plaintext.getBytes(StandardCharsets.UTF_8));
-        BytesStreamOutput out = new BytesStreamOutput();
-        encrypted.writeTo(out);
-        return new EncryptedSecret(BytesReference.toBytes(out.bytes()));
+    /**
+     * Build the {@link EncryptedData} carrier the connector map holds for a secret. The payload mirrors
+     * the producer side: the value is {@code writeGenericValue}-serialized before encryption, so the
+     * consumer's {@code readGenericValue} restores the original type.
+     */
+    private static EncryptedData encryptedSecret(Object value) throws IOException {
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.writeGenericValue(value);
+            return IDENTITY.encrypt(BytesReference.toBytes(out.bytes()));
+        }
     }
 
     private DataSourceCredentials credentials;
@@ -85,7 +88,7 @@ public class DataSourceCredentialsTests extends ESTestCase {
 
     public void testEncryptedBlobIsDecryptedToPlaintextString() throws IOException {
         String canary = "AKIA_canary_" + randomAlphaOfLength(8);
-        EncryptedSecret blob = encryptedSecret(canary);
+        EncryptedData blob = encryptedSecret(canary);
 
         Map<String, Object> input = new HashMap<>();
         input.put("region", "us-east-1");
@@ -128,7 +131,7 @@ public class DataSourceCredentialsTests extends ESTestCase {
     }
 
     public void testRawByteArrayIsNotTreatedAsEncrypted() {
-        // The discriminator is the EncryptedSecret type, not "is it bytes". A bare byte[] in the
+        // The discriminator is the EncryptedData type, not "is it bytes". A bare byte[] in the
         // config map is a legitimate plaintext binary value and must pass through untouched.
         byte[] raw = new byte[] { 1, 2, 3, 4 };
         Map<String, Object> input = new HashMap<>();
@@ -151,7 +154,7 @@ public class DataSourceCredentialsTests extends ESTestCase {
     }
 
     public void testDecryptInPlaceProducesACopyNotMutatingTheInput() throws IOException {
-        EncryptedSecret blob = encryptedSecret("canary");
+        EncryptedData blob = encryptedSecret("canary");
         Map<String, Object> input = new HashMap<>();
         input.put("secret_access_key", blob);
         Map<String, Object> snapshot = new HashMap<>(input);
@@ -166,7 +169,7 @@ public class DataSourceCredentialsTests extends ESTestCase {
         // Consumer-side strict: if an encrypted blob reaches the connector boundary without an
         // EncryptionService to decrypt it, fail with 503 rather than hand the SDK opaque bytes.
         DataSourceCredentials unbound = new DataSourceCredentials();
-        EncryptedSecret blob = encryptedSecret("plain");
+        EncryptedData blob = encryptedSecret("plain");
         Map<String, Object> input = new HashMap<>();
         input.put("region", "us-east-1");
         input.put("secret_access_key", blob);

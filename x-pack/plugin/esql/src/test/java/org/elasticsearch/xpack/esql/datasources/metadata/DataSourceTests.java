@@ -17,6 +17,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xcontent.smile.SmileXContent;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 
 import java.io.IOException;
 import java.util.HashMap;
@@ -226,12 +227,12 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
     }
 
     public void testWriteableRoundTripWithEncryptedSetting() throws IOException {
-        // Pins the full DataSource envelope's wire shape with a V1-encrypted setting inside. Setting-level
+        // Pins the full DataSource envelope's wire shape with an encrypted secret inside. Setting-level
         // round-trip is covered by DataSourceSettingTests; this guards the DataSource->DataSourceSettings
         // delegation so a regression in the envelope's writeTo doesn't only show up under integ tests.
-        byte[] ciphertext = new byte[] { 9, 8, 7, 6, 5, 4, 3, 2, 1 };
+        EncryptedData carrier = new EncryptedData("test-key", new byte[] { 9, 8, 7, 6, 5, 4, 3, 2, 1 });
         Map<String, DataSourceSetting> settings = new HashMap<>();
-        settings.put("access_key", new DataSourceSetting(ciphertext, true, DataSourceSetting.EncryptionFormat.V1));
+        settings.put("access_key", new DataSourceSetting(carrier, true));
         settings.put("region", new DataSourceSetting("us-east-1", false));
         var dataSource = new DataSource("my-s3", "s3", null, settings);
 
@@ -242,18 +243,17 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
 
         assertEquals(dataSource, deserialized);
         DataSourceSetting roundTrippedAccessKey = deserialized.settings().get("access_key");
-        assertEquals(DataSourceSetting.EncryptionFormat.V1, roundTrippedAccessKey.encryption());
-        assertTrue(roundTrippedAccessKey.isEncryptedBlob());
-        assertArrayEquals(ciphertext, (byte[]) roundTrippedAccessKey.rawValue());
+        assertTrue(roundTrippedAccessKey.isEncrypted());
+        assertEquals(carrier, roundTrippedAccessKey.rawValue());
     }
 
     public void testSmileRoundTripWithEncryptedSetting() throws IOException {
         // Cluster-state persistence goes through SMILE (PersistedClusterStateService). Pins the
-        // realistic gateway-restart shape: a V1 byte[] setting must survive SMILE write+read with the
-        // EncryptionFormat marker intact. The embedded-object token is the only way byte[] survives.
-        byte[] ciphertext = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
+        // realistic gateway-restart shape: an encrypted secret (a nested EncryptedData object) must
+        // survive SMILE write+read with its key id and payload intact.
+        EncryptedData carrier = new EncryptedData("test-key", new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 });
         Map<String, DataSourceSetting> settings = new HashMap<>();
-        settings.put("access_key", new DataSourceSetting(ciphertext, true, DataSourceSetting.EncryptionFormat.V1));
+        settings.put("access_key", new DataSourceSetting(carrier, true));
         settings.put("region", new DataSourceSetting("us-east-1", false));
         var dataSource = new DataSource("my-s3", "s3", "smile-roundtrip", settings);
 
@@ -264,7 +264,7 @@ public class DataSourceTests extends AbstractXContentSerializingTestCase<DataSou
 
         assertEquals(dataSource, deserialized);
         DataSourceSetting roundTrippedAccessKey = deserialized.settings().get("access_key");
-        assertEquals(DataSourceSetting.EncryptionFormat.V1, roundTrippedAccessKey.encryption());
-        assertArrayEquals(ciphertext, (byte[]) roundTrippedAccessKey.rawValue());
+        assertTrue(roundTrippedAccessKey.isEncrypted());
+        assertEquals(carrier, roundTrippedAccessKey.rawValue());
     }
 }

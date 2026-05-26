@@ -20,6 +20,7 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
@@ -335,17 +336,13 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(accessKey, equalTo("AKIAEXAMPLE_SECRET_VALUE"));
     }
 
-    public void testSecretSettingsForwardedAsEncryptedSecretWrapper() {
-        // Encrypted secrets (the master-side encryption step produced the byte[] ciphertext blob and
-        // marked the setting with EncryptionFormat.V1) pass through mergeSettings wrapped in an
-        // EncryptedSecret carrier. The decryption step at the connector boundary
-        // (DataSourceCredentials.decryptInPlace) recognizes the wrapper and materialises plaintext
-        // just before the SDK call.
-        byte[] blob = new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 };
-        DataSource parent = dataSource(
-            "s3_parent",
-            Map.of("access_key", new DataSourceSetting(blob, true, DataSourceSetting.EncryptionFormat.V1))
-        );
+    public void testSecretSettingsForwardedAsEncryptedDataCarrier() {
+        // Encrypted secrets (the master-side encryption step produced an EncryptedData carrier) pass
+        // through mergeSettings by reference. The decryption step at the connector boundary
+        // (DataSourceCredentials.decryptInPlace) recognizes the carrier by type and materialises
+        // plaintext just before the SDK call.
+        EncryptedData carrier = new EncryptedData("test-key", new byte[] { 1, 2, 3, 4, 5, 6, 7, 8 });
+        DataSource parent = dataSource("s3_parent", Map.of("access_key", new DataSourceSetting(carrier, true)));
         Dataset dataset = new Dataset("logs", new DataSourceReference("s3_parent"), "s3://logs/", null, Map.of());
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
@@ -353,8 +350,8 @@ public class DatasetRewriterTests extends ESTestCase {
 
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
         Object accessKey = out.config().get("access_key");
-        assertThat("encrypted secret is wrapped in EncryptedSecret on the live config map", accessKey, instanceOf(EncryptedSecret.class));
-        assertSame("ciphertext blob is forwarded by reference inside the wrapper", blob, ((EncryptedSecret) accessKey).blob());
+        assertThat("encrypted secret stays an EncryptedData carrier on the live config map", accessKey, instanceOf(EncryptedData.class));
+        assertSame("carrier is forwarded by reference", carrier, accessKey);
     }
 
     public void testFastPathSkipsResolverWhenNoPatternCouldMatchDataset() {

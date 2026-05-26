@@ -11,7 +11,6 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -482,32 +481,31 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
         void awaitEmpty() {
             assert lifecycle.stoppedOrClosed();
-            synchronized (this) {
-                if (activeRecoveries.isEmpty() && pendingRecoveries.isEmpty()) {
-                    return;
-                }
+            if (empty()) {
+                return;
             }
 
             final CountDownLatch emptyLatch = new CountDownLatch(1);
             final RecoveryScheduleListener listener = () -> {
-                synchronized (OngoingRecoveries.this) {
-                    if (activeRecoveries.isEmpty() && pendingRecoveries.isEmpty()) {
-                        emptyLatch.countDown();
-                    }
+                if (empty()) {
+                    emptyLatch.countDown();
                 }
             };
-
             addRecoveryScheduleListener(listener);
             try {
-                // Check again after registering in case we became empty while registering
+                // Force a check in case we became empty while registering
                 listener.onRecoveryScheduleChange();
                 emptyLatch.await();
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-                throw new ElasticsearchTimeoutException("interrupted while waiting for recoveries to complete", e);
+                throw new IllegalStateException("interrupted while waiting for recoveries to complete", e);
             } finally {
                 removeRecoveryScheduleListener(listener);
             }
+        }
+
+        private synchronized boolean empty() {
+            return activeRecoveries.isEmpty() && pendingRecoveries.isEmpty();
         }
 
         private void ensureNoDuplicateAllocationId(String targetAllocationId) {

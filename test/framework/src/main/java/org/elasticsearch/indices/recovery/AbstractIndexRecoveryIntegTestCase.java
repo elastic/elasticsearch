@@ -100,9 +100,9 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
                 conditionLatch.countDown();
             }
         };
-
         sourceService.ongoingRecoveries.addRecoveryScheduleListener(listener);
         try {
+            // in case condition was already met before we added the listener
             listener.onRecoveryScheduleChange();
             safeAwait(conditionLatch);
         } finally {

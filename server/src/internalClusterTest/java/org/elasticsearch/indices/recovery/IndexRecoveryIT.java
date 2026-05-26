@@ -2148,8 +2148,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         assertAcked(
             indicesAdmin().prepareUpdateSettings(indexName).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
-
-        awaitRecoveryStats(sourceNode, recoveryStats -> recoveryStats.currentAsSourceQueued() == 1 && recoveryStats.currentAsSource() == 1);
+        awaitRecoveryStats(sourceNode, stats -> stats.currentAsSourceQueued() == 1 && stats.currentAsSource() == 1);
 
         fileChunkLatch.countDown();
         ensureGreen(indexName);
@@ -2206,7 +2205,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                         .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
                 )
         );
-        awaitRecoveryStats(sourceNode, recoveryStats -> recoveryStats.currentAsSourceQueued() == 3 && recoveryStats.currentAsSource() == 1);
+        awaitRecoveryStats(sourceNode, stats -> stats.currentAsSourceQueued() == 3 && stats.currentAsSource() == 1);
 
         allocationSettingsUpdate = Settings.builder()
             .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE);
@@ -2279,9 +2278,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         );
 
         safeAwait(fileChunkReceivedLatch);
-        awaitRecoveryStats(sourceNode, recoveryStats -> {
-            return recoveryStats.currentAsSourceQueued() == 1 && recoveryStats.currentAsSource() == 1;
-        });
+        awaitRecoveryStats(sourceNode, stats -> stats.currentAsSourceQueued() == 1 && stats.currentAsSource() == 1);
 
         assertAcked(indicesAdmin().prepareDelete(indexName));
         final var updatedStats = clusterAdmin().prepareNodesStats(sourceNode)

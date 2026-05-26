@@ -1612,10 +1612,10 @@ public class FieldSortIT extends ESIntegTestCase {
             prepareCreate("test", Settings.builder().put("index.mapping.use_colulmnar_id_mode_by_default", true)).get();
         } else {
             prepareCreate("test").setMapping("""
-            {
-                "_id": { "mode": "columnar" }
-            }
-            """).get();
+                {
+                    "_id": { "mode": "columnar" }
+                }
+                """).get();
         }
         ensureGreen();
         final int numDocs = randomIntBetween(10, 20);

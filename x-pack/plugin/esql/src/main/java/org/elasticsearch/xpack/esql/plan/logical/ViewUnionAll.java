@@ -51,7 +51,8 @@ public class ViewUnionAll extends UnionAll {
         return new ViewUnionAll(source(), asSubqueryMap(subPlans), output);
     }
 
-    // Currently for testing only, could also be useful for EXPLAIN and PROFILE
+    // Exposes the name→branch pairing (e.g. {@code v} body vs {@code v#shadow} lookup) that the
+    // Analyzer's ExcludeShadowedProjectsFromViewBody rule relies on; also useful for EXPLAIN/PROFILE.
     public Map<String, LogicalPlan> namedSubqueries() {
         return namedSubqueries;
     }

@@ -27,6 +27,9 @@ import org.elasticsearch.xpack.esql.plan.logical.ViewUnionAll;
 
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
@@ -225,6 +228,72 @@ public class ResolveViewShadowTests extends ESTestCase {
         assertEquals("expected a single surviving child after pruning", 1, unionAll.children().size());
         var esRelation = as(unwrapProject(unionAll.children().getFirst()), EsRelation.class);
         assertEquals("v1", esRelation.indexPattern());
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    /**
+     * elastic/esql-planning#795: when a linked project owns an index with the same name as a local
+     * view, the view body must not <em>also</em> run on that project — the project's index supplies
+     * its data instead (a name cannot be both a view and an index on one project; the index wins).
+     * <p>
+     * Setup mirrors {@code FROM v1} where {@code v1} is a local view {@code FROM source-idx}: the
+     * strict body resolved flat-world across origin ({@code ""}) and linked project {@code "P"}
+     * (both have {@code source-idx}), and the shadow shows {@code "P"} also owns an index named
+     * {@code v1}. After analysis, {@code "P"} must be gone from the body's per-cluster maps (so the
+     * view stops running there) while the shadow's {@code EsRelation} for {@code "P"} survives.
+     * <p>
+     * Fails before the {@code ExcludeShadowedProjectsFromViewBody} rule: the body retains {@code "P"},
+     * double-counting that project (view body on P + P's index).
+     */
+    public void testViewBodyExcludesProjectOwningSameNamedIndex() {
+        // Strict view body "v1": source-idx resolved on origin ("") and linked project "P".
+        EsIndex body = new EsIndex(
+            "source-idx",
+            LoadMapping.loadMapping("mapping-one-field.json"),
+            Map.of("source-idx", IndexMode.STANDARD, "P:source-idx", IndexMode.STANDARD),
+            Map.of("", List.of("source-idx"), "P", List.of("source-idx")),
+            Map.of("", List.of("source-idx"), "P", List.of("source-idx"))
+        );
+        // Shadow: linked project "P" owns an index named "v1" (the view's name).
+        EsIndex remoteV1 = new EsIndex(
+            "v1",
+            LoadMapping.loadMapping("mapping-one-field.json"),
+            Map.of("P:v1", IndexMode.STANDARD),
+            Map.of("P", List.of("v1")),
+            Map.of("P", List.of("v1"))
+        );
+
+        var analyzer = analyzer().addIndex("source-idx", IndexResolution.valid(body))
+            .addLenientShadow(new IndexPattern(EMPTY, "v1"), IndexResolution.valid(remoteV1))
+            .buildAnalyzer();
+
+        LogicalPlan plan = analyzer.analyze(viewUnionAllOf("v1", strictUR("source-idx"), new ViewShadowRelation(EMPTY, "v1", List.of())));
+
+        var limit = as(plan, Limit.class);
+        var unionAll = as(limit.child(), ViewUnionAll.class);
+        assertEquals("expected pruned body + shadow index branches", 2, unionAll.children().size());
+
+        Map<String, EsRelation> byPattern = unionAll.children()
+            .stream()
+            .map(child -> as(unwrapProject(child), EsRelation.class))
+            .collect(Collectors.toMap(EsRelation::indexPattern, r -> r));
+
+        EsRelation bodyRelation = byPattern.get("source-idx");
+        EsRelation shadowRelation = byPattern.get("v1");
+        assertNotNull("view body branch missing", bodyRelation);
+        assertNotNull("shadow remote-index branch missing", shadowRelation);
+
+        // The view body must no longer run on "P" (the project owning a same-named index)...
+        assertEquals(
+            "view body must not run on the project owning a same-named index",
+            Set.of(""),
+            bodyRelation.concreteIndices().keySet()
+        );
+        assertEquals(Set.of("source-idx"), Set.copyOf(bodyRelation.concreteIndices().get("")));
+        assertFalse("body's qualified index map still references P", bodyRelation.indexNameWithModes().containsKey("P:source-idx"));
+        // ...but "P" still contributes via its own index "v1" through the surviving shadow branch.
+        assertEquals(Set.of("P"), shadowRelation.concreteIndices().keySet());
+
         assertWarnings(NO_LIMIT_WARNING);
     }
 

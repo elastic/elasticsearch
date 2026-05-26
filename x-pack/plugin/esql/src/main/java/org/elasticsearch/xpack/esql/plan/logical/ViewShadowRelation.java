@@ -72,6 +72,14 @@ import java.util.Objects;
  */
 public class ViewShadowRelation extends LeafPlan implements Unresolvable {
 
+    /**
+     * Suffix appended to a view name to key its shadow branch inside the per-level
+     * {@link ViewUnionAll}, distinguishing it from the strict view-body branch (keyed by the bare
+     * view name). The {@code Analyzer}'s shadow-completion rule relies on this pairing to find the
+     * body that belongs to a resolved shadow.
+     */
+    public static final String NAME_SUFFIX = "#shadow";
+
     private final String viewName;
     private final List<String> exclusions;
 

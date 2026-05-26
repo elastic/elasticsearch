@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
@@ -19,6 +20,7 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -187,5 +189,35 @@ public class EsRelation extends LeafPlan {
 
     public EsRelation withIndexMode(IndexMode indexMode) {
         return new EsRelation(source(), indexPattern, indexMode, originalIndices, concreteIndices, indexNameWithModes, attrs);
+    }
+
+    /**
+     * Returns a copy of this relation with the given cluster aliases removed from its per-cluster
+     * {@link #originalIndices()} / {@link #concreteIndices()} maps, and from {@link #indexNameWithModes()}
+     * (whose keys are cluster-qualified). Since {@link #concreteIndices()} is the source of the
+     * per-cluster execution fan-out, dropping a cluster here means that cluster is no longer queried.
+     * <p>
+     * Used by view-shadow resolution under CPS: when a linked project owns an <em>index</em> with the
+     * same name as a local view, the view body must not also run on that project — a name cannot be
+     * both a view and an index on a single project, and the index wins on its own project. The
+     * shadow's resolved remote index supplies that project's data instead. See
+     * <a href="https://github.com/elastic/esql-planning/issues/795">esql-planning#795</a>.
+     */
+    public EsRelation withoutClusters(Set<String> clusterAliases) {
+        if (clusterAliases.isEmpty()) {
+            return this;
+        }
+        Map<String, List<String>> newOriginalIndices = new HashMap<>(originalIndices);
+        Map<String, List<String>> newConcreteIndices = new HashMap<>(concreteIndices);
+        newOriginalIndices.keySet().removeAll(clusterAliases);
+        newConcreteIndices.keySet().removeAll(clusterAliases);
+        Map<String, IndexMode> newIndexNameWithModes = new HashMap<>(indexNameWithModes.size());
+        for (Map.Entry<String, IndexMode> entry : indexNameWithModes.entrySet()) {
+            String clusterAlias = RemoteClusterAware.getClusterAlias(RemoteClusterAware.splitIndexName(entry.getKey()));
+            if (clusterAliases.contains(clusterAlias) == false) {
+                newIndexNameWithModes.put(entry.getKey(), entry.getValue());
+            }
+        }
+        return new EsRelation(source(), indexPattern, indexMode, newOriginalIndices, newConcreteIndices, newIndexNameWithModes, attrs);
     }
 }

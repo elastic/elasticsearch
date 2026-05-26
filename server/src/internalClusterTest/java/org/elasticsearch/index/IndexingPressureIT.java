@@ -27,6 +27,7 @@ import org.elasticsearch.action.update.UpdateRequest;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -539,6 +540,7 @@ public class IndexingPressureIT extends ESIntegTestCase {
 
         final BulkShardRequest measuredShardBulk = new BulkShardRequest(
             primaryShard.shardId(),
+            SplitShardCountSummary.IRRELEVANT,
             RefreshPolicy.NONE,
             new BulkItemRequest[] { new BulkItemRequest(0, updateRequest) }
         );

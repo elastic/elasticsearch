@@ -26,8 +26,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.Wild
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
+import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 
 import static java.util.Arrays.asList;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_CFG;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.unboundLogicalOptimizerContext;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
@@ -38,7 +40,9 @@ public class ReplaceRegexMatchTests extends ESTestCase {
     }
 
     private Expression replaceRegexMatch(RegexMatch<?> e, TransportVersion minimumVersion) {
-        return new ReplaceRegexMatch().rule(e, unboundLogicalOptimizerContext(minimumVersion));
+        // Build the context with the EXACT minimum version. unboundLogicalOptimizerContext(TransportVersion)
+        // re-randomizes to a *supporting* version, which can't express "a node that predates the gate".
+        return new ReplaceRegexMatch().rule(e, new LogicalOptimizerContext(TEST_CFG, FoldContext.small(), minimumVersion));
     }
 
     public void testMatchAllWildcardLikeToExist() {

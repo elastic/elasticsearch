@@ -128,11 +128,15 @@ public final class QueryPragmas implements Writeable {
     /**
      * Bytes the streaming external-source parser may buffer for a single record before failing the query
      * — guards against a scanner that never finds a boundary reading the input without bound. Defaults to
-     * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}.
+     * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}. Bounded to {@code [1, Integer.MAX_VALUE]}
+     * bytes: the cap is held as an {@code int} downstream, so an out-of-range value is rejected at parse
+     * time rather than overflowing later.
      */
     public static final Setting<ByteSizeValue> MAX_RECORD_SIZE = Setting.byteSizeSetting(
         "max_record_size",
-        ByteSizeValue.ofBytes(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES)
+        ByteSizeValue.ofBytes(SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES),
+        ByteSizeValue.ofBytes(1),
+        ByteSizeValue.ofBytes(Integer.MAX_VALUE)
     );
 
     /**

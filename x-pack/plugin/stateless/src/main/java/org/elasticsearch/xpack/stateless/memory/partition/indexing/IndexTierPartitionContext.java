@@ -5,7 +5,9 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless.memory.partition;
+package org.elasticsearch.xpack.stateless.memory.partition.indexing;
+
+import org.elasticsearch.xpack.stateless.memory.partition.MemoryPartition;
 
 /**
  * A snapshot of the raw signals used by {@link MemoryPartition} implementations to compute
@@ -21,7 +23,7 @@ package org.elasticsearch.xpack.stateless.memory.partition;
  * @param totalShardCostBytes                     Total memory cost of all shards in the cluster
  *                                               (the tier-level workload).
  */
-public record PartitionContext(
+public record IndexTierPartitionContext(
     int totalIndices,
     long largestMergeEstimateBytes,
     long minimumRequiredHeapForIndexingOpsBytes,

@@ -138,7 +138,6 @@ import org.elasticsearch.index.mapper.SourceFieldMetrics;
 import org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics;
 import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.ExecutorSelector;
-import org.elasticsearch.indices.IndexingMemoryLimits;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesServiceBuilder;
@@ -183,7 +182,6 @@ import org.elasticsearch.plugins.ClusterCoordinationPlugin;
 import org.elasticsearch.plugins.ClusterPlugin;
 import org.elasticsearch.plugins.DiscoveryPlugin;
 import org.elasticsearch.plugins.HealthPlugin;
-import org.elasticsearch.plugins.IndexingMemoryPlugin;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.IpLocationServiceProvider;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -925,10 +923,6 @@ class NodeConstruction {
             }
         };
 
-        final IndexingMemoryLimits indexingMemoryLimits = getSinglePlugin(IndexingMemoryPlugin.class).map(
-            p -> p.getIndexingMemoryLimits(settings)
-        ).orElseGet(() -> IndexingMemoryLimits.fromSettings(settings));
-
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)
             .nodeEnvironment(nodeEnvironment)
@@ -952,7 +946,6 @@ class NodeConstruction {
             .mergeMetrics(mergeMetrics)
             .searchOperationListeners(searchOperationListeners)
             .loggingFieldsProvider(loggingFieldsProvider)
-            .indexingMemoryLimits(indexingMemoryLimits)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(clusterService, indicesService::createIndexMapperServiceForValidation);
@@ -1008,7 +1001,7 @@ class NodeConstruction {
             dataStreamGlobalRetentionSettings
         );
 
-        final IndexingPressure indexingLimits = new IndexingPressure(indexingMemoryLimits, settings);
+        final IndexingPressure indexingLimits = new IndexingPressure(settings);
 
         final var linkedProjectConfigService = pluginsService.loadSingletonServiceProvider(
             LinkedProjectConfigService.Provider.class,

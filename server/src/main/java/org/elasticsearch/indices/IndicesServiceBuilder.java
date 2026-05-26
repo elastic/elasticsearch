@@ -59,7 +59,6 @@ import java.util.stream.Collectors;
 
 public class IndicesServiceBuilder {
     Settings settings;
-    IndexingMemoryLimits indexingMemoryLimits;
     PluginsService pluginsService;
     NodeEnvironment nodeEnv;
     NamedXContentRegistry xContentRegistry;
@@ -95,11 +94,6 @@ public class IndicesServiceBuilder {
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;
-        return this;
-    }
-
-    public IndicesServiceBuilder indexingMemoryLimits(IndexingMemoryLimits indexingMemoryLimits) {
-        this.indexingMemoryLimits = indexingMemoryLimits;
         return this;
     }
 

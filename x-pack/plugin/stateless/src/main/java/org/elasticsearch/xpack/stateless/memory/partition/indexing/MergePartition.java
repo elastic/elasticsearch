@@ -5,11 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless.memory.partition;
+package org.elasticsearch.xpack.stateless.memory.partition.indexing;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.xpack.stateless.memory.partition.MemoryPartition;
 
 import java.util.OptionalLong;
 
@@ -20,7 +21,7 @@ import java.util.OptionalLong;
  * {@code TransportPublishMergeMemoryEstimate} and tracked in
  * {@code StatelessMemoryMetricsService}.
  */
-public class MergePartition implements MemoryPartition {
+public class MergePartition implements MemoryPartition<IndexTierPartitionContext> {
 
     public static final String NAME = "merge";
     public static final Setting<RatioValue> FRACTION_SETTING = new Setting<>(
@@ -47,7 +48,7 @@ public class MergePartition implements MemoryPartition {
     }
 
     @Override
-    public OptionalLong nodeHeapRequirementBytes(PartitionContext ctx) {
+    public OptionalLong nodeHeapRequirementBytes(IndexTierPartitionContext ctx) {
         long largestMerge = ctx.largestMergeEstimateBytes();
         if (largestMerge == 0) {
             return OptionalLong.empty();

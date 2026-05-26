@@ -15,7 +15,7 @@ import java.util.OptionalLong;
  * the minimum node size implied by its current workload (driving autoscaling) and/or
  * a tier-level memory estimate (for migratable workloads distributed across nodes).
  */
-public interface MemoryPartition {
+public interface MemoryPartition<C> {
 
     /** Unique name used in metric names and logging, e.g. {@code "index_metadata"}. */
     String name();
@@ -31,14 +31,14 @@ public interface MemoryPartition {
      * <p>Returns {@link OptionalLong#empty()} for fixed-size partitions that reserve a
      * slice of heap without an observable workload signal, such as index buffers and headroom.
      */
-    OptionalLong nodeHeapRequirementBytes(PartitionContext ctx);
+    OptionalLong nodeHeapRequirementBytes(C ctx);
 
     /**
      * The bytes this partition contributes to the tier estimate (the total migratable
      * workload memory distributed across nodes). Non-empty only for partitions whose
      * workload can be spread by adding more nodes, i.e. {@code HostedShardsPartition}.
      */
-    default OptionalLong tierEstimateBytes(PartitionContext ctx) {
+    default OptionalLong tierEstimateBytes(C ctx) {
         return OptionalLong.empty();
     }
 

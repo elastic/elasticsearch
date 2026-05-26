@@ -5,11 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless.memory.partition;
+package org.elasticsearch.xpack.stateless.memory.partition.indexing;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.xpack.stateless.memory.partition.MemoryPartition;
 
 import java.util.OptionalLong;
 
@@ -26,7 +27,7 @@ import java.util.OptionalLong;
  *       This prevents the autoscaler from choosing nodes too small to host the largest shard.</li>
  * </ul>
  */
-public class HostedShardsPartition implements MemoryPartition {
+public class HostedShardsPartition implements MemoryPartition<IndexTierPartitionContext> {
 
     public static final String NAME = "hosted_shards";
     public static final Setting<RatioValue> FRACTION_SETTING = new Setting<>(
@@ -53,7 +54,7 @@ public class HostedShardsPartition implements MemoryPartition {
     }
 
     @Override
-    public OptionalLong nodeHeapRequirementBytes(PartitionContext ctx) {
+    public OptionalLong nodeHeapRequirementBytes(IndexTierPartitionContext ctx) {
         long largestShard = ctx.largestShardCostBytes();
         if (largestShard == 0) {
             return OptionalLong.empty();
@@ -62,7 +63,7 @@ public class HostedShardsPartition implements MemoryPartition {
     }
 
     @Override
-    public OptionalLong tierEstimateBytes(PartitionContext ctx) {
+    public OptionalLong tierEstimateBytes(IndexTierPartitionContext ctx) {
         return OptionalLong.of(ctx.totalShardCostBytes());
     }
 

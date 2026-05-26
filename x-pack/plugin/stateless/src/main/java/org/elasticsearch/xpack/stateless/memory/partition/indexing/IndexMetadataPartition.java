@@ -5,12 +5,13 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless.memory.partition;
+package org.elasticsearch.xpack.stateless.memory.partition.indexing;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.RatioValue;
 import org.elasticsearch.xpack.stateless.memory.StatelessMemoryMetricsService;
+import org.elasticsearch.xpack.stateless.memory.partition.MemoryPartition;
 
 import java.util.OptionalLong;
 
@@ -19,7 +20,7 @@ import java.util.OptionalLong;
  * Index creation is not back-pressured, so this partition drives autoscaling by publishing
  * {@code totalIndices * INDEX_MEMORY_OVERHEAD / fraction} as its implied node heap requirement.
  */
-public class IndexMetadataPartition implements MemoryPartition {
+public class IndexMetadataPartition implements MemoryPartition<IndexTierPartitionContext> {
 
     public static final String NAME = "index_metadata";
     public static final Setting<RatioValue> FRACTION_SETTING = new Setting<>(
@@ -46,7 +47,7 @@ public class IndexMetadataPartition implements MemoryPartition {
     }
 
     @Override
-    public OptionalLong nodeHeapRequirementBytes(PartitionContext ctx) {
+    public OptionalLong nodeHeapRequirementBytes(IndexTierPartitionContext ctx) {
         if (ctx.totalIndices() == 0) {
             return OptionalLong.empty();
         }

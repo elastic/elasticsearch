@@ -5,11 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless.memory.partition;
+package org.elasticsearch.xpack.stateless.memory.partition.indexing;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.xpack.stateless.memory.partition.MemoryPartition;
 
 import java.util.OptionalLong;
 
@@ -19,7 +20,7 @@ import java.util.OptionalLong;
  * Because this is a fixed reservation with no observable workload signal, it
  * does not drive autoscaling.
  */
-public class IndexBuffersPartition implements MemoryPartition {
+public class IndexBuffersPartition implements MemoryPartition<IndexTierPartitionContext> {
 
     public static final String NAME = "index_buffers";
     public static final Setting<RatioValue> FRACTION_SETTING = new Setting<>(
@@ -46,7 +47,7 @@ public class IndexBuffersPartition implements MemoryPartition {
     }
 
     @Override
-    public OptionalLong nodeHeapRequirementBytes(PartitionContext ctx) {
+    public OptionalLong nodeHeapRequirementBytes(IndexTierPartitionContext ctx) {
         return OptionalLong.empty();
     }
 }

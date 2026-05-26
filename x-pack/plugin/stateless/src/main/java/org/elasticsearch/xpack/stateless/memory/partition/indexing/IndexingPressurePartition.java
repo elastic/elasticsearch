@@ -5,11 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.stateless.memory.partition;
+package org.elasticsearch.xpack.stateless.memory.partition.indexing;
 
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.unit.RatioValue;
+import org.elasticsearch.xpack.stateless.memory.partition.MemoryPartition;
 
 import java.util.OptionalLong;
 
@@ -24,7 +25,7 @@ import java.util.OptionalLong;
  * as the node heap requirement — not divided by this partition's own fraction — because
  * the 10% constraint is the operative limit, not the 15% reservation.
  */
-public class IndexingPressurePartition implements MemoryPartition {
+public class IndexingPressurePartition implements MemoryPartition<IndexTierPartitionContext> {
 
     public static final String NAME = "indexing_pressure";
     public static final Setting<RatioValue> FRACTION_SETTING = new Setting<>(
@@ -51,7 +52,7 @@ public class IndexingPressurePartition implements MemoryPartition {
     }
 
     @Override
-    public OptionalLong nodeHeapRequirementBytes(PartitionContext ctx) {
+    public OptionalLong nodeHeapRequirementBytes(IndexTierPartitionContext ctx) {
         long requirement = ctx.minimumRequiredHeapForIndexingOpsBytes();
         if (requirement == 0) {
             return OptionalLong.empty();

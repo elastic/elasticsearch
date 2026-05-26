@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasource.compress;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.nativeaccess.Zstd;
 
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 
 /**
@@ -109,5 +110,23 @@ public final class PanamaZstd {
             throw new IllegalStateException("Panama zstd binding is not available on this platform");
         }
         return zstd.decompress(dst, dstOffset, dstSize, src, srcOffset, srcSize);
+    }
+
+    /**
+     * Wrap {@code compressed} in a streaming zstd decompressing {@link InputStream}, backed by the
+     * Panama {@code ZSTD_decompressStream} binding. Drop-in replacement for
+     * {@code com.github.luben.zstd.ZstdInputStream} on the ESQL {@code .csv.zst} / {@code .ndjson.zstd}
+     * codec paths.
+     *
+     * <p>Hard-fails if the native binding could not be loaded — the streaming codec assumes native
+     * availability (matching Lucene's zstd codec) and there is no zstd-jni fallback on this path.
+     *
+     * @throws IllegalStateException if {@link #isAvailable()} returns {@code false}
+     */
+    public InputStream wrap(InputStream compressed) {
+        if (zstd == null) {
+            throw new IllegalStateException("Panama zstd binding is not available on this platform");
+        }
+        return new PanamaZstdInputStream(compressed, zstd);
     }
 }

@@ -184,11 +184,11 @@ public class EndsWith extends EsqlScalarFunction implements TranslationAware.Sin
         return str;
     }
 
-    Expression str() {
+    public Expression str() {
         return str;
     }
 
-    Expression suffix() {
+    public Expression suffix() {
         return suffix;
     }
 }

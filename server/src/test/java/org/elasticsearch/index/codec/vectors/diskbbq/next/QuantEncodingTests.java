@@ -88,4 +88,47 @@ public class QuantEncodingTests extends ESTestCase {
         assertEquals(8, encoding.getQueryPackedLength(8));
     }
 
+    public void testOneBitOneBitQueryPackSize() {
+        ESNextDiskBBQVectorsFormat.QuantEncoding encoding = ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_1BIT_QUERY;
+        assertEquals(1, encoding.getDocPackedLength(1));
+        assertEquals(1, encoding.getQueryPackedLength(1));
+        assertEquals(1, encoding.getDocPackedLength(8));
+        assertEquals(1, encoding.getQueryPackedLength(8));
+        assertEquals(2, encoding.getDocPackedLength(15));
+        assertEquals(2, encoding.getQueryPackedLength(15));
+        assertEquals(2, encoding.getDocPackedLength(16));
+        assertEquals(2, encoding.getQueryPackedLength(16));
+    }
+
+    public void testFromDocAndQueryBits() {
+        assertEquals(
+            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_1BIT_QUERY,
+            ESNextDiskBBQVectorsFormat.QuantEncoding.fromDocAndQueryBits((byte) 1, (byte) 1)
+        );
+        assertEquals(
+            ESNextDiskBBQVectorsFormat.QuantEncoding.ONE_BIT_4BIT_QUERY,
+            ESNextDiskBBQVectorsFormat.QuantEncoding.fromDocAndQueryBits((byte) 1, (byte) 4)
+        );
+        assertEquals(
+            ESNextDiskBBQVectorsFormat.QuantEncoding.TWO_BIT_4BIT_QUERY,
+            ESNextDiskBBQVectorsFormat.QuantEncoding.fromDocAndQueryBits((byte) 2, (byte) 4)
+        );
+        assertEquals(
+            ESNextDiskBBQVectorsFormat.QuantEncoding.FOUR_BIT_SYMMETRIC,
+            ESNextDiskBBQVectorsFormat.QuantEncoding.fromDocAndQueryBits((byte) 4, (byte) 4)
+        );
+        assertEquals(
+            ESNextDiskBBQVectorsFormat.QuantEncoding.SEVEN_BIT_SYMMETRIC,
+            ESNextDiskBBQVectorsFormat.QuantEncoding.fromDocAndQueryBits((byte) 7, (byte) 7)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ESNextDiskBBQVectorsFormat.QuantEncoding.fromDocAndQueryBits((byte) 1, (byte) 7)
+        );
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> ESNextDiskBBQVectorsFormat.QuantEncoding.fromDocAndQueryBits((byte) 4, (byte) 1)
+        );
+    }
+
 }

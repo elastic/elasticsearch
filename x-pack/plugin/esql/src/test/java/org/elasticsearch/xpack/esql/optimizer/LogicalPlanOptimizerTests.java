@@ -45,6 +45,8 @@ import org.elasticsearch.xpack.esql.core.expression.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
+import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.PotentiallyUnmappedKeywordEsField;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -166,6 +168,7 @@ import org.elasticsearch.xpack.esql.rule.RuleExecutor;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -11362,6 +11365,89 @@ public class LogicalPlanOptimizerTests extends AbstractLogicalPlanOptimizerTests
         var testAnalyzer = EsqlTestUtils.analyzer().addIndex(IndexResolution.valid(mixedIndex));
         var plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("TS * | STATS count(events_received)"));
         assertNotNull(plan);
+    }
+
+    /**
+     * Invariant: analyzer-generated synthetic conversion attributes must remain addressable even if users define
+     * attributes with similar names.
+     * Defect: synthetic and user-defined naming overlap previously caused missing references.
+     * Expected: both the synthetic conversion attribute and user-facing fields survive optimization.
+     */
+    public void testSyntheticUnionConversionAttributeSurvivesUserShadowing() {
+        LinkedHashMap<String, Set<String>> typesToIndices = new LinkedHashMap<>();
+        typesToIndices.put("ip", Set.of("testidx"));
+        typesToIndices.put("keyword", Set.of("testidx2"));
+
+        EsField clientIpField = new InvalidMappedField("client_ip", typesToIndices);
+        EsIndex index = new EsIndex(
+            "testidx*",
+            Map.of("client_ip", clientIpField),
+            Map.of("testidx", IndexMode.STANDARD, "testidx2", IndexMode.STANDARD),
+            Map.of(),
+            Map.of()
+        );
+        var testAnalyzer = EsqlTestUtils.analyzer().addIndex(IndexResolution.valid(index));
+
+        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("""
+            FROM testidx*
+            | EVAL `$$client_ip$converted_to$ip` = "1.1.1.1"::ip
+            | EVAL x = client_ip::ip
+            | EVAL y = `$$client_ip$converted_to$ip`
+            """));
+
+        List<String> outputNames = plan.output().stream().map(Attribute::name).toList();
+        assertThat(outputNames, hasItems("x", "y", "$$client_ip$converted_to$ip"));
+        assertEquals(1, outputNames.stream().filter("$$client_ip$converted_to$ip"::equals).count());
+    }
+
+    /**
+     * Invariant: synthetic conversion attributes introduced for UNION type resolution must survive intermediate
+     * project-style operators (RENAME/KEEP/DROP) until downstream rewrites finish.
+     * Defect: project-style operators dropped synthetic attributes, causing missing references in later stats.
+     * Expected: plan resolves successfully and exposes only user-visible output attributes.
+     */
+    public void testProjectsCarrySyntheticUnionAttributesUntilStatsRewrite() {
+        assumeTrue("Requires subquery in FROM command support", EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND.isEnabled());
+
+        var testAnalyzer = EsqlTestUtils.analyzer()
+            .addIndex("multi_column_joinable", "mapping-multi_column_joinable.json")
+            .addLookupIndex("multi_column_joinable_lookup", "mapping-multi_column_joinable_lookup.json");
+
+        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("""
+            FROM multi_column_joinable, (FROM multi_column_joinable)
+            | RENAME extra2 AS other2
+            | LOOKUP JOIN multi_column_joinable_lookup ON id_int, other2
+            | MV_EXPAND other2
+            | STATS absent(to_string(id_int))
+            """));
+
+        assertTrue(plan.resolved());
+        assertTrue(plan.output().stream().noneMatch(Attribute::synthetic));
+    }
+
+    /**
+     * Invariant: COUNT_DISTINCT_OVER_TIME should resolve cleanly across mixed source patterns in TS mode.
+     * Defect: mixed-source expansions could trigger missing-reference failures in optimization.
+     * Expected: plan resolves and retains the expected user output schema.
+     */
+    public void testCountDistinctOverTimeResolvesAcrossMixedSourcePatterns() {
+        var mixedSources = new EsIndex(
+            "k8s_stored_source,k8s*,emplo*",
+            EsqlTestUtils.loadMapping("k8s-mappings.json"),
+            Map.of("k8s_stored_source", IndexMode.TIME_SERIES, "k8s", IndexMode.TIME_SERIES, "employees", IndexMode.STANDARD),
+            Map.of("", List.of("k8s_stored_source", "k8s*", "emplo*")),
+            Map.of("", List.of("k8s_stored_source", "k8s", "employees"))
+        );
+        var testAnalyzer = EsqlTestUtils.analyzer().addIndex(IndexResolution.valid(mixedSources));
+
+        LogicalPlan plan = logicalOptimizerWithLatestVersion.optimize(testAnalyzer.query("""
+            TS k8s_stored_source, k8s*, emplo*
+            | STATS c = count_distinct_over_time(network.cost)
+            | SORT c DESC
+            """));
+        assertTrue(plan.resolved());
+        assertThat(Expressions.names(plan.output()), hasItems("c"));
+        assertTrue(plan.output().stream().noneMatch(Attribute::synthetic));
     }
 
     public void testTsWildcardWithRateAggregate() {

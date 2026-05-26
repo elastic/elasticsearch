@@ -47,7 +47,7 @@ public class CoreEsqlActionIT extends ESIntegTestCase {
         try {
             @SuppressWarnings("unchecked")
             var c = (Class<? extends Plugin>) Class.forName("org.elasticsearch.xpack.esql.plugin.EsqlPlugin");
-            return List.of(c);
+            return List.of(c, TestEncryptionServicePlugin.class);
         } catch (ClassNotFoundException e) {
             throw new AssertionError(e); // the ES|QL plugin must be present
         }

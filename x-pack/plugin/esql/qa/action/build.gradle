@@ -14,4 +14,6 @@ dependencies {
     // upon any types from ES|QL (only xpack core)
     testImplementation project(':x-pack:plugin:esql-core')
     testImplementation project(':x-pack:plugin:esql')
+    // esql's DataSourceCredentials component references EncryptionService; the in-JVM node needs the SPI.
+    internalClusterTestImplementation project(':x-pack:plugin:encryption:spi')
 }

@@ -11,11 +11,11 @@ package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ChannelActionListener;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterStateListener;
@@ -27,7 +27,6 @@ import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexService;
@@ -49,6 +48,8 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
@@ -238,8 +239,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
 
         private int activeRecoveryHandlerCount = 0;
 
-        @Nullable
-        private List<ActionListener<Void>> emptyListeners;
+        private final List<RecoveryScheduleListener> recoveryScheduleListeners = new CopyOnWriteArrayList<>();
 
         // visible for testing
         synchronized int activeRecoveryCount() {
@@ -251,25 +251,53 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             return pendingRecoveries.size();
         }
 
+        /// Registers a recovery scheduling listener.
+        void addRecoveryScheduleListener(RecoveryScheduleListener listener) {
+            recoveryScheduleListeners.add(listener);
+        }
+
+        /// Unregisters a recovery scheduling listener.
+        void removeRecoveryScheduleListener(RecoveryScheduleListener listener) {
+            recoveryScheduleListeners.remove(listener);
+        }
+
+        private void notifyRecoveryScheduleListeners() {
+            assert Thread.holdsLock(this) == false;
+            for (RecoveryScheduleListener listener : recoveryScheduleListeners) {
+                try {
+                    listener.onRecoveryScheduleChange();
+                } catch (Exception e) {
+                    assert false : "recovery schedule listener should not throw exceptions";
+                    logger.warn("recovery schedule listener exception", e);
+                }
+            }
+        }
+
         /// Starts the recovery immediately if a slot is available, otherwise queues it for later.
         /// Returns the handler to start (non-null) if a slot was available, or null if the request was queued.
-        synchronized RecoverySourceHandler addOrEnqueueNewRecovery(
+        RecoverySourceHandler addOrEnqueueNewRecovery(
             StartRecoveryRequest request,
             Task task,
             IndexShard shard,
             ActionListener<RecoveryResponse> listener
         ) {
-            assert lifecycle.started();
-            ensureNoDuplicateAllocationId(request.targetAllocationId());
-            if (activeRecoveryHandlerCount < maxConcurrentOutgoingRecoveries) {
-                return addNewRecovery(request, task, shard);
+            final RecoverySourceHandler handler;
+            synchronized (this) {
+                assert lifecycle.started();
+                ensureNoDuplicateAllocationId(request.targetAllocationId());
+                if (activeRecoveryHandlerCount < maxConcurrentOutgoingRecoveries) {
+                    handler = addNewRecovery(request, task, shard);
+                } else {
+                    shard.recoveryStats().incCurrentAsSourceQueued();
+                    // TODO: consider capping the queue depth and rejecting with DelayRecoveryException once exceeded.
+                    final var subscribableListener = new SubscribableListener<RecoveryResponse>();
+                    subscribableListener.addListener(listener);
+                    pendingRecoveries.add(new PendingRecovery(request, task, shard, subscribableListener));
+                    handler = null;
+                }
             }
-            shard.recoveryStats().incCurrentAsSourceQueued();
-            // TODO: consider capping the queue depth and rejecting with DelayRecoveryException once exceeded.
-            final var subscribableListener = new SubscribableListener<RecoveryResponse>();
-            subscribableListener.addListener(listener);
-            pendingRecoveries.add(new PendingRecovery(request, task, shard, subscribableListener));
-            return null;
+            notifyRecoveryScheduleListeners();
+            return handler;
         }
 
         private RecoverySourceHandler addNewRecovery(StartRecoveryRequest request, Task task, IndexShard shard) {
@@ -307,6 +335,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                             )
                         )
                     );
+            }
+            if (cancelled.isEmpty() == false) {
+                notifyRecoveryScheduleListeners();
             }
         }
 
@@ -366,6 +397,7 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                     ActionListener.runAfter(nextRecovery.listener(), () -> onRecoveryComplete(nextRecovery.shard(), nextHandler))
                 );
             }
+            notifyRecoveryScheduleListeners();
         }
 
         void cancelAllPendingRecoveries() {
@@ -384,6 +416,9 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                             )
                         )
                     );
+            }
+            if (cancelled.isEmpty() == false) {
+                notifyRecoveryScheduleListeners();
             }
         }
 
@@ -408,13 +443,6 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
             }
             if (shardRecoveryContext.recoveryHandlers.isEmpty()) {
                 activeRecoveries.remove(shard);
-            }
-            if (activeRecoveries.isEmpty() && pendingRecoveries.isEmpty()) {
-                if (emptyListeners != null) {
-                    final List<ActionListener<Void>> onEmptyListeners = emptyListeners;
-                    emptyListeners = null;
-                    ActionListener.onResponse(onEmptyListeners, null);
-                }
             }
         }
 
@@ -447,22 +475,39 @@ public class PeerRecoverySourceService extends AbstractLifecycleComponent implem
                         )
                     );
             }
+            if (cancelled.isEmpty() == false) {
+                notifyRecoveryScheduleListeners();
+            }
         }
 
         void awaitEmpty() {
             assert lifecycle.stoppedOrClosed();
-            final PlainActionFuture<Void> future;
             synchronized (this) {
                 if (activeRecoveries.isEmpty() && pendingRecoveries.isEmpty()) {
                     return;
                 }
-                future = new PlainActionFuture<>();
-                if (emptyListeners == null) {
-                    emptyListeners = new ArrayList<>();
-                }
-                emptyListeners.add(future);
             }
-            FutureUtils.get(future);
+
+            final CountDownLatch emptyLatch = new CountDownLatch(1);
+            final RecoveryScheduleListener listener = () -> {
+                synchronized (OngoingRecoveries.this) {
+                    if (activeRecoveries.isEmpty() && pendingRecoveries.isEmpty()) {
+                        emptyLatch.countDown();
+                    }
+                }
+            };
+
+            addRecoveryScheduleListener(listener);
+            try {
+                // Check again after registering in case we became empty while registering
+                listener.onRecoveryScheduleChange();
+                emptyLatch.await();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new ElasticsearchTimeoutException("interrupted while waiting for recoveries to complete", e);
+            } finally {
+                removeRecoveryScheduleListener(listener);
+            }
         }
 
         private void ensureNoDuplicateAllocationId(String targetAllocationId) {

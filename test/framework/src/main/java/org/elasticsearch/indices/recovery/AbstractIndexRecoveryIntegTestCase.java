@@ -12,6 +12,7 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
+import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -25,7 +26,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
+import org.elasticsearch.index.recovery.RecoveryStats;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.snapshots.SnapshotState;
@@ -55,6 +58,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiConsumer;
+import java.util.function.Predicate;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -83,6 +87,27 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         internalCluster().assertConsistentHistoryBetweenTranslogAndLuceneIndex();
         internalCluster().assertSeqNos();
         internalCluster().assertSameDocIdsOnShards();
+    }
+
+    protected void awaitRecoveryStats(String nodeName, Predicate<RecoveryStats> condition) {
+        final var indicesService = internalCluster().getInstance(IndicesService.class, nodeName);
+        final var sourceService = internalCluster().getInstance(PeerRecoverySourceService.class, nodeName);
+        final CountDownLatch conditionLatch = new CountDownLatch(1);
+
+        final RecoveryScheduleListener listener = () -> {
+            final var stats = indicesService.stats(CommonStatsFlags.ALL, false).getRecoveryStats();
+            if (condition.test(stats)) {
+                conditionLatch.countDown();
+            }
+        };
+
+        sourceService.ongoingRecoveries.addRecoveryScheduleListener(listener);
+        try {
+            listener.onRecoveryScheduleChange();
+            safeAwait(conditionLatch);
+        } finally {
+            sourceService.ongoingRecoveries.removeRecoveryScheduleListener(listener);
+        }
     }
 
     protected void checkTransientErrorsDuringRecoveryAreRetried(String recoveryActionToBlock) throws Exception {

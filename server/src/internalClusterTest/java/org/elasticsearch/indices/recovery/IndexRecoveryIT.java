@@ -2149,18 +2149,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
             indicesAdmin().prepareUpdateSettings(indexName).setSettings(Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 1))
         );
 
-        assertBusy(() -> {
-            final var recoveryStats = clusterAdmin().prepareNodesStats(sourceNode)
-                .clear()
-                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
-                .get()
-                .getNodes()
-                .getFirst()
-                .getIndices()
-                .getRecoveryStats();
-            assertThat("expected one queued recovery request", recoveryStats.currentAsSourceQueued(), equalTo(1));
-            assertThat("expected one running recovery", recoveryStats.currentAsSource(), equalTo(1));
-        });
+        awaitRecoveryStats(sourceNode, recoveryStats -> recoveryStats.currentAsSourceQueued() == 1 && recoveryStats.currentAsSource() == 1);
 
         fileChunkLatch.countDown();
         ensureGreen(indexName);
@@ -2217,18 +2206,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
                         .put(UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), 0)
                 )
         );
-        assertBusy(() -> {
-            final var recoveryStats = clusterAdmin().prepareNodesStats(sourceNode)
-                .clear()
-                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
-                .get()
-                .getNodes()
-                .getFirst()
-                .getIndices()
-                .getRecoveryStats();
-            assertThat("expected three queued recovery requests", recoveryStats.currentAsSourceQueued(), equalTo(3));
-            assertThat("expected one running recovery", recoveryStats.currentAsSource(), equalTo(1));
-        });
+        awaitRecoveryStats(sourceNode, recoveryStats -> recoveryStats.currentAsSourceQueued() == 3 && recoveryStats.currentAsSource() == 1);
 
         allocationSettingsUpdate = Settings.builder()
             .put(EnableAllocationDecider.CLUSTER_ROUTING_ALLOCATION_ENABLE_SETTING.getKey(), EnableAllocationDecider.Allocation.NONE);
@@ -2301,17 +2279,8 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         );
 
         safeAwait(fileChunkReceivedLatch);
-        assertBusy(() -> {
-            final var recoveryStats = clusterAdmin().prepareNodesStats(sourceNode)
-                .clear()
-                .setIndices(new CommonStatsFlags(CommonStatsFlags.Flag.Recovery))
-                .get()
-                .getNodes()
-                .getFirst()
-                .getIndices()
-                .getRecoveryStats();
-            assertThat("expected one queued recovery request", recoveryStats.currentAsSourceQueued(), equalTo(1));
-            assertThat("expected one running recovery", recoveryStats.currentAsSource(), equalTo(1));
+        awaitRecoveryStats(sourceNode, recoveryStats -> {
+            return recoveryStats.currentAsSourceQueued() == 1 && recoveryStats.currentAsSource() == 1;
         });
 
         assertAcked(indicesAdmin().prepareDelete(indexName));

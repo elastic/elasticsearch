@@ -65,8 +65,8 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             + "If you require sorting or aggregating on this field you should also include the id in the "
             + "body of your documents, and map this field as a keyword field that has [doc_values] enabled";
 
-    public static final ProvidedIdFieldMapper DOCUMENT_ID = new ProvidedIdFieldMapper(Mode.DEFAULT, false);
-    static final ProvidedIdFieldMapper DOCUMENT_ID_STRICT_COLUMNAR = new ProvidedIdFieldMapper(Mode.DEFAULT, true);
+    public static final ProvidedIdFieldMapper DOCUMENT_ID = new ProvidedIdFieldMapper(Mode.DOCUMENT, false);
+    static final ProvidedIdFieldMapper DOCUMENT_ID_STRICT_COLUMNAR = new ProvidedIdFieldMapper(Mode.DOCUMENT, true);
     static final ProvidedIdFieldMapper COLUMNAR_ID = new ProvidedIdFieldMapper(Mode.COLUMNAR, false);
     static final ProvidedIdFieldMapper COLUMNAR_ID_STRICT_COLUMNAR = new ProvidedIdFieldMapper(Mode.COLUMNAR, true);
 
@@ -83,7 +83,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             mode = new Parameter<>(
                 "mode",
                 false,
-                () -> columnarIdByDefault ? Mode.COLUMNAR : Mode.DEFAULT,
+                () -> columnarIdByDefault ? Mode.COLUMNAR : Mode.DOCUMENT,
                 (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
                 m -> ((ProvidedIdFieldMapper) m).mode,
                 (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
@@ -107,7 +107,7 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
             switch (mode) {
                 case COLUMNAR:
                     return columnarIdByDefault ? COLUMNAR_ID_STRICT_COLUMNAR : COLUMNAR_ID;
-                case DEFAULT:
+                case DOCUMENT:
                     return columnarIdByDefault ? DOCUMENT_ID_STRICT_COLUMNAR : DOCUMENT_ID;
                 default:
                     throw new IllegalArgumentException("Unsupported id field mode [" + mode + "]");
@@ -123,13 +123,13 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     /**
      * Controls how the {@code _id} field is stored and retrieved.
      * <ul>
-     *   <li>{@link #DEFAULT} – current behaviour: stored as a stored field with an inverted index.</li>
+     *   <li>{@link #DOCUMENT} – document behaviour: stored as a stored field with an inverted index.</li>
      *   <li>{@link #COLUMNAR} – columnar behaviour: stored as sorted doc values with an inverted index,
      *       no stored field. Intended for use with the columnar index mode.</li>
      * </ul>
      */
     public enum Mode {
-        DEFAULT,
+        DOCUMENT,
         COLUMNAR
     }
 

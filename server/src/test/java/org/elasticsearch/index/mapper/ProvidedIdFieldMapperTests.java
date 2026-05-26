@@ -14,6 +14,7 @@ import org.apache.lucene.index.IndexOptions;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.IndexSearcher;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.indices.IndicesService;
@@ -128,9 +129,25 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
     }
 
     public void testColumnarModeMappingSerialization() throws IOException {
+        // Columnar
         MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_id").field("mode", "columnar").endObject()));
         String mapping = mapperService.documentMapper().mapping().toString();
         assertThat(mapping, containsString("\"mode\":\"columnar\""));
+
+        // Document
+        mapperService = createMapperService(topMapping(b -> b.startObject("_id").field("mode", "document").endObject()));
+        mapping = mapperService.documentMapper().mapping().toString();
+        // empty because document is the default:
+        assertThat(mapping, containsString("{\"_doc\":{}"));
+
+        // Document with columnar is the default:
+        mapperService = createMapperService(
+            Settings.builder().put("index.mapping.use_colulmnar_id_mode_by_default", true).build(),
+            topMapping(b -> b.startObject("_id").field("mode", "document").endObject())
+        );
+        mapping = mapperService.documentMapper().mapping().toString();
+        // empty because document is the default:
+        assertThat(mapping, containsString("\"mode\":\"document\""));
     }
 
     public void testDefaultModeNotSerialized() throws IOException {
@@ -156,6 +173,12 @@ public class ProvidedIdFieldMapperTests extends MapperServiceTestCase {
 
     public void testDefaultModeIdLoaderUsesStoredFields() throws IOException {
         MapperService mapperService = createMapperService(mapping(b -> {}));
+        IdLoader idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
+        assertThat(idLoader, instanceOf(IdLoader.StoredIdLoader.class));
+    }
+
+    public void testDocumentModeIdLoaderUsesDocValues() throws IOException {
+        MapperService mapperService = createMapperService(topMapping(b -> b.startObject("_id").field("mode", "document").endObject()));
         IdLoader idLoader = IdLoader.create(mapperService.getIndexSettings(), mapperService.mappingLookup());
         assertThat(idLoader, instanceOf(IdLoader.StoredIdLoader.class));
     }

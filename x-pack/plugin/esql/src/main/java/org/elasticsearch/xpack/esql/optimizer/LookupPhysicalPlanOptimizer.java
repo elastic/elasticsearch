@@ -30,8 +30,8 @@ public class LookupPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physi
     private static final Logger log = LogManager.getLogger(LookupPhysicalPlanOptimizer.class);
 
     private static final List<Batch<PhysicalPlan>> RULES = List.of(
-        new Batch<>("Push to source", new ReplaceSourceAttributes(), new PushFiltersToSource()),
         new Batch<>("Lucene bulk keyword lookup", new LuceneBulkLookup()),
+        new Batch<>("Push to source", new ReplaceSourceAttributes(), new PushFiltersToSource()),
         new Batch<>("Field extraction", Limiter.ONCE, new InsertFieldExtraction())
     );
 

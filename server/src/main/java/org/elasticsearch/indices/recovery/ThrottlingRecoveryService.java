@@ -56,14 +56,8 @@ public final class ThrottlingRecoveryService {
 
     public ThrottlingRecoveryService(Executor executor, ClusterService clusterService) {
         this.executor = executor;
-
-        if (clusterService.getClusterSettings().isDynamicSetting(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey())) {
-            // setting only registered in some tests today
-            clusterService.getClusterSettings()
-                .initializeAndWatch(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
-        } else {
-            maxConcurrentRecoveries = INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.get(clusterService.getSettings());
-        }
+        clusterService.getClusterSettings()
+            .initializeAndWatchIfRegistered(INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING, this::setMaxConcurrentRecoveries);
     }
 
     /**

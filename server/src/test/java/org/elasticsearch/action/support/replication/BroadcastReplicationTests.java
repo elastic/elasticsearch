@@ -296,7 +296,7 @@ public class BroadcastReplicationTests extends ESTestCase {
             ShardId shardId,
             SplitShardCountSummary shardCountSummary
         ) {
-            return new BasicReplicationRequest(shardId, SplitShardCountSummary.UNSET);
+            return new BasicReplicationRequest(shardId, SplitShardCountSummary.IRRELEVANT);
         }
 
         @Override

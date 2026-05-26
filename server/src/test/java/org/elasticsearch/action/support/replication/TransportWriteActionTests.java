@@ -595,7 +595,7 @@ public class TransportWriteActionTests extends ESTestCase {
         }
 
         TestRequest() {
-            super(new ShardId("test", "test", 1), SplitShardCountSummary.UNSET);
+            super(new ShardId("test", "test", 1), SplitShardCountSummary.IRRELEVANT);
         }
 
         @Override

@@ -280,7 +280,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET,
+                SplitShardCountSummary.IRRELEVANT,
                 false
             );
         if (testGet2.sourceRef() == null) {
@@ -310,7 +310,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET,
+                SplitShardCountSummary.IRRELEVANT,
                 false
             );
         if (testGet2.sourceRef() == null) {
@@ -373,7 +373,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET,
+                SplitShardCountSummary.IRRELEVANT,
                 false
             );
         assertNull(getResult);
@@ -400,7 +400,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET,
+                SplitShardCountSummary.IRRELEVANT,
                 false
             );
         assertNull(getResult);
@@ -415,7 +415,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET,
+                SplitShardCountSummary.IRRELEVANT,
                 false
             );
         assertNotNull(getResult);
@@ -436,7 +436,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET,
+                SplitShardCountSummary.IRRELEVANT,
                 false
             );
         assertTrue(getResult.isExists());
@@ -450,7 +450,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET,
+                SplitShardCountSummary.IRRELEVANT,
                 false
             );
         assertNull(getResult);
@@ -478,7 +478,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET,
+                SplitShardCountSummary.IRRELEVANT,
                 false
             );
         assertNull(getResult);

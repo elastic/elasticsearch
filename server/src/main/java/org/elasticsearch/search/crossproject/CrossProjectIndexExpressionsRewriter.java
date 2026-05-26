@@ -12,6 +12,7 @@ package org.elasticsearch.search.crossproject;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.InvalidIndexNameException;
 import org.elasticsearch.logging.LogManager;
@@ -116,15 +117,18 @@ public class CrossProjectIndexExpressionsRewriter {
     ) {
         String localExpression = null;
         final Set<String> rewrittenExpressions = new LinkedHashSet<>();
+        final Set<String> includedProjects = new LinkedHashSet<>();
         if (originAlias != null) {
             localExpression = indexExpression; // adding the original indexExpression for the _origin cluster.
+            includedProjects.add(originAlias);
         }
         for (String targetProjectAlias : allProjectAliases) {
             if (false == targetProjectAlias.equals(originAlias)) {
                 rewrittenExpressions.add(RemoteClusterAware.buildRemoteIndexName(targetProjectAlias, indexExpression));
+                includedProjects.add(targetProjectAlias);
             }
         }
-        return new IndexRewriteResult(localExpression, rewrittenExpressions);
+        return new IndexRewriteResult(localExpression, rewrittenExpressions, includedProjects, Set.of());
     }
 
     private static IndexRewriteResult rewriteQualifiedExpression(
@@ -158,8 +162,12 @@ public class CrossProjectIndexExpressionsRewriter {
             projectRouting
         );
 
+        final boolean isProjectWildcardExclusion = isExclusion && "*".equals(indexExpression);
+
         String localExpression = null;
         final Set<String> resourcesMatchingLinkedProjectAliases = new LinkedHashSet<>();
+        final Set<String> includedProjects = new LinkedHashSet<>();
+        final Set<String> excludedProjects = new LinkedHashSet<>();
         // TODO: Rewrite supports exclusion such as -project:index but it is still rejected by RemoteClusterAware#groupClusterIndices
         // We could consider supporting it all the way through, see also ES-13767
         for (String project : allProjectsMatchingAlias) {
@@ -169,9 +177,14 @@ public class CrossProjectIndexExpressionsRewriter {
                 final String remoteIndexName = RemoteClusterAware.buildRemoteIndexName(project, indexExpression);
                 resourcesMatchingLinkedProjectAliases.add(isExclusion ? EXCLUSION_PREFIX + remoteIndexName : remoteIndexName);
             }
+            if (isProjectWildcardExclusion) {
+                excludedProjects.add(project);
+            } else {
+                includedProjects.add(project);
+            }
         }
 
-        return new IndexRewriteResult(localExpression, resourcesMatchingLinkedProjectAliases);
+        return new IndexRewriteResult(localExpression, resourcesMatchingLinkedProjectAliases, includedProjects, excludedProjects);
     }
 
     private static void ensureProjectsAvailable(
@@ -229,11 +242,40 @@ public class CrossProjectIndexExpressionsRewriter {
     }
 
     /**
-     * A container for a local expression and a list of remote expressions.
+     * Returns {@code true} if {@code pattern} fully excludes the origin project via a project-wildcard exclusion of the shape
+     * {@code -<alias>:*}, where {@code <alias>} is either the special {@code _origin} alias or a {@link Regex#simpleMatch simple-match}
+     * against {@code originProjectAlias}.
      */
-    public record IndexRewriteResult(@Nullable String localExpression, Set<String> remoteExpressions) {
+    public static boolean isOriginProjectWildcardExclusion(String pattern, String originProjectAlias) {
+        assert originProjectAlias != null : "originProjectAlias must not be null";
+        if (pattern.isEmpty() || pattern.charAt(0) != EXCLUSION_PREFIX) {
+            return false;
+        }
+        String[] split = RemoteClusterAware.splitIndexName(pattern.substring(1));
+        String alias = split[0];
+        String index = split[1];
+        if (alias == null || "*".equals(index) == false) {
+            return false;
+        }
+        return ProjectRoutingResolver.ORIGIN.equals(alias) || Regex.simpleMatch(alias, originProjectAlias);
+    }
+
+    public record IndexRewriteResult(
+        @Nullable String localExpression,
+        Set<String> remoteExpressions,
+        Set<String> includedProjects,
+        Set<String> excludedProjects
+    ) {
+        public IndexRewriteResult {
+            assert includedProjects.isEmpty() || excludedProjects.isEmpty()
+                : "a single expression cannot both include and exclude projects: included="
+                    + includedProjects
+                    + " excluded="
+                    + excludedProjects;
+        }
+
         public IndexRewriteResult(String localExpression) {
-            this(localExpression, Set.of());
+            this(localExpression, Set.of(), Set.of(), Set.of());
         }
 
         public boolean isEmpty() {

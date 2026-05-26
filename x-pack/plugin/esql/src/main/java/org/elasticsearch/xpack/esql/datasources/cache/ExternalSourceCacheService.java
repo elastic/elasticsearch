@@ -113,89 +113,73 @@ public class ExternalSourceCacheService implements Closeable {
             if (contributions == null || contributions.isEmpty()) {
                 continue;
             }
-            // Per-chunk safety: if any contribution is marked partial, only accept the merge when
-            // the file also has a finalize marker. Otherwise drop the file's contributions — the
-            // partial-only set risks under-counting rowCount and serving a wrong COUNT(*).
-            // Any chunk-poison contribution unconditionally discards the file (a chunk hit
-            // SKIP_ROW errors mid-scan — the merge would still under-count even with finalize).
-            boolean anyPartial = false;
-            boolean anyFinalize = false;
-            boolean anyPoisoned = false;
-            for (Map<String, Object> contribution : contributions) {
-                if (Boolean.TRUE.equals(contribution.get(ExternalStatsCache.PARTIAL_CHUNK_KEY))) {
-                    anyPartial = true;
-                }
-                if (Boolean.TRUE.equals(contribution.get(ExternalStatsCache.FINALIZE_CHUNKS_KEY))) {
-                    anyFinalize = true;
-                }
-                if (Boolean.TRUE.equals(contribution.get(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY))) {
-                    anyPoisoned = true;
-                }
-            }
-            if (anyPoisoned || (anyPartial && anyFinalize == false)) {
-                continue;
-            }
-            // Two contribution shapes reach here, and they combine differently:
-            // * WHOLE-FILE (no PARTIAL_CHUNK_KEY): a complete-file read whose row count already
-            // covers the entire file. The same file can be read whole more than once in a single
-            // query (e.g. a schema-probe pass plus the data scan on the non-seekable compressed
-            // path), yielding duplicate complete counts. These must be DEDUPLICATED, never summed
-            // — summing two complete reads doubles COUNT(*).
-            // * PARTIAL chunks (PARTIAL_CHUNK_KEY): each covers a disjoint slice of the file and is
-            // summed via mergeStatistics. The partial/finalize gate above guarantees the slice set
-            // is complete before we commit.
-            // A whole-file read is authoritative: if the file was read whole at all, that read wins
-            // and any partials are redundant.
+            // Classify each wire blob into a SourceStatsContribution, then route through an
+            // exhaustive switch — a new contribution kind is a compile error here until its handling
+            // is written, rather than a silent fall-through to the summable-partial default (the
+            // class of bug that produced the SKIP_ROW-poison, fingerprint, and whole-file-double-count
+            // regressions). WholeFile and PartialChunk carry stats; Poison and Finalize are gate-only.
+            boolean poisoned = false;
+            boolean finalized = false;
             java.util.List<Map<String, Object>> wholeFile = new java.util.ArrayList<>(contributions.size());
             java.util.List<Map<String, Object>> partials = new java.util.ArrayList<>(contributions.size());
-            for (Map<String, Object> contribution : contributions) {
-                if (contribution.containsKey(
-                    org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.STATS_ROW_COUNT
-                ) == false) {
-                    // finalize-marker-only entry: completion signal, carries no per-file stats.
-                    continue;
-                }
-                boolean isPartial = contribution.containsKey(ExternalStatsCache.PARTIAL_CHUNK_KEY);
-                Map<String, Object> stripped = new HashMap<>(contribution);
-                stripped.remove(ExternalStatsCache.PARTIAL_CHUNK_KEY);
-                stripped.remove(ExternalStatsCache.FINALIZE_CHUNKS_KEY);
-                stripped.remove(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY);
-                (isPartial ? partials : wholeFile).add(stripped);
-            }
-            Map<String, Object> mergedForFile = null;
-            if (wholeFile.isEmpty() == false) {
-                // A whole-file read always reports the file's full row count: text readers apply no
-                // scan-time filter, and the wholeFileRead shape requires the first+last split with no
-                // parallel slicing. Duplicate complete reads of one file are therefore identical, so
-                // we take the first and never sum.
-                mergedForFile = wholeFile.get(0);
-            } else if (partials.size() == 1) {
-                mergedForFile = partials.get(0);
-            } else if (partials.isEmpty() == false) {
-                mergedForFile = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.mergeStatistics(partials);
-                // mergeStatistics rebuilds the map from scratch and only retains the well-known
-                // _stats.row_count / _stats.size_bytes / _stats.columns.* keys. The reconciler below
-                // relies on MTIME_MILLIS_KEY (to find the matching SchemaCacheEntry via its
-                // lastModifiedEpochMillis axis) and CONFIG_FINGERPRINT_KEY (to disambiguate schema
-                // entries that share path+mtime but differ on WITH options); re-attach both. All
-                // chunks of a file are read by one format-reader instance through one
-                // FormatReadContext, so they share the same pinned mtime and config fingerprint.
-                if (mergedForFile != null) {
-                    Object mtime = partials.get(0).get(ExternalStatsCache.MTIME_MILLIS_KEY);
-                    if (mtime != null) {
-                        mergedForFile.put(ExternalStatsCache.MTIME_MILLIS_KEY, mtime);
-                    }
-                    Object fingerprint = partials.get(0).get(ExternalStatsCache.CONFIG_FINGERPRINT_KEY);
-                    if (fingerprint != null) {
-                        mergedForFile.put(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, fingerprint);
-                    }
+            for (Map<String, Object> raw : contributions) {
+                switch (SourceStatsContribution.classify(raw)) {
+                    case SourceStatsContribution.Poison ignored -> poisoned = true;
+                    case SourceStatsContribution.Finalize ignored -> finalized = true;
+                    case SourceStatsContribution.WholeFile wf -> wholeFile.add(wf.stats());
+                    case SourceStatsContribution.PartialChunk pc -> partials.add(pc.stats());
                 }
             }
+            // A poisoned file (a chunk dropped rows mid-scan) is discarded entirely. Partial chunks
+            // partition the file, so they may only be summed once a finalize marker proves the whole
+            // file completed — a partial-only set risks under-counting COUNT(*).
+            if (poisoned || (partials.isEmpty() == false && finalized == false)) {
+                continue;
+            }
+            Map<String, Object> mergedForFile = mergeContributions(wholeFile, partials);
             if (mergedForFile != null && mergedForFile.isEmpty() == false) {
                 merged.put(e.getKey(), mergedForFile);
             }
         }
         reconcileSourceStats(merged);
+    }
+
+    /**
+     * Combines a file's stats-bearing contributions into a single merged map, or {@code null} when
+     * there is nothing to commit. A whole-file read is authoritative and deduplicated: each such
+     * contribution already reports the file's full row count (text readers apply no scan-time filter,
+     * and a whole-file read is the first+last split with no parallel slicing), so duplicate complete
+     * reads are identical and we take the first — never sum. Only partial chunks, which partition the
+     * file, are summed via {@code mergeStatistics}; that rebuilds the map from scratch retaining only
+     * the {@code _stats.*} keys, so MTIME_MILLIS_KEY (to match the SchemaCacheEntry) and
+     * CONFIG_FINGERPRINT_KEY (to disambiguate {@code WITH}-option variants) are re-attached from a
+     * chunk — all chunks of a file share one pinned mtime and fingerprint.
+     */
+    private static Map<String, Object> mergeContributions(
+        java.util.List<Map<String, Object>> wholeFile,
+        java.util.List<Map<String, Object>> partials
+    ) {
+        if (wholeFile.isEmpty() == false) {
+            return wholeFile.get(0);
+        }
+        if (partials.isEmpty()) {
+            return null;
+        }
+        if (partials.size() == 1) {
+            return partials.get(0);
+        }
+        Map<String, Object> mergedForFile = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.mergeStatistics(partials);
+        if (mergedForFile != null) {
+            Object mtime = partials.get(0).get(ExternalStatsCache.MTIME_MILLIS_KEY);
+            if (mtime != null) {
+                mergedForFile.put(ExternalStatsCache.MTIME_MILLIS_KEY, mtime);
+            }
+            Object fingerprint = partials.get(0).get(ExternalStatsCache.CONFIG_FINGERPRINT_KEY);
+            if (fingerprint != null) {
+                mergedForFile.put(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, fingerprint);
+            }
+        }
+        return mergedForFile;
     }
 
     /**

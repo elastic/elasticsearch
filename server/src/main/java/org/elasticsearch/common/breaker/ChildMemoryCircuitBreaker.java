@@ -223,8 +223,8 @@ public class ChildMemoryCircuitBreaker implements CircuitBreaker {
      * Also does not check with the parent breaker to see if the parent limit
      * has been exceeded.
      * <p>
-     * Updates {@code es.breaker.memory.held.usage} under {@code category="uncategorized"}. Use {@link #addWithoutBreaking(long, String)} when
-     * the corresponding admit was labeled so that the per-category gauge stays balanced.
+     * Updates {@code es.breaker.memory.held.usage} under {@code category="uncategorized"}.
+     * Use {@link #addWithoutBreaking(long, String)} when the corresponding admit was labeled so that the per-category gauge stays balanced.
      *
      * @param bytes number of bytes to add to the breaker
      */

@@ -186,4 +186,5 @@ public class AggregateExec extends UnaryExec implements EstimatesRowSize {
             && Objects.equals(estimatedRowSize, other.estimatedRowSize)
             && Objects.equals(child(), other.child());
     }
+
 }

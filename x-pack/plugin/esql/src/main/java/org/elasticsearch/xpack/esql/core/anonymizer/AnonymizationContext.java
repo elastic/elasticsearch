@@ -45,10 +45,10 @@ public final class AnonymizationContext {
 
     private static final String HMAC_ALGORITHM = "HmacSHA256";
     /**
-     * Widened from 8 to 12 hex chars (24-bit margin → ~16M unique identifier birthday-collision
-     * boundary instead of ~65k at 8 chars). Per-cluster-stable correlation breaks down silently
-     * when two distinct field names hash to the same {@code col_xxxxxxxx} on a wide schema, so the
-     * extra four chars buy real safety at no rendering-cost penalty.
+     * Widened from 8 to 12 hex chars — a 48-bit token, ~16M birthday-collision bound vs ~65k at
+     * 32 bits (8 chars). Per-cluster-stable correlation breaks down silently when two distinct
+     * field names hash to the same {@code col_xxxxxxxx} on a wide schema, so the extra four chars
+     * buy real safety at no rendering-cost penalty.
      */
     private static final int TOKEN_HEX_LEN = 12;
 
@@ -73,6 +73,8 @@ public final class AnonymizationContext {
             if (value == null) {
                 return "null";
             }
+            // HashMap only: the mapping function reads literalIds.size() to assign the next id.
+            // A ConcurrentHashMap would reject this re-entrant access (recursive update).
             int id = literalIds.computeIfAbsent(LiteralKey.of(value, type), k -> literalIds.size());
             if (type == DataType.KEYWORD || type == DataType.TEXT || type == DataType.VERSION || type == DataType.IP) {
                 return "L" + id;

@@ -217,5 +217,4 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
             }
         }
     }
-
 }

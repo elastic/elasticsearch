@@ -113,4 +113,5 @@ public class LocalRelation extends LeafPlan {
         LocalRelation other = (LocalRelation) obj;
         return Objects.equals(supplier, other.supplier) && Objects.equals(output, other.output);
     }
+
 }

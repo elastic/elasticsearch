@@ -26,10 +26,12 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -50,6 +52,7 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.time.Clock;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
@@ -155,7 +158,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
      */
     public void testSkipsWhenSnapshotAlreadyMounted() throws InterruptedException {
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        createProjectStateWithMountedSnapshot(snapshotName, ShardRoutingState.STARTED);
+        createProjectStateWithMountedSnapshot(snapshotName, ShardRoutingState.STARTED, null);
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
             indexName,
             projectId,
@@ -198,10 +201,6 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         assertThat(req.storage(), equalTo(MountSearchableSnapshotRequest.Storage.SHARED_CACHE));
     }
 
-    /**
-     * When the mount response has a null RestoreInfo, the partial mounted index must be deleted
-     * before the exception is re-thrown so the next retry attempts a clean remount.
-     */
     public void testThrowsWhenRestoreInfoIsNull() {
         createProjectState();
         mockMountResponse.set(new RestoreSnapshotResponse((RestoreInfo) null));
@@ -220,14 +219,8 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             () -> convert.maybeMountSearchableSnapshot(indexName)
         );
         assertThat(exception.getMessage(), containsString("restore info was missing"));
-        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
-        assertThat(capturedDeleteRequest.get().indices(), hasItemInArray(SNAPSHOT_NAME_PREFIX + indexName));
     }
 
-    /**
-     * When the mount response reports failed shards, the partial mounted index must be deleted
-     * before the exception is re-thrown so the next retry attempts a clean remount.
-     */
     public void testThrowsWhenMountHasFailedShards() {
         createProjectState();
         RestoreInfo restoreInfo = new RestoreInfo("snap", List.of(indexName), 2, 1);
@@ -247,14 +240,8 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             () -> convert.maybeMountSearchableSnapshot(indexName)
         );
         assertThat(exception.getMessage(), containsString("failed shards"));
-        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
-        assertThat(capturedDeleteRequest.get().indices(), hasItemInArray(SNAPSHOT_NAME_PREFIX + indexName));
     }
 
-    /**
-     * When the mount response reports zero successful shards, the partial mounted index must be
-     * deleted before the exception is re-thrown so the next retry attempts a clean remount.
-     */
     public void testThrowsWhenMountHasZeroSuccessfulShards() {
         createProjectState();
         RestoreInfo restoreInfo = new RestoreInfo("snap", List.of(indexName), 0, 0);
@@ -274,14 +261,8 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             () -> convert.maybeMountSearchableSnapshot(indexName)
         );
         assertThat(exception.getMessage(), containsString("failed shards or no successful shards"));
-        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
-        assertThat(capturedDeleteRequest.get().indices(), hasItemInArray(SNAPSHOT_NAME_PREFIX + indexName));
     }
 
-    /**
-     * When the mount transport action itself throws (ExecutionException from .get()), the partial
-     * mounted index must be deleted before the exception is re-thrown.
-     */
     public void testThrowsWhenMountFails() {
         createProjectState();
         mockMountFailure.set(new ElasticsearchException("mount failed"));
@@ -300,19 +281,18 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             () -> convert.maybeMountSearchableSnapshot(indexName)
         );
         assertThat(exception.getMessage(), containsString("mounting snapshot"));
-        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
-        assertThat(capturedDeleteRequest.get().indices(), hasItemInArray(SNAPSHOT_NAME_PREFIX + indexName));
     }
 
     /**
-     * When the mounted index already exists in cluster state (skip path) but its shards are not
-     * allocated, the yellow-status check surfaces the allocation failure rather than silently
-     * proceeding to the data-stream swap step. This prevents an unallocated index from being
-     * promoted into the data stream.
+     * When the yellow-status check times out and the mounted index has failed allocations with no
+     * prior successful assignment (lastAllocatedNodeId is null), the partial mount is deleted so
+     * the next cycle can attempt a clean remount. This auto-recovers from the case where a JVM
+     * restart occurred after the mount action committed IndexMetadata but before the failure could
+     * be cleaned up.
      */
-    public void testThrowsWhenAlreadyMountedIndexShardsUnallocated() {
+    public void testDeletesAndThrowsWhenAlreadyMountedIndexNeverAllocated() {
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        createProjectStateWithMountedSnapshot(snapshotName, ShardRoutingState.STARTED);
+        createProjectStateWithMountedSnapshot(snapshotName, ShardRoutingState.UNASSIGNED, null);
 
         ClusterHealthResponse timedOut = new ClusterHealthResponse();
         timedOut.setTimedOut(true);
@@ -332,9 +312,39 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             () -> convert.maybeMountSearchableSnapshot(indexName)
         );
         assertThat(exception.getMessage(), containsString("timed out"));
-        // The mount step was correctly skipped
         assertThat(capturedMountRequest.get(), is(nullValue()));
-        // No delete was issued (the caller should be retrying, not destroying state)
+        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
+        assertThat(capturedDeleteRequest.get().indices(), hasItemInArray(SNAPSHOT_NAME_PREFIX + indexName));
+    }
+
+    /**
+     * When the yellow-status check times out but the mounted index was previously started on a node
+     * (lastAllocatedNodeId is non-null), the index is not deleted — it is awaiting reallocation
+     * after a transient node failure and should be left in place.
+     */
+    public void testDoesNotDeleteWhenAlreadyMountedIndexWasPreviouslyAllocated() {
+        String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
+        createProjectStateWithMountedSnapshot(snapshotName, ShardRoutingState.UNASSIGNED, "previous-node-id");
+
+        ClusterHealthResponse timedOut = new ClusterHealthResponse();
+        timedOut.setTimedOut(true);
+        mockHealthResponse.set(timedOut);
+
+        DLMConvertToFrozen convert = new DLMConvertToFrozen(
+            indexName,
+            projectId,
+            client,
+            clusterService,
+            () -> licenseState,
+            Clock.systemUTC()
+        );
+
+        ElasticsearchException exception = expectThrows(
+            ElasticsearchException.class,
+            () -> convert.maybeMountSearchableSnapshot(indexName)
+        );
+        assertThat(exception.getMessage(), containsString("timed out"));
+        assertThat(capturedMountRequest.get(), is(nullValue()));
         assertThat(capturedDeleteRequest.get(), is(nullValue()));
     }
 
@@ -369,9 +379,13 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
     }
 
     /**
-     * Creates a ProjectState with the target index and a mounted snapshot index in the given shard state.
+     * Creates a ProjectState with the target index and a mounted snapshot index.
+     * When {@code shardState} is {@link ShardRoutingState#STARTED}, the primary shard is assigned to "node1".
+     * When {@code shardState} is {@link ShardRoutingState#UNASSIGNED}, an unassigned primary shard is created
+     * with one failed allocation attempt; {@code lastAllocatedNodeId} controls whether the shard was previously
+     * started ({@code non-null}) or never started ({@code null}).
      */
-    private void createProjectStateWithMountedSnapshot(String mountedIndexName, ShardRoutingState shardState) {
+    private void createProjectStateWithMountedSnapshot(String mountedIndexName, ShardRoutingState shardState, String lastAllocatedNodeId) {
         IndexMetadata originalIndexMetadata = IndexMetadata.builder(indexName)
             .settings(
                 Settings.builder()
@@ -400,12 +414,31 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         RepositoryMetadata repo = new RepositoryMetadata(REPO_NAME, "fs", Settings.EMPTY);
         projectMetadataBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)));
 
-        ShardRouting primaryShard = TestShardRouting.newShardRouting(
-            new ShardId(mountedIndexMetadata.getIndex(), 0),
-            "node1",
-            true,
-            shardState
-        );
+        ShardId shardId = new ShardId(mountedIndexMetadata.getIndex(), 0);
+        ShardRouting primaryShard;
+        if (shardState == ShardRoutingState.STARTED) {
+            primaryShard = TestShardRouting.newShardRouting(shardId, "node1", true, ShardRoutingState.STARTED);
+        } else {
+            primaryShard = ShardRouting.newUnassigned(
+                shardId,
+                true,
+                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
+                new UnassignedInfo(
+                    UnassignedInfo.Reason.ALLOCATION_FAILED,
+                    "test allocation failure",
+                    null,
+                    1,
+                    0L,
+                    0L,
+                    false,
+                    UnassignedInfo.AllocationStatus.DECIDERS_NO,
+                    Collections.emptySet(),
+                    lastAllocatedNodeId
+                ),
+                ShardRouting.Role.DEFAULT
+            );
+        }
+
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(mountedIndexMetadata.getIndex())
             .addShard(primaryShard);
         RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTableBuilder).build();

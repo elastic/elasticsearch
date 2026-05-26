@@ -59,6 +59,9 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.routing.IndexRoutingTable;
+import org.elasticsearch.cluster.routing.ShardRouting;
+import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -486,14 +489,6 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 }
                 logger.info("DLM successfully mounted snapshot [{}]", snapshotName);
             } catch (Exception e) {
-                // The mount action may have already committed the new IndexMetadata to cluster state before reporting failure.
-                // Delete any partial mount so that the next retry attempts a clean remount rather than skipping the mount
-                // step and promoting an unallocated index into the data stream (mirrors the maybeCloneIndex cleanup pattern).
-                try {
-                    deleteIndex(mountedIndexName);
-                } catch (Exception deleteException) {
-                    e.addSuppressed(deleteException);
-                }
                 Throwable unwrapped = unwrapNestedExceptions(e);
                 if (unwrapped instanceof InterruptedException ie) {
                     throw ie;
@@ -508,7 +503,24 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
 
         // Verify the mounted index has all primary shards allocated before proceeding to the cleanup/swap step.
         // This guards against a partial mount (shards failed to allocate) being promoted into the data stream.
-        waitForIndexYellowStatus(mountedIndexName);
+        // If the index was never successfully allocated (failedAllocations > 0 with no prior node assignment),
+        // delete it so the next cycle attempts a clean remount rather than looping forever.
+        try {
+            waitForIndexYellowStatus(mountedIndexName);
+        } catch (ElasticsearchException e) {
+            if (isMountedIndexNeverAllocated(mountedIndexName)) {
+                logger.warn(
+                    "DLM mounted index [{}] has failed allocations and was never started; deleting to allow remount on next cycle",
+                    mountedIndexName
+                );
+                try {
+                    deleteIndex(mountedIndexName);
+                } catch (Exception deleteException) {
+                    e.addSuppressed(deleteException);
+                }
+            }
+            throw e;
+        }
     }
 
     void maybeCleanup(String forceMergeIndex) throws InterruptedException {
@@ -1146,6 +1158,38 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     boolean isSnapshotMounted() {
         ProjectMetadata projectMetadata = getProjectState().metadata();
         return projectMetadata.indices().containsKey(snapshotName(indexName));
+    }
+
+    /**
+     * Returns {@code true} if the mounted index exists in the routing table but its primary shard has never been
+     * successfully started on any node ({@link UnassignedInfo#lastAllocatedNodeId()} is {@code null}) and at least
+     * one allocation attempt has already failed ({@link UnassignedInfo#failedAllocations()} &gt; 0).
+     * <p>
+     * This distinguishes a partial mount whose restore completed but whose shards failed to allocate from a
+     * previously-healthy mounted index that became unassigned due to a transient node failure — the latter will
+     * have a non-null {@code lastAllocatedNodeId} and must not be deleted.
+     */
+    private boolean isMountedIndexNeverAllocated(String mountedIndexName) {
+        IndexRoutingTable indexRoutingTable = Optional.ofNullable(getProjectState().routingTable())
+            .map(rt -> rt.index(mountedIndexName))
+            .orElse(null);
+        if (indexRoutingTable == null) {
+            return false;
+        }
+        for (int i = 0; i < indexRoutingTable.size(); i++) {
+            var shardRoutingTable = indexRoutingTable.shard(i);
+            if (shardRoutingTable == null) {
+                continue;
+            }
+            ShardRouting primary = shardRoutingTable.primaryShard();
+            if (primary != null && primary.unassigned()) {
+                UnassignedInfo ui = primary.unassignedInfo();
+                if (ui != null && ui.failedAllocations() > 0 && ui.lastAllocatedNodeId() == null) {
+                    return true;
+                }
+            }
+        }
+        return false;
     }
 
     /**

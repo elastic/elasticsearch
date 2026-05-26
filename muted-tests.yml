@@ -585,18 +585,6 @@ tests:
 - class: org.elasticsearch.search.TelemetryMetrics.ShardSearchPhaseAPMMetricsTests
   method: testUniformCanMatchMetricAttributesWhenPlentyOfDocumentsInIndex
   issue: https://github.com/elastic/elasticsearch/issues/149874
-- class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
-  method: testLikeIndexLegacySettingNoResults
-  issue: https://github.com/elastic/elasticsearch/issues/149898
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:where-like.likeContainsOnEvalOutput}
-  issue: https://github.com/elastic/elasticsearch/issues/149899
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:where-like.likeAndOr}
-  issue: https://github.com/elastic/elasticsearch/issues/149900
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:where-like.likePrefixSuffix}
-  issue: https://github.com/elastic/elasticsearch/issues/149904
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:ints.valuesLongGrouped}
   issue: https://github.com/elastic/elasticsearch/issues/149905
@@ -606,6 +594,3 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:conditional.docsCaseColumnExpression}
   issue: https://github.com/elastic/elasticsearch/issues/149920
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:where-like.likeContainsLongerLiteralOnEvalOutput}
-  issue: https://github.com/elastic/elasticsearch/issues/149921

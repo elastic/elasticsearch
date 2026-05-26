@@ -7,8 +7,10 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -33,6 +35,10 @@ import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 public class ReplaceRegexMatchTests extends ESTestCase {
     private Expression replaceRegexMatch(RegexMatch<?> e) {
         return new ReplaceRegexMatch().rule(e, unboundLogicalOptimizerContext());
+    }
+
+    private Expression replaceRegexMatch(RegexMatch<?> e, TransportVersion minimumVersion) {
+        return new ReplaceRegexMatch().rule(e, unboundLogicalOptimizerContext(minimumVersion));
     }
 
     public void testMatchAllWildcardLikeToExist() {
@@ -131,7 +137,7 @@ public class ReplaceRegexMatchTests extends ESTestCase {
         WildcardPattern pattern = new WildcardPattern("*foo*");
         FieldAttribute fa = getFieldAttribute();
         WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
-        Expression e = replaceRegexMatch(wl);
+        Expression e = replaceRegexMatch(wl, TransportVersionUtils.randomVersionSupporting(Contains.LIKE_TO_CONTAINS_VERSION));
         assertEquals(Contains.class, e.getClass());
         Contains c = (Contains) e;
         assertEquals(fa, c.children().get(0));
@@ -142,11 +148,21 @@ public class ReplaceRegexMatchTests extends ESTestCase {
         WildcardPattern pattern = new WildcardPattern("*foo\\*bar*");
         FieldAttribute fa = getFieldAttribute();
         WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
-        Expression e = replaceRegexMatch(wl);
+        Expression e = replaceRegexMatch(wl, TransportVersionUtils.randomVersionSupporting(Contains.LIKE_TO_CONTAINS_VERSION));
         assertEquals(Contains.class, e.getClass());
         Contains c = (Contains) e;
         assertEquals(fa, c.children().get(0));
         assertEquals("foo*bar", BytesRefs.toString(c.children().get(1).fold(FoldContext.small())));
+    }
+
+    public void testLikeContainsNotDecomposedOnOldVersion() {
+        // A mixed-version query (e.g. cross-cluster against a pre-Contains remote) must keep the WildcardLike:
+        // older nodes either lack the Contains NamedWriteable or carry a non-TranslationAware Contains.
+        WildcardPattern pattern = new WildcardPattern("*foo*");
+        FieldAttribute fa = getFieldAttribute();
+        WildcardLike wl = new WildcardLike(EMPTY, fa, pattern);
+        Expression e = replaceRegexMatch(wl, TransportVersionUtils.randomVersionNotSupporting(Contains.LIKE_TO_CONTAINS_VERSION));
+        assertEquals(WildcardLike.class, e.getClass());
     }
 
     public void testLikeComplexContainsNotDecomposedToContains() {

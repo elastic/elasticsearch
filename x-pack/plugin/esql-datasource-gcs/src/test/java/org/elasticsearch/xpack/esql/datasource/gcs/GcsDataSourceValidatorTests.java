@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 import org.elasticsearch.xpack.esql.datasources.spi.AbstractDataSourceValidatorTests;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceValidator;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceValidator;

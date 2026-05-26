@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.esql.datasources.datasource;
 
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
-import org.elasticsearch.cluster.metadata.DataSourceSettings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 import org.elasticsearch.xpack.encryption.spi.EncryptionService;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSettings;
 
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;

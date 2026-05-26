@@ -7,7 +7,7 @@
 
 package org.elasticsearch.xpack.esql.datasources;
 
-import org.elasticsearch.cluster.metadata.DataSourceSetting;
+import org.elasticsearch.xpack.esql.datasources.metadata.DataSourceSetting;
 
 import java.util.Arrays;
 

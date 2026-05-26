@@ -55,6 +55,15 @@ public final class ExternalStatsCache {
      */
     public static final String FINALIZE_CHUNKS_KEY = "_stats.finalize_chunks";
 
+    /**
+     * Published by any chunk whose iterator observed parse errors (errorCount > 0). The presence
+     * of this marker in any contribution for a file poisons the file's merge — the coordinator
+     * discards every contribution rather than commit a policy-dependent count. Defeats the
+     * SKIP_ROW edge case where one chunk drops rows silently, the others succeed cleanly, the
+     * finalize marker fires, and the merged rowCount under-counts the file.
+     */
+    public static final String CHUNK_HAD_ERRORS_KEY = "_stats.chunk_had_errors";
+
     private static final int MAX_ENTRIES = 10_000;
 
     private record Key(String path, long mtimeMillis, String configFingerprint) {}

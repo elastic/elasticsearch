@@ -116,8 +116,11 @@ public class ExternalSourceCacheService implements Closeable {
             // Per-chunk safety: if any contribution is marked partial, only accept the merge when
             // the file also has a finalize marker. Otherwise drop the file's contributions — the
             // partial-only set risks under-counting rowCount and serving a wrong COUNT(*).
+            // Any chunk-poison contribution unconditionally discards the file (a chunk hit
+            // SKIP_ROW errors mid-scan — the merge would still under-count even with finalize).
             boolean anyPartial = false;
             boolean anyFinalize = false;
+            boolean anyPoisoned = false;
             for (Map<String, Object> contribution : contributions) {
                 if (Boolean.TRUE.equals(contribution.get(ExternalStatsCache.PARTIAL_CHUNK_KEY))) {
                     anyPartial = true;
@@ -125,8 +128,11 @@ public class ExternalSourceCacheService implements Closeable {
                 if (Boolean.TRUE.equals(contribution.get(ExternalStatsCache.FINALIZE_CHUNKS_KEY))) {
                     anyFinalize = true;
                 }
+                if (Boolean.TRUE.equals(contribution.get(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY))) {
+                    anyPoisoned = true;
+                }
             }
-            if (anyPartial && anyFinalize == false) {
+            if (anyPoisoned || (anyPartial && anyFinalize == false)) {
                 continue;
             }
             // Strip the gate markers before merging so the well-known _stats.* keys are clean for
@@ -141,10 +147,12 @@ public class ExternalSourceCacheService implements Closeable {
                     continue;
                 }
                 if (contribution.containsKey(ExternalStatsCache.PARTIAL_CHUNK_KEY)
-                    || contribution.containsKey(ExternalStatsCache.FINALIZE_CHUNKS_KEY)) {
+                    || contribution.containsKey(ExternalStatsCache.FINALIZE_CHUNKS_KEY)
+                    || contribution.containsKey(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY)) {
                     Map<String, Object> stripped = new HashMap<>(contribution);
                     stripped.remove(ExternalStatsCache.PARTIAL_CHUNK_KEY);
                     stripped.remove(ExternalStatsCache.FINALIZE_CHUNKS_KEY);
+                    stripped.remove(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY);
                     cleaned.add(stripped);
                 } else {
                     cleaned.add(contribution);
@@ -153,9 +161,28 @@ public class ExternalSourceCacheService implements Closeable {
             if (cleaned.isEmpty()) {
                 continue;
             }
-            Map<String, Object> mergedForFile = cleaned.size() == 1
-                ? cleaned.get(0)
-                : org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.mergeStatistics(cleaned);
+            Map<String, Object> mergedForFile;
+            if (cleaned.size() == 1) {
+                mergedForFile = cleaned.get(0);
+            } else {
+                mergedForFile = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.mergeStatistics(cleaned);
+                // mergeStatistics rebuilds the map from scratch and only retains the well-known
+                // _stats.row_count / _stats.size_bytes / _stats.columns.* keys. The reconciler
+                // below relies on MTIME_MILLIS_KEY (to find the matching SchemaCacheEntry via
+                // its lastModifiedEpochMillis axis); without re-attaching it the multi-chunk
+                // merge would never commit. All chunks of a file share the same pinned mtime
+                // (set at iterator open), so pulling it off any contribution is fine.
+                if (mergedForFile != null) {
+                    Object mtime = cleaned.get(0).get(ExternalStatsCache.MTIME_MILLIS_KEY);
+                    if (mtime != null) {
+                        mergedForFile.put(ExternalStatsCache.MTIME_MILLIS_KEY, mtime);
+                    }
+                    Object fingerprint = cleaned.get(0).get(ExternalStatsCache.CONFIG_FINGERPRINT_KEY);
+                    if (fingerprint != null) {
+                        mergedForFile.put(ExternalStatsCache.CONFIG_FINGERPRINT_KEY, fingerprint);
+                    }
+                }
+            }
             if (mergedForFile != null && mergedForFile.isEmpty() == false) {
                 merged.put(e.getKey(), mergedForFile);
             }

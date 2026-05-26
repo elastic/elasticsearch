@@ -242,6 +242,19 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     @Override
     public void close() throws IOException {
         // Cache only on clean whole-file drain. Runs before closing the decoder so its errorCount is still readable.
+        // SKIP_ROW with parse errors in a chunk publishes a poison marker so the coordinator's reconciler
+        // discards the file's merge rather than committing an under-counted COUNT(*).
+        if (cacheableObject != null
+            && naturallyExhausted
+            && pinnedMtimeMillis >= 0
+            && fingerprinter != null
+            && pageDecoder.errorCount() > 0
+            && chunkMode) {
+            java.util.Map<String, Object> poison = new java.util.HashMap<>();
+            poison.put(ExternalStatsCache.MTIME_MILLIS_KEY, pinnedMtimeMillis);
+            poison.put(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
+            org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.record(sourceLocation, poison);
+        }
         if (cacheableObject != null
             && naturallyExhausted
             && pageDecoder.errorCount() == 0

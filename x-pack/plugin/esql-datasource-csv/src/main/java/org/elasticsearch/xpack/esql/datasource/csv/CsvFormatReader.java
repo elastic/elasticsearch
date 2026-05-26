@@ -1830,22 +1830,33 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 // Cache only on clean whole-file drain. Same gate handles FAIL_FAST and SKIP_ROW:
                 // any observed errors suppress the write, so we never cache a policy-dependent count.
-                if (cacheableObject != null && naturallyExhausted && errorCount == 0 && pinnedMtimeMillis >= 0 && schema != null) {
-                    java.util.Map<String, ExternalStatsCache.ColumnStats> cols = columnStats == null
-                        ? java.util.Map.of()
-                        : columnStats.snapshot();
-                    OptionalLong bytesRead = byteCounter == null ? OptionalLong.empty() : OptionalLong.of(byteCounter.getBytesRead());
-                    String fingerprint = computeConfigFingerprint(schema);
-                    ExternalStatsCache.Stats statsRecord = new ExternalStatsCache.Stats(rowsEmittedForCache, bytesRead, cols);
-                    // Legacy single-JVM ExternalStatsCache only holds whole-file rows; never write
-                    // chunk partials here (they would serve under-counted COUNT(*) on warm queries).
-                    if (chunkMode == false) {
-                        ExternalStatsCache.put(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord);
+                if (cacheableObject != null && naturallyExhausted && pinnedMtimeMillis >= 0 && schema != null) {
+                    if (errorCount == 0) {
+                        java.util.Map<String, ExternalStatsCache.ColumnStats> cols = columnStats == null
+                            ? java.util.Map.of()
+                            : columnStats.snapshot();
+                        OptionalLong bytesRead = byteCounter == null ? OptionalLong.empty() : OptionalLong.of(byteCounter.getBytesRead());
+                        String fingerprint = computeConfigFingerprint(schema);
+                        ExternalStatsCache.Stats statsRecord = new ExternalStatsCache.Stats(rowsEmittedForCache, bytesRead, cols);
+                        // Legacy single-JVM ExternalStatsCache only holds whole-file rows; never write
+                        // chunk partials here (they would serve under-counted COUNT(*) on warm queries).
+                        if (chunkMode == false) {
+                            ExternalStatsCache.put(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord);
+                        }
+                        // Per-chunk publishes carry the partial marker; the ParallelParsingCoordinator
+                        // publishes a finalize marker at clean whole-file completion so the coordinator's
+                        // reconciler only commits the merge then.
+                        publishToCaptureSink(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord, schema, sizeInBytesFromLength());
+                    } else if (chunkMode) {
+                        // SKIP_ROW etc. can leave a chunk naturallyExhausted with errorCount > 0 (dropped
+                        // rows). Poison the file's merge so the reconciler discards every partial rather
+                        // than commit an under-counted COUNT(*). Whole-file mode already suppresses
+                        // the write above — no separate poison needed there.
+                        java.util.Map<String, Object> poison = new java.util.HashMap<>();
+                        poison.put(ExternalStatsCache.MTIME_MILLIS_KEY, pinnedMtimeMillis);
+                        poison.put(ExternalStatsCache.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
+                        org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.record(sourceLocation, poison);
                     }
-                    // The capture sink handles chunks correctly: per-chunk publishes carry the partial
-                    // marker, and the ParallelParsingCoordinator publishes a finalize marker at clean
-                    // whole-file completion so the coordinator's reconciler only commits the merge then.
-                    publishToCaptureSink(sourceLocation, pinnedMtimeMillis, fingerprint, statsRecord, schema, sizeInBytesFromLength());
                 }
                 reader.close();
                 stream.close();

@@ -9126,6 +9126,37 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
+    public void testMaxExpressionDepth_nestedAbs() {
+        int depth = 20000;
+        String query = "ROW a = " + "abs(".repeat(depth) + "1" + ")".repeat(depth);
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(query));
+        assertThat(
+            e.getMessage(),
+            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_nestedAbs_maxAllowed() {
+        // Last depth that succeeds: each abs() adds 1 to the expression depth counter, plus a base
+        // overhead of 2 from the ROW field context (visitField -> expression() then
+        // visitOperatorExpressionDefault -> expression()). So for N calls: depth = N + 2.
+        // At N=398: depth = 400 = MAX_EXPRESSION_DEPTH, check is >, so 400 > 400 is false -> passes.
+        int depth = MAX_EXPRESSION_DEPTH - 2;
+        String query = "ROW a = " + "abs(".repeat(depth) + "1" + ")".repeat(depth);
+        physicalPlan(query); // must not throw
+    }
+
+    public void testMaxExpressionDepth_nestedAbs_minOverflow() {
+        // First depth at which the visitor rejects: at N=399, depth = 401 > MAX_EXPRESSION_DEPTH (400).
+        int depth = MAX_EXPRESSION_DEPTH - 1;
+        String query = "ROW a = " + "abs(".repeat(depth) + "1" + ")".repeat(depth);
+        var e = expectThrows(ParsingException.class, () -> physicalPlan(query));
+        assertThat(
+            e.getMessage(),
+            containsString("ESQL statement exceeded the maximum expression depth allowed (" + MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
     public void testMaxQueryDepth() {
         StringBuilder from = new StringBuilder("row a = 1 ");
         for (int i = 0; i < MAX_QUERY_DEPTH; i++) {

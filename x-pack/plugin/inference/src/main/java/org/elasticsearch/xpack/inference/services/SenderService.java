@@ -160,7 +160,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
             );
 
             throwIfNotEmptyMap(config, name());
-            throwIfNotEmptyMap(serviceSettingsMap, name());
+            if (usesParserForServiceSettings() == false) {
+                throwIfNotEmptyMap(serviceSettingsMap, name());
+            }
             if (usesParserForTaskSettings() == false) {
                 throwIfNotEmptyMap(taskSettingsMap, name());
             }
@@ -441,8 +443,8 @@ public abstract class SenderService<M extends Model> implements InferenceService
     );
 
     @Override
-    public void start(Model model, @Nullable TimeValue timeout, ActionListener<Boolean> listener) {
-        listener.onResponse(Boolean.TRUE);
+    public void start(Model model, @Nullable TimeValue timeout, ActionListener<Void> listener) {
+        listener.onResponse(null);
     }
 
     @Override

@@ -36,8 +36,8 @@ describe("toBuildkitePipeline end-to-end", () => {
     expect(step.command).toContain("exit 0");
     // Inner timeout fires 2m before outer timeout_in_minutes so the wrapper
     // still gets to annotate + exit 0 even on a stuck command.
-    expect(step.command).toContain("timeout --signal=TERM --kill-after=30s 58m bash");
-    expect(step.timeout_in_minutes).toBe(60);
+    expect(step.command).toContain("timeout --signal=TERM --kill-after=30s 2m bash");
+    expect(step.timeout_in_minutes).toBe(4);
     expect(step.agents.provider).toBe("gcp");
     expect(step.agents.machineType).toBe("n4-custom-32-98304");
   });
@@ -71,8 +71,8 @@ describe("toBuildkitePipeline end-to-end", () => {
     expect(step.env!["BATCH_COMMAND_0"]).toContain("exit 0");
     expect(step.env!["BATCH_COMMAND_1"]).toContain("exit 0");
     // Each parallel batch is independently wrapped under the inner timeout.
-    expect(step.env!["BATCH_COMMAND_0"]).toContain("timeout --signal=TERM --kill-after=30s 58m bash");
-    expect(step.env!["BATCH_COMMAND_1"]).toContain("timeout --signal=TERM --kill-after=30s 58m bash");
+    expect(step.env!["BATCH_COMMAND_0"]).toContain("timeout --signal=TERM --kill-after=30s 2m bash");
+    expect(step.env!["BATCH_COMMAND_1"]).toContain("timeout --signal=TERM --kill-after=30s 2m bash");
     expect(step.command).toContain("BUILDKITE_PARALLEL_JOB");
     // The `$$` escape prevents Buildkite pipeline interpolation from trying to
     // parse `${!VARNAME}` (bash indirect expansion) as a Buildkite variable,

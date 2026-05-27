@@ -141,6 +141,8 @@ export interface AgentConfig {
 
 export const DEFAULT_AGENT_CONFIG: AgentConfig = {
   agents: AGENTS,
-  timeoutInMinutes: 60,
+  // VERIFICATION-ONLY: lowered from 60 so the wrapNeverFail inner timeout (2m)
+  // fires within a couple of minutes of CI instead of ~58. Revert before merge.
+  timeoutInMinutes: 4,
   groupName: "flakiness-detection",
 };

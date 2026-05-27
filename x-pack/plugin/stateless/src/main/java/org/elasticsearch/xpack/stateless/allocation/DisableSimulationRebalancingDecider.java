@@ -51,6 +51,8 @@ public class DisableSimulationRebalancingDecider extends AllocationDecider {
         "Rebalancing of search shards is enabled"
     );
 
+    private static final Decision SOME_REBALANCING_ENABLED = new Decision.Single(Decision.Type.YES, NAME, "Some rebalancing is enabled");
+
     private static final Decision NO_REBALANCE = new Decision.Single(Decision.Type.NO, NAME, "Rebalancing is disabled");
 
     public enum RebalancingEnabled {
@@ -91,6 +93,17 @@ public class DisableSimulationRebalancingDecider extends AllocationDecider {
             SIMULATION_REBALANCING_ENABLED,
             rebalancingEnabled -> this.rebalancingEnabled = rebalancingEnabled
         );
+    }
+
+    @Override
+    public Decision canRebalance(RoutingAllocation allocation) {
+        if (allocation.isSimulating() == false) {
+            return RECONCILIATION_BALANCING_ALLOWED;
+        }
+        if (rebalancingEnabled == RebalancingEnabled.NEVER) {
+            return NO_REBALANCE;
+        }
+        return SOME_REBALANCING_ENABLED;
     }
 
     @Override

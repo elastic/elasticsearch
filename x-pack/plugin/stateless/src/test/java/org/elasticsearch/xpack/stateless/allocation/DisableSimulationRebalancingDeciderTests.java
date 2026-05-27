@@ -54,6 +54,30 @@ public class DisableSimulationRebalancingDeciderTests extends ESAllocationTestCa
         assertCanRebalance(decider, simulatingAllocation(), searchOnlyShard(), Decision.Type.NO);
     }
 
+    // canRebalance(RoutingAllocation): during reconciliation, always allows regardless of setting
+    public void testAllocationLevel_reconciliation_alwaysAllows() {
+        var decider = createDecider(randomFrom(DisableSimulationRebalancingDecider.RebalancingEnabled.values()));
+        assertThat(decider.canRebalance(reconciliationAllocation()).type(), equalTo(Decision.Type.YES));
+    }
+
+    // canRebalance(RoutingAllocation): during simulation, ALWAYS returns YES
+    public void testAllocationLevel_simulation_always_allowsRebalancing() {
+        var decider = createDecider(DisableSimulationRebalancingDecider.RebalancingEnabled.ALWAYS);
+        assertThat(decider.canRebalance(simulatingAllocation()).type(), equalTo(Decision.Type.YES));
+    }
+
+    // canRebalance(RoutingAllocation): during simulation, SEARCH_TIER_ONLY returns YES (some rebalancing enabled)
+    public void testAllocationLevel_simulation_searchTierOnly_allowsSomeRebalancing() {
+        var decider = createDecider(DisableSimulationRebalancingDecider.RebalancingEnabled.SEARCH_TIER_ONLY);
+        assertThat(decider.canRebalance(simulatingAllocation()).type(), equalTo(Decision.Type.YES));
+    }
+
+    // canRebalance(RoutingAllocation): during simulation, NEVER returns NO
+    public void testAllocationLevel_simulation_never_blocksAllRebalancing() {
+        var decider = createDecider(DisableSimulationRebalancingDecider.RebalancingEnabled.NEVER);
+        assertThat(decider.canRebalance(simulatingAllocation()).type(), equalTo(Decision.Type.NO));
+    }
+
     // Dynamic setting update takes effect immediately
     public void testDynamicSettingUpdate() {
         var settingsSet = new HashSet<>(ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);

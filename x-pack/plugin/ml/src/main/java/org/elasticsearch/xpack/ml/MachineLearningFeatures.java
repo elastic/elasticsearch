@@ -18,11 +18,6 @@ public class MachineLearningFeatures implements FeatureSpecification {
     public static final NodeFeature ML_INFO_MODEL_PLATFORM_VARIANT = new NodeFeature("ml.info.model_platform_variant");
 
     public Set<NodeFeature> getFeatures() {
-        return Set.of(COMPONENTS_RESET_ACTION);
-    }
-
-    @Override
-    public Set<NodeFeature> getTestFeatures() {
-        return Set.of(ML_INFO_MODEL_PLATFORM_VARIANT);
+        return Set.of(COMPONENTS_RESET_ACTION, ML_INFO_MODEL_PLATFORM_VARIANT);
     }
 }

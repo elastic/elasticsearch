@@ -89,6 +89,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextEmbeddingConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
+import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.InputTypeTests;
 import org.elasticsearch.xpack.inference.ModelConfigurationsTests;
@@ -1815,31 +1816,46 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         }
     }
 
-    public void testPreferredModelVariantFromArchitectures_SingleLinuxX86() {
+    public void testResolveModelPlatformVariant_SingleLinuxX86() {
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
         assertEquals(
-            BaseElasticsearchInternalService.PreferredModelVariant.LINUX_X86_OPTIMIZED,
-            BaseElasticsearchInternalService.preferredModelVariantFromArchitectures(Set.of("linux-x86_64"))
+            MlPlatformArchitecturesUtil.LINUX_X86_64,
+            MlPlatformArchitecturesUtil.resolveModelPlatformVariant(Set.of("linux-x86_64"), clusterSettings)
         );
     }
 
-    public void testPreferredModelVariantFromArchitectures_SingleLinuxAarch64() {
+    public void testResolveModelPlatformVariant_SingleLinuxAarch64() {
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
         assertEquals(
-            BaseElasticsearchInternalService.PreferredModelVariant.PLATFORM_AGNOSTIC,
-            BaseElasticsearchInternalService.preferredModelVariantFromArchitectures(Set.of("linux-aarch64"))
+            MlPlatformArchitecturesUtil.PLATFORM_AGNOSTIC,
+            MlPlatformArchitecturesUtil.resolveModelPlatformVariant(Set.of("linux-aarch64"), clusterSettings)
         );
     }
 
-    public void testPreferredModelVariantFromArchitectures_MixedArchitectures() {
+    public void testResolveModelPlatformVariant_MixedArchitectures() {
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
         assertEquals(
-            BaseElasticsearchInternalService.PreferredModelVariant.PLATFORM_AGNOSTIC,
-            BaseElasticsearchInternalService.preferredModelVariantFromArchitectures(Set.of("linux-x86_64", "linux-aarch64"))
+            MlPlatformArchitecturesUtil.PLATFORM_AGNOSTIC,
+            MlPlatformArchitecturesUtil.resolveModelPlatformVariant(Set.of("linux-x86_64", "linux-aarch64"), clusterSettings)
         );
     }
 
-    public void testPreferredModelVariantFromArchitectures_EmptyArchitectures() {
+    public void testResolveModelPlatformVariant_EmptyNotCloud() {
+        var clusterSettings = new ClusterSettings(Settings.EMPTY, Set.of(MachineLearningField.MAX_LAZY_ML_NODES));
         assertEquals(
-            BaseElasticsearchInternalService.PreferredModelVariant.PLATFORM_AGNOSTIC,
-            BaseElasticsearchInternalService.preferredModelVariantFromArchitectures(Set.of())
+            MlPlatformArchitecturesUtil.PLATFORM_AGNOSTIC,
+            MlPlatformArchitecturesUtil.resolveModelPlatformVariant(Set.of(), clusterSettings)
+        );
+    }
+
+    public void testResolveModelPlatformVariant_EmptyCloud() {
+        var clusterSettings = new ClusterSettings(
+            Settings.builder().put(MachineLearningField.MAX_LAZY_ML_NODES.getKey(), 1).build(),
+            Set.of(MachineLearningField.MAX_LAZY_ML_NODES)
+        );
+        assertEquals(
+            MlPlatformArchitecturesUtil.LINUX_X86_64,
+            MlPlatformArchitecturesUtil.resolveModelPlatformVariant(Set.of(), clusterSettings)
         );
     }
 

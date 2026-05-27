@@ -41,7 +41,6 @@ import org.elasticsearch.xpack.inference.telemetry.InferenceTimer;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
 
@@ -289,13 +288,6 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                     : PreferredModelVariant.PLATFORM_AGNOSTIC;
             })
         );
-    }
-
-    static PreferredModelVariant preferredModelVariantFromArchitectures(Set<String> architectures) {
-        if (architectures.size() == 1 && architectures.iterator().next().equals("linux-x86_64")) {
-            return PreferredModelVariant.LINUX_X86_OPTIMIZED;
-        }
-        return PreferredModelVariant.PLATFORM_AGNOSTIC;
     }
 
     protected ClusterService getClusterService() {

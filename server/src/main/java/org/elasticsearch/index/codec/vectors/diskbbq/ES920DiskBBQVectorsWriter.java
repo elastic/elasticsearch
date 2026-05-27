@@ -9,9 +9,7 @@
 
 package org.elasticsearch.index.codec.vectors.diskbbq;
 
-import org.apache.lucene.codecs.KnnVectorsReader;
 import org.apache.lucene.codecs.hnsw.FlatVectorsWriter;
-import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.MergeState;
@@ -650,79 +648,13 @@ public class ES920DiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    @SuppressForbidden(reason = "require usage of Lucene's IOUtils#closeWhileHandlingException(...)")
     public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues, MergeState mergeState)
         throws IOException {
-        // Gather prior segment statistics for tiered merge strategy selection
-        int numSegments = mergeState.knnVectorsReaders.length;
-        int[] segmentSizes = new int[numSegments];
-        int[] segmentCentroidCounts = new int[numSegments];
-        IVFVectorsReader.CentroidData[] segmentCentroidData = new IVFVectorsReader.CentroidData[numSegments];
-
-        try {
-            for (int i = 0; i < numSegments; i++) {
-                KnnVectorsReader reader = mergeState.knnVectorsReaders[i];
-                if (reader instanceof PerFieldKnnVectorsFormat.FieldsReader perFieldReader) {
-                    reader = perFieldReader.getFieldReader(fieldInfo.name);
-                }
-                if (reader instanceof IVFVectorsReader<?> ivfReader) {
-                    FieldInfo readerFieldInfo = mergeState.fieldInfos[i].fieldInfo(fieldInfo.name);
-                    if (readerFieldInfo == null) {
-                        segmentSizes[i] = 0;
-                        segmentCentroidCounts[i] = 0;
-                        continue;
-                    }
-                    FloatVectorValues vectorValues = mergeState.knnVectorsReaders[i].getFloatVectorValues(fieldInfo.name);
-                    segmentSizes[i] = vectorValues != null ? vectorValues.size() : 0;
-                    segmentCentroidData[i] = ivfReader.readCentroidData(readerFieldInfo);
-                    segmentCentroidCounts[i] = segmentCentroidData[i] != null ? segmentCentroidData[i].numCentroids() : 0;
-                } else {
-                    segmentSizes[i] = 0;
-                    segmentCentroidCounts[i] = 0;
-                }
-            }
-
-            // Select merge strategy
-            TieredMergeStrategy tieredStrategy = new TieredMergeStrategy(vectorPerCluster);
-            TieredMergeStrategy.MergeAction action = tieredStrategy.selectAction(segmentSizes, segmentCentroidCounts, segmentCentroidData);
-
-            if (logger.isInfoEnabled()) {
-                int totalVectors = 0;
-                int totalCentroids = 0;
-                for (int s : segmentSizes) {
-                    totalVectors += s;
-                }
-                for (int c : segmentCentroidCounts) {
-                    totalCentroids += c;
-                }
-                logger.info(
-                    "DiskBBQ merge for field [{}]: selected strategy [{}], segments={}, totalVectors={}, totalCentroids={}",
-                    fieldInfo.name,
-                    action.strategy(),
-                    numSegments,
-                    totalVectors,
-                    totalCentroids
-                );
-            }
-
-            HierarchicalKMeans hierarchicalKMeans;
-            if (mergeExec != null) {
-                hierarchicalKMeans = HierarchicalKMeans.ofConcurrent(floatVectorValues.dimension(), mergeExec, numMergeWorkers);
-            } else {
-                hierarchicalKMeans = HierarchicalKMeans.ofSerial(floatVectorValues.dimension());
-            }
-            KMeansResult kMeansResult = action.execute(hierarchicalKMeans, floatVectorValues, vectorPerCluster);
-            return new CentroidAssignments(
-                fieldInfo.getVectorDimension(),
-                kMeansResult.centroids(),
-                kMeansResult.assignments(),
-                kMeansResult.soarAssignments()
-            );
-        } finally {
-            // CentroidData owns the IndexInput backing the streaming centroid view; close once
-            // the clustering pass has consumed it (and on any failure mid-way).
-            org.apache.lucene.util.IOUtils.closeWhileHandlingException(segmentCentroidData);
-        }
+        // 9.2 indices intentionally do not participate in the tiered merge strategy: the on-disk
+        // layout would require a bespoke streaming centroid reader to surface priors, and the
+        // payoff (a transitional format that ages out) does not justify the added complexity.
+        // Fall back to the standard hierarchical rebuild so the 9.2 path stays minimal.
+        return calculateCentroids(fieldInfo, floatVectorValues);
     }
 
     /**

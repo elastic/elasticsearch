@@ -1076,7 +1076,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             model,
             new RerankRequest(
                 InferenceString.fromStringList(inputs),
-                new InferenceString(DataType.TEXT, randomAlphaOfLength(10)),
+                InferenceString.ofText(randomAlphaOfLength(10)),
                 topN,
                 randomOptionalBoolean(),
                 Map.of()

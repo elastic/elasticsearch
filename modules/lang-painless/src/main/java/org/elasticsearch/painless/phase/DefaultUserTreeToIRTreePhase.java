@@ -201,6 +201,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCCaptureBox;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCapture;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCMaybeNeedsScriptThis;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCRead;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck;
@@ -1914,6 +1915,14 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
 
             irCallSubDefNode.attachDecoration(new IRDExpressionType(valueType));
             irCallSubDefNode.attachDecoration(new IRDName(userCallNode.getMethodName()));
+            // Pre-decide at IR construction time whether this def call's method name might resolve
+            // to a @cancellation_aware augmentation. The lookup's name set is built once at script-
+            // engine startup and is empty for non-cancellation-aware contexts, so the condition is
+            // only attached in scripts that could benefit from it. The bytecode phase further
+            // gates on the enclosing function having a cached #cancelRunnable.
+            if (scriptScope.getPainlessLookup().hasCancellationAwareMethodName(userCallNode.getMethodName())) {
+                irCallSubDefNode.attachCondition(IRCMaybeNeedsScriptThis.class);
+            }
             irExpressionNode = irCallSubDefNode;
         } else {
             Class<?> boxType;

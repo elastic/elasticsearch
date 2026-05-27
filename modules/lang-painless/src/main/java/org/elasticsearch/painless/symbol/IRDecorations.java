@@ -346,6 +346,22 @@ public class IRDecorations {
         }
     }
 
+    /**
+     * Marker on a def call node when the user-visible method name matches at least one
+     * {@code @cancellation_aware} augmentation in the lookup.  At bytecode emission the
+     * compiler pushes {@code aload 0} (the script receiver) ahead of user args and prefixes
+     * the recipe so {@code Def.lookupMethod} routes the call through a cancellation-aware
+     * augmentation overload (or drops the extra slot if the runtime-resolved method isn't
+     * cancellation-aware).  Only emitted in cancellation-aware functions; non-cancellation
+     * contexts pay zero overhead because the lookup's name set is empty there.
+     */
+    public static class IRCMaybeNeedsScriptThis implements IRCondition {
+
+        private IRCMaybeNeedsScriptThis() {
+
+        }
+    }
+
     /** describes the maximum number of loop iterations possible in a method */
     public static class IRDMaxLoopCounter extends IRDecoration<Integer> {
 

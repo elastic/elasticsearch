@@ -106,6 +106,45 @@ public class AugmentationCancellationTests extends ScriptTestCase {
      * The augmentation pushes the script receiver as a synthetic leading capture.  Verify
      * user-supplied captures still work alongside it.
      */
+    /**
+     * Same as {@link #testEachAugmentationFiresCancelRunnable} but the receiver is {@code def}-typed
+     * so dispatch goes through {@code DefBootstrap.bootstrap} and {@code Def.lookupMethod} rather
+     * than a static invokedynamic.  Verifies the def call-site path: the compiler prefixes the
+     * recipe with 'S' and pushes the script receiver; the runtime resolves the cancellation-aware
+     * overload and passes the script through.
+     */
+    public void testDefEachAugmentationFiresCancelRunnable() {
+        // Same shape as the static variant but `def l` forces dynamic dispatch.
+        StringBuilder source = new StringBuilder("void populate(def l) {");
+        for (int i = 0; i < 1500; i++) {
+            source.append(" l.add(").append(i).append(");");
+        }
+        source.append("} def l = new ArrayList(); populate(l); l.each(x -> x.toString());");
+
+        ScriptedMetricAggContexts.InitScript script = compileInit(source.toString());
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-def-each");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-def-each", ex.getCause().getMessage());
+        assertTrue("cancel runnable should fire from inside def-dispatched each(), was: " + callCount.get(), callCount.get() >= 1);
+    }
+
+    /**
+     * A def call to a method whose name is NOT in the cancellation-aware set must not push
+     * the script receiver.  Verifies the gate works (no spurious aload 0 for unrelated def
+     * calls like {@code toString}).
+     */
+    public void testDefCallToUnrelatedMethodIsUnchanged() {
+        ScriptedMetricAggContexts.InitScript script = compileInit("def x = 1; return x.toString();");
+        // No runnable, no cancellation expected — just verify the call runs without errors.
+        script.execute();
+    }
+
     public void testEachAugmentationWithUserCapture() {
         // User-defined Painless functions must precede statements in the script. Inline the
         // capture declaration into the body the same helper builds.

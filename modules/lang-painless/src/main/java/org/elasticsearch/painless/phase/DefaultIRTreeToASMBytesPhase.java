@@ -105,6 +105,7 @@ import org.elasticsearch.painless.symbol.IRDecorations.IRCCaptureBox;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCContinuous;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInitialize;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCInstanceCapture;
+import org.elasticsearch.painless.symbol.IRDecorations.IRCMaybeNeedsScriptThis;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStatic;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCStaticCancellationCheck;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCSynthetic;
@@ -1821,6 +1822,21 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         // add an Object class as a placeholder type for the receiver
         typeParameters.add(Object.class);
+
+        // If the method name might resolve to a @cancellation_aware augmentation (decided
+        // during IR construction) and the enclosing function is cancellation-aware (caches
+        // #cancelRunnable at entry), push the script receiver ahead of user args and prefix
+        // the recipe with 'S'. Def.lookupMethod peels the prefix at link time and either
+        // passes the slot through (cancellation-aware overload) or drops it via
+        // MethodHandles.dropArguments (non-cancellation-aware resolution, e.g. a user class
+        // shadowing the method name).
+        boolean pushScriptThis = irInvokeCallDefNode.hasCondition(IRCMaybeNeedsScriptThis.class)
+            && writeScope.getInternalVariable("cancelRunnable") != null;
+        if (pushScriptThis) {
+            methodWriter.loadThis();
+            defCallRecipe.append('S');
+            typeParameters.add(ScriptThis.class);
+        }
 
         for (int i = 0; i < irInvokeCallDefNode.getArgumentNodes().size(); ++i) {
             ExpressionNode irArgumentNode = irInvokeCallDefNode.getArgumentNodes().get(i);

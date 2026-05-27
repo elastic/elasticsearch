@@ -14,6 +14,7 @@ import org.elasticsearch.painless.api.ValueIterator;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.spi.annotation.CancellationAwareAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable;
 
 import java.lang.invoke.CallSite;
@@ -189,6 +190,18 @@ public final class Def {
 
         String recipeString = (String) args[0];
         int numArguments = callSiteType.parameterCount();
+
+        // The compiler prefixes the recipe with 'S' at def call sites in cancellation-aware
+        // functions when the method name might resolve to a @cancellation_aware augmentation;
+        // the call site pushed the script receiver as a synthetic slot after the receiver.
+        // Peel it here so the rest of the parsing sees the same recipe shape as before.
+        boolean scriptThisPushed = recipeString.isEmpty() == false && recipeString.charAt(0) == 'S';
+        if (scriptThisPushed) {
+            recipeString = recipeString.substring(1);
+            // The synthetic script-this slot doesn't count toward the user-visible arity.
+            numArguments--;
+        }
+
         // simple case: no lambdas
         if (recipeString.isEmpty()) {
             PainlessMethod painlessMethod = painlessLookup.lookupRuntimePainlessMethod(receiverClass, name, numArguments - 1);
@@ -214,6 +227,14 @@ public final class Def {
                 handle = MethodHandles.insertArguments(handle, 1, injections);
             }
 
+            // The call-site descriptor has an extra PainlessScript slot after the receiver.
+            // If the resolved method itself takes a PainlessScript (carries @cancellation_aware),
+            // the handle's signature already matches. Otherwise drop the slot so the call
+            // site's extra arg is silently discarded by the wrapped handle.
+            if (scriptThisPushed && painlessMethod.annotations().containsKey(CancellationAwareAnnotation.class) == false) {
+                handle = MethodHandles.dropArguments(handle, 1, PainlessScript.class);
+            }
+
             return handle;
         }
 
@@ -223,9 +244,14 @@ public final class Def {
             lambdaArgs.set(recipeString.charAt(i));
         }
 
+        // Recipe positions and the loop indices below are user-visible (post-receiver, post-
+        // scriptThis); the descriptor positions are shifted by one when scriptThisPushed is
+        // true, which we account for at each access to callSiteType.parameterType(...).
+        int descriptorScriptThisOffset = scriptThisPushed ? 1 : 0;
+
         // otherwise: first we have to compute the "real" arity. This is because we have extra arguments:
         // e.g. f(a, g(x), b, h(y), i()) looks like f(a, g, x, b, h, y, i).
-        int arity = callSiteType.parameterCount() - 1;
+        int arity = numArguments - 1;
         int upTo = 1;
         for (int i = 1; i < numArguments; i++) {
             if (lambdaArgs.get(i - 1)) {
@@ -256,6 +282,19 @@ public final class Def {
             handle = MethodHandles.insertArguments(handle, 1, injections);
         }
 
+        // See the simple-case branch above for the rationale. The handle's natural script-this
+        // position is index 1; if the resolved method doesn't carry @cancellation_aware its
+        // signature has no such slot, so we drop the extra one from the call-site descriptor.
+        boolean methodTakesScriptThis = method.annotations().containsKey(CancellationAwareAnnotation.class);
+        if (scriptThisPushed && methodTakesScriptThis == false) {
+            handle = MethodHandles.dropArguments(handle, 1, PainlessScript.class);
+        }
+
+        // The handle's parameter shape is now (receiver, [scriptThis], userArgs...). The
+        // collectArguments calls below position the lambda filters within the userArgs region,
+        // so they need to account for any leading scriptThis slot.
+        int handleScriptThisOffset = scriptThisPushed ? 1 : 0;
+
         int replaced = 0;
         upTo = 1;
         for (int i = 1; i < numArguments; i++) {
@@ -284,7 +323,7 @@ public final class Def {
                     // this cache). It won't blow up since we never nest here (just references)
                     Class<?>[] captures = new Class<?>[defEncoding.numCaptures];
                     for (int capture = 0; capture < captures.length; capture++) {
-                        captures[capture] = callSiteType.parameterType(i + 1 + capture);
+                        captures[capture] = callSiteType.parameterType(i + 1 + capture + descriptorScriptThisOffset);
                     }
                     MethodType nestedType = MethodType.methodType(interfaceType, captures);
                     CallSite nested = DefBootstrap.bootstrap(
@@ -302,7 +341,7 @@ public final class Def {
                 }
                 // the filter now ignores the signature (placeholder) on the stack
                 filter = MethodHandles.dropArguments(filter, 0, String.class);
-                handle = MethodHandles.collectArguments(handle, i - (defEncoding.needsInstance ? 1 : 0), filter);
+                handle = MethodHandles.collectArguments(handle, i + handleScriptThisOffset - (defEncoding.needsInstance ? 1 : 0), filter);
                 i += defEncoding.numCaptures;
                 replaced += defEncoding.numCaptures;
             }

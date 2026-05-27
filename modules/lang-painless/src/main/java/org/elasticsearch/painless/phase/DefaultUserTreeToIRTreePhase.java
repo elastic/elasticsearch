@@ -145,6 +145,7 @@ import org.elasticsearch.painless.node.SReturn;
 import org.elasticsearch.painless.node.SThrow;
 import org.elasticsearch.painless.node.STry;
 import org.elasticsearch.painless.node.SWhile;
+import org.elasticsearch.painless.spi.annotation.CancellationAwareAnnotation;
 import org.elasticsearch.painless.symbol.Decorations.AccessDepth;
 import org.elasticsearch.painless.symbol.Decorations.AllEscape;
 import org.elasticsearch.painless.symbol.Decorations.BinaryType;
@@ -1953,6 +1954,16 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
                 irInvokeCallNode.addArgumentNode(constantNode);
             }
 
+            // For @cancellation_aware augmentations, fold the prefix into the call's leading
+            // arg position instead of letting BinaryImpl evaluate it before the InvokeCallNode.
+            // visitInvokeCall pushes scriptThis first, then iterates argumentNodes — with the
+            // prefix at args[0] the resulting stack is [scriptThis, receiver, ...userArgs],
+            // matching the script-first augmentation signature without needing a swap.
+            boolean cancellationAware = method.annotations().containsKey(CancellationAwareAnnotation.class);
+            if (cancellationAware) {
+                irInvokeCallNode.addArgumentNode((ExpressionNode) visit(userCallNode.getPrefixNode(), scriptScope));
+            }
+
             for (AExpression userCallArgumentNode : userCallNode.getArgumentNodes()) {
                 irInvokeCallNode.addArgumentNode(injectCast(userCallArgumentNode, scriptScope));
             }
@@ -1961,6 +1972,19 @@ public class DefaultUserTreeToIRTreePhase implements UserTreeVisitor<ScriptScope
             irInvokeCallNode.setMethod(scriptScope.getDecoration(userCallNode, StandardPainlessMethod.class).standardPainlessMethod());
             irInvokeCallNode.setBox(boxType);
             irExpressionNode = irInvokeCallNode;
+
+            if (cancellationAware) {
+                // The prefix is part of argumentNodes now, so no BinaryImpl wrapping; the
+                // InvokeCallNode stands alone as the expression node for this user call.
+                if (userCallNode.isNullSafe()) {
+                    NullSafeSubNode irNullSafeSubNode = new NullSafeSubNode(irExpressionNode.getLocation());
+                    irNullSafeSubNode.setChildNode(irExpressionNode);
+                    irNullSafeSubNode.attachDecoration(irExpressionNode.getDecoration(IRDExpressionType.class));
+                    irExpressionNode = irNullSafeSubNode;
+                }
+                scriptScope.putDecoration(userCallNode, new IRNodeDecoration(irExpressionNode));
+                return;
+            }
         }
 
         if (userCallNode.isNullSafe()) {

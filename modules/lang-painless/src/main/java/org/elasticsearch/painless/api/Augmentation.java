@@ -128,8 +128,13 @@ public class Augmentation {
      * non-Painless.  When {@code _getCancellationCheck()} returns null (script context didn't
      * wire a cancel runnable) the fast path delegates straight to {@link Iterable#forEach}
      * with zero per-iteration overhead.
+     * <p>
+     * The script receiver is placed <em>before</em> the augmentation's receiver so that
+     * {@link org.elasticsearch.painless.FunctionRef#withSyntheticScriptCapture} (which prepends
+     * the script class at factoryMethodType position 0) maps directly to a method reference's
+     * leading capture without any position arithmetic.
      */
-    public static <T> Object each(Iterable<T> receiver, PainlessScript script, Consumer<T> consumer) {
+    public static <T> Object each(PainlessScript script, Iterable<T> receiver, Consumer<T> consumer) {
         Runnable cancel = script._getCancellationCheck();
         if (cancel == null) {
             receiver.forEach(consumer);

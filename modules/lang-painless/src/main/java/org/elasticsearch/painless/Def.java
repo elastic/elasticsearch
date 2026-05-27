@@ -156,6 +156,30 @@ public final class Def {
     }
 
     /**
+     * Reorders a {@code MethodHandle} so its first two arguments are swapped.  Used by
+     * {@link #lookupMethod} to bridge between {@code @cancellation_aware} augmentation handles
+     * (script-first: {@code (PainlessScript, receiver, ...userArgs)}) and the call-site
+     * descriptor used by def dispatch (receiver-first, so PIC class-keyed caching works).
+     */
+    private static MethodHandle swapFirstTwoArguments(MethodHandle handle) {
+        MethodType type = handle.type();
+        if (type.parameterCount() < 2) {
+            throw new IllegalArgumentException("cannot swap first two args of handle with arity " + type.parameterCount());
+        }
+        Class<?> first = type.parameterType(0);
+        Class<?> second = type.parameterType(1);
+        // New type has the first two parameters swapped; the rest are unchanged.
+        MethodType swapped = type.changeParameterType(0, second).changeParameterType(1, first);
+        int[] reorder = new int[type.parameterCount()];
+        reorder[0] = 1;
+        reorder[1] = 0;
+        for (int i = 2; i < reorder.length; i++) {
+            reorder[i] = i;
+        }
+        return MethodHandles.permuteArguments(handle, swapped, reorder);
+    }
+
+    /**
      * Looks up handle for a dynamic method call, with lambda replacement
      * <p>
      * A dynamic method call for variable {@code x} of type {@code def} looks like:
@@ -227,12 +251,19 @@ public final class Def {
                 handle = MethodHandles.insertArguments(handle, 1, injections);
             }
 
-            // The call-site descriptor has an extra PainlessScript slot after the receiver.
-            // If the resolved method itself takes a PainlessScript (carries @cancellation_aware),
-            // the handle's signature already matches. Otherwise drop the slot so the call
-            // site's extra arg is silently discarded by the wrapped handle.
-            if (scriptThisPushed && painlessMethod.annotations().containsKey(CancellationAwareAnnotation.class) == false) {
-                handle = MethodHandles.dropArguments(handle, 1, PainlessScript.class);
+            // The call-site descriptor has (receiver, scriptThis, ...userArgs) — receiver-first
+            // so the PIC's class dispatch (args[0]) keys on the actual receiver. The resolved
+            // @cancellation_aware handle is script-first: (scriptThis, receiver, ...userArgs).
+            // Swap the handle's first two parameters so its signature matches the call site.
+            // When the resolved method doesn't carry @cancellation_aware (e.g. a user class
+            // shadowing the augmentation name) drop the call site's extra scriptThis slot
+            // instead so the call still proceeds.
+            if (scriptThisPushed) {
+                if (painlessMethod.annotations().containsKey(CancellationAwareAnnotation.class)) {
+                    handle = swapFirstTwoArguments(handle);
+                } else {
+                    handle = MethodHandles.dropArguments(handle, 1, PainlessScript.class);
+                }
             }
 
             return handle;
@@ -282,12 +313,15 @@ public final class Def {
             handle = MethodHandles.insertArguments(handle, 1, injections);
         }
 
-        // See the simple-case branch above for the rationale. The handle's natural script-this
-        // position is index 1; if the resolved method doesn't carry @cancellation_aware its
-        // signature has no such slot, so we drop the extra one from the call-site descriptor.
+        // Same script-first → receiver-first swap as the simple case above when the resolved
+        // method carries @cancellation_aware; drop the extra slot when it doesn't.
         boolean methodTakesScriptThis = method.annotations().containsKey(CancellationAwareAnnotation.class);
-        if (scriptThisPushed && methodTakesScriptThis == false) {
-            handle = MethodHandles.dropArguments(handle, 1, PainlessScript.class);
+        if (scriptThisPushed) {
+            if (methodTakesScriptThis) {
+                handle = swapFirstTwoArguments(handle);
+            } else {
+                handle = MethodHandles.dropArguments(handle, 1, PainlessScript.class);
+            }
         }
 
         // The handle's parameter shape is now (receiver, [scriptThis], userArgs...). The

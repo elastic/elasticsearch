@@ -1904,11 +1904,13 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
             methodWriter.box(MethodWriter.getType(irInvokeCallNode.getBox()));
         }
 
-        // @cancellation_aware augmentations resolved to the cancellation-aware overload take a
-        // synthetic leading PainlessScript parameter that the user can't pass. Push the script
-        // receiver (aload 0) before the user args so the augmentation body can fetch the cancel
-        // runnable via _getCancellationCheck(). See PainlessLookupBuilder.addPainlessMethod
-        // for how the annotation drives this resolution.
+        // @cancellation_aware augmentations resolved to the cancellation-aware overload have
+        // signature `method(PainlessScript, receiver, ...userArgs)` — script-first so method
+        // refs can reuse FunctionRef.withSyntheticScriptCapture (which prepends at position 0).
+        // For these, visitCall folds the prefix into argumentNodes[0] and skips the usual
+        // BinaryImpl wrapping; we push the script receiver here, then the regular arg loop
+        // visits the prefix and user args in order, producing
+        // [scriptThis, receiver, ...userArgs] at invokeStatic.
         if (irInvokeCallNode.getMethod().annotations().containsKey(CancellationAwareAnnotation.class)) {
             methodWriter.loadThis();
         }

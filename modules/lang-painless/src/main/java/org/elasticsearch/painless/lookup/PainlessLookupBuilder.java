@@ -657,15 +657,16 @@ public final class PainlessLookupBuilder {
         int augmentedParameterOffset = augmentedClass == null ? 0 : 1;
         List<Class<?>> javaTypeParameters = new ArrayList<>(typeParametersSize + augmentedParameterOffset + (isCancellationAware ? 1 : 0));
 
-        if (augmentedClass != null) {
-            javaTypeParameters.add(targetClass);
+        if (isCancellationAware) {
+            // PainlessScript goes BEFORE the receiver so that FunctionRef.withSyntheticScriptCapture
+            // (which prepends at factoryMethodType position 0) maps directly to a method ref's
+            // leading capture. Call sites push the script receiver and then swap with the
+            // augmentation receiver that's on the stack from prefix evaluation.
+            javaTypeParameters.add(PainlessScript.class);
         }
 
-        if (isCancellationAware) {
-            // Insert PainlessScript after the receiver; the augmentation body uses it to fetch
-            // the cancel runnable. Invisible to user-visible typeParameters (which still
-            // describe the script-facing signature without the synthetic slot).
-            javaTypeParameters.add(PainlessScript.class);
+        if (augmentedClass != null) {
+            javaTypeParameters.add(targetClass);
         }
 
         for (Class<?> typeParameter : typeParameters) {

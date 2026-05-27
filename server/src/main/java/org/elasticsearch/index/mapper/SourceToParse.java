@@ -180,10 +180,6 @@ public class SourceToParse {
         return tsid;
     }
 
-    public XContentParser getParser(XContentParserConfiguration configuration) throws IOException {
-        return source.parser(configuration);
-    }
-
     // TODO: Eventually will want to combine this with our other source abstractions IndexSource, etc.
     public static class Source {
 
@@ -213,6 +209,10 @@ public class SourceToParse {
             this.includeSourceOnError = includeSourceOnError;
         }
 
+        public static Source fromBytes(BytesReference originalSourceBytes, XContentType xContentType) {
+            return new Source(null, null, originalSourceBytes, xContentType, false);
+        }
+
         public boolean isEmpty() {
             return (row != null && row.columnCount() == 0)
                 || (row == null && (originalSourceBytes == null || originalSourceBytes.length() == 0));
@@ -235,6 +235,17 @@ public class SourceToParse {
             }
         }
 
+        public int estimatedSizeInBytes() {
+            if (originalSourceBytes != null) {
+                return originalSourceBytes.length();
+            }
+            if (row != null) {
+                // TODO: Consider including the size of the schema
+                return row.sizeInBytes();
+            }
+            return 0;
+        }
+
         // Synchronized for now to be safe. Probably unnecessary.
         public synchronized BytesReference originalBytes() {
             if (originalSourceBytes == null) {
@@ -242,6 +253,7 @@ public class SourceToParse {
                     EirfRowToXContent.writeRowFromSchema(row, schemaTree, builder);
                     originalSourceBytes = BytesReference.bytes(builder);
                 } catch (IOException e) {
+                    assert false : e.getMessage();
                     throw new UncheckedIOException(e);
                 }
             }

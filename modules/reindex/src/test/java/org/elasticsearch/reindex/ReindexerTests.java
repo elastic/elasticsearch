@@ -298,7 +298,6 @@ public class ReindexerTests extends ESTestCase {
     // listenerWithRelocations tests
 
     public void testListenerWithRelocationsPassesThroughForWorkerWithLeaderParent() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final long parentTaskId = 99;
         final BulkByPaginatedSearchTask leaderTask = new BulkByPaginatedSearchTask(
             new TaskId(randomAlphaOfLength(10), parentTaskId),
@@ -334,7 +333,6 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testListenerWithRelocationsPassesThroughWhenNoRelocationRequested() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final Reindexer reindexer = reindexerWithRelocation();
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
         task.setWorker(Float.POSITIVE_INFINITY, null);
@@ -358,7 +356,6 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testListenerWithRelocationsPassesThroughWhenNoResumeInfo() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final Reindexer reindexer = reindexerWithRelocation();
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
         task.setWorker(Float.POSITIVE_INFINITY, null);
@@ -383,7 +380,6 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testListenerWithRelocationsTriggersRelocationWhenResumeInfoPresent() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
@@ -527,7 +523,6 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testListenerWithRelocationsSendsSourceTaskResultInResumeRequest() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
@@ -574,7 +569,6 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testRelocationSetsRequestRpsFromWorkerTask() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final float workerRps = randomFloatBetween(0.1f, 1000f, true);
         final AtomicReference<ResumeBulkByScrollRequest> capturedRequest = new AtomicReference<>();
 
@@ -600,7 +594,6 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testRelocationSetsRequestRpsFromLeaderTask() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final float leaderRps = randomFloatBetween(1f, 1000f, true);
         final int totalSlices = randomIntBetween(3, 6);
         final int completedSliceCount = randomIntBetween(1, totalSlices - 1);
@@ -673,7 +666,6 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testExecuteStoresSourceTaskResult() throws Exception {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final TaskId sourceTaskId = new TaskId("source-node", 42);
         final ResumeInfo.RelocationOrigin origin = new ResumeInfo.RelocationOrigin(sourceTaskId, System.currentTimeMillis());
         final BulkByPaginatedSearchTask task = createTaskWithParentIdAndRelocationEnabled(TaskId.EMPTY_TASK_ID);
@@ -714,7 +706,6 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testRelocationsSetsHandoffFlag() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
@@ -751,7 +742,6 @@ public class ReindexerTests extends ESTestCase {
      * cancellation (no resumed task is created on the destination node).
      */
     public void testRelocationAbortedWhenCancellationWonTheRace() {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterState clusterState = mock(ClusterState.class);
         final DiscoveryNodes discoveryNodes = mock(DiscoveryNodes.class);
@@ -800,7 +790,6 @@ public class ReindexerTests extends ESTestCase {
     }
 
     public void testExecuteFailsWhenSourceTaskResultStorageFails() throws Exception {
-        assumeTrue("reindex resilience enabled", ReindexPlugin.REINDEX_RESILIENCE_ENABLED);
         final TaskResultsService taskResultsService = mock(TaskResultsService.class);
         final Exception storageFailure = new RuntimeException("simulated .tasks write failure");
         doAnswer(invocation -> {
@@ -1057,7 +1046,6 @@ public class ReindexerTests extends ESTestCase {
      * When a worker with PIT already set completes normally, the PIT must be closed.
      */
     public void testWorkerWithPitAlreadySetClosesPitOnCompletion() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -1140,7 +1128,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexingRequestFailsWhenVersionLookupFails() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         server.createContext("/", exchange -> {
@@ -1164,7 +1151,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexingRequestFailsWhenVersionLookupRejected() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
         server.createContext("/", exchange -> {
@@ -1187,7 +1173,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexingRequestFailsToOpenPit() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         AtomicInteger requestCount = new AtomicInteger(0);
         HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -1217,7 +1202,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexingRequestFailsToClosePit() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         HttpServer server = createRemotePitMockServer((path, method) -> path.contains("_pit") && "DELETE".equals(method), exchange -> {
             try {
@@ -1257,7 +1241,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexingRequestFailsWhenClosePitIsRejected() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         HttpServer server = createRemotePitMockServer((path, method) -> path.contains("_pit") && "DELETE".equals(method), exchange -> {
             try {
@@ -1296,7 +1279,6 @@ public class ReindexerTests extends ESTestCase {
      * We use a custom Client that fails on OpenPointInTimeRequest; the listener receives that failure.
      */
     public void testLocalReindexingRequestFailsToOpenPit() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final String expectedMessage = "open-pit-failure-" + randomAlphaOfLength(8);
         final OpenPitFailingClient client = new OpenPitFailingClient(getTestName(), expectedMessage);
@@ -1367,7 +1349,6 @@ public class ReindexerTests extends ESTestCase {
      * still receives success. This verifies that close failures are handled gracefully and don't propagate.
      */
     public void testLocalReindexingRequestFailsToClosePit() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final String closeFailureMessage = "close-pit-failure-" + randomAlphaOfLength(8);
         final ClosePitFailingClient client = new ClosePitFailingClient(getTestName(), closeFailureMessage);
@@ -1446,7 +1427,6 @@ public class ReindexerTests extends ESTestCase {
      * and allowPartialSearchResults explicitly set to false.
      */
     public void testLocalOpenPitRequestHasExpectedProperties() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -1519,7 +1499,6 @@ public class ReindexerTests extends ESTestCase {
      * The case when the source query is null is tested in {@link #testLocalOpenPitRequestHasExpectedProperties} above
      */
     public void testLocalOpenPitSetsIndexFilterFromSourceQuery() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -1593,7 +1572,6 @@ public class ReindexerTests extends ESTestCase {
      * so PIT searches validate (see {@link org.elasticsearch.action.search.SearchRequest#validate()}).
      */
     public void testLocalOpenPitCopiesProjectRoutingAndClearsSearchRequest() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -1668,7 +1646,6 @@ public class ReindexerTests extends ESTestCase {
      * Verifies that no OpenPointInTimeRequest is sent in this case.
      */
     public void testWorkerWithPitAlreadySetSkipsOpenPit() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -1746,7 +1723,6 @@ public class ReindexerTests extends ESTestCase {
      * Verifies that openPitAndExecute throws AssertionError when the SearchRequest has routing set.
      */
     public void testLocalOpenPitFailsWhenRoutingSet() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -1820,7 +1796,6 @@ public class ReindexerTests extends ESTestCase {
      * Verifies that openPitAndExecute throws AssertionError when the SearchRequest has preference set.
      */
     public void testLocalOpenPitFailsWhenPreferenceSet() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -1894,7 +1869,6 @@ public class ReindexerTests extends ESTestCase {
      * Verifies that openPitAndExecute throws AssertionError when the SearchRequest has allowPartialSearchResults set to true.
      */
     public void testLocalOpenPitFailsWhenAllowPartialSearchResultsTrue() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -1972,7 +1946,6 @@ public class ReindexerTests extends ESTestCase {
      * share it. Verifies there is exactly one {@code OpenPointInTime} and one {@code ClosePointInTime} request on the local client
      */
     public void testLocalSlicedReindexOpensPitOnceAndClosesOnce() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final TestThreadPool threadPool = new TestThreadPool(getTestName()) {
             @Override
@@ -2066,7 +2039,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexUsesScrollWhenVersionBeforePitSupport() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final TimeValue expectedScroll = TimeValue.timeValueMinutes(randomIntBetween(1, 8));
         final long expectedScrollNanos = expectedScroll.nanos();
@@ -2130,7 +2102,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteOpenPitUsesClusterPitKeepAliveSetting() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final TimeValue expected = TimeValue.timeValueMinutes(randomIntBetween(5, 20));
         final AtomicReference<String> capturedKeepAlive = new AtomicReference<>();
@@ -2183,7 +2154,6 @@ public class ReindexerTests extends ESTestCase {
      * does not affect PIT.
      */
     public void testLocalOpenPitUsesClusterPitKeepAliveSetting() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -2257,7 +2227,6 @@ public class ReindexerTests extends ESTestCase {
      * {@link ReindexSettings#REINDEX_PIT_KEEP_ALIVE_SETTING} (five minutes).
      */
     public void testLocalOpenPitUsesDefaultKeepAliveWhenScrollTimeUnset() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -2330,7 +2299,6 @@ public class ReindexerTests extends ESTestCase {
      * {@link IndicesOptions} as the reindex search request so PIT resolution matches the user's source selection.
      */
     public void testLocalOpenPitRequestCopiesIndicesAndIndicesOptions() {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final OpenPitCapturingClient client = new OpenPitCapturingClient(getTestName());
         try {
@@ -2475,7 +2443,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexSkipsOpenPitWhenPointInTimeAlreadySet() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         final AtomicInteger pitOpenPostCount = new AtomicInteger();
         HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -2609,7 +2576,6 @@ public class ReindexerTests extends ESTestCase {
      */
     @SuppressForbidden(reason = "use http server for testing")
     public void testRemoteReindexingFailsWhenOpenPitIsRejected() throws Exception {
-        assumeTrue("PIT search must be enabled", ReindexPlugin.REINDEX_PIT_SEARCH_ENABLED);
 
         AtomicInteger requestSeq = new AtomicInteger();
         HttpServer server = MockHttpServer.createHttp(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 0);
@@ -2709,7 +2675,14 @@ public class ReindexerTests extends ESTestCase {
             ActionListener<Response> listener
         ) {
             if (action == TransportOpenPointInTimeAction.TYPE && request instanceof OpenPointInTimeRequest) {
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(new BytesArray("pit-id"), 1, 1, 0, 0);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(
+                    new BytesArray("pit-id"),
+                    1,
+                    1,
+                    0,
+                    0,
+                    SearchResponse.Clusters.EMPTY
+                );
                 listener.onResponse((Response) response);
                 return;
             }
@@ -2802,7 +2775,14 @@ public class ReindexerTests extends ESTestCase {
             if (action == TransportOpenPointInTimeAction.TYPE && request instanceof OpenPointInTimeRequest pitRequest) {
                 openPitCount.incrementAndGet();
                 capturedPitRequest = pitRequest;
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(new BytesArray("pit-id"), 1, 1, 0, 0);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(
+                    new BytesArray("pit-id"),
+                    1,
+                    1,
+                    0,
+                    0,
+                    SearchResponse.Clusters.EMPTY
+                );
                 listener.onResponse((Response) response);
                 return;
             }

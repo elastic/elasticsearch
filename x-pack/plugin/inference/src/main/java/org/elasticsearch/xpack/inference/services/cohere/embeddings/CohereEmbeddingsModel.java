@@ -63,7 +63,7 @@ public class CohereEmbeddingsModel extends CohereModel {
             modelConfigurations,
             modelSecrets,
             (DefaultSecretSettings) modelSecrets.getSecretSettings(),
-            ((CohereEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).getCommonSettings()
+            ((CohereEmbeddingsServiceSettings) modelConfigurations.getServiceSettings()).commonSettings()
         );
     }
 

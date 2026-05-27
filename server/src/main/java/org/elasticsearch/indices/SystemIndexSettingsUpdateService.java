@@ -17,16 +17,23 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataUpdateSettingsService;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
 
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING;
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING;
@@ -49,11 +56,17 @@ public class SystemIndexSettingsUpdateService implements ClusterStateListener {
     );
 
     private final MetadataUpdateSettingsService metadataUpdateSettingsService;
+    private final SystemIndices systemIndices;
     private final Settings nodeSettings;
     private volatile boolean appliedInitialSettings = false;
 
-    public SystemIndexSettingsUpdateService(MetadataUpdateSettingsService metadataUpdateSettingsService, Settings settings) {
+    public SystemIndexSettingsUpdateService(
+        MetadataUpdateSettingsService metadataUpdateSettingsService,
+        SystemIndices systemIndices,
+        Settings settings
+    ) {
         this.metadataUpdateSettingsService = metadataUpdateSettingsService;
+        this.systemIndices = systemIndices;
         this.nodeSettings = settings;
     }
 
@@ -67,7 +80,8 @@ public class SystemIndexSettingsUpdateService implements ClusterStateListener {
         if (newClusterState.blocks().hasGlobalBlockWithLevel(ClusterBlockLevel.METADATA_READ)) {
             return;
         }
-        Settings.Builder settingsBuilder = Settings.builder();
+        Settings.Builder uniformSettingsBuilder = Settings.builder();
+        Set<Setting<?>> settingsToReset = new HashSet<>();
 
         // Apply settings from elasticsearch.yml once, on first master election after cluster state
         // recovery, but only for settings not already present in the cluster state — cluster state
@@ -83,7 +97,7 @@ public class SystemIndexSettingsUpdateService implements ClusterStateListener {
                 Setting<?> clusterSetting = entry.getKey();
                 Setting<?> indexSetting = entry.getValue();
                 if (clusterSetting.exists(nodeSettings) && clusterSetting.exists(clusterStateSettings) == false) {
-                    settingsBuilder.put(indexSetting.getKey(), clusterSetting.get(nodeSettings).toString());
+                    uniformSettingsBuilder.put(indexSetting.getKey(), clusterSetting.get(nodeSettings).toString());
                 }
             }
         }
@@ -106,25 +120,30 @@ public class SystemIndexSettingsUpdateService implements ClusterStateListener {
                     continue;
                 }
                 if (isPresent == false) {
-                    // Setting was removed — reset the index setting to its default
-                    settingsBuilder.put(indexSetting.getKey(), indexSetting.getDefault(Settings.EMPTY).toString());
+                    // Setting was removed — reset each index to its descriptor value (or generic
+                    // default if the descriptor does not specify the setting).
+                    settingsToReset.add(indexSetting);
                 } else if (wasPresent == false
                     || clusterSetting.get(previousClusterSettings).equals(clusterSetting.get(newClusterSettings)) == false) {
                         // Setting was newly added (propagate even if value equals the default, to override
                         // any value the index may already have, e.g. auto_expand_replicas from a descriptor)
                         // or the value changed.
-                        settingsBuilder.put(indexSetting.getKey(), clusterSetting.get(newClusterSettings).toString());
+                        uniformSettingsBuilder.put(indexSetting.getKey(), clusterSetting.get(newClusterSettings).toString());
                     }
             }
         }
 
-        Settings settings = settingsBuilder.build();
-        if (settings.isEmpty() == false) {
-            updateExistingSystemIndicesSettings(settings, newClusterState);
+        Settings uniformSettings = uniformSettingsBuilder.build();
+        if (uniformSettings.isEmpty() == false || settingsToReset.isEmpty() == false) {
+            updateExistingSystemIndicesSettings(uniformSettings, settingsToReset, newClusterState);
         }
     }
 
-    private void updateExistingSystemIndicesSettings(Settings settings, ClusterState clusterState) {
+    private void updateExistingSystemIndicesSettings(
+        Settings uniformSettings,
+        Set<Setting<?>> settingsToReset,
+        ClusterState clusterState
+    ) {
         if (clusterState.nodes().isLocalNodeElectedMaster() == false) {
             return;
         }
@@ -132,28 +151,99 @@ public class SystemIndexSettingsUpdateService implements ClusterStateListener {
         // not all projects on the cluster. For now use the single (default) project.
         @FixForMultiProject
         ProjectMetadata projectMetadata = clusterState.metadata().getProject();
-        Index[] targets = projectMetadata.indices()
-            .values()
-            .stream()
-            .filter(IndexMetadata::isSystem)
-            .map(IndexMetadata::getIndex)
-            .toArray(Index[]::new);
-        if (targets.length == 0) {
-            return;
+
+        // Pre-compute descriptor settings for data stream backing indices: look up each data stream
+        // descriptor once and map all its backing indices to the same Settings object, so the
+        // per-index loop below can do O(1) lookups instead of repeating the descriptor search for
+        // every backing index of the same stream.
+        Map<String, Settings> backingIndexToDescriptorSettings = new HashMap<>();
+        if (settingsToReset.isEmpty() == false) {
+            for (DataStream ds : projectMetadata.dataStreams().values()) {
+                SystemDataStreamDescriptor dsDescriptor = systemIndices.findMatchingDataStreamDescriptor(ds.getName());
+                if (dsDescriptor == null) {
+                    continue;
+                }
+                Settings dsSettings = Settings.EMPTY;
+                Template template = dsDescriptor.getComposableIndexTemplate().template();
+                if (template != null && template.settings() != null) {
+                    dsSettings = template.settings();
+                }
+                for (Index idx : ds.getIndices()) {
+                    backingIndexToDescriptorSettings.put(idx.getName(), dsSettings);
+                }
+                for (Index idx : ds.getFailureIndices()) {
+                    backingIndexToDescriptorSettings.put(idx.getName(), dsSettings);
+                }
+            }
         }
-        metadataUpdateSettingsService.updateSettings(
-            new UpdateSettingsClusterStateUpdateRequest(
-                projectMetadata.id(),
-                TimeValue.MAX_VALUE,
-                TimeValue.ZERO,
-                settings,
-                UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
-                UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
-                targets
-            ),
-            ActionListener.wrap(r -> {
-                logger.debug("Updated settings {} on system indices", settings);
-            }, e -> logger.warn("Failed to update settings on system indices", e))
-        );
+
+        // Group system indices by their effective settings so we can issue one update per group.
+        // When settingsToReset is non-empty, different indices may need different reset values —
+        // e.g. a managed index whose descriptor specifies auto_expand_replicas=0-1 vs. an unmanaged
+        // index that falls back to the setting's generic default.
+        Map<Settings, List<Index>> groups = new HashMap<>();
+        for (IndexMetadata indexMeta : projectMetadata.indices().values()) {
+            if (indexMeta.isSystem() == false) {
+                continue;
+            }
+            Settings.Builder effective = Settings.builder().put(uniformSettings);
+            if (settingsToReset.isEmpty() == false) {
+                // Look up the descriptor settings once for this index, then apply all reset settings.
+                Settings descriptorSettings = descriptorSettings(
+                    indexMeta.getIndex().getName(),
+                    backingIndexToDescriptorSettings
+                );
+                for (Setting<?> indexSetting : settingsToReset) {
+                    String value = indexSetting.exists(descriptorSettings)
+                        ? descriptorSettings.get(indexSetting.getKey())
+                        : indexSetting.getDefault(Settings.EMPTY).toString();
+                    effective.put(indexSetting.getKey(), value);
+                }
+            }
+            Settings effectiveSettings = effective.build();
+            if (effectiveSettings.isEmpty() == false) {
+                groups.computeIfAbsent(effectiveSettings, k -> new ArrayList<>()).add(indexMeta.getIndex());
+            }
+        }
+
+        for (Map.Entry<Settings, List<Index>> entry : groups.entrySet()) {
+            Settings settings = entry.getKey();
+            Index[] targets = entry.getValue().toArray(Index[]::new);
+            metadataUpdateSettingsService.updateSettings(
+                new UpdateSettingsClusterStateUpdateRequest(
+                    projectMetadata.id(),
+                    TimeValue.MAX_VALUE,
+                    TimeValue.ZERO,
+                    settings,
+                    UpdateSettingsClusterStateUpdateRequest.OnExisting.OVERWRITE,
+                    UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REJECT,
+                    targets
+                ),
+                ActionListener.wrap(
+                    r -> logger.debug("Updated settings {} on system indices", settings),
+                    e -> logger.warn("Failed to update settings on system indices", e)
+                )
+            );
+        }
+    }
+
+    /**
+     * Returns the descriptor-specified settings for {@code indexName} when resetting a cluster-level
+     * override.  For data stream backing indices the result is pre-computed (see
+     * {@code backingIndexToDescriptorSettings}); for regular system indices the matching
+     * {@link SystemIndexDescriptor} is consulted.  Returns {@link Settings#EMPTY} when no
+     * descriptor-level value exists, causing callers to fall back to the setting's generic default.
+     */
+    private Settings descriptorSettings(String indexName, Map<String, Settings> backingIndexToDescriptorSettings) {
+        // null means the index is not a backing index of any system data stream.
+        Settings backing = backingIndexToDescriptorSettings.get(indexName);
+        if (backing != null) {
+            return backing;
+        }
+        SystemIndexDescriptor sysDescriptor = systemIndices.findMatchingDescriptor(indexName);
+        if (sysDescriptor != null && sysDescriptor.isAutomaticallyManaged()) {
+            return sysDescriptor.getSettings();
+        }
+        return Settings.EMPTY;
     }
 }

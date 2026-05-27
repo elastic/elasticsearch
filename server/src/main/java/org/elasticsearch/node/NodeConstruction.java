@@ -1177,7 +1177,7 @@ class NodeConstruction {
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(new SystemIndexMetadataUpgradeService(systemIndices, clusterService));
             clusterService.addListener(new TemplateUpgradeService(client, clusterService, threadPool, indexTemplateMetadataUpgraders));
-            clusterService.addListener(new SystemIndexSettingsUpdateService(metadataUpdateSettingsService, settings));
+            clusterService.addListener(new SystemIndexSettingsUpdateService(metadataUpdateSettingsService, systemIndices, settings));
         }
         final Transport transport = networkModule.getTransportSupplier().get();
         final TransportService transportService = serviceProvider.newTransportService(

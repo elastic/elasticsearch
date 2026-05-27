@@ -172,6 +172,46 @@ public class SystemIndexSettingsUpdateServiceIT extends ESIntegTestCase {
     }
 
     /**
+     * Removing {@link SystemIndices#AUTO_EXPAND_REPLICAS_SETTING} after it was set should reset each
+     * system resource to its descriptor value, not to the setting's generic default.  For an unmanaged
+     * index or a data stream whose template does not specify {@code auto_expand_replicas}, the generic
+     * default ("false") is used; for a managed index whose descriptor specifies
+     * {@code auto_expand_replicas=0-1}, that descriptor value is used instead.
+     */
+    public void testRemovingAutoExpandReplicasSettingResetsToDescriptorValue() throws Exception {
+        internalCluster().startNodes(3);
+        createIndex(UNMANAGED_INDEX);
+        createIndex(MANAGED_ALIAS);  // descriptor has auto_expand=0-1
+        createDataStream();
+        ensureGreen();
+
+        // Override auto_expand for all indices to something other than their descriptor values
+        updateClusterSettings(Settings.builder().put(SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-2"));
+        assertBusy(() -> {
+            assertThat(getSetting(UNMANAGED_INDEX, IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), equalTo("0-2"));
+            assertThat(getSetting(MANAGED_ALIAS, MANAGED_PRIMARY_INDEX, IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), equalTo("0-2"));
+            assertThat(getSetting(dataStreamBackingIndex(), IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), equalTo("0-2"));
+        });
+
+        // Remove the cluster override — each resource should revert to its descriptor value
+        updateClusterSettings(Settings.builder().putNull(SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.getKey()));
+        assertBusy(() -> {
+            // Unmanaged index: no descriptor setting → falls back to the index-level generic default
+            assertThat(
+                getSetting(UNMANAGED_INDEX, IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS),
+                equalTo(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getDefault(Settings.EMPTY).toString())
+            );
+            // Managed index: descriptor specifies auto_expand_replicas=0-1 → reset to that value
+            assertThat(getSetting(MANAGED_ALIAS, MANAGED_PRIMARY_INDEX, IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), equalTo("0-1"));
+            // Data stream backing index: template has no auto_expand setting → falls back to the generic default
+            assertThat(
+                getSetting(dataStreamBackingIndex(), IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS),
+                equalTo(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getDefault(Settings.EMPTY).toString())
+            );
+        });
+    }
+
+    /**
      * Removing {@link SystemIndices#NUMBER_OF_REPLICAS_SETTING} after it was set should reset all
      * existing system resources back to the default replica count.
      */

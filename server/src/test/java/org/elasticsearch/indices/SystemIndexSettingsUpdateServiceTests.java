@@ -28,6 +28,8 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
 
+import java.util.List;
+
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -84,11 +86,15 @@ public class SystemIndexSettingsUpdateServiceTests extends ESTestCase {
             .build();
     }
 
+    private static SystemIndexSettingsUpdateService service(MetadataUpdateSettingsService updateService, Settings nodeSettings) {
+        return new SystemIndexSettingsUpdateService(updateService, new SystemIndices(List.of()), nodeSettings);
+    }
+
     // ---- tests ----
 
     public void testSkipsWhenNotMaster() {
         MetadataUpdateSettingsService updateService = mock(MetadataUpdateSettingsService.class);
-        SystemIndexSettingsUpdateService service = new SystemIndexSettingsUpdateService(
+        SystemIndexSettingsUpdateService service = service(
             updateService,
             Settings.builder().put(SystemIndices.NUMBER_OF_REPLICAS_SETTING.getKey(), 2).build()
         );
@@ -101,7 +107,7 @@ public class SystemIndexSettingsUpdateServiceTests extends ESTestCase {
 
     public void testSkipsWhileMetadataReadBlockPresent() {
         MetadataUpdateSettingsService updateService = mock(MetadataUpdateSettingsService.class);
-        SystemIndexSettingsUpdateService service = new SystemIndexSettingsUpdateService(
+        SystemIndexSettingsUpdateService service = service(
             updateService,
             Settings.builder().put(SystemIndices.NUMBER_OF_REPLICAS_SETTING.getKey(), 2).build()
         );
@@ -118,7 +124,7 @@ public class SystemIndexSettingsUpdateServiceTests extends ESTestCase {
 
     public void testAppliesNumberOfReplicasNodeSettingOnFirstMasterElection() {
         MetadataUpdateSettingsService updateService = mock(MetadataUpdateSettingsService.class);
-        SystemIndexSettingsUpdateService service = new SystemIndexSettingsUpdateService(
+        SystemIndexSettingsUpdateService service = service(
             updateService,
             Settings.builder().put(SystemIndices.NUMBER_OF_REPLICAS_SETTING.getKey(), 2).build()
         );
@@ -135,7 +141,7 @@ public class SystemIndexSettingsUpdateServiceTests extends ESTestCase {
 
     public void testAppliesAutoExpandReplicasNodeSettingOnFirstMasterElection() {
         MetadataUpdateSettingsService updateService = mock(MetadataUpdateSettingsService.class);
-        SystemIndexSettingsUpdateService service = new SystemIndexSettingsUpdateService(
+        SystemIndexSettingsUpdateService service = service(
             updateService,
             Settings.builder().put(SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-2").build()
         );
@@ -152,7 +158,7 @@ public class SystemIndexSettingsUpdateServiceTests extends ESTestCase {
 
     public void testClusterStateNumberOfReplicasOverridesNodeSetting() {
         MetadataUpdateSettingsService updateService = mock(MetadataUpdateSettingsService.class);
-        SystemIndexSettingsUpdateService service = new SystemIndexSettingsUpdateService(
+        SystemIndexSettingsUpdateService service = service(
             updateService,
             Settings.builder().put(SystemIndices.NUMBER_OF_REPLICAS_SETTING.getKey(), 2).build()
         );
@@ -167,7 +173,7 @@ public class SystemIndexSettingsUpdateServiceTests extends ESTestCase {
 
     public void testNodeSettingsAppliedOnlyOnFirstMasterElection() {
         MetadataUpdateSettingsService updateService = mock(MetadataUpdateSettingsService.class);
-        SystemIndexSettingsUpdateService service = new SystemIndexSettingsUpdateService(
+        SystemIndexSettingsUpdateService service = service(
             updateService,
             Settings.builder().put(SystemIndices.NUMBER_OF_REPLICAS_SETTING.getKey(), 2).build()
         );
@@ -181,7 +187,7 @@ public class SystemIndexSettingsUpdateServiceTests extends ESTestCase {
 
     public void testRetryApplyingNodeSettingsAfterMetadataReadBlockLifted() {
         MetadataUpdateSettingsService updateService = mock(MetadataUpdateSettingsService.class);
-        SystemIndexSettingsUpdateService service = new SystemIndexSettingsUpdateService(
+        SystemIndexSettingsUpdateService service = service(
             updateService,
             Settings.builder().put(SystemIndices.NUMBER_OF_REPLICAS_SETTING.getKey(), 2).build()
         );
@@ -207,7 +213,7 @@ public class SystemIndexSettingsUpdateServiceTests extends ESTestCase {
 
     public void testDynamicClusterSettingChangePropagated() {
         MetadataUpdateSettingsService updateService = mock(MetadataUpdateSettingsService.class);
-        SystemIndexSettingsUpdateService service = new SystemIndexSettingsUpdateService(updateService, Settings.EMPTY);
+        SystemIndexSettingsUpdateService service = service(updateService, Settings.EMPTY);
 
         // Prime the service: no node settings, so initial block is a no-op but marks flag true
         ClusterState initial = masterState(metadataWithSystemIndex(Settings.EMPTY));
@@ -228,7 +234,7 @@ public class SystemIndexSettingsUpdateServiceTests extends ESTestCase {
 
     public void testDynamicClusterSettingRemovalResetsToDefault() {
         MetadataUpdateSettingsService updateService = mock(MetadataUpdateSettingsService.class);
-        SystemIndexSettingsUpdateService service = new SystemIndexSettingsUpdateService(updateService, Settings.EMPTY);
+        SystemIndexSettingsUpdateService service = service(updateService, Settings.EMPTY);
 
         Settings clusterSettings = Settings.builder().put(SystemIndices.NUMBER_OF_REPLICAS_SETTING.getKey(), 3).build();
         ClusterState withSetting = masterState(metadataWithSystemIndex(clusterSettings));
@@ -250,9 +256,60 @@ public class SystemIndexSettingsUpdateServiceTests extends ESTestCase {
         );
     }
 
+    public void testDynamicClusterSettingRemovalUsesDescriptorValueForManagedIndex() {
+        SystemIndexDescriptor descriptor = SystemIndexDescriptor.builder()
+            .setIndexPattern(".system-test-managed*")
+            .setPrimaryIndex(".system-test-managed-1")
+            .setAliasName(".system-test-managed")
+            .setMappings(
+                "{\"_meta\":{\""
+                    + SystemIndexDescriptor.VERSION_META_KEY
+                    + "\":1},\"dynamic\":\"strict\",\"properties\":{}}"
+            )
+            .setSettings(
+                Settings.builder()
+                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
+                    .put(IndexMetadata.INDEX_AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-1")
+                    .build()
+            )
+            .setOrigin("test")
+            .build();
+        SystemIndices systemIndices = new SystemIndices(
+            List.of(new SystemIndices.Feature("test", "test feature", List.of(descriptor)))
+        );
+
+        MetadataUpdateSettingsService updateService = mock(MetadataUpdateSettingsService.class);
+        SystemIndexSettingsUpdateService service = new SystemIndexSettingsUpdateService(updateService, systemIndices, Settings.EMPTY);
+
+        IndexMetadata managedIndex = IndexMetadata.builder(".system-test-managed-1")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .system(true)
+            .build();
+        Metadata metadata = Metadata.builder()
+            .put(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).put(managedIndex, false))
+            .build();
+
+        Settings clusterWithAutoExpand = Settings.builder().put(SystemIndices.AUTO_EXPAND_REPLICAS_SETTING.getKey(), "0-2").build();
+        ClusterState withSetting = masterState(Metadata.builder(metadata).persistentSettings(clusterWithAutoExpand).build());
+        service.clusterChanged(event(withSetting, withSetting)); // prime: marks flag true
+        verifyNoInteractions(updateService);
+
+        // Cluster API removes the setting → descriptor value "0-1" should be used, not generic default "false"
+        ClusterState withoutSetting = masterState(Metadata.builder(metadata).persistentSettings(Settings.EMPTY).build());
+        service.clusterChanged(event(withoutSetting, withSetting));
+
+        ArgumentCaptor<UpdateSettingsClusterStateUpdateRequest> captor = ArgumentCaptor.forClass(
+            UpdateSettingsClusterStateUpdateRequest.class
+        );
+        verify(updateService).updateSettings(captor.capture(), any());
+        assertThat(captor.getValue().settings().get(IndexMetadata.SETTING_AUTO_EXPAND_REPLICAS), equalTo("0-1"));
+    }
+
     public void testNoUpdateWhenNoSystemIndicesExist() {
         MetadataUpdateSettingsService updateService = mock(MetadataUpdateSettingsService.class);
-        SystemIndexSettingsUpdateService service = new SystemIndexSettingsUpdateService(
+        SystemIndexSettingsUpdateService service = service(
             updateService,
             Settings.builder().put(SystemIndices.NUMBER_OF_REPLICAS_SETTING.getKey(), 2).build()
         );

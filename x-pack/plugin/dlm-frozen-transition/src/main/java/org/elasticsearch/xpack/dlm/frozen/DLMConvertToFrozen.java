@@ -502,14 +502,10 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
      * the cleanup step swaps it into the data stream. This guards against a partial mount being promoted, which would
      * point the data stream at an index with no allocated shards while the original index is deleted.
      * <p>
-     * This is a distinct step rather than a tail of {@link #maybeMountSearchableSnapshot(String)} so that it covers
-     * both the fresh-mount path (we just issued the mount in this run) and the resume-after-restart path (the index
-     * was already in cluster state when the run started — for example after a JVM restart between the mount commit
-     * and the failure handler).
+     * This is a distinct step to handle both the normal path and a retry / resumption after master failover.
      * <p>
      * On timeout this method throws, the error is recorded in the DLM error store, and the next poll-cycle retry
-     * re-enters this same step. The wait IS the retry mechanism: deleting the partial mount here would not help
-     * because the same mount configuration would produce the same allocation outcome on the next attempt.
+     * re-enters this same step.
      */
     public void waitForMountedIndexToBeAvailable() throws InterruptedException {
         checkIfThreadInterrupted();
@@ -677,9 +673,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
 
     /**
      * Waits up to 5 minutes for the given index to reach yellow status (all primary shards allocated).
-     * Throws an {@link ElasticsearchException} if the timeout is breached. The timeout matches the default DLM
-     * frozen transition poll interval, so a stalled wait consumes at most one poll cycle before yielding to the
-     * next scheduled retry.
+     * Throws an {@link ElasticsearchException} if the timeout is breached.
      */
     private void waitForIndexYellowStatus(String index) throws InterruptedException {
         TimeValue timeout = TimeValue.timeValueMinutes(5);

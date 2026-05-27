@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.core.expression.predicate.regex;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
+import static org.hamcrest.Matchers.instanceOf;
+
 public class StringPatternTests extends ESTestCase {
 
     private WildcardPattern like(String pattern) {
@@ -277,5 +279,12 @@ public class StringPatternTests extends ESTestCase {
 
         e = expectThrows(IllegalArgumentException.class, () -> like("*a?????????????").createAutomaton(false));
         assertEquals("Pattern was too complex to determinize", e.getMessage());
+    }
+
+    public void testDeeplyNestedRegexPattern() {
+        String pattern = "(".repeat(100_000) + "a" + ")".repeat(100_000);
+        var e = expectThrows(IllegalArgumentException.class, () -> rlike(pattern).createAutomaton(false));
+        assertEquals("Pattern was too deeply nested", e.getMessage());
+        assertThat(e.getCause(), instanceOf(StackOverflowError.class));
     }
 }

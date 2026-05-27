@@ -210,13 +210,11 @@ final class DefaultSearchContext extends SearchContext {
                 enableQueryPhaseParallelCollection,
                 field -> getFieldCardinality(field, readerContext.indexService(), engineSearcher.getDirectoryReader())
             );
-            this.requiresTrackingExecutorBytes = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
-                && executor != null
-                && maximumNumberOfSlices > 1
-                && currentThreadStoreMetrics != null;
-            this.callerStoreMetrics = requiresTrackingExecutorBytes ? currentThreadStoreMetrics.get() : null;
-            this.pendingWorkerBytesRead = requiresTrackingExecutorBytes ? new LongAdder() : null;
-            if (executor == null || maximumNumberOfSlices <= 1) {
+            boolean searcherRequiresExecutor = executor != null && maximumNumberOfSlices > 1;
+            if (searcherRequiresExecutor == false) {
+                this.requiresTrackingExecutorBytes = false;
+                this.callerStoreMetrics = null;
+                this.pendingWorkerBytesRead = null;
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
                     engineSearcher.getSimilarity(),
@@ -225,15 +223,24 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
+                this.requiresTrackingExecutorBytes = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
+                    && currentThreadStoreMetrics != null;
+                if (requiresTrackingExecutorBytes) {
+                    this.pendingWorkerBytesRead = new LongAdder();
+                    this.callerStoreMetrics = currentThreadStoreMetrics.get();
+                    executor = wrapExecutorForBytesTracking(executor, currentThreadStoreMetrics, pendingWorkerBytesRead);
+                } else {
+                    this.callerStoreMetrics = null;
+                    this.pendingWorkerBytesRead = null;
+                }
+
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
                     engineSearcher.getSimilarity(),
                     engineSearcher.getQueryCache(),
                     engineSearcher.getQueryCachingPolicy(),
                     lowLevelCancellation,
-                    requiresTrackingExecutorBytes
-                        ? wrapExecutorForBytesTracking(executor, currentThreadStoreMetrics, pendingWorkerBytesRead)
-                        : executor,
+                    executor,
                     maximumNumberOfSlices,
                     minimumDocsPerSlice
                 );

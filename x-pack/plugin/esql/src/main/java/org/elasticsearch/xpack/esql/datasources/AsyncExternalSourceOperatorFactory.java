@@ -140,6 +140,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final ExternalSliceQueue sliceQueue;
     private final ErrorPolicy errorPolicy;
     private final int parsingParallelism;
+    private final int maxConcurrentOpenSegments;
     private final List<Expression> pushedExpressions;
     private final FilterPushdownSupport pushdownSupport;
     private final Closeable onClose;
@@ -203,6 +204,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ExternalSliceQueue sliceQueue,
         ErrorPolicy errorPolicy,
         int parsingParallelism,
+        int maxConcurrentOpenSegments,
         @Nullable List<Expression> pushedExpressions,
         @Nullable FilterPushdownSupport pushdownSupport,
         @Nullable Closeable onClose,
@@ -249,6 +251,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.sliceQueue = sliceQueue;
         this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
         this.parsingParallelism = Math.max(1, parsingParallelism);
+        this.maxConcurrentOpenSegments = Math.max(1, maxConcurrentOpenSegments);
         this.pushedExpressions = pushedExpressions != null ? pushedExpressions : List.of();
         this.pushdownSupport = pushdownSupport;
         this.onClose = onClose;
@@ -312,6 +315,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private ExternalSliceQueue sliceQueue;
         private ErrorPolicy errorPolicy;
         private int parsingParallelism = 1;
+        // Mirrors the default of QueryPragmas#MAX_CONCURRENT_OPEN_SEGMENTS; production always sets this
+        // explicitly from the pragma via LocalExecutionPlanner.
+        private int maxConcurrentOpenSegments = 4;
         private List<Expression> pushedExpressions;
         private FilterPushdownSupport pushdownSupport;
         private Closeable onClose;
@@ -389,6 +395,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        public Builder maxConcurrentOpenSegments(int maxConcurrentOpenSegments) {
+            this.maxConcurrentOpenSegments = maxConcurrentOpenSegments;
+            return this;
+        }
+
         public Builder pushedExpressions(@Nullable List<Expression> pushedExpressions) {
             this.pushedExpressions = pushedExpressions;
             return this;
@@ -451,6 +462,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 sliceQueue,
                 errorPolicy,
                 parsingParallelism,
+                maxConcurrentOpenSegments,
                 pushedExpressions,
                 pushdownSupport,
                 onClose,
@@ -1586,7 +1598,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     policy,
                     recordAlignedMacroSplit,
                     splitIncludesFileLeader,
-                    perFileReadSchema
+                    perFileReadSchema,
+                    maxConcurrentOpenSegments
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {

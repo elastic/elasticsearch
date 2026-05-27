@@ -59,6 +59,7 @@ public record SourceOperatorContext(
     Set<String> partitionColumnNames,
     @Nullable ExternalSliceQueue sliceQueue,
     int parsingParallelism,
+    int maxConcurrentOpenSegments,
     int parallelism
 ) {
     public SourceOperatorContext {
@@ -82,6 +83,9 @@ public record SourceOperatorContext(
         }
         if (parsingParallelism < 1) {
             throw new IllegalArgumentException("parsingParallelism must be >= 1, got: " + parsingParallelism);
+        }
+        if (maxConcurrentOpenSegments < 1) {
+            throw new IllegalArgumentException("maxConcurrentOpenSegments must be >= 1, got: " + maxConcurrentOpenSegments);
         }
         if (parallelism < 1) {
             throw new IllegalArgumentException("parallelism must be >= 1, got: " + parallelism);
@@ -122,6 +126,7 @@ public record SourceOperatorContext(
             null,
             null,
             1,
+            4,
             1
         );
     }
@@ -159,6 +164,7 @@ public record SourceOperatorContext(
             null,
             null,
             1,
+            4,
             1
         );
     }
@@ -195,6 +201,7 @@ public record SourceOperatorContext(
             null,
             null,
             1,
+            4,
             1
         );
     }
@@ -229,6 +236,7 @@ public record SourceOperatorContext(
             null,
             null,
             1,
+            4,
             1
         );
     }
@@ -258,6 +266,7 @@ public record SourceOperatorContext(
         private Set<String> partitionColumnNames;
         private ExternalSliceQueue sliceQueue;
         private int parsingParallelism = 1;
+        private int maxConcurrentOpenSegments = 4;
         private int parallelism = 1;
 
         public Builder sourceType(String sourceType) {
@@ -366,6 +375,11 @@ public record SourceOperatorContext(
             return this;
         }
 
+        public Builder maxConcurrentOpenSegments(int maxConcurrentOpenSegments) {
+            this.maxConcurrentOpenSegments = maxConcurrentOpenSegments;
+            return this;
+        }
+
         public Builder parallelism(int parallelism) {
             this.parallelism = parallelism;
             return this;
@@ -392,6 +406,7 @@ public record SourceOperatorContext(
                 partitionColumnNames,
                 sliceQueue,
                 parsingParallelism,
+                maxConcurrentOpenSegments,
                 parallelism
             );
         }

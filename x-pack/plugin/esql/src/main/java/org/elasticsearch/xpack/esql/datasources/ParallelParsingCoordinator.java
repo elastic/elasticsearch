@@ -51,12 +51,11 @@ public final class ParallelParsingCoordinator {
     private static final Logger logger = LogManager.getLogger(ParallelParsingCoordinator.class);
 
     /**
-     * Cap on segments whose read streams are open at once within a single file. Each open segment holds a
-     * range stream (one S3 {@code GetObject}) plus, for NDJSON, a per-segment {@code byte[]}; the consumer
-     * drains in order, so only the head segments need be open. Bounds open streams independent of file
-     * count/length.
+     * Fallback per-file cap on concurrently-open segment streams, used by overloads that don't resolve
+     * the {@code max_concurrent_open_segments} pragma (tests and internal callers). Production reads the
+     * pragma default via {@code QueryPragmas#MAX_CONCURRENT_OPEN_SEGMENTS}; keep the two in sync.
      */
-    static final int MAX_CONCURRENT_OPEN_SEGMENTS = 4;
+    static final int DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS = 4;
 
     private ParallelParsingCoordinator() {}
 
@@ -174,6 +173,9 @@ public final class ParallelParsingCoordinator {
     /**
      * Full-control overload that propagates the planner-resolved {@code readSchema} (so multi-file
      * headerless reads do not drift per file). Pass {@code null} to fall back to per-file inference.
+     * Uses the {@link #DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS default} open-segment cap; callers that
+     * resolve the {@code max_concurrent_open_segments} pragma use the {@code maxConcurrentOpenSegments}
+     * overload.
      *
      * @param readSchema planner-bound read schema, or {@code null} for per-file inference
      */
@@ -188,6 +190,42 @@ public final class ParallelParsingCoordinator {
         boolean splitStartsAtRecordBoundary,
         boolean splitIncludesFileLeader,
         List<Attribute> readSchema
+    ) throws IOException {
+        return parallelRead(
+            reader,
+            storageObject,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            splitStartsAtRecordBoundary,
+            splitIncludesFileLeader,
+            readSchema,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS
+        );
+    }
+
+    /**
+     * Full-control overload that also takes the {@code max_concurrent_open_segments} cap — the per-file
+     * limit on byte-range segments whose read streams are open at once. Because the consumer drains
+     * segments in order, only the head segments need be open; this caps the open-stream / buffer count
+     * independent of file count and length. See {@link OrderedParallelIterator}.
+     *
+     * @param maxConcurrentOpenSegments per-file cap on concurrently-open segment streams (>= 1)
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        StorageObject storageObject,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        boolean splitStartsAtRecordBoundary,
+        boolean splitIncludesFileLeader,
+        List<Attribute> readSchema,
+        int maxConcurrentOpenSegments
     ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
@@ -231,7 +269,7 @@ public final class ParallelParsingCoordinator {
             batchSize,
             segments,
             executor,
-            Math.max(1, Math.min(parallelism, MAX_CONCURRENT_OPEN_SEGMENTS)),
+            Math.max(1, Math.min(parallelism, maxConcurrentOpenSegments)),
             effectivePolicy,
             splitIncludesFileLeader,
             readSchema

@@ -1704,6 +1704,7 @@ public class LocalExecutionPlanner {
             .partitionColumnNames(virtualColumnNames)
             .sliceQueue(sliceQueue)
             .parsingParallelism(context.queryPragmas().parsingParallelism())
+            .maxConcurrentOpenSegments(context.queryPragmas().maxConcurrentOpenSegments())
             .parallelism(instanceCount)
             .build();
 

@@ -125,6 +125,19 @@ public final class QueryPragmas implements Writeable {
     );
 
     /**
+     * Per-file cap on the number of intra-file byte-range segments whose object-store read streams are
+     * open at once during parallel text parsing. Each open segment holds a storage read stream (one S3
+     * {@code GetObject}) plus, for buffering readers like NDJSON, a per-segment {@code byte[]}; the
+     * consumer drains segments strictly in order, so this is a shallow read-ahead depth, not a
+     * parallelism. It is deliberately not {@code parsing_parallelism}: a file is already split into about
+     * {@code parsing_parallelism} segments and many files read concurrently, so aligning this with the
+     * thread count would fan a wide multi-file glob into far too many concurrent object-store reads.
+     * A small default bounds that fan-out independent of file count/length. Safeguard in the spirit of
+     * {@link #BRANCH_PARALLEL_DEGREE}.
+     */
+    public static final Setting<Integer> MAX_CONCURRENT_OPEN_SEGMENTS = Setting.intSetting("max_concurrent_open_segments", 4, 1);
+
+    /**
      * When {@code true}, forces all non-single-segment pages through {@code ValuesFromDocSequence}
      * regardless of the number of {@code BYTES_REF} fields. Intended for testing the correctness
      * of doc-sequence loading.
@@ -269,6 +282,10 @@ public final class QueryPragmas implements Writeable {
 
     public int parsingParallelism() {
         return PARSING_PARALLELISM.get(settings);
+    }
+
+    public int maxConcurrentOpenSegments() {
+        return MAX_CONCURRENT_OPEN_SEGMENTS.get(settings);
     }
 
     public int branchParallelDegree() {

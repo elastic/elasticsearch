@@ -283,39 +283,81 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Regression guard: {@code OrderedParallelIterator} used to submit every segment
-     * at once with no cap on concurrently-open range streams; the fix dispatches them in a sliding window of
-     * {@link ParallelParsingCoordinator#MAX_CONCURRENT_OPEN_SEGMENTS}.
+     * Reproduces elastic/esql-planning#830 and guards its fix in one shot. The defect: a file is split into
+     * many byte-range segments and every segment's object-store read stream is opened at once, so a wide
+     * read fans out into a congestion of concurrent streams + per-segment buffers that pins the heap. The
+     * fix: {@code OrderedParallelIterator} opens at most {@code max_concurrent_open_segments} at a time.
      * <p>
-     * {@link StreamCountingStorageObject} records the peak concurrently-open positional range streams; each
-     * open lingers briefly so segment threads overlap, with no "wait until all open" barrier so the test
-     * cannot deadlock either way. FAILS on the old code (peak == executor thread count); PASSES with the cap.
+     * Both arms run the identical workload through {@code parallelRead}; only the cap differs.
+     * {@link StreamCountingStorageObject} records the peak concurrently-open positional range streams (each
+     * open lingers a few ms so threads genuinely overlap; no "wait until all open" barrier, so neither arm
+     * can deadlock).
+     * <ul>
+     *   <li><b>Congestion arm</b> (cap = segment count, i.e. effectively unbounded — the pre-fix behavior):
+     *       peak climbs to the executor's thread count, well above a small cap. This is the bug.</li>
+     *   <li><b>Fixed arm</b> (small cap): peak never exceeds the cap, regardless of how many segments or
+     *       threads exist.</li>
+     * </ul>
+     * The fixed arm is the regression guard: it fails the moment the cap stops being enforced.
      */
     public void testConcurrentOpenSegmentsAreCapped() throws Exception {
         final int parallelism = 12;
-        final int cap = ParallelParsingCoordinator.MAX_CONCURRENT_OPEN_SEGMENTS;
+        byte[] content = repeatedLines(1200);
+        int segmentCount = ParallelParsingCoordinator.computeSegments(
+            new LineFormatReader(blockFactory()),
+            new StreamCountingStorageObject(content),
+            content.length,
+            parallelism,
+            1
+        ).size();
+        assertThat("test needs many more segments than the small cap to be meaningful", segmentCount, Matchers.greaterThan(8));
 
-        StringBuilder sb = new StringBuilder();
-        for (int i = 0; i < 1200; i++) {
-            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%05d", i)).append("\n");
-        }
-        byte[] content = sb.toString().getBytes(StandardCharsets.UTF_8);
+        // Pool wider than the small cap, so the congestion arm can actually open many streams at once.
+        final int poolSize = 8;
+        final int smallCap = 3;
 
+        // Congestion arm: cap >= segment count == no effective cap (the pre-fix shape). Peak should climb
+        // to the pool size, demonstrating the unbounded fan-out the issue describes.
+        int congestedPeak = peakConcurrentOpensFor(content, parallelism, segmentCount, poolSize);
+        assertThat(
+            "congestion repro: without an effective cap, concurrent open streams should reach the pool size ["
+                + poolSize
+                + "], far above the small cap ["
+                + smallCap
+                + "]",
+            congestedPeak,
+            Matchers.greaterThan(smallCap)
+        );
+
+        // Fixed arm: the small cap must hold the peak down no matter the segment/thread count.
+        int cappedPeak = peakConcurrentOpensFor(content, parallelism, smallCap, poolSize);
+        assertThat(
+            "fix: peak concurrently-open range streams [" + cappedPeak + "] must not exceed the cap [" + smallCap + "]",
+            cappedPeak,
+            Matchers.lessThanOrEqualTo(smallCap)
+        );
+    }
+
+    /** Runs the parallel read once with the given {@code maxConcurrentOpenSegments} and returns the peak concurrent opens. */
+    private int peakConcurrentOpensFor(byte[] content, int parallelism, int maxConcurrentOpenSegments, int poolSize) throws Exception {
         StreamCountingStorageObject obj = new StreamCountingStorageObject(content);
         LineFormatReader reader = new LineFormatReader(blockFactory());
-
-        int segmentCount = ParallelParsingCoordinator.computeSegments(reader, obj, content.length, parallelism, reader.minimumSegmentSize())
-            .size();
-        assertThat("test needs more segments than the cap to be meaningful", segmentCount, Matchers.greaterThan(cap));
-        obj.resetPeak(); // computeSegments probe-opens are sequential + aborted; don't fold them into the parse-phase peak
-
-        // More executor threads than the cap, so the OLD (uncapped) code would open up to `poolSize`
-        // streams at once -- the assertion below would then see peak > cap.
-        int poolSize = cap + 4;
         ExecutorService exec = Executors.newFixedThreadPool(poolSize);
         try {
             try (
-                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(reader, obj, List.of("line"), 50, parallelism, exec)
+                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                    reader,
+                    obj,
+                    List.of("line"),
+                    50,
+                    parallelism,
+                    exec,
+                    null,
+                    false,
+                    true,
+                    null,
+                    maxConcurrentOpenSegments
+                )
             ) {
                 while (iter.hasNext()) {
                     iter.next().releaseBlocks();
@@ -325,20 +367,16 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             exec.shutdown();
             assertTrue("executor did not terminate", exec.awaitTermination(60, TimeUnit.SECONDS));
         }
+        assertThat("sanity: more range streams opened than the cap", obj.totalOpens(), Matchers.greaterThan(maxConcurrentOpenSegments));
+        return obj.peakConcurrent();
+    }
 
-        int peak = obj.peakConcurrent();
-        assertThat("sanity: more parse-phase range streams opened than the cap", obj.totalOpens(), Matchers.greaterThan(cap));
-        assertThat(
-            "peak concurrently-open range streams ["
-                + peak
-                + "] must not exceed the cap ["
-                + cap
-                + "] (opened "
-                + obj.totalOpens()
-                + " total). FAILS on the old uncapped code (peak == executor thread count); PASSES with the window cap.",
-            peak,
-            Matchers.lessThanOrEqualTo(cap)
-        );
+    private static byte[] repeatedLines(int n) {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < n; i++) {
+            sb.append("line-").append(String.format(java.util.Locale.ROOT, "%05d", i)).append("\n");
+        }
+        return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 
     public void testParallelReadPropagatesError() throws Exception {

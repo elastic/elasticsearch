@@ -85,7 +85,6 @@ import java.util.List;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.MetadataAttribute.isTimeSeriesAttributeName;
-import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction.withFilter;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAnd;
 import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combineAndNullable;
@@ -218,16 +217,7 @@ public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.Parameterized
 
         plan = withTimestampFilter(promqlCommand, plan, context.configuration());
 
-        return plan.transformUp(node -> node instanceof TimeSeriesAggregate, this::dropUnresolvedGroupings);
-    }
-
-    public LogicalPlan dropUnresolvedGroupings(TimeSeriesAggregate ts) {
-        var newGroupings = ts.groupings().stream().filter(g -> g.resolved() && g.dataType() != NULL).toList();
-        var newAggregates = ts.aggregates().stream().filter(g -> g.resolved() && g.dataType() != NULL).toList();
-        if (newGroupings.equals(ts.groupings()) == false) {
-            return ts.with(newGroupings, newAggregates);
-        }
-        return ts;
+        return plan;
     }
 
     private static LogicalPlan applyProjection(PromqlCommand command, LogicalPlan plan) {

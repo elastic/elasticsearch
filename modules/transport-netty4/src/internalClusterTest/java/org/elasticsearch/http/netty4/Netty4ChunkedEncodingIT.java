@@ -219,8 +219,8 @@ public class Netty4ChunkedEncodingIT extends ESNetty4IntegTestCase {
         }
         final int bytesUntilClientCanClose = Math.max(closeAfterBytes + 1, PageCacheRecycler.BYTE_PAGE_SIZE);
         final int chunksUntilClientCanClose = (bytesUntilClientCanClose + chunkSizeBytes - 1) / chunkSizeBytes;
-        final long budgetMillis = SAFE_AWAIT_TIMEOUT.millis() / 2;
-        final int maxDelayMillis = Math.max(1, (int) (budgetMillis / chunksUntilClientCanClose));
+        final int budgetMillis = Math.toIntExact(SAFE_AWAIT_TIMEOUT.millis() / 2);
+        final int maxDelayMillis = Math.max(1, budgetMillis / chunksUntilClientCanClose);
         return Math.min(between(10, 100), maxDelayMillis);
     }
 

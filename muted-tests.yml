@@ -594,3 +594,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:where-like.likePrefixSuffix}
   issue: https://github.com/elastic/elasticsearch/issues/149964
+- class: org.elasticsearch.xpack.esql.datasource.parquet.PageColumnReaderCorrectnessTests
+  method: testV2Zstd
+  issue: https://github.com/elastic/elasticsearch/issues/150015

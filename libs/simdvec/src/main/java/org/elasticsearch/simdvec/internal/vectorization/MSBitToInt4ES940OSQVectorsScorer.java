@@ -348,28 +348,6 @@ final class MSBitToInt4ES940OSQVectorsScorer extends MemorySegmentES940OSQVector
     }
 
     @Override
-    public boolean quantizeScoreBulkOffsets(byte[] q, int[] offsets, int offsetsCount, float[] scores, int count) throws IOException {
-        return false;
-    }
-
-    @Override
-    float scoreBulkOffsets(
-        byte[] q,
-        float queryLowerInterval,
-        float queryUpperInterval,
-        int queryComponentSum,
-        float queryAdditionalCorrection,
-        VectorSimilarityFunction similarityFunction,
-        float centroidDp,
-        int[] offsets,
-        int offsetsCount,
-        float[] scores,
-        int count
-    ) {
-        return Float.NEGATIVE_INFINITY;
-    }
-
-    @Override
     public float scoreBulk(
         byte[] q,
         float queryLowerInterval,

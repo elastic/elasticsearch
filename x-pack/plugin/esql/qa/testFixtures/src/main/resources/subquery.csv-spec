@@ -1509,3 +1509,105 @@ emp_no:unsupported
 null
 ;
 
+subqueryInFromWithRenameBeforeConversionFunctionsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_carry_over_synthetic_convert_attributes
+
+FROM employees, (FROM employees)
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| RENAME first_name AS fname
+| EVAL emp_no_str = to_string(emp_no)
+| KEEP emp_no, fname, emp_no_str
+| SORT emp_no, fname
+;
+
+emp_no:integer | fname:keyword | emp_no_str:keyword
+10091          | Amabile       | 10091
+10091          | Amabile       | 10091
+10092          | Valdiodio     | 10092
+10092          | Valdiodio     | 10092
+10093          | Sailaja       | 10093
+10093          | Sailaja       | 10093
+;
+
+subqueryInFromWithKeepBeforeConversionFunctionsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_carry_over_synthetic_convert_attributes
+
+FROM employees, (FROM employees)
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| KEEP emp_no, first_name
+| EVAL emp_no_long = to_long(emp_no)
+| SORT emp_no, first_name
+;
+
+emp_no:integer | first_name:keyword | emp_no_long:long
+10091          | Amabile            | 10091
+10091          | Amabile            | 10091
+10092          | Valdiodio          | 10092
+10092          | Valdiodio          | 10092
+10093          | Sailaja            | 10093
+10093          | Sailaja            | 10093
+;
+
+subqueryInFromWithRenameOnSameFieldBeforeConversionFunctionsInMainQuery
+required_capability: subquery_in_from_command
+
+FROM employees, (FROM employees)
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| RENAME emp_no AS id
+| EVAL id_str = to_string(id)
+| KEEP id, id_str
+| SORT id, id_str
+;
+
+id:integer | id_str:keyword
+10091      | 10091
+10091      | 10091
+10092      | 10092
+10092      | 10092
+10093      | 10093
+10093      | 10093
+;
+
+subqueryInFromWithRenameOnSameFieldAfterConversionFunctionsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_carry_over_synthetic_convert_attributes
+
+FROM employees, (FROM employees)
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| EVAL emp_no_str = to_string(emp_no)
+| RENAME emp_no AS id
+| KEEP id, emp_no_str
+| SORT id, emp_no_str
+;
+
+id:integer | emp_no_str:keyword
+10091      | 10091
+10091      | 10091
+10092      | 10092
+10092      | 10092
+10093      | 10093
+10093      | 10093
+;
+
+subqueryInFromWithRenameOtherProcessingCommandsAndConversionFunctionsInMainQuery
+required_capability: subquery_in_from_command
+required_capability: subquery_in_from_command_carry_over_synthetic_convert_attributes
+required_capability: async_operator_warnings_fix
+
+FROM multi_column_joinable,
+     (FROM multi_column_joinable metadata _index)
+     metadata _index
+| RENAME extra2 AS other2
+| LOOKUP JOIN multi_column_joinable_lookup ON id_int, other2
+| MV_EXPAND other2
+| STATS absent(to_string(id_int))
+;
+
+warning:Line 5:3: evaluation of [LOOKUP JOIN multi_column_joinable_lookup ON id_int, other2] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 5:3: java.lang.IllegalArgumentException: LOOKUP JOIN encountered multi-value
+
+absent(to_string(id_int)):boolean
+false
+;

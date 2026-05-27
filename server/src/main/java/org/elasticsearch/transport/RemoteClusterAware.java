@@ -221,6 +221,8 @@ public abstract class RemoteClusterAware implements LinkedProjectConfigService.L
                             )
                         );
                     } else {
+                        // an index exclusion is syntactic sugar for including the cluster but excluding the index,
+                        // so we need to add the cluster to the list of included clusters
                         everIncluded.addAll(clusters);
                         for (String clusterName : clusters) {
                             perClusterIndices.computeIfAbsent(clusterName, k -> new ArrayList<>()).add("-" + indexName);

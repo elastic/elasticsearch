@@ -218,13 +218,6 @@ public class DictionaryValueDecoderTests extends ESTestCase {
         assertArrayEquals(expected, indices);
     }
 
-    public void testBitWidthAccessor() throws IOException {
-        for (int bw : new int[] { 0, 1, 2, 3, 4, 5, 8, 16 }) {
-            DictionaryValueDecoder decoder = decoderFor(new int[8], bw);
-            assertEquals("bitWidth after init", bw, decoder.bitWidth());
-        }
-    }
-
     public void testGetDictionaryBytesRefsCachesAcrossCalls() {
         String[] dict = { "one", "two", "three" };
         Dictionary fakeDict = new BinaryDictionary(dict);

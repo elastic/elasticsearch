@@ -85,10 +85,6 @@ final class DictionaryValueDecoder {
         groupNext = 8;
     }
 
-    int bitWidth() {
-        return bitWidth;
-    }
-
     void readInts(int[] values, int offset, int count, Dictionary dict) {
         int[] indices = scratchIndices(count);
         readIndicesBulk(indices, 0, count);

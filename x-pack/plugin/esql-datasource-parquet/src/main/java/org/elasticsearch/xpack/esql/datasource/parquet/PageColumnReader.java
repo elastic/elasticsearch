@@ -467,19 +467,6 @@ final class PageColumnReader implements Releasable {
         if (currentEncoding.usesDictionary()) {
             useFallbackReader = false;
             dictDecoder.init(currentValueBytes);
-            // A bit-width of 0 means every decoded index is 0, so any column with more than one
-            // distinct value silently returns the first dictionary entry for all rows. A valid
-            // encoder only writes bw=0 when the dictionary has exactly one entry at page-flush
-            // time; if the dictionary grew later its getMaxId() exceeds 0, indicating corruption.
-            if (dictionary != null && dictDecoder.bitWidth() == 0 && dictionary.getMaxId() > 0) {
-                throw new QlIllegalArgumentException(
-                    "Dictionary index bit width [0] is too small for dictionary with ["
-                        + (dictionary.getMaxId() + 1)
-                        + "] entries in column ["
-                        + descriptor
-                        + "]"
-                );
-            }
         } else if (currentEncoding == Encoding.PLAIN || currentEncoding == Encoding.BIT_PACKED) {
             useFallbackReader = false;
             plainDecoder.init(currentValueBytes);

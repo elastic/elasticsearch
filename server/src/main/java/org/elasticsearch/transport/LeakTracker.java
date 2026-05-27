@@ -25,7 +25,8 @@ import java.util.concurrent.atomic.AtomicIntegerFieldUpdater;
 import java.util.concurrent.atomic.AtomicReferenceFieldUpdater;
 
 /**
- * Leak tracking mechanism that allows for ensuring that a resource has been properly released before a given object is garbage collected.
+ * Leak tracking mechanism for ensuring that tracked resources are properly released. When assertions are enabled, resources registered
+ * via {@link #track}, {@link #wrap(Releasable)}, or {@link #wrap(RefCounted)} are verified by {@link TrackingWindow}s in tests.
  */
 public final class LeakTracker {
 

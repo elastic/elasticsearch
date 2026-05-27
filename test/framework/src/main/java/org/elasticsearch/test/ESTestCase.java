@@ -666,6 +666,8 @@ public abstract class ESTestCase extends LuceneTestCase {
         }
     }
 
+    // Declared before after() so that under JUnit 4's reverse-declaration @After ordering it runs after after(),
+    // giving after() a chance to release resources before the leak check fires.
     @After
     public final void verifyNoOutstandingLeakTrackerLeaks() throws Exception {
         if (testLeakWindow == null) {

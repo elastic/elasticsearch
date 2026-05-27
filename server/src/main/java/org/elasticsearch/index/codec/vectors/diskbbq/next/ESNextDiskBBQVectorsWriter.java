@@ -946,7 +946,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             TieredMergeStrategy tieredStrategy = new TieredMergeStrategy(vectorPerCluster);
             TieredMergeStrategy.MergeAction action = tieredStrategy.selectAction(segmentSizes, segmentCentroidCounts, segmentCentroidData);
 
-            if (logger.isInfoEnabled()) {
+            if (logger.isDebugEnabled()) {
                 int totalVectors = 0;
                 int totalCentroids = 0;
                 for (int s : segmentSizes) {
@@ -955,7 +955,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 for (int c : segmentCentroidCounts) {
                     totalCentroids += c;
                 }
-                logger.info(
+                logger.debug(
                     "DiskBBQ merge for field [{}]: selected strategy [{}], segments={}, totalVectors={}, totalCentroids={}",
                     fieldInfo.name,
                     action.strategy(),

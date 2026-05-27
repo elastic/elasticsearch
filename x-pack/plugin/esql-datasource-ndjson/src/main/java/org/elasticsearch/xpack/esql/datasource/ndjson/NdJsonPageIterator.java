@@ -61,9 +61,11 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         boolean skipFirstLine,
         boolean trimLastPartialLine,
         List<Attribute> resolvedAttributes,
-        ErrorPolicy errorPolicy
+        ErrorPolicy errorPolicy,
+        NdJsonReaderCounters counters
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
+        Check.isTrue(counters != null, "counters must not be null");
         String sourceLocation = object.path().toString();
         InputStream inputStream = object.newStream();
         if (skipFirstLine) {
@@ -87,7 +89,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                 batchSize,
                 blockFactory,
                 errorPolicy,
-                sourceLocation
+                sourceLocation,
+                counters
             );
         } else {
             this.pageDecoder = new NdJsonPageDecoder(
@@ -97,7 +100,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                 batchSize,
                 blockFactory,
                 errorPolicy,
-                sourceLocation
+                sourceLocation,
+                counters
             );
         }
     }
@@ -109,7 +113,9 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
      * also fall back to streaming so a metadata hiccup does not abort an open call; the streaming
      * read will surface the same condition if the data itself is unreachable.
      */
-    private static boolean canUseByteArrayFastPath(StorageObject object) {
+    // package-private for testing: pins the invariant that segments above the threshold stream rather than
+    // buffering the whole segment, which is what bounds per-open-segment memory under the open-segment cap.
+    static boolean canUseByteArrayFastPath(StorageObject object) {
         try {
             long len = object.length();
             return len >= 0 && len <= BYTE_ARRAY_FAST_PATH_MAX_SIZE;

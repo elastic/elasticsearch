@@ -318,6 +318,7 @@ public class InternalUsers {
         new RoleDescriptor(
             UsernamesField.CROSS_PROJECT_SEARCH_ROLE_NAME,
             new String[] {
+                XPackInfoAction.REMOTE_TYPE.name(),
                 RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
                 TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
                 TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,

@@ -22,8 +22,8 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchResponse;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
-import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.index.reindex.ResumeInfo;
@@ -131,7 +131,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
 
         Version version = Version.CURRENT;
         AtomicReference<Version> capturedVersion = new AtomicReference<>();
-        ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
+        ActionListener<BulkByPaginatedSearchResponse> listener = ActionListener.noop();
         Client client = null;
         DiscoveryNode node = DiscoveryNodeUtils.builder("node").roles(emptySet()).build();
 
@@ -149,7 +149,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
         task.setWorker(request.getRequestsPerSecond(), null);
 
         AtomicReference<Version> capturedVersion = new AtomicReference<>(Version.CURRENT);
-        ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
+        ActionListener<BulkByPaginatedSearchResponse> listener = ActionListener.noop();
         Client client = null;
         DiscoveryNode node = DiscoveryNodeUtils.builder("node").roles(emptySet()).build();
 
@@ -166,7 +166,7 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
         BulkByPaginatedSearchTask task = (BulkByPaginatedSearchTask) taskManager.register("reindex", ReindexAction.NAME, request);
         // Do not call setWorker or setWorkerCount
 
-        ActionListener<BulkByScrollResponse> listener = ActionListener.noop();
+        ActionListener<BulkByPaginatedSearchResponse> listener = ActionListener.noop();
         Client client = null;
         DiscoveryNode node = DiscoveryNodeUtils.builder("node").roles(emptySet()).build();
 
@@ -206,7 +206,13 @@ public class BulkByPaginatedSearchParallelizationHelperTests extends ESTestCase 
                 null,
                 TimeValue.ZERO
             );
-            BulkByScrollResponse sliceResponse = new BulkByScrollResponse(TimeValue.ZERO, status, List.of(), List.of(), false);
+            BulkByPaginatedSearchResponse sliceResponse = new BulkByPaginatedSearchResponse(
+                TimeValue.ZERO,
+                status,
+                List.of(),
+                List.of(),
+                false
+            );
             slices.put(i, new ResumeInfo.SliceStatus(i, null, new ResumeInfo.WorkerResult(sliceResponse, null)));
         }
         for (int i = completedSliceCount; i < totalSlices; i++) {

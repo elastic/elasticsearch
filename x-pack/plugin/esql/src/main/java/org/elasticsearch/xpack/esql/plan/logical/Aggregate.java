@@ -47,7 +47,8 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.AGGREGATE_METRIC_D
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DENSE_VECTOR;
 import static org.elasticsearch.xpack.esql.core.type.DataType.EXPONENTIAL_HISTOGRAM;
-import static org.elasticsearch.xpack.esql.core.type.DataType.FLATTENED;
+import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TDIGEST;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.Filter.checkFilterConditionDataType;
 
@@ -258,7 +259,8 @@ public class Aggregate extends UnaryPlan
             || e.dataType() == AGGREGATE_METRIC_DOUBLE
             || e.dataType() == DATE_RANGE
             || e.dataType() == EXPONENTIAL_HISTOGRAM
-            || e.dataType() == FLATTENED) {
+            || e.dataType() == TDIGEST
+            || e.dataType() == PARTIAL_AGG) {
             failures.add(fail(e, "cannot group by on [{}] type for grouping [{}]", e.dataType().typeName(), e.sourceText()));
         }
     }

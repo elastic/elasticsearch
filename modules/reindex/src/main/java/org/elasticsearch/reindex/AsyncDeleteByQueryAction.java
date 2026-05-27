@@ -25,7 +25,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 /**
  * Implementation of delete-by-query using scrolling and bulk.
  */
-public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<DeleteByQueryRequest, TransportDeleteByQueryAction> {
+public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByPaginatedSearchAction<DeleteByQueryRequest, TransportDeleteByQueryAction> {
 
     public AsyncDeleteByQueryAction(
         BulkByPaginatedSearchTask task,
@@ -85,7 +85,7 @@ public class AsyncDeleteByQueryAction extends AbstractAsyncBulkByScrollAction<De
      */
     @Override
     protected RequestWrapper<?> copyMetadata(RequestWrapper<?> request, PaginatedHitSource.Hit doc) {
-        request.setRouting(doc.getRouting());
+        copyRouting(request, doc.getRouting());
         return request;
     }
 

@@ -13,7 +13,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -35,6 +34,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerSettings;
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.FoldContext;
@@ -44,27 +44,30 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TBucket;
+import org.elasticsearch.xpack.esql.expression.function.grouping.TStep;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.MvMin;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.JsonExtract;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.Replace;
-import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToLower;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.ToUpper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mod;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
-import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.optimizer.LocalLogicalOptimizerContext;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.ReplaceDateTruncBucketWithRoundTo;
+import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.local.EmptyLocalSupplier;
+import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
 import org.openjdk.jmh.annotations.Fork;
@@ -76,6 +79,7 @@ import org.openjdk.jmh.annotations.Param;
 import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.time.Duration;
 import java.time.Instant;
@@ -86,6 +90,22 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+/**
+ * Microbenchmark for ESQL expression evaluators.
+ *
+ * # All benchmarks:
+ * ./gradlew -p benchmarks run --args 'EvalBenchmark'
+ *
+ * # TSTEP vs TBUCKET (table-friendly):
+ * ./gradlew -p benchmarks run --args 'EvalBenchmark -p operation=tstep(10),tbucket(10),tstep(99),tbucket(99)'
+ *
+ * # Notes:
+ * tstep(N): TSTEP function surrogate evaluator path
+ * tbucket(N): TBUCKET function surrogate evaluator path
+ *
+ * # Quick test:
+ * ./gradlew -p benchmarks run --args 'EvalBenchmark -p operation=abs -wi 1 -i 2 -f 1'
+ */
 @Warmup(iterations = 5)
 @Measurement(iterations = 7)
 @BenchmarkMode(Mode.AverageTime)
@@ -93,31 +113,19 @@ import java.util.concurrent.TimeUnit;
 @State(Scope.Thread)
 @Fork(1)
 public class EvalBenchmark {
-    // Initialize logging before any BlockFactory / DriverContext field touches LogManager — otherwise
-    // BlockFactory.<clinit> fires before the LogConfigurator SPI is set up and NPEs.
-    // Matches the AggregatorBenchmark pattern.
     static {
         Utils.configureBenchmarkLogging();
-        // EvalBenchmark constructs a fresh evaluator per invocation and discards it. With
-        // admission threshold=2 (production default), each invocation would start a fresh
-        // admission cycle and route through the Standard (non-JIT-folded) path — defeating
-        // the measurement of the JIT-folded steady-state performance. Set threshold=1 here
-        // so the bench measures what production sees AFTER admission is met (which is the
-        // case for every query past the first one for a given constant). The admission
-        // filter's protection against high-cardinality workloads is measured separately
-        // by the dedicated stress harness (sweep/AdmissionStress.java).
-        org.elasticsearch.compute.operator.ConstantMethodResultSpecializer.SHARED.setAdmissionThreshold(1);
     }
 
     private static final BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE)
-        .breaker(new NoopCircuitBreaker("none"))
+        .breaker(new NoopCircuitBreaker("bench"))
         .build();
-
     private static final FoldContext FOLD_CONTEXT = FoldContext.small();
-
     private static final int BLOCK_LENGTH = 8 * 1024;
-
-    static final DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
+    private static final long TBUCKET_RANGE_START_MILLIS = Instant.parse("2024-01-01T00:00:00Z").toEpochMilli();
+    private static final long TBUCKET_RANGE_END_MILLIS = Instant.parse("2024-01-03T00:00:00Z").toEpochMilli();
+    private static final ReplaceDateTruncBucketWithRoundTo REWRITE_RULE = new ReplaceDateTruncBucketWithRoundTo();
+    private static final DriverContext driverContext = new DriverContext(BigArrays.NON_RECYCLING_INSTANCE, blockFactory, null);
 
     static {
         if (false == "true".equals(System.getProperty("skipSelfTest"))) {
@@ -126,82 +134,99 @@ public class EvalBenchmark {
         }
     }
 
-    static void selfTest() {
-        Logger log = LogManager.getLogger(EvalBenchmark.class);
-        for (String operation : Utils.possibleValues(EvalBenchmark.class, "operation")) {
-            log.info("self testing {}", operation);
-            run(operation);
-        }
-    }
-
     @Param(
         {
+            // abs(long): unary arithmetic baseline
             "abs",
+            // add(long, 1): integer addition
             "add",
+            // add(double, 1.0): floating-point addition
             "add_double",
-            "case_1_eager",
-            "case_1_lazy",
-            "coalesce_2_noop",
-            "coalesce_2_eager",
-            "coalesce_2_lazy",
+            // CASE eager: evaluates both branches
+            "case_eager",
+            // CASE lazy: evaluates selected branch
+            "case_lazy",
+            // COALESCE no-op: first arg always present
+            "coalesce_noop",
+            // COALESCE eager: nullable first arg
+            "coalesce_eager",
+            // COALESCE lazy: computed nullable first arg
+            "coalesce_lazy",
+            // date_trunc(1d): fixed day truncation
             "date_trunc",
+            // equals const: long == 100_000
             "equal_to_const",
+            // json_extract scalar field
             "json_extract",
+            // json_extract object field
             "json_extract_object",
-            "json_extract_var",
+            // equals: long vs long
             "long_equal_to_long",
+            // equals: long vs int
             "long_equal_to_int",
-            "mod_long_long",
-            "mod_long_const_60",
-            "div_long_long",
-            "div_long_const_60",
-            "replace_const",
-            "starts_with_const",
-            "starts_with_var",
-            "ends_with_const",
-            "ends_with_var",
-            "rlike_long_pattern",
+            // mv_min on unsorted multivalue long
             "mv_min",
+            // mv_min on sorted multivalue long
             "mv_min_ascending",
-            "round_to_4_via_case",
-            "round_to_2",
-            "round_to_3",
-            "round_to_4",
+            // rlike regex on keyword values
             "rlike",
+            // to_lower on plain bytes refs
             "to_lower",
+            // to_lower on ordinal bytes refs
             "to_lower_ords",
+            // to_upper on plain bytes refs
             "to_upper",
-            "to_upper_ords" }
+            // to_upper on ordinal bytes refs
+            "to_upper_ords",
+            // TSTEP function surrogate with 10 buckets
+            "tstep(10)",
+            // TBUCKET function surrogate with 10 buckets
+            "tbucket(10)",
+            // TSTEP function surrogate with 99 buckets
+            "tstep(99)",
+            // TBUCKET function surrogate with 99 buckets
+            "tbucket(99)" }
     )
     public String operation;
+
+    static void selfTest() {
+        Logger log = LogManager.getLogger(EvalBenchmark.class);
+        for (String op : Utils.possibleValues(EvalBenchmark.class, "operation")) {
+            log.info("self testing {}", op);
+            run(op);
+        }
+    }
 
     private static Operator operator(String operation) {
         return new EvalOperator(driverContext, evaluator(operation));
     }
 
     private static ExpressionEvaluator evaluator(String operation) {
+        if (isTimeGroupingOperation(operation)) {
+            return timeGroupingEvaluator(operation);
+        }
         return switch (operation) {
             case "abs" -> {
-                FieldAttribute longField = longField();
-                yield EvalMapper.toEvaluator(FOLD_CONTEXT, new Abs(Source.EMPTY, longField), layout(longField)).get(driverContext);
+                FieldAttribute f = longField();
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, new Abs(Source.EMPTY, f), layout(f)).get(driverContext);
             }
             case "add" -> {
-                FieldAttribute longField = longField();
+                FieldAttribute f = longField();
                 yield EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
-                    new Add(Source.EMPTY, longField, new Literal(Source.EMPTY, 1L, DataType.LONG), configuration()),
-                    layout(longField)
+                    new Add(Source.EMPTY, f, new Literal(Source.EMPTY, 1L, DataType.LONG), configuration()),
+                    layout(f)
                 ).get(driverContext);
             }
             case "add_double" -> {
-                FieldAttribute doubleField = doubleField();
+                FieldAttribute f = doubleField();
                 yield EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
-                    new Add(Source.EMPTY, doubleField, new Literal(Source.EMPTY, 1D, DataType.DOUBLE), configuration()),
-                    layout(doubleField)
+                    new Add(Source.EMPTY, f, new Literal(Source.EMPTY, 1D, DataType.DOUBLE), configuration()),
+                    layout(f)
                 ).get(driverContext);
             }
-            case "case_1_eager", "case_1_lazy" -> {
+            case "case_eager", "case_lazy" -> {
                 FieldAttribute f1 = longField();
                 FieldAttribute f2 = longField();
                 Expression condition = new Equals(Source.EMPTY, f1, new Literal(Source.EMPTY, 1L, DataType.LONG));
@@ -216,13 +241,11 @@ public class EvalBenchmark {
                     new Case(Source.EMPTY, condition, List.of(lhs, rhs)),
                     layout(f1, f2)
                 ).get(driverContext);
-                String desc = operation.endsWith("lazy") ? "CaseLazyEvaluator" : "CaseEagerEvaluator";
-                if (evaluator.toString().contains(desc) == false) {
-                    throw new IllegalArgumentException("Evaluator was [" + evaluator + "] but expected one containing [" + desc + "]");
-                }
+                String expected = operation.endsWith("lazy") ? "CaseLazyEvaluator" : "CaseEagerEvaluator";
+                assertEvaluator(evaluator, expected);
                 yield evaluator;
             }
-            case "coalesce_2_noop", "coalesce_2_eager", "coalesce_2_lazy" -> {
+            case "coalesce_noop", "coalesce_eager", "coalesce_lazy" -> {
                 FieldAttribute f1 = longField();
                 FieldAttribute f2 = longField();
                 Expression lhs = f1;
@@ -234,14 +257,12 @@ public class EvalBenchmark {
                     new Coalesce(Source.EMPTY, lhs, List.of(f2)),
                     layout(f1, f2)
                 ).get(driverContext);
-                String desc = operation.endsWith("lazy") ? "CoalesceLongLazyEvaluator" : "CoalesceLongEagerEvaluator";
-                if (evaluator.toString().contains(desc) == false) {
-                    throw new IllegalArgumentException("Evaluator was [" + evaluator + "] but expected one containing [" + desc + "]");
-                }
+                String expected = operation.endsWith("lazy") ? "CoalesceLongLazyEvaluator" : "CoalesceLongEagerEvaluator";
+                assertEvaluator(evaluator, expected);
                 yield evaluator;
             }
             case "date_trunc" -> {
-                FieldAttribute timestamp = new FieldAttribute(
+                FieldAttribute f = new FieldAttribute(
                     Source.EMPTY,
                     "timestamp",
                     new EsField("timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
@@ -251,51 +272,35 @@ public class EvalBenchmark {
                     new DateTrunc(
                         Source.EMPTY,
                         new Literal(Source.EMPTY, Duration.ofHours(24), DataType.TIME_DURATION),
-                        timestamp,
+                        f,
                         configuration()
                     ),
-                    layout(timestamp)
+                    layout(f)
                 ).get(driverContext);
             }
             case "equal_to_const" -> {
-                FieldAttribute longField = longField();
+                FieldAttribute f = longField();
                 yield EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
-                    new Equals(Source.EMPTY, longField, new Literal(Source.EMPTY, 100_000L, DataType.LONG)),
-                    layout(longField)
+                    new Equals(Source.EMPTY, f, new Literal(Source.EMPTY, 100_000L, DataType.LONG)),
+                    layout(f)
                 ).get(driverContext);
             }
             case "json_extract" -> {
-                FieldAttribute keywordField = keywordField();
+                FieldAttribute f = keywordField();
                 yield EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
-                    new JsonExtract(Source.EMPTY, keywordField, new Literal(Source.EMPTY, new BytesRef("user.name"), DataType.KEYWORD)),
-                    layout(keywordField)
+                    new JsonExtract(Source.EMPTY, f, new Literal(Source.EMPTY, new BytesRef("user.name"), DataType.KEYWORD)),
+                    layout(f)
                 ).get(driverContext);
             }
             case "json_extract_object" -> {
-                FieldAttribute keywordField = keywordField();
+                FieldAttribute f = keywordField();
                 yield EvalMapper.toEvaluator(
                     FOLD_CONTEXT,
-                    new JsonExtract(Source.EMPTY, keywordField, new Literal(Source.EMPTY, new BytesRef("user"), DataType.KEYWORD)),
-                    layout(keywordField)
+                    new JsonExtract(Source.EMPTY, f, new Literal(Source.EMPTY, new BytesRef("user"), DataType.KEYWORD)),
+                    layout(f)
                 ).get(driverContext);
-            }
-            case "json_extract_var" -> {
-                FieldAttribute json = keywordField();
-                FieldAttribute path = keywordField("path");
-                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
-                    FOLD_CONTEXT,
-                    new JsonExtract(Source.EMPTY, json, path),
-                    layout(json, path)
-                ).get(driverContext);
-                if (evaluator.toString().contains("JsonExtractEvaluator") == false
-                    || evaluator.toString().contains("JsonExtractConstant") != false) {
-                    throw new IllegalArgumentException(
-                        "Evaluator was [" + evaluator + "] but expected one containing [JsonExtractEvaluator] (non-constant)"
-                    );
-                }
-                yield evaluator;
             }
             case "long_equal_to_long" -> {
                 FieldAttribute lhs = longField();
@@ -307,247 +312,414 @@ public class EvalBenchmark {
                 FieldAttribute rhs = intField();
                 yield EvalMapper.toEvaluator(FOLD_CONTEXT, new Equals(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext);
             }
-            case "mod_long_long" -> {
-                FieldAttribute lhs = longField();
-                FieldAttribute rhs = longField();
-                yield EvalMapper.toEvaluator(FOLD_CONTEXT, new Mod(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext);
-            }
-            case "mod_long_const_60" -> {
-                FieldAttribute lhs = longField();
-                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
-                    FOLD_CONTEXT,
-                    new Mod(Source.EMPTY, lhs, new Literal(Source.EMPTY, 60L, DataType.LONG)),
-                    layout(lhs)
-                ).get(driverContext);
-                if (evaluator.toString().contains("ModLongsByConstantEvaluator") == false) {
-                    throw new IllegalArgumentException(
-                        "Evaluator was [" + evaluator + "] but expected one containing [ModLongsByConstantEvaluator]"
-                    );
-                }
-                yield evaluator;
-            }
-            case "div_long_long" -> {
-                FieldAttribute lhs = longField();
-                FieldAttribute rhs = longField();
-                yield EvalMapper.toEvaluator(FOLD_CONTEXT, new Div(Source.EMPTY, lhs, rhs), layout(lhs, rhs)).get(driverContext);
-            }
-            case "div_long_const_60" -> {
-                FieldAttribute lhs = longField();
-                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
-                    FOLD_CONTEXT,
-                    new Div(Source.EMPTY, lhs, new Literal(Source.EMPTY, 60L, DataType.LONG)),
-                    layout(lhs)
-                ).get(driverContext);
-                if (evaluator.toString().contains("DivLongsByConstantEvaluator") == false) {
-                    throw new IllegalArgumentException(
-                        "Evaluator was [" + evaluator + "] but expected one containing [DivLongsByConstantEvaluator]"
-                    );
-                }
-                yield evaluator;
-            }
-            case "replace_const" -> {
-                FieldAttribute keywordField = keywordField();
-                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
-                    FOLD_CONTEXT,
-                    new Replace(
-                        Source.EMPTY,
-                        keywordField,
-                        new Literal(Source.EMPTY, new BytesRef("foo"), DataType.KEYWORD),
-                        new Literal(Source.EMPTY, new BytesRef("X"), DataType.KEYWORD)
-                    ),
-                    layout(keywordField)
-                ).get(driverContext);
-                // Upstream main may select ReplaceConstantOrdinalEvaluator (ordinal fast path) for
-                // BytesRef inputs; either is a "constant" path. Accept both shapes.
-                if (evaluator.toString().contains("ReplaceConstant") == false) {
-                    throw new IllegalArgumentException(
-                        "Evaluator was [" + evaluator + "] but expected one containing [ReplaceConstantEvaluator]"
-                    );
-                }
-                yield evaluator;
-            }
             case "mv_min", "mv_min_ascending" -> {
-                FieldAttribute longField = longField();
-                yield EvalMapper.toEvaluator(FOLD_CONTEXT, new MvMin(Source.EMPTY, longField), layout(longField)).get(driverContext);
+                FieldAttribute f = longField();
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, new MvMin(Source.EMPTY, f), layout(f)).get(driverContext);
             }
             case "rlike" -> {
-                FieldAttribute keywordField = keywordField();
-                RLike rlike = new RLike(Source.EMPTY, keywordField, new RLikePattern(".ar"));
-                yield EvalMapper.toEvaluator(FOLD_CONTEXT, rlike, layout(keywordField)).get(driverContext);
-            }
-            case "rlike_long_pattern" -> {
-                FieldAttribute keywordField = keywordField();
-                // More complex pattern — exercises a larger DFA than the existing "rlike" case
-                RLike rlike = new RLike(Source.EMPTY, keywordField, new RLikePattern("[a-z]oo"));
-                yield EvalMapper.toEvaluator(FOLD_CONTEXT, rlike, layout(keywordField)).get(driverContext);
-            }
-            case "starts_with_const" -> {
-                FieldAttribute keywordField = keywordField();
-                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
-                    FOLD_CONTEXT,
-                    new StartsWith(Source.EMPTY, keywordField, new Literal(Source.EMPTY, new BytesRef("fo"), DataType.KEYWORD)),
-                    layout(keywordField)
-                ).get(driverContext);
-                if (evaluator.toString().contains("StartsWithConstantEvaluator") == false) {
-                    throw new IllegalArgumentException(
-                        "Evaluator was [" + evaluator + "] but expected one containing [StartsWithConstantEvaluator]"
-                    );
-                }
-                yield evaluator;
-            }
-            case "ends_with_const" -> {
-                FieldAttribute keywordField = keywordField();
-                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
-                    FOLD_CONTEXT,
-                    new EndsWith(Source.EMPTY, keywordField, new Literal(Source.EMPTY, new BytesRef("oo"), DataType.KEYWORD)),
-                    layout(keywordField)
-                ).get(driverContext);
-                if (evaluator.toString().contains("EndsWithConstantEvaluator") == false) {
-                    throw new IllegalArgumentException(
-                        "Evaluator was [" + evaluator + "] but expected one containing [EndsWithConstantEvaluator]"
-                    );
-                }
-                yield evaluator;
-            }
-            case "starts_with_var" -> {
-                FieldAttribute str = keywordField();
-                FieldAttribute prefix = keywordField("prefix");
-                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
-                    FOLD_CONTEXT,
-                    new StartsWith(Source.EMPTY, str, prefix),
-                    layout(str, prefix)
-                ).get(driverContext);
-                if (evaluator.toString().contains("StartsWithEvaluator") == false
-                    || evaluator.toString().contains("StartsWithConstant") != false) {
-                    throw new IllegalArgumentException(
-                        "Evaluator was [" + evaluator + "] but expected one containing [StartsWithEvaluator] (non-constant)"
-                    );
-                }
-                yield evaluator;
-            }
-            case "ends_with_var" -> {
-                FieldAttribute str = keywordField();
-                FieldAttribute suffix = keywordField("suffix");
-                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
-                    FOLD_CONTEXT,
-                    new EndsWith(Source.EMPTY, str, suffix),
-                    layout(str, suffix)
-                ).get(driverContext);
-                if (evaluator.toString().contains("EndsWithEvaluator") == false
-                    || evaluator.toString().contains("EndsWithConstant") != false) {
-                    throw new IllegalArgumentException(
-                        "Evaluator was [" + evaluator + "] but expected one containing [EndsWithEvaluator] (non-constant)"
-                    );
-                }
-                yield evaluator;
-            }
-            case "round_to_4_via_case" -> {
-                FieldAttribute f = longField();
-
-                Expression ltkb = new LessThan(Source.EMPTY, f, kb());
-                Expression ltmb = new LessThan(Source.EMPTY, f, mb());
-                Expression ltgb = new LessThan(Source.EMPTY, f, gb());
-                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
-                    FOLD_CONTEXT,
-                    new Case(Source.EMPTY, ltkb, List.of(b(), ltmb, kb(), ltgb, mb(), gb())),
-                    layout(f)
-                ).get(driverContext);
-                String desc = "CaseLazyEvaluator";
-                if (evaluator.toString().contains(desc) == false) {
-                    throw new IllegalArgumentException("Evaluator was [" + evaluator + "] but expected one containing [" + desc + "]");
-                }
-                yield evaluator;
-            }
-            case "round_to_2" -> {
-                FieldAttribute f = longField();
-
-                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
-                    FOLD_CONTEXT,
-                    new RoundTo(Source.EMPTY, f, List.of(b(), kb())),
-                    layout(f)
-                ).get(driverContext);
-                String desc = "RoundToLong2";
-                if (evaluator.toString().contains(desc) == false) {
-                    throw new IllegalArgumentException("Evaluator was [" + evaluator + "] but expected one containing [" + desc + "]");
-                }
-                yield evaluator;
-            }
-            case "round_to_3" -> {
-                FieldAttribute f = longField();
-
-                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
-                    FOLD_CONTEXT,
-                    new RoundTo(Source.EMPTY, f, List.of(b(), kb(), mb())),
-                    layout(f)
-                ).get(driverContext);
-                String desc = "RoundToLong3";
-                if (evaluator.toString().contains(desc) == false) {
-                    throw new IllegalArgumentException("Evaluator was [" + evaluator + "] but expected one containing [" + desc + "]");
-                }
-                yield evaluator;
-            }
-            case "round_to_4" -> {
-                FieldAttribute f = longField();
-
-                ExpressionEvaluator evaluator = EvalMapper.toEvaluator(
-                    FOLD_CONTEXT,
-                    new RoundTo(Source.EMPTY, f, List.of(b(), kb(), mb(), gb())),
-                    layout(f)
-                ).get(driverContext);
-                String desc = "RoundToLong4";
-                if (evaluator.toString().contains(desc) == false) {
-                    throw new IllegalArgumentException("Evaluator was [" + evaluator + "] but expected one containing [" + desc + "]");
-                }
-                yield evaluator;
+                FieldAttribute f = keywordField();
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, new RLike(Source.EMPTY, f, new RLikePattern(".ar")), layout(f))
+                    .get(driverContext);
             }
             case "to_lower", "to_lower_ords" -> {
-                FieldAttribute keywordField = keywordField();
-                ToLower toLower = new ToLower(Source.EMPTY, keywordField, configuration());
-                yield EvalMapper.toEvaluator(FOLD_CONTEXT, toLower, layout(keywordField)).get(driverContext);
+                FieldAttribute f = keywordField();
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, new ToLower(Source.EMPTY, f, configuration()), layout(f)).get(driverContext);
             }
             case "to_upper", "to_upper_ords" -> {
-                FieldAttribute keywordField = keywordField();
-                ToUpper toUpper = new ToUpper(Source.EMPTY, keywordField, configuration());
-                yield EvalMapper.toEvaluator(FOLD_CONTEXT, toUpper, layout(keywordField)).get(driverContext);
+                FieldAttribute f = keywordField();
+                yield EvalMapper.toEvaluator(FOLD_CONTEXT, new ToUpper(Source.EMPTY, f, configuration()), layout(f)).get(driverContext);
             }
-            default -> throw new UnsupportedOperationException();
+            default -> throw new IllegalArgumentException("Unknown operation: " + operation);
         };
     }
 
-    private static FieldAttribute longField() {
-        return new FieldAttribute(
-            Source.EMPTY,
-            "long",
-            new EsField("long", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+    private static boolean isTimeGroupingOperation(String operation) {
+        return operation.startsWith("tstep(") || operation.startsWith("tbucket(");
+    }
+
+    private static int timeGroupingBucketCount(String operation) {
+        return Integer.parseInt(operation.substring(operation.indexOf('(') + 1, operation.length() - 1));
+    }
+
+    private static ExpressionEvaluator timeGroupingEvaluator(String operation) {
+        FieldAttribute ts = timestampField();
+        int buckets = timeGroupingBucketCount(operation);
+        Bucket surrogate;
+        if (operation.startsWith("tstep(")) {
+            surrogate = (Bucket) new TStep(
+                Source.EMPTY,
+                new Literal(Source.EMPTY, buckets, DataType.INTEGER),
+                new Literal(Source.EMPTY, TBUCKET_RANGE_START_MILLIS, DataType.DATETIME),
+                new Literal(Source.EMPTY, TBUCKET_RANGE_END_MILLIS, DataType.DATETIME),
+                ts,
+                configuration()
+            ).surrogate();
+        } else if (operation.startsWith("tbucket(")) {
+            surrogate = (Bucket) new TBucket(
+                Source.EMPTY,
+                new Literal(Source.EMPTY, buckets, DataType.INTEGER),
+                new Literal(Source.EMPTY, TBUCKET_RANGE_START_MILLIS, DataType.DATETIME),
+                new Literal(Source.EMPTY, TBUCKET_RANGE_END_MILLIS, DataType.DATETIME),
+                ts,
+                configuration()
+            ).surrogate();
+        } else {
+            throw new IllegalArgumentException("Unknown time grouping operation [" + operation + "]");
+        }
+        Expression expression = rewriteWithRule(surrogate, ts);
+        return EvalMapper.toEvaluator(FOLD_CONTEXT, expression, layout(ts)).get(driverContext);
+    }
+
+    private static Expression rewriteWithRule(Expression expression, FieldAttribute ts) {
+        LogicalPlan child = new LocalRelation(Source.EMPTY, List.of(ts.toAttribute()), EmptyLocalSupplier.EMPTY);
+        Eval eval = new Eval(Source.EMPTY, child, List.of(new Alias(Source.EMPTY, "group_key", expression)));
+        LogicalPlan rewritten = REWRITE_RULE.apply(
+            eval,
+            new LocalLogicalOptimizerContext(configuration(), FOLD_CONTEXT, searchStats(ts.fieldName()))
         );
+        if ((rewritten instanceof Eval) == false) {
+            throw new IllegalStateException("expected Eval plan after rewrite but got [" + rewritten.getClass().getSimpleName() + "]");
+        }
+        Eval rewrittenEval = (Eval) rewritten;
+        return rewrittenEval.fields().get(0).child();
+    }
+
+    private static SearchStats searchStats(FieldAttribute.FieldName fieldName) {
+        return new SearchStats.UnsupportedSearchStats() {
+            @Override
+            public Object min(FieldAttribute.FieldName field) {
+                return field.equals(fieldName) ? TBUCKET_RANGE_START_MILLIS : null;
+            }
+
+            @Override
+            public Object max(FieldAttribute.FieldName field) {
+                return field.equals(fieldName) ? TBUCKET_RANGE_END_MILLIS : null;
+            }
+        };
+    }
+
+    private static void checkExpected(String operation, Page actual) {
+        if (isTimeGroupingOperation(operation)) {
+            LongVector result = actual.<LongBlock>getBlock(1).asVector();
+            if (result.getPositionCount() != BLOCK_LENGTH) {
+                throw new AssertionError("[" + operation + "] expected " + BLOCK_LENGTH + " positions");
+            }
+            return;
+        }
+        switch (operation) {
+            case "abs" -> {
+                LongVector v = actual.<LongBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    long expected = i * 100_000L;
+                    if (v.getLong(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getLong(i) + "]");
+                    }
+                }
+            }
+            case "add" -> {
+                LongVector v = actual.<LongBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    long expected = i * 100_000L + 1;
+                    if (v.getLong(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getLong(i) + "]");
+                    }
+                }
+            }
+            case "add_double" -> {
+                DoubleVector v = actual.<DoubleBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    double expected = i * 100_000D + 1D;
+                    if (v.getDouble(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getDouble(i) + "]");
+                    }
+                }
+            }
+            case "case_eager" -> {
+                LongVector f1 = actual.<LongBlock>getBlock(0).asVector();
+                LongVector f2 = actual.<LongBlock>getBlock(1).asVector();
+                LongVector result = actual.<LongBlock>getBlock(2).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    long expected = f1.getLong(i) == 1 ? f1.getLong(i) : f2.getLong(i);
+                    if (result.getLong(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
+                    }
+                }
+            }
+            case "case_lazy" -> {
+                LongVector f1 = actual.<LongBlock>getBlock(0).asVector();
+                LongVector f2 = actual.<LongBlock>getBlock(1).asVector();
+                LongVector result = actual.<LongBlock>getBlock(2).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    long expected = 1 + (f1.getLong(i) == 1 ? f1.getLong(i) : f2.getLong(i));
+                    if (result.getLong(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
+                    }
+                }
+            }
+            case "coalesce_noop" -> {
+                LongVector f1 = actual.<LongBlock>getBlock(0).asVector();
+                LongVector result = actual.<LongBlock>getBlock(2).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    if (result.getLong(i) != f1.getLong(i)) {
+                        throw new AssertionError("[" + operation + "] mismatch at " + i);
+                    }
+                }
+            }
+            case "coalesce_eager" -> {
+                LongBlock f1 = actual.getBlock(0);
+                LongVector f2 = actual.<LongBlock>getBlock(1).asVector();
+                LongVector result = actual.<LongBlock>getBlock(2).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    long expected = i % 5 == 0 ? f2.getLong(i) : f1.getLong(f1.getFirstValueIndex(i));
+                    if (result.getLong(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
+                    }
+                }
+            }
+            case "coalesce_lazy" -> {
+                LongBlock f1 = actual.getBlock(0);
+                LongVector f2 = actual.<LongBlock>getBlock(1).asVector();
+                LongVector result = actual.<LongBlock>getBlock(2).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    long expected = i % 5 == 0 ? f2.getLong(i) : f1.getLong(f1.getFirstValueIndex(i)) + 1;
+                    if (result.getLong(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
+                    }
+                }
+            }
+            case "date_trunc" -> {
+                LongVector v = actual.<LongBlock>getBlock(1).asVector();
+                long oneDay = TimeValue.timeValueHours(24).millis();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    long input = i * 100_000L;
+                    long expected = input - input % oneDay;
+                    if (v.getLong(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getLong(i) + "]");
+                    }
+                }
+            }
+            case "equal_to_const" -> {
+                BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    boolean expected = i == 1;
+                    if (v.getBoolean(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getBoolean(i) + "]");
+                    }
+                }
+            }
+            case "long_equal_to_long", "long_equal_to_int" -> {
+                BooleanVector v = actual.<BooleanBlock>getBlock(2).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    if (v.getBoolean(i) != true) {
+                        throw new AssertionError("[" + operation + "] expected true but was false at " + i);
+                    }
+                }
+            }
+            case "mv_min", "mv_min_ascending" -> {
+                LongVector v = actual.<LongBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    if (v.getLong(i) != i) {
+                        throw new AssertionError("[" + operation + "] expected [" + i + "] but was [" + v.getLong(i) + "]");
+                    }
+                }
+            }
+            case "rlike" -> {
+                BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    boolean expected = i % 2 == 1;
+                    if (v.getBoolean(i) != expected) {
+                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getBoolean(i) + "]");
+                    }
+                }
+            }
+            case "json_extract" -> checkBytesRef(operation, actual, false, new BytesRef("John"), new BytesRef("John"));
+            case "json_extract_object" -> {
+                BytesRef expected = new BytesRef("{\"name\":\"John\",\"age\":30}");
+                checkBytesRef(operation, actual, false, expected, expected);
+            }
+            case "to_lower" -> checkBytesRef(operation, actual, false, new BytesRef("foo"), new BytesRef("bar"));
+            case "to_lower_ords" -> checkBytesRef(operation, actual, true, new BytesRef("foo"), new BytesRef("bar"));
+            case "to_upper" -> checkBytesRef(operation, actual, false, new BytesRef("FOO"), new BytesRef("BAR"));
+            case "to_upper_ords" -> checkBytesRef(operation, actual, true, new BytesRef("FOO"), new BytesRef("BAR"));
+            default -> throw new IllegalArgumentException("Unknown operation: " + operation);
+        }
+    }
+
+    private static void checkBytesRef(String operation, Page actual, boolean expectOrds, BytesRef even, BytesRef odd) {
+        BytesRef scratch = new BytesRef();
+        BytesRefVector v = actual.<BytesRefBlock>getBlock(1).asVector();
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            BytesRef expected = i % 2 == 0 ? even : odd;
+            if (v.getBytesRef(i, scratch).equals(expected) == false) {
+                throw new AssertionError("[" + operation + "] mismatch at " + i);
+            }
+        }
+        if (expectOrds && v.asOrdinals() == null) {
+            throw new AssertionError("[" + operation + "] expected ordinals");
+        }
+        if (expectOrds == false && v.asOrdinals() != null) {
+            throw new AssertionError("[" + operation + "] did not expect ordinals");
+        }
+    }
+
+    private static Page page(String operation) {
+        if (isTimeGroupingOperation(operation)) {
+            return bucketPage();
+        }
+        return switch (operation) {
+            case "abs", "add", "date_trunc", "equal_to_const" -> {
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendLong(i * 100_000L);
+                }
+                yield new Page(builder.build());
+            }
+            case "add_double" -> {
+                var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendDouble(i * 100_000D);
+                }
+                yield new Page(builder.build());
+            }
+            case "case_eager", "case_lazy", "coalesce_noop" -> {
+                var f1 = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                var f2 = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    f1.appendLong(i);
+                    f2.appendLong(-i);
+                }
+                yield new Page(f1.build(), f2.build());
+            }
+            case "coalesce_eager", "coalesce_lazy" -> {
+                var f1 = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                var f2 = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    if (i % 5 == 0) {
+                        f1.appendNull();
+                    } else {
+                        f1.appendLong(i);
+                    }
+                    f2.appendLong(-i);
+                }
+                yield new Page(f1.build(), f2.build());
+            }
+            case "json_extract", "json_extract_object" -> {
+                var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+                BytesRef json = new BytesRef("{\"user\":{\"name\":\"John\",\"age\":30},\"active\":true}");
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendBytesRef(json);
+                }
+                yield new Page(builder.build().asBlock());
+            }
+            case "long_equal_to_long" -> {
+                var lhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                var rhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    lhs.appendLong(i * 100_000L);
+                    rhs.appendLong(i * 100_000L);
+                }
+                yield new Page(lhs.build(), rhs.build());
+            }
+            case "long_equal_to_int" -> {
+                var lhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                var rhs = blockFactory.newIntBlockBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    lhs.appendLong(i * 100_000L);
+                    rhs.appendInt(i * 100_000);
+                }
+                yield new Page(lhs.build(), rhs.build());
+            }
+            case "mv_min", "mv_min_ascending" -> {
+                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+                if (operation.endsWith("ascending")) {
+                    builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
+                }
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.beginPositionEntry();
+                    builder.appendLong(i);
+                    builder.appendLong(i + 1);
+                    builder.appendLong(i + 2);
+                    builder.endPositionEntry();
+                }
+                yield new Page(builder.build());
+            }
+            case "rlike", "to_lower", "to_upper" -> {
+                var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
+                BytesRef foo = new BytesRef("foo");
+                BytesRef bar = new BytesRef("bar");
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    builder.appendBytesRef(i % 2 == 0 ? foo : bar);
+                }
+                yield new Page(builder.build().asBlock());
+            }
+            case "to_lower_ords", "to_upper_ords" -> {
+                var bytes = blockFactory.newBytesRefVectorBuilder(2);
+                bytes.appendBytesRef(new BytesRef("foo"));
+                bytes.appendBytesRef(new BytesRef("bar"));
+                var ordinals = blockFactory.newIntVectorFixedBuilder(BLOCK_LENGTH);
+                for (int i = 0; i < BLOCK_LENGTH; i++) {
+                    ordinals.appendInt(i % 2);
+                }
+                yield new Page(new OrdinalBytesRefVector(ordinals.build(), bytes.build()).asBlock());
+            }
+            default -> throw new IllegalArgumentException("Unknown operation: " + operation);
+        };
+    }
+
+    private static Page bucketPage() {
+        long span = TBUCKET_RANGE_END_MILLIS - TBUCKET_RANGE_START_MILLIS;
+        var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
+        for (int i = 0; i < BLOCK_LENGTH; i++) {
+            long value;
+            switch (i & 3) {
+                case 0 -> value = TBUCKET_RANGE_START_MILLIS + (((long) i * 31) % span);
+                case 1 -> value = TBUCKET_RANGE_START_MILLIS - (((long) i * 17) % span);
+                case 2 -> value = TBUCKET_RANGE_END_MILLIS + (((long) i * 23) % span);
+                case 3 -> value = TBUCKET_RANGE_START_MILLIS + (((long) i * 61) % span);
+                default -> throw new IllegalStateException("unreachable");
+            }
+            builder.appendLong(value);
+        }
+        return new Page(builder.build());
+    }
+
+    private static FieldAttribute longField() {
+        return new FieldAttribute(Source.EMPTY, "f", new EsField("f", DataType.LONG, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
     }
 
     private static FieldAttribute doubleField() {
-        return new FieldAttribute(
-            Source.EMPTY,
-            "double",
-            new EsField("double", DataType.DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
-        );
+        return new FieldAttribute(Source.EMPTY, "f", new EsField("f", DataType.DOUBLE, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
     }
 
     private static FieldAttribute intField() {
-        return new FieldAttribute(
-            Source.EMPTY,
-            "int",
-            new EsField("int", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
-        );
+        return new FieldAttribute(Source.EMPTY, "f", new EsField("f", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
     }
 
     private static FieldAttribute keywordField() {
-        return keywordField("keyword");
+        return new FieldAttribute(Source.EMPTY, "f", new EsField("f", DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
     }
 
-    private static FieldAttribute keywordField(String name) {
+    private static FieldAttribute timestampField() {
         return new FieldAttribute(
             Source.EMPTY,
-            name,
-            new EsField(name, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
+            "@timestamp",
+            new EsField("@timestamp", DataType.DATETIME, Map.of(), true, EsField.TimeSeriesFieldType.NONE)
         );
+    }
+
+    private static Layout layout(FieldAttribute... fields) {
+        Layout.Builder builder = new Layout.Builder();
+        builder.append(Arrays.asList(fields));
+        return builder.build();
+    }
+
+    private static void assertEvaluator(ExpressionEvaluator evaluator, String... expected) {
+        for (String candidate : expected) {
+            if (evaluator.toString().contains(candidate)) {
+                return;
+            }
+        }
+        throw new IllegalArgumentException("Expected one of " + Arrays.toString(expected) + " but got [" + evaluator + "]");
     }
 
     private static Configuration configuration() {
@@ -573,498 +745,28 @@ public class EvalBenchmark {
         );
     }
 
-    private static Layout layout(FieldAttribute... fields) {
-        Layout.Builder layout = new Layout.Builder();
-        layout.append(Arrays.asList(fields));
-        return layout.build();
-    }
-
-    private static void checkExpected(String operation, Page actual) {
-        switch (operation) {
-            case "abs" -> {
-                LongVector v = actual.<LongBlock>getBlock(1).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    if (v.getLong(i) != i * 100_000) {
-                        throw new AssertionError("[" + operation + "] expected [" + (i * 100_000) + "] but was [" + v.getLong(i) + "]");
-                    }
-                }
-            }
-            case "add" -> {
-                LongVector v = actual.<LongBlock>getBlock(1).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    if (v.getLong(i) != i * 100_000 + 1) {
-                        throw new AssertionError("[" + operation + "] expected [" + (i * 100_000 + 1) + "] but was [" + v.getLong(i) + "]");
-                    }
-                }
-            }
-            case "add_double" -> {
-                DoubleVector v = actual.<DoubleBlock>getBlock(1).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    if (v.getDouble(i) != i * 100_000 + 1D) {
-                        throw new AssertionError(
-                            "[" + operation + "] expected [" + (i * 100_000 + 1D) + "] but was [" + v.getDouble(i) + "]"
-                        );
-                    }
-                }
-            }
-            case "case_1_eager" -> {
-                LongVector f1 = actual.<LongBlock>getBlock(0).asVector();
-                LongVector f2 = actual.<LongBlock>getBlock(1).asVector();
-                LongVector result = actual.<LongBlock>getBlock(2).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    long expected = f1.getLong(i) == 1 ? f1.getLong(i) : f2.getLong(i);
-                    if (result.getLong(i) != expected) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
-                    }
-                }
-            }
-            case "case_1_lazy" -> {
-                LongVector f1 = actual.<LongBlock>getBlock(0).asVector();
-                LongVector f2 = actual.<LongBlock>getBlock(1).asVector();
-                LongVector result = actual.<LongBlock>getBlock(2).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    long expected = 1 + (f1.getLong(i) == 1 ? f1.getLong(i) : f2.getLong(i));
-                    if (result.getLong(i) != expected) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
-                    }
-                }
-            }
-            case "coalesce_2_noop" -> {
-                LongVector f1 = actual.<LongBlock>getBlock(0).asVector();
-                LongVector result = actual.<LongBlock>getBlock(2).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    long expected = f1.getLong(i);
-                    if (result.getLong(i) != expected) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
-                    }
-                }
-            }
-            case "coalesce_2_eager" -> {
-                LongBlock f1 = actual.<LongBlock>getBlock(0);
-                LongVector f2 = actual.<LongBlock>getBlock(1).asVector();
-                LongVector result = actual.<LongBlock>getBlock(2).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    long expected = i % 5 == 0 ? f2.getLong(i) : f1.getLong(f1.getFirstValueIndex(i));
-                    if (result.getLong(i) != expected) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
-                    }
-                }
-            }
-            case "coalesce_2_lazy" -> {
-                LongBlock f1 = actual.<LongBlock>getBlock(0);
-                LongVector f2 = actual.<LongBlock>getBlock(1).asVector();
-                LongVector result = actual.<LongBlock>getBlock(2).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    long expected = i % 5 == 0 ? f2.getLong(i) : f1.getLong(f1.getFirstValueIndex(i)) + 1;
-                    if (result.getLong(i) != expected) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
-                    }
-                }
-            }
-            case "date_trunc" -> {
-                LongVector v = actual.<LongBlock>getBlock(1).asVector();
-                long oneDay = TimeValue.timeValueHours(24).millis();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    long expected = i * 100_000;
-                    expected -= expected % oneDay;
-                    if (v.getLong(i) != expected) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getLong(i) + "]");
-                    }
-                }
-            }
-            case "equal_to_const" -> {
-                BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    if (v.getBoolean(i) != (i == 1)) {
-                        throw new AssertionError("[" + operation + "] expected [" + (i == 1) + "] but was [" + v.getBoolean(i) + "]");
-                    }
-                }
-            }
-            case "long_equal_to_long", "long_equal_to_int" -> {
-                BooleanVector v = actual.<BooleanBlock>getBlock(2).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    if (v.getBoolean(i) != true) {
-                        throw new AssertionError("[" + operation + "] expected [" + (i == 1) + "] but was [" + v.getBoolean(i) + "]");
-                    }
-                }
-            }
-            case "mod_long_long" -> {
-                LongVector v = actual.<LongBlock>getBlock(2).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    long expected = (i * 100_000L) % ((i % 60) + 1);
-                    if (v.getLong(i) != expected) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getLong(i) + "]");
-                    }
-                }
-            }
-            case "mod_long_const_60" -> {
-                LongVector v = actual.<LongBlock>getBlock(1).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    long expected = (i * 100_000L) % 60L;
-                    if (v.getLong(i) != expected) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getLong(i) + "]");
-                    }
-                }
-            }
-            case "div_long_long" -> {
-                LongVector v = actual.<LongBlock>getBlock(2).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    long expected = (i * 100_000L) / ((i % 60) + 1);
-                    if (v.getLong(i) != expected) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getLong(i) + "]");
-                    }
-                }
-            }
-            case "div_long_const_60" -> {
-                LongVector v = actual.<LongBlock>getBlock(1).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    long expected = (i * 100_000L) / 60L;
-                    if (v.getLong(i) != expected) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getLong(i) + "]");
-                    }
-                }
-            }
-            case "mv_min", "mv_min_ascending" -> {
-                LongVector v = actual.<LongBlock>getBlock(1).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    if (v.getLong(i) != i) {
-                        throw new AssertionError("[" + operation + "] expected [" + i + "] but was [" + v.getLong(i) + "]");
-                    }
-                }
-            }
-            case "replace_const" -> {
-                BytesRef expected0 = new BytesRef("X");      // "foo" → replaced
-                BytesRef expected1 = new BytesRef("bar");   // unchanged
-                checkBytes(operation, actual, false, new BytesRef[] { expected0, expected1 });
-            }
-            case "rlike" -> {
-                BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    boolean expected = i % 2 == 1;
-                    if (v.getBoolean(i) != expected) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getBoolean(i) + "]");
-                    }
-                }
-            }
-            case "rlike_long_pattern", "starts_with_const" -> {
-                BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    boolean expected = i % 2 == 0;  // "foo" rows
-                    if (v.getBoolean(i) != expected) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getBoolean(i) + "]");
-                    }
-                }
-            }
-            case "ends_with_const" -> {
-                BooleanVector v = actual.<BooleanBlock>getBlock(1).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    boolean expected = i % 2 == 0;  // "foo" ends with "oo"
-                    if (v.getBoolean(i) != expected) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getBoolean(i) + "]");
-                    }
-                }
-            }
-            case "starts_with_var", "ends_with_var" -> {
-                BooleanVector v = actual.<BooleanBlock>getBlock(2).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    boolean expected = i % 2 == 0;
-                    if (v.getBoolean(i) != expected) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + v.getBoolean(i) + "]");
-                    }
-                }
-            }
-            case "round_to_4_via_case", "round_to_4" -> {
-                long b = 1;
-                long kb = ByteSizeUnit.KB.toBytes(1);
-                long mb = ByteSizeUnit.MB.toBytes(1);
-                long gb = ByteSizeUnit.GB.toBytes(1);
-
-                LongVector f = actual.<LongBlock>getBlock(0).asVector();
-                LongVector result = actual.<LongBlock>getBlock(1).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    long expected = f.getLong(i);
-                    if (expected < kb) {
-                        expected = b;
-                    } else if (expected < mb) {
-                        expected = kb;
-                    } else if (expected < gb) {
-                        expected = mb;
-                    } else {
-                        expected = gb;
-                    }
-                    if (result.getLong(i) != expected) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
-                    }
-                }
-            }
-            case "round_to_3" -> {
-                long b = 1;
-                long kb = ByteSizeUnit.KB.toBytes(1);
-                long mb = ByteSizeUnit.MB.toBytes(1);
-
-                LongVector f = actual.<LongBlock>getBlock(0).asVector();
-                LongVector result = actual.<LongBlock>getBlock(1).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    long expected = f.getLong(i);
-                    if (expected < kb) {
-                        expected = b;
-                    } else if (expected < mb) {
-                        expected = kb;
-                    } else {
-                        expected = mb;
-                    }
-                    if (result.getLong(i) != expected) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
-                    }
-                }
-            }
-            case "round_to_2" -> {
-                long b = 1;
-                long kb = ByteSizeUnit.KB.toBytes(1);
-
-                LongVector f = actual.<LongBlock>getBlock(0).asVector();
-                LongVector result = actual.<LongBlock>getBlock(1).asVector();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    long expected = f.getLong(i);
-                    if (expected < kb) {
-                        expected = b;
-                    } else {
-                        expected = kb;
-                    }
-                    if (result.getLong(i) != expected) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + result.getLong(i) + "]");
-                    }
-                }
-            }
-            case "json_extract" -> {
-                BytesRef expected = new BytesRef("John");
-                checkBytes(operation, actual, false, new BytesRef[] { expected, expected });
-            }
-            case "json_extract_var" -> {
-                BytesRef expected = new BytesRef("John");
-                BytesRefVector v = actual.<BytesRefBlock>getBlock(2).asVector();
-                BytesRef scratch = new BytesRef();
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    if (v.getBytesRef(i, scratch).equals(expected) == false) {
-                        throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + scratch + "]");
-                    }
-                }
-            }
-            case "json_extract_object" -> {
-                BytesRef expected = new BytesRef("{\"name\":\"John\",\"age\":30}");
-                checkBytes(operation, actual, false, new BytesRef[] { expected, expected });
-            }
-            case "to_lower" -> checkBytes(operation, actual, false, new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") });
-            case "to_lower_ords" -> checkBytes(operation, actual, true, new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") });
-            case "to_upper" -> checkBytes(operation, actual, false, new BytesRef[] { new BytesRef("FOO"), new BytesRef("BAR") });
-            case "to_upper_ords" -> checkBytes(operation, actual, true, new BytesRef[] { new BytesRef("FOO"), new BytesRef("BAR") });
-            default -> throw new UnsupportedOperationException(operation);
-        }
-    }
-
-    private static void checkBytes(String operation, Page actual, boolean expectOrds, BytesRef[] expectedVals) {
-        BytesRef scratch = new BytesRef();
-        BytesRefVector v = actual.<BytesRefBlock>getBlock(1).asVector();
-        for (int i = 0; i < BLOCK_LENGTH; i++) {
-            BytesRef expected = expectedVals[i % 2];
-            BytesRef b = v.getBytesRef(i, scratch);
-            if (b.equals(expected) == false) {
-                throw new AssertionError("[" + operation + "] expected [" + expected + "] but was [" + b + "]");
-            }
-        }
-        if (expectOrds) {
-            if (v.asOrdinals() == null) {
-                throw new IllegalArgumentException("expected ords but got " + v);
-            }
-        } else {
-            if (v.asOrdinals() != null) {
-                throw new IllegalArgumentException("expected non-ords but got " + v);
-            }
-        }
-    }
-
-    private static Page page(String operation) {
-        return switch (operation) {
-            case "abs", "add", "date_trunc", "equal_to_const", "mod_long_const_60", "div_long_const_60", "round_to_4_via_case",
-                "round_to_2", "round_to_3", "round_to_4" -> {
-                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    builder.appendLong(i * 100_000);
-                }
-                yield new Page(builder.build());
-            }
-            case "add_double" -> {
-                var builder = blockFactory.newDoubleBlockBuilder(BLOCK_LENGTH);
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    builder.appendDouble(i * 100_000D);
-                }
-                yield new Page(builder.build());
-            }
-            case "case_1_eager", "case_1_lazy", "coalesce_2_noop" -> {
-                var f1 = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
-                var f2 = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    f1.appendLong(i);
-                    f2.appendLong(-i);
-                }
-                yield new Page(f1.build(), f2.build());
-            }
-            case "coalesce_2_eager", "coalesce_2_lazy" -> {
-                var f1 = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
-                var f2 = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    if (i % 5 == 0) {
-                        f1.appendNull();
-                    } else {
-                        f1.appendLong(i);
-                    }
-                    f2.appendLong(-i);
-                }
-                yield new Page(f1.build(), f2.build());
-            }
-            case "json_extract", "json_extract_object" -> {
-                var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
-                BytesRef json = new BytesRef("{\"user\":{\"name\":\"John\",\"age\":30},\"active\":true}");
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    builder.appendBytesRef(json);
-                }
-                yield new Page(builder.build().asBlock());
-            }
-            case "json_extract_var" -> {
-                var jsonCol = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
-                var pathCol = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
-                BytesRef json = new BytesRef("{\"user\":{\"name\":\"John\",\"age\":30},\"active\":true}");
-                BytesRef path = new BytesRef("user.name");
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    jsonCol.appendBytesRef(json);
-                    pathCol.appendBytesRef(path);
-                }
-                yield new Page(jsonCol.build().asBlock(), pathCol.build().asBlock());
-            }
-            case "long_equal_to_long" -> {
-                var lhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
-                var rhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    lhs.appendLong(i * 100_000);
-                    rhs.appendLong(i * 100_000);
-                }
-                yield new Page(lhs.build(), rhs.build());
-            }
-            case "mod_long_long", "div_long_long" -> {
-                // lhs varies widely; rhs is always 1..60 (never zero) and varies per row so HotSpot
-                // can't speculate it stable. This isolates the per-row IDIV cost from the constant
-                // fast path.
-                var lhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
-                var rhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    lhs.appendLong(i * 100_000);
-                    rhs.appendLong((i % 60) + 1);
-                }
-                yield new Page(lhs.build(), rhs.build());
-            }
-            case "long_equal_to_int" -> {
-                var lhs = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
-                var rhs = blockFactory.newIntBlockBuilder(BLOCK_LENGTH);
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    lhs.appendLong(i * 100_000);
-                    rhs.appendInt(i * 100_000);
-                }
-                yield new Page(lhs.build(), rhs.build());
-            }
-            case "mv_min", "mv_min_ascending" -> {
-                var builder = blockFactory.newLongBlockBuilder(BLOCK_LENGTH);
-                if (operation.endsWith("ascending")) {
-                    builder.mvOrdering(Block.MvOrdering.DEDUPLICATED_AND_SORTED_ASCENDING);
-                }
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    builder.beginPositionEntry();
-                    builder.appendLong(i);
-                    builder.appendLong(i + 1);
-                    builder.appendLong(i + 2);
-                    builder.endPositionEntry();
-                }
-                yield new Page(builder.build());
-            }
-            case "starts_with_var" -> {
-                var str = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
-                var prefix = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
-                BytesRef[] values = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
-                BytesRef constPrefix = new BytesRef("fo");
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    str.appendBytesRef(values[i % 2]);
-                    prefix.appendBytesRef(constPrefix);
-                }
-                yield new Page(str.build().asBlock(), prefix.build().asBlock());
-            }
-            case "ends_with_var" -> {
-                var str = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
-                var suffix = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
-                BytesRef[] values = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
-                BytesRef constSuffix = new BytesRef("oo");
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    str.appendBytesRef(values[i % 2]);
-                    suffix.appendBytesRef(constSuffix);
-                }
-                yield new Page(str.build().asBlock(), suffix.build().asBlock());
-            }
-            case "rlike", "rlike_long_pattern", "to_lower", "to_upper", "replace_const", "starts_with_const", "ends_with_const" -> {
-                var builder = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
-                BytesRef[] values = new BytesRef[] { new BytesRef("foo"), new BytesRef("bar") };
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    builder.appendBytesRef(values[i % 2]);
-                }
-                yield new Page(builder.build().asBlock());
-            }
-            case "to_lower_ords", "to_upper_ords" -> {
-                var bytes = blockFactory.newBytesRefVectorBuilder(BLOCK_LENGTH);
-                bytes.appendBytesRef(new BytesRef("foo"));
-                bytes.appendBytesRef(new BytesRef("bar"));
-                var ordinals = blockFactory.newIntVectorFixedBuilder(BLOCK_LENGTH);
-                for (int i = 0; i < BLOCK_LENGTH; i++) {
-                    ordinals.appendInt(i % 2);
-                }
-                yield new Page(new OrdinalBytesRefVector(ordinals.build(), bytes.build()).asBlock());
-            }
-            default -> throw new UnsupportedOperationException();
-        };
-    }
-
-    private static Literal b() {
-        return lit(1L);
-    }
-
-    private static Literal kb() {
-        return lit(ByteSizeUnit.KB.toBytes(1));
-    }
-
-    private static Literal mb() {
-        return lit(ByteSizeUnit.MB.toBytes(1));
-    }
-
-    private static Literal gb() {
-        return lit(ByteSizeUnit.GB.toBytes(1));
-    }
-
-    private static Literal lit(long v) {
-        return new Literal(Source.EMPTY, v, DataType.LONG);
-    }
-
-    @Benchmark
-    @OperationsPerInvocation(1024 * BLOCK_LENGTH)
-    public void run() {
-        run(operation);
-    }
-
     private static void run(String operation) {
+        run(operation, null);
+    }
+
+    private static void run(String operation, Blackhole bh) {
         try (Operator operator = operator(operation)) {
             Page page = page(operation);
             Page output = null;
             for (int i = 0; i < 1024; i++) {
                 operator.addInput(page);
                 output = operator.getOutput();
+                if (bh != null) {
+                    bh.consume(output);
+                }
             }
-            // We only check the last one
             checkExpected(operation, output);
         }
+    }
+
+    @Benchmark
+    @OperationsPerInvocation(1024 * BLOCK_LENGTH)
+    public void eval(Blackhole bh) {
+        run(operation, bh);
     }
 }

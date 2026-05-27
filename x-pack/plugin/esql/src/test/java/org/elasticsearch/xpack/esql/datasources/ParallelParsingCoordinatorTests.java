@@ -379,6 +379,103 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         return sb.toString().getBytes(StandardCharsets.UTF_8);
     }
 
+    /**
+     * Tightest window: {@code max_concurrent_open_segments == 1}. This is where the "the head segment is
+     * force-submitted so it can never be starved" invariant matters most — get it wrong and an in-order
+     * consumer deadlocks. Asserts only one segment stream is ever open at a time, the read completes (no
+     * deadlock), and rows come back in full file order.
+     */
+    public void testCapOfOneIsSerialPreservesOrderAndProgresses() throws Exception {
+        final int parallelism = 8; // many threads available, but the cap must keep opens to 1
+        int rows = 600;
+        byte[] content = repeatedLines(rows);
+        StreamCountingStorageObject obj = new StreamCountingStorageObject(content);
+        LineFormatReader reader = new LineFormatReader(blockFactory());
+
+        List<String> read = new ArrayList<>();
+        ExecutorService exec = Executors.newFixedThreadPool(parallelism);
+        try {
+            try (
+                CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                    reader,
+                    obj,
+                    List.of("line"),
+                    50,
+                    parallelism,
+                    exec,
+                    null,
+                    false,
+                    true,
+                    null,
+                    1
+                )
+            ) {
+                while (iter.hasNext()) {
+                    Page p = iter.next();
+                    BytesRefBlock block = (BytesRefBlock) p.getBlock(0);
+                    BytesRef scratch = new BytesRef();
+                    for (int i = 0; i < block.getPositionCount(); i++) {
+                        read.add(block.getBytesRef(block.getFirstValueIndex(i), scratch).utf8ToString());
+                    }
+                    p.releaseBlocks();
+                }
+            }
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate (possible deadlock at cap=1)", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+
+        assertThat("cap=1 must keep at most one segment stream open", obj.peakConcurrent(), Matchers.lessThanOrEqualTo(1));
+        assertThat("all rows must be read", read.size(), Matchers.equalTo(rows));
+        for (int i = 0; i < rows; i++) {
+            assertThat("rows must stay in file order", read.get(i), Matchers.equalTo(String.format(java.util.Locale.ROOT, "line-%05d", i)));
+        }
+        assertThat("no segment stream may be left open after close", obj.currentOpen(), Matchers.equalTo(0));
+    }
+
+    /**
+     * Mid-stream teardown: the consumer abandons after a few pages and closes the iterator. Exercises the
+     * close path + the early-return guard + the window cascade for not-yet-run segments. Asserts close
+     * returns (no hang) and no segment read stream is left open — i.e. the cascade still poisons/finishes
+     * every segment so nothing leaks an object-store stream.
+     */
+    public void testCloseMidStreamLeaksNoOpenStreams() throws Exception {
+        final int parallelism = 6;
+        byte[] content = repeatedLines(2000);
+        StreamCountingStorageObject obj = new StreamCountingStorageObject(content);
+        LineFormatReader reader = new LineFormatReader(blockFactory());
+
+        ExecutorService exec = Executors.newFixedThreadPool(parallelism);
+        try {
+            CloseableIterator<Page> iter = ParallelParsingCoordinator.parallelRead(
+                reader,
+                obj,
+                List.of("line"),
+                50,
+                parallelism,
+                exec,
+                null,
+                false,
+                true,
+                null,
+                3
+            );
+            // Consume just a couple of pages, then abandon the rest and close early.
+            int pages = 0;
+            while (iter.hasNext() && pages < 2) {
+                iter.next().releaseBlocks();
+                pages++;
+            }
+            iter.close();
+            assertThat("expected to consume at least one page before closing", pages, Matchers.greaterThan(0));
+        } finally {
+            exec.shutdown();
+            assertTrue("executor did not terminate after early close", exec.awaitTermination(60, TimeUnit.SECONDS));
+        }
+
+        assertThat("early close must leave no segment stream open", obj.currentOpen(), Matchers.equalTo(0));
+    }
+
     public void testParallelReadPropagatesError() throws Exception {
         StringBuilder sb = new StringBuilder();
         for (int i = 0; i < 100; i++) {
@@ -1310,6 +1407,11 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
 
         int totalOpens() {
             return total.get();
+        }
+
+        /** Currently-open positional range streams (incremented on open, decremented on close). */
+        int currentOpen() {
+            return open.get();
         }
 
         @Override

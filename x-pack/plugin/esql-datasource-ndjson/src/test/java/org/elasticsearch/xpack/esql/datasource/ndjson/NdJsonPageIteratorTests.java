@@ -79,6 +79,59 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    /**
+     * The byte-array fast path buffers a whole segment into one {@code byte[]}; it must only engage at or
+     * below {@link NdJsonPageIterator#BYTE_ARRAY_FAST_PATH_MAX_SIZE}, so a larger segment streams instead of
+     * allocating a humongous buffer. This bound is what keeps per-open-segment memory small under the
+     * {@code max_concurrent_open_segments} cap (so the count cap suffices without circuit-breaker
+     * accounting). Guards that invariant against regression.
+     */
+    public void testByteArrayFastPathIsBoundedBySegmentSize() {
+        assertTrue(
+            "at the threshold the whole segment may be buffered",
+            NdJsonPageIterator.canUseByteArrayFastPath(fixedLengthObject(NdJsonPageIterator.BYTE_ARRAY_FAST_PATH_MAX_SIZE))
+        );
+        assertFalse(
+            "above the threshold the segment must stream, not buffer the whole segment into one byte[]",
+            NdJsonPageIterator.canUseByteArrayFastPath(fixedLengthObject((long) NdJsonPageIterator.BYTE_ARRAY_FAST_PATH_MAX_SIZE + 1))
+        );
+    }
+
+    /** Minimal {@link StorageObject} that only reports a length — all the fast-path decision inspects. */
+    private static StorageObject fixedLengthObject(long length) {
+        return new StorageObject() {
+            @Override
+            public InputStream newStream() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public InputStream newStream(long position, long len) {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public long length() {
+                return length;
+            }
+
+            @Override
+            public Instant lastModified() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public boolean exists() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public StoragePath path() {
+                return StoragePath.of("mem://fixed-length");
+            }
+        };
+    }
+
     public void testIterator() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         var object = new BytesStorageObject("classpath://employees.ndjson", IOUtils.resourceToByteArray("/employees.ndjson"));

@@ -34,7 +34,7 @@ import static org.hamcrest.Matchers.equalTo;
  * End-to-end regression test for ES|QL EXTERNAL aggregations over an uncompressed
  * multi-file CSV/NDJSON glob. Such reads route through {@code SEGMENTABLE_UNCOMPRESSED} →
  * {@code ParallelParsingCoordinator} → {@code OrderedParallelIterator}, which the fix changed to dispatch
- * byte-range segments in a sliding window of {@code MAX_CONCURRENT_OPEN_SEGMENTS}.
+ * byte-range segments in a sliding window bounded by the {@code max_concurrent_open_segments} pragma.
  * <p>
  * Many files in one glob, a small {@code target_split_size}, and {@code parsing_parallelism > 1} force a
  * high per-file segment count; the test asserts the aggregation is complete and correct — the windowed
@@ -45,7 +45,7 @@ import static org.hamcrest.Matchers.equalTo;
  */
 public class ExternalUncompressedMultiFileSegmentCapIT extends AbstractEsqlIntegTestCase {
 
-    // More files than MAX_CONCURRENT_OPEN_SEGMENTS (=4) so the glob fans out beyond a single window.
+    // More files than the default max_concurrent_open_segments (4) so the glob fans out beyond a single window.
     private static final int FILE_COUNT = 8;
     private static final int ROWS_PER_FILE = 5_000;
     private static final int TOTAL_ROWS = FILE_COUNT * ROWS_PER_FILE;

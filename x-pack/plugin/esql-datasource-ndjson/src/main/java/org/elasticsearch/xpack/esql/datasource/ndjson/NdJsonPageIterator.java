@@ -109,7 +109,9 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
      * also fall back to streaming so a metadata hiccup does not abort an open call; the streaming
      * read will surface the same condition if the data itself is unreachable.
      */
-    private static boolean canUseByteArrayFastPath(StorageObject object) {
+    // package-private for testing: pins the invariant that segments above the threshold stream rather than
+    // buffering the whole segment, which is what bounds per-open-segment memory under the open-segment cap.
+    static boolean canUseByteArrayFastPath(StorageObject object) {
         try {
             long len = object.length();
             return len >= 0 && len <= BYTE_ARRAY_FAST_PATH_MAX_SIZE;

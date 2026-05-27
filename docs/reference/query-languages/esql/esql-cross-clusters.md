@@ -21,8 +21,7 @@ This page covers remote clusters and {{ccs}}, which are not available in {{serve
 
 ## Prerequisites [esql-ccs-prerequisites]
 
-* {{esql}} {{ccs}} is not supported in {{serverless-short}}.
-* For full {{ccs}} capabilities, the local and remote clusters must be on the same [subscription level](https://www.elastic.co/subscriptions).
+* {{esql}} {{ccs}} requires an [Enterprise subscription](https://www.elastic.co/subscriptions) on both the local (querying) cluster and every remote cluster. The legacy TLS certificate-based CCS model available at lower tiers is deprecated in 9.0 and does not support {{esql}}.
 * The local coordinating node must have the [`remote_cluster_client`](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#remote-node) node role.
 * [Remote clusters](docs-content://deploy-manage/remote-clusters.md) must be configured before running {{esql}} across clusters.
 
@@ -69,9 +68,9 @@ POST /_security/role/remote1
 ```
 
 1. The `cross_cluster_search` cluster privilege is required for the *local* cluster.
-2. Typically, users have permissions to read both local and remote indices. However, for cases where the role is intended to *only* search the remote cluster, the `read` permission is still required for the local cluster. To provide read access to the local cluster, but disallow reading any indices in the local cluster, the `names` field may be an empty string.
+2. {{esql}} authorizes the query at the local coordinating node before resolving which clusters it will target. A role used only for remote queries must therefore still grant `read` in the local `indices` block. Setting `names` to an empty string satisfies that check while matching no real index, so the user cannot read any local data. This requirement is specific to {{esql}}; classic {{ccs}} authorizes per resolved index and does not need a local grant.
 3. The indices allowed read access to the remote cluster. The configured [cross-cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key) must also allow this index to be read.
-4. The `read_cross_cluster` privilege is always required when using {{esql}} across clusters with the API key based security model.
+4. The `read_cross_cluster` privilege is always required when using {{esql}} across clusters with the API key-based security model.
 5. The remote clusters to which these privileges apply. This remote cluster must be configured with a [cross-cluster API key](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-security-create-cross-cluster-api-key) and connected to the local cluster before the remote index can be queried. Verify connection using the [Remote cluster info](https://www.elastic.co/docs/api/doc/elasticsearch/operation/operation-cluster-remote-info) API.
 6. Required to allow remote enrichment. Without this, the user cannot read from the `.enrich` indices on the remote cluster. The `remote_cluster` security privilege was introduced in version **8.15.0**.
 
@@ -91,6 +90,8 @@ All cross-cluster requests from the local cluster are bound by the cross-cluster
 ::::
 
 ## Query across multiple clusters [ccq-from]
+
+In the examples that follow, `cluster_one`, `cluster_two`, and `cluster_three` represent remote clusters that you've already configured on the local cluster where the query runs. The cluster name in each `FROM` clause is the alias you assigned during remote cluster setup.
 
 In the `FROM` command, specify data streams and indices on remote clusters using the format `<remote_cluster_name>:<target>`. For instance, the following {{esql}} request queries the `my-index-000001` index on a single remote cluster named `cluster_one`:
 
@@ -290,7 +291,7 @@ Enrich in {{esql}} across clusters operates similarly to [local enrich](commands
 
 ::::{tip}
 
-Cross-cluster API keys created in versions prior to 8.15 must be replaced or updated to use the new required permissions for {{esql}} cross-cluster enrich with the API key based security model. Refer to the example in the [](#esql-ccs-security-model-api-key) section.
+Cross-cluster API keys created in versions prior to 8.15 must be replaced or updated to use the new required permissions for {{esql}} cross-cluster enrich with the API key-based security model. Refer to the example in the [](#esql-ccs-security-model-api-key) section.
 
 ::::
 
@@ -407,8 +408,7 @@ Remote clusters are configured with the `skip_unavailable: true` setting by defa
 
 The `partial` status means the remote query either has errors or was interrupted by an explicit user action, but some data can be returned.
 
-Queries still fail when `skip_unavailable` is set to `true`, if none of the specified indices exist. For example, the
-following queries fail:
+Even when `skip_unavailable` is set to `true`, queries fail if none of the specified indices exist. For example, the following queries fail:
 
 ```esql
 FROM cluster_one:missing-index | LIMIT 10

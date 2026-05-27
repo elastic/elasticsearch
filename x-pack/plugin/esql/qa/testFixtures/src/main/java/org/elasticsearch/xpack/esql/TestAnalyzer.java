@@ -150,7 +150,10 @@ public class TestAnalyzer {
      * {@code esIndex.name()} (which the test should match the local view name).
      */
     public TestAnalyzer addLenientResolution(EsIndex esIndex) {
-        return addLenientResolution(new LinkedIndexPattern(LinkedIndexPattern.Kind.OPTIONAL, new IndexPattern(Source.EMPTY, esIndex.name())), IndexResolution.valid(esIndex));
+        return addLenientResolution(
+            new LinkedIndexPattern(LinkedIndexPattern.Kind.OPTIONAL, new IndexPattern(Source.EMPTY, esIndex.name())),
+            IndexResolution.valid(esIndex)
+        );
     }
 
     /**

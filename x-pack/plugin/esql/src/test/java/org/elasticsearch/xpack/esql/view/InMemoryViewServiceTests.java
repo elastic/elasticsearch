@@ -2036,7 +2036,10 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         assertThat(vua.namedSubqueries().get("v"), instanceOf(UnresolvedRelation.class));
         assertThat(vua.namedSubqueries().get("v#shadow"), instanceOf(ViewShadowRelation.class));
         assertThat(((ViewShadowRelation) vua.namedSubqueries().get("v#shadow")).viewName(), equalTo("v"));
-        assertThat(((ViewShadowRelation) vua.namedSubqueries().get("v#shadow")).linkedIndexPattern().pattern().indexPattern(), equalTo("v"));
+        assertThat(
+            ((ViewShadowRelation) vua.namedSubqueries().get("v#shadow")).linkedIndexPattern().pattern().indexPattern(),
+            equalTo("v")
+        );
     }
 
     /**

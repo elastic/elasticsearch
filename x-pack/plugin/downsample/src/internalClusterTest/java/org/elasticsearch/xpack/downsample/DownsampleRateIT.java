@@ -159,6 +159,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     }
 
     public void testDeltaTemporalityRate() {
+        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         runTestWithTemporality(
             List.of(
                 new DocumentSpec("pod", "delta", "2021-04-29T17:01:00.000Z", 5),
@@ -175,6 +176,7 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     }
 
     public void testMixedTemporalityRate() {
+        assumeTrue("temporality requires snapshot build", IndexSettings.TIME_SERIES_TEMPORALITY_FEATURE_FLAG.isEnabled());
         runTestWithTemporality(
             List.of(
                 // cumulative TSID: monotonically increasing counter

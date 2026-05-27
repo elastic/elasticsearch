@@ -1,5 +1,6 @@
 area: Infra/System Indices
-issues: []
+issues:
+ - 99720
 pr: 149892
 summary: Ability to change settings on system indices
 type: enhancement

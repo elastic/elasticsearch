@@ -43,6 +43,7 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -255,7 +256,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         );
         assertThat("test must drive the multi-segment worker path", segments.size(), Matchers.greaterThanOrEqualTo(2));
 
-        Map<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         ExecutorService exec = Executors.newFixedThreadPool(4);
         try {
             // Use the explicit-sink overload: the coordinator binds `sink` on each worker around

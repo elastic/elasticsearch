@@ -46,6 +46,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -151,7 +152,7 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         String path = "mem://streaming-capture-test";
         StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
 
-        Map<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         ExecutorService executor = Executors.newFixedThreadPool(6);
         try {
             CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(

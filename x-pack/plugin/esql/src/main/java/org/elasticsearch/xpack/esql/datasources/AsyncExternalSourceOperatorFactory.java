@@ -61,6 +61,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -1886,7 +1887,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         boolean recordAlignedMacroSplit,
         boolean splitIncludesFileLeader,
         @Nullable List<Attribute> perFileReadSchema,
-        @Nullable Map<String, List<Map<String, Object>>> captureSink
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;

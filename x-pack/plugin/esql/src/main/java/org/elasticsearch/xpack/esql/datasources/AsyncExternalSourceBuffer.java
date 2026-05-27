@@ -21,6 +21,7 @@ import java.util.Map;
 import java.util.Queue;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.LongAdder;
@@ -66,7 +67,7 @@ public final class AsyncExternalSourceBuffer {
      * merges them via {@code SourceStatisticsSerializer.mergeStatistics} before enriching the
      * {@code SchemaCacheEntry}.
      */
-    private final Map<String, List<Map<String, Object>>> capturedSourceMetadata = new ConcurrentHashMap<>();
+    private final ConcurrentMap<String, List<Map<String, Object>>> capturedSourceMetadata = new ConcurrentHashMap<>();
 
     private volatile FormatReaderStatus formatReaderStatus = null;
     // LongAdder (rather than the AtomicLong used for {@link #bytesInBuffer}) because every read
@@ -86,7 +87,7 @@ public final class AsyncExternalSourceBuffer {
     }
 
     /** The mutable per-file capture sink shared with the iterator wrapping. */
-    public Map<String, List<Map<String, Object>>> capturedSourceMetadataSink() {
+    public ConcurrentMap<String, List<Map<String, Object>>> capturedSourceMetadataSink() {
         return capturedSourceMetadata;
     }
 

@@ -30,6 +30,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Capture-on-close gate for CSV. The close hook publishes a flat {@code _stats.*} contribution to the
@@ -65,7 +66,7 @@ public class CsvStatsCaptureTests extends ESTestCase {
 
     public void testCloseWithoutFullDrainPublishesNothing() throws Exception {
         StorageObject o = obj("id:integer,n:integer\n1,10\n2,20\n3,30\n");
-        Map<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (
             var handle = ExternalStatsCapture.bind(sink);
             CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, FormatReadContext.builder().batchSize(10).build())
@@ -180,7 +181,7 @@ public class CsvStatsCaptureTests extends ESTestCase {
     }
 
     private List<Map<String, Object>> captureAll(StorageObject o, FormatReadContext ctx) throws Exception {
-        Map<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (var handle = ExternalStatsCapture.bind(sink); CloseableIterator<Page> it = new CsvFormatReader(blockFactory).read(o, ctx)) {
             drain(it);
         }

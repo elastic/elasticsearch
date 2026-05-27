@@ -32,6 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -127,7 +128,7 @@ public final class StreamingParallelParsingCoordinator {
         ErrorPolicy errorPolicy,
         @Nullable List<Attribute> readSchema,
         int maxRecordBytes,
-        @Nullable Map<String, List<Map<String, Object>>> captureSink
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
     ) throws IOException {
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -190,7 +191,7 @@ public final class StreamingParallelParsingCoordinator {
          * why this can't piggyback on the thread-local in production.
          */
         @Nullable
-        private final Map<String, List<Map<String, Object>>> captureSink;
+        private final ConcurrentMap<String, List<Map<String, Object>>> captureSink;
 
         private final ArrayBlockingQueue<byte[]> bufferPool;
         private final ArrayBlockingQueue<Chunk> chunkQueue;
@@ -251,7 +252,7 @@ public final class StreamingParallelParsingCoordinator {
             ErrorPolicy errorPolicy,
             @Nullable List<Attribute> readSchema,
             int maxRecordBytes,
-            @Nullable Map<String, List<Map<String, Object>>> captureSink
+            @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
         ) {
             this.reader = reader;
             this.projectedColumns = projectedColumns;

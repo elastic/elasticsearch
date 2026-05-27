@@ -30,6 +30,7 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * NDJSON capture-on-close gate. The close hook publishes a flat {@code _stats.*} contribution to the
@@ -65,7 +66,7 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
 
     public void testCloseWithoutFullDrainPublishesNothing() throws Exception {
         StorageObject o = obj("{\"a\":1}\n{\"a\":2}\n{\"a\":3}\n");
-        Map<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (
             var handle = ExternalStatsCapture.bind(sink);
             CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(
@@ -150,7 +151,7 @@ public class NdJsonStatsCaptureTests extends ESTestCase {
 
     /** Binds a capture sink, drains the reader to EOF, returns the single contribution for the path (or null). */
     private Map<String, Object> capture(StorageObject o, FormatReadContext ctx) throws Exception {
-        Map<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ConcurrentMap<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
         try (
             var handle = ExternalStatsCapture.bind(sink);
             CloseableIterator<Page> it = new NdJsonFormatReader(null, blockFactory).read(o, ctx)

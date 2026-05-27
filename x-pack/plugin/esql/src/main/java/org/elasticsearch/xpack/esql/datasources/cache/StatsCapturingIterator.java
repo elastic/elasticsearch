@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorProducer;
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ConcurrentMap;
 
 /**
  * Wraps a {@link CloseableIterator} so the iterator's {@code close()} runs with an
@@ -40,14 +41,14 @@ import java.util.Map;
 public final class StatsCapturingIterator implements CloseableIterator<Page>, ColumnExtractorProducer {
 
     private final CloseableIterator<Page> delegate;
-    private final Map<String, List<Map<String, Object>>> sink;
+    private final ConcurrentMap<String, List<Map<String, Object>>> sink;
 
-    private StatsCapturingIterator(CloseableIterator<Page> delegate, Map<String, List<Map<String, Object>>> sink) {
+    private StatsCapturingIterator(CloseableIterator<Page> delegate, ConcurrentMap<String, List<Map<String, Object>>> sink) {
         this.delegate = delegate;
         this.sink = sink;
     }
 
-    public static CloseableIterator<Page> wrap(CloseableIterator<Page> delegate, Map<String, List<Map<String, Object>>> sink) {
+    public static CloseableIterator<Page> wrap(CloseableIterator<Page> delegate, ConcurrentMap<String, List<Map<String, Object>>> sink) {
         if (delegate == null || sink == null) {
             return delegate;
         }

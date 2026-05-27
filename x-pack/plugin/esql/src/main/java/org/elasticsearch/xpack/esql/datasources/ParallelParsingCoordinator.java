@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executor;
 import java.util.concurrent.RejectedExecutionException;
@@ -243,7 +244,7 @@ public final class ParallelParsingCoordinator {
         boolean splitIncludesFileLeader,
         List<Attribute> readSchema,
         int maxConcurrentOpenSegments,
-        @Nullable Map<String, List<Map<String, Object>>> captureSink
+        @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
     ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
@@ -384,7 +385,7 @@ public final class ParallelParsingCoordinator {
          * threads. {@code null} disables per-segment capture (e.g. tests, benchmarks).
          */
         @Nullable
-        private final Map<String, List<Map<String, Object>>> captureSink;
+        private final ConcurrentMap<String, List<Map<String, Object>>> captureSink;
 
         private final List<long[]> segments;
         private final Executor executor;
@@ -409,7 +410,7 @@ public final class ParallelParsingCoordinator {
             ErrorPolicy errorPolicy,
             boolean splitIncludesFileLeader,
             List<Attribute> readSchema,
-            @Nullable Map<String, List<Map<String, Object>>> captureSink
+            @Nullable ConcurrentMap<String, List<Map<String, Object>>> captureSink
         ) {
             this.reader = reader;
             this.storageObject = storageObject;

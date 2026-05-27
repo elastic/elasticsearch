@@ -77,7 +77,7 @@ public final class ParallelParsingCoordinator {
         int parallelism,
         Executor executor
     ) throws IOException {
-        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, null, false, true, null);
+        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, null, false, true, null, 0L);
     }
 
     /**
@@ -94,7 +94,7 @@ public final class ParallelParsingCoordinator {
         Executor executor,
         ErrorPolicy errorPolicy
     ) throws IOException {
-        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, errorPolicy, false, true, null);
+        return parallelRead(reader, storageObject, projectedColumns, batchSize, parallelism, executor, errorPolicy, false, true, null, 0L);
     }
 
     /**
@@ -126,7 +126,8 @@ public final class ParallelParsingCoordinator {
             errorPolicy,
             splitStartsAtRecordBoundary,
             true,
-            null
+            null,
+            0L
         );
     }
 
@@ -159,7 +160,8 @@ public final class ParallelParsingCoordinator {
             errorPolicy,
             splitStartsAtRecordBoundary,
             splitIncludesFileLeader,
-            null
+            null,
+            0L
         );
     }
 
@@ -167,7 +169,11 @@ public final class ParallelParsingCoordinator {
      * Full-control overload that propagates the planner-resolved {@code readSchema} (so multi-file
      * headerless reads do not drift per file). Pass {@code null} to fall back to per-file inference.
      *
-     * @param readSchema planner-bound read schema, or {@code null} for per-file inference
+     * @param readSchema     planner-bound read schema, or {@code null} for per-file inference
+     * @param baseFileOffset file-global byte offset of {@code storageObject}'s first byte (i.e. the macro
+     *                       split's {@code FileSplit.offset()}). {@code 0} for whole-file reads. Added to each
+     *                       segment's split-relative offset so readers emit file-global, split-invariant
+     *                       record positions on the {@code _rowPosition} channel.
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -179,7 +185,8 @@ public final class ParallelParsingCoordinator {
         ErrorPolicy errorPolicy,
         boolean splitStartsAtRecordBoundary,
         boolean splitIncludesFileLeader,
-        List<Attribute> readSchema
+        List<Attribute> readSchema,
+        long baseFileOffset
     ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
@@ -205,6 +212,7 @@ public final class ParallelParsingCoordinator {
             .firstSplit(splitIncludesFileLeader)
             .recordAligned(splitStartsAtRecordBoundary)
             .readSchema(readSchema)
+            .splitStartByte(baseFileOffset)
             .build();
         if (parallelism <= 1 || fileLength < minSegment * 2) {
             return parallelReader.read(storageObject, baseCtx);
@@ -225,7 +233,8 @@ public final class ParallelParsingCoordinator {
             executor,
             effectivePolicy,
             splitIncludesFileLeader,
-            readSchema
+            readSchema,
+            baseFileOffset
         );
     }
 
@@ -306,6 +315,7 @@ public final class ParallelParsingCoordinator {
         private final boolean splitIncludesFileLeader;
         @org.elasticsearch.core.Nullable
         private final List<Attribute> readSchema;
+        private final long baseFileOffset;
 
         private final List<BlockingQueue<Page>> segmentQueues;
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
@@ -324,7 +334,8 @@ public final class ParallelParsingCoordinator {
             Executor executor,
             ErrorPolicy errorPolicy,
             boolean splitIncludesFileLeader,
-            List<Attribute> readSchema
+            List<Attribute> readSchema,
+            long baseFileOffset
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -333,6 +344,7 @@ public final class ParallelParsingCoordinator {
             this.errorPolicy = errorPolicy;
             this.splitIncludesFileLeader = splitIncludesFileLeader;
             this.readSchema = readSchema;
+            this.baseFileOffset = baseFileOffset;
             this.allDone = new CountDownLatch(segments.size());
 
             this.segmentQueues = new ArrayList<>(segments.size());
@@ -383,6 +395,7 @@ public final class ParallelParsingCoordinator {
                     .lastSplit(lastSplit)
                     .recordAligned(true)
                     .readSchema(readSchema)
+                    .splitStartByte(baseFileOffset + offset)
                     .build();
                 CloseableIterator<Page> pages = reader.read(segObj, ctx);
                 try (pages) {

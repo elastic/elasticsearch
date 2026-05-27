@@ -93,7 +93,7 @@ public final class StreamingParallelParsingCoordinator {
         Executor executor,
         ErrorPolicy errorPolicy
     ) throws IOException {
-        return parallelRead(reader, decompressedStream, projectedColumns, batchSize, parallelism, executor, errorPolicy, null);
+        return parallelRead(reader, decompressedStream, projectedColumns, batchSize, parallelism, executor, errorPolicy, null, 0L);
     }
 
     /**
@@ -101,6 +101,11 @@ public final class StreamingParallelParsingCoordinator {
      * {@link ParallelParsingCoordinator#parallelRead}; the streaming path must thread it so multi-file
      * globs over gzip/zstd/bz2 inputs honor the planner's typing instead of re-inferring per file.
      * Pass {@code null} when no read schema is bound.
+     *
+     * @param baseFileOffset file-global byte offset added to each chunk's decompressed start byte before it
+     *                       is handed to the reader as {@link FormatReadContext#splitStartByte()}. Stream-only
+     *                       compressed inputs are not macro-split, so this is {@code 0}; the decompressed
+     *                       cumulative offset is the logical file-global offset on its own.
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -110,7 +115,8 @@ public final class StreamingParallelParsingCoordinator {
         int parallelism,
         Executor executor,
         ErrorPolicy errorPolicy,
-        @Nullable List<Attribute> readSchema
+        @Nullable List<Attribute> readSchema,
+        long baseFileOffset
     ) throws IOException {
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -128,6 +134,7 @@ public final class StreamingParallelParsingCoordinator {
                 .batchSize(batchSize)
                 .errorPolicy(effectivePolicy)
                 .readSchema(readSchema)
+                .splitStartByte(baseFileOffset)
                 .build();
             return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
         }
@@ -140,7 +147,8 @@ public final class StreamingParallelParsingCoordinator {
             parallelism,
             executor,
             effectivePolicy,
-            readSchema
+            readSchema,
+            baseFileOffset
         );
     }
 
@@ -165,6 +173,14 @@ public final class StreamingParallelParsingCoordinator {
         /** See {@link FormatReadContext#readSchema()}. {@code null} = per-file inference. */
         @Nullable
         private final List<Attribute> readSchema;
+        /** Added to each chunk's decompressed start byte; see {@link #parallelRead}'s {@code baseFileOffset}. */
+        private final long baseFileOffset;
+        /**
+         * Running count of decompressed bytes the segmentator has dispatched, i.e. the file-global start byte
+         * of the next chunk. Mutated only by the single segmentator thread inside {@link #dispatchChunk}, read
+         * there to stamp each {@link Chunk}'s {@code startByte}; never accessed off-thread.
+         */
+        private long segmentatorBytesDispatched = 0;
 
         private final ArrayBlockingQueue<byte[]> bufferPool;
         private final ArrayBlockingQueue<Chunk> chunkQueue;
@@ -218,13 +234,15 @@ public final class StreamingParallelParsingCoordinator {
             int parallelism,
             Executor executor,
             ErrorPolicy errorPolicy,
-            @Nullable List<Attribute> readSchema
+            @Nullable List<Attribute> readSchema,
+            long baseFileOffset
         ) {
             this.reader = reader;
             this.projectedColumns = projectedColumns;
             this.batchSize = batchSize;
             this.errorPolicy = errorPolicy;
             this.readSchema = readSchema;
+            this.baseFileOffset = baseFileOffset;
             this.bufferPoolSize = parallelism + 1;
             this.pageQueueRingSize = parallelism + 1;
 
@@ -423,6 +441,9 @@ public final class StreamingParallelParsingCoordinator {
          *         when {@code buffer} is pool-sized (oversized temporary buffers are simply dropped).
          */
         private boolean dispatchChunk(int index, byte[] buffer, int length, boolean last) {
+            // File-global decompressed start byte of this chunk; advanced only after a successful enqueue
+            // so an aborted dispatch leaves the running counter untouched.
+            long startByte = segmentatorBytesDispatched;
             try {
                 dispatchPermits.acquire();
             } catch (InterruptedException e) {
@@ -435,7 +456,8 @@ public final class StreamingParallelParsingCoordinator {
                 return false;
             }
             try {
-                chunkQueue.put(new Chunk(index, buffer, length, last));
+                chunkQueue.put(new Chunk(index, buffer, length, last, startByte));
+                segmentatorBytesDispatched = startByte + length;
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
                 firstError.compareAndSet(null, e);
@@ -505,6 +527,7 @@ public final class StreamingParallelParsingCoordinator {
                     .lastSplit(true)
                     .recordAligned(true)
                     .readSchema(readSchema)
+                    .splitStartByte(baseFileOffset + chunk.startByte)
                     .build();
                 try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
                     while (pages.hasNext()) {
@@ -905,7 +928,7 @@ public final class StreamingParallelParsingCoordinator {
         }
     }
 
-    private record Chunk(int index, byte[] buffer, int length, boolean last) {}
+    private record Chunk(int index, byte[] buffer, int length, boolean last, long startByte) {}
 
     /**
      * Minimal StorageObject wrapping an InputStream for the parallelism=1 fallback path.

@@ -35,6 +35,7 @@ import org.apache.orc.impl.OrcTail;
 import org.apache.orc.impl.ReaderImpl;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
@@ -51,6 +52,7 @@ import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -483,6 +485,15 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             attributeMap.put(attr.name(), attr);
         }
         for (String columnName : projectedColumns) {
+            if (ColumnExtractor.ROW_POSITION_COLUMN.equals(columnName)) {
+                // Synthetic file-global row index, not an ORC column. Typed LONG (not NULL) so the
+                // producer pipeline reads it as a LongBlock; OrcPageIterator fills it from
+                // RecordReader.getRowNumber() rather than from the ORC vectors.
+                projected.add(
+                    new ReferenceAttribute(Source.EMPTY, null, columnName, DataType.LONG, Nullability.FALSE, null, false)
+                );
+                continue;
+            }
             Attribute attr = attributeMap.get(columnName);
             projected.add(
                 attr != null ? attr : new ReferenceAttribute(Source.EMPTY, null, columnName, DataType.NULL, Nullability.TRUE, null, false)
@@ -755,6 +766,14 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
          * Attributes absent from the file map to {@code null}.
          */
         private final Map<String, int[]> fieldNameToPath;
+        /** Index of the synthetic {@code _rowPosition} attribute, or {@code -1} when not projected. */
+        private final int rowPositionColumnIndex;
+        /**
+         * File-global row number of the first row in the current batch, captured from
+         * {@link RecordReader#getRowNumber()} immediately before each {@code nextBatch}. ORC reports
+         * an absolute, file-global row number even on stripe-ranged reads, so it is split-invariant.
+         */
+        private long batchStartRow;
 
         OrcPageIterator(
             Reader reader,
@@ -769,6 +788,15 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             this.attributes = attributes;
             this.blockFactory = blockFactory;
             this.batch = schema.createRowBatch(batchSize);
+
+            int rowPosIdx = -1;
+            for (int i = 0; i < attributes.size(); i++) {
+                if (ColumnExtractor.ROW_POSITION_COLUMN.equals(attributes.get(i).name())) {
+                    rowPosIdx = i;
+                    break;
+                }
+            }
+            this.rowPositionColumnIndex = rowPosIdx;
 
             this.fieldNameToPath = new HashMap<>(attributes.size());
             // Top-level field index, computed once for literal-name lookups.
@@ -827,7 +855,11 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 return true;
             }
             try {
+                // Capture the absolute file-global row number BEFORE reading the batch: after
+                // nextBatch advances the cursor, getRowNumber() points past the batch.
+                long startRow = rows.getRowNumber();
                 if (rows.nextBatch(batch)) {
+                    batchStartRow = startRow;
                     batchReady = true;
                     return true;
                 } else {
@@ -858,6 +890,10 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 DataType dataType = attribute.dataType();
 
                 try {
+                    if (col == rowPositionColumnIndex) {
+                        blocks[col] = buildRowPositionBlock(rowCount);
+                        continue;
+                    }
                     int[] path = fieldNameToPath.get(fieldName);
                     if (path == null) {
                         blocks[col] = blockFactory.newConstantNullBlock(rowCount);
@@ -907,6 +943,21 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             }
 
             return new Page(blocks);
+        }
+
+        /**
+         * Emits the synthetic {@code _rowPosition} column: the file-global row index of each row in
+         * the batch, {@code [batchStartRow, batchStartRow + rowCount)}. Never null. This is the
+         * opaque, split-invariant per-record token the producer pipeline renders as
+         * {@code _file.record_ref} / composes into {@code _id}.
+         */
+        private Block buildRowPositionBlock(int rowCount) {
+            try (LongVector.Builder builder = blockFactory.newLongVectorBuilder(rowCount)) {
+                for (int i = 0; i < rowCount; i++) {
+                    builder.appendLong(batchStartRow + i);
+                }
+                return builder.build().asBlock();
+            }
         }
 
         /**

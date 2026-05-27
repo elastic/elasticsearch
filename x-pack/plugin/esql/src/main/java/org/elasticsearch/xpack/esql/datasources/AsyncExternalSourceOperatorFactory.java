@@ -1364,7 +1364,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // Under UBN, the query projection may include columns missing from this file; the adapter
                 // (SchemaAdaptingIterator wrapping the reader output below) null-fills those.
                 List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
-                pages = openWithParallelism(fileReader, obj, perFileCols, errorPolicy, recordAlignedMacro, firstSplit, perFileReadSchema);
+                pages = openWithParallelism(
+                    fileReader,
+                    obj,
+                    perFileCols,
+                    errorPolicy,
+                    recordAlignedMacro,
+                    firstSplit,
+                    perFileReadSchema,
+                    fileSplit.offset()
+                );
                 if (pages == null) {
                     boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
                     FormatReadContext ctx = FormatReadContext.builder()
@@ -1376,6 +1385,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         .lastSplit(lastSplit)
                         .recordAligned(recordAlignedMacro)
                         .readSchema(perFileReadSchema)
+                        .splitStartByte(fileSplit.offset())
                         .build();
                     pages = fileReader.read(obj, ctx);
                 }
@@ -1522,7 +1532,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
             }
             List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
-            pages = openWithParallelism(formatReader, obj, perFileCols, errorPolicy, false, true, perFileReadSchema);
+            pages = openWithParallelism(formatReader, obj, perFileCols, errorPolicy, false, true, perFileReadSchema, 0L);
             if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
                 FormatReadContext ctx = FormatReadContext.builder()
@@ -1584,7 +1594,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 errorPolicy,
                 false,
                 true,
-                null
+                null,
+                0L
             );
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
@@ -1760,7 +1771,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ErrorPolicy policy,
         boolean recordAlignedMacroSplit,
         boolean splitIncludesFileLeader,
-        @Nullable List<Attribute> perFileReadSchema
+        @Nullable List<Attribute> perFileReadSchema,
+        long baseFileOffset
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;
@@ -1782,7 +1794,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     policy,
                     recordAlignedMacroSplit,
                     splitIncludesFileLeader,
-                    perFileReadSchema
+                    perFileReadSchema,
+                    baseFileOffset
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {
@@ -1814,7 +1827,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         parsingParallelism,
                         executor,
                         policy,
-                        perFileReadSchema
+                        perFileReadSchema,
+                        baseFileOffset
                     );
                 } catch (Exception e) {
                     try {

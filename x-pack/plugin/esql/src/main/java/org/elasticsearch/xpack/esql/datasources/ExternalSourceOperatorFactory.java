@@ -325,6 +325,7 @@ public class ExternalSourceOperatorFactory implements SourceOperator.SourceOpera
                     .firstSplit(firstSplit)
                     .lastSplit(lastSplit)
                     .recordAligned(FileSplitProvider.isRecordAlignedMacroSplit(fileSplit))
+                    .splitStartByte(fileSplit.offset())
                     .build();
                 CloseableIterator<Page> pages = formatReader.read(obj, ctx);
 

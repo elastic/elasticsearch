@@ -26,6 +26,7 @@ import static org.elasticsearch.gradle.internal.util.CiUtils.safeName
 
 // Resolving this early to avoid issues with the build scan plugin in combination with the configuration cache usage
 def taskNames = gradle.startParameter.taskNames.join(' ')
+def settingsDir = settings.settingsDir
 
 // Start the GCP Spot VM preemption watchdog as early as possible so we have the full ~30s
 // window to react before the instance is killed. The watchdog is a no-op unless
@@ -193,7 +194,7 @@ develocity {
               // update rather than through the build service because the service may
               // already be closed by the time buildScanPublished fires.
               try {
-                def taskStatusFile = new File(settings.settingsDir, 'build/task-status.json')
+                def taskStatusFile = new File(settingsDir, 'build/task-status.json')
                 if (taskStatusFile.exists()) {
                   def mapper = new ObjectMapper()
                   def report = mapper.readValue(taskStatusFile, Map)

@@ -16,7 +16,8 @@ if [[ -f build/task-status.json ]]; then
   cd -
 
   echo "+++ Overall job status"
-  node .buildkite/scripts/smart-retry/summarize-task-status.ts build/task-status.json
+  cd .buildkite
+  node scripts/smart-retry/summarize-task-status.ts build/task-status.json
 fi
 
 # Propagate GCP preemption exit code when Gradle ran with a daemon (always the case in

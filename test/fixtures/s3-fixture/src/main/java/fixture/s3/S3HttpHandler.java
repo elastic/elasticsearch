@@ -352,6 +352,7 @@ public class S3HttpHandler implements HttpHandler {
                             exchange.getRequestHeaders().getFirst(CONTENT_SHA256_HEADER),
                             oneOf(
                                 "STREAMING-AWS4-HMAC-SHA256-PAYLOAD",
+                                "STREAMING-AWS4-HMAC-SHA256-PAYLOAD-TRAILER",
                                 "STREAMING-UNSIGNED-PAYLOAD-TRAILER",
                                 MessageDigests.toHexString(MessageDigests.digest(blob.v2(), MessageDigests.sha256()))
                             )

@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.esql.optimizer.rules.logical.promql;
 
 import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
+import org.elasticsearch.xpack.esql.analysis.AnalyzerRules;
 import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -44,8 +46,6 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
-import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
-import org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TemporaryNameGenerator;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.TranslateTimeSeriesAggregate;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
@@ -134,17 +134,13 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combi
  *   <li>{@link VectorBinaryOperator}: plan = merged from both sides, expression = left op right</li>
  * </ul>
  */
-public final class TranslatePromqlToEsqlPlan extends OptimizerRules.ParameterizedOptimizerRule<PromqlCommand, LogicalOptimizerContext> {
+public final class TranslatePromqlToEsqlPlan extends AnalyzerRules.ParameterizedAnalyzerRule<PromqlCommand, AnalyzerContext> {
 
     // Sentinel bounds for open-ended range queries (PROMQL step=X without explicit start/end).
     // TStep requires explicit lower and upper bounds, so we pass the widest representable range.
     // Use Instant.EPOCH / MAX_MILLIS_BEFORE_9999 instead of Long.MIN/MAX to avoid time boundary handling in the engine.
     public static final Instant EPOCH_MIN = Instant.EPOCH;
     public static final Instant EPOCH_MAX = Instant.ofEpochMilli(DateUtils.MAX_MILLIS_BEFORE_9999);
-
-    public TranslatePromqlToEsqlPlan() {
-        super(OptimizerRules.TransformDirection.UP);
-    }
 
     /** Result flows upward */
     private record TranslationResult(
@@ -170,8 +166,8 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     private record TranslationContext(
         /* The root PromQL command. */
         PromqlCommand promqlCommand,
-        /* Optimizer context (configuration, transport version, etc.). */
-        LogicalOptimizerContext optimizerContext,
+        /* Analyzer context (configuration, transport version, etc.). */
+        AnalyzerContext analyzerContext,
         /* Alias for the step bucket expression used in all aggregation groupings. */
         Alias stepBucketAlias,
         /*  What aggregate labels the child subtree MUST expose */
@@ -183,7 +179,12 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     }
 
     @Override
-    protected LogicalPlan rule(PromqlCommand cmd, LogicalOptimizerContext context) {
+    protected boolean skipResolved() {
+        return false;
+    }
+
+    @Override
+    protected LogicalPlan rule(PromqlCommand cmd, AnalyzerContext context) {
         Alias stepBucketAlias = createStepBucketAlias(cmd, context);
 
         TranslationContext ctx = new TranslationContext(cmd, context, stepBucketAlias, LabelSetSpec.none());
@@ -329,7 +330,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
 
         TranslationContext childCtx = new TranslationContext(
             ctx.promqlCommand,
-            ctx.optimizerContext,
+            ctx.analyzerContext,
             ctx.stepBucketAlias,
             importAggregateLabels
         );
@@ -412,18 +413,10 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ctx.promqlCommand().timestamp(),
             window,
             ctx.stepAttr(),
-            ctx.optimizerContext().configuration()
+            ctx.analyzerContext().configuration()
         );
 
         Expression function = functionCall.buildEsqlFunction(childResult.expression(), promqlCtx);
-
-        // This can happen when trying to provide a counter to a function that doesn't support it e.g. avg_over_time on a counter
-        // This is essentially a bug since this limitation doesn't exist in PromQL itself.
-        // Throwing an error here to avoid generating invalid plans with obscure errors downstream.
-        Expression.TypeResolution typeResolution = function.typeResolved();
-        if (typeResolution.unresolved()) {
-            throw new QlIllegalArgumentException("Could not resolve type for function [{}]: {}", function, typeResolution.message());
-        }
 
         // Wrap already aggregated child in Eval
         if (findAggregate(childResult.plan(), Aggregate.class) != null) {
@@ -450,7 +443,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ctx.promqlCommand().timestamp(),
             null,
             ctx.stepAttr(),
-            ctx.optimizerContext().configuration()
+            ctx.analyzerContext().configuration()
         );
         Expression function = scalarFunction.buildEsqlFunction(promqlCtx);
 
@@ -474,7 +467,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
 
         Expression binaryExpr = binaryOp.binaryOp()
             .asFunction()
-            .create(binaryOp.source(), leftExpr, rightExpr, ctx.optimizerContext().configuration());
+            .create(binaryOp.source(), leftExpr, rightExpr, ctx.analyzerContext().configuration());
 
         boolean leftAgg = findAggregate(leftResult.plan(), Aggregate.class) != null;
         boolean rightAgg = findAggregate(rightResult.plan(), Aggregate.class) != null;
@@ -604,7 +597,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ctx.promqlCommand().timestamp(),
             AggregateFunction.NO_WINDOW,
             ctx.stepAttr(),
-            ctx.optimizerContext().configuration()
+            ctx.analyzerContext().configuration()
         );
         return agg.buildEsqlFunction(inputValue, promqlCtx);
     }
@@ -828,7 +821,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     }
 
     /** Comparison filter (e.g., metric > x) */
-    private LogicalPlan addComparisonFilter(LogicalPlan plan, VectorBinaryComparison binaryComparison, LogicalOptimizerContext context) {
+    private LogicalPlan addComparisonFilter(LogicalPlan plan, VectorBinaryComparison binaryComparison, AnalyzerContext context) {
         Attribute left = plan.output().getFirst().toAttribute();
         ToDouble right = new ToDouble(binaryComparison.right().source(), ((LiteralSelector) binaryComparison.right()).literal());
         Function condition = binaryComparison.op().asFunction().create(binaryComparison.source(), left, right, context.configuration());
@@ -846,7 +839,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
         return new Eval(promqlCommand.source(), plan, List.of(convertedValue));
     }
 
-    private static Alias createStepBucketAlias(PromqlCommand p, LogicalOptimizerContext context) {
+    private static Alias createStepBucketAlias(PromqlCommand p, AnalyzerContext context) {
         var cfg = context.configuration();
         var source = p.source();
         Expression timeBucketSize = p.resolveTimeBucketSize();

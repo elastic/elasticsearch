@@ -75,10 +75,6 @@ public class ResolveUnmapped extends AnalyzerRules.ParameterizedAnalyzerRule<Log
 
     @Override
     protected LogicalPlan rule(LogicalPlan plan, AnalyzerContext context) {
-        // In PromQL, queries never fail due to a field not being mapped, instead an empty result is returned.
-        if (plan instanceof PromqlCommand) {
-            return resolve(plan, false);
-        }
         return switch (context.unmappedResolution()) {
             case UnmappedResolution.DEFAULT -> plan;
             case UnmappedResolution.NULLIFY -> resolve(plan, false);

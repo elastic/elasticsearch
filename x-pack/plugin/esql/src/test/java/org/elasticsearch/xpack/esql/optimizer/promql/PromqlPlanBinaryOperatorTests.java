@@ -40,7 +40,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTests {
 
     public void testConstantFoldingArithmeticOperators() {
-        var plan = planPromqlExpectNoReferences("PROMQL index=k8s step=5m 1 + 1");
+        var plan = planPromql("PROMQL index=k8s step=5m 1 + 1");
         var eval = plan.collect(Eval.class).getFirst();
         var literal = as(eval.fields().getFirst().child(), Literal.class);
         assertThat(literal.value(), equalTo(2.0));

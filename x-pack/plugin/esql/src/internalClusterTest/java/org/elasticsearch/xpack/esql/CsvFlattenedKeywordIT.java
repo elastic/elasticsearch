@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
+import org.elasticsearch.core.Booleans;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.junit.AfterClass;
@@ -50,10 +51,16 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
  * whose query references no keyword field are skipped, because re-running them with the same query
  * and the same expected results would only re-test unmodified behavior.
  * <p>
- * Opt-in: this test does not run by default. Pass
- * {@code -Dtests.run_keyword_flattened_variant=true} to enable it. To also log the full rewritten
- * query (one multi-line {@code INFO} message per launched test, prefixed with
- * {@code keyword→flattened: rewritten query:}), additionally pass
+ * This class is part of the normal {@code internalClusterTest} suite and runs whenever
+ * {@code CsvFlattenedKeywordIT} is invoked (for example
+ * {@code ./gradlew :x-pack:plugin:esql:internalClusterTest --tests org.elasticsearch.xpack.esql.CsvFlattenedKeywordIT}).
+ * At the end of the run {@link #logKeywordToFlattenedSummary()} emits a single
+ * {@code keyword→flattened summary:} line (grep-able from the JUnit XML {@code <system-out>})
+ * breaking down how many tests were launched, silenced, or skipped because the query had
+ * nothing for the rewriter to wrap.
+ * <p>
+ * Optional logging: to also emit the full rewritten query (one multi-line {@code INFO} message
+ * per launched test, prefixed with {@code keyword→flattened: rewritten query:}), pass
  * {@code -Dtests.run_keyword_flattened_variant.log_queries=true}. The short
  * {@code keyword→flattened: launched; rewrote field references [...]} marker is always emitted so
  * that the per-test rewrite is correlatable from logs even when query logging is off.
@@ -679,7 +686,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             // the rewriter declined to wrap, and why. Aggregated by (site, field) so a body that
             // mentions the same field twice surfaces a single line.
             logRewriterSkipEvents(result.skipEvents());
-            if (Boolean.getBoolean(LOG_REWRITTEN_QUERIES_PROPERTY)) {
+            if (Booleans.parseBoolean(LOG_REWRITTEN_QUERIES_PROPERTY)) {
                 logger.info("keyword→flattened: rewritten query:\n{}", result.rewrittenQuery());
             }
             return result.rewrittenQuery();

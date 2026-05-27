@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.And;
@@ -429,6 +430,54 @@ public class ParquetPushedExpressionsTests extends ESTestCase {
         ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of());
         MessageType schema = Types.buildMessage().required(INT64).named("status").named("schema");
         assertFalse("empty expression list has no YES conjuncts", pushed.hasYesConjunctOutsideFilterPredicate(schema));
+    }
+
+    public void testHasYesConjunctOutsideFilterPredicateBareStartsWith() {
+        // Bare StartsWith is YES-eligible AND translates to a prefix-range FilterPredicate, so
+        // it is NOT "outside" the predicate — the shortcut may still fire.
+        MessageType schema = Types.buildMessage()
+            .required(org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("schema");
+        Expression sw = new StartsWith(Source.EMPTY, attr("url", DataType.KEYWORD), lit(new BytesRef("https://"), DataType.KEYWORD));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(sw));
+        assertFalse("bare StartsWith translates to a range FilterPredicate", pushed.hasYesConjunctOutsideFilterPredicate(schema));
+    }
+
+    public void testHasYesConjunctOutsideFilterPredicateNotStartsWith() {
+        // Not(StartsWith) is YES-eligible and exactly translatable (StartsWith is a leaf with a
+        // pure prefix-range FilterPredicate), so it pushes as FilterApi.not(range) and the
+        // trivially-passes shortcut stays enabled.
+        MessageType schema = Types.buildMessage()
+            .required(org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("schema");
+        Expression sw = new StartsWith(Source.EMPTY, attr("url", DataType.KEYWORD), lit(new BytesRef("https://"), DataType.KEYWORD));
+        Expression notSw = new Not(Source.EMPTY, sw);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(notSw));
+        assertFalse(
+            "Not(StartsWith) is exactly translatable (pure leaf, no silent-drop hazard)",
+            pushed.hasYesConjunctOutsideFilterPredicate(schema)
+        );
+    }
+
+    public void testNotStartsWithTranslatesToFilterPredicate() {
+        // Asserts the actual FilterPredicate emitted for Not(StartsWith) is non-null and is a
+        // Not over the StartsWith range. Apache-mr internally expands NOT(range) into the
+        // canonical OR-of-comparators when applying row-group / page stats.
+        MessageType schema = Types.buildMessage()
+            .required(org.apache.parquet.schema.PrimitiveType.PrimitiveTypeName.BINARY)
+            .as(LogicalTypeAnnotation.stringType())
+            .named("url")
+            .named("schema");
+        Expression sw = new StartsWith(Source.EMPTY, attr("url", DataType.KEYWORD), lit(new BytesRef("/admin/"), DataType.KEYWORD));
+        Expression notSw = new Not(Source.EMPTY, sw);
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(notSw));
+        FilterPredicate fp = pushed.toFilterPredicate(schema);
+        assertNotNull("Not(StartsWith) must translate so row-group pruning can apply", fp);
+        assertThat(fp.toString(), containsString("not("));
     }
 
     // -----------------------------------------------------------------------------------

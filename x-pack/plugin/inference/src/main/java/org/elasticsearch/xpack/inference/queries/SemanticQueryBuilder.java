@@ -13,6 +13,7 @@ import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.LeafQueryBuilder;
@@ -64,25 +65,35 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
     private static final ParseField FIELD_FIELD = new ParseField("field");
     private static final ParseField QUERY_FIELD = new ParseField("query");
     private static final ParseField LENIENT_FIELD = new ParseField("lenient");
+    private static final ParseField MIN_SCORE_FIELD = new ParseField("min_score");
+    private static final ParseField CHUNKS_PER_DOC_FIELD = new ParseField("chunks_per_doc");
 
     private static final ConstructingObjectParser<SemanticQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         false,
-        args -> new SemanticQueryBuilder((String) args[0], (String) args[1], (Boolean) args[2])
+        args -> new SemanticQueryBuilder((String) args[0], (String) args[1], (Boolean) args[2], (Float) args[3], (Integer) args[4])
     );
 
     static {
         PARSER.declareString(constructorArg(), FIELD_FIELD);
         PARSER.declareString(constructorArg(), QUERY_FIELD);
         PARSER.declareBoolean(optionalConstructorArg(), LENIENT_FIELD);
+        PARSER.declareFloat(optionalConstructorArg(), MIN_SCORE_FIELD);
+        PARSER.declareInt(optionalConstructorArg(), CHUNKS_PER_DOC_FIELD);
         declareStandardFields(PARSER);
     }
+
+    static final TransportVersion SEMANTIC_QUERY_CHUNK_PARAMS = TransportVersion.fromName("semantic_chunk_scoring");
 
     private final String fieldName;
     private final String query;
     private final Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap;
     private final PlainActionFuture<InferenceQueryUtils.InferenceInfo> inferenceInfoFuture;
     private final Boolean lenient;
+    @Nullable
+    private final Float minScore;
+    @Nullable
+    private final Integer chunksPerDoc;
 
     // ccsRequest is only used on the local cluster coordinator node to detect when:
     // - The request references a remote index
@@ -96,7 +107,11 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
     }
 
     public SemanticQueryBuilder(String fieldName, String query, Boolean lenient) {
-        this(fieldName, query, lenient, null, false);
+        this(fieldName, query, lenient, (Float) null, null);
+    }
+
+    SemanticQueryBuilder(String fieldName, String query, Boolean lenient, @Nullable Float minScore, @Nullable Integer chunksPerDoc) {
+        this(fieldName, query, lenient, minScore, chunksPerDoc, null, false);
     }
 
     protected SemanticQueryBuilder(
@@ -105,7 +120,7 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
         Boolean lenient,
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap
     ) {
-        this(fieldName, query, lenient, inferenceResultsMap, false);
+        this(fieldName, query, lenient, null, null, inferenceResultsMap, false);
     }
 
     protected SemanticQueryBuilder(
@@ -115,17 +130,37 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
         Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
         boolean ccsRequest
     ) {
+        this(fieldName, query, lenient, null, null, inferenceResultsMap, ccsRequest);
+    }
+
+    private SemanticQueryBuilder(
+        String fieldName,
+        String query,
+        Boolean lenient,
+        @Nullable Float minScore,
+        @Nullable Integer chunksPerDoc,
+        Map<FullyQualifiedInferenceId, InferenceResults> inferenceResultsMap,
+        boolean ccsRequest
+    ) {
         if (fieldName == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a " + FIELD_FIELD.getPreferredName() + " value");
         }
         if (query == null) {
             throw new IllegalArgumentException("[" + NAME + "] requires a " + QUERY_FIELD.getPreferredName() + " value");
         }
+        if (minScore != null && minScore < 0) {
+            throw new IllegalArgumentException("[" + NAME + "] min_score must be non-negative, got [" + minScore + "]");
+        }
+        if (chunksPerDoc != null && chunksPerDoc < 1) {
+            throw new IllegalArgumentException("[" + NAME + "] chunks_per_doc must be at least 1, got [" + chunksPerDoc + "]");
+        }
         this.fieldName = fieldName;
         this.query = query;
         this.inferenceResultsMap = inferenceResultsMap != null ? Map.copyOf(inferenceResultsMap) : null;
         this.inferenceInfoFuture = null;
         this.lenient = lenient;
+        this.minScore = minScore;
+        this.chunksPerDoc = chunksPerDoc;
         this.ccsRequest = ccsRequest;
     }
 
@@ -154,6 +189,14 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
             this.ccsRequest = in.readBoolean();
         } else {
             this.ccsRequest = false;
+        }
+
+        if (in.getTransportVersion().supports(SEMANTIC_QUERY_CHUNK_PARAMS)) {
+            this.minScore = in.readOptionalFloat();
+            this.chunksPerDoc = in.readOptionalInt();
+        } else {
+            this.minScore = null;
+            this.chunksPerDoc = null;
         }
 
         this.inferenceInfoFuture = null;
@@ -200,6 +243,10 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
                     + "."
             );
         }
+        if (out.getTransportVersion().supports(SEMANTIC_QUERY_CHUNK_PARAMS)) {
+            out.writeOptionalFloat(minScore);
+            out.writeOptionalInt(chunksPerDoc);
+        }
     }
 
     private SemanticQueryBuilder(
@@ -216,6 +263,8 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
         this.inferenceResultsMap = inferenceResultsMap;
         this.inferenceInfoFuture = inferenceInfoFuture;
         this.lenient = other.lenient;
+        this.minScore = other.minScore;
+        this.chunksPerDoc = other.chunksPerDoc;
         this.ccsRequest = ccsRequest;
     }
 
@@ -230,6 +279,23 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
 
     public String getQuery() {
         return query;
+    }
+
+    @Nullable
+    public Float minScore() {
+        return minScore;
+    }
+
+    @Nullable
+    public Integer chunksPerDoc() {
+        return chunksPerDoc;
+    }
+
+    /**
+     * Returns {@code true} if this query has chunk-scoring configuration (min_score or chunks_per_doc).
+     */
+    public boolean hasChunkConfig() {
+        return minScore != null || chunksPerDoc != null;
     }
 
     @Override
@@ -284,6 +350,12 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
         if (lenient != null) {
             builder.field(LENIENT_FIELD.getPreferredName(), lenient);
         }
+        if (minScore != null) {
+            builder.field(MIN_SCORE_FIELD.getPreferredName(), minScore);
+        }
+        if (chunksPerDoc != null) {
+            builder.field(CHUNKS_PER_DOC_FIELD.getPreferredName(), chunksPerDoc);
+        }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
@@ -333,6 +405,16 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
                         + inferenceId
                         + "]"
                 );
+            }
+
+            // Preserve chunk scoring config before this query builder is rewritten away.
+            // The fetch phase will read it from the search ext on the search context.
+            if (hasChunkConfig()) {
+                SemanticChunksExtBuilder newExt = new SemanticChunksExtBuilder(fieldName, minScore, chunksPerDoc);
+                SemanticChunksExtBuilder existing = (SemanticChunksExtBuilder) searchExecutionContext.getRewriteSearchExt(
+                    SemanticChunksExtBuilder.NAME
+                );
+                searchExecutionContext.addRewriteSearchExt(existing != null ? existing.merge(newExt) : newExt);
             }
 
             return semanticFieldType.semanticQuery(inferenceResults, searchExecutionContext.requestSize(), boost(), queryName());
@@ -417,11 +499,13 @@ public class SemanticQueryBuilder extends LeafQueryBuilder<SemanticQueryBuilder>
         return Objects.equals(fieldName, other.fieldName)
             && Objects.equals(query, other.query)
             && Objects.equals(inferenceResultsMap, other.inferenceResultsMap)
-            && Objects.equals(ccsRequest, other.ccsRequest);
+            && Objects.equals(ccsRequest, other.ccsRequest)
+            && Objects.equals(minScore, other.minScore)
+            && Objects.equals(chunksPerDoc, other.chunksPerDoc);
     }
 
     @Override
     protected int doHashCode() {
-        return Objects.hash(fieldName, query, inferenceResultsMap, ccsRequest);
+        return Objects.hash(fieldName, query, inferenceResultsMap, ccsRequest, minScore, chunksPerDoc);
     }
 }

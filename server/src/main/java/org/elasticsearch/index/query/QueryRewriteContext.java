@@ -35,6 +35,7 @@ import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.plugins.internal.rewriter.QueryRewriteInterceptor;
 import org.elasticsearch.script.ScriptCompiler;
+import org.elasticsearch.search.SearchExtBuilder;
 import org.elasticsearch.search.aggregations.support.ValuesSourceRegistry;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -42,6 +43,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -94,6 +96,7 @@ public class QueryRewriteContext {
     @Nullable
     private Boolean hasAnyLocalInferenceFields;
     private final boolean allowPartialSearchResults;
+    private Map<String, SearchExtBuilder> rewriteSearchExts;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -747,5 +750,40 @@ public class QueryRewriteContext {
         Consumer<T> consumer
     ) {
         uniqueAsyncActions.computeIfAbsent(action, k -> new ArrayList<>()).add(consumer);
+    }
+
+    /**
+     * Registers a {@link SearchExtBuilder} during query rewrite. This allows query builders
+     * that are rewritten away (e.g. replaced by a different query type) to pass configuration
+     * to the fetch phase via the search ext mechanism.
+     *
+     * <p>Only one ext per writeable name is kept. If an ext with the same name already exists,
+     * the caller must merge before calling this method (or accept that the new value replaces
+     * the old one). Use {@link #getRewriteSearchExt(String)} to check for an existing ext.
+     *
+     * <p>Registered ext builders are retrieved via {@link #getRewriteSearchExts()} after rewrite
+     * completes and added to the search context.
+     */
+    public void addRewriteSearchExt(SearchExtBuilder ext) {
+        if (rewriteSearchExts == null) {
+            rewriteSearchExts = new HashMap<>();
+        }
+        rewriteSearchExts.put(ext.getWriteableName(), ext);
+    }
+
+    /**
+     * Returns a previously registered rewrite search ext by name, or {@code null} if none exists.
+     */
+    @Nullable
+    public SearchExtBuilder getRewriteSearchExt(String name) {
+        return rewriteSearchExts == null ? null : rewriteSearchExts.get(name);
+    }
+
+    /**
+     * Returns the collection of {@link SearchExtBuilder}s registered during query rewrite,
+     * or an empty collection if none were registered.
+     */
+    public Collection<SearchExtBuilder> getRewriteSearchExts() {
+        return rewriteSearchExts == null ? List.of() : rewriteSearchExts.values();
     }
 }

@@ -22,20 +22,21 @@ import subprocess
 import tempfile
 import re
 import os
+import shlex
 import shutil
 
 def run(command):
-  if os.system('%s' % (command)):
+  if subprocess.run(shlex.split(command)).returncode:
     raise RuntimeError('    FAILED: %s' % (command))
 
 def ensure_checkout_is_clean():
   # Make sure no local mods:
-  s = subprocess.check_output('git diff --shortstat', shell=True)
+  s = subprocess.check_output(['git', 'diff', '--shortstat'])
   if len(s) > 0:
     raise RuntimeError('git diff --shortstat is non-empty: got:\n%s' % s)
 
   # Make sure no untracked files:
-  s = subprocess.check_output('git status', shell=True).decode('utf-8', errors='replace')
+  s = subprocess.check_output(['git', 'status']).decode('utf-8', errors='replace')
   if 'Untracked files:' in s:
     raise RuntimeError('git status shows untracked files: got:\n%s' % s)
 

@@ -509,20 +509,22 @@ public final class ParallelParsingCoordinator {
                     .build();
                 // Bind the consumer-owned sink on this worker so the reader's close hook (which
                 // publishes the chunk's _stats.* contribution via ExternalStatsCapture.record) reaches
-                // the same map the consumer-thread StatsCapturingIterator binds. The bind handle is
-                // declared *after* the pages iterator so try-with-resources closes pages first — the
-                // record() call happens with the sink still bound, then the handle restores the
-                // previous binding. ExternalStatsCapture.bind tolerates a null sink (no-op handle),
-                // so the captureSink == null branch is just the existing semantics.
+                // the same map the consumer-thread StatsCapturingIterator binds. The pages iterator
+                // is opened *inside* the bound's try-with-resources so a failing reader.read still
+                // restores the previous ThreadLocal binding — worker threads are reused across
+                // queries by the shared executor, a leaked binding would poison subsequent tasks.
+                // Inner closes first, so the close hook's record() call happens with the sink
+                // still bound, then the handle restores the previous binding.
                 ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
-                CloseableIterator<Page> pages = reader.read(segObj, ctx);
-                try (bound; pages) {
-                    while (pages.hasNext()) {
-                        if (firstError.get() != null || closed) {
-                            break;
+                try (bound) {
+                    try (CloseableIterator<Page> pages = reader.read(segObj, ctx)) {
+                        while (pages.hasNext()) {
+                            if (firstError.get() != null || closed) {
+                                break;
+                            }
+                            Page page = pages.next();
+                            enqueueOrRelease(queue, page);
                         }
-                        Page page = pages.next();
-                        enqueueOrRelease(queue, page);
                     }
                 }
             } catch (Exception e) {

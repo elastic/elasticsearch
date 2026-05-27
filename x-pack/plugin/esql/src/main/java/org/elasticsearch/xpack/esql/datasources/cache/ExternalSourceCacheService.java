@@ -213,6 +213,11 @@ public class ExternalSourceCacheService implements Closeable {
             // derive it from SchemaCacheKey.buildFormatConfig of the same logical config, so the guard
             // holds across JVMs (coordinator != data node) — the warm short-circuit's whole point.
             Object contributionFingerprint = mergedStats.get(ExternalStats.CONFIG_FINGERPRINT_KEY);
+            // Cache.keys() returns a live iterator over the LRU-ordered doubly-linked list, and its
+            // javadoc explicitly forbids mutation during iteration (anything other than
+            // Iterator#remove leaves iteration "undefined"). Collect the matching replacements first,
+            // then apply them after the iterator is fully consumed.
+            List<Map.Entry<SchemaCacheKey, SchemaCacheEntry>> pendingUpdates = null;
             for (SchemaCacheKey key : schemaCache.keys()) {
                 if (path.equals(key.canonicalPath()) == false || key.lastModifiedEpochMillis() != mtimeMillis) {
                     continue;
@@ -238,7 +243,15 @@ public class ExternalSourceCacheService implements Closeable {
                     existing.connectorConfig(),
                     existing.cachedAtMillis()
                 );
-                schemaCache.put(key, replaced);
+                if (pendingUpdates == null) {
+                    pendingUpdates = new ArrayList<>();
+                }
+                pendingUpdates.add(Map.entry(key, replaced));
+            }
+            if (pendingUpdates != null) {
+                for (Map.Entry<SchemaCacheKey, SchemaCacheEntry> update : pendingUpdates) {
+                    schemaCache.put(update.getKey(), update.getValue());
+                }
             }
         }
     }

@@ -1670,9 +1670,26 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 finalPages,
                 buffer,
                 executor,
-                ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), e -> buffer.onFailure(e)), () -> {
-                    recordSingleFileTelemetry(storageObject, buffer);
+                // Close the iterator chain and record telemetry BEFORE notifying the buffer:
+                // closing publishes the finalize marker into the capture sink (via
+                // StatsCapturingIterator and the parallel coordinators' finalize hook), and
+                // recordSingleFileTelemetry writes the splits_processed / bytes_read /
+                // format-reader status counters that the operator status snapshot reads. The
+                // Driver may snapshot status() synchronously the moment buffer.finish(false)
+                // flips isFinished() to true; notifying the buffer first opens a window where
+                // the snapshot lacks the marker (reconciler discards the partial contributions)
+                // and the telemetry counters (profile shows zeros for an operator that did
+                // real work). Telemetry runs on both success and failure to match the previous
+                // runAfter semantics.
+                ActionListener.runAfter(ActionListener.wrap(v -> {
                     closeQuietly(finalPages);
+                    recordSingleFileTelemetry(storageObject, buffer);
+                    buffer.finish(false);
+                }, e -> {
+                    closeQuietly(finalPages);
+                    recordSingleFileTelemetry(storageObject, buffer);
+                    buffer.onFailure(e);
+                }), () -> {
                     driverContext.removeAsyncAction();
                     releaseOperator();
                 })
@@ -1704,9 +1721,18 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 wrapped,
                 buffer,
                 executor,
-                ActionListener.runAfter(ActionListener.wrap(v -> buffer.finish(false), e -> buffer.onFailure(e)), () -> {
-                    recordSingleFileTelemetry(storageObject, buffer);
+                // See startSyncWrapperRead: close the iterator chain and record telemetry
+                // before notifying the buffer so the finalize marker and the telemetry
+                // counters reach the operator status snapshot before isFinished() flips.
+                ActionListener.runAfter(ActionListener.wrap(v -> {
                     closeQuietly(wrapped);
+                    recordSingleFileTelemetry(storageObject, buffer);
+                    buffer.finish(false);
+                }, e -> {
+                    closeQuietly(wrapped);
+                    recordSingleFileTelemetry(storageObject, buffer);
+                    buffer.onFailure(e);
+                }), () -> {
                     driverContext.removeAsyncAction();
                     releaseOperator();
                 })

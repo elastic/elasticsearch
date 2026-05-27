@@ -542,18 +542,21 @@ public final class StreamingParallelParsingCoordinator {
                     .readSchema(readSchema)
                     .build();
                 // Bind the consumer-owned sink on this worker so the reader's close hook reaches
-                // the same map the consumer-thread StatsCapturingIterator binds. Declared after the
-                // pages iterator so try-with closes pages first — record() runs with sink still bound,
-                // handle then restores the previous binding. ExternalStatsCapture.bind treats null
-                // pre-existing as remove, so this is safe on the generic executor pool.
+                // the same map the consumer-thread StatsCapturingIterator binds. The pages iterator
+                // is opened inside the bound's try-with-resources so a failing reader.read still
+                // restores the previous ThreadLocal binding — workers in this executor are reused
+                // across queries, a leaked binding would route subsequent tasks' record() calls
+                // into the prior query's sink. Inner closes first, so record() runs with the sink
+                // still bound, then the handle restores the previous binding.
                 ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
-                CloseableIterator<Page> pages = reader.read(chunkObj, ctx);
-                try (bound; pages) {
-                    while (pages.hasNext()) {
-                        if (firstError.get() != null || closed) {
-                            break;
+                try (bound) {
+                    try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
+                        while (pages.hasNext()) {
+                            if (firstError.get() != null || closed) {
+                                break;
+                            }
+                            putPageAndSignal(queue, pages.next());
                         }
-                        putPageAndSignal(queue, pages.next());
                     }
                 }
             } catch (Exception e) {

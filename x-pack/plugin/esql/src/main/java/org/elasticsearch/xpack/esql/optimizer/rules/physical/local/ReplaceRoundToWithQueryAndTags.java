@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.lucene.query.DataPartitioning;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.BoolQueryBuilder;
@@ -36,8 +37,10 @@ import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.RoundTo;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNull;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.optimizer.LocalPhysicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.PhysicalOptimizerRules;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -420,26 +423,42 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         }
         List<EsQueryExec.QueryBuilderAndTags> queries = new ArrayList<>(count);
 
-        Object tag = points.get(0);
+        // RoundingConvention.UP uses right-closed buckets and ceiling lookup (smallest p >= t),
+        // producing buckets (p_(i-1), p_i] tagged p_i.
+        boolean upperBound = roundTo.roundingConvention() == Rounding.RoundingConvention.UP;
         if (points.size() == 1) { // if there is only one rounding point, just tag the main query
-            EsQueryExec.QueryBuilderAndTags queryBuilderAndTags = tagOnlyBucket(queryExec, tag);
+            EsQueryExec.QueryBuilderAndTags queryBuilderAndTags = tagOnlyBucket(queryExec, points.get(0));
             queries.add(queryBuilderAndTags);
         } else {
             Source source = roundTo.source();
             Object lower = null;
-            Object upper = null;
+            Object upper;
             Queries.Clause clause = queryExec.hasScoring() ? Queries.Clause.MUST : Queries.Clause.FILTER;
             ZoneId zoneId = ctx.configuration().zoneId();
-            for (int i = 1; i < count; i++) {
+            // DOWN: buckets are [p_i, p_(i+1)) tagged with p_i, head bucket "< p_1" tagged p_0,
+            // tail bucket ">= p_(n-1)" tagged p_(n-1).
+            // UP: buckets are (p_(i-1), p_i] tagged with p_i, head bucket "<= p_0" tagged p_0,
+            // tail bucket "> p_(n-2)" tagged p_(n-1).
+            int loopStart = upperBound ? 0 : 1;
+            int loopEnd = upperBound ? count - 1 : count;
+            Object tag = upperBound ? null : points.get(0);
+            for (int i = loopStart; i < loopEnd; i++) {
                 upper = points.get(i);
-                // build predicates and range queries for RoundTo ranges
-                queries.add(rangeBucket(source, field, dataType, lower, upper, tag, zoneId, queryExec, pushdownPredicates, clause));
+                if (upperBound) {
+                    tag = upper;
+                }
+                queries.add(
+                    rangeBucket(source, field, dataType, lower, upper, tag, upperBound, zoneId, queryExec, pushdownPredicates, clause)
+                );
                 lower = upper;
-                tag = upper;
+                if (upperBound == false) {
+                    tag = upper;
+                }
             }
-            // build the last/gte bucket
-            queries.add(rangeBucket(source, field, dataType, lower, null, lower, zoneId, queryExec, pushdownPredicates, clause));
-            // build null bucket
+            Object tailTag = upperBound ? points.get(count - 1) : lower;
+            queries.add(
+                rangeBucket(source, field, dataType, lower, null, tailTag, upperBound, zoneId, queryExec, pushdownPredicates, clause)
+            );
             queries.add(nullBucket(source, field, queryExec, pushdownPredicates, clause));
         }
         return queries;
@@ -467,17 +486,20 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         DataType dataType,
         Object lower,
         Object upper,
+        boolean upperBound,
         ZoneId zoneId
     ) {
         Literal lowerValue = new Literal(source, lower, dataType);
         Literal upperValue = new Literal(source, upper, dataType);
         if (lower == null) {
-            return new LessThan(source, field, upperValue, zoneId);
+            return upperBound ? new LessThanOrEqual(source, field, upperValue, zoneId) : new LessThan(source, field, upperValue, zoneId);
         } else if (upper == null) {
-            return new GreaterThanOrEqual(source, field, lowerValue, zoneId);
+            return upperBound
+                ? new GreaterThan(source, field, lowerValue, zoneId)
+                : new GreaterThanOrEqual(source, field, lowerValue, zoneId);
         } else {
-            // lower and upper should not be both null
-            return new Range(source, field, lowerValue, true, upperValue, false, dataType.isDate() ? zoneId : null);
+            // lower and upper should not be both null. UP mode uses (lower, upper]; DOWN uses [lower, upper).
+            return new Range(source, field, lowerValue, upperBound == false, upperValue, upperBound, dataType.isDate() ? zoneId : null);
         }
     }
 
@@ -505,12 +527,13 @@ public class ReplaceRoundToWithQueryAndTags extends PhysicalOptimizerRules.Param
         Object lower,
         Object upper,
         Object tag,
+        boolean upperBound,
         ZoneId zoneId,
         EsQueryExec queryExec,
         LucenePushdownPredicates pushdownPredicates,
         Queries.Clause clause
     ) {
-        Expression range = createRangeExpression(source, field, dataType, lower, upper, zoneId);
+        Expression range = createRangeExpression(source, field, dataType, lower, upper, upperBound, zoneId);
         return buildCombinedQueryAndTags(queryExec, pushdownPredicates, range, clause, List.of(tag));
     }
 

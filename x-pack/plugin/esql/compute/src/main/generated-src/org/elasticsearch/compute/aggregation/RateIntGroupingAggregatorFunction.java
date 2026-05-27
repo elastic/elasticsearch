@@ -475,10 +475,7 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         IntVector selected,
         GroupingAggregatorEvaluationContext ctx
     ) {
-        var flushQueues = rawBuffer.prepareForFlush();
-        for (int i = 0; i < selected.getPositionCount(); i++) {
-            flushGroup(selected.getInt(i), flushQueues);
-        }
+        flushRawBuffers();
         return this::evaluateIntermediate;
     }
 
@@ -525,7 +522,15 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         reducedStates = bigArrays.grow(reducedStates, rawBuffer.maxGroupId + 1);
         var flushQueues = rawBuffer.prepareForFlush();
         for (int groupId = flushQueues.minGroupId(); groupId <= flushQueues.maxGroupId(); groupId++) {
-            flushGroup(groupId, flushQueues);
+            var flushQueue = flushQueues.getFlushQueue(groupId);
+            if (flushQueue != null) {
+                ReducedState state = reducedStates.get(groupId);
+                if (state == null) {
+                    state = new ReducedState();
+                    reducedStates.set(groupId, state);
+                }
+                flushGroup(state, rawBuffer, flushQueue);
+            }
         }
         rawBuffer.clearBuffers();
     }
@@ -590,19 +595,6 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         @Override
         public void close() {
             Releasables.close(values, super::close);
-        }
-    }
-
-    void flushGroup(int group, FlushQueues flushQueues) {
-        var flushQueue = flushQueues.getFlushQueue(group);
-        if (flushQueue != null) {
-            reducedStates = bigArrays.grow(reducedStates, group + 1);
-            ReducedState state = reducedStates.get(group);
-            if (state == null) {
-                state = new ReducedState();
-                reducedStates.set(group, state);
-            }
-            flushGroup(state, rawBuffer, flushQueue);
         }
     }
 
@@ -683,10 +675,7 @@ public final class RateIntGroupingAggregatorFunction extends AbstractRateGroupin
         IntVector selected,
         GroupingAggregatorEvaluationContext ctx
     ) {
-        var flushQueues = rawBuffer.prepareForFlush();
-        for (int i = 0; i < selected.getPositionCount(); i++) {
-            flushGroup(selected.getInt(i), flushQueues);
-        }
+        flushRawBuffers();
         return (blocks, offset, selectedInPage) -> evaluateFinal(blocks, offset, selectedInPage, ctx);
     }
 

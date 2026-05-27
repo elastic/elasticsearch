@@ -338,11 +338,11 @@ public class ViewResolver {
                         assert patternPosition >= 0 : "Pattern must be found";
                         // cluster alias : index pattern
                         var clusterAndPattern = RemoteClusterAware.splitIndexName(urPatterns[patternPosition]);
-                        if (
-                        // patterns do not need to be shadowed if resolved by concrete local cluster alias (such as _origin)
-                        (clusterAndPattern[0] == null || clusterAndPattern[0].contains("*"))
-                            // patterns do not need to be shadowed as they are retained in original expressions
-                            && clusterAndPattern[1].contains("*") == false) {
+                        // marks if the expression targets current project (either by using flat or by matching using *:something)
+                        // this condition will change once we properly support `*:foo` resources
+                        var isCurrentProject = clusterAndPattern[0] == null || clusterAndPattern[0].contains("*");
+                        var isConcreteExpression = clusterAndPattern[1].contains("*") == false;
+                        if (isCurrentProject && isConcreteExpression) {
                             viewShadows.putIfAbsent(
                                 view.name(),
                                 new ViewShadowRelation(

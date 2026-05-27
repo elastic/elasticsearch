@@ -1238,18 +1238,18 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 cacheEntries.put(cacheKey, entry);
             }
 
-            assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
+            assertThat("Expected all regions to be used", cacheService.freeRegionCount(), equalTo(0));
             assertThat(
-                "Cache entries are not old enough to be evicted",
+                "Expected no entries old enough to be evicted",
                 cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0),
                 is(false)
             );
 
             taskQueue.runAllRunnableTasks();
 
-            assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
+            assertThat("Expected all regions to be used", cacheService.freeRegionCount(), equalTo(0));
             assertThat(
-                "Cache entries are not old enough to be evicted",
+                "Expected no entries old enough to be evicted",
                 cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0),
                 is(false)
             );
@@ -1269,9 +1269,9 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                 (key, entry) -> assertThat(cacheService.getFreq(entry), usedCacheKeys.contains(key) ? equalTo(3) : equalTo(1))
             );
 
-            assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
+            assertThat("Expected all regions to be used", cacheService.freeRegionCount(), equalTo(0));
             assertThat(
-                "Cache entries are not old enough to be evicted",
+                "Expected no entries old enough to be evicted",
                 cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0),
                 is(false)
             );
@@ -1279,7 +1279,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             cacheService.maybeScheduleDecayAndNewEpoch();
             taskQueue.runAllRunnableTasks();
 
-            assertThat("All regions are used", cacheService.freeRegionCount(), equalTo(0));
+            assertThat("Expected all regions to be used", cacheService.freeRegionCount(), equalTo(0));
             cacheEntries.forEach(
                 (key, entry) -> assertThat(cacheService.getFreq(entry), usedCacheKeys.contains(key) ? equalTo(2) : equalTo(0))
             );
@@ -1288,7 +1288,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             for (int i = 0; i < zeroFrequencyCacheEntries; i++) {
                 assertThat(cacheService.freeRegionCount(), equalTo(i));
                 assertThat(
-                    "Cache entry is old enough to be evicted",
+                    "Expected at least one entry old enough to be evicted",
                     cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0),
                     is(true)
                 );
@@ -1296,7 +1296,7 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
             }
 
             assertThat(
-                "No more cache entries old enough to be evicted",
+                "Expected no more entries old enough to be evicted",
                 cacheService.maybeEvictLeastUsed(generateCacheKey(), regionSize, 0),
                 is(false)
             );

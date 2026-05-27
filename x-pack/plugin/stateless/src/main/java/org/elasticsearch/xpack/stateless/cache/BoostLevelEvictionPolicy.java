@@ -33,7 +33,7 @@ public class BoostLevelEvictionPolicy implements EvictionPolicy<FileCacheKey> {
     public void onEvicted(CacheRegion<FileCacheKey> region) {}
 
     @Override
-    public boolean supportDegradation() {
+    public boolean supportsDegradation() {
         return true;
     }
 }

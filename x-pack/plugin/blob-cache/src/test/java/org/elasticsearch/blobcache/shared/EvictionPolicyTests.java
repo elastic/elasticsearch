@@ -43,11 +43,8 @@ public class EvictionPolicyTests extends ESTestCase {
         final long regionSizeInBytes = size(100);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(
-                SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
-                ByteSizeValue.ofBytes(size((long) numRegions * 100)).getStringRep()
-            )
-            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size((long) numRegions * 100)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
             .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
             .put("path.home", createTempDir())
             .build();
@@ -56,7 +53,7 @@ public class EvictionPolicyTests extends ESTestCase {
         final ShardId shard2 = new ShardId("index2", randomUUID(), 0);
 
         final var policy = new DefaultEvictionPolicy<TestKey>();
-        assertFalse(policy.supportDegradation());
+        assertFalse(policy.supportsDegradation());
 
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
@@ -112,11 +109,8 @@ public class EvictionPolicyTests extends ESTestCase {
         final long regionSizeInBytes = size(100);
         Settings settings = Settings.builder()
             .put(NODE_NAME_SETTING.getKey(), "node")
-            .put(
-                SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(),
-                ByteSizeValue.ofBytes(size((long) numRegions * 100)).getStringRep()
-            )
-            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(size((long) numRegions * 100)))
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(regionSizeInBytes))
             .put(SharedBlobCacheService.SHARED_CACHE_INITIAL_DECAYS_SETTING.getKey(), 0)
             .put("path.home", createTempDir())
             .build();
@@ -173,7 +167,7 @@ public class EvictionPolicyTests extends ESTestCase {
             }
 
             @Override
-            public boolean supportDegradation() {
+            public boolean supportsDegradation() {
                 return true;
             }
         };

@@ -2426,7 +2426,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             if (result != null) {
                 return result;
             }
-            if (evictionPolicy.supportDegradation()) {
+            if (evictionPolicy.supportsDegradation()) {
                 // Second pass: graceful degradation (degraded = true)
                 return maybeEvictAndTakeWithPolicy(incoming, evictedNotification, epoch.get(), true);
             }
@@ -2439,7 +2439,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             final long currentEpoch,
             final boolean degraded
         ) {
-            assert degraded == false || evictionPolicy.supportDegradation();
+            assert degraded == false || evictionPolicy.supportsDegradation();
             SharedBytes.IO result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, 0, degraded);
             if (degraded == false && freqs[0].count < freq0DecayScheduleThreshold && freeRegions.isEmpty()) {
                 maybeScheduleDecayAndNewEpoch(currentEpoch);
@@ -2464,10 +2464,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private SharedBytes.IO maybeEvictAndTakeForFrequency(
             final LFUCacheEntry incoming,
             final Runnable evictedNotification,
-            final int startFreq,
+            final int freq,
             final boolean degraded
         ) {
-            for (LFUCacheEntry entry = freqs[startFreq].head; entry != null; entry = entry.next) {
+            for (LFUCacheEntry entry = freqs[freq].head; entry != null; entry = entry.next) {
                 if (evictionPolicy.canEvict(entry.chunk, incoming.chunk, degraded) == false) {
                     continue;
                 }
@@ -2493,7 +2493,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         }
                     } finally {
                         entry.chunk.decRef();
-                        if (startFreq > 0) {
+                        if (freq > 0) {
                             evictedNotification.run();
                         }
                     }

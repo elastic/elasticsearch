@@ -68,5 +68,5 @@ public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> 
      * Policies that do not distinguish between normal and degraded modes (e.g., a policy
      * that treats all entries as evictable) should return {@code false}.
      */
-    boolean supportDegradation();
+    boolean supportsDegradation();
 }

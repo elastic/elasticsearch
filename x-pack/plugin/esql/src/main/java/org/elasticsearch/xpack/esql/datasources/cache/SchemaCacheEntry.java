@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -93,6 +95,15 @@ public record SchemaCacheEntry(
             );
         }
         return result;
+    }
+
+    /** Flattens a {@link SourceMetadata}'s stats into its metadata map. Replaces the
+     *  inlined flatten-and-build at the cache-loader call sites. */
+    public static SchemaCacheEntry from(SourceMetadata meta) {
+        Map<String, Object> enrichedMeta = meta.statistics()
+            .map(stats -> SourceStatisticsSerializer.embedStatistics(meta.sourceMetadata(), stats))
+            .orElse(meta.sourceMetadata());
+        return from(meta.schema(), meta.sourceType(), meta.location(), enrichedMeta, meta.config());
     }
 
     public long estimatedBytes() {

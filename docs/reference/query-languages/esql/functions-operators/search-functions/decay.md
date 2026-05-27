@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `DECAY` function [esql-decay]
 
-:::{include} ../../_snippets/functions/layout/decay.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/decay.md
 :::

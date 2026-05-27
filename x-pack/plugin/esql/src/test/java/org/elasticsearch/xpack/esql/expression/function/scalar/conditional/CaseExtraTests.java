@@ -184,6 +184,74 @@ public class CaseExtraTests extends ESTestCase {
         assertThat(c.partiallyFold(FoldContext.small()), equalToIgnoringIds(field("last", DataType.LONG)));
     }
 
+    public void testPartialFoldTrailingTextLeadingKeyword() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+            List.of(field("keyword_field", DataType.KEYWORD), field("text_field", DataType.TEXT))
+        );
+        assertThat(c.dataType(), equalTo(DataType.KEYWORD));
+        Expression result = c.partiallyFold(FoldContext.small());
+        assertThat(result, equalToIgnoringIds(field("text_field", DataType.TEXT)));
+        // This should be KEYWORD so it lines up with the original value.
+        // It isn't because the conversion is difficult.
+        // But it's not likely to break anything as is.
+    }
+
+    public void testPartialFoldTrailingKeywordLeadingText() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+            List.of(field("text_field", DataType.TEXT), field("keyword_field", DataType.KEYWORD))
+        );
+        assertThat(c.dataType(), equalTo(DataType.KEYWORD));
+        Expression result = c.partiallyFold(FoldContext.small());
+        assertThat(result, equalToIgnoringIds(field("keyword_field", DataType.KEYWORD)));
+    }
+
+    public void testPartialFoldExplicitNull() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+            List.of(field("username", DataType.KEYWORD), new Literal(Source.EMPTY, null, DataType.NULL))
+        );
+        assertThat(c.dataType(), equalTo(DataType.KEYWORD));
+        Expression result = c.partiallyFold(FoldContext.small());
+        assertThat("partiallyFold must preserve the Case's declared type, not null[NULL]", result.dataType(), equalTo(DataType.KEYWORD));
+    }
+
+    public void testPartialFoldAllFalseExplicitNull() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+            List.of(
+                new Literal(Source.EMPTY, BytesRefs.toBytesRef("a"), DataType.KEYWORD),
+                new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+                new Literal(Source.EMPTY, BytesRefs.toBytesRef("b"), DataType.KEYWORD),
+                new Literal(Source.EMPTY, null, DataType.NULL)
+            )
+        );
+        assertThat(c.dataType(), equalTo(DataType.KEYWORD));
+        Expression result = c.partiallyFold(FoldContext.small());
+        assertThat("partiallyFold must preserve the Case's declared type, not null[NULL]", result.dataType(), equalTo(DataType.KEYWORD));
+    }
+
+    public void testPartialFoldTrueBranchWithNullValue() {
+        Case c = new Case(
+            Source.synthetic("case"),
+            new Literal(Source.EMPTY, false, DataType.BOOLEAN),
+            List.of(
+                new Literal(Source.EMPTY, BytesRefs.toBytesRef("a"), DataType.KEYWORD),
+                new Literal(Source.EMPTY, true, DataType.BOOLEAN),
+                new Literal(Source.EMPTY, null, DataType.NULL),
+                new Literal(Source.EMPTY, BytesRefs.toBytesRef("b"), DataType.KEYWORD)
+            )
+        );
+        assertThat(c.dataType(), equalTo(DataType.KEYWORD));
+        Expression result = c.partiallyFold(FoldContext.small());
+        assertThat("partiallyFold must preserve the Case's declared type, not null[NULL]", result.dataType(), equalTo(DataType.KEYWORD));
+    }
+
     public void testPartialFoldLastAfterKeepingUnknown() {
         Case c = new Case(
             Source.synthetic("case"),

@@ -73,7 +73,7 @@ public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluator
         );
         List<Object[]> expected = Collections.nCopies(requestedFields.size(), new Object[] { null });
         evaluateAndCompare(input, requestedFields, expected, WARNINGS);
-        assertCriticalWarnings(
+        assertWarnings(
             "Line 1:1: evaluation of [invalid_input] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:1: java.lang.IllegalArgumentException: This command doesn't support multi-value input"
         );
@@ -112,7 +112,7 @@ public class UriPartsFunctionBridgeTests extends AbstractCompoundOutputEvaluator
         List<String> input = List.of("not a valid url");
         List<?> expected = Arrays.asList(null, null);
         evaluateAndCompare(input, requestedFields, expected, WARNINGS);
-        assertCriticalWarnings(
+        assertWarnings(
             "Line 1:1: evaluation of [invalid_input] failed, treating result as null. Only first 20 failures recorded.",
             "Line 1:1: java.lang.IllegalArgumentException: unable to parse URI [not a valid url]"
         );

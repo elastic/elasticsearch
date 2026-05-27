@@ -217,7 +217,7 @@ public class NumericMetricFieldDownsamplerTests extends AggregatorTestCase {
     }
 
     static SortedNumericDoubleValues createNumericValuesInstance(IntArrayList docIdBuffer, double... values) {
-        return new SortedNumericDoubleValues() {
+        return new SortedNumericDoubleValues(null) {
 
             final IntDoubleHashMap docIdToValue = IntDoubleHashMap.from(docIdBuffer.toArray(), values);
 

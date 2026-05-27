@@ -12,6 +12,8 @@ import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.promql.function.FunctionType;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
@@ -107,6 +109,14 @@ public abstract sealed class PromqlFunctionCall extends UnaryPlan implements Pro
      */
     public Expression buildEsqlFunction(Expression target, PromqlFunctionRegistry.PromqlContext ctx) {
         try {
+            // PromQL rate/increase/irate accept any numeric range vector. ES|QL's underlying functions
+            // require counter-typed inputs, so plain numerics (e.g. a gauge mapped as long) are wrapped
+            // with to_counter() here. Counter-typed fields are passed through unchanged.
+            if (target != null
+                && definition.counterSupport() == PromqlFunctionDefinition.CounterSupport.REQUIRED
+                && DataType.isCounter(target.dataType()) == false) {
+                target = new ToCounter(source(), target);
+            }
             return definition.esqlBuilder().build(source(), target, ctx, parameters());
         } catch (Exception e) {
             throw new ParsingException(source(), "Error building ESQL function for [{}]: {}", functionName(), e.getMessage());

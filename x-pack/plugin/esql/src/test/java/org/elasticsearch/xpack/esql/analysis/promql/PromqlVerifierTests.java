@@ -209,11 +209,9 @@ public class PromqlVerifierTests extends ESTestCase {
     }
 
     public void testGaugeMetricWithCounterOnlyFunction() {
-        // network.connections is a gauge - rate() requires counter metrics
-        tsdb.error(
-            "PROMQL index=test step=5m rate(network.connections[5m])",
-            containsString("function [rate] requires a counter metric, but [network.connections] has type [long]")
-        );
+        // network.connections is a gauge; rate() auto-wraps plain numerics with to_counter()
+        var plan = tsdb.query("PROMQL index=test step=5m rate(network.connections[5m])");
+        assertTrue("rate() on a plain numeric gauge should be valid (implicit to_counter wrap)", plan.resolved());
     }
 
     public void testRateOnNonNumericField() {

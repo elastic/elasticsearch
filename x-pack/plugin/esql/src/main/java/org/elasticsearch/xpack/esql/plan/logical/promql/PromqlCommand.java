@@ -526,6 +526,8 @@ public class PromqlCommand extends UnaryPlan
      * Only checks when the function's direct child is a RangeSelector, because InstantSelectors
      * are implicitly wrapped in LastOverTime during translation, which converts counter types
      * to their numeric base types. RangeSelectors pass the raw field type through to the function.
+     * Functions with {@link PromqlFunctionDefinition.CounterSupport#REQUIRED} accept plain numeric
+     * metrics and are wrapped with {@code to_counter()} during translation.
      */
     private static void validateCounterSupport(PromqlFunctionCall functionCall, Failures failures) {
         if (functionCall.child() instanceof RangeSelector s && s.series() instanceof FieldAttribute seriesField) {
@@ -540,17 +542,6 @@ public class PromqlCommand extends UnaryPlan
                         functionCall,
                         "function [{}] does not support counter metric [{}] of type [{}];"
                             + " use rate() or increase() to convert counters first [{}]",
-                        functionCall.functionName(),
-                        seriesField.name(),
-                        seriesType.typeName(),
-                        functionCall.sourceText()
-                    )
-                );
-            } else if (DataType.isCounter(seriesType) == false && counterSupport == PromqlFunctionDefinition.CounterSupport.REQUIRED) {
-                failures.add(
-                    fail(
-                        functionCall,
-                        "function [{}] requires a counter metric, but [{}] has type [{}] [{}]",
                         functionCall.functionName(),
                         seriesField.name(),
                         seriesType.typeName(),

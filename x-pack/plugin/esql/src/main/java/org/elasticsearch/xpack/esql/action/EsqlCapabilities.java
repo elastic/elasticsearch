@@ -2177,6 +2177,13 @@ public class EsqlCapabilities {
         PROMQL_IMPLICIT_RANGE_SELECTOR,
 
         /**
+         * PromQL counter functions ({@code rate}, {@code increase}, {@code irate}) accept plain numeric range
+         * vectors and are translated with an implicit {@code to_counter()} wrap when the metric is not
+         * already counter-typed.
+         */
+        PROMQL_IMPLICIT_TO_COUNTER,
+
+        /**
          * Support for PromQL {@code without} grouping.
          */
         PROMQL_WITHOUT_GROUPING,

@@ -1095,3 +1095,131 @@ PROMQL index=k8s step=1h result=(scalar(sum(network.cost)) + 1);
 result:double | step:datetime
 62.0          | 2024-05-10T00:00:00.000Z
 ;
+
+// PromQL rate/increase/irate accept plain numeric range vectors. ES|QL wraps non-counter
+// inputs with to_counter() during translation so counter functions work on plain numerics.
+rate_on_plain_numeric_long
+required_capability: promql_command_v0
+required_capability: promql_implicit_to_counter
+required_capability: rate_with_interpolation_v2
+// network.bytes_in is plain long (no counter mapping); implicit to_counter() enables rate().
+PROMQL index=k8s step=1m rate_bytes_in=(round(avg(rate(network.bytes_in[1m])), 0.001))
+| SORT rate_bytes_in DESC, step DESC | LIMIT 10;
+
+rate_bytes_in:double | step:datetime
+18.146               | 2024-05-10T00:20:00.000Z
+15.921000000000001   | 2024-05-10T00:10:00.000Z
+15.22                | 2024-05-10T00:17:00.000Z
+14.16                | 2024-05-10T00:04:00.000Z
+12.856               | 2024-05-10T00:11:00.000Z
+11.636000000000001   | 2024-05-10T00:00:00.000Z
+11.299               | 2024-05-10T00:18:00.000Z
+10.665000000000001   | 2024-05-10T00:19:00.000Z
+10.087               | 2024-05-10T00:09:00.000Z
+9.859                | 2024-05-10T00:06:00.000Z
+;
+
+rate_on_plain_numeric_gauge
+required_capability: promql_command_v0
+required_capability: promql_implicit_to_counter
+required_capability: rate_with_interpolation_v2
+// network.eth0.tx is mapped as gauge (integer); implicit to_counter() enables rate().
+PROMQL index=k8s step=1m rate_tx=(round(avg(rate(network.eth0.tx[1m])), 0.001))
+| SORT rate_tx DESC, step DESC | LIMIT 10;
+
+rate_tx:double | step:datetime
+2.828          | 2024-05-10T00:04:00.000Z
+2.684          | 2024-05-10T00:11:00.000Z
+2.559          | 2024-05-10T00:10:00.000Z
+2.116          | 2024-05-10T00:12:00.000Z
+1.915          | 2024-05-10T00:13:00.000Z
+1.838          | 2024-05-10T00:07:00.000Z
+1.564          | 2024-05-10T00:17:00.000Z
+1.538          | 2024-05-10T00:00:00.000Z
+1.407          | 2024-05-10T00:06:00.000Z
+1.401          | 2024-05-10T00:18:00.000Z
+;
+
+rate_on_counter_field
+required_capability: promql_command_v0
+required_capability: promql_implicit_to_counter
+required_capability: rate_with_interpolation_v2
+// network.total_bytes_in is counter_long; implicit to_counter() is a no-op.
+PROMQL index=k8s step=5m rate_bytes_in=(round(avg by (cluster) (rate(network.total_bytes_in[5m])), 0.001))
+| SORT rate_bytes_in DESC, step, cluster | LIMIT 10;
+
+rate_bytes_in:double | step:datetime            | cluster:keyword
+25.832               | 2024-05-10T00:20:00.000Z | prod
+15.427               | 2024-05-10T00:15:00.000Z | qa
+13.765               | 2024-05-10T00:05:00.000Z | qa
+12.737               | 2024-05-10T00:15:00.000Z | prod
+8.152000000000001    | 2024-05-10T00:20:00.000Z | qa
+7.822                | 2024-05-10T00:10:00.000Z | qa
+7.5360000000000005   | 2024-05-10T00:10:00.000Z | prod
+7.17                 | 2024-05-10T00:05:00.000Z | staging
+6.831                | 2024-05-10T00:10:00.000Z | staging
+6.022                | 2024-05-10T00:15:00.000Z | staging
+;
+
+increase_on_plain_numeric_gauge
+required_capability: promql_command_v0
+required_capability: promql_implicit_to_counter
+required_capability: rate_with_interpolation_v3
+// network.eth0.tx is mapped as gauge (integer); implicit to_counter() enables increase().
+PROMQL index=k8s step=1m increase_tx=(round(avg(increase(network.eth0.tx[1m])), 0.001))
+| SORT increase_tx DESC, step DESC | LIMIT 10;
+
+increase_tx:double | step:datetime
+110.259            | 2024-05-10T00:07:00.000Z
+100.49000000000001 | 2024-05-10T00:04:00.000Z
+97.73100000000001  | 2024-05-10T00:11:00.000Z
+93.247             | 2024-05-10T00:17:00.000Z
+92.281             | 2024-05-10T00:00:00.000Z
+81.574             | 2024-05-10T00:18:00.000Z
+79.368             | 2024-05-10T00:09:00.000Z
+78.333             | 2024-05-10T00:19:00.000Z
+72.68              | 2024-05-10T00:15:00.000Z
+70.18900000000001  | 2024-05-10T00:14:00.000Z
+;
+
+increase_on_plain_numeric_long
+required_capability: promql_command_v0
+required_capability: promql_implicit_to_counter
+required_capability: rate_with_interpolation_v3
+// network.bytes_in is plain long (no counter mapping); implicit to_counter() enables increase().
+PROMQL index=k8s step=1m increase_bytes_in=(round(avg(increase(network.bytes_in[1m])), 0.001))
+| SORT increase_bytes_in DESC, step DESC | LIMIT 10;
+
+increase_bytes_in:double | step:datetime
+911.77                   | 2024-05-10T00:17:00.000Z
+698.188                  | 2024-05-10T00:00:00.000Z
+645.7230000000001        | 2024-05-10T00:18:00.000Z
+639.902                  | 2024-05-10T00:19:00.000Z
+599.2520000000001        | 2024-05-10T00:09:00.000Z
+596.931                  | 2024-05-10T00:04:00.000Z
+568.997                  | 2024-05-10T00:06:00.000Z
+561.376                  | 2024-05-10T00:07:00.000Z
+507.112                  | 2024-05-10T00:11:00.000Z
+495.012                  | 2024-05-10T00:15:00.000Z
+;
+
+irate_on_plain_numeric_long
+required_capability: promql_command_v0
+required_capability: promql_implicit_to_counter
+required_capability: rate_with_interpolation_v2
+// network.bytes_in is plain long (no counter mapping); implicit to_counter() enables irate().
+PROMQL index=k8s step=1m irate_bytes_in=(round(avg(irate(network.bytes_in[1m])), 0.001))
+| SORT irate_bytes_in DESC, step DESC | LIMIT 10;
+
+irate_bytes_in:double | step:datetime
+127.656               | 2024-05-10T00:09:00.000Z
+114.419               | 2024-05-10T00:22:00.000Z
+100.233               | 2024-05-10T00:02:00.000Z
+94.0                  | 2024-05-10T00:00:00.000Z
+77.313                | 2024-05-10T00:11:00.000Z
+51.588                | 2024-05-10T00:19:00.000Z
+33.17                 | 2024-05-10T00:15:00.000Z
+31.231                | 2024-05-10T00:04:00.000Z
+29.088                | 2024-05-10T00:17:00.000Z
+29.0                  | 2024-05-10T00:07:00.000Z
+;

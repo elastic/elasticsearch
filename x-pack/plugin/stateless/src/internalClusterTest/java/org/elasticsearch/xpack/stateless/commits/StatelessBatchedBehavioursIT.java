@@ -94,10 +94,6 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
             .put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK.toString().toLowerCase(Locale.ROOT));
     }
 
-    @TestLogging(
-        value = "org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService.shard_files_deletes:debug",
-        reason = "log shard file deletions"
-    )
     public void testGenerationalFileBlobReferenceIsRetainedCorrectly() throws Exception {
         final String indexNode = startMasterAndIndexNode(
             Settings.builder()
@@ -140,9 +136,9 @@ public class StatelessBatchedBehavioursIT extends AbstractStatelessPluginIntegTe
             final var latestUploaded = statelessCommitService.getLatestUploadedBcc(indexShard.shardId());
             assertNotNull("no BCC has been uploaded yet", latestUploaded);
             assertThat(
-                "every bulk-phase commit must finish uploading before forceMerge() runs, otherwise the #148723 race fires",
+                "every bulk-phase commit must finish uploading before forceMerge() runs",
                 latestUploaded.lastCompoundCommit().primaryTermAndGeneration().generation(),
-                greaterThanOrEqualTo(lastBulkPhaseGeneration)
+                equalTo(lastBulkPhaseGeneration)
             );
         }, 30, TimeUnit.SECONDS);
         forceMerge();

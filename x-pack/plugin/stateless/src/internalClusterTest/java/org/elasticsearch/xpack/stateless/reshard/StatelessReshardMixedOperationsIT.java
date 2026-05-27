@@ -27,7 +27,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
-import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -53,7 +52,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
     public void testMixedOperationsDuringSplit() throws Exception {
         runTest(NoDisruptionExecutor::new, Disruptor.NOOP);
     }
-    
+
     public void testMixedOperationsDuringSplitWithDisruption() throws Exception {
         var disruptor = new Disruptor() {
             private final AtomicBoolean stop = new AtomicBoolean(false);

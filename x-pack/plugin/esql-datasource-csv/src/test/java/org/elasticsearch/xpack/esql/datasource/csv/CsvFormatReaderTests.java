@@ -2378,7 +2378,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testEscapedDelimiterInLine() throws IOException {
         String csv = "id:long,data:keyword\n1,a\\,b\n2,normal\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = mvcReader(blockFactory);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2437,22 +2437,6 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
-    public void testMultiValueEnabledByDefault() throws IOException {
-        String csv = "id:integer,values:integer\n1,\"[1,2]\"\n";
-        StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
-
-        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
-            assertTrue(iterator.hasNext());
-            Page page = iterator.next();
-            assertEquals(1, page.getPositionCount());
-            IntBlock valuesBlock = (IntBlock) page.getBlock(1);
-            assertEquals(2, valuesBlock.getValueCount(0));
-            assertEquals(1, valuesBlock.getInt(valuesBlock.getFirstValueIndex(0)));
-            assertEquals(2, valuesBlock.getInt(valuesBlock.getFirstValueIndex(0) + 1));
-        }
-    }
-
     public void testMultiValueExplicitlyDisabled() {
         String csv = "id:integer,values:integer\n1,\"[1,2]\"\n";
         StorageObject object = createStorageObject(csv);
@@ -2484,7 +2468,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testMultiValueBracketsQuotedStrings() throws IOException {
         String csv = "id:integer,names:keyword\n1,\"[\"\"foo\"\",\"\"bar\"\"]\"\n2,\"[\"\"hello world\"\",\"\"test\"\"]\"\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = mvcReader(blockFactory);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2507,7 +2491,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testEmployeesCsvWithMultiValues() throws IOException {
         String csv = new String(CsvTestsDataLoader.getResourceStream("/data/employees.csv").readAllBytes(), StandardCharsets.UTF_8);
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = mvcReader(blockFactory);
 
         List<Attribute> schema = reader.schema(object);
         assertEquals(23, schema.size());
@@ -2530,7 +2514,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testMultiValueBracketsInMultiColumnRow() throws IOException {
         String csv = "prefix:keyword,tags:keyword,suffix:keyword\nx,[hello,world],y\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = mvcReader(blockFactory);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2575,7 +2559,7 @@ public class CsvFormatReaderTests extends ESTestCase {
      */
     public void testMetadataSchemaColumnCountUsesBracketAwareHeaderSplit() throws IOException {
         String csv = "id:integer,title:keyword\n1,[[37]]\n2,[hello,world]\n";
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = mvcReader(blockFactory);
         assertEquals(2, reader.metadata(createStorageObject(csv)).schema().size());
         try (CloseableIterator<Page> iterator = reader.read(createStorageObject(csv), null, 10)) {
             int rows = 0;
@@ -2593,7 +2577,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testBracketAwareNestedBracketsStaySingleCell() throws IOException {
         String csv = "prefix:keyword,mid:keyword,suffix:keyword\nx,[[37]],y\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = mvcReader(blockFactory);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2611,7 +2595,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testMultiValueBracketsQuotedElements() throws IOException {
         String csv = "id:integer,names:keyword\n1,\"[\"\"hello\"\",\"\"world\"\"]\"\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = mvcReader(blockFactory);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2627,7 +2611,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testMultiValueBracketsMixedQuotedUnquoted() throws IOException {
         String csv = "id:integer,data:keyword\n1,\"[hello,\"\"world,world\"\"]\"\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = mvcReader(blockFactory);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2643,7 +2627,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testMultiValueBracketsQuotedWithEscapedQuote() throws IOException {
         String csv = "id:integer,data:keyword\n1,\"[\"\"say \"\"\"\"hi\"\"\"\"\"\"]\"\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = mvcReader(blockFactory);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2658,7 +2642,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testMultiValueBracketsLong() throws IOException {
         String csv = "id:integer,values:long\n1,\"[100000000000,200000000000]\"\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = mvcReader(blockFactory);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -2973,7 +2957,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             + "1,[some text\",1,2013-07-15 13:51:28,2013-07-15,38,177794517],ok\n"
             + "2,[plain],ok\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = mvcReader(blockFactory);
 
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
@@ -3019,14 +3003,14 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testFindNextRecordBoundaryNewlineInsideBracketMvc() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = mvcReader(blockFactory);
         byte[] data = "before,[line1\nline2\nline3],after\nnext\n".getBytes(StandardCharsets.UTF_8);
         long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("before,[line1\nline2\nline3],after\n".length(), boundary);
     }
 
     public void testFindNextRecordBoundaryNestedBracketMvcWithEmbeddedNewlines() throws IOException {
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = mvcReader(blockFactory);
         byte[] data = "a,[[cell\ninner]],b\nz\n".getBytes(StandardCharsets.UTF_8);
         long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
         assertEquals("a,[[cell\ninner]],b\n".length(), boundary);
@@ -3125,6 +3109,11 @@ public class CsvFormatReaderTests extends ESTestCase {
 
     private static CsvFormatReader noMvcReader(BlockFactory bf) {
         return (CsvFormatReader) new CsvFormatReader(bf).withConfig(Map.of("multi_value_syntax", "none"));
+    }
+
+    /** Comma-delimited reader with bracket multi-value parsing enabled (no longer the default). */
+    private static CsvFormatReader mvcReader(BlockFactory bf) {
+        return (CsvFormatReader) new CsvFormatReader(bf).withConfig(Map.of("multi_value_syntax", "brackets"));
     }
 
     public void testFindLastRecordBoundaryQuotedFieldsOnlyTsvSimpleTwoLines() throws IOException {
@@ -3502,7 +3491,7 @@ public class CsvFormatReaderTests extends ESTestCase {
     public void testBracketAwareLeadingWhitespaceBeforeBracketOpensMvc() throws IOException {
         String csv = "prefix:keyword,mid:keyword,suffix:keyword\nx,  [[37]],y\n";
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = mvcReader(blockFactory);
         try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
             assertTrue(iterator.hasNext());
             Page page = iterator.next();
@@ -4595,7 +4584,7 @@ public class CsvFormatReaderTests extends ESTestCase {
             """;
 
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = mvcReader(blockFactory);
         ErrorPolicy lenient = new ErrorPolicy(10, true);
 
         try (
@@ -5380,7 +5369,7 @@ public class CsvFormatReaderTests extends ESTestCase {
 
         String csv = "id:long,name:keyword\n" + row;
         StorageObject object = createStorageObject(csv);
-        CsvFormatReader reader = new CsvFormatReader(blockFactory);
+        CsvFormatReader reader = mvcReader(blockFactory);
 
         ParsingException e = expectThrows(ParsingException.class, () -> {
             try (

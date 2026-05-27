@@ -7,32 +7,135 @@
 
 package org.elasticsearch.xpack.inference.mapper;
 
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.xcontent.DeprecationHandler;
+import org.elasticsearch.xcontent.NamedXContentRegistry;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.support.MapXContentParser;
 
+import java.util.ArrayList;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
-
-import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 
 public class SemanticFieldContent {
-    private final String concatenatedTextValues;
-    private final Map<Integer, InferenceString> inferenceStringValues;
+    private final List<Object> originalValues;
+    private final List<String> textValues;
+    private final Map<Integer, Map<?, ?>> mapValues;
 
-    public SemanticFieldContent(List<String> textValues, Map<Integer, InferenceString> inferenceStringValues) {
-        Objects.requireNonNull(textValues);
-        Objects.requireNonNull(inferenceStringValues);
-        this.concatenatedTextValues = Strings.collectionToDelimitedString(textValues, String.valueOf(MULTIVAL_SEP_CHAR));
-        this.inferenceStringValues = Collections.unmodifiableMap(inferenceStringValues);
+    public SemanticFieldContent(Object fieldValue) {
+        if (fieldValue == null) {
+            this.originalValues = List.of();
+            this.textValues = List.of();
+            this.mapValues = Map.of();
+        } else if (fieldValue instanceof List<?> list) {
+            this.originalValues = new ArrayList<>(list.size());
+            this.textValues = new ArrayList<>(list.size());
+            this.mapValues = new HashMap<>(list.size());
+            parseFieldValues(list, originalValues, textValues, mapValues);
+        } else {
+            this.originalValues = new ArrayList<>(1);
+            this.textValues = new ArrayList<>(1);
+            this.mapValues = new HashMap<>(1);
+            parseFieldValues(List.of(fieldValue), originalValues, textValues, mapValues);
+        }
+    }
+
+    public List<Object> getOriginalValues() {
+        return Collections.unmodifiableList(originalValues);
     }
 
     public String getChunkText(int startOffset, int endOffset) {
-        return concatenatedTextValues.substring(startOffset, endOffset);
+        if (textValues.isEmpty()) {
+            throw new IndexOutOfBoundsException("Chunk text offset [" + startOffset + ", " + endOffset + "] is out of bounds");
+        }
+
+        // Find the text value that corresponds with the offest
+        int textValueIndex = 0;
+        int currentStartOffset = startOffset;
+        int currentEndOffset = endOffset;
+        String currentTextValue = textValues.get(textValueIndex);
+        while (currentStartOffset >= currentTextValue.length()) {
+            // Add one to account for separator character between text values
+            int offsetAdjustment = currentTextValue.length() + 1;
+            currentStartOffset -= offsetAdjustment;
+            currentEndOffset -= offsetAdjustment;
+            if (currentStartOffset < 0) {
+                throw new IndexOutOfBoundsException("Start offset [" + startOffset + "] refers to a separator character");
+            }
+
+            textValueIndex++;
+            if (textValueIndex >= textValues.size()) {
+                throw new IndexOutOfBoundsException("Chunk text offset [" + startOffset + ", " + endOffset + "] is out of bounds");
+            }
+            currentTextValue = textValues.get(textValueIndex);
+        }
+
+        if (currentEndOffset > currentTextValue.length()) {
+            throw new IndexOutOfBoundsException("End offset [" + endOffset + "] crosses a text value boundary");
+        }
+
+        return currentTextValue.substring(currentStartOffset, currentEndOffset);
     }
 
-    public InferenceString getInferenceString(int inputIndex) {
-        return inferenceStringValues.get(inputIndex);
+    public Map<?, ?> getMapValue(int inputIndex) {
+        var mapValue = mapValues.get(inputIndex);
+        if (mapValue == null) {
+            return null;
+        } else {
+            return Collections.unmodifiableMap(mapValue);
+        }
+    }
+
+    public InferenceString getInferenceStringValue(int inputIndex) {
+        Map<?, ?> mapValue = getMapValue(inputIndex);
+        if (mapValue == null) {
+            return null;
+        }
+
+        return parseInferenceStringValue(mapValue);
+    }
+
+    private static void parseFieldValues(
+        List<?> fieldValues,
+        List<Object> originalValues,
+        List<String> textValues,
+        Map<Integer, Map<?, ?>> mapValues
+    ) {
+        int valueIndex = 0;
+        for (Object value : fieldValues) {
+            final Object parsedValue;
+            if (value instanceof Map<?, ?> map) {
+                parsedValue = map;
+                mapValues.put(valueIndex, map);
+            } else {
+                // TODO: Null value handling
+                parsedValue = value.toString();
+                textValues.add((String) parsedValue);
+            }
+
+            originalValues.add(parsedValue);
+            valueIndex++;
+        }
+    }
+
+    private static InferenceString parseInferenceStringValue(Map<?, ?> value) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> stringKeyedMap = (Map<String, Object>) value;
+
+        try (
+            XContentParser parser = new MapXContentParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.IGNORE_DEPRECATIONS,
+                stringKeyedMap,
+                XContentType.JSON
+            )
+        ) {
+            return InferenceString.PARSER.parse(parser, null);
+        } catch (Exception e) {
+            throw new IllegalArgumentException("Cannot parse value [" + value + "] to an InferenceString", e);
+        }
     }
 }

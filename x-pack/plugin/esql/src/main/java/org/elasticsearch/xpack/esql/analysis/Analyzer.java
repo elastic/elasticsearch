@@ -258,7 +258,6 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             new InsertFromAggregateMetricDouble(),
             new ResolveImplicitTimeSeriesIdentityGrouping(),
             new ResolveUnionTypesInUnionAll(),
-            new PropagateSyntheticAttributesThroughProjects(),
             new ResolveUnmapped()
         ),
         new Batch<>(
@@ -3546,32 +3545,20 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
      * {@code DROP} omits these attributes, downstream references become unbound and optimization fails
      * with missing-reference errors.
      */
-    private static class PropagateSyntheticAttributesThroughProjects extends Rule<LogicalPlan, LogicalPlan> {
-        @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            return plan.resolved() ? carryOverSyntheticAttributesThroughProjects(plan) : plan;
-        }
-    }
-
     private static LogicalPlan carryOverSyntheticAttributesThroughProjects(LogicalPlan plan) {
-        AttributeSet.Builder requiredByAncestors = plan.outputSet().asBuilder();
-        return plan.transformDown(p -> {
-            LogicalPlan updated = p;
-            if (p instanceof Project project) {
-                List<Attribute> syntheticAttributesToCarryOver = new ArrayList<>();
-                for (Attribute attr : project.inputSet()) {
-                    if (attr.synthetic() && requiredByAncestors.contains(attr) && project.outputSet().contains(attr) == false) {
-                        syntheticAttributesToCarryOver.add(attr);
-                    }
-                }
-                if (syntheticAttributesToCarryOver.isEmpty() == false) {
-                    List<NamedExpression> newProjections = new ArrayList<>(project.projections());
-                    newProjections.addAll(syntheticAttributesToCarryOver);
-                    updated = new Project(project.source(), project.child(), newProjections);
+        return plan.transformUp(Project.class, p -> {
+            List<Attribute> syntheticAttributesToCarryOver = new ArrayList<>();
+            for (Attribute attr : p.inputSet()) {
+                if (attr.synthetic() && p.outputSet().contains(attr) == false) {
+                    syntheticAttributesToCarryOver.add(attr);
                 }
             }
-            requiredByAncestors.addAll(updated.references());
-            return updated;
+            if (syntheticAttributesToCarryOver.isEmpty()) {
+                return p;
+            }
+            List<NamedExpression> newProjections = new ArrayList<>(p.projections());
+            newProjections.addAll(syntheticAttributesToCarryOver);
+            return new Project(p.source(), p.child(), newProjections);
         });
     }
 }

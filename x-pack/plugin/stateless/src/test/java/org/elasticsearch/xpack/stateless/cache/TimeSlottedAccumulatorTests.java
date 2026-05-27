@@ -33,11 +33,11 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new TimeSlottedAccumulator(randomGranularity(), Integer.MAX_VALUE, 1L, clock::get)
+            () -> new TimeSlottedAccumulator(randomGranularity(), Integer.MAX_VALUE, 1, clock::get)
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new TimeSlottedAccumulator(randomGranularity(), Long.MAX_VALUE, Long.MAX_VALUE, clock::get)
+            () -> new TimeSlottedAccumulator(randomGranularity(), Integer.MAX_VALUE, Integer.MAX_VALUE, clock::get)
         );
         long overflowingGranularityMillis = Long.MAX_VALUE / 2 + 1;
         expectThrows(

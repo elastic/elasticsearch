@@ -32,17 +32,17 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Long> TIME_SLOTS_PAST_COUNT_SETTING = Setting.longSetting(
+    public static final Setting<Integer> TIME_SLOTS_PAST_COUNT_SETTING = Setting.intSetting(
         "stateless.cache_boost_preference.time_slots.past.count",
-        87600L, // default 10y past retention (for 1h slots)
-        1L,
+        87600, // default 10y past retention (for 1h slots)
+        1,
         Setting.Property.NodeScope
     );
 
-    public static final Setting<Long> TIME_SLOTS_FUTURE_COUNT_SETTING = Setting.longSetting(
+    public static final Setting<Integer> TIME_SLOTS_FUTURE_COUNT_SETTING = Setting.intSetting(
         "stateless.cache_boost_preference.time_slots.future.count",
-        8760L, // default 1y future retention (for 1h slots); uptime beyond this w/o restart clamps new counts to the head slot
-        0L,
+        8760, // default 1y future retention (for 1h slots); uptime beyond this w/o restart clamps new counts to the head slot
+        0,
         Setting.Property.NodeScope
     );
 
@@ -83,7 +83,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
      * @param futureSlots number of future slots retained beyond the anchor slot
      * @param timeProvider source of time in milliseconds
      */
-    public TimeSlottedAccumulator(TimeValue granularity, long pastSlots, long futureSlots, LongSupplier timeProvider) {
+    public TimeSlottedAccumulator(TimeValue granularity, int pastSlots, int futureSlots, LongSupplier timeProvider) {
         if (granularity.millis() <= 0) {
             throw new IllegalArgumentException("granularity must be positive");
         }
@@ -93,7 +93,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
         if (futureSlots < 0) {
             throw new IllegalArgumentException("futureSlots must be >= 0");
         }
-        final long totalSlots;
+        final int totalSlots;
         try {
             totalSlots = Math.addExact(pastSlots, futureSlots);
         } catch (ArithmeticException e) {
@@ -102,13 +102,8 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
                 e
             );
         }
-        if (totalSlots > Integer.MAX_VALUE) {
-            throw new IllegalArgumentException(
-                "pastSlots + futureSlots must not exceed " + Integer.MAX_VALUE + " but was [" + totalSlots + "]"
-            );
-        }
         this.granularityMillis = granularity.millis();
-        this.counts = new AtomicLongArray((int) totalSlots);
+        this.counts = new AtomicLongArray(totalSlots);
         long anchorSlotMillis = alignTimestampToSlotMillis(Math.max(0, timeProvider.getAsLong()));
         try {
             this.tailSlotMillis = Math.subtractExact(anchorSlotMillis, Math.multiplyExact(pastSlots - 1, granularityMillis));

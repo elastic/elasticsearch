@@ -321,14 +321,14 @@ public class SqlParserTests extends ESTestCase {
         // 200 elements is ok
         new SqlParser().createExpression(join("", nCopies(200, "abs(")).concat("i").concat(join("", nCopies(200, ")"))));
 
-        // 5000 elements cause stack overflow
+        // 5000 elements are caught by the pre-scan depth check before ANTLR parses
         ParsingException e = expectThrows(
             ParsingException.class,
             () -> new SqlParser().createExpression(join("", nCopies(5000, "abs(")).concat("i").concat(join("", nCopies(5000, ")"))))
         );
         assertThat(
             e.getMessage(),
-            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: [")
+            containsString("SQL statement exceeded the maximum expression depth allowed (" + SqlParser.MAX_EXPRESSION_DEPTH + ")")
         );
     }
 
@@ -352,7 +352,7 @@ public class SqlParserTests extends ESTestCase {
         // 200 elements is ok
         new SqlParser().createStatement(join(" (", nCopies(200, "SELECT * FROM")).concat("t").concat(join("", nCopies(199, ")"))));
 
-        // 1000 elements cause stack overflow
+        // 1000 elements are caught by the pre-scan depth check before ANTLR parses
         ParsingException e = expectThrows(
             ParsingException.class,
             () -> new SqlParser().createStatement(
@@ -361,7 +361,26 @@ public class SqlParserTests extends ESTestCase {
         );
         assertThat(
             e.getMessage(),
-            startsWith("line -1:0: SQL statement is too large, causing stack overflow when generating the parsing tree: [")
+            containsString("SQL statement exceeded the maximum expression depth allowed (" + SqlParser.MAX_EXPRESSION_DEPTH + ")")
+        );
+    }
+
+    public void testMaxExpressionDepth_nestedFunction_maxAllowed() {
+        // MAX_EXPRESSION_DEPTH - 1 nested function calls: LP depth is within the pre-scan threshold
+        int depth = SqlParser.MAX_EXPRESSION_DEPTH - 1;
+        new SqlParser().createExpression(join("", nCopies(depth, "abs(")).concat("i").concat(join("", nCopies(depth, ")"))));
+    }
+
+    public void testMaxExpressionDepth_nestedFunction_minOverflow() {
+        // MAX_EXPRESSION_DEPTH + 1 nested function calls: LP depth exceeds the pre-scan threshold
+        int depth = SqlParser.MAX_EXPRESSION_DEPTH + 1;
+        ParsingException e = expectThrows(
+            ParsingException.class,
+            () -> new SqlParser().createExpression(join("", nCopies(depth, "abs(")).concat("i").concat(join("", nCopies(depth, ")"))))
+        );
+        assertThat(
+            e.getMessage(),
+            containsString("SQL statement exceeded the maximum expression depth allowed (" + SqlParser.MAX_EXPRESSION_DEPTH + ")")
         );
     }
 

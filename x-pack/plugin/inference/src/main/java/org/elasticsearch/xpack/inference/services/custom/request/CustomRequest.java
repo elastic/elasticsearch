@@ -19,7 +19,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.ValidatingSubstitutor;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.custom.CustomModel;
 import org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings;
 
@@ -34,7 +34,7 @@ import static org.elasticsearch.xpack.inference.common.JsonUtils.toJson;
 import static org.elasticsearch.xpack.inference.services.ServiceFields.URL;
 import static org.elasticsearch.xpack.inference.services.custom.CustomServiceSettings.REQUEST;
 
-public class CustomRequest implements Request {
+public class CustomRequest implements OutboundRequest {
 
     private final URI uri;
     private final ValidatingSubstitutor jsonPlaceholderReplacer;
@@ -136,7 +136,7 @@ public class CustomRequest implements Request {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         return this;
     }
 

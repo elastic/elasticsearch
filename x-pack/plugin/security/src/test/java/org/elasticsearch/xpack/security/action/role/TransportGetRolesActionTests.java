@@ -23,11 +23,13 @@ import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
 import org.elasticsearch.xpack.core.security.authz.store.RoleRetrievalResult;
 import org.elasticsearch.xpack.core.security.user.UsernamesField;
 import org.elasticsearch.xpack.security.authz.ReservedRoleNameChecker;
+import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativeRolesStore;
 import org.junit.BeforeClass;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
@@ -41,9 +43,11 @@ import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
@@ -55,6 +59,24 @@ public class TransportGetRolesActionTests extends ESTestCase {
         // Initialize the reserved roles store so that static fields are populated.
         // In production code, this is guaranteed by how components are initialized by the Security plugin
         new ReservedRolesStore();
+    }
+
+    /**
+     * Returns a {@link CompositeRolesStore} whose {@code addImplicitPrivilegesToRoles} simply
+     * forwards the input collection to its listener unchanged. The implicit-privileges decoration
+     * is exercised in {@code CompositeRolesStoreTests}; here we just want the action's listener
+     * chain to complete without hanging.
+     */
+    private static CompositeRolesStore mockCompositeRolesStore() {
+        CompositeRolesStore mock = mock(CompositeRolesStore.class);
+        doAnswer(invocation -> {
+            Collection<RoleDescriptor> roles = invocation.getArgument(0);
+            @SuppressWarnings("unchecked")
+            ActionListener<Collection<RoleDescriptor>> listener = invocation.getArgument(1);
+            listener.onResponse(roles);
+            return null;
+        }).when(mock).addImplicitPrivilegesToRoles(any(), anyActionListener());
+        return mock;
     }
 
     public void testReservedRoles() {
@@ -71,6 +93,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
         TransportGetRolesAction action = new TransportGetRolesAction(
             mock(ActionFilters.class),
             rolesStore,
+            mockCompositeRolesStore(),
             new ReservedRoleNameChecker.Default(),
             transportService
         );
@@ -148,6 +171,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
         TransportGetRolesAction action = new TransportGetRolesAction(
             mock(ActionFilters.class),
             rolesStore,
+            mockCompositeRolesStore(),
             new ReservedRoleNameChecker.Default(),
             transportService
         );
@@ -214,6 +238,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
         TransportGetRolesAction action = new TransportGetRolesAction(
             mock(ActionFilters.class),
             rolesStore,
+            mockCompositeRolesStore(),
             new ReservedRoleNameChecker.Default(),
             transportService
         );
@@ -305,6 +330,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
         final TransportGetRolesAction action = new TransportGetRolesAction(
             mock(ActionFilters.class),
             rolesStore,
+            mockCompositeRolesStore(),
             new ReservedRoleNameChecker.Default(),
             transportService
         );
@@ -382,6 +408,7 @@ public class TransportGetRolesActionTests extends ESTestCase {
         TransportGetRolesAction action = new TransportGetRolesAction(
             mock(ActionFilters.class),
             rolesStore,
+            mockCompositeRolesStore(),
             new ReservedRoleNameChecker.Default(),
             transportService
         );
@@ -415,6 +442,69 @@ public class TransportGetRolesActionTests extends ESTestCase {
         assertThat(throwableRef.get(), is(notNullValue()));
         assertThat(throwableRef.get(), is(e));
         assertThat(responseRef.get(), is(nullValue()));
+    }
+
+    public void testIncludeImplicitFalseDoesNotInvokeCompositeRolesStore() {
+        final List<RoleDescriptor> storeRoleDescriptors = randomRoleDescriptors();
+        final List<String> storeNames = storeRoleDescriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toList());
+        final NativeRolesStore rolesStore = mockNativeRolesStore(storeNames, storeRoleDescriptors);
+        final CompositeRolesStore compositeRolesStore = mockCompositeRolesStore();
+        final TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            mock(ThreadPool.class),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        final TransportGetRolesAction action = new TransportGetRolesAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            compositeRolesStore,
+            new ReservedRoleNameChecker.Default(),
+            transportService
+        );
+
+        final GetRolesRequest request = new GetRolesRequest();
+        request.names(storeNames.toArray(Strings.EMPTY_ARRAY));
+        // includeImplicit defaults to false; explicitly assert the default to make this test's intent obvious.
+        assertThat(request.includeImplicit(), is(false));
+
+        final List<String> actualRoleNames = doExecuteSuccessfully(action, request);
+        assertThat(actualRoleNames, containsInAnyOrder(storeNames.toArray(Strings.EMPTY_ARRAY)));
+        verify(compositeRolesStore, never()).addImplicitPrivilegesToRoles(any(), anyActionListener());
+    }
+
+    public void testIncludeImplicitTrueInvokesCompositeRolesStore() {
+        final List<RoleDescriptor> storeRoleDescriptors = randomRoleDescriptors();
+        final List<String> storeNames = storeRoleDescriptors.stream().map(RoleDescriptor::getName).collect(Collectors.toList());
+        final NativeRolesStore rolesStore = mockNativeRolesStore(storeNames, storeRoleDescriptors);
+        final CompositeRolesStore compositeRolesStore = mockCompositeRolesStore();
+        final TransportService transportService = new TransportService(
+            Settings.EMPTY,
+            mock(Transport.class),
+            mock(ThreadPool.class),
+            TransportService.NOOP_TRANSPORT_INTERCEPTOR,
+            x -> null,
+            null,
+            Collections.emptySet()
+        );
+        final TransportGetRolesAction action = new TransportGetRolesAction(
+            mock(ActionFilters.class),
+            rolesStore,
+            compositeRolesStore,
+            new ReservedRoleNameChecker.Default(),
+            transportService
+        );
+
+        final GetRolesRequest request = new GetRolesRequest();
+        request.names(storeNames.toArray(Strings.EMPTY_ARRAY));
+        request.includeImplicit(true);
+
+        final List<String> actualRoleNames = doExecuteSuccessfully(action, request);
+        assertThat(actualRoleNames, containsInAnyOrder(storeNames.toArray(Strings.EMPTY_ARRAY)));
+        verify(compositeRolesStore, times(1)).addImplicitPrivilegesToRoles(any(), anyActionListener());
     }
 
     private List<RoleDescriptor> randomRoleDescriptors() {

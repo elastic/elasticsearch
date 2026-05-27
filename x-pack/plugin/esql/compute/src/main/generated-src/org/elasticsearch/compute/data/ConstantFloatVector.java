@@ -48,6 +48,11 @@ final class ConstantFloatVector extends AbstractVector implements FloatVector {
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Float.BYTES;
+    }
+
+    @Override
     public FloatVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantFloatVector(value, positions.length);
     }

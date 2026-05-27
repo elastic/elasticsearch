@@ -23,22 +23,23 @@ public record VoyageAIEmbeddingsRequestEntity(
     List<String> input,
     InputType inputType,
     VoyageAIEmbeddingsServiceSettings serviceSettings,
-    VoyageAIEmbeddingsTaskSettings taskSettings,
-    String model
+    VoyageAIEmbeddingsTaskSettings taskSettings
 ) implements ToXContentObject {
 
-    private static final String DOCUMENT = "document";
-    private static final String QUERY = "query";
-    private static final String INPUT_FIELD = "input";
-    private static final String MODEL_FIELD = "model";
+    // Accepted input_type values
+    private static final String INPUT_TYPE_DOCUMENT_VALUE = "document";
+    private static final String INPUT_TYPE_QUERY_VALUE = "query";
+
+    // Field names for request body
+    public static final String INPUT_FIELD = "input";
+    public static final String MODEL_FIELD = "model";
     public static final String INPUT_TYPE_FIELD = "input_type";
     public static final String TRUNCATION_FIELD = "truncation";
-    public static final String OUTPUT_DIMENSION = "output_dimension";
-    static final String OUTPUT_DTYPE_FIELD = "output_dtype";
+    public static final String OUTPUT_DIMENSION_FIELD = "output_dimension";
+    public static final String OUTPUT_DTYPE_FIELD = "output_dtype";
 
     public VoyageAIEmbeddingsRequestEntity {
         Objects.requireNonNull(input);
-        Objects.requireNonNull(model);
         Objects.requireNonNull(taskSettings);
         Objects.requireNonNull(serviceSettings);
     }
@@ -47,36 +48,29 @@ public record VoyageAIEmbeddingsRequestEntity(
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(INPUT_FIELD, input);
-        builder.field(MODEL_FIELD, model);
-
+        builder.field(MODEL_FIELD, serviceSettings.modelId());
         // prefer the root level inputType over task settings input type
         if (InputType.isSpecified(inputType)) {
-            builder.field(INPUT_TYPE_FIELD, convertToString(inputType));
-        } else if (InputType.isSpecified(taskSettings.getInputType())) {
-            builder.field(INPUT_TYPE_FIELD, convertToString(taskSettings.getInputType()));
+            builder.field(INPUT_TYPE_FIELD, convertInputTypeToString(inputType));
+        } else if (InputType.isSpecified(taskSettings.inputType())) {
+            builder.field(INPUT_TYPE_FIELD, convertInputTypeToString(taskSettings.inputType()));
         }
-
-        if (taskSettings.getTruncation() != null) {
-            builder.field(TRUNCATION_FIELD, taskSettings.getTruncation());
+        if (taskSettings.truncation() != null) {
+            builder.field(TRUNCATION_FIELD, taskSettings.truncation());
         }
-
         if (serviceSettings.dimensions() != null) {
-            builder.field(OUTPUT_DIMENSION, serviceSettings.dimensions());
+            builder.field(OUTPUT_DIMENSION_FIELD, serviceSettings.dimensions());
         }
-
-        if (serviceSettings.getEmbeddingType() != null) {
-            builder.field(OUTPUT_DTYPE_FIELD, serviceSettings.getEmbeddingType().toRequestString());
-        }
-
+        builder.field(OUTPUT_DTYPE_FIELD, serviceSettings.embeddingType().toRequestString());
         builder.endObject();
         return builder;
     }
 
-    public static String convertToString(InputType inputType) {
+    public static String convertInputTypeToString(InputType inputType) {
         return switch (inputType) {
             case null -> null;
-            case INGEST, INTERNAL_INGEST -> DOCUMENT;
-            case SEARCH, INTERNAL_SEARCH -> QUERY;
+            case INGEST, INTERNAL_INGEST -> INPUT_TYPE_DOCUMENT_VALUE;
+            case SEARCH, INTERNAL_SEARCH -> INPUT_TYPE_QUERY_VALUE;
             default -> {
                 assert false : invalidInputTypeMessage(inputType);
                 yield null;

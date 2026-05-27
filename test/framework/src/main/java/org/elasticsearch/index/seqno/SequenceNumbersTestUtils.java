@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.test.ESIntegTestCase.internalCluster;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
@@ -47,7 +48,8 @@ public final class SequenceNumbersTestUtils {
      * @param expectDocValuesOnDisk   {@code true} to assert doc values are present, {@code false} to assert they are empty
      * @param expectedShards          the exact number of shards expected to be verified
      */
-    public static void assertShardsHaveSeqNoDocValues(String indexName, boolean expectDocValuesOnDisk, int expectedShards) {
+    public static void assertShardsHaveSeqNoDocValues(String indexName, boolean expectDocValuesOnDisk, int expectedShards)
+        throws Exception {
         assertShardsHaveSeqNoDocValues(internalCluster(), indexName, expectDocValuesOnDisk, expectedShards);
     }
 
@@ -64,45 +66,42 @@ public final class SequenceNumbersTestUtils {
         String indexName,
         boolean expectDocValuesOnDisk,
         int expectedShards
-    ) {
-        int nbCheckedShards = 0;
-        for (var indicesServices : cluster.getDataNodeInstances(IndicesService.class)) {
-            for (var indexService : indicesServices) {
-                if (indexService.index().getName().equals(indexName)) {
-                    for (var indexShard : indexService) {
-                        final var shardId = indexShard.shardId();
-                        var checked = indexShard.withEngineOrNull(engine -> {
-                            if (engine != null) {
-                                try (var searcher = engine.acquireSearcher("assert_seq_no_dv")) {
-                                    for (var leaf : searcher.getLeafContexts()) {
-                                        var leafReader = leaf.reader();
-                                        NumericDocValues seqNoDV = leafReader.getNumericDocValues(SeqNoFieldMapper.NAME);
-                                        if (expectDocValuesOnDisk) {
-                                            assertThat(shardId + " _seq_no doc values should be present", seqNoDV, notNullValue());
-                                            assertThat(seqNoDV.nextDoc(), not(equalTo(DocIdSetIterator.NO_MORE_DOCS)));
-                                        } else if (seqNoDV != null) {
-                                            assertThat(
-                                                shardId + " _seq_no doc values should be empty",
-                                                seqNoDV.nextDoc(),
-                                                equalTo(DocIdSetIterator.NO_MORE_DOCS)
-                                            );
-                                        }
-                                        return true;
-                                    }
-                                } catch (IOException ioe) {
-                                    throw new AssertionError(ioe);
-                                }
+    ) throws Exception {
+        final var indexMetadata = cluster.clusterService().state().metadata().getProject().index(indexName);
+        assertThat("index [" + indexName + "] not found in cluster state", indexMetadata, notNullValue());
+        final var index = indexMetadata.getIndex();
+        final var nbCheckedShards = new AtomicInteger();
+        cluster.forEveryIndexShard(index, indexShard -> {
+            final var shardId = indexShard.shardId();
+            var checked = indexShard.withEngineOrNull(engine -> {
+                if (engine != null) {
+                    try (var searcher = engine.acquireSearcher("assert_seq_no_dv")) {
+                        for (var leaf : searcher.getLeafContexts()) {
+                            var leafReader = leaf.reader();
+                            NumericDocValues seqNoDV = leafReader.getNumericDocValues(SeqNoFieldMapper.NAME);
+                            if (expectDocValuesOnDisk) {
+                                assertThat(shardId + " _seq_no doc values should be present", seqNoDV, notNullValue());
+                                assertThat(seqNoDV.nextDoc(), not(equalTo(DocIdSetIterator.NO_MORE_DOCS)));
+                            } else if (seqNoDV != null) {
+                                assertThat(
+                                    shardId + " _seq_no doc values should be empty",
+                                    seqNoDV.nextDoc(),
+                                    equalTo(DocIdSetIterator.NO_MORE_DOCS)
+                                );
                             }
-                            return false;
-                        });
-                        if (checked) {
-                            nbCheckedShards++;
+                            return true;
                         }
+                    } catch (IOException ioe) {
+                        throw new AssertionError(ioe);
                     }
                 }
+                return false;
+            });
+            if (checked) {
+                nbCheckedShards.incrementAndGet();
             }
-        }
-        assertThat("expected to verify " + expectedShards + " shard(s)", nbCheckedShards, equalTo(expectedShards));
+        });
+        assertThat("expected to verify " + expectedShards + " shard(s)", nbCheckedShards.get(), equalTo(expectedShards));
     }
 
     /**
@@ -258,8 +257,10 @@ public final class SequenceNumbersTestUtils {
     public static void persistGlobalCheckpointOnPrimaryShards(InternalTestCluster cluster, String indexName) throws Exception {
         final var future = new PlainActionFuture<Void>();
         try (var listeners = new RefCountingListener(future)) {
+            final var indexMetadataForNodes = cluster.clusterService().state().metadata().getProject().index(indexName);
+            assertThat("index [" + indexName + "] not found in cluster state", indexMetadataForNodes, notNullValue());
+            final var index = indexMetadataForNodes.getIndex();
             for (String node : cluster.nodesInclude(indexName)) {
-                final var index = cluster.clusterService().state().metadata().getProject().index(indexName).getIndex();
                 IndexService indexService = cluster.getInstance(IndicesService.class, node).indexServiceSafe(index);
                 for (IndexShard indexShard : indexService) {
                     if (indexShard.routingEntry().primary() == false) {

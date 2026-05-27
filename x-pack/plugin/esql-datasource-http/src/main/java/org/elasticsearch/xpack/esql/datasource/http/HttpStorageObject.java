@@ -11,7 +11,7 @@ import org.apache.http.HttpHeaders;
 import org.apache.http.HttpStatus;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -40,7 +40,7 @@ import java.util.concurrent.Executor;
  *   <li>Metadata retrieval via HEAD requests</li>
  * </ul>
  */
-public final class HttpStorageObject implements StorageObject {
+public final class HttpStorageObject extends AbstractMeteredStorageObject {
 
     private final HttpClient client;
     private final StoragePath path;
@@ -89,13 +89,23 @@ public final class HttpStorageObject implements StorageObject {
 
     @Override
     public InputStream newStream() throws IOException {
-        return sendRequest(this::buildGetRequest, HttpResponse.BodyHandlers.ofInputStream(), response -> {
-            int statusCode = response.statusCode();
-            if (statusCode != HttpStatus.SC_OK) {
-                throw new IOException("Failed to read object from " + path + ", HTTP status: " + statusCode);
-            }
-            return response.body();
-        });
+        long startNanos = System.nanoTime();
+        long[] bytesHolder = new long[] { 0L };
+        try {
+            return sendRequest(this::buildGetRequest, HttpResponse.BodyHandlers.ofInputStream(), response -> {
+                int statusCode = response.statusCode();
+                if (statusCode != HttpStatus.SC_OK) {
+                    throw new IOException("Failed to read object from " + path + ", HTTP status: " + statusCode);
+                }
+                OptionalLong contentLength = response.headers().firstValueAsLong(HttpHeaders.CONTENT_LENGTH);
+                if (contentLength.isPresent()) {
+                    bytesHolder[0] = contentLength.getAsLong();
+                }
+                return response.body();
+            });
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, bytesHolder[0]);
+        }
     }
 
     @Override
@@ -107,26 +117,37 @@ public final class HttpStorageObject implements StorageObject {
             throw new IllegalArgumentException("length must be non-negative, got: " + length);
         }
 
-        return sendRequest(() -> buildRangeRequest(position, length), HttpResponse.BodyHandlers.ofInputStream(), response -> {
-            int statusCode = response.statusCode();
-            // 206 = Partial Content (successful range request)
-            // 200 = OK (server doesn't support ranges but returned full content)
-            if (statusCode == HttpStatus.SC_PARTIAL_CONTENT) {
-                return response.body();
-            } else if (statusCode == HttpStatus.SC_OK) {
-                // Server doesn't support Range requests, skip to position manually
-                InputStream stream = response.body();
-                long skipped = stream.skip(position);
-                if (skipped != position) {
-                    stream.close();
-                    throw new IOException("Failed to skip to position " + position + ", only skipped " + skipped + " bytes");
+        long startNanos = System.nanoTime();
+        // Bytes: response Content-Length when known, else fall back to the requested range length.
+        long[] bytesHolder = new long[] { length };
+        try {
+            return sendRequest(() -> buildRangeRequest(position, length), HttpResponse.BodyHandlers.ofInputStream(), response -> {
+                int statusCode = response.statusCode();
+                OptionalLong contentLength = response.headers().firstValueAsLong(HttpHeaders.CONTENT_LENGTH);
+                if (contentLength.isPresent()) {
+                    bytesHolder[0] = contentLength.getAsLong();
                 }
-                // Wrap in a limited stream to ensure we only read 'length' bytes
-                return new BoundedInputStream(stream, length);
-            } else {
-                throw new IOException("Range request failed for " + path + ", HTTP status: " + statusCode);
-            }
-        });
+                // 206 = Partial Content (successful range request)
+                // 200 = OK (server doesn't support ranges but returned full content)
+                if (statusCode == HttpStatus.SC_PARTIAL_CONTENT) {
+                    return response.body();
+                } else if (statusCode == HttpStatus.SC_OK) {
+                    // Server doesn't support Range requests, skip to position manually
+                    InputStream stream = response.body();
+                    long skipped = stream.skip(position);
+                    if (skipped != position) {
+                        stream.close();
+                        throw new IOException("Failed to skip to position " + position + ", only skipped " + skipped + " bytes");
+                    }
+                    // Wrap in a limited stream to ensure we only read 'length' bytes
+                    return new BoundedInputStream(stream, length);
+                } else {
+                    throw new IOException("Range request failed for " + path + ", HTTP status: " + statusCode);
+                }
+            });
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, bytesHolder[0]);
+        }
     }
 
     @Override
@@ -188,36 +209,34 @@ public final class HttpStorageObject implements StorageObject {
             listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
             return;
         }
+        if (length > Integer.MAX_VALUE) {
+            listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
+            return;
+        }
 
         HttpRequest request = buildRangeRequest(position, length);
 
-        // Use native async HTTP - no blocking, no extra threads needed
-        client.sendAsync(request, HttpResponse.BodyHandlers.ofByteArray()).whenComplete((response, throwable) -> {
+        long startNanos = System.nanoTime();
+        client.sendAsync(request, DirectByteBufferBodyHandlers.ofRangeRead(position, (int) length)).whenComplete((response, throwable) -> {
             if (throwable != null) {
-                listener.onFailure(throwable instanceof Exception ex ? ex : new RuntimeException(throwable));
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
+                // Wrap with path context so stack-trace-only triage names the offending URL.
+                // The original cause (CompletionException, body subscriber's IOException, transport
+                // error, etc.) is preserved in the cause chain.
+                listener.onFailure(new IOException("HTTP read failed for " + path, throwable));
                 return;
             }
 
             int statusCode = response.statusCode();
-            // 206 = Partial Content (successful range request)
-            // 200 = OK (server doesn't support ranges but returned full content - need to slice)
-            if (statusCode == HttpStatus.SC_PARTIAL_CONTENT) {
-                listener.onResponse(ByteBuffer.wrap(response.body()));
-            } else if (statusCode == HttpStatus.SC_OK) {
-                // Server doesn't support Range requests, slice the response
-                byte[] fullBody = response.body();
-                int bodyLength = fullBody.length;
-                if (position >= bodyLength) {
-                    listener.onFailure(
-                        new IOException("Position " + position + " is beyond content length " + bodyLength + " for " + path)
-                    );
-                    return;
-                }
-                int actualLength = (int) Math.min(length, bodyLength - position);
-                byte[] slice = new byte[actualLength];
-                System.arraycopy(fullBody, (int) position, slice, 0, actualLength);
-                listener.onResponse(ByteBuffer.wrap(slice));
+            // The DirectByteBufferBodyHandlers.ofRangeRead handler already performs the range
+            // slicing internally for both 206 (server-side range) and 200 (full body) responses,
+            // returning a ByteBuffer scoped to the requested window.
+            if (statusCode == HttpStatus.SC_PARTIAL_CONTENT || statusCode == HttpStatus.SC_OK) {
+                ByteBuffer body = response.body();
+                counters.addRequest(System.nanoTime() - startNanos, body.remaining());
+                listener.onResponse(body);
             } else {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
                 listener.onFailure(new IOException("Range request failed for " + path + ", HTTP status: " + statusCode));
             }
         });

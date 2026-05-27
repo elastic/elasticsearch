@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 145571
-summary: Document and test Parquet page-index filtering
-type: enhancement

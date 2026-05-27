@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.ExternalSliceQueue;
+import org.elasticsearch.xpack.esql.datasources.SchemaReconciliation;
 
 import java.util.Collections;
 import java.util.LinkedHashSet;
@@ -53,10 +54,13 @@ public record SourceOperatorContext(
     Object pushedFilter,
     List<Expression> pushedExpressions,
     FileList fileList,
+    Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap,
     @Nullable ExternalSplit split,
     Set<String> partitionColumnNames,
     @Nullable ExternalSliceQueue sliceQueue,
-    int parsingParallelism
+    int parsingParallelism,
+    int maxRecordBytes,
+    int parallelism
 ) {
     public SourceOperatorContext {
         Check.notNull(path, "path cannot be null");
@@ -66,6 +70,7 @@ public record SourceOperatorContext(
         config = config != null ? Map.copyOf(config) : Map.of();
         sourceMetadata = sourceMetadata != null ? Map.copyOf(sourceMetadata) : Map.of();
         pushedExpressions = pushedExpressions != null ? List.copyOf(pushedExpressions) : List.of();
+        schemaMap = schemaMap != null ? schemaMap : Map.of();
         partitionColumnNames = partitionColumnNames != null && partitionColumnNames.isEmpty() == false
             ? Collections.unmodifiableSet(new LinkedHashSet<>(partitionColumnNames))
             : Set.of();
@@ -78,6 +83,9 @@ public record SourceOperatorContext(
         }
         if (parsingParallelism < 1) {
             throw new IllegalArgumentException("parsingParallelism must be >= 1, got: " + parsingParallelism);
+        }
+        if (parallelism < 1) {
+            throw new IllegalArgumentException("parallelism must be >= 1, got: " + parallelism);
         }
     }
 
@@ -110,9 +118,12 @@ public record SourceOperatorContext(
             pushedFilter,
             null,
             fileList,
+            Map.of(),
             split,
             null,
             null,
+            1,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -145,9 +156,12 @@ public record SourceOperatorContext(
             pushedFilter,
             null,
             fileList,
+            Map.of(),
             null,
             null,
             null,
+            1,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -179,9 +193,12 @@ public record SourceOperatorContext(
             pushedFilter,
             null,
             null,
+            Map.of(),
             null,
             null,
             null,
+            1,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -211,9 +228,12 @@ public record SourceOperatorContext(
             null,
             null,
             null,
+            Map.of(),
             null,
             null,
             null,
+            1,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -238,10 +258,15 @@ public record SourceOperatorContext(
         private Object pushedFilter;
         private List<Expression> pushedExpressions;
         private FileList fileList;
+        private Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap;
         private ExternalSplit split;
         private Set<String> partitionColumnNames;
         private ExternalSliceQueue sliceQueue;
         private int parsingParallelism = 1;
+        // Default matches StreamingParallelParsingCoordinator's record-growth cap (64 MiB); the planner
+        // overrides it from the max_record_size query pragma.
+        private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
+        private int parallelism = 1;
 
         public Builder sourceType(String sourceType) {
             this.sourceType = sourceType;
@@ -318,6 +343,17 @@ public record SourceOperatorContext(
             return this;
         }
 
+        /**
+         * Per-file planner-resolved schema info, populated by the resolver and threaded through
+         * {@link org.elasticsearch.xpack.esql.plan.physical.ExternalSourceExec}. Always present
+         * for resolved sources (single-file gets a one-entry identity map; multi-file gets the
+         * reconciliation result). Empty map for legacy/unresolved paths.
+         */
+        public Builder schemaMap(Map<StoragePath, SchemaReconciliation.FileSchemaInfo> schemaMap) {
+            this.schemaMap = schemaMap;
+            return this;
+        }
+
         public Builder split(ExternalSplit split) {
             this.split = split;
             return this;
@@ -338,6 +374,16 @@ public record SourceOperatorContext(
             return this;
         }
 
+        public Builder maxRecordBytes(int maxRecordBytes) {
+            this.maxRecordBytes = maxRecordBytes;
+            return this;
+        }
+
+        public Builder parallelism(int parallelism) {
+            this.parallelism = parallelism;
+            return this;
+        }
+
         public SourceOperatorContext build() {
             return new SourceOperatorContext(
                 sourceType,
@@ -354,10 +400,13 @@ public record SourceOperatorContext(
                 pushedFilter,
                 pushedExpressions,
                 fileList,
+                schemaMap,
                 split,
                 partitionColumnNames,
                 sliceQueue,
-                parsingParallelism
+                parsingParallelism,
+                maxRecordBytes,
+                parallelism
             );
         }
     }

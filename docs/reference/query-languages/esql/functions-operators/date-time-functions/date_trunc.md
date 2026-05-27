@@ -6,5 +6,5 @@ mapped_pages:
 
 # ES|QL `DATE_TRUNC` function [esql-date_trunc]
 
-:::{include} ../../_snippets/functions/layout/date_trunc.md
+:::{include} ../../_snippets/generated/x-pack-esql/functions/layout/date_trunc.md
 :::

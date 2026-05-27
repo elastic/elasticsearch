@@ -86,8 +86,6 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                   "object": "list",
@@ -137,8 +135,6 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                   "object": "list",
@@ -189,8 +185,6 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, ZERO_TIMEOUT_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                   "object": "list",
@@ -245,8 +239,6 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             // note - there is no complete documentation on Azure's error messages
             // but this error and response has been verified manually via CURL
             var contentTooLargeErrorMessage =
@@ -322,8 +314,6 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             // note - there is no complete documentation on Azure's error messages
             // but this error and response has been verified manually via CURL
             var contentTooLargeErrorMessage =
@@ -399,8 +389,6 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                   "object": "list",
@@ -451,8 +439,6 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "choices": [
@@ -509,8 +495,6 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             String responseJson = """
                 {
                     "choices": [
@@ -565,8 +549,6 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager, ZERO_TIMEOUT_SETTINGS);
 
         try (var sender = createSender(senderFactory)) {
-            sender.startSynchronously();
-
             // "choices" missing
             String responseJson = """
                 {
@@ -627,7 +609,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
         @Nullable String user,
         @Nullable InputType inputType
     ) {
-        var expectedSize = 1;
+        var expectedSize = 2;
         if (user != null) {
             expectedSize += 1;
         }
@@ -637,6 +619,7 @@ public class AzureOpenAiActionCreatorTests extends ESTestCase {
 
         assertThat(requestMap.size(), is(expectedSize));
         assertThat(requestMap.get("input"), is(input));
+        assertThat(requestMap.get("encoding_format"), is("base64"));
 
         if (user != null) {
             assertThat(requestMap.get("user"), is(user));

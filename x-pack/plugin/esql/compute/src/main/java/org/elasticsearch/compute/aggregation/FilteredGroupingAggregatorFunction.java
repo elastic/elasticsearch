@@ -29,11 +29,11 @@ import java.util.stream.IntStream;
  *     positions.
  * </p>
  */
-record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, ExpressionEvaluator filter)
+public record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, ExpressionEvaluator filter)
     implements
         GroupingAggregatorFunction {
 
-    FilteredGroupingAggregatorFunction {
+    public FilteredGroupingAggregatorFunction {
         // Filtered aggregators may filter out entire pages, so the underlying aggregator
         // may not see all groups. It needs to know this so it can initialize unseen groups to null.
         next.selectedMayContainUnseenGroups(new SeenGroupIds.Empty());
@@ -103,6 +103,11 @@ record FilteredGroupingAggregatorFunction(GroupingAggregatorFunction next, Expre
     @Override
     public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
         // nothing to do - we already put the underlying agg into this state
+    }
+
+    @Override
+    public AddInput prepareProcessIntermediateInputPage(SeenGroupIds seenGroupIds, Page page) {
+        return next.prepareProcessIntermediateInputPage(seenGroupIds, page);
     }
 
     @Override

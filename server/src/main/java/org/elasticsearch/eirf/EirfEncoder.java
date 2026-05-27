@@ -33,49 +33,70 @@ import java.util.List;
 /**
  * Encodes documents into EIRF (Elastic Internal Row Format) batches.
  *
- * <p>Supports both incremental and batch usage:
+ * <p>Two usage modes are supported, both backed by a shared {@link EirfSchema} and per-document
+ * {@link ScratchBuffers}.
+ *
+ * <p><b>Single partition</b> (legacy):
  * <pre>
- * // Incremental
  * try (EirfEncoder encoder = new EirfEncoder()) {
  *     encoder.addDocument(source1, XContentType.JSON);
  *     encoder.addDocument(source2, XContentType.JSON);
  *     EirfBatch batch = encoder.build();
  * }
+ * </pre>
  *
- * // Batch convenience
- * EirfBatch batch = EirfEncoder.encode(sources, XContentType.JSON);
+ * <p><b>Multi-partition</b> (single parse pass per document, row dispatched to one of several
+ * destination partitions — typically one per shard — after the document has been fully parsed
+ * into scratch and any caller-side decisions, such as routing, have been made):
+ * <pre>
+ * try (EirfEncoder encoder = new EirfEncoder()) {
+ *     encoder.parseToScratch(source, XContentType.JSON, leafSink);
+ *     int rowIndex = encoder.commitScratchTo(shardId);
+ *     // ...repeat for additional documents...
+ *     EirfBatch shardBatch = encoder.buildPartition(shardId);
+ * }
  * </pre>
  */
 public class EirfEncoder implements Releasable {
 
     private static final int HEADER_SIZE = 32;
     private static final int INITIAL_CAPACITY = 16;
+    private static final int INITIAL_PARTITION_CAPACITY = 4;
 
     private final EirfSchema schema;
     private final ScratchBuffers scratch;
-    private final RecyclerBytesStreamOutput rowOutput;
-
-    private int[] rowOffsets;
-    private int[] rowLengths;
-    private int docCount;
+    private Partition[] partitions;
+    /** Cached dotted path per leaf column index. Lazily filled and grown as the schema grows. */
+    private String[] cachedPath;
+    /** True after {@link #parseToScratch} returns and before {@link #commitScratchTo} is called. */
+    private boolean rowStaged;
 
     public EirfEncoder() {
-        this(new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE));
-    }
-
-    public EirfEncoder(final RecyclerBytesStreamOutput rowOutput) {
         this.schema = new EirfSchema();
         this.scratch = new ScratchBuffers(INITIAL_CAPACITY);
-        this.rowOutput = rowOutput;
-        this.rowOffsets = new int[INITIAL_CAPACITY];
-        this.rowLengths = new int[INITIAL_CAPACITY];
-        this.docCount = 0;
+        this.cachedPath = new String[INITIAL_CAPACITY];
+        this.partitions = new Partition[INITIAL_PARTITION_CAPACITY];
     }
 
     /**
-     * Adds a single document to the batch.
+     * Adds a single document to the encoder's default partition. Equivalent to
+     * {@code parseToScratch(source, xContentType, NO_OP_LEAF_SINK); commitScratchTo(DEFAULT_PARTITION);}.
      */
-    public void addDocument(BytesReference source, XContentType xContentType) throws IOException {
+    public void addDocument(BytesReference source, XContentType xContentType, int partition) throws IOException {
+        parseToScratch(source, xContentType, LeafSink.NO_OP);
+        commitScratchTo(partition);
+    }
+
+    /**
+     * Parses {@code source} into the encoder's per-document scratch and fires {@code sink} for every
+     * primitive leaf value (string / number / boolean — null and array values are intentionally not
+     * forwarded; see {@link LeafSink}). The parsed row is held in scratch until the next
+     * {@link #commitScratchTo(int)} call.
+     *
+     * <p>Calling this method twice without an intervening {@code commitScratchTo} discards the
+     * previously staged row.
+     */
+    public void parseToScratch(BytesReference source, XContentType xContentType, LeafSink sink) throws IOException {
         int columnCountBefore = schema.leafCount();
         Arrays.fill(scratch.typeBytes, 0, columnCountBefore, (byte) 0);
         Arrays.fill(scratch.varData, 0, columnCountBefore, null);
@@ -85,49 +106,210 @@ public class EirfEncoder implements Releasable {
             // The schema will prevent duplicate columns. No need to double with JSON's internal duplicate prevention.
             parser.allowDuplicateKeys(true);
             parser.nextToken(); // START_OBJECT
-            flattenObject(parser, 0, schema, scratch, parser.nextToken());
+            flattenObject(parser, 0, schema, scratch, parser.nextToken(), this, sink);
         }
-
-        if (docCount >= rowOffsets.length) {
-            int newCap = rowOffsets.length << 1;
-            rowOffsets = Arrays.copyOf(rowOffsets, newCap);
-            rowLengths = Arrays.copyOf(rowLengths, newCap);
-        }
-
-        int columnCount = schema.leafCount();
-        int rowStart = (int) rowOutput.position();
-        rowOffsets[docCount] = rowStart;
-        writeRow(rowOutput, columnCount, scratch);
-        rowLengths[docCount] = (int) rowOutput.position() - rowStart;
-        docCount++;
+        rowStaged = true;
     }
 
     /**
-     * Builds the final {@link EirfBatch} from all accumulated documents.
+     * Flushes the row currently staged in scratch into the partition identified by
+     * {@code partitionKey}, returning the row's index within that partition.
+     *
+     * @throws IllegalStateException if no row is currently staged.
      */
-    public EirfBatch build() {
-        ReleasableBytesReference rowBytes = rowOutput.moveToBytesReference();
-        BytesReference headerBytes = buildHeader(schema, docCount, rowOffsets, rowLengths, rowBytes.length());
+    public int commitScratchTo(int partitionKey) throws IOException {
+        if (rowStaged == false) {
+            throw new IllegalStateException("commitScratchTo called without a staged row");
+        }
+        Partition partition = getOrCreatePartition(partitionKey);
+        int columnCount = schema.leafCount();
+        int rowStart = (int) partition.rowOutput.position();
+        partition.ensureRowCapacity();
+        partition.rowOffsets[partition.docCount] = rowStart;
+        writeRow(partition.rowOutput, columnCount, scratch);
+        partition.rowLengths[partition.docCount] = (int) partition.rowOutput.position() - rowStart;
+        int rowIndex = partition.docCount;
+        partition.docCount++;
+        rowStaged = false;
+        return rowIndex;
+    }
+
+    /**
+     * Builds an {@link EirfBatch} for the partition identified by {@code partitionKey}. Producing a
+     * batch consumes that partition's row data; subsequent calls for the same key will produce an
+     * empty batch.
+     */
+    public EirfBatch buildPartition(int partitionKey) {
+        Partition partition = getOrCreatePartition(partitionKey);
+        ReleasableBytesReference rowBytes = partition.rowOutput.moveToBytesReference();
+        BytesReference headerBytes = buildHeader(schema, partition.docCount, partition.rowOffsets, partition.rowLengths, rowBytes.length());
         BytesReference combined = CompositeBytesReference.of(headerBytes, rowBytes);
         return new EirfBatch(combined, rowBytes);
     }
 
-    public int docCount() {
-        return docCount;
+    /**
+     * Returns the number of rows committed to the partition identified by {@code partitionKey}.
+     * Returns 0 for partitions that have never been written to.
+     */
+    public int docCount(int partitionKey) {
+        Partition partition = partitionKey < partitions.length ? partitions[partitionKey] : null;
+        return partition == null ? 0 : partition.docCount;
+    }
+
+    /**
+     * Returns true if at least one row has been committed to the partition identified by
+     * {@code partitionKey}.
+     */
+    public boolean hasPartition(int partitionKey) {
+        Partition partition = partitionKey < partitions.length ? partitions[partitionKey] : null;
+        return partition != null && partition.docCount > 0;
+    }
+
+    /**
+     * Returns the dotted path for the given leaf column. Result is cached: callers may use the
+     * column index as a stable key for their own per-column state.
+     */
+    public String columnPath(int columnIndex) {
+        if (columnIndex >= cachedPath.length) {
+            int newCap = cachedPath.length;
+            while (columnIndex >= newCap) {
+                newCap <<= 1;
+            }
+            cachedPath = Arrays.copyOf(cachedPath, newCap);
+        }
+        String path = cachedPath[columnIndex];
+        if (path == null) {
+            path = schema.getFullPath(columnIndex);
+            cachedPath[columnIndex] = path;
+        }
+        return path;
     }
 
     @Override
     public void close() {
-        rowOutput.close();
+        for (Partition partition : partitions) {
+            if (partition != null) {
+                partition.rowOutput.close();
+            }
+        }
+        Arrays.fill(partitions, null);
     }
 
     public static EirfBatch encode(List<BytesReference> sources, XContentType xContentType) throws IOException {
         try (EirfEncoder encoder = new EirfEncoder()) {
             for (BytesReference source : sources) {
-                encoder.addDocument(source, xContentType);
+                encoder.addDocument(source, xContentType, 0);
             }
-            return encoder.build();
+            return encoder.buildPartition(0);
         }
+    }
+
+    private Partition getOrCreatePartition(int partitionKey) {
+        if (partitionKey >= partitions.length) {
+            int newCap = partitions.length;
+            while (partitionKey >= newCap) {
+                newCap <<= 1;
+            }
+            partitions = Arrays.copyOf(partitions, newCap);
+        }
+        Partition partition = partitions[partitionKey];
+        if (partition == null) {
+            partition = new Partition(new RecyclerBytesStreamOutput(BytesRefRecycler.NON_RECYCLING_INSTANCE));
+            partitions[partitionKey] = partition;
+        }
+        return partition;
+    }
+
+    /** Per-partition row state: row output stream plus the parallel offsets/lengths arrays for the doc index. */
+    private static final class Partition {
+        final RecyclerBytesStreamOutput rowOutput;
+        int[] rowOffsets;
+        int[] rowLengths;
+        int docCount;
+
+        Partition(RecyclerBytesStreamOutput rowOutput) {
+            this.rowOutput = rowOutput;
+            this.rowOffsets = new int[INITIAL_CAPACITY];
+            this.rowLengths = new int[INITIAL_CAPACITY];
+            this.docCount = 0;
+        }
+
+        void ensureRowCapacity() {
+            if (docCount >= rowOffsets.length) {
+                int newCap = rowOffsets.length << 1;
+                rowOffsets = Arrays.copyOf(rowOffsets, newCap);
+                rowLengths = Arrays.copyOf(rowLengths, newCap);
+            }
+        }
+    }
+
+    /**
+     * Sink fired for every primitive leaf value during {@link #parseToScratch}.
+     *
+     * <p>Invoked for {@code VALUE_STRING}, {@code VALUE_NUMBER}, and {@code VALUE_BOOLEAN} tokens
+     * directly under an object. Not invoked for {@code VALUE_NULL} (matching today's
+     * {@code RoutingHashBuilder.extractItem} behavior, which skips nulls), nor for elements inside
+     * arrays or empty objects encoded as {@code KEY_VALUE} leaves.
+     *
+     * <p>The encoder dispatches differently based on {@link #passRawText()}: sinks that want the
+     * raw UTF-8 byte slice for every primitive (e.g. routing-path hashing) get
+     * {@link #onTextPrimitive} for every leaf, and sinks that want typed values (e.g. tsid
+     * dimensions) get {@link #onLongPrimitive} / {@link #onDoublePrimitive} /
+     * {@link #onBooleanPrimitive} for numeric and boolean leaves with no wasted
+     * {@code parser.optimizedText().bytes()} call.
+     *
+     * <p>Arrays at leaf positions are signalled via {@link #onArrayLeaf} regardless, so the caller
+     * can react (e.g. throw to abandon batch encoding for the bulk).
+     */
+    public interface LeafSink {
+
+        LeafSink NO_OP = () -> false;
+
+        /**
+         * Returns true if this sink wants the parser's UTF-8 text bytes for every primitive leaf
+         * (via {@link #onTextPrimitive}), false if it wants typed values (via
+         * {@link #onLongPrimitive} / {@link #onDoublePrimitive} / {@link #onBooleanPrimitive}) for
+         * numeric and boolean leaves. The encoder reads this once per document.
+         */
+        boolean passRawText();
+
+        /**
+         * Called in raw-text mode ({@link #passRawText()} = {@code true}) for every primitive leaf,
+         * and in typed mode for {@code STRING} leaves and unrecognized number types (BIG_DECIMAL /
+         * BIG_INTEGER) that the encoder narrows to a string representation.
+         *
+         * @param columnIndex schema leaf index (stable across documents in this encoder)
+         * @param dottedPath cached dotted path for the column
+         * @param type the {@link EirfType} byte assigned to the value
+         * @param textBytes UTF-8 byte slice of the parser token's textual form
+         */
+        default void onTextPrimitive(int columnIndex, String dottedPath, byte type, XContentString.UTF8Bytes textBytes) {}
+
+        /**
+         * Called in typed mode ({@link #passRawText()} = {@code false}) for {@code INT} and
+         * {@code LONG} primitives. The encoder narrows numerics that fit in the int range to
+         * {@code EirfType.INT}; subclasses can dispatch further on {@code type} if they want to
+         * feed e.g. {@code addIntDimension} vs {@code addLongDimension}.
+         */
+        default void onLongPrimitive(int columnIndex, String dottedPath, byte type, long value) {}
+
+        /**
+         * Called in typed mode for {@code FLOAT} and {@code DOUBLE} primitives. The value passed is
+         * the actual {@code double} (already reconstructed for narrowed {@code FLOAT} columns),
+         * not raw bits.
+         */
+        default void onDoublePrimitive(int columnIndex, String dottedPath, byte type, double value) {}
+
+        /** Called in typed mode for boolean primitives. */
+        default void onBooleanPrimitive(int columnIndex, String dottedPath, boolean value) {}
+
+        /**
+         * Invoked once per array encountered as a direct leaf value under an object. The encoder
+         * still encodes the array into scratch as a {@code FIXED_ARRAY} or {@code UNION_ARRAY};
+         * this hook simply tells the caller that a complex value was seen at that column so it can
+         * decide how to react.
+         */
+        default void onArrayLeaf(int columnIndex, String dottedPath) {}
     }
 
     static final class ScratchBuffers {
@@ -181,7 +363,9 @@ public class EirfEncoder implements Releasable {
         int parentNonLeafIdx,
         EirfSchema schema,
         ScratchBuffers scratch,
-        XContentParser.Token firstToken
+        XContentParser.Token firstToken,
+        EirfEncoder encoder,
+        LeafSink sink
     ) throws IOException {
         XContentParser.Token token = firstToken;
         while (token != XContentParser.Token.END_OBJECT) {
@@ -206,7 +390,7 @@ public class EirfEncoder implements Releasable {
                     scratch.varColumnCount++;
                 } else {
                     int nonLeafIdx = schema.appendNonLeaf(fieldName, parentNonLeafIdx);
-                    flattenObject(parser, nonLeafIdx, schema, scratch, inner);
+                    flattenObject(parser, nonLeafIdx, schema, scratch, inner, encoder, sink);
                 }
                 token = parser.nextToken();
                 continue;
@@ -218,6 +402,8 @@ public class EirfEncoder implements Releasable {
                 throw new IllegalArgumentException("Duplicate field [" + fieldName + "]");
             }
 
+            boolean firePathSink = sink != LeafSink.NO_OP;
+            boolean rawTextMode = firePathSink && sink.passRawText();
             switch (token) {
                 case START_ARRAY -> {
                     PackedArray arr = parseArray(parser, scratch);
@@ -225,6 +411,9 @@ public class EirfEncoder implements Releasable {
                     scratch.varData[colIdx] = new BytesArray(arr.packed);
                     scratch.totalVarSize += arr.packed.length;
                     scratch.varColumnCount++;
+                    if (firePathSink) {
+                        sink.onArrayLeaf(colIdx, encoder.columnPath(colIdx));
+                    }
                 }
                 case VALUE_STRING -> {
                     scratch.typeBytes[colIdx] = EirfType.STRING;
@@ -232,45 +421,84 @@ public class EirfEncoder implements Releasable {
                     scratch.varData[colIdx] = str;
                     scratch.totalVarSize += str.length();
                     scratch.varColumnCount++;
+                    if (firePathSink) {
+                        // Strings flow through onTextPrimitive in both modes — there's no typed value to
+                        // give consumers besides the bytes themselves.
+                        sink.onTextPrimitive(colIdx, encoder.columnPath(colIdx), EirfType.STRING, str);
+                    }
                 }
                 case VALUE_NUMBER -> {
                     XContentParser.NumberType numType = parser.numberType();
                     switch (numType) {
                         case INT, LONG -> {
                             long val = parser.longValue();
+                            byte type;
                             if (val >= Integer.MIN_VALUE && val <= Integer.MAX_VALUE) {
-                                scratch.typeBytes[colIdx] = EirfType.INT;
+                                type = EirfType.INT;
+                                scratch.typeBytes[colIdx] = type;
                                 writeIntToFixed(scratch.fixedData, colIdx, (int) val);
                                 scratch.scalarFixedSize += 4;
                             } else {
-                                scratch.typeBytes[colIdx] = EirfType.LONG;
+                                type = EirfType.LONG;
+                                scratch.typeBytes[colIdx] = type;
                                 writeLongToFixed(scratch.fixedData, colIdx, val);
                                 scratch.scalarFixedSize += 8;
+                            }
+                            if (rawTextMode) {
+                                sink.onTextPrimitive(colIdx, encoder.columnPath(colIdx), type, parser.optimizedText().bytes());
+                            } else if (firePathSink) {
+                                sink.onLongPrimitive(colIdx, encoder.columnPath(colIdx), type, val);
                             }
                         }
                         case FLOAT, DOUBLE -> {
                             double val = parser.doubleValue();
                             float fval = (float) val;
+                            byte type;
                             if ((double) fval == val) {
-                                scratch.typeBytes[colIdx] = EirfType.FLOAT;
+                                type = EirfType.FLOAT;
+                                scratch.typeBytes[colIdx] = type;
                                 writeIntToFixed(scratch.fixedData, colIdx, Float.floatToRawIntBits(fval));
                                 scratch.scalarFixedSize += 4;
                             } else {
-                                scratch.typeBytes[colIdx] = EirfType.DOUBLE;
+                                type = EirfType.DOUBLE;
+                                scratch.typeBytes[colIdx] = type;
                                 writeLongToFixed(scratch.fixedData, colIdx, Double.doubleToRawLongBits(val));
                                 scratch.scalarFixedSize += 8;
                             }
+                            if (rawTextMode) {
+                                sink.onTextPrimitive(colIdx, encoder.columnPath(colIdx), type, parser.optimizedText().bytes());
+                            } else if (firePathSink) {
+                                sink.onDoublePrimitive(colIdx, encoder.columnPath(colIdx), type, val);
+                            }
                         }
                         default -> {
+                            // BIG_INTEGER / BIG_DECIMAL fall back to a string column. Both modes funnel
+                            // through onTextPrimitive in this case (typed sinks treat this as
+                            // "unrecognized" and may signal fallback).
                             scratch.typeBytes[colIdx] = EirfType.STRING;
                             XContentString.UTF8Bytes str = parser.optimizedText().bytes();
                             scratch.varData[colIdx] = str;
                             scratch.totalVarSize += str.length();
                             scratch.varColumnCount++;
+                            if (firePathSink) {
+                                sink.onTextPrimitive(colIdx, encoder.columnPath(colIdx), EirfType.STRING, str);
+                            }
                         }
                     }
                 }
-                case VALUE_BOOLEAN -> scratch.typeBytes[colIdx] = parser.booleanValue() ? EirfType.TRUE : EirfType.FALSE;
+                case VALUE_BOOLEAN -> {
+                    boolean v = parser.booleanValue();
+                    byte type = v ? EirfType.TRUE : EirfType.FALSE;
+                    scratch.typeBytes[colIdx] = type;
+                    if (rawTextMode) {
+                        // Non-JSON formats render booleans differently (YAML "yes"/"True", CBOR/SMILE
+                        // binary tags exposed as canonical text). Routing-hash parity with
+                        // RoutingHashBuilder depends on hashing the parser's canonical text bytes.
+                        sink.onTextPrimitive(colIdx, encoder.columnPath(colIdx), type, parser.optimizedText().bytes());
+                    } else if (firePathSink) {
+                        sink.onBooleanPrimitive(colIdx, encoder.columnPath(colIdx), v);
+                    }
+                }
                 case VALUE_NULL -> scratch.typeBytes[colIdx] = EirfType.NULL;
                 default -> throw new IllegalStateException("Unexpected token: " + token);
             }

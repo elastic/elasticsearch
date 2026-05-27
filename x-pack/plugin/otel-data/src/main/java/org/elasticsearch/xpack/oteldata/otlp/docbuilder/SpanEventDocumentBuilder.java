@@ -51,9 +51,9 @@ public class SpanEventDocumentBuilder extends OTelDocumentBuilder {
         addHexFieldIfNotEmpty(builder, "trace_id", span.getTraceId());
         addHexFieldIfNotEmpty(builder, "span_id", span.getSpanId());
         addFieldIfNotEmpty(builder, "event_name", event.getNameBytes());
-        buildAttributes(builder, attributesWithEventName(event), event.getDroppedAttributesCount());
-        buildResource(resource, resourceSchemaUrl, builder);
-        buildScope(builder, scope, scopeSchemaUrl);
+        buildAttributesWithGeoPoints(builder, attributesWithEventName(event), event.getDroppedAttributesCount());
+        buildResourceWithGeoPoints(resource, resourceSchemaUrl, builder);
+        buildScopeWithGeoPoints(builder, scope, scopeSchemaUrl);
         builder.endObject();
     }
 

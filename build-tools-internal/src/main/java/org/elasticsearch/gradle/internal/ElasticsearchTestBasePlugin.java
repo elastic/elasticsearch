@@ -73,9 +73,11 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
         // none of this stuff is applicable to the `:buildSrc` project tests
         File heapdumpDir = new File(project.getBuildDir(), "heapdump");
+        final boolean isCi = buildParams.get().getCi();
 
         project.getTasks().withType(Test.class).configureEach(test -> {
             File testOutputDir = new File(test.getReports().getJunitXml().getOutputLocation().getAsFile().get(), "output");
+            test.getReports().getHtml().getRequired().set(isCi == false);
 
             ErrorReportingTestListener listener = new ErrorReportingTestListener(test, testOutputDir);
             test.getExtensions().getExtraProperties().set(DUMP_OUTPUT_ON_FAILURE_PROP_NAME, true);
@@ -125,14 +127,19 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 // TODO: only open these for mockito when it is modularized
                 "--add-opens=java.base/java.security.cert=ALL-UNNAMED",
                 "--add-opens=java.base/java.nio.channels=ALL-UNNAMED",
+                // org.apache.arrow.memory.core needs access java.nio internals
+                "--add-opens=java.base/java.nio=ALL-UNNAMED",
                 "--add-opens=java.base/java.net=ALL-UNNAMED",
                 "--add-opens=java.base/javax.net.ssl=ALL-UNNAMED",
                 "--add-opens=java.base/java.nio.file=ALL-UNNAMED",
                 "--add-opens=java.base/java.time=ALL-UNNAMED",
                 "--add-opens=java.management/java.lang.management=ALL-UNNAMED",
+                // Needed by UninitializedArrays to reflectively access jdk.internal.misc.Unsafe
+                "--add-opens=java.base/jdk.internal.misc=ALL-UNNAMED",
                 "--enable-native-access=ALL-UNNAMED",
                 "--add-modules=jdk.incubator.vector",
-                "-XX:+HeapDumpOnOutOfMemoryError"
+                "-XX:+HeapDumpOnOutOfMemoryError",
+                "-XX:-UseGCOverheadLimit"
             );
 
             test.getJvmArgumentProviders().add(new SimpleCommandLineArgumentProvider("-XX:HeapDumpPath=" + heapdumpDir));
@@ -205,6 +212,12 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
 
             // TODO: remove this once cname is prepended to transport.publish_address by default in 8.0
             test.systemProperty("es.transport.cname_in_publish_address", "true");
+
+            // Disable queryable built-in roles by default in test JVMs. In-process integ tests
+            // (ESIntegTestCase / ESSingleNodeTestCase and subclasses) inherit this; tests that
+            // exercise the feature opt back in explicitly. REST/upgrade clusters run in separate
+            // JVMs and are unaffected.
+            test.systemProperty("es.queryable_built_in_roles_enabled", "false");
 
             // Set netty system properties to the properties we configure in jvm.options
             test.systemProperty("io.netty.noUnsafe", "true");

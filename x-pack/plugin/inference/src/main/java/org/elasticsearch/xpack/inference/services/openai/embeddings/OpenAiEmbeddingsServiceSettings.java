@@ -20,7 +20,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiRateLimitServiceSettings;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiService;
 import org.elasticsearch.xpack.inference.services.settings.FilteredXContentObject;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
 
@@ -104,7 +103,7 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
         );
         var dimensions = extractOptionalPositiveInteger(map, DIMENSIONS, ModelConfigurations.SERVICE_SETTINGS, validationException);
         var modelId = extractRequiredString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, OpenAiService.NAME, context);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         return new CommonFields(modelId, uri, organizationId, similarity, maxInputTokens, dimensions, rateLimitSettings);
     }
@@ -129,7 +128,6 @@ public class OpenAiEmbeddingsServiceSettings extends FilteredXContentObject impl
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            OpenAiService.NAME,
             ConfigurationParseContext.REQUEST
         );
 

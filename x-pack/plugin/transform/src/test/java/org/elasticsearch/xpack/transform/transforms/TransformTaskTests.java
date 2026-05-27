@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
@@ -378,8 +379,8 @@ public class TransformTaskTests extends ESTestCase {
     public void testGetTransformTask() {
         {
             ClusterState clusterState = ClusterState.EMPTY_STATE;
-            assertThat(TransformTask.getTransformTask("transform-1", clusterState), is(nullValue()));
-            assertThat(TransformTask.getTransformTask("other-1", clusterState), is(nullValue()));
+            assertThat(TransformTask.getTransformTask("transform-1", clusterState.metadata().getDefaultProject()), is(nullValue()));
+            assertThat(TransformTask.getTransformTask("other-1", clusterState.metadata().getDefaultProject()), is(nullValue()));
         }
         {
             ClusterState clusterState = ClusterState.builder(new ClusterName("some-cluster"))
@@ -395,8 +396,8 @@ public class TransformTaskTests extends ESTestCase {
                         )
                 )
                 .build();
-            assertThat(TransformTask.getTransformTask("transform-1", clusterState), is(nullValue()));
-            assertThat(TransformTask.getTransformTask("other-1", clusterState), is(nullValue()));
+            assertThat(TransformTask.getTransformTask("transform-1", clusterState.metadata().getDefaultProject()), is(nullValue()));
+            assertThat(TransformTask.getTransformTask("other-1", clusterState.metadata().getDefaultProject()), is(nullValue()));
         }
         {
             TransformTaskParams transformTaskParams = createTransformTaskParams("transform-1");
@@ -418,24 +419,30 @@ public class TransformTaskTests extends ESTestCase {
                         )
                 )
                 .build();
-            assertThat(TransformTask.getTransformTask("transform-1", clusterState).getId(), is(equalTo("transform-1")));
+            assertThat(
+                TransformTask.getTransformTask("transform-1", clusterState.metadata().getDefaultProject()).getId(),
+                is(equalTo("transform-1"))
+            );
             ElasticsearchStatusException e = expectThrows(
                 ElasticsearchStatusException.class,
-                () -> TransformTask.getTransformTask("transform-2", clusterState).getId()
+                () -> TransformTask.getTransformTask("transform-2", clusterState.metadata().getDefaultProject()).getId()
             );
             assertThat(e.getMessage(), is(equalTo("Found transform persistent task [transform-2] with incorrect params")));
-            e = expectThrows(ElasticsearchStatusException.class, () -> TransformTask.getTransformTask("transform-3", clusterState).getId());
+            e = expectThrows(
+                ElasticsearchStatusException.class,
+                () -> TransformTask.getTransformTask("transform-3", clusterState.metadata().getDefaultProject()).getId()
+            );
             assertThat(e.getMessage(), is(equalTo("Found transform persistent task [transform-3] with incorrect params")));
-            assertThat(TransformTask.getTransformTask("other-1", clusterState), is(nullValue()));
-            assertThat(TransformTask.getTransformTask("other-2", clusterState), is(nullValue()));
-            assertThat(TransformTask.getTransformTask("other-3", clusterState), is(nullValue()));
+            assertThat(TransformTask.getTransformTask("other-1", clusterState.metadata().getDefaultProject()), is(nullValue()));
+            assertThat(TransformTask.getTransformTask("other-2", clusterState.metadata().getDefaultProject()), is(nullValue()));
+            assertThat(TransformTask.getTransformTask("other-3", clusterState.metadata().getDefaultProject()), is(nullValue()));
         }
     }
 
     public void testFindAllTransformTasks() {
         {
             ClusterState clusterState = ClusterState.EMPTY_STATE;
-            assertThat(TransformTask.findAllTransformTasks(clusterState), is(empty()));
+            assertThat(TransformTask.findAllTransformTasks(clusterState.metadata().getDefaultProject()), is(empty()));
         }
         {
             ClusterState clusterState = ClusterState.builder(new ClusterName("some-cluster"))
@@ -451,7 +458,7 @@ public class TransformTaskTests extends ESTestCase {
                         )
                 )
                 .build();
-            assertThat(TransformTask.findAllTransformTasks(clusterState), is(empty()));
+            assertThat(TransformTask.findAllTransformTasks(clusterState.metadata().getDefaultProject()), is(empty()));
         }
         {
             ClusterState clusterState = ClusterState.builder(new ClusterName("some-cluster"))
@@ -471,7 +478,10 @@ public class TransformTaskTests extends ESTestCase {
                 )
                 .build();
             assertThat(
-                TransformTask.findAllTransformTasks(clusterState).stream().map(PersistentTask::getId).collect(toList()),
+                TransformTask.findAllTransformTasks(clusterState.metadata().getDefaultProject())
+                    .stream()
+                    .map(PersistentTask::getId)
+                    .collect(toList()),
                 containsInAnyOrder("transform-1", "transform-2", "transform-3")
             );
         }
@@ -494,30 +504,31 @@ public class TransformTaskTests extends ESTestCase {
                     )
             )
             .build();
+        ProjectMetadata project = clusterState.metadata().getDefaultProject();
         assertThat(
-            TransformTask.findTransformTasks("trans*-*", clusterState).stream().map(PersistentTask::getId).collect(toList()),
+            TransformTask.findTransformTasks("trans*-*", project).stream().map(PersistentTask::getId).collect(toList()),
             containsInAnyOrder("transform-1", "transform-2", "transform-3")
         );
         assertThat(
-            TransformTask.findTransformTasks("*-2", clusterState).stream().map(PersistentTask::getId).collect(toList()),
+            TransformTask.findTransformTasks("*-2", project).stream().map(PersistentTask::getId).collect(toList()),
             contains("transform-2")
         );
-        assertThat(TransformTask.findTransformTasks("*-4", clusterState), is(empty()));
+        assertThat(TransformTask.findTransformTasks("*-4", project), is(empty()));
         assertThat(
-            TransformTask.findTransformTasks(Set.of("transform-1", "transform-2", "transform-3", "transform-4"), clusterState)
+            TransformTask.findTransformTasks(Set.of("transform-1", "transform-2", "transform-3", "transform-4"), project)
                 .stream()
                 .map(PersistentTask::getId)
                 .collect(toList()),
             containsInAnyOrder("transform-1", "transform-2", "transform-3")
         );
         assertThat(
-            TransformTask.findTransformTasks(Set.of("transform-1", "transform-2"), clusterState)
+            TransformTask.findTransformTasks(Set.of("transform-1", "transform-2"), project)
                 .stream()
                 .map(PersistentTask::getId)
                 .collect(toList()),
             containsInAnyOrder("transform-1", "transform-2")
         );
-        assertThat(TransformTask.findTransformTasks(Set.of("transform-4", "transform-5"), clusterState), is(empty()));
+        assertThat(TransformTask.findTransformTasks(Set.of("transform-4", "transform-5"), project), is(empty()));
     }
 
     public void testApplyNewAuthState() {

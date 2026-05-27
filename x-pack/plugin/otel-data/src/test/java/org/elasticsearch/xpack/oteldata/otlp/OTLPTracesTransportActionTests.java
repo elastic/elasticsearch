@@ -7,7 +7,10 @@
 
 package org.elasticsearch.xpack.oteldata.otlp;
 
+import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceRequest;
 import io.opentelemetry.proto.collector.trace.v1.ExportTraceServiceResponse;
+import io.opentelemetry.proto.common.v1.InstrumentationScope;
+import io.opentelemetry.proto.trace.v1.ScopeSpans;
 
 import com.google.protobuf.InvalidProtocolBufferException;
 
@@ -63,6 +66,34 @@ public class OTLPTracesTransportActionTests extends AbstractOTLPTransportActionT
     @Override
     protected String dataStreamType() {
         return "traces";
+    }
+
+    public void testPrepareBulkRequestUsesEncodingScopeRouting() throws Exception {
+        InstrumentationScope scope = InstrumentationScope.newBuilder()
+            .setName("github.com/open-telemetry/opentelemetry-collector-contrib/extension/encoding/awslogsencodingextension")
+            .addAttributes(OtlpUtils.keyValue("encoding.format", "aws.cloudtrail"))
+            .build();
+
+        String indexName = prepareIndexName(
+            ExportTraceServiceRequest.newBuilder()
+                .addResourceSpans(
+                    OtlpTraceUtils.createResourceSpans(
+                        List.of(OtlpUtils.keyValue("service.name", "test-service")),
+                        List.of(ScopeSpans.newBuilder().setScope(scope).addSpans(OtlpTraceUtils.createSpan("test-span")).build())
+                    )
+                )
+                .build()
+        );
+
+        assertThat(indexName, equalTo("traces-aws.cloudtrail.otel-default"));
+    }
+
+    private String prepareIndexName(ExportTraceServiceRequest request) throws Exception {
+        OTLPTracesTransportAction tracesAction = (OTLPTracesTransportAction) createAction();
+        BulkRequestBuilder bulkRequestBuilder = new BulkRequestBuilder(client);
+        tracesAction.prepareBulkRequest(new OTLPActionRequest(new BytesArray(request.toByteArray())), bulkRequestBuilder);
+        IndexRequest indexRequest = (IndexRequest) bulkRequestBuilder.request().requests().get(0);
+        return indexRequest.index();
     }
 
     public void testPrepareBulkRequestUsesDocumentIdAttribute() throws Exception {

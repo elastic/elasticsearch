@@ -1,0 +1,5 @@
+pr: 147562
+summary: ES|QL — route FROM dataset through the EXTERNAL pipeline (Phase 1)
+area: ES|QL
+type: enhancement
+issues: []

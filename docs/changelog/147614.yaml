@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 142710
+pr: 147614
+summary: Fix validation error when search functions are used after FORK
+type: bug

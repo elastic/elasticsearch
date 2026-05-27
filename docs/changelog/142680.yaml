@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 133942
-pr: 142680
-summary: Adding ES|QL command REGISTERED_DOMAIN
-type: feature

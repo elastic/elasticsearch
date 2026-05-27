@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.datasource.gcs;
 
+import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.DataSourceConfigDefinition;
 import org.elasticsearch.xpack.esql.datasources.spi.FileDataSourceConfiguration;
 
@@ -45,6 +46,15 @@ public class GcsConfiguration extends FileDataSourceConfiguration {
 
     public static GcsConfiguration fromMap(Map<String, Object> raw) {
         return raw == null || raw.isEmpty() ? null : new GcsConfiguration(raw);
+    }
+
+    /**
+     * Lenient factory for query-time configuration maps, which may carry format-level options
+     * (e.g. {@code header_row}) alongside storage-level options. Filters unknown keys
+     * before construction; cross-field validation (auth/credential conflicts) still runs.
+     */
+    public static Configured<GcsConfiguration> fromQueryConfig(Map<String, Object> raw) {
+        return filterAndConstruct(raw, FIELDS, GcsConfiguration::new);
     }
 
     public static GcsConfiguration fromFields(String serviceAccountCredentials, String projectId, String endpoint) {

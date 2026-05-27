@@ -44,7 +44,7 @@ import java.util.TreeMap;
 import java.util.stream.Collectors;
 import java.util.zip.CRC32C;
 
-import static org.elasticsearch.test.knn.data.DatasetConfig.PartitionGenerated;
+import static org.elasticsearch.test.knn.data.DatasetConfig.RandomGenerated;
 
 /**
  * Command line arguments for the KNN index tester.
@@ -65,6 +65,7 @@ public record TestConfiguration(
     VectorSimilarityFunction vectorSpace,
     boolean normalizeVectors,
     Integer quantizeBits,
+    Integer queryQuantizeBits,
     KnnIndexTester.VectorEncoding vectorEncoding,
     int dimensions,
     KnnIndexTester.MergePolicyType mergePolicy,
@@ -105,6 +106,7 @@ public record TestConfiguration(
     static final ParseField FORCE_MERGE_MAX_NUM_SEGMENTS_FIELD = new ParseField("force_merge_max_num_segments");
     static final ParseField VECTOR_SPACE_FIELD = new ParseField("vector_space");
     static final ParseField QUANTIZE_BITS_FIELD = new ParseField("quantize_bits");
+    static final ParseField QUERY_QUANTIZE_BITS_FIELD = new ParseField("query_quantize_bits");
     static final ParseField VECTOR_ENCODING_FIELD = new ParseField("vector_encoding");
     static final ParseField DIMENSIONS_FIELD = new ParseField("dimensions");
     static final ParseField EARLY_TERMINATION_FIELD = new ParseField("early_termination");
@@ -161,6 +163,12 @@ public record TestConfiguration(
             Builder::setQuantizeBits,
             p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue(),
             QUANTIZE_BITS_FIELD,
+            ObjectParser.ValueType.INT_OR_NULL
+        );
+        PARSER.declareField(
+            Builder::setQueryQuantizeBits,
+            p -> p.currentToken() == XContentParser.Token.VALUE_NULL ? null : p.intValue(),
+            QUERY_QUANTIZE_BITS_FIELD,
             ObjectParser.ValueType.INT_OR_NULL
         );
         PARSER.declareString(Builder::setVectorEncoding, VECTOR_ENCODING_FIELD);
@@ -232,6 +240,12 @@ public record TestConfiguration(
                     + "If cosine is selected with float vectors, vectors are L2-normalized and dot_product is used internally."
             ),
             new ParameterHelp("quantize_bits", "int", "Quantization bits; valid values depend on index_type."),
+            new ParameterHelp(
+                "query_quantize_bits",
+                "int",
+                "Optional IVF query quantization bits. For quantize_bits=1, use 1 for symmetric 1-bit query "
+                    + "(default when omitted is 4-bit asymmetric query)."
+            ),
             new ParameterHelp("vector_encoding", "string", "Vector encoding: byte, float32, or bfloat16."),
             new ParameterHelp("dimensions", "int", "Vector dimensions; -1 uses dimensions from the vector file."),
             new ParameterHelp("merge_policy", "string", "Merge policy: tiered, log_byte, log_doc, or no."),
@@ -388,6 +402,7 @@ public record TestConfiguration(
         private int forceMergeMaxNumSegments = 1;
         private VectorSimilarityFunction vectorSpace;
         private Integer quantizeBits = null;
+        private Integer queryQuantizeBits = null;
         private KnnIndexTester.VectorEncoding vectorEncoding = KnnIndexTester.VectorEncoding.FLOAT32;
         private int dimensions;
         private List<Boolean> earlyTermination = List.of(Boolean.FALSE);
@@ -537,6 +552,11 @@ public record TestConfiguration(
 
         public Builder setQuantizeBits(Integer quantizeBits) {
             this.quantizeBits = quantizeBits;
+            return this;
+        }
+
+        public Builder setQueryQuantizeBits(Integer queryQuantizeBits) {
+            this.queryQuantizeBits = queryQuantizeBits;
             return this;
         }
 
@@ -807,7 +827,7 @@ public record TestConfiguration(
             }
 
             switch (datasetConfig) {
-                case PartitionGenerated pg -> {
+                case RandomGenerated pg -> {
                     if (dimensions <= 0) {
                         throw new IllegalArgumentException("dimensions must be specified when using data generator");
                     }
@@ -881,6 +901,7 @@ public record TestConfiguration(
                 vectorSpace,
                 normalizeVectors,
                 quantizeBits,
+                queryQuantizeBits,
                 vectorEncoding,
                 dimensions,
                 mergePolicy,
@@ -935,6 +956,9 @@ public record TestConfiguration(
             }
             if (quantizeBits != null) {
                 builder.field(QUANTIZE_BITS_FIELD.getPreferredName(), quantizeBits);
+            }
+            if (queryQuantizeBits != null) {
+                builder.field(QUERY_QUANTIZE_BITS_FIELD.getPreferredName(), queryQuantizeBits);
             }
             builder.field(VECTOR_ENCODING_FIELD.getPreferredName(), vectorEncoding.name().toLowerCase(Locale.ROOT));
             builder.field(DIMENSIONS_FIELD.getPreferredName(), dimensions);

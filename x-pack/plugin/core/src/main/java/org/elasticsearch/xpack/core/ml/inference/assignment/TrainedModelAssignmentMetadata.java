@@ -188,7 +188,7 @@ public class TrainedModelAssignmentMetadata implements Metadata.ProjectCustom {
 
     @Override
     public String toString() {
-        return Strings.toString(this);
+        return Strings.toTruncatedString(this);
     }
 
     public boolean hasOutdatedAssignments() {

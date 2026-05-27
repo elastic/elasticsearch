@@ -30,6 +30,7 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.SimilarityMeasure;
@@ -61,16 +62,24 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
     }
 
     public static class TestDenseModel extends Model {
-        public TestDenseModel(String inferenceEntityId, TestDenseInferenceServiceExtension.TestServiceSettings serviceSettings) {
+        public TestDenseModel(
+            String inferenceEntityId,
+            TaskType taskType,
+            TestDenseInferenceServiceExtension.TestServiceSettings serviceSettings
+        ) {
             super(
                 new ModelConfigurations(
                     inferenceEntityId,
-                    TaskType.TEXT_EMBEDDING,
+                    taskType,
                     TestDenseInferenceServiceExtension.TestInferenceService.NAME,
                     serviceSettings
                 ),
                 new ModelSecrets(new AbstractTestInferenceService.TestSecretSettings("api_key"))
             );
+
+            if (taskType != TaskType.TEXT_EMBEDDING && taskType != TaskType.EMBEDDING) {
+                throw new IllegalArgumentException("task type [" + taskType + "] is not supported");
+            }
         }
     }
 
@@ -173,6 +182,16 @@ public class TestDenseInferenceServiceExtension implements InferenceServiceExten
                     )
                 );
             }
+        }
+
+        @Override
+        public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+            listener.onFailure(
+                new ElasticsearchStatusException(
+                    TaskType.unsupportedTaskTypeErrorMsg(model.getConfigurations().getTaskType(), name()),
+                    RestStatus.BAD_REQUEST
+                )
+            );
         }
 
         @Override

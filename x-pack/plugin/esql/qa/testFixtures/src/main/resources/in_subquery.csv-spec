@@ -1213,6 +1213,50 @@ book_no:keyword | author:text
 4977            | William Faulkner
 ;
 
+matchAndInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: match_function
+
+FROM books
+| WHERE MATCH(author, "Faulkner")
+| WHERE book_no IN (FROM books | WHERE book_no >= "4000" | KEEP book_no)
+| SORT book_no
+| KEEP book_no, author
+| LIMIT 3
+;
+
+book_no:keyword | author:text
+4502            | Colleen Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+;
+
+matchOrNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: match_function
+
+FROM books
+| WHERE book_no NOT IN (FROM books | WHERE book_no < "9000" | KEEP book_no)
+  OR MATCH(author, "William")
+| SORT book_no
+| KEEP book_no, author
+;
+
+book_no:keyword | author:text
+2713            | William Faulkner
+2883            | William Faulkner
+4724            | William Faulkner
+4977            | William Faulkner
+5119            | William Faulkner
+5404            | William Faulkner
+5578            | William Faulkner
+8077            | William Faulkner
+9032            | Tolstoy Leo
+9607            | John Ronald Reuel Tolkien
+9801            | Fyodor Dostoevsky
+9896            | William Faulkner
+;
+
 forkAfterInSubquery
 required_capability: where_in_subquery_without_view
 required_capability: fork_v9
@@ -2685,5 +2729,186 @@ emp_no:integer | first_name:keyword
 10001          | Georgi
 10002          | Bezalel
 10003          | Parto
+;
+
+rowOuterWithRowInSubqueryMatch
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+ROW x = 1
+| WHERE x IN (ROW y = 1)
+;
+
+x:integer
+1
+;
+
+rowOuterWithRowInSubqueryNoMatch
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+ROW x = 1
+| WHERE x IN (ROW y = 2)
+;
+
+x:integer
+;
+
+rowOuterWithRowNotInSubquery
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+ROW x = 1
+| WHERE x NOT IN (ROW y = 2)
+;
+
+x:integer
+1
+;
+
+rowOuterWithRowNotInSubqueryNoSurvivors
+required_capability: where_in_subquery_without_view
+required_capability: subquery_with_row
+
+ROW x = 1
+| WHERE x NOT IN (ROW y = 1)
+;
+
+x:integer
+;
+
+rowOuterWithFromInSubqueryMatch
+required_capability: where_in_subquery_without_view
+
+ROW emp_no = 10001
+| WHERE emp_no IN (FROM employees | KEEP emp_no)
+;
+
+emp_no:integer
+10001
+;
+
+rowOuterWithFromInSubqueryNoMatch
+required_capability: where_in_subquery_without_view
+
+ROW emp_no = 99999
+| WHERE emp_no IN (FROM employees | KEEP emp_no)
+;
+
+emp_no:integer
+;
+
+rowOuterWithFromNotInSubquery
+required_capability: where_in_subquery_without_view
+
+ROW emp_no = 99999
+| WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
+;
+
+emp_no:integer
+99999
+;
+
+rowOuterWithFromInSubqueryFiltered
+required_capability: where_in_subquery_without_view
+
+ROW emp_no = 10007
+| WHERE emp_no IN (FROM employees | WHERE salary > 70000 | KEEP emp_no)
+;
+
+emp_no:integer
+10007
+;
+
+rowOuterMultiValueMvExpandWithFromInSubquery
+required_capability: where_in_subquery_without_view
+
+ROW emp_no = [10001, 10002, 99999]
+| MV_EXPAND emp_no
+| WHERE emp_no IN (FROM employees | KEEP emp_no)
+| SORT emp_no
+;
+
+emp_no:integer
+10001
+10002
+;
+
+rowOuterMultiValueMvExpandWithFromNotInSubquery
+required_capability: where_in_subquery_without_view
+
+ROW emp_no = [10001, 10002, 99999]
+| MV_EXPAND emp_no
+| WHERE emp_no NOT IN (FROM employees | KEEP emp_no)
+;
+
+emp_no:integer
+99999
+;
+
+inSubqueryMetadataIndexTautology
+required_capability: where_in_subquery_without_view
+
+// _index of every employees row is "employees", and the subquery emits
+// "employees" for every row, so the IN check is satisfied by all rows.
+FROM employees METADATA _index
+| WHERE _index IN (FROM employees METADATA _index | KEEP _index)
+| KEEP emp_no, _index
+| SORT emp_no
+| LIMIT 3
+;
+
+emp_no:integer | _index:keyword
+10001          | employees
+10002          | employees
+10003          | employees
+;
+
+inSubqueryMetadataIndexFiltersToMatchingIndex
+required_capability: where_in_subquery_without_view
+
+FROM employees, employees_incompatible METADATA _index
+| WHERE _index IN (FROM employees METADATA _index | KEEP _index)
+| STATS c = COUNT(*) BY _index
+;
+
+c:long | _index:keyword
+100    | employees
+;
+
+notInSubqueryMetadataIndexKeepsOtherIndex
+required_capability: where_in_subquery_without_view
+
+FROM employees, employees_incompatible METADATA _index
+| WHERE _index NOT IN (FROM employees METADATA _index | KEEP _index)
+| STATS c = COUNT(*) BY _index
+;
+
+c:long | _index:keyword
+100    | employees_incompatible
+;
+
+inSubqueryMetadataIndexAgainstSubqueryOnDifferentIndex
+required_capability: where_in_subquery_without_view
+
+FROM employees, employees_incompatible METADATA _index
+| WHERE _index IN (FROM employees_incompatible METADATA _index | KEEP _index)
+| STATS c = COUNT(*) BY _index
+;
+
+c:long | _index:keyword
+100    | employees_incompatible
+;
+
+inSubqueryMetadataIndexAgainstEvalLiteral
+required_capability: where_in_subquery_without_view
+
+FROM employees, employees_incompatible METADATA _index
+| WHERE _index IN (FROM languages | EVAL idx = "employees_incompatible" | KEEP idx)
+| STATS c = COUNT(*) BY _index
+;
+
+c:long | _index:keyword
+100    | employees_incompatible
 ;
 

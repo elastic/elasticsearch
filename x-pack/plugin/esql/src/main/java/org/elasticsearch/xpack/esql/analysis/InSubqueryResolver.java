@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -69,24 +68,21 @@ public class InSubqueryResolver {
 
     /**
      * Resolves all {@link InSubquery} expressions in {@link Filter} conditions and validates the
-     * result. {@link InSubquery} occurrences that survived rewriting (e.g. inside an EVAL, SORT,
-     * STATS BY clause, or wrapped in a non-boolean expression) cause a {@link VerificationException}.
-     *
-     * @param listener receives the resolved plan on success, or a {@link VerificationException} on failure
-     */
-    public static void resolve(LogicalPlan plan, ActionListener<LogicalPlan> listener) {
-        try {
-            LogicalPlan resolved = resolveInSubqueries(plan);
-            verify(resolved);
-            listener.onResponse(resolved);
-        } catch (Exception e) {
-            listener.onFailure(e);
-        }
-    }
-
-    /**
-     * Synchronous variant for use in tests that don't need the listener pattern.
-     * Throws {@link VerificationException} directly if unresolved {@link InSubquery} expressions remain.
+     * result. Throws a {@link VerificationException} when an {@link InSubquery} survived rewriting
+     * (e.g. inside an EVAL, SORT, STATS BY clause, or wrapped in a non-boolean expression).
+     * <p>
+     * Synchronous — does no I/O. Async callers should invoke this inside an
+     * {@link org.elasticsearch.action.ActionListener#delegateFailureAndWrap delegateFailureAndWrap}
+     * lambda so the thrown {@link VerificationException} is routed to {@code onFailure}.
+     * <p>
+     * Telemetry for {@code IN_SUBQUERY} is collected separately by the session — see
+     * {@code EsqlSession#gatherInSubqueryMetrics}, which uses {@link #hasInSubqueryInFilter} on
+     * the pre-resolution plan because by the time this method returns the originating
+     * {@link InSubquery} expressions have been replaced with
+     * {@link SemiJoin}/{@link AntiJoin}/{@link LeftSemiJoin} and are no longer visible to plan
+     * traversals. The {@code WHERE} counter still picks up SemiJoin/AntiJoin/LeftSemiJoin in the
+     * post-resolution plan walk (see {@code FeatureMetric#WHERE}), so the {@code WHERE} bit does
+     * not need to be set up-front here.
      */
     public static LogicalPlan resolve(LogicalPlan plan) {
         LogicalPlan resolved = resolveInSubqueries(plan);
@@ -96,6 +92,19 @@ public class InSubqueryResolver {
 
     private static LogicalPlan resolveInSubqueries(LogicalPlan plan) {
         return plan.transformUp(Filter.class, InSubqueryResolver::resolveInSubqueryInFilter);
+    }
+
+    /**
+     * Returns {@code true} if the pre-resolution plan contains any {@link InSubquery} expression
+     * inside a {@link Filter} (i.e. as part of a {@code WHERE} condition). Used by the session to
+     * decide whether to increment the {@code IN_SUBQUERY} telemetry counter — once per query, in
+     * the same spirit as {@code EsqlSession#gatherViewMetrics}.
+     * <p>
+     * Restricted to {@link Filter} conditions because {@link InSubquery} occurrences elsewhere
+     * (EVAL, SORT, STATS BY, etc.) are rejected by {@link #verify} today.
+     */
+    public static boolean hasInSubqueryInFilter(LogicalPlan plan) {
+        return plan.anyMatch(p -> p instanceof Filter filter && filter.condition().anyMatch(e -> e instanceof InSubquery));
     }
 
     /**

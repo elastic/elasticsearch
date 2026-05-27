@@ -819,6 +819,18 @@ public class InSubqueryResolverTests extends ESTestCase {
         );
     }
 
+    public void testRejectsInSubqueryWithExpressionOnLHS() {
+        assertResolveError(
+            "FROM main | WHERE a + b IN (FROM sub)",
+            "line 1:19: Complicated IN subquery is not yet supported in the WHERE command [WHERE a + b IN (FROM sub)]"
+        );
+
+        assertResolveError(
+            "FROM main | WHERE abs(a) IN (FROM sub)",
+            "line 1:19: Complicated IN subquery is not yet supported in the WHERE command [WHERE abs(a) IN (FROM sub)]"
+        );
+    }
+
     // ---- helpers ----
 
     private static LogicalPlan resolve(String query) {

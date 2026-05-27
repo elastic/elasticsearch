@@ -306,8 +306,10 @@ public class VerifierMetricsTests extends ESTestCase {
 
     public void testInSubquery() {
         assumeTrue("requires WHERE IN subquery capability", EsqlCapabilities.Cap.WHERE_IN_SUBQUERY_WITHOUT_VIEW.isEnabled());
-        // After InSubqueryResolver, the WHERE IN subquery is converted to a SemiJoin,
-        // and the subquery's stats is visible in the plan tree.
+        // IN_SUBQUERY is incremented once on the pre-resolution plan (when the InSubquery expression
+        // is still in place). WHERE is counted by the post-resolution plan walk via the FeatureMetric.WHERE
+        // matcher, which catches SemiJoin (since SemiJoin/AntiJoin/LeftSemiJoin can only originate
+        // from `WHERE x IN (sub)`). The subquery's stats is also visible in the resulting plan tree.
         Counters c = esql("from employees | where emp_no IN (from employees | stats max(emp_no))");
         assertMetrics(c, Map.of(STATS, 1L, WHERE, 1L, FROM, 1L, IN_SUBQUERY, 1L), Map.of("max", 1L));
     }
@@ -387,13 +389,21 @@ public class VerifierMetricsTests extends ESTestCase {
             metrics = new Metrics(TEST_FUNCTION_REGISTRY, true, true);
             verifier = new Verifier(metrics, new XPackLicenseState(() -> 0L));
         }
+        // Mirror EsqlSession.execute: increment IN_SUBQUERY on the pre-resolution plan (once),
+        // then resolve InSubquery into SemiJoin/AntiJoin/LeftSemiJoin, then analyze.
+        // WHERE is counted by the analyzer/verifier plan walk via FeatureMetric.WHERE matching
+        // SemiJoin/AntiJoin/LeftSemiJoin in the post-resolution plan.
+        var parsed = TEST_PARSER.parseQuery(esql);
+        if (metrics != null && InSubqueryResolver.hasInSubqueryInFilter(parsed)) {
+            metrics.inc(IN_SUBQUERY);
+        }
         analyzer().addIndex("metrics", "mapping-basic.json", IndexMode.TIME_SERIES)
             .addK8s()
             .addEmployees()
             .addAnalysisTestsEnrichResolution()
             .addLanguagesLookup()
             .buildAnalyzer(verifier)
-            .analyze(InSubqueryResolver.resolve(TEST_PARSER.parseQuery(esql)));
+            .analyze(InSubqueryResolver.resolve(parsed));
 
         return metrics == null ? null : metrics.stats();
     }

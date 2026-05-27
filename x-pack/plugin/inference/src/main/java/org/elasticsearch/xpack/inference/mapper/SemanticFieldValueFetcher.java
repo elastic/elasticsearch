@@ -19,7 +19,6 @@ import org.apache.lucene.util.BitSet;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
-import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.ValueFetcher;
@@ -44,7 +43,8 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOffs
 
 class SemanticFieldValueFetcher implements ValueFetcher {
     enum Mode {
-        TEXT,
+        CHUNK_VALUES,
+        ORIGINAL_VALUES,
         FULL_FIELD
     }
 
@@ -109,7 +109,11 @@ class SemanticFieldValueFetcher implements ValueFetcher {
             it.advance(previousParent);
         }
 
-        return mode == Mode.TEXT ? fetchTextChunks(source, doc, it) : fetchFullField(source, doc, it);
+        return switch (mode) {
+            case CHUNK_VALUES -> fetchChunkValues(source, doc, it);
+            case ORIGINAL_VALUES -> fetchOriginalValues(source);
+            case FULL_FIELD -> fetchFullField(source, doc, it);
+        };
     }
 
     @Override
@@ -117,13 +121,13 @@ class SemanticFieldValueFetcher implements ValueFetcher {
         return StoredFieldsSpec.NO_REQUIREMENTS;
     }
 
-    private List<Object> fetchTextChunks(Source source, int doc, DocIdSetIterator it) throws IOException {
+    private List<Object> fetchChunkValues(Source source, int doc, DocIdSetIterator it) throws IOException {
         Map<String, SemanticFieldContent> fieldValueMap = new HashMap<>();
         List<Object> chunks = new ArrayList<>();
 
         iterateChildDocs(doc, it, offset -> {
             SemanticFieldContent semanticFieldContent = fieldValueMap.computeIfAbsent(offset.field(), k -> {
-                var valueObj = XContentMapValues.extractValue(offset.field(), source.source(), null);
+                var valueObj = source.extractValue(offset.field(), null);
                 return new SemanticFieldContent(valueObj);
             });
 
@@ -151,6 +155,12 @@ class SemanticFieldValueFetcher implements ValueFetcher {
         });
 
         return chunks;
+    }
+
+    private List<Object> fetchOriginalValues(Source source) {
+        Object valueObj = source.extractValue(fieldType.name(), null);
+        SemanticFieldContent semanticFieldContent = new SemanticFieldContent(valueObj);
+        return semanticFieldContent.getOriginalValues();
     }
 
     private List<Object> fetchFullField(Source source, int doc, DocIdSetIterator it) throws IOException {

@@ -905,7 +905,7 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
                     this,
                     getChunksField().bitsetProducer(),
                     context.searcher(),
-                    SemanticFieldValueFetcher.Mode.TEXT
+                    SemanticFieldValueFetcher.Mode.CHUNK_VALUES
                 );
             }
 

@@ -214,6 +214,7 @@ tasks.named("yamlRestTest").configure {
     'ml/job_groups/Test put job with id that matches an existing group',
     'ml/job_groups/Test put job with invalid group',
     'ml/ml_info/Test ml info',
+    'ml/ml_info/Test ml info model_platform_variant',
     'ml/pipeline_inference/Test setting results field is invalid',
     'ml/post_data/Test Flush data with invalid parameters',
     'ml/post_data/Test flushing and posting a closed job',

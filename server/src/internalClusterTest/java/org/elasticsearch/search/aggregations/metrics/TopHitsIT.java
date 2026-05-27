@@ -104,12 +104,6 @@ public class TopHitsIT extends ESIntegTestCase {
         return List.of(CustomScriptPlugin.class, FetchPlugin.class);
     }
 
-    @Override
-    protected boolean randomizeColumnarIdMode() {
-        // Columnar mode doesn't yet fully support nested field type.
-        return false;
-    }
-
     public static class CustomScriptPlugin extends MockScriptPlugin {
         @Override
         protected Map<String, Function<Map<String, Object>, Object>> pluginScripts() {

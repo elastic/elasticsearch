@@ -597,10 +597,10 @@ public class SynonymsManagementAPIService {
         String synonymSetId,
         SynonymRule[] synonymsSet,
         boolean refresh,
-        boolean replaceAll,
+        boolean append,
         ActionListener<SynonymsReloadResult> listener
     ) {
-        if (replaceAll == false) {
+        if (append) {
             addToSynonymsSet(synonymSetId, synonymsSet, refresh, listener);
             return;
         }

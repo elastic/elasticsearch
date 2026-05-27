@@ -104,8 +104,8 @@ teardown:
 ---
 "Append to non-existent set creates it":
   - requires:
-      cluster_features: [ "synonyms.replace_all_param" ]
-      reason: "synonyms replace_all body field support needed"
+      cluster_features: [ "synonyms.append" ]
+      reason: "synonyms append body field support needed"
 
   - do:
       synonyms.put_synonym:
@@ -114,7 +114,7 @@ teardown:
           synonyms_set:
             - synonyms: "hello, hi"
               id: "rule-1"
-          replace_all: false
+          append: true
 
   - match: { result: "created" }
 
@@ -128,8 +128,8 @@ teardown:
 ---
 "Append adds rules without removing existing ones":
   - requires:
-      cluster_features: [ "synonyms.replace_all_param" ]
-      reason: "synonyms replace_all body field support needed"
+      cluster_features: [ "synonyms.append" ]
+      reason: "synonyms append body field support needed"
 
   - do:
       synonyms.put_synonym:
@@ -150,7 +150,7 @@ teardown:
           synonyms_set:
             - synonyms: "good, great"
               id: "rule-3"
-          replace_all: false
+          append: true
 
   - match: { result: "updated" }
 
@@ -163,8 +163,8 @@ teardown:
 ---
 "Append with matching ID overwrites existing rule":
   - requires:
-      cluster_features: [ "synonyms.replace_all_param" ]
-      reason: "synonyms replace_all body field support needed"
+      cluster_features: [ "synonyms.append" ]
+      reason: "synonyms append body field support needed"
 
   - do:
       synonyms.put_synonym:
@@ -183,7 +183,7 @@ teardown:
           synonyms_set:
             - synonyms: "hello, hi, hey"
               id: "rule-1"
-          replace_all: false
+          append: true
 
   - match: { result: "updated" }
 
@@ -197,8 +197,8 @@ teardown:
 ---
 "Put without append replaces existing rules":
   - requires:
-      cluster_features: [ "synonyms.replace_all_param" ]
-      reason: "synonyms replace_all body field support needed"
+      cluster_features: [ "synonyms.append" ]
+      reason: "synonyms append body field support needed"
 
   - do:
       synonyms.put_synonym:

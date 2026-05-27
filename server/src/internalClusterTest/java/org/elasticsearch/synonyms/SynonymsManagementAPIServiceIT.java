@@ -89,12 +89,12 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         SynonymRule[] initialRules = randomSynonymsSet(randomIntBetween(1, 5));
         SynonymRule[] additionalRules = randomSynonymsSet(randomIntBetween(1, 5));
 
-        // replaceAll=false on a non-existent set creates it
+        // append=true on a non-existent set creates it
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> createFuture = new PlainActionFuture<>();
         synonymsManagementAPIService.putSynonymsSet(synonymSetId, initialRules, false, false, createFuture);
         assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED, safeGet(createFuture).synonymsOperationResult());
 
-        // replaceAll=false on an existing set adds rules without removing existing ones
+        // append=true on an existing set adds rules without removing existing ones
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> addFuture = new PlainActionFuture<>();
         synonymsManagementAPIService.putSynonymsSet(synonymSetId, additionalRules, false, false, addFuture);
         assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.UPDATED, safeGet(addFuture).synonymsOperationResult());
@@ -114,7 +114,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         synonymsManagementAPIService.putSynonymsSet(synonymSetId, new SynonymRule[0], false, true, createFuture);
         assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED, safeGet(createFuture).synonymsOperationResult());
 
-        // replaceAll=false on an existing empty set returns UPDATED (the set document exists)
+        // append=true on an existing empty set returns UPDATED (the set document exists)
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> addFuture = new PlainActionFuture<>();
         synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(randomIntBetween(1, 5)), false, false, addFuture);
         assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.UPDATED, safeGet(addFuture).synonymsOperationResult());

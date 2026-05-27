@@ -659,7 +659,12 @@ public class SynonymsManagementAPIService {
             UpdateSynonymsResultStatus status = getResponse.isExists()
                 ? UpdateSynonymsResultStatus.UPDATED
                 : UpdateSynonymsResultStatus.CREATED;
-            countExistingRulesAndAdd(synonymSetId, synonymsSet, refresh, status, listener);
+            if (status == UpdateSynonymsResultStatus.CREATED) {
+                // Synonym set doesn't exist yet — existing count is 0, no need to search
+                bulkAddToSynonymsSet(synonymSetId, synonymsSet, 0, refresh, status, listener);
+            } else {
+                countExistingRulesAndAdd(synonymSetId, synonymsSet, refresh, status, listener);
+            }
         }, e -> {
             if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
                 bulkAddToSynonymsSet(synonymSetId, synonymsSet, 0, refresh, UpdateSynonymsResultStatus.CREATED, listener);
@@ -677,7 +682,8 @@ public class SynonymsManagementAPIService {
         ActionListener<SynonymsReloadResult> listener
     ) {
         // Count is best-effort: search results may lag behind recent writes by up to one refresh
-        // interval. This is consistent with the same trade-off accepted in putSynonymRule.
+        // interval, and concurrent appends can push the total beyond the configured limit.
+        // Both are acceptable trade-offs, consistent with putSynonymRule.
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setQuery(
                 QueryBuilders.boolQuery()
@@ -690,13 +696,7 @@ public class SynonymsManagementAPIService {
             .execute(ActionListener.wrap(searchResponse -> {
                 long existingCount = searchResponse.getHits().getTotalHits().value();
                 bulkAddToSynonymsSet(synonymSetId, synonymsSet, existingCount, refresh, status, listener);
-            }, e -> {
-                if (ExceptionsHelper.unwrapCause(e) instanceof IndexNotFoundException) {
-                    bulkAddToSynonymsSet(synonymSetId, synonymsSet, 0, refresh, status, listener);
-                } else {
-                    listener.onFailure(e);
-                }
-            }));
+            }, listener::onFailure));
     }
 
     private void bulkAddToSynonymsSet(

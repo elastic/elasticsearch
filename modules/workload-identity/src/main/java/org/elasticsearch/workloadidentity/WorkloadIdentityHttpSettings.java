@@ -49,21 +49,12 @@ public final class WorkloadIdentityHttpSettings {
         Setting.Property.NodeScope
     );
 
-    // Bounds shared by CONNECT_TIMEOUT and REQUEST_TIMEOUT below. The 1ms floor rules out Apache
-    // HC's "0 == wait forever" sentinel (an unreachable issuer would otherwise silently wedge
-    // every code path that needs a workload-identity token). The 1-hour ceiling matches the
-    // precedent in modules/repository-url's URLHttpClientSettings and is well below the
-    // Integer.MAX_VALUE-ms cap imposed by Apache HC 4.x's RequestConfig int-millisecond API,
-    // so the Math.toIntExact() conversion in HttpsWorkloadIdentityIssuerClient cannot overflow.
-    private static final TimeValue MIN_TIMEOUT = TimeValue.timeValueMillis(1);
-    private static final TimeValue MAX_TIMEOUT = TimeValue.timeValueMinutes(60);
-
     /** Connection establish timeout, applied as the Apache HC connect timeout per request. */
     public static final Setting<TimeValue> CONNECT_TIMEOUT = Setting.timeSetting(
         HTTP_PREFIX + "connect_timeout",
         TimeValue.timeValueSeconds(5),
-        MIN_TIMEOUT,
-        MAX_TIMEOUT,
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueMinutes(60),
         Setting.Property.NodeScope
     );
 
@@ -74,8 +65,8 @@ public final class WorkloadIdentityHttpSettings {
     public static final Setting<TimeValue> REQUEST_TIMEOUT = Setting.timeSetting(
         HTTP_PREFIX + "request_timeout",
         TimeValue.timeValueSeconds(10),
-        MIN_TIMEOUT,
-        MAX_TIMEOUT,
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueMinutes(60),
         Setting.Property.NodeScope
     );
 
@@ -115,6 +106,63 @@ public final class WorkloadIdentityHttpSettings {
         Setting.Property.NodeScope
     );
 
+    private static final String RETRY_PREFIX = HTTP_PREFIX + "retry.";
+
+    /**
+     * Initial delay before the second token-request attempt, used as the seed for
+     * {@link org.elasticsearch.action.support.RetryableAction}'s jittered exponential backoff.
+     * Each subsequent retry doubles the bound (capped at {@link #RETRY_MAX_DELAY_BOUND}) and the
+     * actual delay is sampled uniformly within that bound.
+     */
+    public static final Setting<TimeValue> RETRY_INITIAL_DELAY = Setting.timeSetting(
+        RETRY_PREFIX + "initial_delay",
+        TimeValue.timeValueMillis(200),
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueMinutes(1),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Upper bound on the per-retry delay produced by the exponential backoff. Bounds the spacing
+     * between retries when the issuer is in a long-running degraded state, so retries do not
+     * grow toward the {@link #RETRY_TIMEOUT} budget unboundedly.
+     */
+    public static final Setting<TimeValue> RETRY_MAX_DELAY_BOUND = Setting.timeSetting(
+        RETRY_PREFIX + "max_delay_bound",
+        TimeValue.timeValueSeconds(5),
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueMinutes(5),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Wall-clock budget for the entire retrying token request, including all in-flight time and
+     * inter-attempt sleeps. Once exceeded, the most recent failure is surfaced to the listener
+     * with earlier attempts attached as suppressed exceptions. Must be at least as large as
+     * {@link #REQUEST_TIMEOUT}; the {@link HttpsWorkloadIdentityIssuerClient} constructor enforces
+     * that at startup.
+     */
+    public static final Setting<TimeValue> RETRY_TIMEOUT = Setting.timeSetting(
+        RETRY_PREFIX + "timeout",
+        TimeValue.timeValueSeconds(30),
+        TimeValue.timeValueMillis(1),
+        TimeValue.timeValueMinutes(60),
+        Setting.Property.NodeScope
+    );
+
+    /**
+     * Hard cap on the total number of attempts (including the first). Acts as a count-based
+     * backstop alongside the wall-clock {@link #RETRY_TIMEOUT}; whichever fires first stops the
+     * retrying action.
+     */
+    public static final Setting<Integer> RETRY_MAX_ATTEMPTS = Setting.intSetting(
+        RETRY_PREFIX + "max_attempts",
+        3,
+        1,
+        100,
+        Setting.Property.NodeScope
+    );
+
     private WorkloadIdentityHttpSettings() {}
 
     /** @return list of node-scope settings registered by this class. */
@@ -126,7 +174,11 @@ public final class WorkloadIdentityHttpSettings {
             REQUEST_TIMEOUT,
             CONNECTION_EVICTION_INTERVAL,
             CONNECTION_MAX_IDLE_TIME,
-            MAX_RESPONSE_SIZE
+            MAX_RESPONSE_SIZE,
+            RETRY_INITIAL_DELAY,
+            RETRY_MAX_DELAY_BOUND,
+            RETRY_TIMEOUT,
+            RETRY_MAX_ATTEMPTS
         );
     }
 }

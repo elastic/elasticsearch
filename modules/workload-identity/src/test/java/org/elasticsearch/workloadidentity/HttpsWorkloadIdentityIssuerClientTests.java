@@ -648,7 +648,9 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
     }
 
     /**
-     * Failed fetches are not cached: the next caller re-issues and may succeed.
+     * Failed fetches are not cached: the next caller re-issues and may succeed. Pinned to
+     * {@code max_attempts=1} so the retrier collapses to "one attempt then surface the failure";
+     * the inter-attempt retry behavior is exercised separately by {@link #testRetriesOn5xxUntilSuccess()}.
      */
     public void testFailedFetchIsNotCached() throws Exception {
         final AtomicInteger callCount = new AtomicInteger();
@@ -670,7 +672,11 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
             }
         };
 
-        try (ClientHarness harness = new ClientHarness(clientSettingsWithIssuerUrl().build())) {
+        try (
+            ClientHarness harness = new ClientHarness(
+                clientSettingsWithIssuerUrl().put(WorkloadIdentityHttpSettings.RETRY_MAX_ATTEMPTS.getKey(), 1).build()
+            )
+        ) {
             final IssueTokenRequest request = new IssueTokenRequest("aud");
             final PlainActionFuture<IssueTokenResponse> firstAttempt = new PlainActionFuture<>();
             harness.client.issueToken(request, firstAttempt);
@@ -679,6 +685,222 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
             final IssueTokenResponse second = awaitToken(harness, request);
             assertNotNull(second.token());
             assertEquals("the failure must not have been cached", 2, callCount.get());
+        }
+    }
+
+    /**
+     * Transient 5xx responses are retried with jittered exponential backoff; once the issuer
+     * recovers (here on the second attempt) the listener resolves with the successful token and
+     * the cache entry is established normally.
+     */
+    public void testRetriesOn5xxUntilSuccess() throws Exception {
+        final AtomicInteger callCount = new AtomicInteger();
+        final long farFutureEpochSecond = (System.currentTimeMillis() / 1000) + 3_600;
+        handler = exchange -> {
+            final int n = callCount.incrementAndGet();
+            try {
+                if (n == 1) {
+                    exchange.sendResponseHeaders(503, -1);
+                } else {
+                    respondWithToken(exchange, farFutureEpochSecond);
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        };
+
+        try (ClientHarness harness = new ClientHarness(retryEnabledSettings(3).build())) {
+            final IssueTokenResponse response = awaitToken(harness, new IssueTokenRequest("aud"));
+            assertEquals("header.payload.sig", response.token());
+            assertEquals("first attempt 503, second 200; both must hit the server", 2, callCount.get());
+        }
+    }
+
+    /**
+     * 429 Too Many Requests is treated as transient, mirroring the 5xx path: the retrier sleeps
+     * and re-attempts until success.
+     */
+    public void testRetriesOn429UntilSuccess() throws Exception {
+        final AtomicInteger callCount = new AtomicInteger();
+        final long farFutureEpochSecond = (System.currentTimeMillis() / 1000) + 3_600;
+        handler = exchange -> {
+            final int n = callCount.incrementAndGet();
+            try {
+                if (n == 1) {
+                    exchange.sendResponseHeaders(429, -1);
+                } else {
+                    respondWithToken(exchange, farFutureEpochSecond);
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        };
+
+        try (ClientHarness harness = new ClientHarness(retryEnabledSettings(3).build())) {
+            final IssueTokenResponse response = awaitToken(harness, new IssueTokenRequest("aud"));
+            assertEquals("header.payload.sig", response.token());
+            assertEquals(2, callCount.get());
+        }
+    }
+
+    /**
+     * Persistent transient failures eventually exhaust the per-call attempt cap. The most recent
+     * failure surfaces to the listener; earlier attempts attach as suppressed exceptions, as
+     * arranged by {@link org.elasticsearch.action.support.RetryableAction}'s base class. The
+     * server must be called exactly {@code max_attempts} times.
+     */
+    public void testRetryExhaustionOnPersistent5xxFailsListener() throws Exception {
+        final AtomicInteger callCount = new AtomicInteger();
+        handler = exchange -> {
+            callCount.incrementAndGet();
+            try {
+                exchange.sendResponseHeaders(500, -1);
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        };
+
+        final int maxAttempts = 3;
+        try (ClientHarness harness = new ClientHarness(retryEnabledSettings(maxAttempts).build())) {
+            final WorkloadIdentityIssuerException cause = awaitFailure(harness, new IssueTokenRequest("aud"));
+            assertEquals(500, cause.statusCode());
+            assertEquals("retrier must exhaust exactly max_attempts attempts", maxAttempts, callCount.get());
+            // The two earlier attempts must be visible on the cause chain as suppressed exceptions.
+            assertEquals("earlier attempts must attach as suppressed exceptions", maxAttempts - 1, cause.getSuppressed().length);
+        }
+    }
+
+    /**
+     * 4xx responses other than 429 are configuration / credential errors that no amount of
+     * retrying can fix; the retrier must fail fast on the first attempt.
+     */
+    public void testDoesNotRetryOn4xxOtherThan429() throws Exception {
+        final AtomicInteger callCount = new AtomicInteger();
+        handler = exchange -> {
+            callCount.incrementAndGet();
+            try {
+                exchange.sendResponseHeaders(403, -1);
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        };
+
+        try (ClientHarness harness = new ClientHarness(retryEnabledSettings(5).build())) {
+            final WorkloadIdentityIssuerException cause = awaitFailure(harness, new IssueTokenRequest("aud"));
+            assertEquals(403, cause.statusCode());
+            assertEquals("4xx (non-429) must not be retried", 1, callCount.get());
+            assertEquals(0, cause.getSuppressed().length);
+        }
+    }
+
+    /**
+     * Parse / validation failures (carrying the {@code -1} sentinel status when raised inside
+     * {@code parseSuccess}, or a 2xx status when raised by {@code validateExpiry}) are
+     * deterministic and must not be retried.
+     */
+    public void testDoesNotRetryOnParseFailure() throws Exception {
+        final AtomicInteger callCount = new AtomicInteger();
+        handler = exchange -> {
+            callCount.incrementAndGet();
+            try {
+                exchange.getResponseHeaders().add("Content-Type", "application/json");
+                final byte[] body = "not json {{".getBytes(StandardCharsets.UTF_8);
+                exchange.sendResponseHeaders(200, body.length);
+                try (OutputStream os = exchange.getResponseBody()) {
+                    os.write(body);
+                }
+            } catch (IOException e) {
+                throw new AssertionError(e);
+            }
+        };
+
+        try (ClientHarness harness = new ClientHarness(retryEnabledSettings(5).build())) {
+            final WorkloadIdentityIssuerException cause = awaitFailure(harness, new IssueTokenRequest("aud"));
+            assertThat(cause.getMessage(), containsString("failed to parse"));
+            assertEquals("parse failures must not be retried", 1, callCount.get());
+        }
+    }
+
+    /**
+     * Pure unit test of the retry-policy predicate. Encodes the policy without touching the
+     * network so the matrix of "retryable vs not" is easy to read at a glance.
+     */
+    public void testIsRetryablePolicy() {
+        // Retryable: transport / IO failures and the transient issuer statuses (429, 5xx).
+        assertTrue(HttpsWorkloadIdentityIssuerClient.isRetryable(new IOException("boom")));
+        assertTrue(HttpsWorkloadIdentityIssuerClient.isRetryable(new java.net.SocketTimeoutException("timeout")));
+        assertTrue(HttpsWorkloadIdentityIssuerClient.isRetryable(new WorkloadIdentityIssuerException("429", 429)));
+        assertTrue(HttpsWorkloadIdentityIssuerClient.isRetryable(new WorkloadIdentityIssuerException("500", 500)));
+        assertTrue(HttpsWorkloadIdentityIssuerClient.isRetryable(new WorkloadIdentityIssuerException("503", 503)));
+        assertTrue(HttpsWorkloadIdentityIssuerClient.isRetryable(new WorkloadIdentityIssuerException("599", 599)));
+
+        // Not retryable: deterministic client-side errors, parse failures (sentinel status -1),
+        // explicit cancellation, and 4xx other than 429.
+        assertFalse(HttpsWorkloadIdentityIssuerClient.isRetryable(new WorkloadIdentityIssuerException("parse", -1)));
+        assertFalse(HttpsWorkloadIdentityIssuerClient.isRetryable(new WorkloadIdentityIssuerException("200 body bad", 200)));
+        assertFalse(HttpsWorkloadIdentityIssuerClient.isRetryable(new WorkloadIdentityIssuerException("400", 400)));
+        assertFalse(HttpsWorkloadIdentityIssuerClient.isRetryable(new WorkloadIdentityIssuerException("403", 403)));
+        assertFalse(HttpsWorkloadIdentityIssuerClient.isRetryable(new WorkloadIdentityIssuerException("404", 404)));
+        assertFalse(HttpsWorkloadIdentityIssuerClient.isRetryable(new java.util.concurrent.CancellationException("cancelled")));
+        assertFalse(HttpsWorkloadIdentityIssuerClient.isRetryable(new IllegalStateException("not an IOException")));
+    }
+
+    /**
+     * The cross-setting check {@code RETRY_TIMEOUT >= REQUEST_TIMEOUT} must fail fast at node
+     * start. Without it, a single attempt would always exceed the retry budget and the retry
+     * layer would degenerate to "one attempt that also has to lose a race against the wall clock".
+     */
+    public void testRetryTimeoutBelowRequestTimeoutFailsAtConstruction() throws Exception {
+        final Settings settings = clientSettingsWithIssuerUrl().put(
+            WorkloadIdentityHttpSettings.REQUEST_TIMEOUT.getKey(),
+            TimeValue.timeValueSeconds(10)
+        ).put(WorkloadIdentityHttpSettings.RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(5)).build();
+        final IllegalArgumentException ex = assertClientConstructorThrows(settings);
+        assertThat(ex.getMessage(), containsString(WorkloadIdentityHttpSettings.RETRY_TIMEOUT.getKey()));
+        assertThat(ex.getMessage(), containsString(WorkloadIdentityHttpSettings.REQUEST_TIMEOUT.getKey()));
+        assertThat(ex.getMessage(), containsString("must be greater than or equal to setting"));
+    }
+
+    /**
+     * The cross-setting check {@code RETRY_MAX_DELAY_BOUND >= RETRY_INITIAL_DELAY} must fail at
+     * node start. {@link org.elasticsearch.action.support.RetryableAction} enforces the same
+     * invariant, but only when {@code run()} is first invoked; mirroring the check at construction
+     * surfaces operator typos before any token request is dispatched.
+     */
+    public void testRetryMaxDelayBoundBelowInitialDelayFailsAtConstruction() throws Exception {
+        final Settings settings = clientSettingsWithIssuerUrl().put(
+            WorkloadIdentityHttpSettings.RETRY_INITIAL_DELAY.getKey(),
+            TimeValue.timeValueMillis(500)
+        ).put(WorkloadIdentityHttpSettings.RETRY_MAX_DELAY_BOUND.getKey(), TimeValue.timeValueMillis(100)).build();
+        final IllegalArgumentException ex = assertClientConstructorThrows(settings);
+        assertThat(ex.getMessage(), containsString(WorkloadIdentityHttpSettings.RETRY_MAX_DELAY_BOUND.getKey()));
+        assertThat(ex.getMessage(), containsString(WorkloadIdentityHttpSettings.RETRY_INITIAL_DELAY.getKey()));
+        assertThat(ex.getMessage(), containsString("must be greater than or equal to setting"));
+    }
+
+    /**
+     * Stands up the surrounding wiring exactly as {@link ClientHarness} does, then expects the
+     * {@link HttpsWorkloadIdentityIssuerClient} constructor itself to throw an
+     * {@link IllegalArgumentException}. Cannot reuse {@link ClientHarness} directly because its
+     * try-with-resources contract assumes a successful client construction; here we need to
+     * tear the manager and thread pool down even when the inner constructor throws.
+     */
+    private static IllegalArgumentException assertClientConstructorThrows(Settings settings) {
+        final ThreadPool threadPool = new TestThreadPool(HttpsWorkloadIdentityIssuerClientTests.class.getSimpleName());
+        try {
+            final Environment environment = TestEnvironment.newEnvironment(settings);
+            final WorkloadIdentitySslConfig sslConfig = new WorkloadIdentitySslConfig(settings, environment);
+            final WorkloadIdentityHttpClientManager manager = new WorkloadIdentityHttpClientManager(settings, sslConfig, threadPool);
+            try {
+                return expectThrows(
+                    IllegalArgumentException.class,
+                    () -> new HttpsWorkloadIdentityIssuerClient(settings, manager, threadPool)
+                );
+            } finally {
+                manager.close();
+            }
+        } finally {
+            ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
         }
     }
 
@@ -807,6 +1029,18 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
      */
     private Settings.Builder clientSettingsWithIssuerUrl() throws Exception {
         return clientSettings().put(WorkloadIdentityIssuerSettings.ISSUER_URL_SETTING.getKey(), issuerBaseUrl());
+    }
+
+    /**
+     * {@link #clientSettingsWithIssuerUrl()} with the retry knobs squeezed for fast tests: tiny
+     * inter-attempt delays so the retry-flow tests finish in milliseconds, but the wall-clock
+     * budget still comfortably exceeds the per-request timeout (production constructor invariant).
+     */
+    private Settings.Builder retryEnabledSettings(int maxAttempts) throws Exception {
+        return clientSettingsWithIssuerUrl().put(WorkloadIdentityHttpSettings.RETRY_INITIAL_DELAY.getKey(), TimeValue.timeValueMillis(10))
+            .put(WorkloadIdentityHttpSettings.RETRY_MAX_DELAY_BOUND.getKey(), TimeValue.timeValueMillis(50))
+            .put(WorkloadIdentityHttpSettings.RETRY_MAX_ATTEMPTS.getKey(), maxAttempts)
+            .put(WorkloadIdentityHttpSettings.RETRY_TIMEOUT.getKey(), TimeValue.timeValueSeconds(15));
     }
 
     private static String issuerBaseUrl() {

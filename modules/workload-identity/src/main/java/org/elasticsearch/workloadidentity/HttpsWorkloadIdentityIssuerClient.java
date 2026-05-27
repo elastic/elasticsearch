@@ -18,15 +18,16 @@ import org.apache.http.entity.ByteArrayEntity;
 import org.apache.http.entity.ContentType;
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
 import org.apache.http.util.EntityUtils;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -46,6 +47,7 @@ import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
@@ -77,6 +79,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
  */
 public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentityIssuerClient {
 
+    // log4j Logger (rather than the org.elasticsearch.logging facade used in the rest of the
+    // workload-identity module) because RetryableAction's constructor accepts the log4j API
+    // directly. Matches the convention at every other RetryableAction host class in the repo.
     private static final Logger logger = LogManager.getLogger(HttpsWorkloadIdentityIssuerClient.class);
 
     private static final String TOKEN_PATH = "/token";
@@ -136,6 +141,10 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
     private final ThreadPool threadPool;
     private final long refreshBeforeExpiryMillis;
     private final int maxCacheEntries;
+    private final TimeValue retryInitialDelay;
+    private final TimeValue retryMaxDelayBound;
+    private final TimeValue retryTimeout;
+    private final int retryMaxAttempts;
 
     /**
      * Tokens cached, keyed by request shape. The value is a {@link SubscribableListener} so that
@@ -195,6 +204,44 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
 
         this.refreshBeforeExpiryMillis = WorkloadIdentityIssuerSettings.TOKEN_CACHE_REFRESH_BEFORE_EXPIRY.get(settings).millis();
         this.maxCacheEntries = maxCacheEntries;
+
+        this.retryInitialDelay = WorkloadIdentityHttpSettings.RETRY_INITIAL_DELAY.get(settings);
+        this.retryMaxDelayBound = WorkloadIdentityHttpSettings.RETRY_MAX_DELAY_BOUND.get(settings);
+        this.retryTimeout = WorkloadIdentityHttpSettings.RETRY_TIMEOUT.get(settings);
+        this.retryMaxAttempts = WorkloadIdentityHttpSettings.RETRY_MAX_ATTEMPTS.get(settings);
+        // A single attempt must fit within the retry budget; otherwise the first attempt would
+        // always exceed RETRY_TIMEOUT and the retry layer would degenerate to "one attempt that
+        // also has to lose a race against the wall clock". Validate at construction so the
+        // misconfiguration surfaces at node start.
+        if (retryTimeout.millis() < request.millis()) {
+            throw new IllegalArgumentException(
+                "setting ["
+                    + WorkloadIdentityHttpSettings.RETRY_TIMEOUT.getKey()
+                    + "] ("
+                    + retryTimeout
+                    + ") must be greater than or equal to setting ["
+                    + WorkloadIdentityHttpSettings.REQUEST_TIMEOUT.getKey()
+                    + "] ("
+                    + request
+                    + ")"
+            );
+        }
+        // RetryableAction enforces this same invariant, but only when run() is first invoked. Mirror
+        // the check here so the misconfiguration surfaces at node start alongside the RETRY_TIMEOUT
+        // vs REQUEST_TIMEOUT check above, rather than at the first token request.
+        if (retryMaxDelayBound.millis() < retryInitialDelay.millis()) {
+            throw new IllegalArgumentException(
+                "setting ["
+                    + WorkloadIdentityHttpSettings.RETRY_MAX_DELAY_BOUND.getKey()
+                    + "] ("
+                    + retryMaxDelayBound
+                    + ") must be greater than or equal to setting ["
+                    + WorkloadIdentityHttpSettings.RETRY_INITIAL_DELAY.getKey()
+                    + "] ("
+                    + retryInitialDelay
+                    + ")"
+            );
+        }
     }
 
     // Package-private for direct unit testing in ResolveTokenEndpointTests.
@@ -305,14 +352,27 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
     }
 
     /**
-     * Dispatches the token request and routes every outcome through {@code listener}. The outer
-     * try/catch is contract enforcement: callers ({@link #startFetch}) rely on completion happening
-     * exclusively via the listener for cache lifecycle correctness, so any exception that escapes
-     * the synchronous setup path (request rendering, Apache HC client retrieval, request
-     * construction, async submission) is funneled into {@link ActionListener#onFailure} rather than
-     * being allowed to propagate. The {@link FutureCallback} handles the asynchronous outcomes.
+     * Wraps a single token request in an {@link IssueTokenRetrier} so transient failures (5xx,
+     * 429, IOException) are retried with jittered exponential backoff, bounded by
+     * {@link WorkloadIdentityHttpSettings#RETRY_MAX_ATTEMPTS} and
+     * {@link WorkloadIdentityHttpSettings#RETRY_TIMEOUT}. The retrier sits below {@link #startFetch}
+     * so concurrent callers continue to share a single in-flight (now retrying) fetch via the
+     * cache's {@link SubscribableListener}.
      */
     private void fetchToken(IssueTokenRequest request, ActionListener<IssueTokenResponse> listener) {
+        new IssueTokenRetrier(request, listener).run();
+    }
+
+    /**
+     * Dispatches a single token request and routes every outcome through {@code listener}. The
+     * outer try/catch is contract enforcement: callers ({@link IssueTokenRetrier#tryAction}) rely
+     * on completion happening exclusively via the listener for retry-lifecycle correctness, so
+     * any exception that escapes the synchronous setup path (request rendering, Apache HC client
+     * retrieval, request construction, async submission) is funneled into
+     * {@link ActionListener#onFailure} rather than being allowed to propagate. The
+     * {@link FutureCallback} handles the asynchronous outcomes.
+     */
+    private void dispatchTokenRequest(IssueTokenRequest request, ActionListener<IssueTokenResponse> listener) {
         try {
             final byte[] body = renderRequestBody(request);
 
@@ -405,6 +465,56 @@ public final class HttpsWorkloadIdentityIssuerClient implements WorkloadIdentity
         }
         validateExpiry(response, status);
         return response;
+    }
+
+    /**
+     * Retry policy applied by {@link IssueTokenRetrier}. Retryable failures are those that a
+     * subsequent attempt could plausibly succeed past: transport-level errors and the
+     * issuer-reported transient statuses (429 plus any 5xx). Configuration / credential errors
+     * (4xx other than 429), parse failures, validation failures (all of which surface with
+     * {@link WorkloadIdentityIssuerException#statusCode()} either set to the 4xx code or to the
+     * sentinel {@code -1}), and explicit {@link CancellationException}s are not retried.
+     */
+    // Package-private for direct unit testing of the retry policy without a real HTTP server.
+    static boolean isRetryable(Exception e) {
+        if (e instanceof CancellationException) {
+            return false;
+        }
+        if (e instanceof WorkloadIdentityIssuerException issuerEx) {
+            final int status = issuerEx.statusCode();
+            return status == 429 || (status >= 500 && status <= 599);
+        }
+        // ConnectionClosedException, SocketTimeoutException, SSLException, generic IO failures.
+        return e instanceof IOException;
+    }
+
+    /**
+     * Per-call retrier that wraps {@link #dispatchTokenRequest} in
+     * {@link RetryableAction}'s jittered exponential-backoff schedule. Stops retrying when either
+     * the attempt count reaches {@link #retryMaxAttempts} or the wall-clock budget
+     * {@link #retryTimeout} is exhausted; whichever fires first surfaces the most recent failure
+     * to the caller, with earlier failures attached as suppressed exceptions by the base class.
+     */
+    private final class IssueTokenRetrier extends RetryableAction<IssueTokenResponse> {
+
+        private final IssueTokenRequest request;
+        private final AtomicInteger attempts = new AtomicInteger();
+
+        IssueTokenRetrier(IssueTokenRequest request, ActionListener<IssueTokenResponse> listener) {
+            super(logger, threadPool, retryInitialDelay, retryMaxDelayBound, retryTimeout, listener, threadPool.generic());
+            this.request = request;
+        }
+
+        @Override
+        public void tryAction(ActionListener<IssueTokenResponse> listener) {
+            attempts.incrementAndGet();
+            dispatchTokenRequest(request, listener);
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            return attempts.get() < retryMaxAttempts && isRetryable(e);
+        }
     }
 
     /**

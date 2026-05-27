@@ -20,6 +20,13 @@ module org.elasticsearch.workloadidentity {
     requires org.apache.httpcomponents.httpasyncclient;
     requires org.apache.httpcomponents.httpcore.nio;
 
+    // HttpsWorkloadIdentityIssuerClient declares its logger as org.apache.logging.log4j.Logger
+    // (rather than the org.elasticsearch.logging facade used elsewhere in this module) so it
+    // can pass that logger directly to its RetryableAction-based token-request retrier, which
+    // accepts only the log4j API. Matches the convention at every other RetryableAction host
+    // class in the repo.
+    requires org.apache.logging.log4j;
+
     // The public extension surface (WorkloadIdentityIssuerClient and WorkloadIdentityRegistry)
     // lives in the org.elasticsearch.workloadidentity.spi module, bundled under the plugin's
     // spi/ directory; the impl-side packages here are intentionally not exported.

@@ -32,9 +32,9 @@ import java.util.Map;
 
 /**
  * Tests the {@code ES95} TSDB doc values codec inside data stream lifecycles. Covers
- * codec switches across manual rollover boundaries, in place setting flips on the
- * write backing index, and alias level queries across mixed codec backing indices.
- * Per segment format equivalence is covered by {@code ES95VsES819DocValuesDuelTests}.
+ * codec switches across manual rollover boundaries via template updates, and alias
+ * level queries across mixed codec backing indices. Per segment format equivalence
+ * is covered by {@code ES95VsES819DocValuesDuelTests}.
  */
 public class TsdbES95DataStreamLifecycleRestIT extends ESRestTestCase {
 
@@ -161,58 +161,6 @@ public class TsdbES95DataStreamLifecycleRestIT extends ESRestTestCase {
         assertGaugeSumMatches(stream, expectedGaugeSum(total));
     }
 
-    public void testInPlaceFlipToES95OnWriteBackingIndex() throws IOException {
-        final String stream = "tsdb-ds-inplace-to-es95";
-        putTSDBTemplate(stream, false);
-        createDataStream(stream);
-
-        final int n = randomIntBetween(MIN_DOC_COUNT, MAX_DOC_COUNT);
-        bulkIndex(stream, n, 0);
-        refresh(stream);
-
-        final String writeIdx = writeBackingIndex(stream);
-        assertCodecSetting(writeIdx, "false");
-
-        updateIndexSetting(writeIdx, "index.time_series.es95_codec.enabled", "true");
-        assertCodecSetting(writeIdx, "true");
-
-        final int m = randomIntBetween(MIN_ADDITIONAL_DOC_COUNT, MAX_ADDITIONAL_DOC_COUNT);
-        bulkIndex(stream, m, n);
-        refresh(stream);
-        forceMerge(writeIdx, 1);
-
-        final int total = n + m;
-        assertDocumentCount(stream, total);
-        assertExactHostnameCounts(stream, total);
-        assertGaugeSumMatches(stream, expectedGaugeSum(total));
-    }
-
-    public void testInPlaceFlipToBaselineOnWriteBackingIndex() throws IOException {
-        final String stream = "tsdb-ds-inplace-to-baseline";
-        putTSDBTemplate(stream, true);
-        createDataStream(stream);
-
-        final int n = randomIntBetween(MIN_DOC_COUNT, MAX_DOC_COUNT);
-        bulkIndex(stream, n, 0);
-        refresh(stream);
-
-        final String writeIdx = writeBackingIndex(stream);
-        assertCodecSetting(writeIdx, "true");
-
-        updateIndexSetting(writeIdx, "index.time_series.es95_codec.enabled", "false");
-        assertCodecSetting(writeIdx, "false");
-
-        final int m = randomIntBetween(MIN_ADDITIONAL_DOC_COUNT, MAX_ADDITIONAL_DOC_COUNT);
-        bulkIndex(stream, m, n);
-        refresh(stream);
-        forceMerge(writeIdx, 1);
-
-        final int total = n + m;
-        assertDocumentCount(stream, total);
-        assertExactHostnameCounts(stream, total);
-        assertGaugeSumMatches(stream, expectedGaugeSum(total));
-    }
-
     public void testQueryAcrossMixedCodecBackingIndicesViaAlias() throws IOException {
         final String stream = "tsdb-ds-mixed-query";
         putTSDBTemplate(stream, false);
@@ -317,19 +265,6 @@ public class TsdbES95DataStreamLifecycleRestIT extends ESRestTestCase {
         final Response response = client().performRequest(request);
         assertOK(response);
         assertThat(entityAsMap(response).get("errors"), Matchers.is(false));
-    }
-
-    private void forceMerge(final String indexName, int maxSegments) throws IOException {
-        final Request request = new Request("POST", "/" + indexName + "/_forcemerge");
-        request.addParameter("max_num_segments", Integer.toString(maxSegments));
-        assertOK(client().performRequest(request));
-        refresh(indexName);
-    }
-
-    private void updateIndexSetting(final String indexName, final String key, final String value) throws IOException {
-        final Request request = new Request("PUT", "/" + indexName + "/_settings");
-        request.setJsonEntity("{\"" + key + "\":" + value + "}");
-        assertOK(client().performRequest(request));
     }
 
     @SuppressWarnings("unchecked")

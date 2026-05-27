@@ -1363,6 +1363,30 @@ public class VerifierTests extends ESTestCase {
         }
     }
 
+    public void testPeriodAndDurationInStats() {
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error(
+                "row x = 1 | stats count(*) by 1 " + unit,
+                equalTo("1:31: cannot group by on [time_duration] type for grouping [1 " + unit + "]")
+            );
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error(
+                "row x = 1 | stats count(*) by 1 " + unit,
+                equalTo("1:31: cannot group by on [date_period] type for grouping [1 " + unit + "]")
+            );
+        }
+    }
+
+    public void testPeriodAndDurationInSort() {
+        for (var unit : TIME_DURATIONS) {
+            defaultAnalyzer().error("row x = 1 | sort 1 " + unit, equalTo("1:18: cannot sort on time_duration"));
+        }
+        for (var unit : DATE_PERIODS) {
+            defaultAnalyzer().error("row x = 1 | sort 1 " + unit, equalTo("1:18: cannot sort on date_period"));
+        }
+    }
+
     public void testFilterNonBoolField() {
         defaultAnalyzer().error("from test | where emp_no", equalTo("1:19: Condition expression needs to be boolean, found [INTEGER]"));
 

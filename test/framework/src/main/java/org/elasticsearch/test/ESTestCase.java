@@ -674,16 +674,6 @@ public abstract class ESTestCase extends LuceneTestCase {
             // before() never ran (e.g. setUp() threw AssumptionViolatedException before @Before executed)
             return;
         }
-        if (testLeakWindow.hasLeaks()) {
-            // The search pipeline releases per-shard fetch results (SearchHits, SearchHit) from the search
-            // thread asynchronously after delivering the response via respondAndRelease. That cleanup races
-            // with @After on the test thread. Poll briefly before declaring a leak.
-            try {
-                assertBusy(() -> assertFalse(testLeakWindow.hasLeaks()), 10, TimeUnit.SECONDS);
-            } catch (AssertionError | Exception ignored) {
-                // still leaking after the wait; fall through to assertNoLeaks() for the diagnostic message
-            }
-        }
         testLeakWindow.assertNoLeaks();
     }
 

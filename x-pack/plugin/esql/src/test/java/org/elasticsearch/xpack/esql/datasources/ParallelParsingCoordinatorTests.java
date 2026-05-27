@@ -283,7 +283,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Reproduces elastic/esql-planning#830 and guards its fix in one shot. The defect: a file is split into
+     * Reproduces the unbounded-fanout congestion and guards its fix in one shot. The defect: a file is split into
      * many byte-range segments and every segment's object-store read stream is opened at once, so a wide
      * read fans out into a congestion of concurrent streams + per-segment buffers that pins the heap. The
      * fix: {@code OrderedParallelIterator} opens at most {@code max_concurrent_open_segments} at a time.

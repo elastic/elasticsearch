@@ -48,17 +48,17 @@ public class DownsampleRateIT extends DownsamplingIntegTestCase {
     private static final String DOWNSAMPLED_AGGREGATE_INDEX_NAME = "metrics-aggregated";
     private static final String DOWNSAMPLED_LAST_VALUE_INDEX_NAME = "metrics-last-value";
     private static final String MAPPING_FIELDS = """
-            "@timestamp": {
-              "type": "date"
-            },
-            "metricset": {
-              "type": "keyword",
-              "time_series_dimension": true
-            },
-            "counter": {
-              "type": "long",
-              "time_series_metric": "counter"
-            }""";
+        "@timestamp": {
+          "type": "date"
+        },
+        "metricset": {
+          "type": "keyword",
+          "time_series_dimension": true
+        },
+        "counter": {
+          "type": "long",
+          "time_series_metric": "counter"
+        }""";
     public static final String START_TIME = "2021-04-29T00:00:00Z";
     public static final String END_TIME = "2021-04-29T23:59:59Z";
 

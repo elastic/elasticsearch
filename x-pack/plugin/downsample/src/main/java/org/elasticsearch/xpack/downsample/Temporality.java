@@ -9,27 +9,29 @@ package org.elasticsearch.xpack.downsample;
 
 /**
  * Represents the metric temporality for a time series, controlling how counter values are interpreted during downsampling.
- * <ul>
- *     <li>{@link #CUMULATIVE}: counter values are monotonically increasing (reset detection applies).</li>
- *     <li>{@link #DELTA}: counter values represent increments per interval (summed during downsampling).</li>
- *     <li>{@link #DEFAULT}: no explicit temporality was provided; falls back to cumulative behavior for counters.</li>
- * </ul>
  */
 enum Temporality {
     DELTA,
     CUMULATIVE,
+    /**
+     * The default temporality, which depends on the metric type: cumulative for counters, delta for histograms.
+     */
     DEFAULT;
 
     static Temporality fromDimensionValue(Object value) {
         if (value == null) {
             return DEFAULT;
         }
-        String s = value.toString();
-        if ("delta".equals(s)) {
-            return DELTA;
-        } else if ("cumulative".equals(s)) {
-            return CUMULATIVE;
+        if (value instanceof String s) {
+            if ("delta".equals(s)) {
+                return DELTA;
+            } else if ("cumulative".equals(s)) {
+                return CUMULATIVE;
+            }
+            // Use default for unknown values
+            return DEFAULT;
+        } else {
+            throw new IllegalArgumentException("Unexpected type for temporality value: " + value.getClass());
         }
-        return DEFAULT;
     }
 }

@@ -696,7 +696,12 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             logger
         );
 
-        latch.await();
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw e;
+        }
 
         Exception error = observerError.get();
         if (error != null) {

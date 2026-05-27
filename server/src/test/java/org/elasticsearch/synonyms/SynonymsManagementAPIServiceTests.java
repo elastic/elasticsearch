@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.indices.SystemIndices;
@@ -43,6 +44,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.action.synonyms.SynonymsTestUtils.randomSynonymsSet;
@@ -69,7 +71,14 @@ public class SynonymsManagementAPIServiceTests extends ESTestCase {
     }
 
     private SynonymsManagementAPIService buildService(Client client, ClusterService cs, int maxRules, int chunkSize) {
-        return new SynonymsManagementAPIService(client, cs, maxRules, SynonymsManagementAPIService.PIT_BATCH_SIZE, chunkSize);
+        return new SynonymsManagementAPIService(
+            client,
+            cs,
+            maxRules,
+            SynonymsManagementAPIService.PIT_BATCH_SIZE,
+            chunkSize,
+            new FeatureService(List.of(new SynonymFeatures()))
+        );
     }
 
     /**

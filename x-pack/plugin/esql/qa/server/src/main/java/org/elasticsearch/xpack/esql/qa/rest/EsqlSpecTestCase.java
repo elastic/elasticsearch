@@ -405,6 +405,20 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
 
     protected final void doTest(String query) throws Throwable {
         if (query.trim().toUpperCase(Locale.ROOT).contains("EXTERNAL \"{{")) {
+            // Multi-file glob templates ({{x_multifile}}, {{x_multifile_split}}, {{x_multifile_ubn}},
+            // {{x_multifile_type_drift}}) and hive-partitioned templates ({{x_hive}}) are resolved by
+            // AbstractExternalSourceSpecTestCase subclasses against storage fixtures. Plain
+            // EsqlSpecTestCase subclasses (mixed-cluster, multi-cluster, single/multi-node, flight)
+            // share the same csv-spec files via the testFixtures classpath but have no resolver for
+            // these glob templates, so skip such tests here.
+            assumeFalseLogging(
+                "multi-file/hive-partitioned EXTERNAL templates require AbstractExternalSourceSpecTestCase",
+                query.contains("_multifile}}")
+                    || query.contains("_multifile_split}}")
+                    || query.contains("_multifile_ubn}}")
+                    || query.contains("_multifile_type_drift}}")
+                    || query.contains("_hive}}")
+            );
             Path path = getCsvDataPath();
             if (path != null) {
                 query = substituteTemplates(query, csvFileTemplateResolver(path));

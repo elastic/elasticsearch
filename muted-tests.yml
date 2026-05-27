@@ -609,3 +609,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:where-like.likeContainsLongerLiteralOnEvalOutput}
   issue: https://github.com/elastic/elasticsearch/issues/149921
+- class: org.elasticsearch.xpack.esql.datasources.CompressionDelegatingFormatReaderTests
+  method: testDelegatesMetadataAndReadZstd
+  issue: https://github.com/elastic/elasticsearch/issues/149943
+- class: org.elasticsearch.xpack.esql.datasources.DecompressingStorageObjectTests
+  method: testDecompressStreamZstd
+  issue: https://github.com/elastic/elasticsearch/issues/149944

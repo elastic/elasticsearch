@@ -352,7 +352,7 @@ public abstract sealed class ESAcceptDocs extends AcceptDocs {
             }
             SliceAcceptDocs slice = sliceAcceptDocsOrNull();
             if (slice != null) {
-                long sliceCost = slice.endDoc() - slice.startDoc() + 1;
+                long sliceCost = slice.endDoc() - slice.startDoc();
                 return (int) Math.min(scorerSupplier.cost(), sliceCost);
             }
             return Math.toIntExact(scorerSupplier.cost());

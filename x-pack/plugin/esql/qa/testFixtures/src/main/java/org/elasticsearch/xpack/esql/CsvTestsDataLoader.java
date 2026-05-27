@@ -57,6 +57,7 @@ public class CsvTestsDataLoader {
         LogConfigurator.configureESLogging();
     }
 
+    private static final Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
     private static final int BULK_DATA_SIZE = 100_000;
     private static final TestDataset EMPLOYEES = new TestDataset("employees", "mapping-default.json", "employees.csv").noSubfields();
     private static final TestDataset EMPLOYEES_INCOMPATIBLE = new TestDataset(
@@ -344,8 +345,6 @@ public class CsvTestsDataLoader {
 
     private static void loadDataSetIntoEs(RestClient client, boolean supportsIndexModeLookup, IndexCreator indexCreator)
         throws IOException {
-        Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);
-
         Set<String> loadedDatasets = new HashSet<>();
         for (var dataset : availableDatasetsForEs(client, supportsIndexModeLookup)) {
             load(client, dataset, logger, indexCreator);

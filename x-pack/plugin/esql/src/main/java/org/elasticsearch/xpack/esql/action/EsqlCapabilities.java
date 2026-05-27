@@ -1111,6 +1111,11 @@ public class EsqlCapabilities {
         FIX_UNROLLED_FOLDABLE_MV_WARNING,
 
         /**
+         * Can we load {@code constant_keyword} field values? This is supported everywhere but the unit CsvTests.
+         */
+        LOAD_CONSTANT_KEYWORD,
+
+        /**
          * {@code CASE} folding with DATE_PERIOD and TIME_DURATION return types.
          */
         CASE_FOLD_TEMPORAL_AMOUNT,

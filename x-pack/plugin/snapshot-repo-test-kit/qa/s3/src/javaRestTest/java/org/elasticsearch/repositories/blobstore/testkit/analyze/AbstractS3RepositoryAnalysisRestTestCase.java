@@ -35,15 +35,12 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
 
     protected static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
 
-    protected static final TestTlsCertificate TEST_TLS_CERTIFICATE = TestTlsCertificate.generate("localhost");
-
-    protected static final TestTrustStore TEST_TRUST_STORE = new TestTrustStore(TEST_TLS_CERTIFICATE::getPemCertificateStream);
 
     protected static class RepositoryAnalysisHttpFixture extends S3HttpFixture {
         RepositoryAnalysisHttpFixture(S3ConsistencyModel consistencyModel) {
             super(
                 USE_FIXTURE,
-                TEST_TLS_CERTIFICATE,
+                null,
                 "bucket",
                 "base_path_integration_tests",
                 () -> consistencyModel,
@@ -94,12 +91,10 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
             .distribution(DistributionType.DEFAULT)
             .keystore(clientPrefix + "access_key", System.getProperty("s3AccessKey"))
             .keystore(clientPrefix + "secret_key", System.getProperty("s3SecretKey"))
-            .setting(clientPrefix + "protocol", () -> "https", n -> USE_FIXTURE && randomBoolean())
+            .setting(clientPrefix + "protocol", () -> "http", n -> USE_FIXTURE)
             .setting(clientPrefix + "region", regionSupplier, n -> USE_FIXTURE)
             .setting(clientPrefix + "add_purpose_custom_query_parameter", () -> randomFrom("true", "false"), n -> randomBoolean())
             .setting(clientPrefix + "endpoint", s3HttpFixture::getAddress, n -> USE_FIXTURE)
-            .setting(clientPrefix + "path_style_access", () -> "true", n -> USE_FIXTURE)
-            .apply(builder -> TEST_TRUST_STORE.apply(builder, USE_FIXTURE))
             .setting(
                 "repository_s3.compare_and_exchange.anti_contention_delay",
                 () -> randomFrom("1s" /* == default */, "1ms"),

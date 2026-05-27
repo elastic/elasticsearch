@@ -1201,6 +1201,14 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         return new PrimaryTermAndGeneration(indexShard.getOperationPrimaryTerm(), ((IndexEngine) engineOrNull).getCurrentGeneration());
     }
 
+    /**
+     * Call this when the blobs you want listed have been fully uploaded, e.g., after a flush,
+     * or call this in a loop (e.g., assertBusy) to check that some blobs have been deleted.
+     *
+     * If blobs are being uploaded, some non-conforming filenames may not be listed, e.g., if they
+     * have partial names like the temporary "pending-" prefixed blobs that {@link FsBlobContainer}
+     * uses to do atomic uploads.
+     */
     protected static Set<PrimaryTermAndGeneration> listBlobsTermAndGenerations(ShardId shardId) throws Exception {
         Set<PrimaryTermAndGeneration> set = new HashSet<>();
         var objectStoreService = getObjectStoreService(internalCluster().getRandomNodeName());
@@ -1208,11 +1216,11 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         for (var entry : indexBlobContainer.children(operationPurpose).entrySet()) {
             var primaryTerm = Long.parseLong(entry.getKey());
             Set<String> statelessCompoundCommits = entry.getValue().listBlobs(operationPurpose).keySet();
-            statelessCompoundCommits.forEach(
-                filename -> set.add(
-                    new PrimaryTermAndGeneration(primaryTerm, StatelessCompoundCommit.parseGenerationFromBlobName(filename))
-                )
-            );
+            statelessCompoundCommits.forEach(filename -> {
+                if (StatelessCompoundCommit.startsWithBlobPrefix(filename)) {
+                    set.add(new PrimaryTermAndGeneration(primaryTerm, StatelessCompoundCommit.parseGenerationFromBlobName(filename)));
+                }
+            });
         }
         return set;
     }

@@ -26,12 +26,9 @@ import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.TestShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.datastreams.DataStreamsPlugin;
@@ -52,17 +49,14 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.time.Clock;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.elasticsearch.test.ClusterServiceUtils.setState;
-import static org.elasticsearch.xpack.dlm.frozen.DLMConvertToFrozen.SNAPSHOT_NAME_PREFIX;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItemInArray;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
@@ -152,13 +146,13 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
     }
 
     /**
-     * When the mounted index already exists in cluster state, the mount step is skipped.
-     * A yellow-status check is still issued to confirm the mounted index has allocated shards
-     * before proceeding to cleanup/swap.
+     * When the mounted index already exists in cluster state, the mount step short-circuits without issuing a
+     * mount request and without consulting cluster health. The yellow-status check is now a separate step
+     * (see {@link #testWaitForMountedIndexToBeAvailableSucceeds}).
      */
     public void testSkipsWhenSnapshotAlreadyMounted() throws InterruptedException {
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        createProjectStateWithMountedSnapshot(snapshotName, ShardRoutingState.STARTED, null);
+        createProjectStateWithMountedSnapshot(snapshotName);
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
             indexName,
             projectId,
@@ -170,10 +164,8 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
 
         convert.maybeMountSearchableSnapshot(indexName);
 
-        // No mount request should have been issued
         assertNull(capturedMountRequest.get());
-        // A yellow-status health check must be issued to confirm the mounted index is allocated
-        assertThat(capturedHealthRequest.get(), is(notNullValue()));
+        assertThat(capturedHealthRequest.get(), is(nullValue()));
     }
 
     public void testMountRequestHasCorrectParameters() throws InterruptedException {
@@ -284,19 +276,12 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
     }
 
     /**
-     * When the yellow-status check times out and the mounted index has failed allocations with no
-     * prior successful assignment (lastAllocatedNodeId is null), the partial mount is deleted so
-     * the next cycle can attempt a clean remount. This auto-recovers from the case where a JVM
-     * restart occurred after the mount action committed IndexMetadata but before the failure could
-     * be cleaned up.
+     * When the mounted index is allocated, the wait step issues a yellow-status health check and returns cleanly,
+     * letting the pipeline advance to the cleanup/swap step.
      */
-    public void testDeletesAndThrowsWhenAlreadyMountedIndexNeverAllocated() {
+    public void testWaitForMountedIndexToBeAvailableSucceeds() throws InterruptedException {
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        createProjectStateWithMountedSnapshot(snapshotName, ShardRoutingState.UNASSIGNED, null);
-
-        ClusterHealthResponse timedOut = new ClusterHealthResponse();
-        timedOut.setTimedOut(true);
-        mockHealthResponse.set(timedOut);
+        createProjectStateWithMountedSnapshot(snapshotName);
 
         DLMConvertToFrozen convert = new DLMConvertToFrozen(
             indexName,
@@ -307,24 +292,22 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             Clock.systemUTC()
         );
 
-        ElasticsearchException exception = expectThrows(
-            ElasticsearchException.class,
-            () -> convert.maybeMountSearchableSnapshot(indexName)
-        );
-        assertThat(exception.getMessage(), containsString("timed out"));
+        convert.waitForMountedIndexToBeAvailable();
+
+        assertThat(capturedHealthRequest.get(), is(notNullValue()));
+        assertThat(capturedHealthRequest.get().indices(), equalTo(new String[] { snapshotName }));
         assertThat(capturedMountRequest.get(), is(nullValue()));
-        assertThat(capturedDeleteRequest.get(), is(notNullValue()));
-        assertThat(capturedDeleteRequest.get().indices(), hasItemInArray(SNAPSHOT_NAME_PREFIX + indexName));
+        assertThat(capturedDeleteRequest.get(), is(nullValue()));
     }
 
     /**
-     * When the yellow-status check times out but the mounted index was previously started on a node
-     * (lastAllocatedNodeId is non-null), the index is not deleted — it is awaiting reallocation
-     * after a transient node failure and should be left in place.
+     * When the mounted index has not reached yellow status before the wait times out, the step throws so that the
+     * cleanup/swap step never runs and the next poll cycle re-checks allocation. No delete is issued — the partial
+     * mount is left in place because deleting it would not change the outcome of the next mount attempt.
      */
-    public void testDoesNotDeleteWhenAlreadyMountedIndexWasPreviouslyAllocated() {
+    public void testThrowsWhenMountedIndexAllocationTimesOut() {
         String snapshotName = DLMConvertToFrozen.snapshotName(indexName);
-        createProjectStateWithMountedSnapshot(snapshotName, ShardRoutingState.UNASSIGNED, "previous-node-id");
+        createProjectStateWithMountedSnapshot(snapshotName);
 
         ClusterHealthResponse timedOut = new ClusterHealthResponse();
         timedOut.setTimedOut(true);
@@ -339,10 +322,7 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
             Clock.systemUTC()
         );
 
-        ElasticsearchException exception = expectThrows(
-            ElasticsearchException.class,
-            () -> convert.maybeMountSearchableSnapshot(indexName)
-        );
+        ElasticsearchException exception = expectThrows(ElasticsearchException.class, convert::waitForMountedIndexToBeAvailable);
         assertThat(exception.getMessage(), containsString("timed out"));
         assertThat(capturedMountRequest.get(), is(nullValue()));
         assertThat(capturedDeleteRequest.get(), is(nullValue()));
@@ -379,13 +359,11 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
     }
 
     /**
-     * Creates a ProjectState with the target index and a mounted snapshot index.
-     * When {@code shardState} is {@link ShardRoutingState#STARTED}, the primary shard is assigned to "node1".
-     * When {@code shardState} is {@link ShardRoutingState#UNASSIGNED}, an unassigned primary shard is created
-     * with one failed allocation attempt; {@code lastAllocatedNodeId} controls whether the shard was previously
-     * started ({@code non-null}) or never started ({@code null}).
+     * Creates a ProjectState with the target index and a mounted snapshot index whose primary shard is started on
+     * "node1". The mocked cluster health response is what drives the yellow-status outcome in tests, so the
+     * routing table here just needs to represent a plausible mounted state.
      */
-    private void createProjectStateWithMountedSnapshot(String mountedIndexName, ShardRoutingState shardState, String lastAllocatedNodeId) {
+    private void createProjectStateWithMountedSnapshot(String mountedIndexName) {
         IndexMetadata originalIndexMetadata = IndexMetadata.builder(indexName)
             .settings(
                 Settings.builder()
@@ -415,32 +393,8 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         projectMetadataBuilder.putCustom(RepositoriesMetadata.TYPE, new RepositoriesMetadata(List.of(repo)));
 
         ShardId shardId = new ShardId(mountedIndexMetadata.getIndex(), 0);
-        ShardRouting primaryShard;
-        if (shardState == ShardRoutingState.STARTED) {
-            primaryShard = TestShardRouting.newShardRouting(shardId, "node1", true, ShardRoutingState.STARTED);
-        } else {
-            primaryShard = ShardRouting.newUnassigned(
-                shardId,
-                true,
-                RecoverySource.EmptyStoreRecoverySource.INSTANCE,
-                new UnassignedInfo(
-                    UnassignedInfo.Reason.ALLOCATION_FAILED,
-                    "test allocation failure",
-                    null,
-                    1,
-                    0L,
-                    0L,
-                    false,
-                    UnassignedInfo.AllocationStatus.DECIDERS_NO,
-                    Collections.emptySet(),
-                    lastAllocatedNodeId
-                ),
-                ShardRouting.Role.DEFAULT
-            );
-        }
-
         IndexRoutingTable.Builder indexRoutingTableBuilder = IndexRoutingTable.builder(mountedIndexMetadata.getIndex())
-            .addShard(primaryShard);
+            .addShard(TestShardRouting.newShardRouting(shardId, "node1", true, ShardRoutingState.STARTED));
         RoutingTable routingTable = RoutingTable.builder().add(indexRoutingTableBuilder).build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)

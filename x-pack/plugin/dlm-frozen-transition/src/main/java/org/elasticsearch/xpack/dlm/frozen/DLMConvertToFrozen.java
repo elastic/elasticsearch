@@ -59,9 +59,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.RepositoriesMetadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
-import org.elasticsearch.cluster.routing.IndexRoutingTable;
-import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -161,6 +158,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
             maybeForceMergeIndex(forceMergeIndex);
             maybeTakeSnapshot(forceMergeIndex);
             maybeMountSearchableSnapshot(forceMergeIndex);
+            waitForMountedIndexToBeAvailable();
             maybeCleanup(forceMergeIndex);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
@@ -433,94 +431,90 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
         checkIfThreadInterrupted();
         checkIfEligibleForConvertToFrozen();
 
+        if (isSnapshotMounted()) {
+            logger.debug("Snapshot [{}] is already mounted, skipping DLM mount searchable snapshot step", snapshotName(forceMergeIndex));
+            return;
+        }
+
+        ProjectState projectState = getProjectState();
+        ProjectMetadata projectMetadata = projectState.metadata();
         String snapshotName = snapshotName(forceMergeIndex);
         String mountedIndexName = snapshotName(indexName);
 
-        if (isSnapshotMounted() == false) {
-            ProjectState projectState = getProjectState();
-            ProjectMetadata projectMetadata = projectState.metadata();
+        // We ignore these settings when mounting the snapshot to frozen:
+        // - ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING:
+        // It is likely that frozen tier has fewer nodes than the hot tier. If this setting
+        // is not specifically set in the frozen tier, keeping this setting runs the risk that we will not have enough nodes to
+        // allocate all the shards in the frozen tier and the user does not have any way of
+        // fixing this. For this reason, we ignore this setting when moving to frozen.
+        // - LifecycleSettings.LIFECYCLE_NAME:
+        // Avoids potential conflicts with ILM.
+        // - DataTier.TIER_PREFERENCE:
+        // Since we are moving to frozen, we want to ensure that any existing tier preferences
+        // do not interfere with the allocation of the mounted index to the frozen tier.
+        String[] ignoredIndexSettings = new String[] {
+            ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(),
+            LifecycleSettings.LIFECYCLE_NAME,
+            DataTier.TIER_PREFERENCE };
 
-            // We ignore these settings when mounting the snapshot to frozen:
-            // - ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING:
-            // It is likely that frozen tier has fewer nodes than the hot tier. If this setting
-            // is not specifically set in the frozen tier, keeping this setting runs the risk that we will not have enough nodes to
-            // allocate all the shards in the frozen tier and the user does not have any way of
-            // fixing this. For this reason, we ignore this setting when moving to frozen.
-            // - LifecycleSettings.LIFECYCLE_NAME:
-            // Avoids potential conflicts with ILM.
-            // - DataTier.TIER_PREFERENCE:
-            // Since we are moving to frozen, we want to ensure that any existing tier preferences
-            // do not interfere with the allocation of the mounted index to the frozen tier.
-            String[] ignoredIndexSettings = new String[] {
-                ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(),
-                LifecycleSettings.LIFECYCLE_NAME,
-                DataTier.TIER_PREFERENCE };
+        MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
+            TimeValue.MAX_VALUE,
+            mountedIndexName,
+            getRepositoryForFrozen(projectMetadata, indexName),
+            snapshotName,
+            forceMergeIndex,
+            Settings.builder().put(DLM_CREATED_SETTING_KEY, true).build(),
+            ignoredIndexSettings,
+            true,
+            MountSearchableSnapshotRequest.Storage.SHARED_CACHE
+        );
 
-            MountSearchableSnapshotRequest mountRequest = new MountSearchableSnapshotRequest(
-                TimeValue.MAX_VALUE,
-                mountedIndexName,
-                getRepositoryForFrozen(projectMetadata, indexName),
-                snapshotName,
-                forceMergeIndex,
-                Settings.builder().put(DLM_CREATED_SETTING_KEY, true).build(),
-                ignoredIndexSettings,
-                true,
-                MountSearchableSnapshotRequest.Storage.SHARED_CACHE
-            );
-
-            logger.debug("DLM attempting to mount frozen index [{}]", snapshotName);
-            try {
-                RestoreSnapshotResponse resp = client.projectClient(projectId)
-                    .execute(MountSearchableSnapshotAction.INSTANCE, mountRequest)
-                    .get();
-                RestoreInfo restoreInfo = resp.getRestoreInfo();
-                if (restoreInfo == null) {
-                    throw new ElasticsearchException(
-                        "DLM failed to mount snapshot [{}] because the restore info was missing",
-                        snapshotName
-                    );
-                }
-                if (restoreInfo.failedShards() > 0 || restoreInfo.successfulShards() == 0) {
-                    throw new ElasticsearchException(
-                        "DLM failed to mount snapshot [{}] because there were failed shards or no successful shards. Restore info: [{}]",
-                        snapshotName,
-                        restoreInfo
-                    );
-                }
-                logger.info("DLM successfully mounted snapshot [{}]", snapshotName);
-            } catch (Exception e) {
-                Throwable unwrapped = unwrapNestedExceptions(e);
-                if (unwrapped instanceof InterruptedException ie) {
-                    throw ie;
-                }
-                throw e instanceof ElasticsearchException ee
-                    ? ee
-                    : new ElasticsearchException("DLM failed while mounting snapshot [{}]", e, snapshotName);
-            }
-        } else {
-            logger.debug("Snapshot [{}] is already mounted, skipping DLM mount searchable snapshot step", snapshotName);
-        }
-
-        // Verify the mounted index has all primary shards allocated before proceeding to the cleanup/swap step.
-        // This guards against a partial mount (shards failed to allocate) being promoted into the data stream.
-        // If the index was never successfully allocated (failedAllocations > 0 with no prior node assignment),
-        // delete it so the next cycle attempts a clean remount rather than looping forever.
+        logger.debug("DLM attempting to mount frozen index [{}]", snapshotName);
         try {
-            waitForIndexYellowStatus(mountedIndexName);
-        } catch (ElasticsearchException e) {
-            if (isMountedIndexNeverAllocated(mountedIndexName)) {
-                logger.warn(
-                    "DLM mounted index [{}] has failed allocations and was never started; deleting to allow remount on next cycle",
-                    mountedIndexName
-                );
-                try {
-                    deleteIndex(mountedIndexName);
-                } catch (Exception deleteException) {
-                    e.addSuppressed(deleteException);
-                }
+            RestoreSnapshotResponse resp = client.projectClient(projectId)
+                .execute(MountSearchableSnapshotAction.INSTANCE, mountRequest)
+                .get();
+            RestoreInfo restoreInfo = resp.getRestoreInfo();
+            if (restoreInfo == null) {
+                throw new ElasticsearchException("DLM failed to mount snapshot [{}] because the restore info was missing", snapshotName);
             }
-            throw e;
+            if (restoreInfo.failedShards() > 0 || restoreInfo.successfulShards() == 0) {
+                throw new ElasticsearchException(
+                    "DLM failed to mount snapshot [{}] because there were failed shards or no successful shards. Restore info: [{}]",
+                    snapshotName,
+                    restoreInfo
+                );
+            }
+            logger.info("DLM successfully mounted snapshot [{}]", snapshotName);
+        } catch (Exception e) {
+            Throwable unwrapped = unwrapNestedExceptions(e);
+            if (unwrapped instanceof InterruptedException ie) {
+                throw ie;
+            }
+            throw e instanceof ElasticsearchException ee
+                ? ee
+                : new ElasticsearchException("DLM failed while mounting snapshot [{}]", e, snapshotName);
         }
+    }
+
+    /**
+     * Waits for the mounted searchable snapshot index to reach yellow status (all primary shards allocated) before
+     * the cleanup step swaps it into the data stream. This guards against a partial mount being promoted, which would
+     * point the data stream at an index with no allocated shards while the original index is deleted.
+     * <p>
+     * This is a distinct step rather than a tail of {@link #maybeMountSearchableSnapshot(String)} so that it covers
+     * both the fresh-mount path (we just issued the mount in this run) and the resume-after-restart path (the index
+     * was already in cluster state when the run started — for example after a JVM restart between the mount commit
+     * and the failure handler).
+     * <p>
+     * On timeout this method throws, the error is recorded in the DLM error store, and the next poll-cycle retry
+     * re-enters this same step. The wait IS the retry mechanism: deleting the partial mount here would not help
+     * because the same mount configuration would produce the same allocation outcome on the next attempt.
+     */
+    public void waitForMountedIndexToBeAvailable() throws InterruptedException {
+        checkIfThreadInterrupted();
+        checkIfEligibleForConvertToFrozen();
+        waitForIndexYellowStatus(snapshotName(indexName));
     }
 
     void maybeCleanup(String forceMergeIndex) throws InterruptedException {
@@ -682,11 +676,13 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     }
 
     /**
-     * Waits up to 1 minute for the given index to reach yellow status (all primary shards allocated).
-     * Throws an {@link ElasticsearchException} if the timeout is breached.
+     * Waits up to 5 minutes for the given index to reach yellow status (all primary shards allocated).
+     * Throws an {@link ElasticsearchException} if the timeout is breached. The timeout matches the default DLM
+     * frozen transition poll interval, so a stalled wait consumes at most one poll cycle before yielding to the
+     * next scheduled retry.
      */
     private void waitForIndexYellowStatus(String index) throws InterruptedException {
-        TimeValue timeout = TimeValue.timeValueMinutes(1);
+        TimeValue timeout = TimeValue.timeValueMinutes(5);
         ClusterHealthRequest healthRequest = new ClusterHealthRequest(INFINITE_MASTER_NODE_TIMEOUT, index).waitForYellowStatus()
             .timeout(timeout);
         ClusterHealthResponse response;
@@ -1158,38 +1154,6 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
     boolean isSnapshotMounted() {
         ProjectMetadata projectMetadata = getProjectState().metadata();
         return projectMetadata.indices().containsKey(snapshotName(indexName));
-    }
-
-    /**
-     * Returns {@code true} if the mounted index exists in the routing table but its primary shard has never been
-     * successfully started on any node ({@link UnassignedInfo#lastAllocatedNodeId()} is {@code null}) and at least
-     * one allocation attempt has already failed ({@link UnassignedInfo#failedAllocations()} &gt; 0).
-     * <p>
-     * This distinguishes a partial mount whose restore completed but whose shards failed to allocate from a
-     * previously-healthy mounted index that became unassigned due to a transient node failure — the latter will
-     * have a non-null {@code lastAllocatedNodeId} and must not be deleted.
-     */
-    private boolean isMountedIndexNeverAllocated(String mountedIndexName) {
-        IndexRoutingTable indexRoutingTable = Optional.ofNullable(getProjectState().routingTable())
-            .map(rt -> rt.index(mountedIndexName))
-            .orElse(null);
-        if (indexRoutingTable == null) {
-            return false;
-        }
-        for (int i = 0; i < indexRoutingTable.size(); i++) {
-            var shardRoutingTable = indexRoutingTable.shard(i);
-            if (shardRoutingTable == null) {
-                continue;
-            }
-            ShardRouting primary = shardRoutingTable.primaryShard();
-            if (primary != null && primary.unassigned()) {
-                UnassignedInfo ui = primary.unassignedInfo();
-                if (ui != null && ui.failedAllocations() > 0 && ui.lastAllocatedNodeId() == null) {
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     /**

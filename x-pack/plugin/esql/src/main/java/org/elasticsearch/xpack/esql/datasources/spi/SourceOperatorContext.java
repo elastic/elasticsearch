@@ -59,6 +59,7 @@ public record SourceOperatorContext(
     Set<String> partitionColumnNames,
     @Nullable ExternalSliceQueue sliceQueue,
     int parsingParallelism,
+    int maxRecordBytes,
     int parallelism
 ) {
     public SourceOperatorContext {
@@ -122,6 +123,7 @@ public record SourceOperatorContext(
             null,
             null,
             1,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -159,6 +161,7 @@ public record SourceOperatorContext(
             null,
             null,
             1,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -195,6 +198,7 @@ public record SourceOperatorContext(
             null,
             null,
             1,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -229,6 +233,7 @@ public record SourceOperatorContext(
             null,
             null,
             1,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -258,6 +263,9 @@ public record SourceOperatorContext(
         private Set<String> partitionColumnNames;
         private ExternalSliceQueue sliceQueue;
         private int parsingParallelism = 1;
+        // Default matches StreamingParallelParsingCoordinator's record-growth cap (64 MiB); the planner
+        // overrides it from the max_record_size query pragma.
+        private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private int parallelism = 1;
 
         public Builder sourceType(String sourceType) {
@@ -366,6 +374,11 @@ public record SourceOperatorContext(
             return this;
         }
 
+        public Builder maxRecordBytes(int maxRecordBytes) {
+            this.maxRecordBytes = maxRecordBytes;
+            return this;
+        }
+
         public Builder parallelism(int parallelism) {
             this.parallelism = parallelism;
             return this;
@@ -392,6 +405,7 @@ public record SourceOperatorContext(
                 partitionColumnNames,
                 sliceQueue,
                 parsingParallelism,
+                maxRecordBytes,
                 parallelism
             );
         }

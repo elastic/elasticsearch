@@ -31,6 +31,20 @@ public interface SecretSettings extends ToXContentObject, VersionedNamedWriteabl
     SecretSettings newSecretSettings(Map<String, Object> newSecrets);
 
     /**
+     * Validates that {@code provided} contains exactly one field, using {@code errorMessage} as the base.
+     * Throws a {@link ValidationException} if the map is empty or has more than one entry.
+     */
+    static void validateExactlyOneField(Map<String, ?> provided, String errorMessage) {
+        var validationException = new ValidationException();
+        if (provided.isEmpty()) {
+            validationException.addValidationError(errorMessage);
+        } else if (provided.size() > 1) {
+            validationException.addValidationError(errorMessage + ", received: " + provided.keySet());
+        }
+        validationException.throwIfValidationErrorsExist();
+    }
+
+    /**
      * Returns {@code this} (cast to {@code T}) when {@code allowedField} is unchanged, builds a new
      * instance via {@code factory} when it differs, and throws if any field other than {@code allowedField}
      * is present in {@code provided}.

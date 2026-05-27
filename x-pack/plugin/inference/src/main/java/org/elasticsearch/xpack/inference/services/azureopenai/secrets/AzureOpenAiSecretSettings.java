@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.inference.services.azureopenai.secrets;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SecretSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
@@ -35,7 +36,8 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
     public static final String ENTRA_ID = "entra_id";
 
     public static final String EXACTLY_ONE_SECRETS_FIELD_ERROR = format(
-        "[service_settings] must have exactly one of [%s], [%s], or [%s] field set",
+        "[%s] must have exactly one of [%s], [%s], or [%s] field set",
+        ModelConfigurations.SERVICE_SETTINGS,
         API_KEY,
         ENTRA_ID,
         CLIENT_SECRET_FIELD
@@ -54,13 +56,7 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
 
         var extractedSecretsMap = extractSecretsMap(map);
 
-        var validationException = new ValidationException();
-        if (extractedSecretsMap.isEmpty()) {
-            validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR);
-        } else if (extractedSecretsMap.size() > 1) {
-            validationException.addValidationError(EXACTLY_ONE_SECRETS_FIELD_ERROR + ", received: " + extractedSecretsMap.keySet());
-        }
-        validationException.throwIfValidationErrorsExist();
+        SecretSettings.validateExactlyOneField(extractedSecretsMap, EXACTLY_ONE_SECRETS_FIELD_ERROR);
 
         if (extractedSecretsMap.containsKey(API_KEY)) {
             return new AzureOpenAiEntraIdApiKeySecrets(extractedSecretsMap.get(API_KEY), null);

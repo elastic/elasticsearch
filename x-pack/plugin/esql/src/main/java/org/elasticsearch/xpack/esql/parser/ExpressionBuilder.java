@@ -173,7 +173,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         expressionDepth++;
         if (expressionDepth > MAX_EXPRESSION_DEPTH) {
             throw new ParsingException(
-                "ESQL statement exceeded the maximum expression depth allowed ({}): [{}]",
+                "ES|QL statement exceeded the maximum expression depth allowed ({}): [{}]",
                 MAX_EXPRESSION_DEPTH,
                 ctx.getParent().getText()
             );

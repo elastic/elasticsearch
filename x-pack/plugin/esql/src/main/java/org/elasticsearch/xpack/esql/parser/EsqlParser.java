@@ -227,7 +227,7 @@ public class EsqlParser {
                     }
                     if (depth + prefixChain > ExpressionBuilder.MAX_EXPRESSION_DEPTH) {
                         throw new ParsingException(
-                            "ESQL statement exceeded the maximum expression depth allowed ({})",
+                            "ES|QL statement exceeded the maximum expression depth allowed ({})",
                             ExpressionBuilder.MAX_EXPRESSION_DEPTH
                         );
                     }

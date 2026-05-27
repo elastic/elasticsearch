@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.concurrent.atomic.AtomicLongArray;
@@ -25,6 +26,12 @@ import java.util.function.LongSupplier;
  */
 public final class TimeSlottedAccumulator implements TimestampAccumulator {
 
+    /** Maximum allowed memory for the per-slot counts array. */
+    static final long MAX_COUNTS_ARRAY_BYTES = ByteSizeValue.ofGb(4).getBytes();
+
+    /** Maximum length of the per-slot counts array. */
+    static final int MAX_TOTAL_SLOTS = (int) (MAX_COUNTS_ARRAY_BYTES / Long.BYTES);
+
     public static final Setting<TimeValue> TIME_SLOTS_GRANULARITY_SETTING = Setting.timeSetting(
         "stateless.cache_boost_preference.time_slots.granularity",
         TimeValue.timeValueHours(1),
@@ -36,6 +43,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
         "stateless.cache_boost_preference.time_slots.past.count",
         87600, // default 10y past retention (for 1h slots)
         1,
+        MAX_TOTAL_SLOTS,
         Setting.Property.NodeScope
     );
 
@@ -43,6 +51,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
         "stateless.cache_boost_preference.time_slots.future.count",
         8760, // default 1y future retention (for 1h slots); uptime beyond this w/o restart clamps new counts to the head slot
         0,
+        MAX_TOTAL_SLOTS,
         Setting.Property.NodeScope
     );
 
@@ -60,7 +69,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
      */
     private final long headSlotStartMillis;
 
-    /** Exclusive end of the retained window: {@code headSlotMillis + granularityMillis}. */
+    /** Exclusive end of the retained window: {@code headSlotStartMillis + granularityMillis}. */
     private final long retainedEndExclusiveMillis;
 
     /**
@@ -98,8 +107,19 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
             totalSlots = Math.addExact(pastSlots, futureSlots);
         } catch (ArithmeticException e) {
             throw new IllegalArgumentException(
-                "pastSlots + futureSlots overflowed but was [pastSlots=" + pastSlots + ", futureSlots=" + futureSlots + "]",
+                "pastSlots + futureSlots overflowed [pastSlots=" + pastSlots + ", futureSlots=" + futureSlots + "]",
                 e
+            );
+        }
+        if (totalSlots > MAX_TOTAL_SLOTS) {
+            throw new IllegalArgumentException(
+                "pastSlots + futureSlots ["
+                    + totalSlots
+                    + "] exceeds maximum ["
+                    + MAX_TOTAL_SLOTS
+                    + "] ("
+                    + ByteSizeValue.ofBytes(MAX_COUNTS_ARRAY_BYTES)
+                    + " counts array limit)"
             );
         }
         this.granularityMillis = granularity.millis();

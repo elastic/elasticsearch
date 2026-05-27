@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -44,6 +45,14 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         expectThrows(
             IllegalArgumentException.class,
             () -> new TimeSlottedAccumulator(TimeValue.timeValueMillis(overflowingGranularityMillis), 3, 0, clock::get)
+        );
+        assertThat(TimeSlottedAccumulator.MAX_TOTAL_SLOTS, equalTo((int) (ByteSizeValue.ofGb(4).getBytes() / Long.BYTES)));
+        int maxTotalSlots = TimeSlottedAccumulator.MAX_TOTAL_SLOTS;
+        expectThrows(IllegalArgumentException.class, () -> new TimeSlottedAccumulator(randomGranularity(), maxTotalSlots, 1, clock::get));
+        expectThrows(IllegalArgumentException.class, () -> new TimeSlottedAccumulator(randomGranularity(), 1, maxTotalSlots, clock::get));
+        expectThrows(
+            IllegalArgumentException.class,
+            () -> new TimeSlottedAccumulator(randomGranularity(), maxTotalSlots / 2 + 1, maxTotalSlots / 2 + 1, clock::get)
         );
     }
 

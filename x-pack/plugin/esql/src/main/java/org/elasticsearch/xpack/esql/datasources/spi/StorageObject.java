@@ -14,6 +14,7 @@ import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.time.Instant;
 import java.util.concurrent.Executor;
+import java.util.concurrent.RejectedExecutionException;
 
 /**
  * Unified interface for storage object access.
@@ -88,11 +89,19 @@ public interface StorageObject {
     /**
      * Async byte read with ActionListener callback.
      * <p>
-     * Default implementation wraps the sync {@link #newStream(long, long)} method in an executor.
+     * Default implementation wraps the sync {@link #readBytes(long, ByteBuffer)} method in an executor.
      * Override this method for native async I/O (e.g., HTTP sendAsync, S3AsyncClient).
      * <p>
      * Columnar formats (Parquet) can use this for parallel chunk reads when
      * {@link #supportsNativeAsync()} returns true.
+     * <p>
+     * <b>Returned buffer contract:</b> the buffer delivered to the listener has
+     * {@code capacity() == length} (the requested length) and {@code remaining()} equal to the
+     * number of bytes actually read. On a short read these differ — consumers must use
+     * {@code remaining()} (or {@code limit() - position()}) to size their work, never
+     * {@code capacity()}. The buffer is direct.
+     * <p>
+     * On end-of-content at {@code position} the buffer is delivered with {@code remaining() == 0}.
      *
      * @param position the starting byte position
      * @param length the number of bytes to read
@@ -100,16 +109,40 @@ public interface StorageObject {
      * @param listener callback for the result or failure
      */
     default void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
-        executor.execute(() -> {
-            try (InputStream stream = newStream(position, length)) {
-                byte[] bytes = stream.readAllBytes();
-                ByteBuffer direct = ByteBuffer.allocateDirect(bytes.length);
-                direct.put(bytes).flip();
-                listener.onResponse(direct);
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
+        if (length < 0) {
+            listener.onFailure(new IllegalArgumentException("length must be non-negative, got: " + length));
+            return;
+        }
+        if (length > Integer.MAX_VALUE) {
+            listener.onFailure(new IllegalArgumentException("length must fit in an int for async reads, got: " + length));
+            return;
+        }
+        // Allocate on the calling thread so a direct-memory OOM surfaces synchronously via the
+        // listener instead of escaping the executor's Runnable as an Error and leaving the
+        // listener permanently uncompleted.
+        final ByteBuffer direct;
+        try {
+            direct = ByteBuffer.allocateDirect((int) length);
+        } catch (OutOfMemoryError e) {
+            listener.onFailure(new IOException("failed to allocate " + length + " bytes of direct memory", e));
+            return;
+        }
+        try {
+            executor.execute(() -> {
+                try {
+                    int read = Math.max(0, readBytes(position, direct));
+                    direct.position(0).limit(read);
+                    listener.onResponse(direct);
+                } catch (Exception e) {
+                    listener.onFailure(e);
+                }
+            });
+        } catch (RejectedExecutionException e) {
+            // Route executor rejection (saturated queue, shutdown) through the listener so the
+            // caller's ActionListener chain doesn't hang. The pre-allocated direct buffer becomes
+            // garbage and is reclaimed by the platform Cleaner.
+            listener.onFailure(e);
+        }
     }
 
     /**
@@ -128,30 +161,34 @@ public interface StorageObject {
      * @param listener callback with the number of bytes read, or failure
      */
     default void readBytesAsync(long position, ByteBuffer target, Executor executor, ActionListener<Integer> listener) {
-        executor.execute(() -> {
-            int toRead = target.remaining();
-            try (InputStream stream = newStream(position, toRead)) {
-                if (target.hasArray()) {
-                    int totalRead = 0;
-                    int off = target.arrayOffset() + target.position();
-                    while (totalRead < toRead) {
-                        int n = stream.read(target.array(), off + totalRead, toRead - totalRead);
-                        if (n < 0) {
-                            break;
+        try {
+            executor.execute(() -> {
+                int toRead = target.remaining();
+                try (InputStream stream = newStream(position, toRead)) {
+                    if (target.hasArray()) {
+                        int totalRead = 0;
+                        int off = target.arrayOffset() + target.position();
+                        while (totalRead < toRead) {
+                            int n = stream.read(target.array(), off + totalRead, toRead - totalRead);
+                            if (n < 0) {
+                                break;
+                            }
+                            totalRead += n;
                         }
-                        totalRead += n;
+                        target.position(target.position() + totalRead);
+                        listener.onResponse(totalRead);
+                    } else {
+                        byte[] bytes = stream.readAllBytes();
+                        target.put(bytes);
+                        listener.onResponse(bytes.length);
                     }
-                    target.position(target.position() + totalRead);
-                    listener.onResponse(totalRead);
-                } else {
-                    byte[] bytes = stream.readAllBytes();
-                    target.put(bytes);
-                    listener.onResponse(bytes.length);
+                } catch (Exception e) {
+                    listener.onFailure(e);
                 }
-            } catch (Exception e) {
-                listener.onFailure(e);
-            }
-        });
+            });
+        } catch (RejectedExecutionException e) {
+            listener.onFailure(e);
+        }
     }
 
     // === POSITIONAL BYTE-BUFFER API (optional - enables zero-copy for columnar formats) ===

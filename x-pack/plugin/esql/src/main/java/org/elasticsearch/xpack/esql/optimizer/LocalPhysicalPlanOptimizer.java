@@ -116,6 +116,9 @@ public class LocalPhysicalPlanOptimizer extends ParameterizedRuleExecutor<Physic
             // Runs after PushTopNIntoExternalSource (which lives in the pushdown batch above) so we
             // see the surviving TopN nodes that did not get fully pushed into the source. Inserts
             // an ExternalFieldExtractExec above each remaining TopN whose source supports it.
+            // The narrowed source projection ({@code [sortKey, _rowPosition]}) this rule produces
+            // is also the precondition the planner's {@code tryBuildNumericTopN} checks before
+            // swapping in the specialised {@code NumericTopNOperator}.
             new InsertExternalFieldExtraction()
         );
 

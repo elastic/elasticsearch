@@ -74,4 +74,12 @@ public interface ShardContext extends RefCounted {
     MappedFieldType fieldType(String name);
 
     ShardSearchStats stats();
+
+    /**
+     * Cumulative bytes read from Lucene directory I/O on the current thread, as tracked by the
+     * store metrics layer. Operators compute deltas by snapshotting before and after their work.
+     */
+    default long currentBytesRead() {
+        return DirectoryBytesRead.currentBytesRead();
+    }
 }

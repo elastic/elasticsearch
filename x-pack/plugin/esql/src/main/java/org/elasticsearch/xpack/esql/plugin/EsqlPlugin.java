@@ -21,6 +21,7 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockFactoryBuilder;
 import org.elasticsearch.compute.data.BlockFactoryProvider;
 import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.compute.lucene.DirectoryBytesRead;
 import org.elasticsearch.compute.lucene.query.LuceneOperator;
 import org.elasticsearch.compute.lucene.read.ValuesSourceReaderOperatorStatus;
 import org.elasticsearch.compute.operator.AbstractPageMappingOperator;
@@ -246,6 +247,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
     @Override
     public Collection<?> createComponents(PluginServices services) {
         Settings settings = services.clusterService().getSettings();
+        DirectoryBytesRead.setSupplier(services.indicesService()::currentStoreBytesRead);
         BigArrays bigArrays = services.indicesService().getBigArrays().withCircuitBreaking();
         var blockFactoryProvider = blockFactoryProvider(
             BlockFactory.builder(bigArrays)

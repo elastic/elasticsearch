@@ -17,6 +17,7 @@ import org.elasticsearch.compute.data.DocBlock;
 import org.elasticsearch.compute.data.DocVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.lucene.DirectoryBytesRead;
 import org.elasticsearch.compute.lucene.IndexedByShardId;
 import org.elasticsearch.compute.lucene.query.LuceneSourceOperator;
 import org.elasticsearch.compute.operator.AbstractPageMappingToIteratorOperator;
@@ -302,6 +303,7 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
 
     private final Map<String, Integer> readersBuilt = new TreeMap<>();
     long valuesLoaded;
+    long bytesRead;
 
     private int lastShard = -1;
     private int lastSegment = -1;
@@ -358,7 +360,39 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
     protected ReleasableIterator<Page> receive(Page page) {
         acquireSourceLoadingReservation();
         DocVector docVector = page.<DocBlock>getBlock(docChannel).asVector();
-        return appendBlockArrays(page, valuesReader(docVector));
+        long bytesSnapshot = DirectoryBytesRead.currentBytesRead();
+        ReleasableIterator<Page> pages = appendBlockArrays(page, valuesReader(docVector));
+        recordBytesRead(bytesSnapshot);
+        return trackBytesRead(pages);
+    }
+
+    private ReleasableIterator<Page> trackBytesRead(ReleasableIterator<Page> inner) {
+        return new ReleasableIterator<>() {
+            @Override
+            public boolean hasNext() {
+                return inner.hasNext();
+            }
+
+            @Override
+            public Page next() {
+                long bytesSnapshot = DirectoryBytesRead.currentBytesRead();
+                Page page = inner.next();
+                recordBytesRead(bytesSnapshot);
+                return page;
+            }
+
+            @Override
+            public void close() {
+                inner.close();
+            }
+        };
+    }
+
+    private void recordBytesRead(long bytesSnapshot) {
+        long current = DirectoryBytesRead.currentBytesRead();
+        if (current >= bytesSnapshot) {
+            bytesRead += current - bytesSnapshot;
+        }
     }
 
     private ValuesReader valuesReader(DocVector docVector) {
@@ -607,7 +641,8 @@ public class ValuesSourceReaderOperator extends AbstractPageMappingToIteratorOpe
             pagesEmitted,
             rowsReceived,
             rowsEmitted,
-            valuesLoaded
+            valuesLoaded,
+            bytesRead
         );
     }
 

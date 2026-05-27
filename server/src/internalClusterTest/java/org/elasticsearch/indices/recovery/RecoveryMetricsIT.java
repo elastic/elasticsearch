@@ -76,7 +76,7 @@ public class RecoveryMetricsIT extends AbstractIndexRecoveryIntegTestCase {
         assertThat("Recovery type", metric.attributes().get("recovery_type"), equalTo("EMPTY_STORE"));
     }
 
-    public void testRecoveryMetricsOnPeerRecovery() throws Exception {
+    public void testRecoveryMetricsOnPeerRecovery() {
         internalCluster().startMasterOnlyNode();
         final var sourceNode = internalCluster().startDataOnlyNode();
 

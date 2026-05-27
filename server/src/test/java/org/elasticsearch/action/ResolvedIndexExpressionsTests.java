@@ -24,11 +24,11 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class ResolvedIndexExpressionsTests extends ESTestCase {
 
-    public void testExclusionMatchingOriginalPreservesRemoteWhenOnlyLocalCancelled() {
+    public void testOriginOnlyExclusionMatchingOriginalPreservesRemoteExpressions() {
         ResolvedIndexExpressions.Builder builder = ResolvedIndexExpressions.builder();
         builder.addExpressions("shared-index", new HashSet<>(Set.of("shared-index")), SUCCESS, Set.of("remote:shared-index"));
 
-        builder.excludeFromExpressions(Set.of("shared-index"), false);
+        builder.excludeFromExpressions(Set.of("shared-index"), true);
 
         List<ResolvedIndexExpression> expressions = builder.build().expressions();
         assertThat(expressions, hasSize(1));
@@ -37,16 +37,16 @@ public class ResolvedIndexExpressionsTests extends ESTestCase {
         assertThat(expressions.get(0).remoteExpressions(), contains("remote:shared-index"));
     }
 
-    public void testExclusionMatchingOriginalRemovesEntryWhenRemoteAlsoCancelled() {
+    public void testFlatExclusionMatchingOriginalRemovesEntryEvenWhenRemoteExpressionsPresent() {
         ResolvedIndexExpressions.Builder builder = ResolvedIndexExpressions.builder();
         builder.addExpressions("shared-index", new HashSet<>(Set.of("shared-index")), SUCCESS, Set.of("remote:shared-index"));
 
-        builder.excludeFromExpressions(Set.of("shared-index"), true);
+        builder.excludeFromExpressions(Set.of("shared-index"), false);
 
         assertThat(builder.build().expressions(), empty());
     }
 
-    public void testLocalExclusionMatchingOriginalRemovesLocalOnlyExpression() {
+    public void testExclusionMatchingOriginalRemovesLocalOnlyExpression() {
         ResolvedIndexExpressions.Builder builder = ResolvedIndexExpressions.builder();
         builder.addExpressions("shared-index", new HashSet<>(Set.of("shared-index")), SUCCESS, Set.of());
 
@@ -55,7 +55,7 @@ public class ResolvedIndexExpressionsTests extends ESTestCase {
         assertThat(builder.build().expressions(), empty());
     }
 
-    public void testLocalExclusionNotMatchingOriginalStillRemovesFromLocalIndices() {
+    public void testExclusionNotMatchingOriginalStillRemovesFromLocalIndices() {
         ResolvedIndexExpressions.Builder builder = ResolvedIndexExpressions.builder();
         builder.addExpressions("index-*", new HashSet<>(Set.of("index-1", "shared-index")), SUCCESS, Set.of("remote:index-*"));
 

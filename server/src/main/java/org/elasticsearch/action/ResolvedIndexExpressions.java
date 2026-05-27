@@ -98,20 +98,20 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
 
         /**
          * Exclude the given expressions from the local expressions of all prior added {@link ResolvedIndexExpression}.
-         * When {@code excludeRemotes} is {@code true}, a matching entry is dropped entirely; otherwise the local side
-         * is cleared but any remote expressions on the entry are preserved.
+         * When {@code originOnlyExclusion} is {@code true}, a matching entry's local side is cleared but any remote
+         * expressions are preserved; otherwise the matching entry is dropped entirely.
          */
-        public void excludeFromExpressions(Set<String> expressionsToExclude, boolean excludeRemotes) {
+        public void excludeFromExpressions(Set<String> expressionsToExclude, boolean originOnlyExclusion) {
             Objects.requireNonNull(expressionsToExclude);
             if (expressionsToExclude.isEmpty() == false) {
                 final var iter = expressions.listIterator();
                 while (iter.hasNext()) {
                     final ResolvedIndexExpression current = iter.next();
                     if (expressionsToExclude.contains(current.original())) {
-                        if (excludeRemotes || current.remoteExpressions().isEmpty()) {
-                            iter.remove();
-                        } else {
+                        if (originOnlyExclusion && false == current.remoteExpressions().isEmpty()) {
                             iter.set(new ResolvedIndexExpression(current.original(), LocalExpressions.NONE, current.remoteExpressions()));
+                        } else {
+                            iter.remove();
                         }
                         continue;
                     }

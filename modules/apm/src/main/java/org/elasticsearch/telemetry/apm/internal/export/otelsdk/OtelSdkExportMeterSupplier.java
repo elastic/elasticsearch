@@ -15,6 +15,7 @@ import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporter;
 import io.opentelemetry.exporter.otlp.http.metrics.OtlpHttpMetricExporterBuilder;
 import io.opentelemetry.instrumentation.runtimetelemetry.RuntimeTelemetry;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
 import io.opentelemetry.sdk.common.export.RetryPolicy;
 import io.opentelemetry.sdk.metrics.Aggregation;
@@ -32,7 +33,6 @@ import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
 import java.nio.file.Path;
 import java.util.Objects;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.telemetry.TelemetryProvider.OTEL_METRICS_ENABLED_SYSTEM_PROPERTY;
 
@@ -153,17 +153,34 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         return null;
     }
 
+    /**
+     * Flushes the system provider twice, then the health provider. The double system flush is
+     * required because {@code PeriodicMetricReader} records {@code collection.duration} into its
+     * own provider <i>after</i> each collection completes, so a second cycle is needed to ship the
+     * value produced by the first. The health provider must flush last because
+     * {@code OtlpHttpMetricExporter} records exporter self-telemetry (e.g.
+     * {@code otel.sdk.exporter.metric_data_point.exported}) into the health provider only after
+     * the system HTTP export completes.
+     * Callers must join the result with an appropriate timeout.
+     * <p>
+     * The returned result always succeeds: flush is best-effort and intermediate failures are silently
+     * ignored, consistent with the contract of {@link MeterSupplier#attemptFlushMetrics()}.
+     */
     @Override
-    public void attemptFlushMetrics() {
-        OTelMetricsResources snapshot = resources;
-        if (snapshot == null) {
-            return;
+    public CompletableResultCode attemptFlushMetrics() {
+        SdkMeterProvider sys, health;
+        synchronized (mutex) {
+            if (resources == null) {
+                return CompletableResultCode.ofSuccess();
+            }
+            sys = resources.systemMeterProvider;
+            health = resources.meterHealthMeterProvider;
         }
-        long timeoutMillis = OtelSdkSettings.TELEMETRY_OTEL_OTLP_SEND_TIMEOUT.get(settings).millis();
-        // PeriodicMetricReader records collection.duration after each collection, so a second cycle is required to ship it.
-        snapshot.systemMeterProvider.forceFlush().join(timeoutMillis, TimeUnit.MILLISECONDS);
-        snapshot.systemMeterProvider.forceFlush().join(timeoutMillis, TimeUnit.MILLISECONDS);
-        snapshot.meterHealthMeterProvider.forceFlush().join(timeoutMillis, TimeUnit.MILLISECONDS);
+        // Lock released before flushing to avoid holding it during async I/O.
+        // close() may race here; SdkMeterProvider.forceFlush() on a stopped provider is a safe no-op.
+        CompletableResultCode result = new CompletableResultCode();
+        sys.forceFlush().whenComplete(() -> sys.forceFlush().whenComplete(() -> health.forceFlush().whenComplete(result::succeed)));
+        return result;
     }
 
     @Override

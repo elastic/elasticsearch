@@ -9,6 +9,8 @@
 
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
+import io.opentelemetry.sdk.common.CompletableResultCode;
+
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
@@ -73,13 +75,15 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         supplier.close();
     }
 
-    /** attemptFlushMetrics() after close() must be a no-op and not throw. */
+    /** attemptFlushMetrics() after close() must return a successful no-op result. */
     public void testAttemptFlushMetricsAfterCloseIsNoop() {
         String bogusUrl = "http://127.0.0.1:9/v1/metrics";
         Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.getKey(), bogusUrl).build();
         OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings, createTempDir());
         supplier.get();
         supplier.close();
-        supplier.attemptFlushMetrics(); // must not throw
+        CompletableResultCode result = supplier.attemptFlushMetrics();
+        result.join(5, java.util.concurrent.TimeUnit.SECONDS);
+        assertTrue(result.isSuccess());
     }
 }

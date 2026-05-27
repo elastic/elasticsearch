@@ -31,6 +31,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.util.Bits;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.codec.vectors.GenericFlatVectorReaders;
+import org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues;
 import org.elasticsearch.search.vectors.ESAcceptDocs;
 import org.elasticsearch.search.vectors.IVFKnnSearchStrategy;
 
@@ -574,24 +575,19 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
 
     /**
      * Container for centroid data read from an existing segment. The centroid vectors are
-     * exposed as a streaming {@link org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues}
+     * exposed as a streaming {@link ClusteringFloatVectorValues}
      * so the merge path can iterate them without materializing the full {@code float[N][dim]}
      * on the heap. The optional {@code backing} {@link IndexInput} owns any sliced resources
      * required by the streaming view; {@link #close()} releases it.
      */
     public static final class CentroidData implements Closeable {
         private final int numCentroids;
-        private final org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues centroids;
+        private final ClusteringFloatVectorValues centroids;
         private final int[] clusterSizes;
         private final float[] globalCentroid;
         private final IndexInput backing;
 
-        public CentroidData(
-            org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues centroids,
-            int[] clusterSizes,
-            float[] globalCentroid,
-            IndexInput backing
-        ) {
+        public CentroidData(ClusteringFloatVectorValues centroids, int[] clusterSizes, float[] globalCentroid, IndexInput backing) {
             assert centroids.size() == clusterSizes.length;
             this.numCentroids = centroids.size();
             this.centroids = centroids;
@@ -604,7 +600,7 @@ public abstract class IVFVectorsReader<E extends IVFVectorsReader.FieldEntry> ex
             return numCentroids;
         }
 
-        public org.elasticsearch.index.codec.vectors.cluster.ClusteringFloatVectorValues centroids() {
+        public ClusteringFloatVectorValues centroids() {
             return centroids;
         }
 

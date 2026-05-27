@@ -174,6 +174,7 @@ public class PrimitiveTernaryHeapTests extends ESTestCase {
                     heap.updateTop(v, i, isNull);
                 }
                 assertTrue("invariant after step " + i, heap.assertInvariant());
+                assertThat(heap.nullsInHeap(), equalTo(countNulls(heap)));
             }
         }
     }
@@ -234,6 +235,27 @@ public class PrimitiveTernaryHeapTests extends ESTestCase {
                     assertThat("value alignment at slot " + slot + " (origIdx " + origIdx + ")", value, equalTo(inputValues[origIdx]));
                     assertThat("null alignment at slot " + slot + " (origIdx " + origIdx + ")", slotIsNull, equalTo(inputNulls[origIdx]));
                 });
+                assertThat(heap.nullsInHeap(), equalTo(countNulls(heap)));
+            }
+        }
+    }
+
+    public void testNullCounterTracksPushUpdateAndPop() {
+        int k = randomIntBetween(2, 64);
+        try (PrimitiveTernaryHeap heap = new PrimitiveTernaryHeap(breaker, k, randomBoolean())) {
+            for (int i = 0; i < k; i++) {
+                heap.push(randomLong(), i, randomBoolean());
+                assertThat(heap.nullsInHeap(), equalTo(countNulls(heap)));
+            }
+            for (int i = 0; i < k * 4; i++) {
+                heap.updateTop(randomLong(), k + i, randomBoolean());
+                assertTrue(heap.assertInvariant());
+                assertThat(heap.nullsInHeap(), equalTo(countNulls(heap)));
+            }
+            while (heap.size() > 0) {
+                heap.popTop();
+                assertTrue(heap.assertInvariant());
+                assertThat(heap.nullsInHeap(), equalTo(countNulls(heap)));
             }
         }
     }
@@ -250,5 +272,15 @@ public class PrimitiveTernaryHeapTests extends ESTestCase {
             }
         }
         return out;
+    }
+
+    private static int countNulls(PrimitiveTernaryHeap heap) {
+        int[] count = new int[1];
+        heap.forEachSlot((slot, value, rowPosition, isNull) -> {
+            if (isNull) {
+                count[0]++;
+            }
+        });
+        return count[0];
     }
 }

@@ -21,6 +21,8 @@ import org.apache.hadoop.hive.ql.exec.vector.TimestampColumnVector;
 import org.apache.hadoop.hive.ql.exec.vector.VectorizedRowBatch;
 import org.apache.hadoop.hive.ql.io.sarg.PredicateLeaf;
 import org.apache.hadoop.hive.ql.io.sarg.SearchArgument;
+import org.apache.lucene.util.NumericUtils;
+import org.apache.orc.BooleanColumnStatistics;
 import org.apache.orc.ColumnStatistics;
 import org.apache.orc.DoubleColumnStatistics;
 import org.apache.orc.IntegerColumnStatistics;
@@ -35,6 +37,7 @@ import org.apache.orc.impl.OrcTail;
 import org.apache.orc.impl.ReaderImpl;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
 import org.elasticsearch.core.Releasables;
@@ -51,6 +54,8 @@ import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
 import org.elasticsearch.xpack.esql.datasources.cache.ParsedFooterCache;
 import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
+import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
+import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -95,7 +100,7 @@ import java.util.concurrent.ExecutionException;
  *   <li>Stripe-level split parallelism for multi-stripe files</li>
  * </ul>
  */
-public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatReader {
+public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatReader, DynamicThresholdAware {
 
     private static final Logger LOGGER = LogManager.getLogger(OrcFormatReader.class);
 
@@ -117,26 +122,38 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
     private final BlockFactory blockFactory;
     private final SearchArgument pushedFilter;
     private final OrcPushedExpressions pushedExpressions;
+    private final DynamicThreshold dynamicThreshold;
 
     public OrcFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, null, null);
+        this(blockFactory, null, null, null);
     }
 
-    private OrcFormatReader(BlockFactory blockFactory, SearchArgument pushedFilter, OrcPushedExpressions pushedExpressions) {
+    private OrcFormatReader(
+        BlockFactory blockFactory,
+        SearchArgument pushedFilter,
+        OrcPushedExpressions pushedExpressions,
+        DynamicThreshold dynamicThreshold
+    ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
         this.pushedExpressions = pushedExpressions;
+        this.dynamicThreshold = dynamicThreshold;
     }
 
     @Override
     public FormatReader withPushedFilter(Object pushedFilter) {
         if (pushedFilter instanceof SearchArgument sarg) {
-            return new OrcFormatReader(this.blockFactory, sarg, null);
+            return new OrcFormatReader(this.blockFactory, sarg, null, dynamicThreshold);
         }
         if (pushedFilter instanceof OrcPushedExpressions exprs) {
-            return new OrcFormatReader(this.blockFactory, null, exprs);
+            return new OrcFormatReader(this.blockFactory, null, exprs, dynamicThreshold);
         }
         return this;
+    }
+
+    @Override
+    public FormatReader withDynamicThreshold(DynamicThreshold threshold) {
+        return new OrcFormatReader(blockFactory, pushedFilter, pushedExpressions, threshold);
     }
 
     @Override
@@ -358,7 +375,15 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         Reader.Options readOptions = configureReadOptions(reader, batchSize, include, schema);
         RecordReader rows = reader.rows(readOptions);
 
-        CloseableIterator<Page> iter = new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory);
+        CloseableIterator<Page> iter = new OrcPageIterator(
+            reader,
+            rows,
+            schema,
+            projectedAttributes,
+            batchSize,
+            blockFactory,
+            StripeSkipTable.build(reader, schema, dynamicThreshold, 0L, Long.MAX_VALUE)
+        );
         return rowLimit != NO_LIMIT ? new RowLimitingIterator(iter, rowLimit) : iter;
     }
 
@@ -470,7 +495,15 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         readOptions.range(rangeStart, rangeEnd - rangeStart);
         RecordReader rows = reader.rows(readOptions);
 
-        return new OrcPageIterator(reader, rows, schema, projectedAttributes, batchSize, blockFactory);
+        return new OrcPageIterator(
+            reader,
+            rows,
+            schema,
+            projectedAttributes,
+            batchSize,
+            blockFactory,
+            StripeSkipTable.build(reader, schema, dynamicThreshold, rangeStart, rangeEnd)
+        );
     }
 
     private static List<Attribute> resolveProjection(List<Attribute> attributes, List<String> projectedColumns) {
@@ -740,12 +773,174 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
         visitor.visit(dottedPath, type, false);
     }
 
+    private static final class StripeSkipTable {
+        private final DynamicThreshold threshold;
+        private final long[] startRows;
+        private final boolean[] active;
+        private final boolean[] hasStats;
+        private final boolean[] nullOnly;
+        private final long[] nullCounts;
+        private final long[] rawMins;
+        private final long[] rawMaxs;
+
+        private StripeSkipTable(
+            DynamicThreshold threshold,
+            long[] startRows,
+            boolean[] active,
+            boolean[] hasStats,
+            boolean[] nullOnly,
+            long[] nullCounts,
+            long[] rawMins,
+            long[] rawMaxs
+        ) {
+            this.threshold = threshold;
+            this.startRows = startRows;
+            this.active = active;
+            this.hasStats = hasStats;
+            this.nullOnly = nullOnly;
+            this.nullCounts = nullCounts;
+            this.rawMins = rawMins;
+            this.rawMaxs = rawMaxs;
+        }
+
+        static StripeSkipTable build(Reader reader, TypeDescription schema, DynamicThreshold threshold, long rangeStart, long rangeEnd)
+            throws IOException {
+            if (threshold == null) {
+                return null;
+            }
+            TypeDescription sortType = buildDottedNameToType(schema).get(threshold.columnName());
+            if (sortType == null) {
+                return null;
+            }
+            List<StripeInformation> stripes = reader.getStripes();
+            List<StripeStatistics> stripeStats = reader.getStripeStatistics();
+            if (stripes.isEmpty() || stripeStats.isEmpty()) {
+                return null;
+            }
+            long[] startRows = new long[stripes.size() + 1];
+            boolean[] active = new boolean[stripes.size()];
+            boolean[] hasStats = new boolean[stripes.size()];
+            boolean[] nullOnly = new boolean[stripes.size()];
+            long[] nullCounts = new long[stripes.size()];
+            long[] rawMins = new long[stripes.size()];
+            long[] rawMaxs = new long[stripes.size()];
+            long row = 0L;
+            int columnId = sortType.getId();
+            for (int i = 0; i < stripes.size(); i++) {
+                StripeInformation stripe = stripes.get(i);
+                startRows[i] = row;
+                row += stripe.getNumberOfRows();
+                active[i] = stripe.getOffset() >= rangeStart && stripe.getOffset() < rangeEnd;
+                if (active[i] && i < stripeStats.size()) {
+                    ColumnStatistics[] columnStatistics = stripeStats.get(i).getColumnStatistics();
+                    if (columnId < columnStatistics.length) {
+                        ColumnStatistics stats = columnStatistics[columnId];
+                        if (stats == null) {
+                            continue;
+                        }
+                        long nulls = stripe.getNumberOfRows() - stats.getNumberOfValues();
+                        Long min = rawMin(stats, sortType, threshold.elementType());
+                        Long max = rawMax(stats, sortType, threshold.elementType());
+                        if (min != null && max != null) {
+                            hasStats[i] = true;
+                            nullCounts[i] = nulls;
+                            rawMins[i] = min;
+                            rawMaxs[i] = max;
+                        } else if (stats.getNumberOfValues() == 0 && nulls > 0) {
+                            hasStats[i] = true;
+                            nullOnly[i] = true;
+                            nullCounts[i] = nulls;
+                        }
+                    }
+                }
+            }
+            startRows[stripes.size()] = row;
+            return new StripeSkipTable(threshold, startRows, active, hasStats, nullOnly, nullCounts, rawMins, rawMaxs);
+        }
+
+        boolean noFurtherCandidates() {
+            return threshold.noFurtherCandidates();
+        }
+
+        int stripeIndexForRow(long rowNumber) {
+            int low = 0;
+            int high = active.length - 1;
+            while (low <= high) {
+                int mid = (low + high) >>> 1;
+                if (rowNumber < startRows[mid]) {
+                    high = mid - 1;
+                } else if (rowNumber >= startRows[mid + 1]) {
+                    low = mid + 1;
+                } else {
+                    return mid;
+                }
+            }
+            return -1;
+        }
+
+        boolean dominated(int stripeIndex) {
+            return stripeIndex >= 0
+                && stripeIndex < active.length
+                && active[stripeIndex]
+                && hasStats[stripeIndex]
+                && (nullOnly[stripeIndex]
+                    ? threshold.dominatesNulls(nullCounts[stripeIndex])
+                    : threshold.dominates(rawMins[stripeIndex], rawMaxs[stripeIndex], nullCounts[stripeIndex]));
+        }
+
+        int nextNonDominatedStripe(int fromStripe) {
+            for (int i = fromStripe; i < active.length; i++) {
+                if (active[i] && dominated(i) == false) {
+                    return i;
+                }
+            }
+            return -1;
+        }
+
+        long stripeStartRow(int stripeIndex) {
+            return startRows[stripeIndex];
+        }
+
+        private static Long rawMin(ColumnStatistics stats, TypeDescription sortType, ElementType elementType) {
+            return switch (elementType) {
+                case LONG -> sortType.getCategory() == TypeDescription.Category.LONG && stats instanceof IntegerColumnStatistics intStats
+                    ? intStats.getMinimum()
+                    : null;
+                case INT -> sortType.getCategory() == TypeDescription.Category.INT && stats instanceof IntegerColumnStatistics intStats
+                    ? (long) intStats.getMinimum()
+                    : null;
+                case DOUBLE -> stats instanceof DoubleColumnStatistics doubleStats ? rawDouble(doubleStats.getMinimum()) : null;
+                case BOOLEAN -> stats instanceof BooleanColumnStatistics booleanStats ? (booleanStats.getFalseCount() > 0 ? 0L : 1L) : null;
+                default -> null;
+            };
+        }
+
+        private static Long rawMax(ColumnStatistics stats, TypeDescription sortType, ElementType elementType) {
+            return switch (elementType) {
+                case LONG -> sortType.getCategory() == TypeDescription.Category.LONG && stats instanceof IntegerColumnStatistics intStats
+                    ? intStats.getMaximum()
+                    : null;
+                case INT -> sortType.getCategory() == TypeDescription.Category.INT && stats instanceof IntegerColumnStatistics intStats
+                    ? (long) intStats.getMaximum()
+                    : null;
+                case DOUBLE -> stats instanceof DoubleColumnStatistics doubleStats ? rawDouble(doubleStats.getMaximum()) : null;
+                case BOOLEAN -> stats instanceof BooleanColumnStatistics booleanStats ? (booleanStats.getTrueCount() > 0 ? 1L : 0L) : null;
+                default -> null;
+            };
+        }
+
+        private static Long rawDouble(double value) {
+            return Double.isNaN(value) ? null : NumericUtils.doubleToSortableLong(value);
+        }
+    }
+
     private static class OrcPageIterator implements CloseableIterator<Page> {
         private final Reader reader;
         private final RecordReader rows;
         private final List<Attribute> attributes;
         private final BlockFactory blockFactory;
         private final VectorizedRowBatch batch;
+        private final StripeSkipTable stripeSkipTable;
         private boolean exhausted = false;
         private boolean batchReady = false;
         /**
@@ -762,13 +957,15 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
             TypeDescription schema,
             List<Attribute> attributes,
             int batchSize,
-            BlockFactory blockFactory
+            BlockFactory blockFactory,
+            StripeSkipTable stripeSkipTable
         ) {
             this.reader = reader;
             this.rows = rows;
             this.attributes = attributes;
             this.blockFactory = blockFactory;
             this.batch = schema.createRowBatch(batchSize);
+            this.stripeSkipTable = stripeSkipTable;
 
             this.fieldNameToPath = new HashMap<>(attributes.size());
             // Top-level field index, computed once for literal-name lookups.
@@ -827,16 +1024,45 @@ public class OrcFormatReader implements RangeAwareFormatReader, NoConfigFormatRe
                 return true;
             }
             try {
-                if (rows.nextBatch(batch)) {
-                    batchReady = true;
-                    return true;
-                } else {
-                    exhausted = true;
-                    return false;
+                while (true) {
+                    if (stripeSkipTable != null && stripeSkipTable.noFurtherCandidates()) {
+                        exhausted = true;
+                        return false;
+                    }
+                    if (skipDominatedStripes()) {
+                        if (exhausted) {
+                            return false;
+                        }
+                        continue;
+                    }
+                    if (rows.nextBatch(batch)) {
+                        batchReady = true;
+                        return true;
+                    } else {
+                        exhausted = true;
+                        return false;
+                    }
                 }
             } catch (IOException e) {
                 throw new RuntimeException("Failed to read ORC batch", e);
             }
+        }
+
+        private boolean skipDominatedStripes() throws IOException {
+            if (stripeSkipTable == null) {
+                return false;
+            }
+            int stripeIndex = stripeSkipTable.stripeIndexForRow(rows.getRowNumber());
+            if (stripeSkipTable.dominated(stripeIndex) == false) {
+                return false;
+            }
+            int nextStripe = stripeSkipTable.nextNonDominatedStripe(stripeIndex + 1);
+            if (nextStripe < 0) {
+                exhausted = true;
+                return true;
+            }
+            rows.seekToRow(stripeSkipTable.stripeStartRow(nextStripe));
+            return true;
         }
 
         @Override

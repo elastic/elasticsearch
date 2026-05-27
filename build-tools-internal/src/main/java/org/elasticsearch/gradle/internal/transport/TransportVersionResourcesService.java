@@ -326,7 +326,18 @@ public abstract class TransportVersionResourcesService implements BuildService<T
                     refName = gitCommand("rev-parse", "--verify", "CHERRY_PICK_HEAD").strip();
                 } else {
                     String upstreamRef = findUpstreamRef();
-                    refName = gitCommand("merge-base", upstreamRef, "HEAD").strip();
+                    String mergeBase = gitCommandOrNull("merge-base", upstreamRef, "HEAD");
+                    if (mergeBase == null || mergeBase.isBlank()) {
+                        // merge-base can fail if the upstream ref has no common history (e.g. when a remote
+                        // pointing to a different repo is picked up). Fall back to the local branch name.
+                        logger.warn(
+                            "Could not determine merge-base with ["
+                                + upstreamRef
+                                + "]; falling back to local 'main' as upstream ref for transport version resources"
+                        );
+                        mergeBase = gitCommand("merge-base", "main", "HEAD").strip();
+                    }
+                    refName = mergeBase;
                 }
 
                 baseRefName.set(refName);

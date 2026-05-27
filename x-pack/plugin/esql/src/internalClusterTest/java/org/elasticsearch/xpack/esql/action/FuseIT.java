@@ -188,6 +188,46 @@ public class FuseIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testFuseWithDenseVector() throws Exception {
+        var indexName = "dense_vector_fuse_test";
+        assertAcked(
+            client().admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.number_of_shards", 1))
+                .setMapping("""
+                    {
+                      "properties": {
+                        "title": {"type": "text"},
+                        "embedding": {"type": "dense_vector", "dims": 3, "index": true, "similarity": "l2_norm"}
+                      }
+                    }
+                    """)
+        );
+        client().prepareBulk()
+            .add(new IndexRequest(indexName).id("1").source("title", "first doc", "embedding", List.of(1.0f, 0.0f, 0.0f)))
+            .add(new IndexRequest(indexName).id("2").source("title", "second doc", "embedding", List.of(0.0f, 1.0f, 0.0f)))
+            .add(new IndexRequest(indexName).id("3").source("title", "third doc", "embedding", List.of(0.0f, 0.0f, 1.0f)))
+            .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE)
+            .get();
+        ensureYellow(indexName);
+
+        var query = """
+              FROM dense_vector_fuse_test METADATA _id, _index, _score
+            | FORK (WHERE title:"first"                    | SORT _score DESC | LIMIT 5)
+                   (WHERE knn(embedding, [1.0, 0.0, 0.0]) | SORT _score DESC | LIMIT 5)
+            | FUSE
+            | KEEP _score, title, _fork
+            | SORT _score DESC
+            """;
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("_score", "title", "_fork"));
+            assertColumnTypes(resp.columns(), List.of("double", "keyword", "keyword"));
+            var values = getValuesList(resp.values());
+            assertThat(values.get(0).get(1), equalTo("first doc"));
+        }
+    }
+
     private void createAndPopulateIndex() {
         var indexName = "test";
         var client = client().admin().indices();

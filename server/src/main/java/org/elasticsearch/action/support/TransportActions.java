@@ -39,6 +39,8 @@ public class TransportActions {
      * fail in exactly the same way on every replica — with two exceptions: {@link RestStatus#REQUEST_TIMEOUT} (408) and
      * {@link RestStatus#TOO_MANY_REQUESTS} (429) indicate transient conditions that may not affect a different replica. No Elasticsearch
      * exception currently maps to 408; the carve-out is reserved for future use.
+     * <p>
+     * This logic reflects search retry semantics. Other code paths, including indexing, should evaluate carefully before adopting it.
      */
     public static boolean isRetriableShardLevelException(Throwable e) {
         if (isShardNotAvailableException(e)) {

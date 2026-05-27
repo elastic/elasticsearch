@@ -417,6 +417,30 @@ bytes:double | time_bucket:datetime
 2382.518001  | 2024-05-10T00:00:00.000Z
 ;
 
+// Defensive ::gauge on a union of plain numeric (k8s) and aggregate_metric_double (k8s-downsampled) gauge
+// fields is stripped at analysis time; results must match avg_over_time_aggregate_metric_double_implicit_casting.
+avg_over_time_aggregate_metric_double_implicit_casting_with_to_gauge
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_v0
+required_capability: to_gauge
+
+TS k8s,k8s-downsampled
+| STATS bytes = sum(avg_over_time(network.eth0.rx::gauge)) by time_bucket = bucket(@timestamp, 10minute)
+| SORT bytes desc, time_bucket
+| LIMIT 10
+| EVAL bytes = round(bytes, 6)
+| KEEP bytes, time_bucket
+;
+
+bytes:double | time_bucket:datetime
+8785.733333  | 2024-05-10T00:20:00.000Z
+6398.744877  | 2024-05-10T00:10:00.000Z
+5693.833333  | 2024-05-09T23:50:00.000Z
+4827.833333  | 2024-05-09T23:30:00.000Z
+4306.366667  | 2024-05-09T23:40:00.000Z
+2382.518001  | 2024-05-10T00:00:00.000Z
+;
+
 avg_over_time_aggregate_metric_double_implicit_casting_grouping
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_v0

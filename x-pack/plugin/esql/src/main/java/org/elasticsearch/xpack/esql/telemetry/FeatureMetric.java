@@ -120,6 +120,7 @@ public enum FeatureMetric {
     USER_AGENT(UserAgent.class::isInstance),
     IP_LOCATION(IpLocation.class::isInstance),
     DEDUP(Dedup.class::isInstance);
+
     /**
      * List here plans we want to exclude from telemetry
      */

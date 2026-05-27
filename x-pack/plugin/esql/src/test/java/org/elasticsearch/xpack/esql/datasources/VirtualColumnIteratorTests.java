@@ -218,32 +218,20 @@ public class VirtualColumnIteratorTests extends ESTestCase {
      * (non-existent) {@code _rowPosition} data block. The counter continues across pages of the
      * same file.
      */
-    public void testIdSynthesizedFromCounterWhenNoRowPositionColumn() {
+    public void testIdRequiresRowPositionChannel() {
+        // The split-local counter fallback was removed: every file reader now emits the _rowPosition
+        // channel (the optimizer injects it for _id / _file.record_ref), and a split-local counter
+        // would break _id repeatability across split layouts. When _id is requested but the reader
+        // did not emit the channel, the iterator fails loud rather than synthesizing wrong ids.
         List<Attribute> fullOutput = List.of(attr("data", DataType.INTEGER), partAttr(ExternalMetadataColumns.ID, DataType.KEYWORD));
         Set<String> partitionCols = new LinkedHashSet<>(List.of(ExternalMetadataColumns.ID));
         BytesRef idPrefix = ExternalRowIdentity.prefix(StoragePath.of("s3://bucket/data.csv"));
 
-        VirtualColumnIterator it = new VirtualColumnIterator(emptyDelegate(), fullOutput, partitionCols, Map.of(), blockFactory, idPrefix);
-
-        Page page1 = it.inject(new Page(3, new Block[] { blockFactory.newConstantIntBlockWith(1, 3) }));
-        try {
-            BytesRefBlock ids1 = page1.getBlock(1);
-            assertEquals("s3://bucket/data.csv:0", asString(ids1, 0));
-            assertEquals("s3://bucket/data.csv:1", asString(ids1, 1));
-            assertEquals("s3://bucket/data.csv:2", asString(ids1, 2));
-        } finally {
-            page1.releaseBlocks();
-        }
-
-        // Second page of the same file: the counter must continue from 3, not restart at 0.
-        Page page2 = it.inject(new Page(2, new Block[] { blockFactory.newConstantIntBlockWith(9, 2) }));
-        try {
-            BytesRefBlock ids2 = page2.getBlock(1);
-            assertEquals("s3://bucket/data.csv:3", asString(ids2, 0));
-            assertEquals("s3://bucket/data.csv:4", asString(ids2, 1));
-        } finally {
-            page2.releaseBlocks();
-        }
+        Exception e = expectThrows(
+            org.elasticsearch.xpack.esql.core.QlIllegalArgumentException.class,
+            () -> new VirtualColumnIterator(emptyDelegate(), fullOutput, partitionCols, Map.of(), blockFactory, idPrefix)
+        );
+        assertThat(e.getMessage(), containsString("_rowPosition"));
     }
 
     /**

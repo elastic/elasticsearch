@@ -1764,6 +1764,19 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         return ParallelDispatchMode.SEGMENTABLE_UNCOMPRESSED;
     }
 
+    // Overload preserving the pre-record-offset signature (baseFileOffset = 0, i.e. whole-file).
+    CloseableIterator<Page> openWithParallelism(
+        FormatReader reader,
+        StorageObject obj,
+        List<String> cols,
+        ErrorPolicy policy,
+        boolean recordAlignedMacroSplit,
+        boolean splitIncludesFileLeader,
+        @Nullable List<Attribute> perFileReadSchema
+    ) throws IOException {
+        return openWithParallelism(reader, obj, cols, policy, recordAlignedMacroSplit, splitIncludesFileLeader, perFileReadSchema, 0L);
+    }
+
     CloseableIterator<Page> openWithParallelism(
         FormatReader reader,
         StorageObject obj,

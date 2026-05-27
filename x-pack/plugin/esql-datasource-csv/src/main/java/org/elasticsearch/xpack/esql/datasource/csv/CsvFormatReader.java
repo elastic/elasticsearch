@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -1611,6 +1612,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
         /** Maps a source-column index to its slot in {@link #rowBuffer} / {@link #projectedTypes}; -1 if not projected. */
         private int[] sourceToBufferIndex;
         private Object[] rowBuffer;
+        /**
+         * Projection slot of the synthetic {@code _rowPosition} column, or {@code -1} when not
+         * requested. Not a CSV source column — filled from {@link #csvRowCounter} rather than from a
+         * parsed field.
+         */
+        private int rowPositionSlot = -1;
+        /**
+         * Per-record token emitted into the {@code _rowPosition} slot. Advances once per record read
+         * (accepted or rejected) so a record's value is stable regardless of acceptance. For a
+         * single-split read this is the file-global record index; multi-split CSV needs a file-global
+         * byte offset (follow-up) for full split-invariance.
+         */
+        private long csvRowCounter = 0;
         private Iterator<List<?>> csvIterator;
         private List<String[]> prefetchedRows;
         private long prefetchedRowsBytes;
@@ -1893,6 +1907,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 projectedIdx = new int[columnCount];
                 for (int c = 0; c < columnCount; c++) {
                     String colName = projectedColumns.get(c);
+                    if (ColumnExtractor.ROW_POSITION_COLUMN.equals(colName)) {
+                        // Synthetic per-record token, not a CSV source column. Sentinel -1 source
+                        // index; the convert paths fill this slot from csvRowCounter.
+                        projectedIdx[c] = -1;
+                        rowPositionSlot = c;
+                        continue;
+                    }
                     int index = -1;
                     for (int i = 0; i < schemaSize; i++) {
                         if (schema.get(i).name().equals(colName)) {
@@ -1909,6 +1930,19 @@ public class CsvFormatReader implements SegmentableFormatReader {
             projectedTypes = new DataType[columnCount];
             projectedAttrs = new Attribute[columnCount];
             for (int i = 0; i < columnCount; i++) {
+                if (projectedIdx[i] < 0) {
+                    projectedTypes[i] = DataType.LONG;
+                    projectedAttrs[i] = new ReferenceAttribute(
+                        Source.EMPTY,
+                        null,
+                        ColumnExtractor.ROW_POSITION_COLUMN,
+                        DataType.LONG,
+                        Nullability.FALSE,
+                        null,
+                        false
+                    );
+                    continue;
+                }
                 Attribute attr = schema.get(projectedIdx[i]);
                 projectedAttrs[i] = attr;
                 projectedTypes[i] = attr.dataType();
@@ -1919,6 +1953,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             sourceToBufferIndex = new int[schemaSize];
             Arrays.fill(sourceToBufferIndex, -1);
             for (int i = 0; i < columnCount; i++) {
+                if (projectedIdx[i] < 0) {
+                    continue;
+                }
                 projectedFieldSet.set(projectedIdx[i]);
                 sourceToBufferIndex[projectedIdx[i]] = i;
             }
@@ -1989,7 +2026,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
         private boolean convertRowInPlace(String[] row) {
             int mode = this.modeOrdinal;
+            // Advance the per-record token once per row (accepted or not) so positions are stable.
+            if (rowPositionSlot >= 0) {
+                rowBuffer[rowPositionSlot] = csvRowCounter++;
+            }
             for (int i = 0; i < columnCount; i++) {
+                if (i == rowPositionSlot) {
+                    continue;
+                }
                 int si = projectedIdx[i];
                 String value = si < row.length ? row[si] : null;
                 Object result = tryConvertValue(value, projectedTypes[i]);
@@ -2078,6 +2122,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * @return {@code true} if the row was accepted, {@code false} if it was rejected
          */
         private boolean splitAndConvertProjected(String line) {
+            // Advance the per-record token once per row; the _rowPosition slot maps to no source
+            // field, so the field walk below never overwrites it.
+            if (rowPositionSlot >= 0) {
+                rowBuffer[rowPositionSlot] = csvRowCounter++;
+            }
             final char delim = ',';
             final char quote = options.quoteChar();
             final char esc = options.escapeChar();

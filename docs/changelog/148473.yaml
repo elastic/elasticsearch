@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148473
+summary: Add a BY subclause to CHANGE_POINT command
+type: feature

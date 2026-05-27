@@ -138,7 +138,7 @@ public class StatelessMergeIT extends AbstractStatelessPluginIntegTestCase {
             private void await() {
                 pauseHandoff.countDown();
                 logger.info("--> start relocation paused");
-                safeAwait(resumeHandoff, TimeValue.timeValueSeconds(20));
+                safeAwait(resumeHandoff, TimeValue.ONE_MINUTE);
                 logger.info("--> start relocation resumed");
             }
 

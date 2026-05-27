@@ -252,7 +252,7 @@ public class ReshardIndexServiceTests extends ESTestCase {
     }
 
     @SuppressWarnings({ "unchecked", "rawtypes" })
-    public void testWillNotReshardInvalidIndexVersion() throws Exception {
+    public void testWillNotReshardInvalidIndexVersion() {
         var projectId = randomProjectIdOrDefault();
         var index = new Index("test-index", INDEX_UUID_NA_VALUE);
         var priorVersion = IndexVersion.fromId(

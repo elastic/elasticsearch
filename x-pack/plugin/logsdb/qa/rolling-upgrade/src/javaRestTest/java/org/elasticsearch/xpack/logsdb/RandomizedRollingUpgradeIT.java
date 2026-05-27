@@ -102,7 +102,7 @@ public class RandomizedRollingUpgradeIT extends AbstractLogsdbRollingUpgradeTest
             .withDataSourceHandlers(List.of(new DefaultMappingParametersHandler() {
                 @Override
                 protected Object extendedDocValuesParams() {
-                    if (oldClusterHasFeature(MapperFeatures.DOC_VALUES_MULTI_VALUE)) {
+                    if (oldClusterHasFeature(MapperFeatures.DOC_VALUES_MULTI_VALUE_RENAME)) {
                         return super.extendedDocValuesParams();
                     }
 

@@ -25,7 +25,6 @@ import java.util.Optional;
 
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7u;
 import static org.elasticsearch.simdvec.internal.Similarities.squareDistanceI7u;
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
 
@@ -36,12 +35,11 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
     final float scoreCorrectionConstant;
     final float queryCorrection;
     final FixedSizeScratch scratch;
+    final AddressesScratch addrsScratch = new AddressesScratch();
+    final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     /** Return an optional whose value, if present, is the scorer. Otherwise, an empty optional is returned. */
     public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, QuantizedByteVectorValues values, float[] queryVector) {
-        if (SUPPORTS_HEAP_SEGMENTS == false) {
-            return Optional.empty();
-        }
         checkDimensions(queryVector.length, values.dimension());
         var input = values.getSlice();
         if (input == null) {
@@ -95,7 +93,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
         if (numNodes == 0) {
             return false;
         }
-        long[] offsets = new long[numNodes];
+        long[] offsets = offsetsScratch.get(numNodes);
         for (int i = 0; i < numNodes; i++) {
             offsets[i] = (long) nodes[i] * vectorPitch;
         }
@@ -104,6 +102,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
             offsets,
             vectorByteSize,
             numNodes,
+            addrsScratch::get,
             a -> sparseScorer.score(a, query, vectorByteSize, numNodes, MemorySegment.ofArray(scores))
         );
     }

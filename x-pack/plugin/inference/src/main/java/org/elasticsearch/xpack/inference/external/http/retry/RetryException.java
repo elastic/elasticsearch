@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.external.http.retry;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchWrapperException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 
 public class RetryException extends ElasticsearchException implements ElasticsearchWrapperException, Retryable {
     private final boolean shouldRetry;
@@ -34,7 +34,7 @@ public class RetryException extends ElasticsearchException implements Elasticsea
     }
 
     @Override
-    public Request rebuildRequest(Request original) {
+    public OutboundRequest rebuildRequest(OutboundRequest original) {
         return original;
     }
 

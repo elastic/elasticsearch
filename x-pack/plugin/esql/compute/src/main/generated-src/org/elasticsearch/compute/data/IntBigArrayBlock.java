@@ -87,6 +87,11 @@ public final class IntBigArrayBlock extends AbstractArrayBlock implements IntBlo
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public int getInt(int valueIndex) {
         return vector.getInt(valueIndex);
     }

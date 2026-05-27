@@ -87,6 +87,11 @@ public final class DoubleBigArrayBlock extends AbstractArrayBlock implements Dou
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public double getDouble(int valueIndex) {
         return vector.getDouble(valueIndex);
     }

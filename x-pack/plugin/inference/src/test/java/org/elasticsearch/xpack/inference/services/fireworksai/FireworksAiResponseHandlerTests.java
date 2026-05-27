@@ -17,7 +17,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.hamcrest.MatcherAssert;
 
 import java.nio.charset.StandardCharsets;
@@ -111,7 +111,7 @@ public class FireworksAiResponseHandlerTests extends ESTestCase {
         when(header.getElements()).thenReturn(new HeaderElement[] {});
         when(httpResponse.getFirstHeader(anyString())).thenReturn(header);
 
-        var mockRequest = mock(Request.class);
+        var mockRequest = mock(OutboundRequest.class);
         when(mockRequest.getInferenceEntityId()).thenReturn(modelId);
         var httpResult = new HttpResult(httpResponse, errorMessage == null ? new byte[] {} : errorMessage.getBytes(StandardCharsets.UTF_8));
         var handler = new FireworksAiResponseHandler("", (request, result) -> null, false);

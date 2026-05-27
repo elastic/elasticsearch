@@ -16,6 +16,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceString;
+import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.MinimalServiceSettings;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
@@ -75,11 +77,11 @@ public class MockInferenceRemoteClusterClient implements RemoteClusterClient {
             final Map<String, Float> fields = getInferenceFieldsRequest.fields();
             final boolean resolveWildcards = getInferenceFieldsRequest.resolveWildcards();
             final boolean useDefaultFields = getInferenceFieldsRequest.useDefaultFields();
-            final String query = getInferenceFieldsRequest.query();
+            final InferenceStringGroup input = getInferenceFieldsRequest.input();
 
             try {
                 var inferenceFieldsMap = getInferenceFieldsMap(indices, fields, resolveWildcards, useDefaultFields);
-                var inferenceResultsMap = getInferenceResultsMap(inferenceFieldsMap, query);
+                var inferenceResultsMap = getInferenceResultsMap(inferenceFieldsMap, input);
                 actionListener.onResponse(new GetInferenceFieldsInternalAction.Response(inferenceFieldsMap, inferenceResultsMap));
             } catch (Exception e) {
                 actionListener.onFailure(e);
@@ -132,9 +134,17 @@ public class MockInferenceRemoteClusterClient implements RemoteClusterClient {
 
     private Map<String, InferenceResults> getInferenceResultsMap(
         Map<String, List<GetInferenceFieldsInternalAction.ExtendedInferenceFieldMetadata>> inferenceFieldsMap,
-        @Nullable String query
+        @Nullable InferenceStringGroup input
     ) {
-        if (query == null || query.isBlank()) {
+        if (input == null) {
+            return Map.of();
+        }
+
+        // Extract a string key from the input for the mock generator. For text, use the text value directly.
+        // For non-text (e.g. images), use "dataType:value" to produce a deterministic but distinct key.
+        InferenceString firstString = input.inferenceStrings().getFirst();
+        String inputKey = firstString.isText() ? firstString.value() : firstString.dataType() + ":" + firstString.value();
+        if (inputKey.isBlank()) {
             return Map.of();
         }
 
@@ -146,7 +156,7 @@ public class MockInferenceRemoteClusterClient implements RemoteClusterClient {
 
         Map<String, InferenceResults> inferenceResultsMap = new HashMap<>(inferenceIds.size());
         inferenceIds.forEach(inferenceId -> {
-            InferenceResults inferenceResults = inferenceGenerator.generate(inferenceId, query);
+            InferenceResults inferenceResults = inferenceGenerator.generate(inferenceId, inputKey);
             inferenceResultsMap.put(inferenceId, inferenceResults);
         });
 

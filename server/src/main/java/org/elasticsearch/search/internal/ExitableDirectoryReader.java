@@ -26,11 +26,13 @@ import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.AcceptDocs;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.KnnCollector;
+import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.VectorScorer;
 import org.apache.lucene.search.suggest.document.CompletionTerms;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.search.vectors.BulkKnnCollector;
 
 import java.io.IOException;
 
@@ -145,7 +147,7 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
                 in.searchNearestVectors(field, target, collector, acceptDocs);
                 return;
             }
-            in.searchNearestVectors(field, target, new TimeOutCheckingKnnCollector(collector), acceptDocs);
+            in.searchNearestVectors(field, target, wrapWithTimeoutCheck(collector), acceptDocs);
         }
 
         @Override
@@ -163,12 +165,18 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
                 in.searchNearestVectors(field, target, collector, acceptDocs);
                 return;
             }
-            in.searchNearestVectors(field, target, new TimeOutCheckingKnnCollector(collector), acceptDocs);
+            in.searchNearestVectors(field, target, wrapWithTimeoutCheck(collector), acceptDocs);
+        }
+
+        private KnnCollector wrapWithTimeoutCheck(KnnCollector collector) {
+            return collector instanceof BulkKnnCollector bulkCollector
+                ? new TimeOutCheckingBulkKnnCollector(bulkCollector)
+                : new TimeOutCheckingKnnCollector(collector);
         }
 
         private class TimeOutCheckingKnnCollector extends KnnCollector.Decorator {
             private final KnnCollector in;
-            private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 10;
+            private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 16;
             private int calls;
 
             private TimeOutCheckingKnnCollector(KnnCollector in) {
@@ -182,6 +190,40 @@ class ExitableDirectoryReader extends FilterDirectoryReader {
                     queryCancellation.checkCancelled();
                 }
                 return in.collect(docId, similarity);
+            }
+        }
+
+        private class TimeOutCheckingBulkKnnCollector extends KnnCollector.Decorator implements BulkKnnCollector {
+            private final BulkKnnCollector in;
+            private static final int MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK = 16;
+            private int calls;
+
+            private TimeOutCheckingBulkKnnCollector(BulkKnnCollector in) {
+                super(in);
+                this.in = in;
+            }
+
+            @Override
+            public boolean collect(int docId, float similarity) {
+                maybeCheckCancelled();
+                return in.collect(docId, similarity);
+            }
+
+            @Override
+            public int bulkCollect(int[] docs, float[] scores, int count, float bestScore) {
+                maybeCheckCancelled();
+                return in.bulkCollect(docs, scores, count, bestScore);
+            }
+
+            @Override
+            public TopDocs unsortedTopK() {
+                return in.unsortedTopK();
+            }
+
+            private void maybeCheckCancelled() {
+                if (calls++ % MAX_CALLS_BEFORE_QUERY_TIMEOUT_CHECK == 0) {
+                    queryCancellation.checkCancelled();
+                }
             }
         }
     }

@@ -9,6 +9,7 @@ package org.elasticsearch.compute.operator.topn;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.BreakingBytesRefBuilder;
 
 /**
@@ -49,6 +50,12 @@ public interface TopNEncoder {
      * Placeholder encoder for unsupported data types.
      */
     UnsupportedTypesTopNEncoder UNSUPPORTED = new UnsupportedTypesTopNEncoder();
+
+    /**
+     * Maximum size of any individual element in the {@link Block} when encoded
+     * by this encoder.
+     */
+    int maxValueSize(Block b);
 
     void encodeLong(long value, BreakingBytesRefBuilder bytesRefBuilder);
 

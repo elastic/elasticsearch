@@ -8,7 +8,7 @@ set -euo pipefail
 
 if [[ "${USE_3RD_PARTY_AZURE_CREDENTIALS:-}" == "true" ]]; then
   # These credentials expire periodically and must be manually renewed - the process is in the onboarding/process docs.
-  json=$(vault read -format=json secret/ci/elastic-elasticsearch/migrated/azure_thirdparty_test_creds)
+  json=$(vault_with_retry read -format=json secret/ci/elastic-elasticsearch/migrated/azure_thirdparty_test_creds)
 
   AZURE_STORAGE_ACCOUNT_SECRET=$(echo "$json" | jq -r .data.account_id)
   export AZURE_STORAGE_ACCOUNT_SECRET
@@ -21,7 +21,7 @@ fi
 
 if [[ "${USE_3RD_PARTY_AZURE_SAS_CREDENTIALS:-}" == "true" ]]; then
   # These credentials expire periodically and must be manually renewed - the process is in the onboarding/process docs.
-  json=$(vault read -format=json secret/ci/elastic-elasticsearch/migrated/azure_thirdparty_sas_test_creds)
+  json=$(vault_with_retry read -format=json secret/ci/elastic-elasticsearch/migrated/azure_thirdparty_sas_test_creds)
 
   AZURE_STORAGE_ACCOUNT_SECRET=$(echo "$json" | jq -r .data.account_id)
   export AZURE_STORAGE_ACCOUNT_SECRET
@@ -49,7 +49,7 @@ if [[ "${USE_3RD_PARTY_GCS_CREDENTIALS:-}" == "true" ]]; then
 fi
 
 if [[ "${USE_3RD_PARTY_MS_GRAPH_CREDENTIALS:-}" == "true" ]]; then
-  json=$(vault read -format=json secret/ci/elastic-elasticsearch/ms_graph_thirdparty_test_creds)
+  json=$(vault_with_retry read -format=json secret/ci/elastic-elasticsearch/ms_graph_thirdparty_test_creds)
 
   MS_GRAPH_TENANT_ID=$(echo "$json" | jq -r .data.tenant_id)
   export ms_graph_tenant_id="$MS_GRAPH_TENANT_ID"

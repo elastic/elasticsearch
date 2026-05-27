@@ -7,8 +7,14 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.convert;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.compute.ann.ConvertEvaluator;
+import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.LongRangeBlockBuilder;
+import org.elasticsearch.xpack.esql.capabilities.ConfigurationAware;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -19,30 +25,33 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionAppliesToLifecyc
 import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_RANGE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 
-public class ToDateRange extends AbstractConvertFunction {
+public class ToDateRange extends AbstractConvertFunction implements ConfigurationAware {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "ToDateRange",
         ToDateRange::new
     );
     public static final FunctionDefinition DEFINITION = FunctionDefinition.def(ToDateRange.class)
-        .unary(ToDateRange::new)
+        .unaryConfig(ToDateRange::new)
         .name("to_date_range", "to_daterange");
 
-    private static final Map<DataType, BuildFactory> EVALUATORS = Map.ofEntries(
-        Map.entry(DATE_RANGE, (source, fieldEval) -> fieldEval),
-        Map.entry(KEYWORD, ToDateRangeFromStringEvaluator.Factory::new),
-        Map.entry(TEXT, ToDateRangeFromStringEvaluator.Factory::new)
-    );
+    private Map<DataType, BuildFactory> lazyEvaluators = null;
+
+    private final Configuration configuration;
 
     @FunctionInfo(
         returnType = "date_range",
@@ -60,13 +69,16 @@ public class ToDateRange extends AbstractConvertFunction {
             name = "field",
             type = { "date_range", "keyword", "text" },
             description = "Input value. The input can be a single- or multi-valued column or an expression."
-        ) Expression field
+        ) Expression field,
+        Configuration configuration
     ) {
         super(source, field);
+        this.configuration = configuration;
     }
 
     private ToDateRange(StreamInput in) throws IOException {
         super(in);
+        this.configuration = ((PlanStreamInput) in).configuration();
     }
 
     @Override
@@ -76,7 +88,16 @@ public class ToDateRange extends AbstractConvertFunction {
 
     @Override
     protected Map<DataType, BuildFactory> factories() {
-        return EVALUATORS;
+        if (lazyEvaluators == null) {
+            DateFormatter formatter = DEFAULT_DATE_TIME_FORMATTER.withZone(configuration.zoneId());
+            BuildFactory fromString = (source, fieldEval) -> new ToDateRangeFromStringEvaluator.Factory(source, fieldEval, formatter);
+            lazyEvaluators = Map.ofEntries(
+                Map.entry(DATE_RANGE, (source, fieldEval) -> fieldEval),
+                Map.entry(KEYWORD, fromString),
+                Map.entry(TEXT, fromString)
+            );
+        }
+        return lazyEvaluators;
     }
 
     @Override
@@ -86,11 +107,40 @@ public class ToDateRange extends AbstractConvertFunction {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new ToDateRange(source(), newChildren.getFirst());
+        return new ToDateRange(source(), newChildren.getFirst(), configuration);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, ToDateRange::new, field());
+        return NodeInfo.create(this, ToDateRange::new, field(), configuration);
+    }
+
+    @Override
+    public Configuration configuration() {
+        return configuration;
+    }
+
+    @Override
+    public ToDateRange withConfiguration(Configuration configuration) {
+        return new ToDateRange(source(), field(), configuration);
+    }
+
+    @ConvertEvaluator(extraName = "FromString", warnExceptions = { IllegalArgumentException.class })
+    static LongRangeBlockBuilder.LongRange fromKeyword(BytesRef in, @Fixed DateFormatter formatter) {
+        return EsqlDataTypeConverter.parseDateRange(in.utf8ToString(), formatter);
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(getClass(), children(), configuration);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        ToDateRange other = (ToDateRange) obj;
+        return configuration.equals(other.configuration);
     }
 }

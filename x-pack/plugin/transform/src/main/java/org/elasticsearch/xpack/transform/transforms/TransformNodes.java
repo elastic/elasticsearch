@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.transform.transforms;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -46,17 +47,17 @@ public final class TransformNodes {
      * Get node assignments for a given list of transforms.
      *
      * @param transformIds The transforms.
-     * @param clusterState State
+     * @param project The project metadata.
      * @return The {@link TransformNodeAssignments} for the given transforms.
      */
-    public static TransformNodeAssignments transformTaskNodes(List<String> transformIds, ClusterState clusterState) {
+    public static TransformNodeAssignments transformTaskNodes(List<String> transformIds, ProjectMetadata project) {
         Set<String> executorNodes = new HashSet<>();
         Set<String> assigned = new HashSet<>();
         Set<String> waitingForAssignment = new HashSet<>();
 
         Set<String> transformIdsSet = new HashSet<>(transformIds);
 
-        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = TransformTask.findTransformTasks(transformIdsSet, clusterState);
+        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = TransformTask.findTransformTasks(transformIdsSet, project);
         for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks) {
             if (task.isAssigned()) {
                 executorNodes.add(task.getExecutorNode());
@@ -79,15 +80,15 @@ public final class TransformNodes {
      * Note: This only returns p-task assignments, stopped transforms are not reported. P-Tasks can be running or waiting for a node.
      *
      * @param transformId The transform or a wildcard pattern, including '_all' to match against transform tasks.
-     * @param clusterState State
+     * @param project The project metadata.
      * @return The {@link TransformNodeAssignments} for the given pattern.
      */
-    public static TransformNodeAssignments findPersistentTasks(String transformId, ClusterState clusterState) {
+    public static TransformNodeAssignments findPersistentTasks(String transformId, ProjectMetadata project) {
         Set<String> executorNodes = new HashSet<>();
         Set<String> assigned = new HashSet<>();
         Set<String> waitingForAssignment = new HashSet<>();
 
-        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = TransformTask.findTransformTasks(transformId, clusterState);
+        Collection<PersistentTasksCustomMetadata.PersistentTask<?>> tasks = TransformTask.findTransformTasks(transformId, project);
         for (PersistentTasksCustomMetadata.PersistentTask<?> task : tasks) {
             if (task.isAssigned()) {
                 executorNodes.add(task.getExecutorNode());
@@ -104,11 +105,11 @@ public final class TransformNodes {
      * Get the assignment of a specific transform.
      *
      * @param transformId the transform id
-     * @param clusterState state
+     * @param project The project metadata.
      * @return {@link Assignment} of task
      */
-    public static Assignment getAssignment(String transformId, ClusterState clusterState) {
-        PersistentTask<?> task = TransformTask.getTransformTask(transformId, clusterState);
+    public static Assignment getAssignment(String transformId, ProjectMetadata project) {
+        PersistentTask<?> task = TransformTask.getTransformTask(transformId, project);
 
         if (task != null) {
             return task.getAssignment();

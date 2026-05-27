@@ -1,5 +1,0 @@
-area: ES|QL
-issues: []
-pr: 147357
-summary: Restore TEXT field size estimate for Enrich and `LookupJoin`
-type: bug

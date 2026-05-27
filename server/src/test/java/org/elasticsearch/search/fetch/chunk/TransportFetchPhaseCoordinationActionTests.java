@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
@@ -75,6 +76,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
     private ActiveFetchPhaseTasks activeFetchPhaseTasks;
     private NamedWriteableRegistry namedWriteableRegistry;
     private TransportFetchPhaseCoordinationAction action;
+    private CircuitBreakerService breakerService;
 
     @Before
     public void setUp() throws Exception {
@@ -92,7 +94,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         activeFetchPhaseTasks = new ActiveFetchPhaseTasks();
         namedWriteableRegistry = new NamedWriteableRegistry(Collections.emptyList());
 
-        CircuitBreakerService breakerService = newLimitedBreakerService(ByteSizeValue.ofMb(64));
+        breakerService = newLimitedBreakerService(ByteSizeValue.ofMb(64));
         action = new TransportFetchPhaseCoordinationAction(
             transportService,
             new ActionFilters(Set.of()),
@@ -381,9 +383,20 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         action.doExecute(createTask(taskId), request, future);
         expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
 
-        assertBusy(() -> {
-            expectThrows(ResourceNotFoundException.class, () -> activeFetchPhaseTasks.acquireResponseStream(taskId, TEST_SHARD_ID));
-        });
+        // doExecute adds bytes to the REQUEST breaker before SearchHit.readFrom() throws on the
+        // invalid payload. closeInternal (triggered when the stream's refCount reaches zero after
+        // cleanup) releases those bytes, so zero bytes is the reliable signal that the stream is
+        // fully cleaned up. Polling acquireResponseStream instead would tryIncRef on every failed
+        // attempt and leak refs, preventing closeInternal from ever firing.
+        assertBusy(
+            () -> assertThat(
+                "breaker bytes must be zero once stream closeInternal has completed",
+                breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(),
+                equalTo(0L)
+            )
+        );
+        // Confirm the task was also deregistered (single call, no retry loop, no ref leak).
+        expectThrows(ResourceNotFoundException.class, () -> activeFetchPhaseTasks.acquireResponseStream(taskId, TEST_SHARD_ID));
     }
 
     public void testDoExecutePreservesContextIdInFinalResult() throws Exception {
@@ -470,9 +483,21 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
         Exception failure = expectThrows(Exception.class, () -> future.actionGet(10, TimeUnit.SECONDS));
         assertThat(failure.getMessage(), equalTo("simulated data node failure during chunk streaming"));
 
+        // Wait until closeInternal fires so tearDown's transportService.close() cannot race with
+        // processChunk.finally still holding the stream ref. The circuit breaker is released in
+        // closeInternal, so zero bytes means the stream has been fully cleaned up (cleanup ran
+        // AND processChunk.finally ran AND closeInternal was triggered). Using the breaker check
+        // instead of polling acquireResponseStream, which would tryIncRef on every failed poll and
+        // leak refs, preventing closeInternal from ever being triggered.
         assertBusy(
-            () -> expectThrows(ResourceNotFoundException.class, () -> activeFetchPhaseTasks.acquireResponseStream(taskId, TEST_SHARD_ID))
+            () -> assertThat(
+                "breaker bytes must be zero once stream closeInternal has completed",
+                breakerService.getBreaker(CircuitBreaker.REQUEST).getUsed(),
+                equalTo(0L)
+            )
         );
+        // Confirm the task was also deregistered (single call, no retry loop, no ref leak).
+        expectThrows(ResourceNotFoundException.class, () -> activeFetchPhaseTasks.acquireResponseStream(taskId, TEST_SHARD_ID));
     }
 
     private ShardFetchSearchRequest createShardFetchSearchRequest() {
@@ -492,7 +517,7 @@ public class TransportFetchPhaseCoordinationActionTests extends ESTestCase {
     private FetchSearchResult createFetchSearchResult() {
         ShardSearchContextId contextId = new ShardSearchContextId("test", randomLong());
         FetchSearchResult result = new FetchSearchResult(contextId, new SearchShardTarget("node", TEST_SHARD_ID, null));
-        result.shardResult(SearchHits.unpooled(new SearchHit[0], null, Float.NaN), null);
+        result.shardResult(SearchHits.empty(null, Float.NaN), null);
         return result;
     }
 

@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.shard.IndexShard;
@@ -33,6 +34,7 @@ import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 
 import java.util.List;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.Executor;
 import java.util.function.Function;
@@ -41,6 +43,7 @@ import java.util.function.LongSupplier;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_DS_NON_WRITE_TTL;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.SETTING_HOLLOW_INGESTION_TTL;
 import static org.elasticsearch.xpack.stateless.commits.HollowShardsService.STATELESS_HOLLOW_INDEX_SHARDS_ENABLED;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -246,7 +249,7 @@ public class HollowShardsServiceTests extends ESTestCase {
 
             final var metadata = mock(Metadata.class);
             final ProjectMetadata projectMetadata = mock(ProjectMetadata.class);
-            when(metadata.getProject()).thenReturn(projectMetadata);
+            when(metadata.lookupProject(any(Index.class))).thenReturn(Optional.of(projectMetadata));
             when(projectMetadata.getIndicesLookup()).thenReturn(indicesLookup);
             final var clusterState = mock(ClusterState.class);
             when(clusterState.metadata()).thenReturn(metadata);

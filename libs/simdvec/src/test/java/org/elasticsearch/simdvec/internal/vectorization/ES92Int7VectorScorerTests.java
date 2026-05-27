@@ -17,6 +17,7 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.OptimizedScalarQuantizer;
+import org.elasticsearch.simdvec.BaseVectorizationTests;
 import org.elasticsearch.simdvec.ES92Int7VectorsScorer;
 
 import java.io.IOException;
@@ -59,17 +60,24 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 // padding bytes.
                 final IndexInput slice = in.slice("test", 0, (long) dimensions * numVectors);
                 final IndexInput slice2 = in.slice("test2", 0, (long) dimensions * numVectors);
-                final ES92Int7VectorsScorer defaultScorer = defaultProvider().newES92Int7VectorsScorer(slice, dimensions, bulkSize);
-                assertFalse(defaultScorer.hasNativeAccess());
-                final ES92Int7VectorsScorer panamaScorer = maybePanamaProvider().newES92Int7VectorsScorer(slice2, dimensions, bulkSize);
-                assertEquals(panamaScorer.hasNativeAccess(), hasNativeAccess());
+                final IndexInput slice3 = in.slice("test3", 0, (long) dimensions * numVectors);
+
+                final ES92Int7VectorsScorer defaultScorer = defaultProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(slice, dimensions, bulkSize);
+                final ES92Int7VectorsScorer panamaScorer = panamaProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(slice2, dimensions, bulkSize);
+                final ES92Int7VectorsScorer nativeScorer = nativeProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(slice3, dimensions, bulkSize);
+
                 for (int i = 0; i < numVectors; i++) {
                     in.readBytes(vector, 0, dimensions);
                     long val = VectorUtil.dotProduct(vector, query);
                     assertEquals(val, defaultScorer.int7DotProduct(query));
                     assertEquals(val, panamaScorer.int7DotProduct(query));
+                    assertEquals(val, nativeScorer.int7DotProduct(query));
                     assertEquals(in.getFilePointer(), slice.getFilePointer());
                     assertEquals(in.getFilePointer(), slice2.getFilePointer());
+                    assertEquals(in.getFilePointer(), slice3.getFilePointer());
                 }
                 assertEquals((long) dimensions * numVectors, in.getFilePointer());
             }
@@ -132,10 +140,16 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
                 final IndexInput slice = in.slice("test", 0, (long) (dimensions + 16) * numVectors);
-                final ES92Int7VectorsScorer defaultScorer = defaultProvider().newES92Int7VectorsScorer(in, dimensions, bulkSize);
-                assertFalse(defaultScorer.hasNativeAccess());
-                final ES92Int7VectorsScorer panamaScorer = maybePanamaProvider().newES92Int7VectorsScorer(slice, dimensions, bulkSize);
-                assertEquals(panamaScorer.hasNativeAccess(), hasNativeAccess());
+                final IndexInput slice2 = in.slice("test2", 0, (long) (dimensions + 16) * numVectors);
+                final IndexInput slice3 = in.slice("test3", 0, (long) (dimensions + 16) * numVectors);
+
+                final ES92Int7VectorsScorer defaultScorer = defaultProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(slice, dimensions, bulkSize);
+                final ES92Int7VectorsScorer panamaScorer = panamaProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(slice2, dimensions, bulkSize);
+                final ES92Int7VectorsScorer nativeScorer = nativeProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(slice3, dimensions, bulkSize);
+
                 for (int i = 0; i < numVectors; i++) {
                     float scoreDefault = defaultScorer.score(
                         qQuery,
@@ -155,13 +169,24 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                         similarityFunction,
                         centroidDp
                     );
+                    float scoreNative = nativeScorer.score(
+                        qQuery,
+                        queryCorrections.lowerInterval(),
+                        queryCorrections.upperInterval(),
+                        queryCorrections.quantizedComponentSum(),
+                        queryCorrections.additionalCorrection(),
+                        similarityFunction,
+                        centroidDp
+                    );
                     assertEquals(scoreDefault, scorePanama, 0.001f);
+                    assertEquals(scoreDefault, scoreNative, 0.001f);
                     float realSimilarity = similarityFunction.compare(vectors[i], query);
                     float accuracy = realSimilarity > scoreDefault ? scoreDefault / realSimilarity : realSimilarity / scoreDefault;
                     assertThat(accuracy, greaterThan(0.98f));
-                    assertEquals(in.getFilePointer(), slice.getFilePointer());
+                    assertEquals(slice.getFilePointer(), slice2.getFilePointer());
+                    assertEquals(slice.getFilePointer(), slice3.getFilePointer());
                 }
-                assertEquals((long) (dimensions + 16) * numVectors, in.getFilePointer());
+                assertEquals((long) (dimensions + 16) * numVectors, slice.getFilePointer());
             }
         }
     }
@@ -215,12 +240,19 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                 // index-out-of-bounds in case the implementation reads more than the allowed number of
                 // padding bytes.
                 final IndexInput slice = in.slice("test", 0, (long) (dimensions + 16) * numVectors);
-                final ES92Int7VectorsScorer defaultScorer = defaultProvider().newES92Int7VectorsScorer(in, dimensions, bulkSize);
-                assertFalse(defaultScorer.hasNativeAccess());
-                final ES92Int7VectorsScorer panamaScorer = maybePanamaProvider().newES92Int7VectorsScorer(slice, dimensions, bulkSize);
-                assertEquals(panamaScorer.hasNativeAccess(), hasNativeAccess());
+                final IndexInput slice2 = in.slice("test2", 0, (long) (dimensions + 16) * numVectors);
+                final IndexInput slice3 = in.slice("test3", 0, (long) (dimensions + 16) * numVectors);
+
+                final ES92Int7VectorsScorer defaultScorer = defaultProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(slice, dimensions, bulkSize);
+                final ES92Int7VectorsScorer panamaScorer = panamaProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(slice2, dimensions, bulkSize);
+                final ES92Int7VectorsScorer nativeScorer = nativeProvider().getVectorScorerFactory()
+                    .newES92Int7VectorsScorer(slice3, dimensions, bulkSize);
+
                 float[] scoresDefault = new float[bulkSize];
                 float[] scoresPanama = new float[bulkSize];
+                float[] scoresNative = new float[bulkSize];
                 for (int i = 0; i < numVectors; i += bulkSize) {
                     defaultScorer.scoreBulk(
                         quantizeQuery,
@@ -244,17 +276,30 @@ public class ES92Int7VectorScorerTests extends BaseVectorizationTests {
                         scoresPanama,
                         bulkSize
                     );
+                    nativeScorer.scoreBulk(
+                        quantizeQuery,
+                        queryCorrections.lowerInterval(),
+                        queryCorrections.upperInterval(),
+                        queryCorrections.quantizedComponentSum(),
+                        queryCorrections.additionalCorrection(),
+                        similarityFunction,
+                        centroidDp,
+                        scoresNative,
+                        bulkSize
+                    );
                     for (int j = 0; j < bulkSize; j++) {
                         assertEquals(scoresDefault[j], scoresPanama[j], 1e-2f);
+                        assertEquals(scoresDefault[j], scoresNative[j], 1e-2f);
                         float realSimilarity = similarityFunction.compare(vectors[i + j], query);
                         float accuracy = realSimilarity > scoresDefault[j]
                             ? scoresDefault[j] / realSimilarity
                             : realSimilarity / scoresDefault[j];
                         assertThat(accuracy, greaterThan(0.98f));
                     }
-                    assertEquals(in.getFilePointer(), slice.getFilePointer());
+                    assertEquals(slice.getFilePointer(), slice2.getFilePointer());
+                    assertEquals(slice.getFilePointer(), slice3.getFilePointer());
                 }
-                assertEquals((long) (dimensions + 16) * numVectors, in.getFilePointer());
+                assertEquals((long) (dimensions + 16) * numVectors, slice.getFilePointer());
             }
         }
     }

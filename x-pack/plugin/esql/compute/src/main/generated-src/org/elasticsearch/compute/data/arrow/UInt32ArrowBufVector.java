@@ -67,6 +67,11 @@ public final class UInt32ArrowBufVector extends AbstractArrowBufVector<LongVecto
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Long.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.LONG;
     }

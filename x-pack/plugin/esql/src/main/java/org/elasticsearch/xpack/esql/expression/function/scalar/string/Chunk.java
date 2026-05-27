@@ -76,7 +76,8 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
             Use `CHUNK` to split a text field into smaller chunks.""",
         detailedDescription = """
                 Chunk can be used on fields from the text family like <<text, text>> and <<semantic-text, semantic_text>>.
-                Chunk will split a text field into smaller chunks, using a sentence-based chunking strategy.
+                Chunk will split a text field into smaller chunks. By default it uses a sentence-based chunking strategy;
+                the strategy and its parameters are configurable via the `chunking_settings` parameter.
                 The number of chunks returned, and the length of the sentences used to create the chunks can be specified.
             """,
         examples = { @Example(file = "chunk", tag = "chunk-example", applies_to = "stack: preview 9.3.0") }
@@ -97,12 +98,20 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                 + ",\"sentence_overlap\":0}.",
             optional = true,
             params = {
-                @MapParam.MapParamEntry(
-                    name = "strategy",
-                    type = { "keyword" },
-                    description = "The chunking strategy to use. Default value is `sentence`.",
-                    valueHint = { "sentence", "word", "none", "recursive" }
-                ),
+                @MapParam.MapParamEntry(name = "strategy", type = { "keyword" }, description = """
+                    The chunking strategy to use. Default value is `sentence`. Available strategies:
+
+                    * `sentence`: splits at sentence boundaries. Use `sentence_overlap` to share a sentence between
+                      adjacent chunks.
+                    * `word`: splits on individual words. Use `overlap` to share words between adjacent chunks.
+                    * `recursive`: splits using configurable separator patterns — either a predefined
+                      `separator_group` (`plaintext` or `markdown`) or a custom list of `separators` — falling back
+                      to sentence-level splitting when no separator produces a chunk within `max_chunk_size`.
+                    * `none`: returns the entire input as a single chunk.
+
+                    For a full description of each strategy and how its options interact, refer to
+                    [chunking strategies](docs-content://explore-analyze/elastic-inference/inference-api.md#chunking-strategies).
+                    """, valueHint = { "sentence", "word", "none", "recursive" }),
                 @MapParam.MapParamEntry(name = "max_chunk_size", type = { "integer" }, description = """
                     The maximum size of a chunk in words. This value cannot be lower than `20` (for `sentence` strategy)
                     or `10` (for `word` or `recursive` strategies). This model should not exceed the window size for any
@@ -114,7 +123,7 @@ public class Chunk extends EsqlScalarFunction implements OptionalArgument {
                     """, valueHint = { "0" }),
                 @MapParam.MapParamEntry(name = "sentence_overlap", type = { "integer" }, description = """
                     The number of overlapping sentences for chunks. It is applicable only for a `sentence` chunking strategy.
-                    It can be either `1` or `0`.
+                    It can be either `1` or `0`. Defaults to `0`.
                     """, valueHint = { "1", "0" }),
                 @MapParam.MapParamEntry(name = "separator_group", type = { "keyword" }, description = """
                     Sets a predefined lists of separators based on the selected text type. Values may be `markdown` or `plaintext`.

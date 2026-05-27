@@ -16,17 +16,21 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.PreparedEsqlQueryRequest;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.esql.plan.logical.promql.PromqlCommand.DEFAULT_PROMQL_INDEX_PATTERN;
 
 /**
  * REST handler for the Prometheus {@code GET /_prometheus/api/v1/metadata} and
  * {@code GET /_prometheus/{index}/api/v1/metadata} endpoints.
  * Returns metric metadata (type, help, unit) for scraped metrics.
  * Uses the {@code METRICS_INFO} ES|QL command as data source.
+ * When the path omits {@code {index}} and no {@code index} query parameter is set, the index
+ * expression defaults to {@link PromqlCommand#DEFAULT_PROMQL_INDEX_PATTERN} (same as PromQL query APIs).
  */
 @ServerlessScope(Scope.PUBLIC)
 public class PrometheusMetadataRestAction extends BaseRestHandler {
@@ -50,7 +54,7 @@ public class PrometheusMetadataRestAction extends BaseRestHandler {
 
     @Override
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        String index = request.param(INDEX_PARAM, "*");
+        String index = request.param(INDEX_PARAM, DEFAULT_PROMQL_INDEX_PATTERN);
         String metric = request.param(METRIC_PARAM);
         int limit = request.paramAsInt(LIMIT_PARAM, DEFAULT_LIMIT);
         int limitPerMetric = request.paramAsInt(LIMIT_PER_METRIC_PARAM, DEFAULT_LIMIT);

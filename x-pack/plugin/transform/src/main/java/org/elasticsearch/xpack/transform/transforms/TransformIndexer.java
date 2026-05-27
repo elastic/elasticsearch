@@ -817,7 +817,7 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
         logger.debug("[{}] updating persistent state of transform to [{}].", transformConfig.getId(), state.toString());
 
         // we might need to call the save state listeners, but do not want to stop rolling
-        persistStateWithAutoStop(state, ActionListener.wrap(r -> {
+        persistStateWithAutoStop(state, ActionListener.runAfter(ActionListener.wrap(r -> {
             try {
                 if (saveStateListenersAtTheMomentOfCalling != null) {
                     ActionListener.onResponse(saveStateListenersAtTheMomentOfCalling, r);
@@ -827,7 +827,6 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
                 logger.warn(msg, onResponseException);
             } finally {
                 lastSaveStateMilliseconds = TimeUnit.NANOSECONDS.toMillis(getTimeNanos());
-                next.run();
             }
         }, e -> {
             try {
@@ -837,10 +836,8 @@ public abstract class TransformIndexer extends AsyncTwoPhaseIndexer<TransformInd
             } catch (Exception onFailureException) {
                 String msg = LoggerMessageFormat.format("[{}] failed notifying saveState listeners, ignoring.", getJobId());
                 logger.warn(msg, onFailureException);
-            } finally {
-                next.run();
             }
-        }));
+        }), next));
     }
 
     private void persistStateWithAutoStop(TransformState state, ActionListener<Void> listener) {

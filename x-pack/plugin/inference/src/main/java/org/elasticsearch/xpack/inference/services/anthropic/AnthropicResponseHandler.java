@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.external.response.ErrorMessageResponseEntity;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
@@ -49,7 +49,7 @@ public class AnthropicResponseHandler extends BaseResponseHandler {
     }
 
     @Override
-    public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
+    public InferenceServiceResults parseResult(OutboundRequest outboundRequest, Flow.Publisher<HttpResult> flow) {
         var sseProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
         var anthropicProcessor = new AnthropicStreamingProcessor();
         sseProcessor.subscribe(anthropicProcessor);
@@ -61,12 +61,12 @@ public class AnthropicResponseHandler extends BaseResponseHandler {
      * Validates the status code throws an RetryException if not in the range [200, 300).
      *
      * The Anthropic API error codes are documented <a href="https://docs.anthropic.com/en/api/errors">here</a>.
-     * @param request The originating request
+     * @param outboundRequest The originating request
      * @param result  The http response and body
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
     @Override
-    protected void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
+    protected void checkForFailureStatusCode(OutboundRequest outboundRequest, HttpResult result) throws RetryException {
         if (result.isSuccessfulResponse()) {
             return;
         }
@@ -74,21 +74,21 @@ public class AnthropicResponseHandler extends BaseResponseHandler {
         // handle error codes
         int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
-            throw new RetryException(true, buildError(SERVER_ERROR, request, result));
+            throw new RetryException(true, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 529) {
-            throw new RetryException(true, buildError(SERVER_BUSY, request, result));
+            throw new RetryException(true, buildError(SERVER_BUSY, outboundRequest, result));
         } else if (statusCode > 500) {
-            throw new RetryException(false, buildError(SERVER_ERROR, request, result));
+            throw new RetryException(false, buildError(SERVER_ERROR, outboundRequest, result));
         } else if (statusCode == 429) {
-            throw new RetryException(true, buildError(buildRateLimitErrorMessage(result), request, result));
+            throw new RetryException(true, buildError(buildRateLimitErrorMessage(result), outboundRequest, result));
         } else if (statusCode == 403) {
-            throw new RetryException(false, buildError(PERMISSION_DENIED, request, result));
+            throw new RetryException(false, buildError(PERMISSION_DENIED, outboundRequest, result));
         } else if (statusCode == 401) {
-            throw new RetryException(false, buildError(AUTHENTICATION, request, result));
+            throw new RetryException(false, buildError(AUTHENTICATION, outboundRequest, result));
         } else if (statusCode >= 300 && statusCode < 400) {
-            throw new RetryException(false, buildError(REDIRECTION, request, result));
+            throw new RetryException(false, buildError(REDIRECTION, outboundRequest, result));
         } else {
-            throw new RetryException(false, buildError(UNSUCCESSFUL, request, result));
+            throw new RetryException(false, buildError(UNSUCCESSFUL, outboundRequest, result));
         }
     }
 

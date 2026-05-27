@@ -872,7 +872,13 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
 
             String heapSize = System.getProperty("tests.heap.size", "512m");
-            List<String> serverOpts = List.of("-Xms" + heapSize, "-Xmx" + heapSize, debugArgs, featureFlagProperties);
+            List<String> serverOpts = List.of(
+                "-Xms" + heapSize,
+                "-Xmx" + heapSize,
+                "-XX:-UseGCOverheadLimit",
+                debugArgs,
+                featureFlagProperties
+            );
             List<String> commonOpts = List.of("-ea", "-esa", System.getProperty("tests.jvm.argline", ""), systemProperties, jvmArgs);
 
             String esJavaOpts = Stream.concat(serverOpts.stream(), commonOpts.stream())

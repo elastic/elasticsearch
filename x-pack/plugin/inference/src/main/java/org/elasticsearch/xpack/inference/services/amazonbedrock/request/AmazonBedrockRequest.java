@@ -11,14 +11,14 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.AmazonBedrockModel;
 import org.elasticsearch.xpack.inference.services.amazonbedrock.client.AmazonBedrockBaseClient;
 
 import java.net.URI;
 import java.util.Objects;
 
-public abstract class AmazonBedrockRequest implements Request {
+public abstract class AmazonBedrockRequest implements OutboundRequest {
 
     protected final AmazonBedrockModel amazonBedrockModel;
     protected final String inferenceId;
@@ -58,7 +58,7 @@ public abstract class AmazonBedrockRequest implements Request {
      * @return null
      */
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         return this;
     }
 

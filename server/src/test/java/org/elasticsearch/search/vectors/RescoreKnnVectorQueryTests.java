@@ -22,8 +22,6 @@ import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.queries.function.FunctionScoreQuery;
-import org.apache.lucene.search.BooleanClause;
-import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.ConjunctionUtils;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.DoubleValuesSource;
@@ -85,11 +83,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
         float[] queryVector = randomVector(numDims);
         List<Query> innerQueries = new ArrayList<>();
         innerQueries.add(new KnnFloatVectorQuery(FIELD_NAME, randomVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true))));
-        innerQueries.add(
-            new BooleanQuery.Builder().add(new DenseVectorQuery.Floats(queryVector, FIELD_NAME), BooleanClause.Occur.SHOULD)
-                .add(new FieldExistsQuery(FIELD_NAME), BooleanClause.Occur.FILTER)
-                .build()
-        );
+        innerQueries.add(new DenseVectorQuery.Floats(queryVector, FIELD_NAME, new FieldExistsQuery(FIELD_NAME)));
         innerQueries.add(Queries.ALL_DOCS_INSTANCE);
 
         try (Directory d = newDirectory()) {
@@ -100,7 +94,6 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                     RescoreKnnVectorQuery rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
                         FIELD_NAME,
                         queryVector,
-                        VectorSimilarityFunction.COSINE,
                         k,
                         k,
                         innerQuery
@@ -168,11 +161,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
 
         List<Query> innerQueries = new ArrayList<>();
         innerQueries.add(new KnnFloatVectorQuery(FIELD_NAME, randomVector(numDims), (int) (k * randomFloatBetween(1.0f, 10.0f, true))));
-        innerQueries.add(
-            new BooleanQuery.Builder().add(new DenseVectorQuery.Floats(queryVector, FIELD_NAME), BooleanClause.Occur.SHOULD)
-                .add(new FieldExistsQuery(FIELD_NAME), BooleanClause.Occur.FILTER)
-                .build()
-        );
+        innerQueries.add(new DenseVectorQuery.Floats(queryVector, FIELD_NAME, new FieldExistsQuery(FIELD_NAME)));
         innerQueries.add(Queries.ALL_DOCS_INSTANCE);
 
         try (Directory d = newDirectory()) {
@@ -182,7 +171,6 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                     RescoreKnnVectorQuery rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
                         FIELD_NAME,
                         queryVector,
-                        VectorSimilarityFunction.COSINE,
                         k,
                         k,
                         innerQuery
@@ -193,14 +181,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                     assertThat(rescoredDocs.scoreDocs, arrayWithSize(k));
 
                     searcher = newSearcher(new SingleVectorQueryIndexReader(reader), true, false);
-                    rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
-                        FIELD_NAME,
-                        queryVector,
-                        VectorSimilarityFunction.COSINE,
-                        k,
-                        k,
-                        innerQuery
-                    );
+                    rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(FIELD_NAME, queryVector, k, k, innerQuery);
                     TopDocs singleRescored = searcher.search(rescoreKnnVectorQuery, numDocs);
                     assertThat(singleRescored.scoreDocs, arrayWithSize(k));
 
@@ -235,14 +216,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
     }
 
     private void checkProfiling(int k, int numDocs, float[] queryVector, IndexReader reader, Query innerQuery) throws IOException {
-        var rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(
-            FIELD_NAME,
-            queryVector,
-            VectorSimilarityFunction.COSINE,
-            k,
-            k,
-            innerQuery
-        );
+        var rescoreKnnVectorQuery = RescoreKnnVectorQuery.fromInnerQuery(FIELD_NAME, queryVector, k, k, innerQuery);
         IndexSearcher searcher = newSearcher(reader, true, false);
         searcher.search(rescoreKnnVectorQuery, numDocs);
 

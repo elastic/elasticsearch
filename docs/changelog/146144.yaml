@@ -1,7 +1,0 @@
-area: ES|QL
-issues:
- - 146097
- - 146118
-pr: 146144
-summary: Fix false circular view reference with shared wildcards
-type: bug

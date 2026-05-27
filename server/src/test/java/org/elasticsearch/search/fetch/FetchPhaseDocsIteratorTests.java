@@ -216,6 +216,42 @@ public class FetchPhaseDocsIteratorTests extends ESTestCase {
         assertThat(SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.get(Settings.EMPTY), equalTo(3));
     }
 
+    public void testFetchPhaseTargetChunkBytesSettingIsReadCorrectly() {
+        Settings customSettings = Settings.builder().put(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.getKey(), "2mb").build();
+        assertThat(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.get(customSettings), equalTo(ByteSizeValue.ofMb(2)));
+        assertThat(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.get(Settings.EMPTY), equalTo(ByteSizeValue.ofMb(1)));
+    }
+
+    public void testResolveMaxInFlightChunksPrefersExplicitOverride() {
+        Settings settings = Settings.builder().put(SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.getKey(), 7).build();
+        assertThat(FetchPhase.resolveMaxInFlightChunks(2, settings), equalTo(2));
+    }
+
+    public void testResolveMaxInFlightChunksFallsBackToClusterSettingWhenNoOverride() {
+        Settings settings = Settings.builder().put(SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.getKey(), 7).build();
+        assertThat(FetchPhase.resolveMaxInFlightChunks(null, settings), equalTo(7));
+    }
+
+    public void testResolveMaxInFlightChunksFallsBackToDefaultWhenNoOverrideAndNoClusterSetting() {
+        int expectedDefault = SearchService.FETCH_PHASE_MAX_IN_FLIGHT_CHUNKS.getDefault(Settings.EMPTY);
+        assertThat(FetchPhase.resolveMaxInFlightChunks(null, Settings.EMPTY), equalTo(expectedDefault));
+    }
+
+    public void testResolveTargetChunkBytesPrefersExplicitOverride() {
+        Settings settings = Settings.builder().put(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.getKey(), "4mb").build();
+        assertThat(FetchPhase.resolveTargetChunkBytes(123_456, settings), equalTo(123_456));
+    }
+
+    public void testResolveTargetChunkBytesFallsBackToClusterSettingWhenNoOverride() {
+        Settings settings = Settings.builder().put(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.getKey(), "4mb").build();
+        assertThat(FetchPhase.resolveTargetChunkBytes(null, settings), equalTo(Math.toIntExact(ByteSizeValue.ofMb(4).getBytes())));
+    }
+
+    public void testResolveTargetChunkBytesFallsBackToDefaultWhenNoOverrideAndNoClusterSetting() {
+        int expectedDefault = Math.toIntExact(SearchService.FETCH_PHASE_CHUNKED_TARGET_CHUNK_BYTES.getDefault(Settings.EMPTY).getBytes());
+        assertThat(FetchPhase.resolveTargetChunkBytes(null, Settings.EMPTY), equalTo(expectedDefault));
+    }
+
     public void testIterateAsyncSingleDocument() throws Exception {
         LuceneDocs docs = createDocs(1, false);
         CircuitBreaker circuitBreaker = newLimitedBreaker(ByteSizeValue.ofBytes(Long.MAX_VALUE));

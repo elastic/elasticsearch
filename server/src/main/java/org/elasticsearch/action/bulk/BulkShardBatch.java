@@ -9,14 +9,12 @@
 
 package org.elasticsearch.action.bulk;
 
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexSource;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.eirf.EirfBatch;
-import org.elasticsearch.eirf.EirfEncoder;
 
 import java.io.IOException;
 
@@ -58,53 +56,6 @@ public class BulkShardBatch implements Writeable {
     }
 
     /**
-     * Whether the given shard-level request is eligible for conversion to an EIRF batch. Requires every item to be an
-     * {@link IndexRequest} with inline source bytes and a known content type, and the request not to be a simulation.
-     */
-    public static boolean shouldConvertToShardBatch(BulkShardRequest bulkShardRequest) {
-        if (bulkShardRequest.isSimulated()) {
-            return false;
-        }
-        final BulkItemRequest[] items = bulkShardRequest.items();
-        if (items.length == 0) {
-            return false;
-        }
-        for (BulkItemRequest item : items) {
-            final DocWriteRequest<?> request = item.request();
-            if (request instanceof IndexRequest indexRequest) {
-                if (indexRequest.indexSource().hasSource() == false || indexRequest.getContentType() == null) {
-                    return false;
-                }
-            } else {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    /**
-     * Encodes the items of the given {@link BulkShardRequest} into an EIRF batch, replaces each item's inline source with a row
-     * reference via {@link IndexSource#setEirfRow(EirfBatch, int)}, and attaches the batch to the request.
-     */
-    public static BulkShardBatch createShardBatch(BulkShardRequest bulkShardRequest) throws IOException {
-        BulkItemRequest[] items = bulkShardRequest.items();
-        EirfBatch batch;
-        // TODO: Pooled eventually
-        try (EirfEncoder encoder = new EirfEncoder()) {
-            for (BulkItemRequest item : items) {
-                IndexRequest indexRequest = (IndexRequest) item.request();
-                encoder.addDocument(indexRequest.indexSource().bytes(), indexRequest.getContentType());
-            }
-            batch = encoder.build();
-        }
-        for (int i = 0; i < items.length; i++) {
-            IndexRequest indexRequest = (IndexRequest) items[i].request();
-            indexRequest.indexSource().setEirfRow(batch, i);
-        }
-        return new BulkShardBatch(batch);
-    }
-
-    /**
      * Wires the given batch into every item's {@link IndexSource} that has a pending EIRF row index. This is called on the
      * receiving node after a {@link BulkShardRequest} (and its embedded batch) have been deserialized.
      */
@@ -123,9 +74,8 @@ public class BulkShardBatch implements Writeable {
     }
 
     /**
-     * Reverses {@link #createShardBatch(BulkShardRequest)}: for each item that was converted to an EIRF row, serializes that row back
-     * into its original content type and restores it as the inline source, then detaches the batch from the request. No-op if no
-     * batch is attached.
+     * For each item converted to an EIRF row, serializes that row back into its original content type and restores it as the
+     * inline source, then detaches the batch from the request. No-op if no batch is attached.
      */
     public static void ensureInlineSources(BulkShardRequest request) throws IOException {
         BulkShardBatch shardBatch = request.getBulkShardBatch();

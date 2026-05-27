@@ -288,6 +288,7 @@ final class FileSourceFactory implements ExternalSourceFactory {
                 .errorPolicy(errorPolicy)
                 .parsingParallelism(context.parsingParallelism())
                 .maxConcurrentOpenSegments(context.maxConcurrentOpenSegments())
+                .maxRecordBytes(context.maxRecordBytes())
                 .parallelism(context.parallelism())
                 .pushedExpressions(pushedExpressions)
                 .pushdownSupport(pushdownSupport)

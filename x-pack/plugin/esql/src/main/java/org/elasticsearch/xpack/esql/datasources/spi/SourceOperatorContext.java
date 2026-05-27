@@ -60,6 +60,7 @@ public record SourceOperatorContext(
     @Nullable ExternalSliceQueue sliceQueue,
     int parsingParallelism,
     int maxConcurrentOpenSegments,
+    int maxRecordBytes,
     int parallelism
 ) {
     /**
@@ -133,7 +134,8 @@ public record SourceOperatorContext(
             null,
             null,
             1,
-            4,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -171,7 +173,8 @@ public record SourceOperatorContext(
             null,
             null,
             1,
-            4,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -208,7 +211,8 @@ public record SourceOperatorContext(
             null,
             null,
             1,
-            4,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -243,7 +247,8 @@ public record SourceOperatorContext(
             null,
             null,
             1,
-            4,
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
             1
         );
     }
@@ -274,6 +279,9 @@ public record SourceOperatorContext(
         private ExternalSliceQueue sliceQueue;
         private int parsingParallelism = 1;
         private int maxConcurrentOpenSegments = DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS;
+        // Default matches StreamingParallelParsingCoordinator's record-growth cap (64 MiB); the planner
+        // overrides it from the max_record_size query pragma.
+        private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private int parallelism = 1;
 
         public Builder sourceType(String sourceType) {
@@ -387,6 +395,11 @@ public record SourceOperatorContext(
             return this;
         }
 
+        public Builder maxRecordBytes(int maxRecordBytes) {
+            this.maxRecordBytes = maxRecordBytes;
+            return this;
+        }
+
         public Builder parallelism(int parallelism) {
             this.parallelism = parallelism;
             return this;
@@ -414,6 +427,7 @@ public record SourceOperatorContext(
                 sliceQueue,
                 parsingParallelism,
                 maxConcurrentOpenSegments,
+                maxRecordBytes,
                 parallelism
             );
         }

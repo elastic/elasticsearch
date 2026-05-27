@@ -146,6 +146,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final ErrorPolicy errorPolicy;
     private final int parsingParallelism;
     private final int maxConcurrentOpenSegments;
+    private final int maxRecordBytes;
     private final List<Expression> pushedExpressions;
     private final FilterPushdownSupport pushdownSupport;
     private final Closeable onClose;
@@ -220,6 +221,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ErrorPolicy errorPolicy,
         int parsingParallelism,
         int maxConcurrentOpenSegments,
+        int maxRecordBytes,
         @Nullable List<Expression> pushedExpressions,
         @Nullable FilterPushdownSupport pushdownSupport,
         @Nullable Closeable onClose,
@@ -267,6 +269,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
         this.parsingParallelism = Math.max(1, parsingParallelism);
         this.maxConcurrentOpenSegments = Math.max(1, maxConcurrentOpenSegments);
+        this.maxRecordBytes = maxRecordBytes;
         this.pushedExpressions = pushedExpressions != null ? pushedExpressions : List.of();
         this.pushdownSupport = pushdownSupport;
         this.onClose = onClose;
@@ -333,6 +336,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         // Production sets this from the max_concurrent_open_segments pragma via LocalExecutionPlanner; this
         // is the test/internal fallback, sourced from the single source of truth.
         private int maxConcurrentOpenSegments = SourceOperatorContext.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS;
+        private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private List<Expression> pushedExpressions;
         private FilterPushdownSupport pushdownSupport;
         private Closeable onClose;
@@ -415,6 +419,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        public Builder maxRecordBytes(int maxRecordBytes) {
+            this.maxRecordBytes = maxRecordBytes;
+            return this;
+        }
+
         public Builder pushedExpressions(@Nullable List<Expression> pushedExpressions) {
             this.pushedExpressions = pushedExpressions;
             return this;
@@ -478,6 +487,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 errorPolicy,
                 parsingParallelism,
                 maxConcurrentOpenSegments,
+                maxRecordBytes,
                 pushedExpressions,
                 pushdownSupport,
                 onClose,
@@ -814,7 +824,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable List<Attribute> perFileReadSchema,
         @Nullable List<String> perFileCols
     ) {
-        if (mapping == null || mapping.isIdentity()) {
+        // Empty queryDataSchema = no data columns projected (COUNT(*), _file.*-only, or a TopN with
+        // all data columns deferred to _rowPosition): nothing to reshape, and the full-width mapping
+        // would trip SchemaAdaptingIterator's size-vs-width guard. Treat it like identity and pass the
+        // pages through (deferred extraction is handled in wrapWithEncoderIfNeeded).
+        if (mapping == null || mapping.isIdentity() || queryDataSchema.isEmpty()) {
             return pages;
         }
         // When deferred extraction is enabled for this factory, the reader appends the synthetic
@@ -1739,7 +1753,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         parsingParallelism,
                         executor,
                         policy,
-                        perFileReadSchema
+                        perFileReadSchema,
+                        maxRecordBytes
                     );
                 } catch (Exception e) {
                     try {

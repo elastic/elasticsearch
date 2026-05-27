@@ -1711,6 +1711,7 @@ public class LocalExecutionPlanner {
             .sliceQueue(sliceQueue)
             .parsingParallelism(context.queryPragmas().parsingParallelism())
             .maxConcurrentOpenSegments(context.queryPragmas().maxConcurrentOpenSegments())
+            .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
             .parallelism(instanceCount)
             .build();
 

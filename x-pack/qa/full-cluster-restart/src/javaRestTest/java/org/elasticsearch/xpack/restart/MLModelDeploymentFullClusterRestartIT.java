@@ -108,10 +108,7 @@ public class MLModelDeploymentFullClusterRestartIT extends MlFullClusterRestartT
             startDeployment(modelId);
             assertInfer(modelId);
         } else {
-            ensureHealth(".ml-inference-*,.ml-config*", (request -> {
-                request.addParameter("wait_for_status", "yellow");
-                request.addParameter("timeout", "120s");
-            }));
+            ensureYellowAndNoInitializingShards(".ml-inference-*,.ml-config*", "120s");
             waitForDeploymentStarted(modelId);
             assertBusy(() -> {
                 try {

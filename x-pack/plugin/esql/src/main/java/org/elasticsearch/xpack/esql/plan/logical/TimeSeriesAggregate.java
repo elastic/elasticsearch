@@ -62,17 +62,6 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
         List<Expression> groupings,
         List<? extends NamedExpression> aggregates,
         Bucket timeBucket,
-        Expression timestamp
-    ) {
-        this(source, child, groupings, aggregates, timeBucket, timeBucket, timestamp, Origin.TS_COMMAND);
-    }
-
-    public TimeSeriesAggregate(
-        Source source,
-        LogicalPlan child,
-        List<Expression> groupings,
-        List<? extends NamedExpression> aggregates,
-        Bucket timeBucket,
         Expression timestamp,
         Origin origin
     ) {
@@ -98,8 +87,7 @@ public class TimeSeriesAggregate extends Aggregate implements TimestampAware {
 
     public enum Origin {
         TS_COMMAND,
-        PROMQL_COMMAND,
-        PROMQL_API;
+        PROMQL_COMMAND
     }
 
     public TimeSeriesAggregate(StreamInput in) throws IOException {

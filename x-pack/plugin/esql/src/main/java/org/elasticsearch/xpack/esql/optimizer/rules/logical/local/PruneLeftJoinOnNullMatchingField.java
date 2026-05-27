@@ -38,7 +38,7 @@ public class PruneLeftJoinOnNullMatchingField extends OptimizerRules.Parameteriz
     protected LogicalPlan rule(Join join, LogicalOptimizerContext ctx) {
         LogicalPlan plan = join;
         if (join.config().type() == LEFT) { // other types will have different replacement logic
-            AttributeMap<Expression> attributeMap = RuleUtils.foldableReferences(join, ctx);
+            AttributeMap<Expression> attributeMap = RuleUtils.foldableReferencesSkipMVGroupings(join, ctx);
 
             for (var attr : AttributeSet.of(join.config().matchFields())) {
                 var resolved = attributeMap.resolve(attr);

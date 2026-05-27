@@ -351,6 +351,15 @@ public class ProvidedIdFieldMapper extends IdFieldMapper {
     }
 
     @Override
+    protected void doValidate(MappingLookup mappers) {
+        if (mode == Mode.COLUMNAR && mappers.nestedLookup().getNestedMappers().isEmpty() == false) {
+            // This isn't yet supported because FetchPhase is unable to read id correctly for nested documents.
+            // (for example, when top_hits aggregation or inner_hits is used)
+            throw new IllegalArgumentException("columnar id mode doesn't supported nested yet");
+        }
+    }
+
+    @Override
     public String documentDescription(DocumentParserContext context) {
         return "document with id '" + context.sourceToParse().id() + "'";
     }

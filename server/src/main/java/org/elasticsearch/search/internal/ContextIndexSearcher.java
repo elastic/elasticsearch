@@ -118,7 +118,7 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     @SuppressWarnings("this-escape")
-    private ContextIndexSearcher(
+    ContextIndexSearcher(
         IndexReader reader,
         Similarity similarity,
         QueryCache queryCache,
@@ -369,28 +369,29 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
             assert leafContexts.isEmpty();
             doAggregationPostCollection(firstCollector);
             return collectorManager.reduce(Collections.singletonList(firstCollector));
-        }
-        final List<C> collectors = new ArrayList<>(leafSlices.length);
-        collectors.add(firstCollector);
-        final ScoreMode scoreMode = firstCollector.scoreMode();
-        for (int i = 1; i < leafSlices.length; ++i) {
-            final C collector = collectorManager.newCollector();
-            collectors.add(collector);
-            if (scoreMode != collector.scoreMode()) {
-                throw new IllegalStateException("CollectorManager does not always produce collectors with the same score mode");
+        } else {
+            final List<C> collectors = new ArrayList<>(leafSlices.length);
+            collectors.add(firstCollector);
+            final ScoreMode scoreMode = firstCollector.scoreMode();
+            for (int i = 1; i < leafSlices.length; ++i) {
+                final C collector = collectorManager.newCollector();
+                collectors.add(collector);
+                if (scoreMode != collector.scoreMode()) {
+                    throw new IllegalStateException("CollectorManager does not always produce collectors with the same score mode");
+                }
             }
+            final List<Callable<C>> listTasks = new ArrayList<>(leafSlices.length);
+            for (int i = 0; i < leafSlices.length; ++i) {
+                final LeafReaderContextPartition[] leaves = leafSlices[i].partitions;
+                final C collector = collectors.get(i);
+                listTasks.add(() -> {
+                    search(leaves, weight, collector);
+                    return collector;
+                });
+            }
+            List<C> collectedCollectors = getTaskExecutor().invokeAll(listTasks);
+            return collectorManager.reduce(collectedCollectors);
         }
-        final List<Callable<C>> listTasks = new ArrayList<>(leafSlices.length);
-        for (int i = 0; i < leafSlices.length; ++i) {
-            final LeafReaderContextPartition[] leaves = leafSlices[i].partitions;
-            final C collector = collectors.get(i);
-            listTasks.add(() -> {
-                search(leaves, weight, collector);
-                return collector;
-            });
-        }
-        List<C> collectedCollectors = getTaskExecutor().invokeAll(listTasks);
-        return collectorManager.reduce(collectedCollectors);
     }
 
     private static final ThreadLocal<Boolean> timeoutOverwrites = ThreadLocal.withInitial(() -> false);

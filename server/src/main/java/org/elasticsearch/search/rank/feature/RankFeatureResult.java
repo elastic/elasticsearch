@@ -29,15 +29,6 @@ public class RankFeatureResult extends SearchPhaseResult {
 
     private volatile DirectoryMetrics directoryMetrics = DirectoryMetrics.EMPTY;
 
-    @Override
-    public DirectoryMetrics getDirectoryMetrics() {
-        return directoryMetrics;
-    }
-
-    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
-        this.directoryMetrics = directoryMetrics;
-    }
-
     public RankFeatureResult() {}
 
     @SuppressWarnings("this-escape")
@@ -86,5 +77,14 @@ public class RankFeatureResult extends SearchPhaseResult {
     @Override
     public boolean hasSearchContext() {
         return rankShardResult != null;
+    }
+
+    @Override
+    public DirectoryMetrics getDirectoryMetrics() {
+        return directoryMetrics;
+    }
+
+    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
+        this.directoryMetrics = directoryMetrics;
     }
 }

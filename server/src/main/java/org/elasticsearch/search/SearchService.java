@@ -1104,7 +1104,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return null;
     }
 
-    private IndicesService.DirectoryMetricsCapture captureDirectoryMetricsOrNull() {
+    private Supplier<DirectoryMetrics> captureDirectoryMetricsOrNull() {
         if (Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()) {
             return indicesService.captureDirectoryMetrics();
         }
@@ -1112,23 +1112,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     }
 
     private static DirectoryMetrics resolveDirectoryMetrics(Supplier<DirectoryMetrics> metricsDelta) {
-        if (metricsDelta == null || Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() == false) {
-            return DirectoryMetrics.EMPTY;
-        }
-        return metricsDelta.get();
-    }
-
-    /**
-     * Uses the captured delta supplier from {@link IndicesService.DirectoryMetricsCapture} for callbacks
-     * that may fire on a different thread (e.g. a transport worker thread in chunked fetch). Worker bytes
-     * have already been folded into {@link IndicesService.DirectoryMetricsCapture#callingThreadStoreMetrics()}
-     * by the executor wrapper installed in {@link DefaultSearchContext}, so no extra fold is needed here.
-     */
-    private static DirectoryMetrics resolveDirectoryMetrics(IndicesService.DirectoryMetricsCapture metricsCapture) {
-        if (metricsCapture == null || Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() == false) {
-            return DirectoryMetrics.EMPTY;
-        }
-        return metricsCapture.delta().get();
+        return metricsDelta == null ? DirectoryMetrics.EMPTY : metricsDelta.get();
     }
 
     public void executeRankFeaturePhase(RankFeatureShardRequest request, SearchShardTask task, ActionListener<RankFeatureResult> listener) {
@@ -1252,7 +1236,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             protected void doRun() throws Exception {
                 final long startTime;
                 final SearchOperationListener opsListener;
-                final IndicesService.DirectoryMetricsCapture metricsCapture = captureDirectoryMetricsOrNull();
+                final Supplier<DirectoryMetrics> metricsDelta = captureDirectoryMetricsOrNull();
 
                 this.searchContext = createContext(readerContext, rewritten, task, ResultsType.FETCH, false);
                 startTime = System.nanoTime();
@@ -1274,7 +1258,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                         fetchPhaseMaxInFlightChunks,
                         fetchPhaseTargetChunkBytes,
                         searchExecutor,
-                        newFetchBuildListener(opsListener, searchContext, startTime, metricsCapture, fetchResult, closeOnce),
+                        newFetchBuildListener(opsListener, searchContext, startTime, metricsDelta, fetchResult, closeOnce),
                         newFetchCompletionListener(listener, fetchResult)
                     );
                 } catch (Exception e) {
@@ -1312,13 +1296,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         SearchOperationListener opsListener,
         SearchContext searchContext,
         long startTime,
-        IndicesService.DirectoryMetricsCapture metricsCapture,
+        Supplier<DirectoryMetrics> metricsDelta,
         FetchSearchResult fetchResult,
         Releasable closeOnce
     ) {
         return ActionListener.runAfter(ActionListener.wrap(ignored -> {
             searchContext.sumWorkerThreadsBytesRead();
-            fetchResult.setDirectoryMetrics(resolveDirectoryMetrics(metricsCapture));
+            fetchResult.setDirectoryMetrics(resolveDirectoryMetrics(metricsDelta));
             opsListener.onFetchPhase(searchContext, System.nanoTime() - startTime);
         }, e -> opsListener.onFailedFetchPhase(searchContext)), closeOnce::close);
     }

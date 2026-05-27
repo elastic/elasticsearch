@@ -93,6 +93,7 @@ public final class QuerySearchResult extends SearchPhaseResult {
         return directoryMetrics;
     }
 
+    @Override
     public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {
         this.directoryMetrics = directoryMetrics;
     }

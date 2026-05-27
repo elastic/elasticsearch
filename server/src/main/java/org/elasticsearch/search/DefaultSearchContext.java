@@ -223,8 +223,7 @@ final class DefaultSearchContext extends SearchContext {
                     lowLevelCancellation
                 );
             } else {
-                this.requiresTrackingExecutorBytes = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled()
-                    && currentThreadStoreMetrics != null;
+                this.requiresTrackingExecutorBytes = Store.DIRECTORY_METRICS_FEATURE_FLAG.isEnabled() && currentThreadStoreMetrics != null;
                 if (requiresTrackingExecutorBytes) {
                     this.pendingWorkerBytesRead = new LongAdder();
                     this.callerStoreMetrics = currentThreadStoreMetrics.get();

@@ -2044,25 +2044,18 @@ public class IndicesService extends AbstractLifecycleComponent
      * @return supplier to give the delta of all directory metrics. Must be called from the same thread as this method.
      */
     public Supplier<DirectoryMetrics> directoryMetricsDelta() {
-        return assertThread(rawDirectoryMetricsDelta());
+        return assertThread(buildDirectoryMetricsDelta());
     }
 
-    private Supplier<DirectoryMetrics> rawDirectoryMetricsDelta() {
+    public Supplier<DirectoryMetrics> captureDirectoryMetrics() {
+        return buildDirectoryMetricsDelta();
+    }
+
+    private Supplier<DirectoryMetrics> buildDirectoryMetricsDelta() {
         DirectoryMetrics.Builder directoryMetricsBuilder = new DirectoryMetrics.Builder();
         directoryMetricHolderMap.forEach((s, m) -> directoryMetricsBuilder.add(s, m.instance()));
-        DirectoryMetrics metrics = directoryMetricsBuilder.build();
-        return metrics.delta();
+        return directoryMetricsBuilder.build().delta();
     }
-
-    /**
-     * Use this when the delta will be resolved in an asynchronous
-     * callback that may fire on a different thread (e.g., a transport worker thread in chunked fetch).
-     */
-    public DirectoryMetricsCapture captureDirectoryMetrics() {
-        return new DirectoryMetricsCapture(rawDirectoryMetricsDelta(), currentThreadStoreMetrics());
-    }
-
-    public record DirectoryMetricsCapture(Supplier<DirectoryMetrics> delta, StoreMetrics callingThreadStoreMetrics) {}
 
     private Supplier<DirectoryMetrics> assertThread(Supplier<DirectoryMetrics> delta) {
         if (Assertions.ENABLED) {

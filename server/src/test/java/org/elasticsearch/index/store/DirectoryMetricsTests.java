@@ -14,7 +14,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -101,11 +100,9 @@ public class DirectoryMetricsTests extends ESTestCase {
         builder.add(StoreMetrics.NAME, storeMetrics);
         Supplier<DirectoryMetrics> delta = builder.build().delta();
 
-        var capture = new IndicesService.DirectoryMetricsCapture(delta, storeMetrics);
-
         storeMetrics.addBytesRead(100);
 
-        DirectoryMetrics resolved = resolveCapture(capture, 50);
+        DirectoryMetrics resolved = resolveDelta(delta, storeMetrics, 50);
         StoreMetrics result = resolved.metrics(StoreMetrics.NAME).cast(StoreMetrics.class);
         assertEquals(150, result.getBytesRead());
     }
@@ -116,14 +113,12 @@ public class DirectoryMetricsTests extends ESTestCase {
         builder.add(StoreMetrics.NAME, storeMetrics);
         Supplier<DirectoryMetrics> delta = builder.build().delta();
 
-        var capture = new IndicesService.DirectoryMetricsCapture(delta, storeMetrics);
-
         storeMetrics.addBytesRead(200);
 
         AtomicReference<DirectoryMetrics> resolvedRef = new AtomicReference<>();
         CountDownLatch latch = new CountDownLatch(1);
         Thread resolver = new Thread(() -> {
-            resolvedRef.set(resolveCapture(capture, 75));
+            resolvedRef.set(resolveDelta(delta, storeMetrics, 75));
             latch.countDown();
         });
         resolver.start();
@@ -141,11 +136,9 @@ public class DirectoryMetricsTests extends ESTestCase {
         builder.add(StoreMetrics.NAME, storeMetrics);
         Supplier<DirectoryMetrics> delta = builder.build().delta();
 
-        var capture = new IndicesService.DirectoryMetricsCapture(delta, storeMetrics);
-
         storeMetrics.addBytesRead(42);
 
-        DirectoryMetrics resolved = resolveCapture(capture, 0);
+        DirectoryMetrics resolved = resolveDelta(delta, storeMetrics, 0);
         StoreMetrics result = resolved.metrics(StoreMetrics.NAME).cast(StoreMetrics.class);
         assertEquals(42, result.getBytesRead());
     }
@@ -278,8 +271,8 @@ public class DirectoryMetricsTests extends ESTestCase {
         }
     }
 
-    private static DirectoryMetrics resolveCapture(IndicesService.DirectoryMetricsCapture capture, long workerBytesRead) {
-        capture.callingThreadStoreMetrics().addBytesRead(workerBytesRead);
-        return capture.delta().get();
+    private static DirectoryMetrics resolveDelta(Supplier<DirectoryMetrics> delta, StoreMetrics storeMetrics, long workerBytesRead) {
+        storeMetrics.addBytesRead(workerBytesRead);
+        return delta.get();
     }
 }

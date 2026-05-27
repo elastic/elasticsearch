@@ -121,6 +121,8 @@ public abstract class SearchPhaseResult extends TransportResponse {
         return DirectoryMetrics.EMPTY;
     }
 
+    public void setDirectoryMetrics(DirectoryMetrics directoryMetrics) {}
+
     @Nullable
     public final ShardSearchRequest getShardSearchRequest() {
         return shardSearchRequest;

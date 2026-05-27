@@ -242,7 +242,6 @@ public class InternalEngine extends Engine {
     private final ByteSizeValue totalDiskSpace;
 
     private final boolean useTsdbSyntheticId;
-    private final boolean useColumnarId;
 
     protected static final String REAL_TIME_GET_REFRESH_SOURCE = "realtime_get";
     protected static final String UNSAFE_VERSION_MAP_REFRESH_SOURCE = "unsafe_version_map";
@@ -262,7 +261,6 @@ public class InternalEngine extends Engine {
         } else {
             useTsdbSyntheticId = false;
         }
-        useColumnarId = engineConfig.getMapperService().isUseColumnarId();
         this.relativeTimeInNanosSupplier = config().getRelativeTimeInNanosSupplier();
         this.lastFlushTimestamp = relativeTimeInNanosSupplier.getAsLong(); // default to creation timestamp
         this.liveVersionMapArchive = createLiveVersionMapArchive();
@@ -2301,7 +2299,7 @@ public class InternalEngine extends Engine {
                 engineConfig.getIndexSettings().seqNoIndexOptions(),
                 engineConfig.getIndexSettings().useDocValuesSkipper(),
                 useTsdbSyntheticId,
-                useColumnarId,
+                engineConfig.getMapperService().isUseColumnarId(),
                 delete.id(),
                 delete.uid()
             );

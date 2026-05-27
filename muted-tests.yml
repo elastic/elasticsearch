@@ -208,9 +208,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
   issue: https://github.com/elastic/elasticsearch/issues/147251
-- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
-  method: testDeploymentSurvivesRestart {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/145728
 - class: org.elasticsearch.xpack.core.transform.transforms.pivot.ScriptConfigTests
   method: testFromXContent
   issue: https://github.com/elastic/elasticsearch/issues/147543
@@ -291,9 +288,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.objectstore.AzureMultiProjectObjectStoreIT
   method: testObjectStoreSeparation
   issue: https://github.com/elastic/elasticsearch-serverless/issues/6311
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
-  method: testReshardWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/147846
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testForceCommitPrefetch
   issue: https://github.com/elastic/elasticsearch/issues/147847
@@ -372,9 +366,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testCommitPrefetching
   issue: https://github.com/elastic/elasticsearch/issues/148476
-- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
-  method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotifcation
-  issue: https://github.com/elastic/elasticsearch/issues/148480
 - class: org.elasticsearch.compute.data.BlockAccountingTests
   method: testBytesRefVector
   issue: https://github.com/elastic/elasticsearch/issues/148481
@@ -537,9 +528,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148190
-- class: org.elasticsearch.reindex.management.ListTasksRelocationIT
-  method: testListTasksShowsOriginalIdentityAfterRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/149776
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionWithSecurityIT
   method: testCanTransitionIndex
   issue: https://github.com/elastic/elasticsearch/issues/149770
@@ -603,3 +591,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:where-like.likePrefixSuffix}
   issue: https://github.com/elastic/elasticsearch/issues/149964
+- class: org.elasticsearch.xpack.esql.datasource.parquet.PageColumnReaderCorrectnessTests
+  method: testV2Zstd
+  issue: https://github.com/elastic/elasticsearch/issues/150015
+- class: org.elasticsearch.xpack.esql.datasource.parquet.PageColumnReaderCorrectnessTests
+  method: testV1Zstd
+  issue: https://github.com/elastic/elasticsearch/issues/150019

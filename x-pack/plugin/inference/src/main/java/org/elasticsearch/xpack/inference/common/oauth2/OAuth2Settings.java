@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.common.oauth2;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -17,6 +18,7 @@ import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.common.ValidationResult;
@@ -40,6 +42,11 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
     public static final String SCOPES_FIELD = "scopes";
 
     public static final String REQUIRED_FIELDS = String.join(", ", CLIENT_ID_FIELD, SCOPES_FIELD);
+
+    public static final ElasticsearchStatusException WAIT_FOR_UPGRADE_TO_COMPLETE_EXCEPTION = new ElasticsearchStatusException(
+        "Cannot send OAuth2 settings to an older node. Please wait until all nodes are upgraded before using OAuth2.",
+        RestStatus.BAD_REQUEST
+    );
 
     private static final String CLIENT_ID_CONFIG_DESCRIPTION = "ID of application registered with the authorization server.";
     private static final String SCOPES_CONFIG_DESCRIPTION = "The permissions that the application is requesting.";

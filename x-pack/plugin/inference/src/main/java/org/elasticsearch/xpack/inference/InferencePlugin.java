@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.Setting;
@@ -99,6 +100,8 @@ import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInfere
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
 import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.common.oauth2.NoopTokenCache;
+import org.elasticsearch.xpack.inference.common.oauth2.TokenCache;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
 import org.elasticsearch.xpack.inference.external.http.retry.RetrySettings;
@@ -269,6 +272,8 @@ public class InferencePlugin extends Plugin
     private final SetOnce<AmazonBedrockRequestSender.Factory> amazonBedrockFactory = new SetOnce<>();
     private final SetOnce<HttpRequestSender.Factory> elasticInferenceServiceFactory = new SetOnce<>();
     private final SetOnce<ServiceComponents> serviceComponents = new SetOnce<>();
+    private final SetOnce<TokenCache> oauth2TokenCache = new SetOnce<>();
+    private final SetOnce<ProjectResolver> projectResolver = new SetOnce<>();
     // This is mainly so that the rest handlers can access the ThreadPool in a way that avoids potential null pointers from it
     // not being initialized yet
     private final SetOnce<ThreadPool> threadPoolSetOnce = new SetOnce<>();
@@ -452,6 +457,12 @@ public class InferencePlugin extends Plugin
                 services.featureService()
             )
         );
+        // Temporary noop OAuth2 token cache until #149217 lands the real cluster-aware cache.
+        // When that PR merges, replace this with `new OAuth2TokenCache(...)` and remove NoopTokenCache.
+        TokenCache oauth2TokenCacheInstance = new NoopTokenCache();
+        oauth2TokenCache.set(oauth2TokenCacheInstance);
+        projectResolver.set(services.projectResolver());
+        components.add(new PluginComponentBinding<>(TokenCache.class, oauth2TokenCacheInstance));
         components.add(new PluginComponentBinding<>(ElasticInferenceServiceSettings.class, inferenceServiceSettings));
 
         return components;
@@ -565,7 +576,14 @@ public class InferencePlugin extends Plugin
         return List.of(
             context -> new HuggingFaceElserService(httpFactory.get(), serviceComponents.get(), context),
             context -> new HuggingFaceService(httpFactory.get(), serviceComponents.get(), context),
-            context -> new OpenAiService(httpFactory.get(), serviceComponents.get(), context),
+            // If more services end up needing the project resolver or token cache let's move them to ServiceComponents
+            context -> new OpenAiService(
+                httpFactory.get(),
+                serviceComponents.get(),
+                context,
+                oauth2TokenCache.get(),
+                projectResolver.get()
+            ),
             context -> new GroqService(httpFactory.get(), serviceComponents.get(), context),
             context -> new CohereService(httpFactory.get(), serviceComponents.get(), context),
             context -> new ContextualAiService(httpFactory.get(), serviceComponents.get(), context),

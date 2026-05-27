@@ -15,6 +15,16 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import java.io.IOException;
 import java.util.Objects;
 
+/**
+ * Physical plan node inserted in a LOOKUP JOIN plan by {@code LuceneBulkLookup}
+ * when it decides to use the bulk lookup optimization which directly reads docids
+ * for terms instead of issuing Lucene queries.
+ * <p>
+ * Directly reading the docids that way is fast but does not give the correct result
+ * when multivalues are present, so we use this node to direct the {@code LookupExecutionPlanner}
+ * to use an operator factory producing a filter that uses {@code BulkLookupSingleValued}
+ * to ensure false-positive multivalue matches are replaced by null in the final result.
+ */
 public class BulkLookupMvFilterExec extends UnaryExec {
     private final Attribute field;
 

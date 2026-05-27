@@ -20,8 +20,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.fixtures.tls.TestTlsCertificate;
-import org.elasticsearch.test.fixtures.tls.TestTrustStore;
 
 import java.util.function.Supplier;
 
@@ -34,7 +32,6 @@ public abstract class AbstractS3RepositoryAnalysisRestTestCase extends AbstractR
     static final boolean USE_FIXTURE = Booleans.parseBoolean(System.getProperty("tests.use.fixture", "true"));
 
     protected static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
-
 
     protected static class RepositoryAnalysisHttpFixture extends S3HttpFixture {
         RepositoryAnalysisHttpFixture(S3ConsistencyModel consistencyModel) {

@@ -58,6 +58,7 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -114,7 +115,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected final Map<String, Object> searchRequestAttributes;
     private final boolean isPitRelocationEnabled;
     protected long phaseStartTimeInNanos;
-    private volatile DirectoryMetrics mergedDirectoryMetrics = DirectoryMetrics.EMPTY;
+    private final AtomicReference<DirectoryMetrics> mergedDirectoryMetrics = new AtomicReference<>(DirectoryMetrics.EMPTY);
 
     // protected for tests
     protected final SubscribableListener<Void> doneFuture = new SubscribableListener<>();
@@ -535,8 +536,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (metrics.isEmpty()) {
             return;
         }
-        DirectoryMetrics current = mergedDirectoryMetrics;
-        mergedDirectoryMetrics = current.isEmpty() ? metrics : current.merge(metrics);
+        mergedDirectoryMetrics.accumulateAndGet(metrics, (current, incoming) -> current.isEmpty() ? incoming : current.merge(incoming));
     }
 
     /**
@@ -621,7 +621,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     public void sendSearchResponse(SearchResponseSections internalSearchResponse, AtomicArray<SearchPhaseResult> queryResults) {
         var threadContext = searchTransportService.transportService().getThreadPool().getThreadContext();
         accumulateDirectoryMetrics(results.drainDirectoryMetrics());
-        createResponseHeaderFromDirectoryMetrics(threadContext, mergedDirectoryMetrics);
+        createResponseHeaderFromDirectoryMetrics(threadContext, mergedDirectoryMetrics.get());
         ShardSearchFailure[] failures = buildShardFailures();
         Boolean allowPartialResults = request.allowPartialSearchResults();
         assert allowPartialResults != null : "SearchRequest missing setting for allowPartialSearchResults";

@@ -605,6 +605,39 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testTsvFusedPathWithMultiValueBrackets() throws IOException {
+        // Fused fast path (splitAndConvertProjected) with a tab delimiter: projected read, typed long
+        // column, multi-value keyword column. The element split inside [..] is comma-based regardless
+        // of the field delimiter, so [hello,world] yields two values even though fields are tab-separated.
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("delimiter", "\t", "multi_value_syntax", "brackets")
+        );
+        String tsv = "id:long\ttags:keyword\n1\t[hello,world]\n2\t[foo]\n";
+        StorageObject object = createStorageObject(tsv);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id", "tags"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(2, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            BytesRefBlock tagsBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(2, tagsBlock.getValueCount(0));
+            assertEquals(1, tagsBlock.getValueCount(1));
+        }
+    }
+
+    public void testTsvFindNextRecordBoundaryNewlineInsideBracketMvc() throws IOException {
+        // The bracket-aware record-boundary scanner must work for tab-delimited input too: a newline
+        // inside a [..] cell does not end the record. Exercises findNextRecordBoundaryBracketMvc with
+        // a tab field delimiter.
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("delimiter", "\t", "multi_value_syntax", "brackets")
+        );
+        byte[] data = "before\t[line1\nline2\nline3]\tafter\nnext\n".getBytes(StandardCharsets.UTF_8);
+        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        assertEquals("before\t[line1\nline2\nline3]\tafter\n".length(), boundary);
+    }
+
     public void testSchemaWithDateNanosType() throws IOException {
         String csv = """
             event:keyword,ts:date_nanos

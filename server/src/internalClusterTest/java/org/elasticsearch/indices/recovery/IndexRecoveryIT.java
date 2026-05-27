@@ -77,7 +77,6 @@ import org.elasticsearch.common.lucene.search.Queries;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.ReplicaShardAllocatorIT;
@@ -98,7 +97,9 @@ import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLeases;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.GlobalCheckpointListeners;
+import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.store.StoreStats;
@@ -121,6 +122,7 @@ import org.elasticsearch.test.BackgroundIndexer;
 import org.elasticsearch.test.ESIntegTestCase.ClusterScope;
 import org.elasticsearch.test.ESIntegTestCase.Scope;
 import org.elasticsearch.test.InternalTestCluster;
+import org.elasticsearch.test.MockIndexEventListener;
 import org.elasticsearch.test.engine.MockEngineSupport;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -184,7 +186,10 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return CollectionUtils.appendToCopy(super.nodePlugins(), TestAnalysisPlugin.class);
+        ArrayList<Class<? extends Plugin>> classes = new ArrayList<>(super.nodePlugins());
+        classes.add(TestAnalysisPlugin.class);
+        classes.add(MockIndexEventListener.TestPlugin.class);
+        return classes;
     }
 
     @Override
@@ -2342,7 +2347,7 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
 
     /// In {@link ThrottlingRecoveryService}, the next enqueued recovery is dispatched when active recovery terminates.
     /// This test make sure that this happens, even if active recovery is {@link RecoveryTarget#cancel(String) canceled}.
-    public void testActivePeerRecoveryListenerNotifiedOnIndexDelete() {
+    public void testPendingRecoveryDispatchedOnIndexDeleteDuringPeerRecovery() {
         internalCluster().startMasterOnlyNode();
         final var sourceNode = internalCluster().startDataOnlyNode();
         final var indexToDelete = "index-to-delete";
@@ -2437,6 +2442,88 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         // Both indices should have started recovery
         ensureGreen(indexToRecover);
         assertThat(shardsThatStartedRecovery, hasSize(2));
+    }
+
+    /// In {@link ThrottlingRecoveryService}, the next enqueued recovery is dispatched when active recovery terminates.
+    /// We want to make sure this happens, even if active recovery is canceled.
+    /// This test exercise the path when recovery from EMPTY_STORE is concurrently deleted. In this case the listener
+    /// passed to StoreRecovery#recoverFromStore will be notified with "false" which
+    /// is mapped to RecoveryListener#onRecoveryCanceled which in turn triggers dispatch for the next pending recovery
+    /// task.
+    /// I could not find a way to test this deterministically because of the tight window between
+    /// {@link IndexShard#markAsRecovering(String, RecoveryState)}
+    /// and {@link IndexShard#recoverFromStore(ActionListener)}. The goal is to target the case when shard state is CLOSED
+    /// when we check if recovery is possible in {@link IndexShard#recoverFromStore(ActionListener)}. But markAsRecovery
+    /// throw exception if it is which makes this difficult. The test try to update the state to CLOSED after markAsRecovering,
+    /// but before recoverFromStore by racing index deletion that gap. It has been confirmed to trigger occasionally.
+    public void testPendingRecoveryDispatchedOnIndexDeleteDuringEmptyStoreRecovery() {
+        // Node with single recovery slot
+        final var node = internalCluster().startNode(
+            Settings.builder().put(ThrottlingRecoveryService.INDICES_RECOVERY_MAX_CONCURRENT_RECOVERIES_SETTING.getKey(), 1).build()
+        );
+        String firstIndex = "first";
+        String secondIndex = "second";
+        String thirdIndex = "third";
+
+        CountDownLatch firstIndexRecoveryStarted = new CountDownLatch(1);
+        CountDownLatch firstIndexBlockInRecovery = new CountDownLatch(1);
+
+        CountDownLatch secondIndexChangedStateToRecovery = new CountDownLatch(1);
+        CountDownLatch secondIndexBlockInStateChange = new CountDownLatch(1);
+
+        CountDownLatch thirdIndexRecoveryStarted = new CountDownLatch(1);
+
+        IndexEventListener indexEventListener = new IndexEventListener() {
+            @Override
+            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+                String indexName = indexShard.shardId().getIndexName();
+                if (indexName.equals(firstIndex)) {
+                    firstIndexRecoveryStarted.countDown();
+                    safeAwait(firstIndexBlockInRecovery);
+                } else if (indexShard.shardId().getIndexName().equals(thirdIndex)) {
+                    thirdIndexRecoveryStarted.countDown();
+                }
+                listener.onResponse(null);
+            }
+
+            @Override
+            public void indexShardStateChanged(
+                IndexShard indexShard,
+                IndexShardState previousState,
+                IndexShardState currentState,
+                String reason
+            ) {
+                if (indexShard.shardId().getIndexName().equals(secondIndex) && currentState.equals(IndexShardState.RECOVERING)) {
+                    secondIndexChangedStateToRecovery.countDown();
+                    safeAwait(secondIndexBlockInStateChange);
+                }
+            }
+        };
+        internalCluster().getInstance(MockIndexEventListener.TestEventListener.class, node).setNewDelegate(indexEventListener);
+
+        // Create first index and block in recovery to occupy slot
+        assertAcked(prepareCreate(firstIndex).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE));
+        safeAwait(firstIndexRecoveryStarted);
+
+        // Enqueue two more
+        assertAcked(prepareCreate(secondIndex).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE));
+        assertAcked(prepareCreate(thirdIndex).setSettings(indexSettings(1, 0).build()).setWaitForActiveShards(ActiveShardCount.NONE));
+
+        // Release first and wait for second to reach state change
+        firstIndexBlockInRecovery.countDown();
+        safeAwait(secondIndexChangedStateToRecovery);
+
+        // Delete the first in new thread (because recovering thread holds shard mutex and will block delete thread)
+        Thread deletingThread = new Thread(() -> assertAcked(indicesAdmin().prepareDelete(secondIndex)));
+        deletingThread.start();
+
+        // Release the second recovery such that delete thread will race with recovery
+        secondIndexBlockInStateChange.countDown();
+
+        // Make sure third index recovery starts
+        safeAwait(thirdIndexRecoveryStarted);
+        ensureGreen(firstIndex);
+        ensureGreen(thirdIndex);
     }
 
     private void assertGlobalCheckpointIsStableAndSyncedInAllNodes(String indexName, List<String> nodes, int shard) throws Exception {

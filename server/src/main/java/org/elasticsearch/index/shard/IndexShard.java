@@ -3820,6 +3820,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         threadPool.generic().execute(ActionRunnable.wrap(ActionListener.wrap(r -> {
             if (r) {
                 recoveryListener.onRecoveryDone(recoveryState, getTimestampRange(), getEventIngestedRange());
+            } else {
+                recoveryListener.onRecoveryCanceled();
             }
         }, e -> recoveryListener.onRecoveryFailure(new RecoveryFailedException(recoveryState, null, e), true)), action));
     }

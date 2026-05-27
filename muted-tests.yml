@@ -217,9 +217,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.EsqlSpecForceStoredLoadingIT
   method: test {csv-spec:fuse.fuseWithRowLinearAndMultiValueGroupColumn}
   issue: https://github.com/elastic/elasticsearch/issues/147613
-- class: org.elasticsearch.cluster.routing.allocation.decider.WriteLoadConstraintDeciderIT
-  method: testAllocationExplainRebalancingNotPreferred
-  issue: https://github.com/elastic/elasticsearch/issues/147627
 - class: org.elasticsearch.compute.aggregation.blockhash.BlockHashRandomizedTests
   method: test {forcePackedHash=false groups=2 maxValuesPerPosition=1 dups=0 allowedTypes=[Basic[elementType=LONG], Basic[elementType=INT]]}
   issue: https://github.com/elastic/elasticsearch/issues/147654
@@ -279,9 +276,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
   method: testShardPrewarming
   issue: https://github.com/elastic/elasticsearch/issues/147838
-- class: org.elasticsearch.xpack.stateless.cluster.coordination.StatelessCoordinationTests
-  method: testAckListenerReceivesNacksIfPublicationTimesOut
-  issue: https://github.com/elastic/elasticsearch/issues/147839
 - class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/147841
@@ -396,9 +390,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148619
-- class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
-  method: testGenerationalFileBlobReferenceIsRetainedCorrectly
-  issue: https://github.com/elastic/elasticsearch/issues/148723
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexWhileNodeStopping
   issue: https://github.com/elastic/elasticsearch/issues/148807
@@ -585,30 +576,9 @@ tests:
 - class: org.elasticsearch.search.TelemetryMetrics.ShardSearchPhaseAPMMetricsTests
   method: testUniformCanMatchMetricAttributesWhenPlentyOfDocumentsInIndex
   issue: https://github.com/elastic/elasticsearch/issues/149874
-- class: org.elasticsearch.xpack.esql.ccq.MultiClustersIT
-  method: testLikeIndexLegacySettingNoResults
-  issue: https://github.com/elastic/elasticsearch/issues/149898
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:where-like.likeContainsOnEvalOutput}
-  issue: https://github.com/elastic/elasticsearch/issues/149899
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:where-like.likeAndOr}
-  issue: https://github.com/elastic/elasticsearch/issues/149900
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:where-like.likePrefixSuffix}
-  issue: https://github.com/elastic/elasticsearch/issues/149904
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:ints.valuesLongGrouped}
   issue: https://github.com/elastic/elasticsearch/issues/149905
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:conditional.docsCaseHourlyErrorRate}
-  issue: https://github.com/elastic/elasticsearch/issues/149908
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:conditional.docsCaseColumnExpression}
-  issue: https://github.com/elastic/elasticsearch/issues/149920
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:where-like.likeContainsLongerLiteralOnEvalOutput}
-  issue: https://github.com/elastic/elasticsearch/issues/149921
 - class: org.elasticsearch.xpack.esql.datasources.CompressionDelegatingFormatReaderTests
   method: testDelegatesMetadataAndReadZstd
   issue: https://github.com/elastic/elasticsearch/issues/149943
@@ -625,11 +595,11 @@ tests:
   method: test {csv-spec:lookup-join.floatEqualsDouble}
   issue: https://github.com/elastic/elasticsearch/issues/149952
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:conditional.docsCaseColumnExpression}
-  issue: https://github.com/elastic/elasticsearch/issues/149953
+  method: test {csv-spec:k8s-timeseries-count-distinct-over-time.valuesNull}
+  issue: https://github.com/elastic/elasticsearch/issues/149961
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  method: test {csv-spec:conditional.docsCaseHourlyErrorRate}
-  issue: https://github.com/elastic/elasticsearch/issues/149954
+  method: test {csv-spec:k8s-timeseries-count-distinct-over-time.countDistinctNull}
+  issue: https://github.com/elastic/elasticsearch/issues/149962
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  method: test {csv-spec:where-like.likeAndOr}
-  issue: https://github.com/elastic/elasticsearch/issues/149955
+  method: test {csv-spec:where-like.likePrefixSuffix}
+  issue: https://github.com/elastic/elasticsearch/issues/149964

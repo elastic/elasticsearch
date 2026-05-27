@@ -1623,8 +1623,10 @@ public class AnalyzerInSubqueryTests extends ESTestCase {
             | KEEP id
             """);
 
-        Limit limit = as(plan, Limit.class);
-        Project topProject = as(limit.child(), Project.class);
+        Project topProject = as(plan, Project.class);
+        assertEquals(1, topProject.projections().size());
+        Limit limit = as(topProject.child(), Limit.class);
+        topProject = as(limit.child(), Project.class);
         SemiJoin semiJoin = as(topProject.child(), SemiJoin.class);
         assertThat(semiJoin.config().type(), equalTo(JoinTypes.SEMI));
         assertThat(semiJoin.config().leftFields().get(0).name(), equalTo("id"));

@@ -198,6 +198,12 @@ The following settings are supported:
 `storage_class`
 :   Sets the S3 storage class for objects written to the repository. Values may be `standard`, `reduced_redundancy`, `standard_ia`, `onezone_ia` and `intelligent_tiering`. Defaults to `standard`. Refer to [S3 storage classes](docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-storage-classes) for more information.
 
+`data_storage_class`
+:   Sets the S3 storage class for data blobs written to or read from the repository. These blobs hold the files that make up each snapshotted shard and account for the bulk of the repository volume, but are only read when restoring a shard or accessing its contents for e.g. searchable snapshots and cold/frozen tiers. If this value is specified, it takes precedence over the `storage_class` value for data blob operations. Values may be `standard`, `standard_ia`, `reduced_redundancy`, `onezone_ia`, `intelligent_tiering`, `glacier_ir`, `outposts`, and `snow`. Defaults to the value of `storage_class` if not specified. Refer to [S3 storage classes] (docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-storage-classes) for more information.
+
+`metadata_storage_class`
+:   Sets the S3 storage class for metadata blobs written to or read from the repository. These are generally smaller in size than data blobs but may be read more frequently for operations such as listing repository contents, taking snapshots, or otherwise manipulating the repository. If this value is specified, it takes precedence over the `storage_class` value for metadata blob operations. Values may be `standard`, `standard_ia`, `reduced_redundancy`, `onezone_ia`, `intelligent_tiering`, `glacier_ir`, `outposts`, and `snow`. Defaults to the value of `storage_class` if not specified. Refer to [S3 storage classes] (docs-content://deploy-manage/tools/snapshot-and-restore/s3-repository.md#repository-s3-storage-classes) for more information.
+
 `delete_objects_max_size`
 :   (integer) Sets the maxmimum batch size, betewen 1 and 1000, used for `DeleteObjects` requests. Defaults to 1000 which is the maximum number supported by the [AWS DeleteObjects API](https://docs.aws.amazon.com/AmazonS3/latest/API/API_DeleteObjects.html).
 

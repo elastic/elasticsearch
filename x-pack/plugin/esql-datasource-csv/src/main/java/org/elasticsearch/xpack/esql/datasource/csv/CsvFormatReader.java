@@ -129,8 +129,10 @@ import java.util.regex.Pattern;
  *   <li>{@code ["a","b","c"]} — quoted elements (quotes stripped)</li>
  *   <li>{@code [a,"b,c"]} — mixed; commas inside quotes are literal</li>
  * </ul>
- * <p>With comma delimiter, a cell like {@code [hello,world]} is treated as one column:
- * commas inside {@code [...]} are not column delimiters.
+ * <p>Bracket multi-values use the same {@code [a,b,c]} syntax regardless of the field delimiter, so
+ * they work for both CSV (comma) and TSV (tab). A cell like {@code [hello,world]} is treated as one
+ * column; the field delimiter inside {@code [...]} is literal, and array elements are always
+ * comma-separated.
  *
  * <h2>Error handling</h2>
  * Controlled by {@link ErrorPolicy} and its {@link ErrorPolicy.Mode}:
@@ -919,7 +921,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 reader,
                 options.quoteChar(),
                 options.delimiter(),
-                options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ','
+                options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS
             );
             effectiveSchema = resolvedSchema;
         }
@@ -951,13 +953,13 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     @Override
     public long findNextRecordBoundary(InputStream stream) throws IOException {
-        if (options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS || options.delimiter() != ',') {
+        if (options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS) {
             return findNextRecordBoundaryQuotedFieldsOnly(stream);
         }
         BufferedInputStream bis = stream instanceof BufferedInputStream b ? b : new BufferedInputStream(stream);
         int markLimit = recordBoundaryMarkLimit();
         long maxMvcSuffixBytes = Math.max(0L, markLimit - 1L);
-        return findNextRecordBoundaryBracketCommaMvc(bis, markLimit, maxMvcSuffixBytes);
+        return findNextRecordBoundaryBracketMvc(bis, markLimit, maxMvcSuffixBytes);
     }
 
     /**
@@ -969,7 +971,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      */
     @Override
     public int findLastRecordBoundary(byte[] buf, int length) throws IOException {
-        if (options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS || options.delimiter() != ',') {
+        if (options.multiValueSyntax() != CsvFormatOptions.MultiValueSyntax.BRACKETS) {
             return findLastRecordBoundaryQuotedFieldsOnly(buf, length);
         }
         return SegmentableFormatReader.super.findLastRecordBoundary(buf, length);
@@ -1066,11 +1068,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Record boundary scan for comma-delimited CSV with bracket MVC. Newlines inside {@code [..]} or quoted fields
+     * Record boundary scan for delimited text with bracket MVC. Newlines inside {@code [..]} or quoted fields
      * must not end the record. Quote opening follows RFC 4180 — only at field start, optionally preceded by whitespace
      * — so stray {@code "} chars in unquoted cells do not trigger multi-line gluing or pathological segment splits.
      */
-    private long findNextRecordBoundaryBracketCommaMvc(BufferedInputStream bis, int markLimit, long maxMvcSuffixBytes) throws IOException {
+    private long findNextRecordBoundaryBracketMvc(BufferedInputStream bis, int markLimit, long maxMvcSuffixBytes) throws IOException {
         long consumed = 0;
         boolean inQuotes = false;
         boolean fieldHasNonWhitespace = false;
@@ -1156,7 +1158,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Per-byte scan over a {@link BufferedInputStream} — no per-call bulk read buffer is allocated;
      * an existing {@link BufferedInputStream} input is reused, otherwise the stream is wrapped once.
      * Applies the same field-start quoting rule as the actual tokenizer {@link #readCsvRecord} and as
-     * {@link #findNextRecordBoundaryBracketCommaMvc}: a {@code quoteChar} opens a quoted field only at
+     * {@link #findNextRecordBoundaryBracketMvc}: a {@code quoteChar} opens a quoted field only at
      * field start (optionally after field-leading whitespace); a mid-field {@code quoteChar} is a
      * literal and does not toggle quote state. Returns the byte count up to and including the first
      * record-terminating {@code \n} that is outside a quoted field, or {@code -1} at EOF.
@@ -1337,11 +1339,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * context terminates the record — lone {@code \r} outside quotes also terminates (for
      * {@code \r}-only line-ending files) but is not included in the returned string.
      *
-     * <p>Mirrors the quoting contract of {@link #findNextRecordBoundaryBracketCommaMvc} and
+     * <p>Mirrors the quoting contract of {@link #findNextRecordBoundaryBracketMvc} and
      * {@link #findNextRecordBoundaryQuotedFieldsOnly}.
      *
      * <p><b>Divergence from chunk-layer boundary scanners:</b>
-     * {@link #findNextRecordBoundaryBracketCommaMvc} and {@link #findNextRecordBoundaryQuotedFieldsOnly}
+     * {@link #findNextRecordBoundaryBracketMvc} and {@link #findNextRecordBoundaryQuotedFieldsOnly}
      * treat lone {@code \r} outside quotes as data (only {@code \n} terminates). This method treats
      * unquoted lone {@code \r} as a record terminator (Mac-classic line endings). The divergence is
      * acceptable because macro-split boundaries are always re-aligned at the row layer, and Mac-classic
@@ -1485,19 +1487,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * a quoted name from a {@code name:type} annotation.
      */
     private static String[] splitFieldsForOptions(String line, CsvFormatOptions options) {
-        if (options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && options.delimiter() == ',') {
-            return splitHeaderCommaDelimiterBracketAware(line, options.quoteChar(), options.escapeChar());
+        if (options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS) {
+            return splitHeaderDelimiterBracketAware(line, options.delimiter(), options.quoteChar(), options.escapeChar());
         }
         return line.split(Pattern.quote(Character.toString(options.delimiter())));
     }
 
     /**
-     * Header-only variant of {@link #splitCommaDelimiterBracketAwareFields}: tracks the same state machine but
-     * emits the raw substring between commas instead of accumulating into a {@link StringBuilder} that strips
+     * Header-only variant of {@link #splitDelimiterBracketAwareFields}: tracks the same state machine but
+     * emits the raw substring between delimiters instead of accumulating into a {@link StringBuilder} that strips
      * quotes. Used by schema discovery / inference.
      */
-    private static String[] splitHeaderCommaDelimiterBracketAware(String line, char quote, char esc) {
-        final char delim = ',';
+    private static String[] splitHeaderDelimiterBracketAware(String line, char delim, char quote, char esc) {
         List<String> entries = new ArrayList<>();
         int start = 0;
         boolean inQuotes = false;
@@ -1548,10 +1549,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Bracket- and quote-aware comma split; must stay aligned with {@link CsvBatchIterator#splitLineBracketAware}.
+     * Bracket- and quote-aware delimiter split; must stay aligned with {@link CsvBatchIterator#splitLineBracketAware}.
      */
-    private static String[] splitCommaDelimiterBracketAwareFields(String line, char quote, char esc) {
-        final char delim = ',';
+    private static String[] splitDelimiterBracketAwareFields(String line, char delim, char quote, char esc) {
         List<String> entries = new ArrayList<>();
         StringBuilder current = new StringBuilder();
         boolean inQuotes = false;
@@ -1794,7 +1794,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 }
                 initProjection();
 
-                boolean useBracketAwareParsing = bracketMultiValues && options.delimiter() == ',';
+                boolean useBracketAwareParsing = bracketMultiValues;
                 if (useBracketAwareParsing == false && csvIterator == null) {
                     CsvSchema csvSchema = CsvSchema.emptySchema()
                         .withColumnSeparator(options.delimiter())
@@ -1804,7 +1804,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     csvIterator = sharedCsvMapper.readerFor(List.class).with(csvSchema).readValues(reader);
                 }
             }
-            boolean useFusedBracketPath = csvIterator == null && bracketMultiValues && options.delimiter() == ',';
+            boolean useFusedBracketPath = csvIterator == null && bracketMultiValues;
             while (true) {
                 if (useFusedBracketPath && prefetchedRows == null && columnCount > 0) {
                     List<String> lines = new ArrayList<>();
@@ -1896,7 +1896,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
          * Commas inside quotes or brackets are not delimiters. Escaped commas ({@code \,}) are skipped.
          */
         private String[] splitLineBracketAware(String line) {
-            return splitCommaDelimiterBracketAwareFields(line, options.quoteChar(), options.escapeChar());
+            return splitDelimiterBracketAwareFields(line, options.delimiter(), options.quoteChar(), options.escapeChar());
         }
 
         private List<Attribute> inferSchemaFromBatchReader(String headerLine) throws IOException {
@@ -2131,14 +2131,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
         /**
          * Fused field-splitting and typed conversion for the bracket-aware CSV path. Walks the
          * line character-by-character, maintaining the same quote/bracket/escape state machine as
-         * {@link CsvFormatReader#splitCommaDelimiterBracketAwareFields}, but skips
+         * {@link CsvFormatReader#splitDelimiterBracketAwareFields}, but skips
          * {@link StringBuilder} accumulation for non-projected fields and inlines integer/long
          * parsing to avoid a second character walk via {@code Long.parseLong}.
          *
          * @return {@code true} if the row was accepted, {@code false} if it was rejected
          */
         private boolean splitAndConvertProjected(String line) {
-            final char delim = ',';
+            final char delim = options.delimiter();
             final char quote = options.quoteChar();
             final char esc = options.escapeChar();
 
@@ -2147,7 +2147,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             int bracketDepth = 0;
             // Remember where the parser entered the unclosed state so error messages can anchor on
             // the actual fault site instead of head/tail-truncating a long line and hiding it.
-            // Mirrors the offset tracking in splitCommaDelimiterBracketAwareFields.
+            // Mirrors the offset tracking in splitDelimiterBracketAwareFields.
             int quoteOpenAt = -1;
             int bracketOpenAt = -1;
             int fieldIndex = 0;

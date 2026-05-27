@@ -554,10 +554,8 @@ public class CsvFormatReaderTests extends ESTestCase {
     }
 
     public void testTsvDefaultReadsBracketsAsLiteral() throws IOException {
-        // TSV uses a tab delimiter and the same NONE default. The bracket multi-value parser is
-        // comma-specific, so tab-delimited input always takes the standard (Jackson) path regardless
-        // of multi_value_syntax: a "[a,b,c]" cell is one literal value, and the commas inside it are
-        // not field separators (the tab is).
+        // TSV defaults to NONE like CSV, so a "[a,b,c]" cell is one literal value. The tab is the field
+        // delimiter; the commas inside the cell are not separators of anything under NONE.
         String tsv = "pkg:keyword\ttags:keyword\n1\t[a,b,c]\n";
         StorageObject object = createStorageObject(tsv);
         CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
@@ -569,6 +567,41 @@ public class CsvFormatReaderTests extends ESTestCase {
             BytesRefBlock tags = (BytesRefBlock) page.getBlock(1);
             assertEquals(1, tags.getValueCount(0));
             assertEquals(new BytesRef("[a,b,c]"), tags.getBytesRef(tags.getFirstValueIndex(0), new BytesRef()));
+        }
+    }
+
+    public void testTsvBracketsParsesMultiValue() throws IOException {
+        // Bracket multi-values are delimiter-agnostic: the array literal "[a,b,c]" reads the same in TSV
+        // (tab-delimited) as in CSV. With multi_value_syntax: brackets, a tab-delimited "[a,b,c]" cell
+        // yields three values — the tab field delimiter is irrelevant inside the brackets, and elements
+        // are always comma-separated. Mirror of testMultiValueBracketsVersion on the tab delimiter.
+        CsvFormatOptions options = new CsvFormatOptions(
+            '\t',
+            CsvFormatOptions.TSV.quoteChar(),
+            CsvFormatOptions.TSV.escapeChar(),
+            CsvFormatOptions.TSV.commentPrefix(),
+            CsvFormatOptions.TSV.nullValue(),
+            CsvFormatOptions.TSV.encoding(),
+            CsvFormatOptions.TSV.datetimeFormatter(),
+            CsvFormatOptions.TSV.maxFieldSize(),
+            CsvFormatOptions.MultiValueSyntax.BRACKETS,
+            true,
+            CsvFormatOptions.DEFAULT_COLUMN_PREFIX
+        );
+        String tsv = "pkg:keyword\ttags:keyword\n1\t[a,b,c]\n";
+        StorageObject object = createStorageObject(tsv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock tags = (BytesRefBlock) page.getBlock(1);
+            assertEquals(3, tags.getValueCount(0));
+            int firstIdx = tags.getFirstValueIndex(0);
+            assertEquals(new BytesRef("a"), tags.getBytesRef(firstIdx, new BytesRef()));
+            assertEquals(new BytesRef("b"), tags.getBytesRef(firstIdx + 1, new BytesRef()));
+            assertEquals(new BytesRef("c"), tags.getBytesRef(firstIdx + 2, new BytesRef()));
         }
     }
 

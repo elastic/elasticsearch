@@ -32,6 +32,7 @@ import org.apache.parquet.schema.LogicalTypeAnnotation;
 import org.apache.parquet.schema.MessageType;
 import org.apache.parquet.schema.PrimitiveType;
 import org.apache.parquet.schema.Type;
+import org.apache.parquet.schema.Types;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.compute.data.Block;
@@ -56,6 +57,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
+import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -74,10 +77,12 @@ import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.BitSet;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
@@ -100,7 +105,7 @@ import java.util.concurrent.ExecutionException;
  *   <li>Direct conversion from Parquet to ESQL blocks</li>
  * </ul>
  */
-public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtractorAware {
+public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtractorAware, DynamicThresholdAware {
 
     private static final Logger logger = LogManager.getLogger(ParquetFormatReader.class);
 
@@ -117,6 +122,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     private final boolean forceBaselinePath;
     private final boolean optimizedReader;
     private final boolean lateMaterializationEnabled;
+    private final DynamicThreshold dynamicThreshold;
     // Shared across all iterators created by this reader: holds lazy decompressor instances and
     // pays the per-codec init cost once. The factory is stateless across files/row groups.
     private final PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
@@ -190,11 +196,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     public ParquetFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, FilterCompat.NOOP, null, false, true, true);
+        this(blockFactory, FilterCompat.NOOP, null, false, true, true, null);
     }
 
     ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader) {
-        this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader, true);
+        this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader, true, null);
     }
 
     private ParquetFormatReader(
@@ -203,7 +209,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ParquetPushedExpressions pushedExpressions,
         boolean forceBaselinePath,
         boolean optimizedReader,
-        boolean lateMaterializationEnabled
+        boolean lateMaterializationEnabled,
+        DynamicThreshold dynamicThreshold
     ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
@@ -211,6 +218,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         this.forceBaselinePath = forceBaselinePath;
         this.optimizedReader = optimizedReader;
         this.lateMaterializationEnabled = lateMaterializationEnabled;
+        this.dynamicThreshold = dynamicThreshold;
     }
 
     /**
@@ -219,13 +227,29 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * testing against the optimized path.
      */
     ParquetFormatReader withBaselinePath() {
-        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, true, optimizedReader, lateMaterializationEnabled);
+        return new ParquetFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            true,
+            optimizedReader,
+            lateMaterializationEnabled,
+            dynamicThreshold
+        );
     }
 
     @Override
     public ParquetFormatReader withPushedFilter(Object pushedFilter) {
         if (pushedFilter instanceof FilterCompat.Filter filter) {
-            return new ParquetFormatReader(blockFactory, filter, null, forceBaselinePath, optimizedReader, lateMaterializationEnabled);
+            return new ParquetFormatReader(
+                blockFactory,
+                filter,
+                null,
+                forceBaselinePath,
+                optimizedReader,
+                lateMaterializationEnabled,
+                dynamicThreshold
+            );
         }
         if (pushedFilter instanceof ParquetPushedExpressions exprs) {
             return new ParquetFormatReader(
@@ -234,10 +258,24 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 exprs,
                 forceBaselinePath,
                 optimizedReader,
-                lateMaterializationEnabled
+                lateMaterializationEnabled,
+                dynamicThreshold
             );
         }
         return this;
+    }
+
+    @Override
+    public FormatReader withDynamicThreshold(DynamicThreshold threshold) {
+        return new ParquetFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            lateMaterializationEnabled,
+            threshold
+        );
     }
 
     @Override
@@ -249,7 +287,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         boolean newLateMat = parseBooleanConfig(config, CONFIG_LATE_MATERIALIZATION, lateMaterializationEnabled);
         FormatReader result = (newOptimized == optimizedReader && newLateMat == lateMaterializationEnabled)
             ? this
-            : new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, forceBaselinePath, newOptimized, newLateMat);
+            : new ParquetFormatReader(
+                blockFactory,
+                pushedFilter,
+                pushedExpressions,
+                forceBaselinePath,
+                newOptimized,
+                newLateMat,
+                dynamicThreshold
+            );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
@@ -288,7 +334,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /**
      * Opens a Parquet reader, mapping parquet-mr failures (checked and unchecked) to an
-     * {@link IOException} that includes the storage object URI for operators and REST clients.
+     * {@link IllegalArgumentException} that includes the storage object URI. This ensures
+     * invalid/corrupt Parquet files produce HTTP 400 rather than 500.
      */
     private static ParquetFileReader openParquetFile(
         StorageObject object,
@@ -414,12 +461,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return offsets;
     }
 
-    private static IOException newInvalidParquetFileException(String uri, Exception e) {
+    private static IllegalArgumentException newInvalidParquetFileException(String uri, Exception e) {
         String detail = e.getMessage();
         if (detail == null || detail.isEmpty()) {
             detail = e.getClass().getSimpleName();
         }
-        return new IOException("Could not read [" + uri + "] as a Parquet file: " + detail, e);
+        return new IllegalArgumentException("Could not read [" + uri + "] as a Parquet file: " + detail, e);
     }
 
     @Override
@@ -430,14 +477,44 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         try (ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, options)) {
             FileMetaData fileMetaData = reader.getFileMetaData();
             MessageType parquetSchema = fileMetaData.getSchema();
+            validateFooterIntegrity(object.path().toString(), parquetSchema, reader.getRowGroups());
             List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
-            SourceStatistics statistics = extractStatistics(reader, parquetSchema);
+            SourceStatistics statistics = extractStatistics(reader, schema);
             return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
         }
     }
 
+    /**
+     * Validates footer-level invariants that, if violated, indicate a corrupt file. Currently
+     * checks that required columns (maxDefinitionLevel == 0) do not report non-zero null counts
+     * in their row-group statistics. Such files pass parquet-mr footer parsing but produce
+     * garbage or exceptions during data-page decoding.
+     */
+    static void validateFooterIntegrity(String uri, MessageType schema, List<BlockMetaData> rowGroups) {
+        for (BlockMetaData rowGroup : rowGroups) {
+            for (ColumnChunkMetaData col : rowGroup.getColumns()) {
+                String[] path = col.getPath().toArray();
+                ColumnDescriptor desc = schema.getColumnDescription(path);
+                if (desc != null && desc.getMaxDefinitionLevel() == 0) {
+                    Statistics<?> stats = col.getStatistics();
+                    if (stats != null && stats.getNumNulls() > 0) {
+                        throw new IllegalArgumentException(
+                            "Could not read ["
+                                + uri
+                                + "] as a Parquet file: column ["
+                                + col.getPath().toDotString()
+                                + "] is declared required but row group reports "
+                                + stats.getNumNulls()
+                                + " null(s)"
+                        );
+                    }
+                }
+            }
+        }
+    }
+
     @SuppressWarnings("rawtypes")
-    private SourceStatistics extractStatistics(ParquetFileReader reader, MessageType schema) {
+    private SourceStatistics extractStatistics(ParquetFileReader reader, List<Attribute> attributes) {
         List<BlockMetaData> rowGroups = reader.getRowGroups();
         if (rowGroups.isEmpty()) {
             return null;
@@ -487,8 +564,17 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         final long rowCount = totalRows;
         final long sizeBytes = totalSize;
         Map<String, SourceStatistics.ColumnStatistics> columnStats = new HashMap<>();
-        for (Type field : schema.getFields()) {
-            String name = field.getName();
+        // Publish stats keyed by every dotted leaf the flattener produced an addressable
+        // attribute for. Skip UNSUPPORTED — they will not bind to a planner attribute the
+        // aggregate-pushdown layer can read stats off of, and over-depth / MAP / LIST<STRUCT>
+        // groups surface as UNSUPPORTED here exactly so this filter removes them. Names match
+        // the collection-loop's col.getPath().toDotString() exactly because
+        // {@link #collectAttributes} concatenates the same Parquet child names with '.'.
+        for (Attribute attribute : attributes) {
+            if (attribute.dataType() == DataType.UNSUPPORTED) {
+                continue;
+            }
+            String name = attribute.name();
             long[] nc = nullCounts.get(name);
             Comparable[] mn = mins.get(name);
             Comparable[] mx = maxs.get(name);
@@ -593,7 +679,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             context.projectedColumns(),
             context.batchSize(),
             context.rowLimit(),
-            null,
+            context.readSchema(),
             // For full-file reads the iterator's footer is the file's footer; the deferred
             // extractor scopes itself to the same set of row groups. {@link #readRange} below
             // threads the unranged footer separately so the extractor can address rows in the
@@ -1074,8 +1160,24 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             effectivePushed,
             triviallyPassesPredicate,
             this,
-            fullFooter
+            fullFooter,
+            dynamicThreshold,
+            resolveDynamicThresholdColumn(fileSchema, dynamicThreshold)
         );
+    }
+
+    private static ColumnDescriptor resolveDynamicThresholdColumn(MessageType schema, DynamicThreshold dynamicThreshold) {
+        if (dynamicThreshold == null) {
+            return null;
+        }
+        String columnName = dynamicThreshold.columnName();
+        for (ColumnDescriptor descriptor : schema.getColumns()) {
+            String[] path = descriptor.getPath();
+            if (String.join(".", path).equals(columnName) || (path.length == 1 && path[0].equals(columnName))) {
+                return descriptor;
+            }
+        }
+        return null;
     }
 
     /**
@@ -1115,14 +1217,34 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return flags;
     }
 
+    /**
+     * Maps each projected attribute to its {@link ColumnInfo}. Resolution is path-aware:
+     * <ol>
+     *   <li>Exact match against a top-level field name in {@code projectedSchema} (preserves
+     *       files whose top-level fields literally contain a dot).</li>
+     *   <li>Otherwise, the attribute name is interpreted as a dotted path and looked up against
+     *       the full leaf paths of {@code projectedSchema}.</li>
+     * </ol>
+     * Top-level fields are recognised via {@link MessageType#containsField}; leaf paths are
+     * joined with {@code "."} (mirroring {@link ColumnChunkPrefetcher}'s prefetch key).
+     */
     static ColumnInfo[] buildColumnInfos(MessageType projectedSchema, List<Attribute> attributes) {
         ColumnInfo[] columnInfos = new ColumnInfo[attributes.size()];
-        // Uses getPath()[0] (top-level name only), matching the baseline ParquetColumnIterator.
-        // Nested Parquet fields have multi-segment paths, but ESQL currently only supports flat
-        // columns and LIST(primitive) — nested struct types map to UNSUPPORTED and are skipped.
-        Map<String, ColumnDescriptor> descByName = new HashMap<>();
+        // Per-top-level-field descriptors handle LIST<primitive> and other cases where the
+        // descriptor's first path segment is the user-visible field name. This map wins over
+        // the dotted-path map and is the only source of truth for literal-dot top-level names.
+        Map<String, ColumnDescriptor> descByTopLevel = new HashMap<>();
+        Map<String, ColumnDescriptor> descByDottedPath = new HashMap<>();
+        Set<String> topLevelNames = new HashSet<>();
+        for (Type field : projectedSchema.getFields()) {
+            topLevelNames.add(field.getName());
+        }
         for (ColumnDescriptor desc : projectedSchema.getColumns()) {
-            descByName.put(desc.getPath()[0], desc);
+            String[] path = desc.getPath();
+            descByDottedPath.put(String.join(".", path), desc);
+            if (path.length > 0 && topLevelNames.contains(path[0])) {
+                descByTopLevel.putIfAbsent(path[0], desc);
+            }
         }
         for (int i = 0; i < attributes.size(); i++) {
             Attribute attr = attributes.get(i);
@@ -1136,7 +1258,10 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (attr.dataType() == DataType.NULL || attr.dataType() == DataType.UNSUPPORTED) {
                 continue;
             }
-            ColumnDescriptor desc = descByName.get(attr.name());
+            ColumnDescriptor desc = descByTopLevel.get(attr.name());
+            if (desc == null) {
+                desc = descByDottedPath.get(attr.name());
+            }
             if (desc != null) {
                 LogicalTypeAnnotation logicalType = desc.getPrimitiveType().getLogicalTypeAnnotation();
                 columnInfos[i] = new ColumnInfo(
@@ -1189,11 +1314,57 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     private static MessageType buildProjectedSchema(MessageType fullSchema, List<Attribute> projectedAttributes) {
-        List<Type> projectedFields = new ArrayList<>();
+        // Resolve each attribute to a path of segments. Per D2, exact top-level match wins over
+        // dotted-path traversal so that literal-dot top-level field names keep resolving to
+        // themselves. Each entry maps the resolved top-level field name -> ordered, deduplicated
+        // child paths (each a list of segments below that top-level field; empty for a literal
+        // top-level match).
+        Map<String, LinkedHashMap<List<String>, Boolean>> topLevelToChildPaths = new LinkedHashMap<>();
         for (Attribute attr : projectedAttributes) {
-            if (fullSchema.containsField(attr.name())) {
-                projectedFields.add(fullSchema.getType(attr.name()));
+            String name = attr.name();
+            if (fullSchema.containsField(name)) {
+                topLevelToChildPaths.computeIfAbsent(name, k -> new LinkedHashMap<>()).put(List.of(), Boolean.TRUE);
+                continue;
             }
+            // Try dotted-path traversal: walk prefixes from shortest to longest and stop at the
+            // first one that resolves to a STRUCT group whose remainder also matches. The literal
+            // top-level name already won above; here we only deal with synthetic dotted names.
+            // Walk dot positions directly with substring rather than splitting + re-joining each
+            // probe; the segments array is still computed once for the remainder.
+            String[] segments = name.split("\\.");
+            int dotIdx = name.indexOf('.');
+            int prefixLen = 1;
+            while (dotIdx >= 0) {
+                String topLevel = name.substring(0, dotIdx);
+                if (fullSchema.containsField(topLevel)) {
+                    Type field = fullSchema.getType(topLevel);
+                    if (field.isPrimitive()) {
+                        break;
+                    }
+                    List<String> remainder = List.of(Arrays.copyOfRange(segments, prefixLen, segments.length));
+                    if (groupContainsPath(field.asGroupType(), remainder, 0)) {
+                        topLevelToChildPaths.computeIfAbsent(topLevel, k -> new LinkedHashMap<>()).put(remainder, Boolean.TRUE);
+                        break;
+                    }
+                }
+                dotIdx = name.indexOf('.', dotIdx + 1);
+                prefixLen++;
+            }
+        }
+        List<Type> projectedFields = new ArrayList<>();
+        for (Map.Entry<String, LinkedHashMap<List<String>, Boolean>> entry : topLevelToChildPaths.entrySet()) {
+            Type field = fullSchema.getType(entry.getKey());
+            // A literal top-level match (List.of()) reads the whole field.
+            if (entry.getValue().containsKey(List.<String>of())) {
+                projectedFields.add(field);
+                continue;
+            }
+            if (field.isPrimitive()) {
+                projectedFields.add(field);
+                continue;
+            }
+            Type subset = buildSubsetGroup(field.asGroupType(), new ArrayList<>(entry.getValue().keySet()));
+            projectedFields.add(subset != null ? subset : field);
         }
         // Parquet requires at least one field; fall back to full schema when none match
         if (projectedFields.isEmpty()) {
@@ -1203,24 +1374,170 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Derive attribute nullability from Parquet repetition: only top-level {@link Type.Repetition#REQUIRED} fields carry a
-     * schema-level non-null guarantee. Everything else ({@link Type.Repetition#OPTIONAL} and the legacy top-level
-     * {@link Type.Repetition#REPEATED}) is nullable from the planner's perspective. Note this is the cell-level guarantee
-     * for the column attribute; element-level nullability inside a {@code LIST} group is independent and not modelled here.
-     * <p>
-     * Defaulting everything to non-nullable — as the 3-arg {@link ReferenceAttribute} constructor does — would cause
-     * planner rules (e.g. {@code COALESCE} simplification, {@code IS NULL}/{@code IS NOT NULL} rewriting) to drop legitimate
-     * null rows for {@code OPTIONAL} columns.
+     * Resolves a (possibly dotted) attribute name to its {@link Type} in {@code fullSchema}.
+     * Applies D2: literal top-level match wins over dotted-path traversal. Returns {@code null}
+     * when the name has no match.
+     */
+    private static Type resolveFieldType(MessageType fullSchema, String name) {
+        if (fullSchema.containsField(name)) {
+            return fullSchema.getType(name);
+        }
+        String[] segments = name.split("\\.");
+        int dotIdx = name.indexOf('.');
+        int prefixLen = 1;
+        while (dotIdx >= 0) {
+            String topLevel = name.substring(0, dotIdx);
+            if (fullSchema.containsField(topLevel)) {
+                Type field = fullSchema.getType(topLevel);
+                for (int i = prefixLen; i < segments.length; i++) {
+                    if (field.isPrimitive()) {
+                        return null;
+                    }
+                    GroupType group = field.asGroupType();
+                    if (group.containsField(segments[i]) == false) {
+                        return null;
+                    }
+                    field = group.getType(segments[i]);
+                }
+                return field;
+            }
+            dotIdx = name.indexOf('.', dotIdx + 1);
+            prefixLen++;
+        }
+        return null;
+    }
+
+    private static boolean groupContainsPath(GroupType group, List<String> path, int idx) {
+        if (idx >= path.size()) {
+            return true;
+        }
+        String name = path.get(idx);
+        if (group.containsField(name) == false) {
+            return false;
+        }
+        Type child = group.getType(name);
+        if (idx == path.size() - 1) {
+            return true;
+        }
+        if (child.isPrimitive()) {
+            return false;
+        }
+        return groupContainsPath(child.asGroupType(), path, idx + 1);
+    }
+
+    /**
+     * Builds a projected copy of {@code group} containing only the leaves reachable via {@code paths}
+     * (each path is the list of segments below {@code group}). The original {@link Type.Repetition}
+     * is preserved on every reconstructed group so parquet-mr doesn't complain at read time. Returns
+     * {@code null} when {@code paths} is empty.
+     */
+    private static Type buildSubsetGroup(GroupType group, List<List<String>> paths) {
+        if (paths.isEmpty()) {
+            return null;
+        }
+        // Group paths by first segment to recurse children once per branch, preserving insertion order.
+        LinkedHashMap<String, List<List<String>>> byHead = new LinkedHashMap<>();
+        for (List<String> path : paths) {
+            if (path.isEmpty()) {
+                // A leaf request at this group: include the whole group.
+                return group;
+            }
+            byHead.computeIfAbsent(path.get(0), k -> new ArrayList<>()).add(path.subList(1, path.size()));
+        }
+        Types.GroupBuilder<GroupType> builder = Types.buildGroup(group.getRepetition());
+        if (group.getLogicalTypeAnnotation() != null) {
+            builder = builder.as(group.getLogicalTypeAnnotation());
+        }
+        for (Map.Entry<String, List<List<String>>> entry : byHead.entrySet()) {
+            String childName = entry.getKey();
+            if (group.containsField(childName) == false) {
+                continue;
+            }
+            Type child = group.getType(childName);
+            List<List<String>> childPaths = entry.getValue();
+            boolean wholeChildRequested = childPaths.stream().anyMatch(List::isEmpty);
+            if (wholeChildRequested || child.isPrimitive()) {
+                builder = builder.addField(child);
+            } else {
+                Type subset = buildSubsetGroup(child.asGroupType(), childPaths);
+                if (subset != null) {
+                    builder = builder.addField(subset);
+                }
+            }
+        }
+        return builder.named(group.getName());
+    }
+
+    /**
+     * Maximum recursion depth for nested STRUCT flattening. Beyond this, the offending group
+     * surfaces as a single {@link DataType#UNSUPPORTED} attribute at its dotted path and a
+     * DEBUG log entry is emitted; no infinite recursion or partial flattening occurs.
+     *
+     * <p>Depth counts from 1 at the schema's top-level children, so the deepest reachable
+     * group sits at depth {@code MAX_STRUCT_FLATTENING_DEPTH}. The ORC flattener uses the
+     * same convention so the two formats accept the same set of valid paths.
+     */
+    static final int MAX_STRUCT_FLATTENING_DEPTH = 64;
+
+    /**
+     * Recursively converts a Parquet {@link MessageType} into ESQL {@link Attribute}s, flattening
+     * nested STRUCT groups into dotted attribute names (e.g. {@code event.action}). Primitive
+     * fields and {@code LIST<primitive>} groups emit at their parent's dotted path; other groups
+     * (MAP, {@code LIST<STRUCT>}, UNION, anything not understood) surface as a single
+     * {@link DataType#UNSUPPORTED} attribute at the group's dotted path.
+     *
+     * <p>Recursion is bounded by {@link #MAX_STRUCT_FLATTENING_DEPTH}; groups deeper than the cap
+     * are emitted as a single UNSUPPORTED attribute and a DEBUG log line is recorded.
+     *
+     * <p>Resolution rule for dotted projected names (see {@link #buildColumnInfos}): exact
+     * top-level match against the file schema is attempted first, then dotted-path traversal.
+     * This preserves files whose top-level field literally contains a dot — the ES|QL parser
+     * cannot distinguish {@code event.action} from {@code `event.action`} so we cannot
+     * disambiguate at parse time.
+     *
+     * <p>Nullability follows Parquet repetition: a dotted leaf is {@link Nullability#FALSE} iff
+     * every field on the path is {@link Type.Repetition#REQUIRED}. Anything else
+     * ({@link Type.Repetition#OPTIONAL} or {@link Type.Repetition#REPEATED} anywhere on the path)
+     * is nullable from the planner's perspective. Element-level nullability inside a {@code LIST}
+     * group is independent and not modelled here. Defaulting everything to non-nullable — as the
+     * 3-arg {@link ReferenceAttribute} constructor does — would cause planner rules
+     * (e.g. {@code COALESCE} simplification, {@code IS NULL}/{@code IS NOT NULL} rewriting) to
+     * drop legitimate null rows for {@code OPTIONAL} columns.
      */
     private List<Attribute> convertParquetSchemaToAttributes(MessageType schema) {
         List<Attribute> attributes = new ArrayList<>();
         for (Type field : schema.getFields()) {
-            String name = field.getName();
-            DataType esqlType = convertParquetTypeToEsql(field);
-            Nullability nullability = field.isRepetition(Type.Repetition.REQUIRED) ? Nullability.FALSE : Nullability.TRUE;
-            attributes.add(new ReferenceAttribute(Source.EMPTY, null, name, esqlType, nullability, null, false));
+            collectAttributes(field, field.getName(), 1, field.isRepetition(Type.Repetition.REQUIRED), attributes);
         }
         return attributes;
+    }
+
+    private void collectAttributes(Type field, String dottedPath, int depth, boolean pathAllRequired, List<Attribute> out) {
+        if (depth > MAX_STRUCT_FLATTENING_DEPTH) {
+            logger.debug(
+                "Parquet field [{}] exceeds STRUCT flattening depth cap [{}]; emitting as UNSUPPORTED",
+                dottedPath,
+                MAX_STRUCT_FLATTENING_DEPTH
+            );
+            out.add(new ReferenceAttribute(Source.EMPTY, null, dottedPath, DataType.UNSUPPORTED, Nullability.TRUE, null, false));
+            return;
+        }
+        Nullability leafNullability = pathAllRequired ? Nullability.FALSE : Nullability.TRUE;
+        if (field.isPrimitive()) {
+            out.add(new ReferenceAttribute(Source.EMPTY, null, dottedPath, convertParquetTypeToEsql(field), leafNullability, null, false));
+            return;
+        }
+        GroupType group = field.asGroupType();
+        LogicalTypeAnnotation logical = group.getLogicalTypeAnnotation();
+        if (logical instanceof LogicalTypeAnnotation.ListLogicalTypeAnnotation
+            || logical instanceof LogicalTypeAnnotation.MapLogicalTypeAnnotation) {
+            out.add(new ReferenceAttribute(Source.EMPTY, null, dottedPath, convertGroupTypeToEsql(group), leafNullability, null, false));
+            return;
+        }
+        for (Type child : group.getFields()) {
+            boolean childAllRequired = pathAllRequired && child.isRepetition(Type.Repetition.REQUIRED);
+            collectAttributes(child, dottedPath + "." + child.getName(), depth + 1, childAllRequired, out);
+        }
     }
 
     private static DataType convertParquetTypeToEsql(Type parquetType) {
@@ -1233,7 +1550,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return switch (primitive.getPrimitiveTypeName()) {
             case BOOLEAN -> DataType.BOOLEAN;
             case INT32 -> {
-                if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
+                if (logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical) {
+                    if (intLogical.isSigned() == false && intLogical.getBitWidth() == 32) {
+                        // Widen to long
+                        yield DataType.LONG;
+                    }
+                } else if (logical instanceof LogicalTypeAnnotation.DateLogicalTypeAnnotation) {
                     yield DataType.DATETIME;
                 } else if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
@@ -1241,7 +1563,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 yield DataType.INTEGER;
             }
             case INT64 -> {
-                if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
+                if (logical instanceof LogicalTypeAnnotation.IntLogicalTypeAnnotation intLogical) {
+                    if (intLogical.isSigned() == false && intLogical.getBitWidth() == 64) {
+                        yield DataType.UNSIGNED_LONG;
+                    }
+                } else if (logical instanceof LogicalTypeAnnotation.TimestampLogicalTypeAnnotation) {
                     yield DataType.DATETIME;
                 } else if (logical instanceof LogicalTypeAnnotation.DecimalLogicalTypeAnnotation) {
                     yield DataType.DOUBLE;
@@ -1264,7 +1590,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     /**
-     * Handles Parquet group types. Supports LIST of primitives by extracting the element type.
+     * Handles Parquet group types. Supports LIST of primitives by extracting the element type;
+     * everything else (MAP, LIST&lt;STRUCT&gt;, UNION) is UNSUPPORTED.
      */
     private static DataType convertGroupTypeToEsql(GroupType groupType) {
         LogicalTypeAnnotation logical = groupType.getLogicalTypeAnnotation();
@@ -1309,10 +1636,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (attr.dataType() == DataType.NULL || attr.dataType() == DataType.UNSUPPORTED) {
                 continue;
             }
-            if (fullSchema.containsField(attr.name()) == false) {
+            Type resolved = resolveFieldType(fullSchema, attr.name());
+            if (resolved == null) {
                 continue;
             }
-            DataType actualInFile = convertParquetTypeToEsql(fullSchema.getType(attr.name()));
+            DataType actualInFile = convertParquetTypeToEsql(resolved);
             if (plannerTypeCompatibleWithFileDerivedType(attr.dataType(), actualInFile) == false) {
                 if (skipWarnings == null) {
                     skipWarnings = new SkipWarnings(
@@ -1648,12 +1976,21 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             if (info.maxRepLevel() > 0) {
                 return ParquetColumnDecoding.readListColumn(cr, info, rowsToRead, blockFactory);
             }
+            // WARNING: the dispatching logic below is duplicated in PageColumnReader#readBatch
+            // KEEP IN SYNC!
             return switch (info.esqlType()) {
                 case BOOLEAN -> readBooleanColumn(cr, info.maxDefLevel(), rowsToRead);
                 case INTEGER -> readIntColumn(cr, info.maxDefLevel(), rowsToRead);
-                case LONG -> {
+                case LONG, UNSIGNED_LONG -> {
+                    var logicalType = (LogicalTypeAnnotation.IntLogicalTypeAnnotation) info.logicalType();
                     if (info.parquetType() == PrimitiveType.PrimitiveTypeName.INT32) {
-                        yield readInt32WidenedToLongColumn(cr, info.maxDefLevel(), rowsToRead);
+                        // A plain INT32 with no logical-type annotation is historically "signed"
+                        yield readInt32WidenedToLongColumn(
+                            cr,
+                            info.maxDefLevel(),
+                            rowsToRead,
+                            logicalType == null || logicalType.isSigned()
+                        );
                     }
                     yield readLongColumn(cr, info.maxDefLevel(), rowsToRead);
                 }
@@ -1712,7 +2049,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         /**
          * Parquet INT32 columns do not support {@link ColumnReader#getLong()}; widen safely to long for planner LONG.
          */
-        private Block readInt32WidenedToLongColumn(ColumnReader cr, int maxDef, int rows) {
+        private Block readInt32WidenedToLongColumn(ColumnReader cr, int maxDef, int rows, boolean signed) {
             long[] values = UninitializedArrays.newLongArray(rows);
             BitSet isNull = maxDef > 0 ? new BitSet(rows) : null;
             boolean noNulls = true;
@@ -1721,7 +2058,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                     isNull.set(i);
                     noNulls = false;
                 } else {
-                    values[i] = cr.getInteger();
+                    values[i] = signed ? cr.getInteger() : Integer.toUnsignedLong(cr.getInteger());
                 }
                 cr.consume();
             }

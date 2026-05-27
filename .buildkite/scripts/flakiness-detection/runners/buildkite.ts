@@ -49,16 +49,16 @@ function wrapNeverFail(command: string, contextKey: string, outerTimeoutMin: num
     "WRAPPED_CMD_FILE=$(mktemp)",
     // Quoted heredoc avoids any shell-expansion of the inner command at
     // write time; variables in it are evaluated when bash runs the file.
-    "cat > \"$WRAPPED_CMD_FILE\" <<'__NEVER_FAIL_EOF__'",
+    "cat > \"$$WRAPPED_CMD_FILE\" <<'__NEVER_FAIL_EOF__'",
     command,
     "__NEVER_FAIL_EOF__",
-    `timeout --signal=TERM --kill-after=30s ${innerTimeoutMin}m bash "$WRAPPED_CMD_FILE"`,
+    `timeout --signal=TERM --kill-after=30s ${innerTimeoutMin}m bash "$$WRAPPED_CMD_FILE"`,
     "rc=$?",
-    "rm -f \"$WRAPPED_CMD_FILE\"",
-    `if [ "$rc" -eq 124 ] || [ "$rc" -eq 137 ]; then`,
-    `  buildkite-agent annotate --style warning --context "${contextKey}-failures" --append "[$BUILDKITE_LABEL] (job $BUILDKITE_JOB_ID) timed out after ${innerTimeoutMin}m (rc=$rc) - see job log"`,
-    `elif [ "$rc" -ne 0 ]; then`,
-    `  buildkite-agent annotate --style warning --context "${contextKey}-failures" --append "[$BUILDKITE_LABEL] (job $BUILDKITE_JOB_ID) exited with $rc - see job log"`,
+    "rm -f \"$$WRAPPED_CMD_FILE\"",
+    `if [ "$$rc" -eq 124 ] || [ "$$rc" -eq 137 ]; then`,
+    `  buildkite-agent annotate --style warning --context "${contextKey}-failures" --append "[$$BUILDKITE_LABEL] (job $$BUILDKITE_JOB_ID) timed out after ${innerTimeoutMin}m (rc=$$rc) - see job log"`,
+    `elif [ "$$rc" -ne 0 ]; then`,
+    `  buildkite-agent annotate --style warning --context "${contextKey}-failures" --append "[$$BUILDKITE_LABEL] (job $$BUILDKITE_JOB_ID) exited with $$rc - see job log"`,
     "fi",
     "exit 0",
   ].join("\n");

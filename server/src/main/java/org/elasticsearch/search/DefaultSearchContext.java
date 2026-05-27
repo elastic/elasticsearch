@@ -274,8 +274,8 @@ final class DefaultSearchContext extends SearchContext {
     }
 
     /**
-     * Wraps the search executor so that bytes read by parallel collection worker threads accumulate
-     * into the supplied LongAdder rather than into the caller-thread's {@link StoreMetrics}.
+     * Wraps the search executor so that bytes read by collection worker threads accumulate
+     * into the supplied LongAdder.
      * <p>
      * Slices that Lucene's TaskExecutor runs on the caller thread go through {@code invokeAll}
      * but not through Executor#execute, so their bytes naturally stay on the caller and are

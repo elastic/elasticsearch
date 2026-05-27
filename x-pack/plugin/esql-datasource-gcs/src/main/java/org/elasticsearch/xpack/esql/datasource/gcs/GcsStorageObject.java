@@ -15,7 +15,7 @@ import com.google.cloud.storage.StorageException;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.AbstractMeteredStorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -42,7 +42,7 @@ import java.util.concurrent.Executor;
  *       non-blocking like {@code HttpClient.sendAsync()} or {@code S3AsyncClient}.</li>
  * </ul>
  */
-public final class GcsStorageObject implements StorageObject {
+public final class GcsStorageObject extends AbstractMeteredStorageObject {
     private final Storage storage;
     private final String bucket;
     private final String objectName;
@@ -51,6 +51,9 @@ public final class GcsStorageObject implements StorageObject {
     private Long cachedLength;
     private Instant cachedLastModified;
     private Boolean cachedExists;
+
+    // TODO: GCS retries are managed inside RetryHelper at the Storage client layer; intercepting
+    // them here would require wrapping the Storage instance. Not counted in this PR.
 
     public GcsStorageObject(Storage storage, String bucket, String objectName, StoragePath path) {
         if (storage == null) {
@@ -83,12 +86,20 @@ public final class GcsStorageObject implements StorageObject {
 
     @Override
     public InputStream newStream() throws IOException {
+        long startNanos = System.nanoTime();
+        long bytes = 0L;
         try {
             BlobId blobId = BlobId.of(bucket, objectName);
             ReadChannel reader = storage.reader(blobId);
+            // GCS ReadChannel does not expose content length on open; fall back to cached size if known.
+            if (cachedLength != null) {
+                bytes = cachedLength;
+            }
             return Channels.newInputStream(reader);
         } catch (StorageException e) {
             throw wrapException(e, "Failed to read object from");
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, bytes);
         }
     }
 
@@ -101,6 +112,7 @@ public final class GcsStorageObject implements StorageObject {
             throw new IllegalArgumentException("length must be non-negative, got: " + length);
         }
 
+        long startNanos = System.nanoTime();
         try {
             BlobId blobId = BlobId.of(bucket, objectName);
             ReadChannel reader = storage.reader(blobId);
@@ -109,6 +121,8 @@ public final class GcsStorageObject implements StorageObject {
             return Channels.newInputStream(reader);
         } catch (StorageException e) {
             throw wrapException(e, "Range request failed for");
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, length);
         }
     }
 
@@ -149,12 +163,13 @@ public final class GcsStorageObject implements StorageObject {
         if (target.hasRemaining() == false) {
             return 0;
         }
+        long startNanos = System.nanoTime();
+        int totalRead = 0;
         try {
             BlobId blobId = BlobId.of(bucket, objectName);
             try (ReadChannel reader = storage.reader(blobId)) {
                 reader.seek(position);
                 reader.limit(position + target.remaining());
-                int totalRead = 0;
                 while (target.hasRemaining()) {
                     int n = readFromChannel(reader, target);
                     if (n < 0) {
@@ -166,6 +181,8 @@ public final class GcsStorageObject implements StorageObject {
             }
         } catch (StorageException e) {
             throw wrapException(e, "Failed to read bytes from");
+        } finally {
+            counters.addRequest(System.nanoTime() - startNanos, totalRead);
         }
     }
 
@@ -181,6 +198,8 @@ public final class GcsStorageObject implements StorageObject {
         }
 
         executor.execute(() -> {
+            long startNanos = System.nanoTime();
+            int payloadBytes = 0;
             try {
                 BlobId blobId = BlobId.of(bucket, objectName);
                 try (ReadChannel reader = storage.reader(blobId)) {
@@ -194,11 +213,16 @@ public final class GcsStorageObject implements StorageObject {
                         }
                     }
                     buffer.flip();
+                    payloadBytes = buffer.remaining();
+                    counters.addRequest(System.nanoTime() - startNanos, payloadBytes);
                     listener.onResponse(buffer);
+                    return;
                 }
             } catch (StorageException e) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
                 listener.onFailure(wrapException(e, "Failed to read bytes from"));
             } catch (Exception e) {
+                counters.addRequest(System.nanoTime() - startNanos, 0L);
                 listener.onFailure(e);
             }
         });

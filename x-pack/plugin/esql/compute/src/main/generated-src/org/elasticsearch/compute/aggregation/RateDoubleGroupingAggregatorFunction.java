@@ -644,6 +644,8 @@ public final class RateDoubleGroupingAggregatorFunction extends AbstractRateGrou
             state.appendInterval(first.ts, first.v, first.ts, first.v);
             return;
         }
+        // JIT scalar replacement should have an easy job on these three values below
+        // making this as fast as directly using primitives
         final var prev = new ValueWithTimestamp();
         final var current = new ValueWithTimestamp();
         final var last = new ValueWithTimestamp();

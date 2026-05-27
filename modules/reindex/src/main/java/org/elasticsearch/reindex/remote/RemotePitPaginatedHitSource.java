@@ -20,12 +20,14 @@ import org.elasticsearch.index.reindex.RejectAwareActionListener;
 import org.elasticsearch.index.reindex.RemoteInfo;
 import org.elasticsearch.index.reindex.ResumeInfo.PitWorkerResumeInfo;
 import org.elasticsearch.reindex.PitPaginatedHitSource;
+import org.elasticsearch.reindex.SearchContextKeepaliveDeadline;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
 import java.util.Optional;
+import java.util.OptionalLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 
@@ -46,6 +48,12 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
     private final AtomicReference<BytesReference> pitId;
     private final TimeValue baseKeepAlive;
     private final Version remoteVersion;
+    private final SearchContextKeepaliveDeadline keepaliveDeadline;
+    /**
+     * Keep-alive sent with the PIT search HTTP request currently in flight.
+     * Cleared after each successful response.
+     */
+    private final AtomicReference<TimeValue> currentKeepAlive = new AtomicReference<>();
 
     public RemotePitPaginatedHitSource(
         Logger logger,
@@ -57,13 +65,15 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
         RestClient client,
         RemoteInfo remoteInfo,
         SearchRequest searchRequest,
-        Version remoteVersion
+        Version remoteVersion,
+        SearchContextKeepaliveDeadline keepaliveDeadline
     ) {
         super(logger, backoffPolicy, threadPool, countSearchRetry, onResponse, fail);
         this.remote = remoteInfo;
         this.searchRequest = searchRequest;
         this.client = client;
         this.remoteVersion = remoteVersion;
+        this.keepaliveDeadline = keepaliveDeadline;
         SearchSourceBuilder source = searchRequest.source();
         if (source == null || source.pointInTimeBuilder() == null) {
             throw new IllegalArgumentException("SearchRequest must have pointInTimeBuilder set for PIT-based remote pagination");
@@ -71,17 +81,17 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
         PointInTimeBuilder pitBuilder = source.pointInTimeBuilder();
         this.pitId = new AtomicReference<>(pitBuilder.getEncodedId());
         TimeValue keepAlive = pitBuilder.getKeepAlive();
-        // TODO - https://github.com/elastic/elasticsearch-team/issues/2334
         this.baseKeepAlive = keepAlive != null ? keepAlive : TimeValue.timeValueMinutes(5);
     }
 
     @Override
     protected void doFirstSearch(RejectAwareActionListener<Response> searchListener) {
         logger.debug("executing initial remote pit search");
+        currentKeepAlive.set(baseKeepAlive);
         execute(
             RemoteRequestBuilders.pitSearch(searchRequest, remote.getQuery(), pitId.get(), baseKeepAlive, null, remoteVersion),
             RESPONSE_PARSER,
-            RejectAwareActionListener.withResponseHandler(searchListener, r -> onPitResponse(searchListener, r)),
+            wrapPitSearchListener(searchListener),
             threadPool,
             client
         );
@@ -102,20 +112,50 @@ public class RemotePitPaginatedHitSource extends PitPaginatedHitSource {
         if (response.getPitId() != null) {
             pitId.set(response.getPitId());
         }
-        searchListener.onResponse(response);
+        // Substitute the cached total on follow-up batches whose response total is a placeholder.
+        OptionalLong cachedTotal = getCachedTotalHits();
+        Response delivered = response;
+        if (cachedTotal.isPresent()) {
+            delivered = new Response(
+                response.isTimedOut(),
+                response.getFailures(),
+                cachedTotal.getAsLong(),
+                response.getHits(),
+                response.getScrollId(),
+                response.getSearchAfterValues(),
+                response.getPitId()
+            );
+        }
+        searchListener.onResponse(delivered);
     }
 
     @Override
     protected void doNextPitSearch(Object[] searchAfter, TimeValue extraKeepAlive, RejectAwareActionListener<Response> searchListener) {
-        // TODO - https://github.com/elastic/elasticsearch-team/issues/2334
         TimeValue keepAlive = timeValueNanos(baseKeepAlive.nanos() + extraKeepAlive.nanos());
+        currentKeepAlive.set(keepAlive);
+        // Cache is seeded after the first batch, so drop track_total_hits on follow-ups to keep Max WAND active.
+        SearchRequest nextRequest = searchRequest;
+        if (getCachedTotalHits().isPresent()) {
+            SearchSourceBuilder source = searchRequest.source().shallowCopy().trackTotalHits(false);
+            nextRequest = new SearchRequest(searchRequest).source(source);
+        }
         execute(
-            RemoteRequestBuilders.pitSearch(searchRequest, remote.getQuery(), pitId.get(), keepAlive, searchAfter, remoteVersion),
+            RemoteRequestBuilders.pitSearch(nextRequest, remote.getQuery(), pitId.get(), keepAlive, searchAfter, remoteVersion),
             RESPONSE_PARSER,
-            RejectAwareActionListener.withResponseHandler(searchListener, r -> onPitResponse(searchListener, r)),
+            wrapPitSearchListener(searchListener),
             threadPool,
             client
         );
+    }
+
+    private RejectAwareActionListener<Response> wrapPitSearchListener(RejectAwareActionListener<Response> searchListener) {
+        return RejectAwareActionListener.withResponseHandler(searchListener, r -> {
+            TimeValue keepAlive = currentKeepAlive.getAndSet(null);
+            if (keepAlive != null) {
+                keepaliveDeadline.recordSuccessfulExtension(keepAlive);
+            }
+            onPitResponse(searchListener, r);
+        });
     }
 
     @Override

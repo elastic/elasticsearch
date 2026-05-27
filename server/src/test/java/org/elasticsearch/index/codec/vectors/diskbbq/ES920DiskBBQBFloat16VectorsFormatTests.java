@@ -37,7 +37,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class ES920DiskBBQBFloat16VectorsFormatTests extends BaseBFloat16KnnVectorsFormatTestCase {
 
     static {
-        LogConfigurator.loadLog4jPlugins();
         LogConfigurator.configureESLogging(); // native access requires logging to be initialized
     }
 

@@ -107,15 +107,13 @@ public final class GcsFixtureUtils {
 
             String tokenUri = getAddress() + "/" + TOKEN;
 
-            StringBuilder params = new StringBuilder();
-            params.append(" WITH { ");
-            params.append("\"endpoint\": \"").append(getAddress()).append("\", ");
-            params.append("\"credentials\": \"").append(escapedCredentials).append("\", ");
-            params.append("\"project_id\": \"test\", ");
-            params.append("\"token_uri\": \"").append(tokenUri).append("\"");
-            params.append(" }");
+            StringBuilder entries = new StringBuilder();
+            entries.append("\"endpoint\": \"").append(getAddress()).append("\", ");
+            entries.append("\"credentials\": \"").append(escapedCredentials).append("\", ");
+            entries.append("\"project_id\": \"test\", ");
+            entries.append("\"token_uri\": \"").append(tokenUri).append("\"");
 
-            return externalPart + params + restOfQuery;
+            return FixtureUtils.injectWithEntries(externalPart, entries.toString()) + restOfQuery;
         }
     }
 }

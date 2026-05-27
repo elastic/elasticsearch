@@ -70,10 +70,10 @@ public abstract class BlockLoaderTestCase extends MapperServiceTestCase {
 
     public record TestContext(boolean forceFallbackSyntheticSource, boolean isMultifield) {}
 
-    private final String fieldType;
+    protected final String fieldType;
     protected final Params params;
     private final Collection<DataSourceHandler> customDataSourceHandlers;
-    private final BlockLoaderTestRunner runner;
+    protected final BlockLoaderTestRunner runner;
 
     protected final String fieldName;
 

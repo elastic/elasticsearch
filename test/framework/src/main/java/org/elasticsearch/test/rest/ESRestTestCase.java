@@ -80,6 +80,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.AbstractBroadcastResponseTestCase;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.IntOrLongMatcher;
 import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.XContentTestUtils;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -300,7 +301,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         return nodesVersions;
     }
 
-    protected static Set<String> readVersionsFromNodesInfo(RestClient adminClient) throws IOException {
+    public static Set<String> readVersionsFromNodesInfo(RestClient adminClient) throws IOException {
         return getNodesInfo(adminClient).values().stream().map(nodeInfo -> nodeInfo.get("version").toString()).collect(Collectors.toSet());
     }
 
@@ -1983,6 +1984,32 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     /**
+     * Waits for the given index (pattern) to be at least yellow with no shards initializing or relocating. This is the
+     * appropriate wait condition before querying for documents written prior to a restart or upgrade: yellow alone is
+     * satisfied as soon as the primary is STARTED, but searches routed to an INITIALIZING replica can return stale or
+     * empty results until peer recovery completes, which often surfaces as a 404 from APIs that translate "no hits" to
+     * "not found".
+     *
+     * Prefer this over a raw {@link #ensureHealth} call in any BWC, full-cluster-restart, or rolling-upgrade test that
+     * reads back data indexed before the restart/upgrade. {@link #ensureGreen} is unsuitable for the MIXED phase of
+     * rolling-upgrade tests on indices with {@code auto_expand_replicas=0-1}, since one node is offline at a time and
+     * the cluster legitimately stays yellow.
+     *
+     * @param index index pattern to check (use {@code ""} for cluster-wide health)
+     * @param timeout optional health-check timeout (e.g. {@code "120s"}); {@code null} uses the server default
+     */
+    public static void ensureYellowAndNoInitializingShards(String index, String timeout) throws IOException {
+        ensureHealth(index, (request) -> {
+            request.addParameter("wait_for_status", "yellow");
+            request.addParameter("wait_for_no_relocating_shards", "true");
+            request.addParameter("wait_for_no_initializing_shards", "true");
+            if (timeout != null) {
+                request.addParameter("timeout", timeout);
+            }
+        });
+    }
+
+    /**
      * waits until all shard initialization is completed. This is a handy alternative to ensureGreen as it relates to all shards
      * in the cluster and doesn't require to know how many nodes/replica there are.
      */
@@ -2720,6 +2747,16 @@ public abstract class ESRestTestCase extends ESTestCase {
         return Optional.empty();
     }
 
+    /**
+     * Builds a {@link TestFeatureService} for executing client YAML against an arbitrary cluster before the
+     * usual per-test {@link ESRestTestCase} client initialization (for example seeding a CCS remote from {@code @BeforeClass}).
+     * Pass the version set from {@link #readVersionsFromNodesInfo} to avoid a redundant {@code /_nodes} call.
+     */
+    public static TestFeatureService newYamlTestFeatureServiceForCluster(RestClient adminClient, Set<String> versions) throws IOException {
+        Map<String, Set<String>> clusterStateFeatures = getClusterStateFeatures(adminClient);
+        return new ESRestTestFeatureService(fromSemanticVersions(versions), clusterStateFeatures.values());
+    }
+
     public static VersionFeaturesPredicate fromSemanticVersions(Set<String> nodesVersions) {
         Set<Version> semanticNodeVersions = nodesVersions.stream()
             .map(ESRestTestCase::parseLegacyVersion)
@@ -2891,6 +2928,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             .entry("planning", instanceOf(Map.class))
             .entry("parsing", instanceOf(Map.class))
             .entry("view_resolution", instanceOf(Map.class))
+            .entry("dataset_resolution", instanceOf(Map.class))
             .entry("preanalysis", instanceOf(Map.class))
             .entry("indices_resolution", instanceOf(Map.class))
             .entry("enrich_resolution", instanceOf(Map.class))
@@ -2902,12 +2940,26 @@ public abstract class ESRestTestCase extends ESTestCase {
             .entry("minimumTransportVersion", instanceOf(Integer.class));
     }
 
-    protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound, boolean includeTimestamps) {
+    protected static MapMatcher getResultMatcher(
+        boolean includePartial,
+        boolean includeDocumentsFound,
+        boolean includeTimestamps,
+        boolean includeRollupMetrics
+    ) {
         MapMatcher mapMatcher = matchesMap();
         if (includeDocumentsFound) {
             // Older versions may not return documents_found and values_loaded.
             mapMatcher = mapMatcher.entry("documents_found", greaterThanOrEqualTo(0));
             mapMatcher = mapMatcher.entry("values_loaded", greaterThanOrEqualTo(0));
+        }
+        if (includeRollupMetrics) {
+            // Query-wide rollup metrics added with esql_external_source_profile TV. Older nodes
+            // don't emit these. JSON parsing yields Integer for small values and Long for large
+            // (e.g. cpu_nanos easily overflows Integer); use isIntOrLong() per the EsqlListQueriesActionIT precedent.
+            mapMatcher = mapMatcher.entry("rows_emitted", IntOrLongMatcher.isIntOrLong());
+            mapMatcher = mapMatcher.entry("bytes_read", IntOrLongMatcher.isIntOrLong());
+            mapMatcher = mapMatcher.entry("read_nanos", IntOrLongMatcher.isIntOrLong());
+            mapMatcher = mapMatcher.entry("cpu_nanos", IntOrLongMatcher.isIntOrLong());
         }
         if (includeTimestamps) {
             // Older versions may not return start_time_in_millis, completion_time_in_millis and expiration_time_in_millis
@@ -2924,6 +2976,12 @@ public abstract class ESRestTestCase extends ESTestCase {
         return mapMatcher;
     }
 
+    /** Deprecated three-arg form kept for callers that haven't been updated for the rollup metrics. */
+    @Deprecated
+    protected static MapMatcher getResultMatcher(boolean includePartial, boolean includeDocumentsFound, boolean includeTimestamps) {
+        return getResultMatcher(includePartial, includeDocumentsFound, includeTimestamps, false);
+    }
+
     /**
      * Create empty result matcher from result, taking into account all metadata items.
      */
@@ -2931,7 +2989,8 @@ public abstract class ESRestTestCase extends ESTestCase {
         return getResultMatcher(
             result.containsKey("is_partial"),
             result.containsKey("documents_found"),
-            result.containsKey("start_time_in_millis")
+            result.containsKey("start_time_in_millis"),
+            result.containsKey("rows_emitted")
         );
     }
 

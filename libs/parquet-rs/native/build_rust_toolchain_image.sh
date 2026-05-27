@@ -19,6 +19,9 @@
 
 set -euo pipefail
 
+# Stable version as of 2026-04
+VERSION=1.95
+
 LOCAL=false
 case "${1:-}" in
   "")      ;;
@@ -26,9 +29,9 @@ case "${1:-}" in
   *)       echo "Usage: $0 [--local]" >&2; exit 1 ;;
 esac
 
-VERSION=1
+# elasticsearch-dev is publicly readable.
 HOST=docker.elastic.co
-REPOSITORY=elasticsearch-infra/es-rust-cross-toolchain
+REPOSITORY=elasticsearch-dev/es-rust-cross-toolchain
 IMAGE=$HOST/$REPOSITORY:$VERSION
 if [ "$LOCAL" = true ]; then
   IMAGE=es-rust-cross-toolchain:local
@@ -40,6 +43,7 @@ if [ "$LOCAL" = true ]; then
   echo "Building $IMAGE (host platform only) ..."
   docker build --pull \
     -f Dockerfile.rust-toolchain \
+    --build-arg VERSION=$VERSION \
     -t "$IMAGE" \
     .
   echo "Local build complete. Image tagged as $IMAGE."

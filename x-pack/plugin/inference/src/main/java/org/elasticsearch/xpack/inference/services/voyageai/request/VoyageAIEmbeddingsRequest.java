@@ -13,9 +13,9 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
-import org.elasticsearch.xpack.inference.external.request.DenseEmbeddingRequest;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
-import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.OutboundDenseEmbeddingRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRequest;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.voyageai.embeddings.VoyageAIEmbeddingsServiceSettings;
 
@@ -26,7 +26,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.voyageai.request.VoyageAIRequestUtils.decorateWithHeaders;
 
-public class VoyageAIEmbeddingsRequest implements DenseEmbeddingRequest {
+public class VoyageAIEmbeddingsRequest implements OutboundDenseEmbeddingRequest {
 
     private final List<String> input;
     private final InputType inputType;
@@ -48,8 +48,7 @@ public class VoyageAIEmbeddingsRequest implements DenseEmbeddingRequest {
                     input,
                     inputType,
                     embeddingsModel.getServiceSettings(),
-                    embeddingsModel.getTaskSettings(),
-                    embeddingsModel.getServiceSettings().modelId()
+                    embeddingsModel.getTaskSettings()
                 )
             ).getBytes(StandardCharsets.UTF_8)
         );
@@ -76,7 +75,7 @@ public class VoyageAIEmbeddingsRequest implements DenseEmbeddingRequest {
     }
 
     @Override
-    public Request truncate() {
+    public OutboundRequest truncate() {
         return this;
     }
 

@@ -52,7 +52,11 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
             true,
             random().nextBoolean() ? NUMERIC_LARGE_BLOCK_SHIFT : NUMERIC_BLOCK_SHIFT,
-            random().nextBoolean()
+            random().nextBoolean(),
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
+            NumericCodecFactory.DEFAULT,
+            ES95NumericFieldReader::defaultFallbackDecoder
         );
 
         @Override
@@ -236,7 +240,20 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
 
         for (int blockShift : new int[] { NUMERIC_BLOCK_SHIFT, NUMERIC_LARGE_BLOCK_SHIFT }) {
             try (Directory dir = newDirectory()) {
-                try (IndexWriter writer = new IndexWriter(dir, writerConfig(new ES95TSDBDocValuesFormat(blockShift)))) {
+                final DocValuesFormat format = new ES95TSDBDocValuesFormat(
+                    DEFAULT_SKIP_INDEX_INTERVAL_SIZE,
+                    ORDINAL_RANGE_ENCODING_MIN_DOC_PER_ORDINAL,
+                    true,
+                    BinaryDVCompressionMode.COMPRESSED_ZSTD_LEVEL_1,
+                    true,
+                    blockShift,
+                    false,
+                    ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+                    ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
+                    NumericCodecFactory.DEFAULT,
+                    ES95NumericFieldReader::defaultFallbackDecoder
+                );
+                try (IndexWriter writer = new IndexWriter(dir, writerConfig(format))) {
                     for (int i = 0; i < numDocs; i++) {
                         final Document doc = new Document();
                         doc.add(new NumericDocValuesField("field", values[i]));
@@ -318,6 +335,8 @@ public class ES95TSDBDocValuesFormatTests extends AbstractTSDBDocValuesFormatTes
             true,
             ESTestCase.randomBoolean() ? NUMERIC_BLOCK_SHIFT : NUMERIC_LARGE_BLOCK_SHIFT,
             false,
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_BYTES_THRESHOLD_DEFAULT,
+            ES95TSDBDocValuesFormat.BINARY_DV_BLOCK_COUNT_THRESHOLD_DEFAULT,
             NumericCodecFactory.DEFAULT,
             blockSize -> (input, values, count) -> {
                 throw new AssertionError("fallback decoder should not be reached for pipeline-encoded numeric fields");

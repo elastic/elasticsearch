@@ -1,6 +1,0 @@
-area: Engine
-issues:
- - 143993
-pr: 144067
-summary: Ensure acquired snapshot commit is always flushed
-type: enhancement

@@ -94,6 +94,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.FlattenedCases;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohash;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeohex;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StGeotile;
@@ -107,6 +108,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
@@ -666,6 +668,7 @@ public final class EsqlTestUtils {
         return new MutableAnalyzerContext(
             configuration,
             functionRegistry,
+            TEST_PROMQL_FUNCTION_REGISTRY,
             indexResolutions,
             lookupResolution,
             enrichResolution,
@@ -680,7 +683,17 @@ public final class EsqlTestUtils {
         return new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG, FoldContext.small(), randomMinimumVersion());
     }
 
+    public static LogicalOptimizerContext unboundLogicalOptimizerContext(TransportVersion minimumVersion) {
+        return new LogicalOptimizerContext(
+            EsqlTestUtils.TEST_CFG,
+            FoldContext.small(),
+            TransportVersionUtils.randomVersionSupporting(minimumVersion)
+        );
+    }
+
     public static final EsqlFunctionRegistry TEST_FUNCTION_REGISTRY = new EsqlFunctionRegistry();
+
+    public static final PromqlFunctionRegistry TEST_PROMQL_FUNCTION_REGISTRY = new PromqlFunctionRegistry();
 
     public static final EsqlParser TEST_PARSER = new EsqlParser(new EsqlConfig(TEST_FUNCTION_REGISTRY));
 
@@ -1187,6 +1200,7 @@ public final class EsqlTestUtils {
                     throw new UncheckedIOException(e);
                 }
             }
+            case FLATTENED -> FlattenedCases.RANDOM.get();
             case TSID_DATA_TYPE -> randomTsId().toBytesRef();
             case HISTOGRAM -> randomHistogram();
             case DENSE_VECTOR -> Arrays.asList(randomArray(10, 10, i -> new Float[10], ESTestCase::randomFloat));
@@ -1405,7 +1419,7 @@ public final class EsqlTestUtils {
         try (InputStream content = entity.getContent()) {
             XContentType xContentType = XContentType.fromMediaType(entity.getContentType().getValue());
             assertEquals(expectedContentType, xContentType);
-            return XContentHelper.convertToMap(xContentType.xContent(), content, false /* ordered */);
+            return XContentHelper.convertToMap(xContentType.xContent(), content, true /* ordered */);
         }
     }
 
@@ -1664,6 +1678,12 @@ public final class EsqlTestUtils {
         mainFrom = mainFromCommandWithMetadata.get(0).strip();
         // if there is metadata, we need to add it back later
         String metadata = mainFromCommandWithMetadata.size() > 1 ? " metadata " + mainFromCommandWithMetadata.get(1) : "";
+        // Subqueries whose outer command is ROW (rather than FROM) still contain commas as part of ROW
+        // syntax — those must never be interpreted as UNION-of-sources branches nor rewritten into a FROM.
+        // Example: ROW emp_no = 99999, languages = 99
+        if (startsWithRowCommand(mainFrom)) {
+            return query;
+        }
         // the main from command could be a comma separated list of index patterns, and subqueries
         List<String> indexPatternsAndSubqueries = splitIgnoringParentheses(mainFrom, ",");
         List<String> transformed = new ArrayList<>();
@@ -1695,6 +1715,15 @@ public final class EsqlTestUtils {
 
         LOGGER.trace("Transform query: \nFROM: {}\nTO:   {}", query, testQuery);
         return testQuery;
+    }
+
+    private static final Pattern ROW_COMMAND_PATTERN = Pattern.compile("row\\p{javaWhitespace}", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * True when the clause begins with ROW as a keyword (case-insensitive) followed by whitespace.
+     */
+    private static boolean startsWithRowCommand(String mainFromClause) {
+        return ROW_COMMAND_PATTERN.matcher(mainFromClause.strip()).lookingAt();
     }
 
     /**

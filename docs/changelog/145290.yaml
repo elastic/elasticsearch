@@ -1,0 +1,6 @@
+pr: 145290
+summary: Reject reindexes with wrong parameters
+area: Reindex
+type: enhancement
+issues:
+ - 37855

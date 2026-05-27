@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.support.MappedActionFilter;
 import org.elasticsearch.client.internal.Client;
@@ -31,6 +32,7 @@ import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.inference.InferenceServiceExtension;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.telemetry.InferenceStats;
+import org.elasticsearch.inference.telemetry.NodeTelemetryAttributes;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
@@ -72,6 +74,7 @@ import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.InferenceActionProxy;
 import org.elasticsearch.xpack.core.inference.action.PutCCMConfigurationAction;
 import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
+import org.elasticsearch.xpack.core.inference.action.RerankAction;
 import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsAction;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
@@ -90,6 +93,7 @@ import org.elasticsearch.xpack.inference.action.TransportInferenceActionProxy;
 import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.action.TransportRerankAction;
 import org.elasticsearch.xpack.inference.action.TransportStoreEndpointsAction;
 import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
@@ -196,6 +200,7 @@ import java.util.function.Supplier;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.INDICES_INFERENCE_BATCH_SIZE;
 
 public class InferencePlugin extends Plugin
@@ -244,7 +249,6 @@ public class InferencePlugin extends Plugin
         License.OperationMode.ENTERPRISE
     );
 
-    public static final String X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER = "X-elastic-product-use-case";
     public static final String X_ELASTIC_ES_VERSION = "X-elastic-es-version";
 
     public static final String NAME = "inference";
@@ -301,7 +305,8 @@ public class InferencePlugin extends Plugin
             new ActionHandler(CCMCache.ClearCCMCacheAction.INSTANCE, CCMCache.ClearCCMCacheAction.class),
             new ActionHandler(AuthorizationTaskExecutor.Action.INSTANCE, AuthorizationTaskExecutor.Action.class),
             new ActionHandler(GetInferenceFieldsInternalAction.INSTANCE, TransportGetInferenceFieldsInternalAction.class),
-            new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class)
+            new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class),
+            new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class)
         );
     }
 
@@ -400,7 +405,8 @@ public class InferencePlugin extends Plugin
         ));
 
         var meterRegistry = services.telemetryProvider().getMeterRegistry();
-        var inferenceStats = InferenceStats.create(meterRegistry);
+        var nodeAttributes = NodeTelemetryAttributes.from(Build.current(), settings);
+        var inferenceStats = InferenceStats.create(meterRegistry, nodeAttributes);
         var inferenceStatsBinding = new PluginComponentBinding<>(InferenceStats.class, inferenceStats);
 
         var factoryContext = new InferenceServiceExtension.InferenceServiceFactoryContext(

@@ -12,15 +12,25 @@ package org.elasticsearch.search.vectors;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.document.KnnByteVectorField;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.search.Query;
 
 public class DenseVectorQueryBytesTests extends AbstractDenseVectorQueryTestCase {
     @Override
     DenseVectorQuery getDenseVectorQuery(String field, float[] query) {
+        return new DenseVectorQuery.Bytes(toBytes(query), field, null);
+    }
+
+    @Override
+    DenseVectorQuery getDenseVectorQuery(String field, float[] query, Query filter) {
+        return new DenseVectorQuery.Bytes(toBytes(query), field, filter);
+    }
+
+    private static byte[] toBytes(float[] query) {
         byte[] bytes = new byte[query.length];
         for (int i = 0; i < query.length; i++) {
             bytes[i] = (byte) query[i];
         }
-        return new DenseVectorQuery.Bytes(bytes, field);
+        return bytes;
     }
 
     @Override

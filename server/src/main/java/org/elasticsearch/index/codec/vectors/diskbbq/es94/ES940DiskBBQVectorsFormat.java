@@ -276,7 +276,9 @@ public class ES940DiskBBQVectorsFormat extends KnnVectorsFormat {
             return maxDiscretized;
         }
 
-        /** Return the number of bytes required to store a packed vector of the given dimensions. */
+        /**
+         * Return the number of bytes required to store a packed vector of the given dimensions.
+         */
         public int getDocPackedLength(int dimensions) {
             int discretized = discretizedDimensions(dimensions);
             // how many bytes do we need to store the quantized vector?

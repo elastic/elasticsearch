@@ -319,8 +319,13 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
                     : "shard [" + pair + "] can remain on node [" + nodeId + "], but that node is shutting down";
                 return pair.v2().getMoveDecision().cannotRemain();
             })
-            // These shards will move as soon as possible
-            .filter(pair -> pair.v2().getMoveDecision().getAllocationDecision().equals(AllocationDecision.YES) == false)
+            // These shards will move as soon as possible. A NOT_PREFERRED move decision still
+            // means the shard can migrate (see MoveDecision#cannotRemainAndCanMove), so we must
+            // not treat it as unmovable when the shard cannot remain on the shutting down node.
+            .filter(pair -> {
+                AllocationDecision moveDecision = pair.v2().getMoveDecision().getAllocationDecision();
+                return moveDecision != AllocationDecision.YES && moveDecision != AllocationDecision.NOT_PREFERRED;
+            })
             .toList();
 
         // If there's no relocating shards and shards still on this node, we need to figure out why
@@ -339,17 +344,19 @@ public class TransportGetShutdownStatusAction extends TransportMasterNodeAction<
             })
             // If ILM is shrinking the index this shard is part of, it'll look like it's unmovable, but we can just wait for ILM to finish
             .filter(pair -> isIlmRestrictingShardMovement(currentState.metadata().getProject(), pair.v1()) == false)
-            .peek(
-                pair -> logger.debug(
-                    "node [{}] shutdown of type [{}] stalled: found shard [{}][{}] from index [{}] with negative decision: [{}]",
-                    nodeId,
-                    shutdownType,
-                    pair.v1().getId(),
-                    pair.v1().primary() ? "primary" : "replica",
-                    pair.v1().shardId().getIndexName(),
-                    Strings.toString(pair.v2())
-                )
-            )
+            .peek(pair -> {
+                if (logger.isDebugEnabled()) {
+                    logger.debug(
+                        "node [{}] shutdown of type [{}] stalled: found shard [{}][{}] from index [{}] with negative decision: [{}]",
+                        nodeId,
+                        shutdownType,
+                        pair.v1().getId(),
+                        pair.v1().primary() ? "primary" : "replica",
+                        pair.v1().shardId().getIndexName(),
+                        Strings.toTruncatedString(pair.v2())
+                    );
+                }
+            })
             .findFirst();
 
         var temporarilyUnmovableShards = unmovableShards.stream()

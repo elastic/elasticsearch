@@ -1,6 +1,6 @@
 setup:
   - requires:
-      test_runner_features: [allowed_warnings_regex, allowed_warnings]
+      test_runner_features: [allowed_warnings_regex, allowed_warnings, capabilities]
   - do:
       indices.create:
           index: test
@@ -183,6 +183,37 @@ setup:
         body:
           - '{"index": {}}'
           - '{"@timestamp": "2021-04-28T23:50:04.467Z", "agg_metric": {"sum": 1, "value_count": 10}, "k8s": {"pod": {"uid":"947e4ced-1786-4e53-9e0c-5c447e959507"}}}'
+
+  - do:
+      indices.create:
+        index: test_counter_double
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [dim]
+              time_series:
+                start_time: 2021-04-28T00:00:00Z
+                end_time: 2021-04-29T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              dim:
+                type: keyword
+                time_series_dimension: true
+              value:
+                type: double
+                time_series_metric: counter
+
+  - do:
+      indices.create:
+        index: idx_histogram
+        body:
+          mappings:
+            properties:
+              h:
+                type: histogram
 
 ---
 load everything:
@@ -1131,3 +1162,69 @@ Stats on aggregate_metric_double with no count, but has sum:
   - match: {values.0.2: 0}
   - match: {values.0.3: null}
   - match: {values.0.4: null}
+
+---
+'sort by _tsid':
+  - requires:
+      test_runner_features: [ contains ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ sorting_on_histogram_and_tsid_forbidden ]
+      reason: "sorting on _tsid raises a verification error since this fix"
+  - do:
+      catch: bad_request
+      esql.query:
+        body:
+          query: 'FROM test METADATA _tsid | SORT _tsid | LIMIT 3'
+  - match: { status: 400 }
+  - match: { error.type: verification_exception }
+  - contains: { error.reason: 'cannot sort on _tsid' }
+
+---
+sort by counter_integer:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [sorting_on_source_and_counters_forbidden]
+      reason: "Sorting on counters shouldn't have been possible"
+  - do:
+      catch: /cannot sort on counter_integer/
+      esql.query:
+        body:
+          query: 'from test | sort k8s.pod.network.rx | limit 1'
+
+---
+sort by counter_double:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [sorting_on_source_and_counters_forbidden]
+      reason: "Sorting on counters shouldn't have been possible"
+  - do:
+      catch: /cannot sort on counter_double/
+      esql.query:
+        body:
+          query: 'from test_counter_double | sort value | limit 1'
+
+---
+sort by histogram:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [ sorting_on_histogram_and_tsid_forbidden ]
+      reason: "sorting on histogram raises a verification error since this fix"
+  - do:
+      catch: /cannot sort on histogram/
+      esql.query:
+        body:
+          query: 'from idx_histogram | sort h | limit 3'

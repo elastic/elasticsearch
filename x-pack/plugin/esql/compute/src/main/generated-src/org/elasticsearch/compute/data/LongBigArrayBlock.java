@@ -87,6 +87,11 @@ public final class LongBigArrayBlock extends AbstractArrayBlock implements LongB
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
+    @Override
     public long getLong(int valueIndex) {
         return vector.getLong(valueIndex);
     }

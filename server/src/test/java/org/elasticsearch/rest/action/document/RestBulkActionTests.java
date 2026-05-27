@@ -319,6 +319,7 @@ public class RestBulkActionTests extends ESTestCase {
     }
 
     public void testBulkSliceAndRoutingParamsAreMutuallyExclusive() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
         try (var threadPool = createThreadPool()) {
             final var client = new NoOpNodeClient(threadPool);
             FakeRestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath("my_index/_bulk")

@@ -67,7 +67,7 @@ The following examples show how to run parallel branches and combine their resul
 Each `FORK` branch returns one row. `FORK` adds a `_fork` column that indicates
 which branch each row came from:
 
-:::{include} ../examples/fork.csv-spec/simpleFork.md
+:::{include} ../../generated/x-pack-esql/commands/examples/fork.csv-spec/simpleFork.md
 :::
 
 ### Return row count alongside top results
@@ -75,5 +75,5 @@ which branch each row came from:
 Returns the total number of rows that match the query along with
 the top five rows sorted by score:
 
-:::{include} ../examples/fork.csv-spec/simpleForkWithStats.md
+:::{include} ../../generated/x-pack-esql/commands/examples/fork.csv-spec/simpleForkWithStats.md
 :::

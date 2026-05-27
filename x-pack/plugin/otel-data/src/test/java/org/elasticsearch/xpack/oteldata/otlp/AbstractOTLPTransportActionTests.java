@@ -17,6 +17,7 @@ import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
 import org.mockito.ArgumentCaptor;
@@ -85,6 +86,15 @@ public abstract class AbstractOTLPTransportActionTests extends ESTestCase {
         OTLPActionResponse response = executeRequest(createEmptyRequest());
 
         assertThat(parseHasPartialSuccess(response.getResponse().array()), equalTo(false));
+    }
+
+    public void testMalformedProtobufReturnsBadRequest() {
+        OTLPActionRequest malformedRequest = new OTLPActionRequest(new BytesArray(new byte[] { (byte) 0x80 }));
+
+        Exception e = executeRequestExpectingFailure(malformedRequest, new BulkResponse(new BulkItemResponse[] {}, 0));
+
+        assertThat(ExceptionsHelper.status(e), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(e.getMessage(), containsString("Invalid OTLP protobuf payload"));
     }
 
     public void test429() {

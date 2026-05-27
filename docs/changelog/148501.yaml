@@ -1,0 +1,5 @@
+area: ES|QL
+issues: []
+pr: 148501
+summary: Fix Parquet trivially-passes shortcut leaking rows when LIKE is AND'd with a stats-trivial conjunct
+type: bug

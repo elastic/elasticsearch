@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.IOException;
@@ -81,6 +82,14 @@ class RangeStorageObject implements StorageObject {
     }
 
     @Override
+    public void abortStream(InputStream stream) throws IOException {
+        // Forward to the underlying StorageObject so providers like S3 can perform a
+        // non-draining abort (e.g. Abortable.abort()). Falling through to the SPI default
+        // stream.close() would drain the entire response body for partial reads.
+        delegate.abortStream(stream);
+    }
+
+    @Override
     public void readBytesAsync(long position, long length, Executor executor, ActionListener<ByteBuffer> listener) {
         if (position >= this.length) {
             listener.onResponse(ByteBuffer.allocate(0));
@@ -102,6 +111,11 @@ class RangeStorageObject implements StorageObject {
     @Override
     public boolean supportsNativeAsync() {
         return delegate.supportsNativeAsync();
+    }
+
+    @Override
+    public StorageObjectMetrics metrics() {
+        return delegate.metrics();
     }
 
     StorageObject rawDelegate() {

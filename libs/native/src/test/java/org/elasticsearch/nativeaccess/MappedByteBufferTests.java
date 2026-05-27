@@ -24,6 +24,7 @@ import static java.nio.file.StandardOpenOption.CREATE;
 import static java.nio.file.StandardOpenOption.READ;
 import static java.nio.file.StandardOpenOption.WRITE;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class MappedByteBufferTests extends ESTestCase {
 
@@ -126,6 +127,30 @@ public class MappedByteBufferTests extends ESTestCase {
         expectThrows(IOOBE, () -> mappedByteBuffer.prefetch(3, size));
         expectThrows(IOOBE, () -> mappedByteBuffer.prefetch(0, size + 1));
         expectThrows(IOOBE, () -> mappedByteBuffer.prefetch(0, size + 2));
+    }
+
+    // Verifies that slicing a buffer preserves its concrete type, so that
+    // platform-specific operations like prefetch and madvise remain functional.
+    public void testSlicePreservesConcreteType() throws IOException {
+        int size = 4096;
+        var tmp = createTempDir();
+        Path file = tmp.resolve("testSliceType");
+        Files.write(file, newByteArray(size, 0), CREATE, WRITE);
+        file = Unwrappable.unwrapAll(file);
+        try (
+            FileChannel fileChannel = FileChannel.open(file, READ);
+            CloseableMappedByteBuffer mappedByteBuffer = nativeAccess.map(fileChannel, MapMode.READ_ONLY, 0, size)
+        ) {
+            try (var slice = mappedByteBuffer.slice(0, size)) {
+                assertThat(slice, instanceOf(mappedByteBuffer.getClass()));
+            }
+            try (var slice = mappedByteBuffer.slice(0, 1024)) {
+                assertThat(slice, instanceOf(mappedByteBuffer.getClass()));
+            }
+            try (var slice = mappedByteBuffer.slice(1024, 1024)) {
+                assertThat(slice, instanceOf(mappedByteBuffer.getClass()));
+            }
+        }
     }
 
     static void assertSliceOfBuffer(CloseableMappedByteBuffer mappedByteBuffer, int offset, int length) {

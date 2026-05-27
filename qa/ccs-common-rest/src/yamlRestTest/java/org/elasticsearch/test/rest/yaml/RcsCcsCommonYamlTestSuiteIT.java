@@ -68,7 +68,7 @@ import static org.elasticsearch.test.rest.yaml.CcsCommonYamlTestSuiteIT.rewrite;
  * by subclassing this class then add an entry to {@link TestSuiteApiCheck} mapping the API
  * name(s) to the new class.
  */
-@TimeoutSuite(millis = 25 * TimeUnits.MINUTE) // to account for slow as hell VMs
+@TimeoutSuite(millis = 30 * TimeUnits.MINUTE) // to account for slow as hell VMs
 public class RcsCcsCommonYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
 
     private static final Logger logger = LogManager.getLogger(RcsCcsCommonYamlTestSuiteIT.class);

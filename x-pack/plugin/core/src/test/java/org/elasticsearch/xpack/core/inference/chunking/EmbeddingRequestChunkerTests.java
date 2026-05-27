@@ -1103,10 +1103,7 @@ public class EmbeddingRequestChunkerTests extends ESTestCase {
         InferenceString nonTextString = new InferenceString(randomValueOtherThan(TEXT, () -> randomFrom(DataType.values())), TEST_DATA_URI);
         WordBoundaryChunkingSettings chunkingSettings = new WordBoundaryChunkingSettings(1, 0);
         ChunkInferenceInput imageInput = new ChunkInferenceInput(new InferenceStringGroup(nonTextString), chunkingSettings);
-        ChunkInferenceInput textInput = new ChunkInferenceInput(
-            new InferenceStringGroup(new InferenceString(TEXT, "text chunks")),
-            chunkingSettings
-        );
+        ChunkInferenceInput textInput = new ChunkInferenceInput(new InferenceStringGroup("text chunks"), chunkingSettings);
 
         var batches = new EmbeddingRequestChunker<>(
             List.of(imageInput, textInput),

@@ -619,7 +619,14 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
                 "[_slice] is not allowed when [index.slice.enabled] is false for bulk item targeting [" + writeRequest.index() + "]"
             );
         }
-        if (sliceEnabled && writeRequest.routing() == null) {
+        if (sliceEnabled && writeRequest.isRoutingFromSlice() == false) {
+            if (writeRequest.routing() != null) {
+                throw new IllegalArgumentException(
+                    "[routing] is not allowed when [index.slice.enabled] is true for bulk item targeting ["
+                        + writeRequest.index()
+                        + "], use [_slice] instead"
+                );
+            }
             throw new IllegalArgumentException(
                 "[_slice] is required when [index.slice.enabled] is true for bulk item targeting [" + writeRequest.index() + "]"
             );

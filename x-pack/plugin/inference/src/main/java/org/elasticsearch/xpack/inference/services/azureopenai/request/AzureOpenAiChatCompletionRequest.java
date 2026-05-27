@@ -10,12 +10,14 @@ package org.elasticsearch.xpack.inference.services.azureopenai.request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
-import org.elasticsearch.xpack.inference.external.request.ChatCompletionRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundUnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.services.azureopenai.completion.AzureOpenAiCompletionModel;
 
 import java.util.Objects;
 
-public class AzureOpenAiChatCompletionRequest extends AzureOpenAiRequest<AzureOpenAiCompletionModel> implements ChatCompletionRequest {
+public class AzureOpenAiChatCompletionRequest extends AzureOpenAiRequest<AzureOpenAiCompletionModel>
+    implements
+        OutboundUnifiedCompletionRequest {
 
     private final UnifiedChatInput chatInput;
 

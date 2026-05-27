@@ -67,6 +67,11 @@ public final class FloatArrowBufVector extends AbstractArrowBufVector<FloatVecto
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Float.BYTES;
+    }
+
+    @Override
     public ElementType elementType() {
         return ElementType.FLOAT;
     }

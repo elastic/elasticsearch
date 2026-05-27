@@ -28,14 +28,14 @@ public class RerankParameters extends RequestParameters {
     private final QueryAndDocsInputs queryAndDocsInputs;
 
     private RerankParameters(QueryAndDocsInputs queryAndDocsInputs) {
-        super(queryAndDocsInputs.getChunks());
+        super(queryAndDocsInputs.getDocsAsStrings());
         this.queryAndDocsInputs = queryAndDocsInputs;
     }
 
     @Override
     protected Map<String, String> taskTypeParameters() {
         var additionalParameters = new HashMap<String, String>();
-        additionalParameters.put(QUERY, toJson(queryAndDocsInputs.getQuery(), QUERY));
+        additionalParameters.put(QUERY, toJson(queryAndDocsInputs.getQueryAsString(), QUERY));
         if (queryAndDocsInputs.getTopN() != null) {
             additionalParameters.put(
                 InferenceAction.Request.TOP_N.getPreferredName(),

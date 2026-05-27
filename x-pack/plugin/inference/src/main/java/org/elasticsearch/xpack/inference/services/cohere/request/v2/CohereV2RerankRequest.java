@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.inference.services.cohere.request.v2;
 
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.external.request.RerankRequest;
+import org.elasticsearch.xpack.inference.external.request.OutboundRerankRequest;
 import org.elasticsearch.xpack.inference.services.cohere.CohereAccount;
 import org.elasticsearch.xpack.inference.services.cohere.request.CohereRequest;
 import org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils;
@@ -24,7 +24,7 @@ import static org.elasticsearch.xpack.inference.services.cohere.request.CohereUt
 import static org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils.MODEL_FIELD;
 import static org.elasticsearch.xpack.inference.services.cohere.request.CohereUtils.QUERY_FIELD;
 
-public class CohereV2RerankRequest extends CohereRequest implements RerankRequest {
+public class CohereV2RerankRequest extends CohereRequest implements OutboundRerankRequest {
 
     private final String query;
     private final List<String> input;

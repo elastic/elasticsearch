@@ -86,6 +86,11 @@ public final class $Type$BigArrayBlock extends AbstractArrayBlock implements $Ty
         return null;
     }
 
+    @Override
+    public int valueMaxByteSize() {
+        return vector.valueMaxByteSize();
+    }
+
 $if(boolean)$
     @Override
     public ToMask toMask() {

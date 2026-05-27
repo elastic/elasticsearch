@@ -48,6 +48,11 @@ final class ConstantLongVector extends AbstractVector implements LongVector {
     }
 
     @Override
+    public int valueMaxByteSize() {
+        return Long.BYTES;
+    }
+
+    @Override
     public LongVector filter(boolean mayContainDuplicates, int... positions) {
         return blockFactory().newConstantLongVector(value, positions.length);
     }

@@ -180,6 +180,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private Path confPathData;
     private String keystorePassword = "";
     private boolean preserveDataDir = false;
+    private String leakMessage = null;
 
     ElasticsearchNode(
         String clusterName,
@@ -987,6 +988,14 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         return confPathLogs.resolve(defaultConfig.get("cluster.name") + "_audit.json").toFile();
     }
 
+    /**
+     * Returns the resource leak message if one was detected during node shutdown, or null if no leaks were found.
+     */
+    @Internal
+    public String getLeakMessage() {
+        return leakMessage;
+    }
+
     @Override
     public synchronized void stop(boolean tailLogs) {
         logToProcessStdout("Stopping node");
@@ -1165,7 +1174,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
         }
         if (foundLeaks) {
-            throw new TestClustersException("Found resource leaks in node log: " + from);
+            leakMessage = "Found resource leaks in node log: " + from;
         }
     }
 

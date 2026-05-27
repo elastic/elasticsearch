@@ -18,6 +18,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.locationtech.jts.operation.buffer.BufferParameters;
 
 /**
  * {@link ExpressionEvaluator} implementation for {@link StBuffer}.
@@ -32,15 +33,19 @@ public final class StBufferNonFoldableGeoPointDocValuesAndFoldableDistanceEvalua
 
   private final double distance;
 
+  private final BufferParameters bufferParameters;
+
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
   public StBufferNonFoldableGeoPointDocValuesAndFoldableDistanceEvaluator(Source source,
-      ExpressionEvaluator point, double distance, DriverContext driverContext) {
+      ExpressionEvaluator point, double distance, BufferParameters bufferParameters,
+      DriverContext driverContext) {
     this.source = source;
     this.point = point;
     this.distance = distance;
+    this.bufferParameters = bufferParameters;
     this.driverContext = driverContext;
   }
 
@@ -70,7 +75,7 @@ public final class StBufferNonFoldableGeoPointDocValuesAndFoldableDistanceEvalua
           continue position;
         }
         try {
-          StBuffer.processGeoPointDocValuesAndConstantDistance(result, p, pointBlock, this.distance);
+          StBuffer.processGeoPointDocValuesAndConstantDistance(result, p, pointBlock, this.distance, this.bufferParameters);
         } catch (IllegalArgumentException | IOException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -104,16 +109,20 @@ public final class StBufferNonFoldableGeoPointDocValuesAndFoldableDistanceEvalua
 
     private final double distance;
 
-    public Factory(Source source, ExpressionEvaluator.Factory point, double distance) {
+    private final BufferParameters bufferParameters;
+
+    public Factory(Source source, ExpressionEvaluator.Factory point, double distance,
+        BufferParameters bufferParameters) {
       this.source = source;
       this.point = point;
       this.distance = distance;
+      this.bufferParameters = bufferParameters;
     }
 
     @Override
     public StBufferNonFoldableGeoPointDocValuesAndFoldableDistanceEvaluator get(
         DriverContext context) {
-      return new StBufferNonFoldableGeoPointDocValuesAndFoldableDistanceEvaluator(source, point.get(context), distance, context);
+      return new StBufferNonFoldableGeoPointDocValuesAndFoldableDistanceEvaluator(source, point.get(context), distance, bufferParameters, context);
     }
 
     @Override

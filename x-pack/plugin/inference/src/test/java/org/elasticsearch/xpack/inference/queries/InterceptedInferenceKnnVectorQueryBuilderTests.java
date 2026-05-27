@@ -21,7 +21,10 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
+import org.elasticsearch.inference.DataFormat;
+import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceResults;
+import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.InferenceStringGroup;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.plugins.Plugin;
@@ -48,6 +51,8 @@ import java.util.Map;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.transport.RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV;
+import static org.elasticsearch.xpack.core.inference.action.GetInferenceFieldsInternalAction.GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
@@ -510,6 +515,80 @@ public class InterceptedInferenceKnnVectorQueryBuilderTests extends AbstractInte
     @Override
     public void testCcsSerializationWithMinimizeRoundTripsFalse() throws Exception {
         ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType.TEXT_EMBEDDING, KnnVectorQueryBuilder.NAME);
+        ccsSerializationWithMinimizeRoundTripsFalseTestCase(TaskType.EMBEDDING, KnnVectorQueryBuilder.NAME);
+    }
+
+    public void testCcsNonTextInputRejectedForOldRemoteTransportVersion() throws Exception {
+        assertCcsInputRejectedForOldRemoteTransportVersion(
+            new InferenceStringGroup(new InferenceString(DataType.IMAGE, DataFormat.BASE64, "data:image/jpeg;base64,aGVsbG8="))
+        );
+    }
+
+    public void testCcsMultipleInputsRejectedForOldRemoteTransportVersion() throws Exception {
+        assertCcsInputRejectedForOldRemoteTransportVersion(
+            new InferenceStringGroup(
+                List.of(new InferenceString(DataType.TEXT, "first input"), new InferenceString(DataType.TEXT, "second input"))
+            )
+        );
+    }
+
+    /**
+     * Asserts that {@code RemoteInferenceInfoAsyncAction} rejects the given input when the remote cluster transport version is
+     * {@code GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV} (supports the basic action but not non-text or multiple inputs),
+     * and succeeds when the remote cluster is at {@code TransportVersion.current()}.
+     * <p>
+     * The builder must use a {@code null} inferenceId so the input is forwarded through {@code InferenceQueryUtils} to the
+     * field's inference ID, triggering {@code RemoteInferenceInfoAsyncAction}. With an explicit inferenceId the builder is
+     * standalone and remote inference is skipped entirely. Local inference fields must also be empty for the same reason.
+     */
+    private void assertCcsInputRejectedForOldRemoteTransportVersion(InferenceStringGroup input) throws Exception {
+        final String indexName = "test-index";
+        final String inferenceField = "semantic_field";
+
+        KnnVectorQueryBuilder knnQuery = new KnnVectorQueryBuilder(
+            inferenceField,
+            new EmbeddingQueryVectorBuilder(null, input, null),
+            10,
+            100,
+            null,
+            null
+        );
+
+        MockInferenceRemoteClusterClient.RemoteClusterConfig oldRemoteConfig = new MockInferenceRemoteClusterClient.RemoteClusterConfig(
+            Map.of(EMBEDDING_INFERENCE_ID, EMBEDDING_INFERENCE_ID_SETTINGS),
+            List.of(new MockInferenceRemoteClusterClient.RemoteIndexConfig(indexName, Map.of(inferenceField, EMBEDDING_INFERENCE_ID))),
+            GET_INFERENCE_FIELDS_ACTION_AS_INDICES_ACTION_TV
+        );
+        QueryRewriteContext oldVersionContext = createQueryRewriteContext(
+            Map.of(),
+            TransportVersion.current(),
+            false,
+            Map.of("remote-cluster", oldRemoteConfig)
+        );
+
+        Exception e = assertThrows(Exception.class, () -> rewriteAndFetch(knnQuery, oldVersionContext));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "Cannot send non-text or multiple inputs to remote cluster [remote-cluster] that does not support it. "
+                    + "Please update the remote cluster to at least "
+                    + GET_INFERENCE_FIELDS_EMBEDDING_INPUT_TV.toReleaseVersion()
+            )
+        );
+
+        MockInferenceRemoteClusterClient.RemoteClusterConfig currentRemoteConfig = new MockInferenceRemoteClusterClient.RemoteClusterConfig(
+            Map.of(EMBEDDING_INFERENCE_ID, EMBEDDING_INFERENCE_ID_SETTINGS),
+            List.of(new MockInferenceRemoteClusterClient.RemoteIndexConfig(indexName, Map.of(inferenceField, EMBEDDING_INFERENCE_ID))),
+            TransportVersion.current()
+        );
+        QueryRewriteContext currentVersionContext = createQueryRewriteContext(
+            Map.of(),
+            TransportVersion.current(),
+            false,
+            Map.of("remote-cluster", currentRemoteConfig)
+        );
+
+        rewriteAndFetch(knnQuery, currentVersionContext);
     }
 
     private static VectorData assertQueryIsInterceptedKnnWithValidResults(QueryBuilder query) {

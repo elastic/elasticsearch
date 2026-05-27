@@ -89,6 +89,33 @@ class TestClustersPluginFuncTest extends AbstractGradleFuncTest {
         assertNoCustomDistro('myCluster')
     }
 
+    def "task succeeds and cluster stops via doLast when no leak is detected"() {
+        given:
+        // Guard against regressions in the new doLast stop-and-check path: the success
+        // case must stop the cluster without raising TestClustersException.
+        buildFile << """
+            testClusters {
+              myCluster {
+                testDistribution = 'default'
+              }
+            }
+
+            tasks.register('myTask', SomeClusterAwareTask) {
+                useCluster testClusters.myCluster
+            }
+        """
+
+        when:
+        def result = withMockedDistributionDownload(gradleRunner("myTask", '-i')) {
+            build()
+        }
+
+        then:
+        result.task(':myTask').outcome == org.gradle.testkit.runner.TaskOutcome.SUCCESS
+        assertEsOutputContains("myCluster", "Stopping node")
+        result.output.contains("Found resource leaks") == false
+    }
+
     @Unroll
     def "test cluster #inputProperty change is detected"() {
         given:

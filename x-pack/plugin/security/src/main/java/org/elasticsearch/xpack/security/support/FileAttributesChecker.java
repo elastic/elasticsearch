@@ -6,7 +6,7 @@
  */
 package org.elasticsearch.xpack.security.support;
 
-import org.elasticsearch.cli.Terminal;
+import org.elasticsearch.cli.terminal.Terminal;
 
 import java.io.IOException;
 import java.nio.file.Files;

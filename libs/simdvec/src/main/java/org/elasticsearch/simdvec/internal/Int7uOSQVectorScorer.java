@@ -23,7 +23,6 @@ import java.util.Optional;
 
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7u;
 import static org.elasticsearch.simdvec.internal.Similarities.dotProductI7uBulkSparse;
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 
 /**
  * JDK-22+ implementation for Int7 OSQ query-time scorers.
@@ -42,9 +41,6 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
         float additionalCorrection,
         int quantizedComponentSum
     ) {
-        if (SUPPORTS_HEAP_SEGMENTS == false) {
-            return Optional.empty();
-        }
         if (quantizedQuery.length != values.getVectorByteLength()) {
             throw new IllegalArgumentException(
                 "quantized query length " + quantizedQuery.length + " differs from vector byte length " + values.getVectorByteLength()
@@ -105,6 +101,8 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
     final float additionalCorrection;
     final int quantizedComponentSum;
     final FixedSizeScratch scratch;
+    final AddressesScratch addrsScratch = new AddressesScratch();
+    final OffsetsScratch offsetsScratch = new OffsetsScratch();
 
     Int7uOSQVectorScorer(
         IndexInput input,
@@ -149,13 +147,13 @@ public abstract sealed class Int7uOSQVectorScorer extends RandomVectorScorer.Abs
             return Float.NEGATIVE_INFINITY;
         }
 
-        long[] offsets = new long[numNodes];
+        long[] offsets = offsetsScratch.get(numNodes);
         for (int i = 0; i < numNodes; i++) {
             offsets[i] = (long) nodes[i] * vectorPitch;
         }
 
         float[] maxScore = new float[] { Float.NEGATIVE_INFINITY };
-        boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorByteSize, numNodes, addrs -> {
+        boolean resolved = IndexInputUtils.withSliceAddresses(input, offsets, vectorByteSize, numNodes, addrsScratch::get, addrs -> {
             var scoresSeg = MemorySegment.ofArray(scores);
             dotProductI7uBulkSparse(addrs, query, vectorByteSize, numNodes, scoresSeg);
             maxScore[0] = applyCorrectionsBulk(scores, nodes, numNodes);

@@ -41,7 +41,7 @@ public class JinaAICommonServiceSettings extends FilteredXContentObject implemen
     ) {
         int initialValidationErrorCount = validationException.validationErrors().size();
 
-        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, JinaAIService.NAME, context);
+        var rateLimitSettings = RateLimitSettings.of(map, DEFAULT_RATE_LIMIT_SETTINGS, validationException, context);
 
         var modelId = extractRequiredString(map, ServiceFields.MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
 
@@ -83,7 +83,6 @@ public class JinaAICommonServiceSettings extends FilteredXContentObject implemen
             serviceSettings,
             this.rateLimitSettings,
             validationException,
-            JinaAIService.NAME,
             ConfigurationParseContext.REQUEST
         );
         if (validationException.validationErrors().size() > initialValidationErrorCount) {

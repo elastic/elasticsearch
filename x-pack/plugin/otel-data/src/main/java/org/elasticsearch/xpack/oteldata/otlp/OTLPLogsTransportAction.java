@@ -24,6 +24,7 @@ import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -51,8 +52,6 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
     public static final String NAME = "indices:data/write/otlp/logs";
     public static final ActionType<OTLPActionResponse> TYPE = new ActionType<>(NAME);
 
-    public static final String TYPE_LOGS = "logs";
-
     @Inject
     public OTLPLogsTransportAction(TransportService transportService, ActionFilters actionFilters, ThreadPool threadPool, Client client) {
         super(NAME, transportService, actionFilters, threadPool, client);
@@ -64,6 +63,7 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
         var logsServiceRequest = ExportLogsServiceRequest.parseFrom(request.getRequest().streamInput());
         LogDocumentBuilder logDocumentBuilder = new LogDocumentBuilder(byteStringAccessor);
         List<ResourceLogs> resourceLogsList = logsServiceRequest.getResourceLogsList();
+        LogsProcessingContext context = new LogsProcessingContext();
         for (int i = 0, resourceLogsListSize = resourceLogsList.size(); i < resourceLogsListSize; i++) {
             ResourceLogs resourceLogs = resourceLogsList.get(i);
             Resource resource = resourceLogs.getResource();
@@ -71,14 +71,15 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
             for (int j = 0, scopeLogsListSize = scopeLogsList.size(); j < scopeLogsListSize; j++) {
                 ScopeLogs scopeLogs = scopeLogsList.get(j);
                 InstrumentationScope scope = scopeLogs.getScope();
-                String receiverName = TargetIndex.extractReceiverName(scope);
                 List<LogRecord> logRecordsList = scopeLogs.getLogRecordsList();
+                String scopeRoutingDataset = TargetIndex.extractScopeRoutingDataset(scope);
                 for (int k = 0, logRecordsListSize = logRecordsList.size(); k < logRecordsListSize; k++) {
                     LogRecord logRecord = logRecordsList.get(k);
+                    context.incrementTotalLogRecords();
                     TargetIndex index = TargetIndex.evaluate(
-                        TYPE_LOGS,
+                        TargetIndex.TYPE_LOGS,
                         logRecord.getAttributesList(),
-                        receiverName,
+                        scopeRoutingDataset,
                         scope.getAttributesList(),
                         resource.getAttributesList()
                     );
@@ -92,22 +93,53 @@ public class OTLPLogsTransportAction extends AbstractOTLPTransportAction {
                             index,
                             logRecord
                         );
+                        IndexRequest indexRequest = new IndexRequest(index.index());
+                        String documentId = DocumentMetadata.documentId(logRecord.getAttributesList());
+                        if (Strings.hasLength(documentId)) {
+                            indexRequest.id(documentId);
+                        }
+                        String ingestPipeline = DocumentMetadata.ingestPipeline(logRecord.getAttributesList());
+                        if (Strings.hasLength(ingestPipeline)) {
+                            indexRequest.setPipeline(ingestPipeline);
+                        }
                         bulkRequestBuilder.add(
-                            new IndexRequest(index.index()).opType(DocWriteRequest.OpType.CREATE)
-                                .setRequireDataStream(true)
-                                .source(xContentBuilder)
+                            indexRequest.opType(DocWriteRequest.OpType.CREATE).setRequireDataStream(true).source(xContentBuilder)
                         );
                     }
                 }
             }
         }
-        return ProcessingContext.withTotalDataPoints(bulkRequestBuilder.numberOfActions());
+        return context;
+    }
+
+    private static class LogsProcessingContext implements ProcessingContext {
+
+        private int totalLogRecords;
+
+        private void incrementTotalLogRecords() {
+            totalLogRecords++;
+        }
+
+        @Override
+        public int totalItems() {
+            return totalLogRecords;
+        }
+
+        @Override
+        public int getIgnoredItems() {
+            return 0;
+        }
+
+        @Override
+        public String getIgnoredItemsMessage(int limit) {
+            return "";
+        }
     }
 
     @Override
-    MessageLite responseWithRejectedDataPoints(int rejectedDataPoints, String message) {
+    MessageLite responseWithRejectedItems(int rejectedItems, String message) {
         ExportLogsPartialSuccess partialSuccess = ExportLogsPartialSuccess.newBuilder()
-            .setRejectedLogRecords(rejectedDataPoints)
+            .setRejectedLogRecords(rejectedItems)
             .setErrorMessage(message)
             .build();
         return ExportLogsServiceResponse.newBuilder().setPartialSuccess(partialSuccess).build();

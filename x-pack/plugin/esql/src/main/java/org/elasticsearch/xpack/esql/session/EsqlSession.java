@@ -91,6 +91,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.EsqlStatement;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
+import org.elasticsearch.xpack.esql.plan.LinkedIndexPattern;
 import org.elasticsearch.xpack.esql.plan.QuerySetting;
 import org.elasticsearch.xpack.esql.plan.QuerySettings;
 import org.elasticsearch.xpack.esql.plan.SettingsValidationContext;
@@ -1514,9 +1515,9 @@ public class EsqlSession {
                 ),
                 listener.delegateFailureAndWrap(
                     (l, strictResult) -> forAll(
-                        preAnalysis.optionalLinkedIndices().iterator(),
+                        preAnalysis.linkedIndices().iterator(),
                         strictResult,
-                        (sp, r, ll) -> preAnalyzeOptionalLinkedIndices(
+                        (sp, r, ll) -> preAnalyzeLinkedIndices(
                             sp,
                             configuration.projectRouting(),
                             preAnalysis,
@@ -1593,11 +1594,11 @@ public class EsqlSession {
     }
 
     /**
-     * This performs lenient field caps resolutions for linkedOptionalPatterns
-     * in order to resolve optional linked indices (if exist) shadowed by local views.
+     * This performs field caps resolutions for linkedIndexPatterns
+     * in order to resolve optional and required linked indices shadowed by local views.
      */
-    private void preAnalyzeOptionalLinkedIndices(
-        IndexPattern indexPattern,
+    private void preAnalyzeLinkedIndices(
+        LinkedIndexPattern linkedIndexPattern,
         String projectRouting,
         PreAnalyzer.PreAnalysis preAnalysis,
         EsqlExecutionInfo executionInfo,
@@ -1608,8 +1609,8 @@ public class EsqlSession {
     ) {
         executionInfo.queryProfile().incFieldCapsCalls();
         indexResolver.resolveFlatIndicesVersioned(
-            true /* lenient */,
-            indexPattern.indexPattern(),
+            linkedIndexPattern.kind() == LinkedIndexPattern.Kind.OPTIONAL,
+            linkedIndexPattern.pattern().indexPattern(),
             projectRouting,
             result.fieldNames,
             createQueryFilter(IndexMode.STANDARD, requestFilter),
@@ -1625,7 +1626,7 @@ public class EsqlSession {
                 EsqlCCSUtils.checkForViewErrors(indexResolution.inner().failures());
                 EsqlCCSUtils.validateCcsLicense(verifier.licenseState(), executionInfo);
                 // TODO count distinct linked projects
-                l.onResponse(result.withWithOptionalLinkedIndices(indexPattern, indexResolution.inner()));
+                l.onResponse(result.withWithLinkedIndices(linkedIndexPattern, indexResolution.inner()));
             })
         );
     }
@@ -1761,12 +1762,13 @@ public class EsqlSession {
             if (result.indexResolution.values().stream().anyMatch(IndexResolution::isValid) || requestFilter != null) {
                 // We won't run this check with no filter and no valid indices since this may lead to false positive - missing index report
                 // when the resolution result is not valid for a different reason.
-                EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
-                    executionInfo,
-                    result.indexResolution.values(),
-                    result.optionalLinkedResolution.values(),
-                    requestFilter != null
-                );
+                // TODO fix
+                // EsqlCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(
+                // executionInfo,
+                // result.indexResolution.values(),
+                // result.optionalLinkedResolution.values(),
+                // requestFilter != null
+                // );
             }
             TimeSpanMarker analysisProfile = executionInfo.queryProfile().analysis();
             analysisProfile.start();
@@ -1916,8 +1918,8 @@ public class EsqlSession {
         Set<String> wildcardJoinIndices,
         Map<IndexPattern, IndexResolution> indexResolution,
         Map<String, IndexResolution> lookupIndices,
-        // CPS specific optionalLinkedPatterns. Such patterns references indices (if present) shadowing views resolved on origin
-        Map<IndexPattern, IndexResolution> optionalLinkedResolution,
+        // CPS specific linkedIndexPatterns. Such patterns references indices (if present) shadowing views resolved on origin
+        Map<LinkedIndexPattern, IndexResolution> linkedResolution,
         EnrichResolution enrichResolution,
         InferenceResolution inferenceResolution,
         ExternalSourceResolution externalSourceResolution,
@@ -1948,8 +1950,8 @@ public class EsqlSession {
             return this;
         }
 
-        PreAnalysisResult withWithOptionalLinkedIndices(IndexPattern indexPattern, IndexResolution indices) {
-            optionalLinkedResolution.put(indexPattern, indices);
+        PreAnalysisResult withWithLinkedIndices(LinkedIndexPattern indexPattern, IndexResolution indices) {
+            linkedResolution.put(indexPattern, indices);
             return this;
         }
 
@@ -1959,7 +1961,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
-                optionalLinkedResolution,
+                linkedResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
@@ -1973,7 +1975,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
-                optionalLinkedResolution,
+                linkedResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
@@ -1987,7 +1989,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
-                optionalLinkedResolution,
+                linkedResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,
@@ -2007,7 +2009,7 @@ public class EsqlSession {
                 wildcardJoinIndices,
                 indexResolution,
                 lookupIndices,
-                optionalLinkedResolution,
+                linkedResolution,
                 enrichResolution,
                 inferenceResolution,
                 externalSourceResolution,

@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.TimeSeriesAggregate;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -39,7 +41,7 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
 
     @Override
     protected LogicalPlan rule(Aggregate aggregate) {
-        if (aggregate.groupings().isEmpty()) {
+        if (shouldSkipAggregate(aggregate)) {
             return aggregate;
         }
 
@@ -83,6 +85,13 @@ public final class PruneRedundantAggregateGroupings extends OptimizerRules.Optim
             plan = new Project(aggregate.source(), plan, aggregate.aggregates().stream().map(NamedExpression::toAttribute).toList());
         }
         return plan;
+    }
+
+    private static boolean shouldSkipAggregate(Aggregate aggregate) {
+        // Inline stats RHS aggregates use StubRelation while their join keys still mirror the original groupings.
+        return aggregate.groupings().isEmpty()
+            || aggregate instanceof TimeSeriesAggregate
+            || aggregate.child().anyMatch(StubRelation.class::isInstance);
     }
 
     private static AttributeMap<Expression> evalAliases(LogicalPlan plan) {

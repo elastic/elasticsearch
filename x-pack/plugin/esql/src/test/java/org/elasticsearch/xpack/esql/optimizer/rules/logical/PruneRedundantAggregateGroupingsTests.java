@@ -13,10 +13,14 @@ import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
 import org.elasticsearch.xpack.esql.optimizer.AbstractLogicalPlanOptimizerTests;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.ExternalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Limit;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
+import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.StubRelation;
 
 import java.util.List;
 
@@ -26,6 +30,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.referenceAttribute;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOptimizerTests {
     private static final String S3_PATH = "s3://bucket/data.parquet";
@@ -46,6 +51,7 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         var aggregate = rewrittenAggregate(eval);
         assertThat(Expressions.names(aggregate.groupings()), contains("last_name"));
         assertThat(Expressions.names(aggregate.aggregates()), contains("c", "last_name"));
+        as(aggregate.child(), EsRelation.class);
     }
 
     public void testPrunesDirectLiteralGrouping() {
@@ -60,6 +66,7 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         var aggregate = rewrittenAggregate(as(project.child(), Eval.class));
         assertThat(Expressions.names(aggregate.groupings()), contains("last_name"));
         assertThat(Expressions.names(aggregate.aggregates()), contains("c", "last_name"));
+        as(aggregate.child(), EsRelation.class);
     }
 
     public void testDoesNotPruneMultivalueConstantGrouping() {
@@ -89,6 +96,62 @@ public class PruneRedundantAggregateGroupingsTests extends AbstractLogicalPlanOp
         var aggregate = rewrittenAggregate(eval);
         assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP"));
         assertThat(Expressions.names(aggregate.aggregates()), contains("c", "ClientIP"));
+        as(aggregate.child(), ExternalRelation.class);
+        assertThat(
+            eval.fields().get(0).child(),
+            instanceOf(org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Sub.class)
+        );
+    }
+
+    public void testPartialDerivedExternalPruningKeepsNeededPreAggregateEval() {
+        var plan = externalPlan("""
+            EXTERNAL "s3://bucket/data.parquet"
+            | EVAL ip_m1 = ClientIP - 1, other_m1 = OtherIP - 1
+            | STATS c = COUNT(*) BY ClientIP, ip_m1, other_m1
+            """);
+
+        var project = rewrittenProject(plan);
+        assertThat(Expressions.names(project.projections()), contains("c", "ClientIP", "ip_m1", "other_m1"));
+
+        var postAggregateEval = as(project.child(), Eval.class);
+        assertThat(Expressions.names(postAggregateEval.fields()), contains("ip_m1"));
+
+        var aggregate = rewrittenAggregate(postAggregateEval);
+        assertThat(Expressions.names(aggregate.groupings()), contains("ClientIP", "other_m1"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "ClientIP", "other_m1"));
+
+        var preAggregateEval = as(aggregate.child(), Eval.class);
+        assertThat(Expressions.names(preAggregateEval.fields()), contains("other_m1"));
+        as(preAggregateEval.child(), ExternalRelation.class);
+    }
+
+    public void testDoesNotPruneInlineStatsGroupings() {
+        assumeTrue("requires INLINE STATS command capability", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        var plan = plan("""
+            FROM test
+            | EVAL const1 = 1
+            | INLINE STATS c = COUNT(*) BY const1, last_name
+            """);
+
+        var inlineJoin = as(as(plan, Limit.class).child(), InlineJoin.class);
+        var aggregate = as(inlineJoin.right(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.groupings()), contains("const1", "last_name"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "const1", "last_name"));
+        as(aggregate.child(), StubRelation.class);
+    }
+
+    public void testDoesNotPruneInlineStatsLiteralGroupings() {
+        assumeTrue("requires INLINE STATS command capability", EsqlCapabilities.Cap.INLINE_STATS.isEnabled());
+        var plan = plan("""
+            FROM test
+            | INLINE STATS c = COUNT(*) BY 1, last_name
+            """);
+
+        var inlineJoin = as(as(plan, Limit.class).child(), InlineJoin.class);
+        var aggregate = as(inlineJoin.right(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.groupings()), contains("1", "last_name"));
+        assertThat(Expressions.names(aggregate.aggregates()), contains("c", "1", "last_name"));
+        as(aggregate.child(), StubRelation.class);
     }
 
     public void testDoesNotPruneDerivedOrdinaryIndexGrouping() {

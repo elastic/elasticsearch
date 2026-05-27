@@ -40,11 +40,12 @@ EXPORT f32_t bbq_apply_corrections_euclidean_bulk(
         const f32_t queryBitScale,
         const f32_t indexBitScale,
         const f32_t centroidDp,
+        const int8_t readComponentSumAsInt,
         f32_t* scores
 ) {
     f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
     for (int i = 0; i < bulkSize; ++i) {
-        const bbq_correction_t c = bbq_read_corrections(addresses[i], vectorSizeInBytes);
+        const bbq_correction_t c = bbq_read_corrections(addresses[i], vectorSizeInBytes, readComponentSumAsInt);
         f32_t score = apply_corrections_euclidean_inner(
             dimensions, queryLowerInterval, queryUpperInterval, queryComponentSum,
             queryAdditionalCorrection, queryBitScale, indexBitScale, centroidDp,
@@ -69,11 +70,12 @@ EXPORT f32_t bbq_apply_corrections_maximum_inner_product_bulk(
         const f32_t queryBitScale,
         const f32_t indexBitScale,
         const f32_t centroidDp,
+        const int8_t readComponentSumAsInt,
         f32_t* scores
 ) {
     f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
     for (int i = 0; i < bulkSize; ++i) {
-        const bbq_correction_t c = bbq_read_corrections(addresses[i], vectorSizeInBytes);
+        const bbq_correction_t c = bbq_read_corrections(addresses[i], vectorSizeInBytes, readComponentSumAsInt);
         f32_t score = apply_corrections_maximum_inner_product_inner(
             dimensions, queryLowerInterval, queryUpperInterval, queryComponentSum,
             queryAdditionalCorrection, queryBitScale, indexBitScale, centroidDp,
@@ -98,11 +100,12 @@ EXPORT f32_t bbq_apply_corrections_dot_product_bulk(
         const f32_t queryBitScale,
         const f32_t indexBitScale,
         const f32_t centroidDp,
+        const int8_t readComponentSumAsInt,
         f32_t* scores
 ) {
     f32_t maxScore = -std::numeric_limits<f32_t>::infinity();
     for (int i = 0; i < bulkSize; ++i) {
-        const bbq_correction_t c = bbq_read_corrections(addresses[i], vectorSizeInBytes);
+        const bbq_correction_t c = bbq_read_corrections(addresses[i], vectorSizeInBytes, readComponentSumAsInt);
         f32_t score = apply_corrections_dot_product_inner(
             dimensions, queryLowerInterval, queryUpperInterval, queryComponentSum,
             queryAdditionalCorrection, queryBitScale, indexBitScale, centroidDp,

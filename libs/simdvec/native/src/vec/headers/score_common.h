@@ -18,17 +18,26 @@ struct bbq_correction_t {
     int32_t targetComponentSum;
 };
 
+// Reads corrections from a dataset.
+// Per-vector trailer layout where corrections are at offset (vectorSizeInBytes) for each address:
+// (float lowerInterval, float upperInterval, float additionalCorrection, <targetComponentSum>)
+// where <targetComponentSum> is either:
+//   - 4 bytes (int32) when readComponentSumAsInt != 0, or
+//   - 2 bytes (uint16, zero-extended to int32) when readComponentSumAsInt == 0 (legacy binary BBQ layout).
 static inline bbq_correction_t bbq_read_corrections(
     const void *const data,
-    int32_t vectorSizeInBytes
+    int32_t vectorSizeInBytes,
+    int8_t readComponentSumAsInt
 ) {
     const int8_t* base = (const int8_t*)data + vectorSizeInBytes;
+    const int8_t* sumBase = base + 3 * sizeof(f32_t);
     return bbq_correction_t {
         *(const f32_t*)base,
         *(const f32_t*)(base + sizeof(f32_t)),
         *(const f32_t*)(base + 2 * sizeof(f32_t)),
-        // Read as short (int16), zero-extend to int32
-        (int32_t)(*(const uint16_t*)(base + 3 * sizeof(f32_t)))
+        readComponentSumAsInt
+            ? *(const int32_t*)sumBase
+            : (int32_t)(*(const uint16_t*)sumBase)
     };
 }
 
@@ -63,9 +72,11 @@ static inline f32_t apply_corrections_euclidean_inner(
     const float y1 = queryComponentSum;
     float score = ax * ay * dimensions + ay * lx * (float) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
     // For euclidean, we need to invert the score and apply the additional correction, which is
-    // assumed to be the squared l2norm of the centroid centered vectors.
+    // assumed to be the squared l2norm of the centroid centered vectors. The clamp to >= 0
+    // matches Lucene's reference scorer (VectorUtil.normalizeDistanceToUnitInterval(max(d, 0)))
+    // and guards against floating point error producing tiny negatives.
     score = queryAdditionalCorrection + additionalCorrection - 2 * score;
-    return __builtin_fmaxf(1.0f / (1.0f + score), 0.0f);
+    return 1.0f / (1.0f + __builtin_fmaxf(score, 0.0f));
 }
 
 static inline f32_t apply_corrections_maximum_inner_product_inner(
@@ -123,9 +134,13 @@ static inline f32_t apply_corrections_dot_product_inner(
     f32_t score = ax * ay * dimensions + ay * lx * (f32_t) targetComponentSum + ax * ly * y1 + lx * ly * qcDist;
 
     // For dot product we need to apply the additional correction, which is
-    // assumed to be the non-centered dot-product between the vector and the centroid
+    // assumed to be the non-centered dot-product between the vector and the centroid.
+    // The clamp of score to [-1, 1] before normalization matches Lucene's reference
+    // (VectorUtil.normalizeToUnitInterval(clamp(dp, -1, 1))) and guards against
+    // floating point error producing values slightly outside [0, 1].
     score += queryAdditionalCorrection + additionalCorrection - centroidDp;
-    return __builtin_fmaxf((1.0f + score) / 2.0f, 0.0f);
+    score = __builtin_fminf(__builtin_fmaxf(score, -1.0f), 1.0f);
+    return (1.0f + score) / 2.0f;
 }
 
 #endif //SCORE_COMMON_H

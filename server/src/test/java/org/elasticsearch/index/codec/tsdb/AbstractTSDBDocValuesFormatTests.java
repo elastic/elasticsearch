@@ -2415,6 +2415,80 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         }
     }
 
+    /**
+     * Deterministic regression test for the {@code intoBitSet} position-contract bug: after {@code
+     * intoBitSet(upTo)}, {@code docID()} must be the first matching doc &ge; {@code upTo} (or
+     * {@code NO_MORE_DOCS}), not {@code upTo} unconditionally.
+     */
+    public void testIntoBitSetPositionContractHardcoded() throws IOException {
+        final String field = "dense_value";
+        final long matchValue = 1L;
+        final long nonMatchValue = 2L;
+
+        // Scenario A: [MATCH, NOMATCH, MATCH] — intoBitSet(upTo=1) must land on doc2, not doc1.
+        // @timestamp DESC sort means ascending insertion order becomes descending doc order.
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
+            long ts = BASE_TIMESTAMP;
+            for (long v : new long[] { matchValue, nonMatchValue, matchValue }) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, ts));
+                d.add(new SortedNumericDocValuesField(field, v));
+                iw.addDocument(d);
+                ts += 1000L;
+            }
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leafReader = reader.leaves().getFirst().reader();
+                var ndv = getBaseDenseNumericValues(leafReader, field);
+                var iter = ndv.tryRangeIterator(matchValue, matchValue);
+                assertNotNull(iter);
+
+                assertEquals("first match must be doc0", 0, iter.nextDoc());
+                var bitSet = new FixedBitSet(3);
+                bitSet.set(0);
+                iter.intoBitSet(1, bitSet, 0); // upTo=1; doc1 is NOT in range
+
+                assertEquals("after intoBitSet(upTo=1), docID must be 2 (first match >= 1), not 1 (non-matching doc)", 2, iter.docID());
+                int runEnd = iter.docIDRunEnd();
+                assertTrue("docIDRunEnd=" + runEnd + " must be > docID=2", runEnd > 2);
+            }
+        }
+
+        // Scenario B: [MATCH, NOMATCH] — intoBitSet(upTo=1) must reach NO_MORE_DOCS, not doc1.
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, getTimeSeriesIndexWriterConfig(null, TIMESTAMP_FIELD))) {
+            long ts = BASE_TIMESTAMP;
+            for (long v : new long[] { nonMatchValue, matchValue }) {
+                var d = new Document();
+                d.add(SortedNumericDocValuesField.indexedField(TIMESTAMP_FIELD, ts));
+                d.add(new SortedNumericDocValuesField(field, v));
+                iw.addDocument(d);
+                ts += 1000L;
+            }
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leafReader = reader.leaves().getFirst().reader();
+                var ndv = getBaseDenseNumericValues(leafReader, field);
+                var iter = ndv.tryRangeIterator(matchValue, matchValue);
+                assertNotNull(iter);
+
+                assertEquals("first match must be doc0", 0, iter.nextDoc());
+                var bitSet = new FixedBitSet(2);
+                bitSet.set(0);
+                iter.intoBitSet(1, bitSet, 0); // upTo=1; doc1 is NOT in range, no further matches
+
+                assertEquals(
+                    "after intoBitSet(upTo=1) with no further matches, docID must be NO_MORE_DOCS, not 1 (non-matching doc)",
+                    DocIdSetIterator.NO_MORE_DOCS,
+                    iter.docID()
+                );
+            }
+        }
+    }
+
     public void testRangeQueryViaIndexSearcher() throws IOException {
         final String field = "dense_value";
         int numDocs = randomIntBetween(1, 4096 * 4);

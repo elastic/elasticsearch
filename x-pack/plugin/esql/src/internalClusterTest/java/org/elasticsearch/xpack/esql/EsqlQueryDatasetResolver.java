@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql;
 
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.Map;
 import java.util.Set;
@@ -82,6 +83,52 @@ public final class EsqlQueryDatasetResolver {
     private static final Pattern LOOKUP_JOIN_INDEX = Pattern.compile(
         "\\bLOOKUP\\s+JOIN\\s+([\\w.*\\-]+)\\s+ON\\b",
         Pattern.CASE_INSENSITIVE
+    );
+
+    /**
+     * Captures both the right-hand index <em>and</em> the body of the {@code ON} clause of a
+     * {@code LOOKUP JOIN &lt;index&gt; ON &lt;body&gt;} command. The body extends from just after
+     * {@code ON} up to (but excluding) the next pipe, the next closing parenthesis, or end of
+     * input &mdash; which mirrors how the rewriter splits segments and how a paren ends a
+     * sub-pipeline.
+     * <p>
+     * Capture group 1 is the index identifier; group 2 is the raw body text, possibly with
+     * leading and trailing whitespace. The grammar accepts arbitrary boolean expressions inside
+     * the body, but the parser then constrains it to either a comma-separated list of bare
+     * unqualified attributes (field-based mode) or a single binary-comparison expression
+     * (expression-based mode); see
+     * {@code LogicalPlanBuilder.processFieldBasedJoin / processExpressionBasedJoin}.
+     */
+    private static final Pattern LOOKUP_JOIN_INDEX_AND_BODY = Pattern.compile(
+        "\\bLOOKUP\\s+JOIN\\s+([\\w.*\\-]+)\\s+ON\\s+([^|()]+?)(?=\\s*[|()]|\\s*$)",
+        Pattern.CASE_INSENSITIVE
+    );
+
+    /**
+     * Matches an unqualified ES|QL identifier as a standalone token. Used to extract candidate
+     * field names from a {@code LOOKUP JOIN ... ON ...} body without trying to parse the body as
+     * an expression. Reserved keywords ({@code AND}, {@code OR}, {@code NOT}, {@code TRUE},
+     * {@code FALSE}, {@code NULL}, ES|QL casts) are filtered out by
+     * {@link #LOOKUP_JOIN_BODY_KEYWORDS}.
+     */
+    private static final Pattern IDENTIFIER_TOKEN = Pattern.compile("\\b[A-Za-z_][A-Za-z0-9_.]*\\b");
+
+    /**
+     * Tokens that {@link #IDENTIFIER_TOKEN} would otherwise accept but which are not field names
+     * inside a {@code LOOKUP JOIN ... ON ...} body. Both casing variants are listed so a
+     * case-insensitive {@code Set::contains} on uppercased tokens covers them all.
+     */
+    private static final Set<String> LOOKUP_JOIN_BODY_KEYWORDS = Set.of(
+        "AND",
+        "OR",
+        "NOT",
+        "TRUE",
+        "FALSE",
+        "NULL",
+        "IS",
+        "IN",
+        "LIKE",
+        "RLIKE"
     );
 
     /**
@@ -181,6 +228,63 @@ public final class EsqlQueryDatasetResolver {
         Map<String, CsvTestsDataLoader.TestDataset> datasetsByName
     ) {
         return resolveDatasets(extractIndexPatterns(query), datasetsByName);
+    }
+
+    /**
+     * Extracts every {@code LOOKUP JOIN &lt;target&gt; ON &lt;body&gt;} clause from {@code query}
+     * and returns a map from each lookup-target index to the set of bare-attribute names that
+     * appear anywhere inside its {@code ON} body.
+     * <p>
+     * The extraction is intentionally over-approximate: in expression-based mode the body may
+     * mention attributes from both the left and right sides (e.g. {@code name_left == name_str}),
+     * and the regex pass cannot tell which side a name belongs to. That is acceptable for the
+     * intended use, which is to feed the resulting names into
+     * {@link KeywordToFlattenedTransformer#transformMapping(String, Set)} as
+     * {@code excludedPaths} for the lookup-target's mapping. The transformer only acts on names
+     * that actually exist as keyword leaves in the mapping, so an extra name that is not on the
+     * lookup-target side is silently ignored. Reserved keywords ({@code AND}, {@code OR},
+     * {@code NOT}, etc.) are filtered out via {@link #LOOKUP_JOIN_BODY_KEYWORDS}.
+     * <p>
+     * The result is keyed by the raw index pattern as it appears in the query (e.g.
+     * {@code languages_lookup}, {@code clientips_lookup}); callers resolve that to a
+     * {@link CsvTestsDataLoader.TestDataset} via {@link #resolveDatasets}.
+     */
+    public static Map<String, Set<String>> extractLookupJoinTargets(String query) {
+        String masked = maskStringsAndComments(query);
+        Map<String, Set<String>> targets = new LinkedHashMap<>();
+        Matcher m = LOOKUP_JOIN_INDEX_AND_BODY.matcher(masked);
+        while (m.find()) {
+            String index = query.substring(m.start(1), m.end(1)).trim();
+            if (index.isEmpty()) {
+                continue;
+            }
+            String body = masked.substring(m.start(2), m.end(2));
+            Set<String> fields = extractAttributeNamesFromJoinBody(body);
+            if (fields.isEmpty()) {
+                continue;
+            }
+            targets.computeIfAbsent(index, k -> new LinkedHashSet<>()).addAll(fields);
+        }
+        return targets;
+    }
+
+    /**
+     * Returns every identifier-shaped token in {@code body} that is not an ES|QL reserved word
+     * recognised by {@link #LOOKUP_JOIN_BODY_KEYWORDS}. Identifier shape matches the unqualified
+     * form accepted by ES|QL ({@code [A-Za-z_][A-Za-z0-9_.]*}); backtick-quoted identifiers are
+     * not handled.
+     */
+    private static Set<String> extractAttributeNamesFromJoinBody(String body) {
+        Set<String> names = new LinkedHashSet<>();
+        Matcher m = IDENTIFIER_TOKEN.matcher(body);
+        while (m.find()) {
+            String token = m.group();
+            if (LOOKUP_JOIN_BODY_KEYWORDS.contains(token.toUpperCase(java.util.Locale.ROOT))) {
+                continue;
+            }
+            names.add(token);
+        }
+        return names;
     }
 
     /**

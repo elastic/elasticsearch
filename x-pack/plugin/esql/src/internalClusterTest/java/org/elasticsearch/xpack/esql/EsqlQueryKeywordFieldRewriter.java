@@ -144,12 +144,14 @@ import java.util.regex.Pattern;
  *
  * <h2>Known limitations</h2>
  * The rewriter is regex-driven and does not parse the ES|QL grammar. In particular it does not
- * handle backtick-quoted identifiers. It also leaves intact every grammar slot that admits only
- * an attribute and not an arbitrary expression but is not in {@link #NAME_ONLY_BODY_COMMANDS} or
- * otherwise covered above &mdash; the canonical example being
- * {@code LOOKUP JOIN ... ON &lt;field&gt;}, where wrapping the join key would surface as a
- * parser error. Queries that hit those cases will surface as failures, which is the intended way
- * to inventory ES|QL surfaces that {@code field_extract} cannot currently substitute for.
+ * handle backtick-quoted identifiers. Grammar slots that admit only an attribute (not an arbitrary
+ * expression) are protected via {@link #NAME_ONLY_BODY_COMMANDS} and the
+ * {@link SkipSite#MATCH_OPERATOR_LHS} carve-out: {@code MV_EXPAND}, {@code ENRICH ON / WITH},
+ * {@code LOOKUP JOIN ... ON ...}, and the LHS of the match operator {@code :}. Each in-scope
+ * identifier in those positions is left bare and recorded as a {@link SkipEvent} so callers can
+ * inventory exactly what was not exercised. Other expression-rejecting positions not yet enumerated
+ * here will surface as parser failures, which is the intended way to inventory ES|QL surfaces that
+ * {@code field_extract} cannot currently substitute for.
  */
 public final class EsqlQueryKeywordFieldRewriter {
 
@@ -189,7 +191,33 @@ public final class EsqlQueryKeywordFieldRewriter {
         /** Body of an {@code ENRICH <policy> [ON <field>] [WITH ...]} command (any sub-position). */
         ENRICH_BODY,
         /** Identifier on the left-hand side of a single-colon match operator ({@code field : "value"}). */
-        MATCH_OPERATOR_LHS
+        MATCH_OPERATOR_LHS,
+        /**
+         * Body of a {@code LOOKUP JOIN <index> ON <field>[, <field>]*} command. ES|QL's
+         * {@code JOIN ON} clause accepts only bare attribute references on each side of every
+         * join condition (see {@code LogicalPlanBuilder.processFieldBasedJoin} and
+         * {@code Analyzer.resolveAndOrientJoinCondition}), so wrapping the join key in
+         * {@code field_extract(...)} would surface as a parser or verifier error rather than
+         * exercise the function. The rewriter passes the body through verbatim and emits one
+         * skip event per in-scope identifier appearing anywhere after the {@code LOOKUP JOIN}
+         * keyword.
+         */
+        LOOKUP_JOIN_ON,
+        /**
+         * Body of an {@code INSIST_🐔 <field>[, <field>]*} command. {@code INSIST_🐔} is a
+         * developer-only command (gated behind {@code isDevVersion()} in {@code Project.g4})
+         * whose grammar accepts only a list of qualified-name patterns; wrapping a name there
+         * in {@code field_extract(...)} would surface as a parser error.
+         */
+        INSIST_BODY,
+        /**
+         * Identifier appearing inside an ES|QL qualified-name reference of the form
+         * {@code [<index>].[<field>]}. The bracketed positions accept only an unquoted
+         * identifier (see {@code qualifiedName} / {@code qualifiedNamePattern} in the parser
+         * grammar), so wrapping the inside in {@code field_extract(...)} would not parse. The
+         * rewriter records the skip but leaves the bracket contents untouched.
+         */
+        QUALIFIED_NAME_BRACKETS
     }
 
     /**
@@ -219,11 +247,31 @@ public final class EsqlQueryKeywordFieldRewriter {
     private static final String IDENTIFIER_PATTERN = "[a-zA-Z_][a-zA-Z0-9_.]*";
 
     /**
+     * Anchored form of {@link #IDENTIFIER_PATTERN}, used to decide whether a candidate column
+     * name can appear unquoted inside a generated {@code KEEP} clause. Names that do not match
+     * are wrapped in backticks before emission; see {@code quoteIdentifierIfNeeded} on the
+     * pipeline walker.
+     */
+    private static final Pattern BARE_IDENTIFIER_FORM = Pattern.compile("^" + IDENTIFIER_PATTERN + "$");
+
+    /**
      * Pattern matching the left-hand side of an assignment: an identifier (possibly dotted)
      * followed by optional whitespace, a single {@code =}, and a negative lookahead to exclude the
      * comparison operator {@code ==}.
      */
     private static final Pattern ASSIGNMENT_LHS = Pattern.compile("(?<![a-zA-Z0-9_.])(" + IDENTIFIER_PATTERN + ")\\s*=(?!=)");
+
+    /**
+     * Two consecutive bracketed names separated by a dot, as in {@code [employees].[gender]}.
+     * Two capture groups expose the unquoted contents of each bracket pair so they can be added
+     * to the rewriter's protected-range list. The pattern intentionally accepts arbitrary
+     * non-{@code ]} content inside each pair: validating the inside as an identifier would only
+     * matter if the rewriter were going to wrap something there, and any non-identifier content
+     * would not match a scope field name anyway, so over-protecting is harmless. {@code [1, 2]}
+     * array literals are not matched because they are never followed by a {@code .[...]} second
+     * bracket pair.
+     */
+    private static final Pattern QUALIFIED_NAME_BRACKETS = Pattern.compile("\\[([^\\]]*)\\]\\s*\\.\\s*\\[([^\\]]*)\\]");
 
     /** Pattern matching a {@code RENAME old AS new} pair (used after splitting on top-level commas). */
     private static final Pattern RENAME_PAIR = Pattern.compile(
@@ -233,6 +281,23 @@ public final class EsqlQueryKeywordFieldRewriter {
 
     /** Pattern matching a bare identifier with optional surrounding whitespace. */
     private static final Pattern BARE_IDENTIFIER = Pattern.compile("^\\s*(" + IDENTIFIER_PATTERN + ")\\s*$");
+
+    /**
+     * Pattern matching an explicit assignment alias at the start of a STATS aggregate or
+     * grouping-key piece: optional leading whitespace, an identifier (group 1), optional
+     * whitespace, and a single {@code =} that is not part of the {@code ==} comparison
+     * operator. The pattern is anchored at the start of the piece so it cannot be misled by an
+     * inner {@code =} that lives inside a function argument or a {@code WHERE} predicate.
+     */
+    private static final Pattern STATS_PIECE_ALIAS_LHS = Pattern.compile("^\\s*(" + IDENTIFIER_PATTERN + ")\\s*=(?!=)");
+
+    /**
+     * Pattern matching any single identifier with word-boundary surroundings, used to scan a
+     * piece text for in-scope field names without compiling a per-call alternation. Compiled
+     * once and reused; identity-comparison membership in the active scope happens in the
+     * caller.
+     */
+    private static final Pattern ANY_IDENTIFIER = Pattern.compile("(?<![a-zA-Z0-9_.])(" + IDENTIFIER_PATTERN + ")(?![a-zA-Z0-9_.])");
 
     /**
      * Pattern matching the left-hand side of an ES|QL match-operator comparison: an identifier
@@ -250,6 +315,32 @@ public final class EsqlQueryKeywordFieldRewriter {
 
     /** Pattern matching the standalone {@code BY} keyword. */
     private static final Pattern BY_KEYWORD = Pattern.compile("\\bBY\\b", Pattern.CASE_INSENSITIVE);
+
+    /** Pattern matching the standalone {@code WITH} keyword used to delimit the ENRICH WITH clause. */
+    private static final Pattern WITH_KEYWORD = Pattern.compile("\\bWITH\\b", Pattern.CASE_INSENSITIVE);
+
+    /**
+     * Pattern matching the left-hand side of an ENRICH WITH piece, in either of the two forms
+     * the grammar accepts: {@code new_field = enrich_field} (capture group 1 = {@code new_field})
+     * and the bare {@code new_field} short-hand (capture group 2 = {@code new_field}). Trailing
+     * whitespace is tolerated. The mutually-exclusive groups let the caller pick whichever
+     * matched.
+     */
+    private static final Pattern ENRICH_WITH_LHS = Pattern.compile(
+        "^\\s*(?:(" + IDENTIFIER_PATTERN + ")\\s*=|(" + IDENTIFIER_PATTERN + ")\\s*)"
+    );
+
+    /**
+     * Prefix for the synthetic alias names the rewriter introduces for bare in-scope grouping
+     * keys in a {@code STATS}/{@code INLINE STATS BY} clause. Using a name that does not appear
+     * in any csv-spec dataset (the prefix is checked against {@link #IDENTIFIER_PATTERN} and is
+     * not a valid mapping leaf) keeps the alias from colliding with any pre-existing column on
+     * the input row, and lets a follow-up {@code RENAME} step restore the original column name
+     * after the aggregation completes. See {@code preprocessStatsByAliasing} for the full
+     * rationale, including why the trivial {@code BY field = field} aliasing the rewriter used
+     * before would shadow the input column inside the same {@code STATS} segment.
+     */
+    private static final String BY_ALIAS_PREFIX = "__kw_";
 
     /** Source commands; their segment text is preserved verbatim. */
     private static final Set<String> SOURCE_COMMANDS = Set.of("FROM", "TS", "ROW", "SHOW");
@@ -278,11 +369,12 @@ public final class EsqlQueryKeywordFieldRewriter {
      * Commands whose entire body is a list of bare field references (no expressions are accepted
      * by the grammar), so the body must be passed through verbatim. The scope is preserved across
      * these commands because they do not rebind or shadow any pre-existing column &mdash;
-     * {@code MV_EXPAND} unflattens a multi-value column without changing its type, and
-     * {@code ENRICH} appends new columns from the policy's enrich index without touching any
-     * existing column.
+     * {@code MV_EXPAND} unflattens a multi-value column without changing its type, {@code ENRICH}
+     * appends new columns from the policy's enrich index without touching any existing column,
+     * and {@code INSIST_🐔} is a developer-only command (gated on the dev version per
+     * {@code Project.g4}) that asserts a column is mapped without otherwise modifying the row.
      */
-    private static final Set<String> NAME_ONLY_BODY_COMMANDS = Set.of("MV_EXPAND", "ENRICH");
+    private static final Set<String> NAME_ONLY_BODY_COMMANDS = Set.of("MV_EXPAND", "ENRICH", "LOOKUP JOIN", "INSIST_🐔");
 
     /** Names bound by a {@code DISSECT} pattern as {@code %{[modifier]name}}. */
     private static final Pattern DISSECT_NAME_BINDING = Pattern.compile("%\\{[?+&*-]?\\s*(" + IDENTIFIER_PATTERN + ")");
@@ -293,8 +385,24 @@ public final class EsqlQueryKeywordFieldRewriter {
     /** Names bound by a {@code GROK} pattern as a Java named-capture group {@code (?<name>...)}. */
     private static final Pattern GROK_NAMED_CAPTURE_BINDING = Pattern.compile("\\(\\?<(" + IDENTIFIER_PATTERN + ")>");
 
-    /** Two-word commands recognized when parsing a segment's leading keyword. */
-    private static final List<String> TWO_WORD_COMMANDS = List.of("INLINE STATS", "LOOKUP JOIN");
+    /**
+     * Command keywords whose canonical form is a literal string the per-character identifier loop
+     * in {@link #parseCommandPosition} cannot reconstruct on its own. Two reasons drive entries
+     * onto this list:
+     * <ul>
+     *   <li>the keyword spans more than one whitespace-separated token ({@code INLINE STATS},
+     *       {@code LOOKUP JOIN}), so the regular alphanumeric loop would stop at the first
+     *       internal space and miss the second word; and</li>
+     *   <li>the keyword contains a non-identifier character that the loop's
+     *       {@link Character#isLetterOrDigit(char)} predicate rejects &mdash; in particular
+     *       {@code INSIST_🐔}, whose trailing chicken emoji is a supplementary-plane codepoint
+     *       (surrogate pair {@code U+D83D U+DC14}) that fails the {@code char}-level predicate.</li>
+     * </ul>
+     * Entries are matched literally (case-insensitive) at the segment's keyword position before
+     * the alphanumeric fallback, so the canonical form returned by {@link #parseCommandPosition}
+     * always preserves the multi-token shape.
+     */
+    private static final List<String> LITERAL_COMMAND_KEYWORDS = List.of("INLINE STATS", "LOOKUP JOIN", "INSIST_🐔");
 
     private EsqlQueryKeywordFieldRewriter() {}
 
@@ -423,7 +531,7 @@ public final class EsqlQueryKeywordFieldRewriter {
 
         RewriteResult walk() {
             for (int[] range : splitIntoSegmentRanges(query)) {
-                processSegment(query.substring(range[0], range[1]));
+                processSegment(query.substring(range[0], range[1]), out);
             }
             if (applyTailEndRecovery) {
                 appendTailEndRecovery();
@@ -500,52 +608,273 @@ public final class EsqlQueryKeywordFieldRewriter {
                     if (i > 0) {
                         sb.append(", ");
                     }
-                    sb.append(expectedColumnOrder.get(i));
+                    sb.append(quoteIdentifierIfNeeded(expectedColumnOrder.get(i)));
                 }
             }
             out.append(sb);
         }
 
-        private void processSegment(String segment) {
+        /**
+         * Returns {@code name} unchanged when it is a syntactically valid bare ES|QL identifier
+         * (matches {@link #IDENTIFIER_PATTERN}), and otherwise returns it wrapped in backticks.
+         * <p>
+         * The csv-spec expected-results header may declare columns whose names are not valid bare
+         * identifiers &mdash; either because they were given as quoted strings in the header
+         * (e.g. {@code "COUNT(*)":long}) or because they include grammar-significant characters
+         * such as parentheses, dashes, asterisks, spaces, or arithmetic operators (e.g.
+         * {@code constant_keyword-foo:keyword}, {@code SUBSTRING(last_name, 0, 1):keyword},
+         * {@code height * 3.281:double}). Emitting such a name verbatim into the trailing
+         * {@code KEEP} produces an ES|QL parser error (typically a token-recognition failure on
+         * the first non-identifier character) before any of the rewriter's wrap-site verification
+         * can run. Wrapping the name in backticks is the parser-level mechanism for projecting a
+         * column whose name is not a bare identifier, and matches what users would write by hand
+         * in the original csv-spec query (see e.g. {@code WHERE `COUNT(*)` > 1} in
+         * {@code inlinestats.csv-spec}'s {@code afterEnrich}).
+         * <p>
+         * Backticks already inside {@code name} are not currently escaped: no csv-spec header in
+         * the corpus contains a backtick in a column name, and adding escape logic without a real
+         * test case would only obscure the more common cases this method is built for.
+         */
+        private static String quoteIdentifierIfNeeded(String name) {
+            return BARE_IDENTIFIER_FORM.matcher(name).matches() ? name : "`" + name + "`";
+        }
+
+        /**
+         * Dispatches a single top-level pipeline command to the rewrite strategy that matches its
+         * keyword, appending the (possibly rewritten) segment text to {@code sink}. The walker's
+         * top-level loop passes {@link #out} as the sink so command output flows into the final
+         * rewritten query; the FORK-branch path passes a branch-local {@code StringBuilder} so
+         * that each parenthesised branch is rewritten in isolation while still sharing the
+         * walker's {@link #scope}, {@link #rewrittenNames}, and {@link #skipEvents} sinks.
+         */
+        private void processSegment(String segment, StringBuilder sink) {
             CommandPosition pos = parseCommandPosition(segment);
             String cmd = pos.keyword();
 
             if (SOURCE_COMMANDS.contains(cmd)) {
-                out.append(rewriteSubqueriesInSourceSegment(segment));
+                sink.append(rewriteSubqueriesInSourceSegment(segment));
                 return;
             }
             if (NAME_ONLY_COMMANDS.contains(cmd)) {
-                out.append(segment);
+                sink.append(segment);
                 scope = updateScopeForNameOnlyCommand(cmd, segment, pos, scope);
                 return;
             }
             if (cmd.equals("EVAL")) {
-                out.append(rewriteFieldRefs(segment, scope, wrapperSubKey, rewrittenNames, skipEvents));
+                sink.append(rewriteFieldRefs(segment, scope, wrapperSubKey, rewrittenNames, skipEvents));
                 scope = updateScopeForEvalCommand(segment, pos, scope);
                 return;
             }
             if (STATS_REPLACE_COMMANDS.contains(cmd)) {
-                String preprocessed = preprocessStatsByAliasing(segment, pos, scope);
-                out.append(rewriteFieldRefs(preprocessed, scope, wrapperSubKey, rewrittenNames, skipEvents));
+                StatsByPreprocessing pre = preprocessStatsByAliasing(segment, pos, scope);
+                sink.append(rewriteFieldRefs(pre.segment(), scope, wrapperSubKey, rewrittenNames, skipEvents));
+                appendRenameBackForAliasedBy(sink, pre.aliasedFields(), false);
                 scope = new HashSet<>();
                 return;
             }
             if (STATS_PRESERVE_COMMANDS.contains(cmd)) {
-                String preprocessed = preprocessStatsByAliasing(segment, pos, scope);
-                out.append(rewriteFieldRefs(preprocessed, scope, wrapperSubKey, rewrittenNames, skipEvents));
+                StatsByPreprocessing pre = preprocessStatsByAliasing(segment, pos, scope);
+                sink.append(rewriteFieldRefs(pre.segment(), scope, wrapperSubKey, rewrittenNames, skipEvents));
+                appendRenameBackForAliasedBy(sink, pre.aliasedFields(), true);
+                scope.removeAll(pre.shadowedFields());
                 return;
             }
             if (DISSECT_GROK_COMMANDS.contains(cmd)) {
-                out.append(rewriteFieldRefs(segment, scope, wrapperSubKey, rewrittenNames, skipEvents));
+                sink.append(rewriteFieldRefs(segment, scope, wrapperSubKey, rewrittenNames, skipEvents));
                 scope = updateScopeForDissectOrGrokCommand(cmd, segment, pos, scope);
                 return;
             }
             if (NAME_ONLY_BODY_COMMANDS.contains(cmd)) {
-                out.append(segment);
+                sink.append(segment);
                 recordNameOnlyBodySkips(cmd, segment, pos, scope, skipEvents);
+                if (cmd.equals("ENRICH")) {
+                    scope = updateScopeForEnrichCommand(segment, pos, scope);
+                }
                 return;
             }
-            out.append(rewriteFieldRefs(segment, scope, wrapperSubKey, rewrittenNames, skipEvents));
+            if (cmd.equals("FORK")) {
+                sink.append(rewriteForkSegment(segment, pos));
+                return;
+            }
+            sink.append(rewriteFieldRefs(segment, scope, wrapperSubKey, rewrittenNames, skipEvents));
+        }
+
+        /**
+         * Rewrites a {@code FORK} segment by recursing into each parenthesised branch as its own
+         * mini-pipeline. Without this recursion the regex rewriter inside {@link #rewriteFieldRefs}
+         * would treat the entire body of {@code FORK} as a single expression context and wrap
+         * in-scope identifiers indiscriminately, even when they sit inside a name-only command
+         * such as {@code DROP gender} or {@code MV_EXPAND job_positions} that the grammar does
+         * not allow expressions in (see {@code fork.forkBranchWithDrop} and
+         * {@code fork.forkBranchWithMvExpand} in the corpus, which produce ES|QL parser errors
+         * on the {@code field_extract(} token of the wrapped name).
+         * <p>
+         * FORK branches execute in parallel against the same input row, so each branch starts
+         * from the same {@link #scope} the FORK does. The walker therefore snapshots the outer
+         * scope, restores it before each branch, and reinstates the snapshot after the segment
+         * returns &mdash; FORK itself does not rebind any column at the outer level (it only adds
+         * the {@code _fork} sentinel column, which is keyword and not in flattened scope), so the
+         * post-FORK scope equals the pre-FORK scope. {@link #rewrittenNames} and
+         * {@link #skipEvents} are preserved across branches because they are union-shaped sinks
+         * (the same field wrapped or skipped in two branches is reported once per occurrence,
+         * which is the desired inventory granularity).
+         * <p>
+         * Parenthesised content inside string literals or comments is not treated as a branch;
+         * the standard {@link #maskStringsAndComments} mask is applied before the scan. The
+         * {@code FORK} keyword itself plus any whitespace between branches is emitted verbatim.
+         */
+        private String rewriteForkSegment(String segment, CommandPosition pos) {
+            String body = segment.substring(pos.bodyStart());
+            String masked = maskStringsAndComments(body);
+            int n = body.length();
+            StringBuilder result = new StringBuilder();
+            result.append(segment, 0, pos.bodyStart());
+            Set<String> snapshot = new HashSet<>(scope);
+            // Collect each branch's rewritten body and outgoing scope. ES|QL FORK requires
+            // every branch to expose the same column name with the same type; if one branch
+            // rebinds a column to keyword (e.g. via the INLINE STATS BY {@code __kw_} alias
+            // pattern from Bug 8) while another keeps it flattened, the analyzer fails with
+            // "conflicting data types in FORK branches". To equalize the schema we append an
+            // {@code | EVAL <name> = field_extract(<name>, "v")} tail to every branch that
+            // still carries a flattened column that some sibling branch dropped, so all
+            // branches converge on the same keyword type for that column. See
+            // {@code fork.forkBranchWithInlineStats} in the corpus.
+            List<ForkBranchRewrite> branchRewrites = new ArrayList<>();
+            List<int[]> branchSpans = new ArrayList<>();
+            int i = 0;
+            while (i < n) {
+                char c = masked.charAt(i);
+                if (c == '(') {
+                    int depth = 1;
+                    int j = i + 1;
+                    while (j < n && depth > 0) {
+                        char cj = masked.charAt(j);
+                        if (cj == '(') {
+                            depth++;
+                        } else if (cj == ')') {
+                            depth--;
+                            if (depth == 0) {
+                                break;
+                            }
+                        }
+                        j++;
+                    }
+                    if (j >= n) {
+                        // Unbalanced parens; bail out and append the rest verbatim.
+                        result.append(body, i, n);
+                        i = n;
+                        break;
+                    }
+                    String branchBody = body.substring(i + 1, j);
+                    scope = new HashSet<>(snapshot);
+                    String rewritten = rewriteForkBranch(branchBody);
+                    branchRewrites.add(new ForkBranchRewrite(rewritten, new HashSet<>(scope)));
+                    branchSpans.add(new int[] { i, j + 1 });
+                    i = j + 1;
+                } else {
+                    i++;
+                }
+            }
+            Set<String> droppedByAny = new HashSet<>();
+            for (ForkBranchRewrite br : branchRewrites) {
+                for (String name : snapshot) {
+                    if (br.outgoingScope().contains(name) == false) {
+                        droppedByAny.add(name);
+                    }
+                }
+            }
+            int cursor = 0;
+            for (int b = 0; b < branchRewrites.size(); b++) {
+                int[] span = branchSpans.get(b);
+                ForkBranchRewrite br = branchRewrites.get(b);
+                if (cursor < span[0]) {
+                    result.append(body, cursor, span[0]);
+                }
+                result.append('(').append(br.rewrittenBody());
+                for (String name : droppedByAny) {
+                    if (br.outgoingScope().contains(name)) {
+                        result.append("\n| EVAL ").append(name).append(" = field_extract(").append(name).append(", \"v\")");
+                    }
+                }
+                result.append(')');
+                cursor = span[1];
+            }
+            if (cursor < n) {
+                result.append(body, cursor, n);
+            }
+            Set<String> newScope = new HashSet<>(snapshot);
+            newScope.removeAll(droppedByAny);
+            scope = newScope;
+            return result.toString();
+        }
+
+        /**
+         * Captures the rewritten body and outgoing flattened scope for one FORK branch. Used
+         * by {@link #rewriteForkSegment} to defer assembly of the FORK output until all
+         * branches have been rewritten, so the cross-branch type equalization can append
+         * {@code field_extract} tails to siblings that retained columns the rebinding branch
+         * dropped.
+         */
+        private record ForkBranchRewrite(String rewrittenBody, Set<String> outgoingScope) {}
+
+        /**
+         * Rewrites a single FORK branch body (the content between the parentheses, excluding the
+         * surrounding parens themselves). The body is split on top-level pipes the same way the
+         * outer walker splits the query, and each segment is dispatched through
+         * {@link #processSegment} into a branch-local {@link StringBuilder}. The branch's first
+         * segment does not start with {@code |}, so the splitter's range list naturally yields a
+         * leading segment with no pipe prefix; subsequent segments retain their pipe.
+         */
+        private String rewriteForkBranch(String branchBody) {
+            StringBuilder branchOut = new StringBuilder();
+            for (int[] range : splitIntoSegmentRanges(branchBody)) {
+                processSegment(branchBody.substring(range[0], range[1]), branchOut);
+            }
+            return branchOut.toString();
+        }
+
+        /**
+         * Appends the follow-up commands that restore the test-expected column names after a
+         * {@code STATS}/{@code INLINE STATS} segment whose {@code BY} clause was rewritten by
+         * {@link #preprocessStatsByAliasing} to use the {@link #BY_ALIAS_PREFIX} alias form.
+         * Emits {@code | RENAME __kw_<name> AS <name>} for every aliased grouping key so the
+         * grouping column reverts to its original name (now of type {@code keyword}, since the
+         * alias's right-hand side is a {@code field_extract} call).
+         * <p>
+         * For {@code INLINE STATS} (signalled by {@code preserveInputColumns}) the original
+         * input column with the same name survives the aggregation as a {@code flattened}
+         * column, so a {@code DROP <name>} is emitted before the rename to remove it. Without
+         * this drop the rename would collide with an existing column and the segment would fail
+         * verification with a duplicate-column error. For {@code STATS} the input row has been
+         * replaced by the aggregation outputs, so no drop is needed.
+         * <p>
+         * Names are emitted in sorted order to keep the rewritten query deterministic across
+         * runs (the aliased list is built by walking the BY clause right-to-left and would
+         * otherwise reflect that traversal order, which is fragile and harder to read in test
+         * logs).
+         */
+        private void appendRenameBackForAliasedBy(StringBuilder sink, List<String> aliasedFields, boolean preserveInputColumns) {
+            if (aliasedFields.isEmpty()) {
+                return;
+            }
+            List<String> ordered = new ArrayList<>(aliasedFields);
+            ordered.sort(Comparator.naturalOrder());
+            if (preserveInputColumns) {
+                sink.append("\n| DROP ");
+                for (int i = 0; i < ordered.size(); i++) {
+                    if (i > 0) {
+                        sink.append(", ");
+                    }
+                    sink.append(ordered.get(i));
+                }
+            }
+            sink.append("\n| RENAME ");
+            for (int i = 0; i < ordered.size(); i++) {
+                if (i > 0) {
+                    sink.append(", ");
+                }
+                sink.append(BY_ALIAS_PREFIX).append(ordered.get(i)).append(" AS ").append(ordered.get(i));
+            }
         }
 
         /**
@@ -707,7 +1036,7 @@ public final class EsqlQueryKeywordFieldRewriter {
         while (i < n && Character.isWhitespace(segment.charAt(i))) {
             i++;
         }
-        for (String cmd : TWO_WORD_COMMANDS) {
+        for (String cmd : LITERAL_COMMAND_KEYWORDS) {
             int candidateEnd = i + cmd.length();
             if (candidateEnd <= n && segment.substring(i, candidateEnd).equalsIgnoreCase(cmd)) {
                 if (candidateEnd == n || isWordBoundary(segment.charAt(candidateEnd))) {
@@ -737,6 +1066,22 @@ public final class EsqlQueryKeywordFieldRewriter {
      * keeps the rewriter conservative (it may attempt to wrap a name that the original query has
      * since dropped, but such references would already be invalid in the original query and so
      * the failure mode is unchanged).
+     * <p>
+     * For {@code RENAME old AS new}, the new column always inherits {@code old}'s type, so the
+     * scope effect is symmetrical regardless of whether {@code old} was already in scope:
+     * <ul>
+     *   <li>{@code old} is always removed (it no longer exists as a column post-rename), and</li>
+     *   <li>{@code new} is also always removed first (any pre-existing {@code new} column is
+     *       shadowed and replaced by {@code old}'s value), then added back only when
+     *       {@code old} was a flattened-scope column (because the renamed column inherits
+     *       {@code old}'s flattened type).</li>
+     * </ul>
+     * The previous behavior &mdash; only mutating scope when {@code old} was in scope &mdash;
+     * left a flattened {@code new} column in scope after a non-flattened {@code old} had
+     * shadowed it (e.g. {@code RENAME emp_no AS last_name} where {@code last_name} was
+     * flattened and {@code emp_no} integer), and the trailing recovery would then attempt to
+     * wrap the now-integer {@code last_name} and fail verification with "first argument must be
+     * flattened, found type integer". See {@code rename.shadowing} in the corpus.
      */
     private static Set<String> updateScopeForNameOnlyCommand(String cmd, String segment, CommandPosition pos, Set<String> scope) {
         Set<String> next = new HashSet<>(scope);
@@ -758,7 +1103,9 @@ public final class EsqlQueryKeywordFieldRewriter {
                     if (m.matches()) {
                         String oldName = m.group(1);
                         String newName = m.group(2);
-                        if (next.remove(oldName)) {
+                        boolean oldWasInScope = next.remove(oldName);
+                        next.remove(newName);
+                        if (oldWasInScope) {
                             next.add(newName);
                         }
                     }
@@ -777,25 +1124,29 @@ public final class EsqlQueryKeywordFieldRewriter {
      * untouched here: if it was already in scope it remains in scope, because the command does
      * not rebind it.
      * <p>
-     * Names are taken from the first string literal in the body, which is the literal pattern.
-     * For {@code DISSECT}, names are recognised as {@code %{[modifier]name}}. For {@code GROK},
-     * names are recognised both as Java named-capture groups {@code (?<name>...)} and as the
-     * grok-library shorthand {@code %{PATTERN:name[:type]}}. Pattern fragments that bind no name
-     * (for example a bare {@code %{IP}} in {@code GROK}, which would bind the column {@code IP})
-     * are intentionally not handled here because the csv-spec corpus consistently uses the
-     * {@code :name} form, and matching bare {@code %{PATTERN}} would risk over-aggressive scope
-     * mutation against arbitrary user identifiers.
+     * For {@code DISSECT} the body has a single string-literal pattern, so only the first literal
+     * is consulted. For {@code GROK} the body may carry a comma-separated list of patterns
+     * (e.g. {@code GROK msg "pat1", "pat2"}); every literal is scanned for bindings because a
+     * name bound only in the second pattern (such as {@code first_name} in
+     * {@code grok.multiPatterns2}) is just as much rebound on a successful match as one bound in
+     * the first. Bindings are recognised as {@code %{[modifier]name}} for DISSECT, and as both
+     * {@code %{PATTERN:name[:type]}} and Java named-capture groups {@code (?<name>...)} for
+     * GROK. Pattern fragments that bind no name (for example a bare {@code %{IP}}, which would
+     * bind the column {@code IP}) are intentionally not handled here because the csv-spec corpus
+     * consistently uses the {@code :name} form, and matching bare {@code %{PATTERN}} would risk
+     * over-aggressive scope mutation against arbitrary user identifiers.
      */
     private static Set<String> updateScopeForDissectOrGrokCommand(String cmd, String segment, CommandPosition pos, Set<String> scope) {
         Set<String> next = new HashSet<>(scope);
         String body = segment.substring(pos.bodyStart());
-        String pattern = extractFirstStringLiteralContent(body);
-        if (pattern == null) {
+        if (cmd.equals("DISSECT")) {
+            String pattern = extractFirstStringLiteralContent(body);
+            if (pattern != null) {
+                removeMatches(pattern, DISSECT_NAME_BINDING, next);
+            }
             return next;
         }
-        if (cmd.equals("DISSECT")) {
-            removeMatches(pattern, DISSECT_NAME_BINDING, next);
-        } else {
+        for (String pattern : extractAllStringLiteralContents(body)) {
             removeMatches(pattern, GROK_PERCENT_NAME_BINDING, next);
             removeMatches(pattern, GROK_NAMED_CAPTURE_BINDING, next);
         }
@@ -811,6 +1162,50 @@ public final class EsqlQueryKeywordFieldRewriter {
     }
 
     /**
+     * Returns the scope after an {@code ENRICH} command body. The {@code ENRICH} grammar is
+     * {@code ENRICH policy [ON match_field] [WITH new_field [= enrich_field], ...]}; any name
+     * that appears as a {@code WITH}-clause left-hand side is rebound by the policy and is
+     * therefore removed from the flattened scope (the policy supplies values whose type comes
+     * from the policy index, almost never {@code flattened}). The {@code ON} clause is a pure
+     * read of an existing column and does not shadow anything; the policy name itself is not a
+     * column reference. Without this scope update, tail-end recovery would re-wrap a column
+     * the policy has already replaced (see {@code enrich.shadowingSubfields} in the corpus,
+     * where the policy returns a {@code text}-typed value and the trailing
+     * {@code field_extract(<name>, "v")} fails verification with "found type text").
+     * <p>
+     * When the {@code WITH} clause contains a wildcard the scope is preserved as-is; the
+     * conservative over-approximation matches what {@link #updateScopeForNameOnlyCommand} does
+     * for wildcards in {@code KEEP}/{@code DROP}/{@code RENAME}. {@code ENRICH} bodies without a
+     * {@code WITH} clause leave the scope unchanged because the policy's added columns are
+     * implicit (their names are determined by the policy definition, which is not visible to
+     * the rewriter); any subsequent reference to one of those columns will be left unwrapped
+     * naturally because the column was never in the flattened scope to begin with.
+     */
+    private static Set<String> updateScopeForEnrichCommand(String segment, CommandPosition pos, Set<String> scope) {
+        Set<String> next = new HashSet<>(scope);
+        String body = segment.substring(pos.bodyStart());
+        String masked = maskStringsAndComments(body);
+        Matcher with = WITH_KEYWORD.matcher(masked);
+        if (with.find() == false) {
+            return next;
+        }
+        int withClauseStart = with.end();
+        String withClause = body.substring(withClauseStart);
+        List<String> pieces = splitTopLevelCommaPieces(withClause);
+        if (pieces.stream().anyMatch(s -> s.contains("*"))) {
+            return next;
+        }
+        for (String piece : pieces) {
+            Matcher lhs = ENRICH_WITH_LHS.matcher(piece);
+            if (lhs.find()) {
+                String name = lhs.group(1) != null ? lhs.group(1) : lhs.group(2);
+                next.remove(name);
+            }
+        }
+        return next;
+    }
+
+    /**
      * Returns the contents (without the surrounding quotes) of the first string literal that
      * appears in {@code text}, or {@code null} if {@code text} has no string literal. Recognises
      * both the standard {@code "..."} form and the triple-quoted {@code """..."""} form.
@@ -818,30 +1213,81 @@ public final class EsqlQueryKeywordFieldRewriter {
      * form has no escape processing.
      */
     private static String extractFirstStringLiteralContent(String text) {
+        int[] range = findStringLiteral(text, 0);
+        return range == null ? null : stringLiteralContent(text, range);
+    }
+
+    /**
+     * Returns the contents of every string literal in {@code text}, in order. Recognises both
+     * the standard {@code "..."} form and the triple-quoted {@code """..."""} form, with the
+     * same escape handling as {@link #extractFirstStringLiteralContent}. Used by GROK scope
+     * tracking, whose body may carry a comma-separated list of patterns (each pattern is its
+     * own literal).
+     */
+    private static List<String> extractAllStringLiteralContents(String text) {
+        List<String> contents = new ArrayList<>();
+        int from = 0;
+        while (true) {
+            int[] range = findStringLiteral(text, from);
+            if (range == null) {
+                return contents;
+            }
+            contents.add(stringLiteralContent(text, range));
+            from = range[1];
+        }
+    }
+
+    /**
+     * Locates the next string literal in {@code text} at or after {@code from}. Returns a two-
+     * element array {@code {start, endExclusive}} where {@code start} is the index of the
+     * opening quote character and {@code endExclusive} is one past the closing quote sequence
+     * (or {@code text.length()} for an unterminated literal at end-of-text). Returns
+     * {@code null} when no string literal exists.
+     */
+    private static int[] findStringLiteral(String text, int from) {
         int n = text.length();
-        for (int i = 0; i < n; i++) {
+        for (int i = from; i < n; i++) {
             if (text.charAt(i) != '"') {
                 continue;
             }
             if (i + 2 < n && text.charAt(i + 1) == '"' && text.charAt(i + 2) == '"') {
-                int start = i + 3;
-                int j = start;
+                int j = i + 3;
                 while (j + 2 < n && (text.charAt(j) != '"' || text.charAt(j + 1) != '"' || text.charAt(j + 2) != '"')) {
                     j++;
                 }
-                return j + 2 < n ? text.substring(start, j) : text.substring(start);
+                return new int[] { i, j + 2 < n ? j + 3 : n };
             }
-            int start = i + 1;
-            int j = start;
+            int j = i + 1;
             while (j < n && text.charAt(j) != '"') {
                 if (text.charAt(j) == '\\' && j + 1 < n) {
                     j++;
                 }
                 j++;
             }
-            return j < n ? text.substring(start, j) : text.substring(start);
+            return new int[] { i, j < n ? j + 1 : n };
         }
         return null;
+    }
+
+    /**
+     * Returns the contents of the literal whose range is {@code range} (as produced by
+     * {@link #findStringLiteral}), stripping the surrounding quote characters. Handles both the
+     * triple-quoted and standard string forms.
+     */
+    private static String stringLiteralContent(String text, int[] range) {
+        int start = range[0];
+        int endExclusive = range[1];
+        if (start + 3 <= endExclusive && text.charAt(start) == '"' && text.charAt(start + 1) == '"' && text.charAt(start + 2) == '"') {
+            int contentStart = start + 3;
+            int contentEnd = endExclusive >= start + 6
+                && text.charAt(endExclusive - 3) == '"'
+                && text.charAt(endExclusive - 2) == '"'
+                && text.charAt(endExclusive - 1) == '"' ? endExclusive - 3 : endExclusive;
+            return text.substring(contentStart, contentEnd);
+        }
+        int contentStart = start + 1;
+        int contentEnd = endExclusive > start && text.charAt(endExclusive - 1) == '"' ? endExclusive - 1 : endExclusive;
+        return text.substring(contentStart, contentEnd);
     }
 
     /**
@@ -864,35 +1310,180 @@ public final class EsqlQueryKeywordFieldRewriter {
     }
 
     /**
-     * For each bare-name grouping in the {@code BY} clause of a STATS body that is currently in
-     * scope, expands {@code BY ..., field, ...} to {@code BY ..., field = field, ...}. The
-     * subsequent regex rewrite then turns the right-hand side into
-     * {@code field = field_extract(field, "v")}, which preserves the output column name as
-     * {@code field} (of type keyword) and lets downstream commands reference it normally.
+     * Result of {@link #preprocessStatsByAliasing}.
+     *
+     * @param segment        the (possibly modified) segment text, with each grouping or aggregate
+     *                       piece pre-processed for whichever case in {@link #preprocessStatsByAliasing}
+     *                       it falls under
+     * @param aliasedFields  names of in-scope grouping keys that the rewriter rewrote with the
+     *                       {@link #BY_ALIAS_PREFIX} synthetic alias and that therefore need a
+     *                       follow-up {@code RENAME __kw_<name> AS <name>} step (and, for
+     *                       {@code INLINE STATS}, a {@code DROP <name>} of the surviving
+     *                       flattened input column before the rename) to restore the test-expected
+     *                       column name as a keyword column
+     * @param shadowedFields names rebound by an explicit user-written alias (in either an
+     *                       aggregate or a {@code BY} piece) whose left-hand side names a
+     *                       column already in flattened scope. Includes every name in
+     *                       {@code aliasedFields}. The caller drops these names from the
+     *                       active scope after the segment so subsequent commands and the
+     *                       tail-end recovery do not re-wrap a column the user has already
+     *                       rebound
      */
-    private static String preprocessStatsByAliasing(String segment, CommandPosition pos, Set<String> scope) {
+    private record StatsByPreprocessing(String segment, List<String> aliasedFields, Set<String> shadowedFields) {}
+
+    /**
+     * Pre-processes the body of a {@code STATS} or {@code INLINE STATS} segment so the
+     * subsequent field-reference pass and follow-up {@code RENAME}/{@code DROP} step produce a
+     * shape the ES|QL analyzer accepts and whose output columns keep the names the csv-spec
+     * test expects to assert on. Three kinds of pieces are handled, all detected from the
+     * pre-rewrite segment text:
+     * <ol>
+     *   <li><b>Bare grouping key in flattened scope</b> &mdash; the original
+     *       {@code BY ..., field, ...} shape is rewritten to
+     *       {@code BY ..., __kw_field = field, ...}. The field-reference pass then wraps the
+     *       right-hand side, yielding {@code __kw_field = field_extract(field, "v")} and a
+     *       grouping column of type keyword. Without the synthetic prefix the alias's
+     *       left-hand side would collide with the input column name and the analyzer would
+     *       resolve {@code field} inside the same segment's aggregate arguments to the
+     *       keyword-typed BY alias rather than the flattened input attribute, failing
+     *       verification with "first argument must be flattened, found type keyword". See
+     *       {@code keep.statsOfInteger} in the corpus.</li>
+     *   <li><b>Explicit user-written alias whose left-hand side names an in-scope flattened
+     *       column</b> ({@code BY field = expr} or {@code STATS field = expr ...}) &mdash; the
+     *       LHS is rebinding a column already in scope, which triggers the same analyzer
+     *       shadowing bug as case (1) when the wrapped right-hand side then references the
+     *       same name. For {@code BY} pieces the LHS is rewritten by inserting the
+     *       {@link #BY_ALIAS_PREFIX} prefix before the identifier, producing
+     *       {@code __kw_field = expr}; the follow-up {@code RENAME} restores the test-expected
+     *       column name. For aggregate pieces the user's alias is left as-is (the analyzer
+     *       does not hit the same bug for aggregate aliases that the field-ref pass wraps),
+     *       but the LHS is recorded so the active scope drops it after the segment. See
+     *       {@code inlinestats.groupingFilterIsAlwaysTrue} (BY shape) and
+     *       {@code inlinestats.sortBeforeDoubleInlinestats} (aggregate shape) in the
+     *       corpus.</li>
+     *   <li><b>Unaliased non-bare expression that mentions an in-scope flattened column</b>
+     *       (e.g. {@code BY LEFT(last_name, 1)} or {@code STATS SUM(LENGTH(last_name))})
+     *       &mdash; ES|QL auto-names the resulting column from the rewritten expression text,
+     *       so a downstream {@code SORT \`LEFT(last_name, 1)\`} or trailing
+     *       {@code KEEP SUM(LENGTH(last_name))} from the test header would no longer find the
+     *       column once the field-ref pass turns the body into
+     *       {@code LEFT(field_extract(last_name, "v"), 1)}. The piece is wrapped in a
+     *       {@code \`<original-text>\` = ...} alias so the column survives the rewrite under
+     *       the name the test expects (the alias's right-hand side is then wrapped normally
+     *       by the field-ref pass). See {@code stats.docsStatsByExpression},
+     *       {@code stats.nestedMultiExpressionInGroupingsAndAggs},
+     *       {@code inlinestats.maxOfLongByCalculatedKeyword}, and {@code string.aggregate length}
+     *       in the corpus.</li>
+     * </ol>
+     * Pieces that match none of the above are left untouched. Pieces are walked back-to-front
+     * so range offsets in {@code segment} stay valid as in-place edits accumulate; aggregate
+     * pieces and {@code BY} pieces share the same per-piece classifier (only step 1's
+     * bare-name aliasing is restricted to {@code BY} pieces, since a bare in-scope name in an
+     * aggregate position is not a meaningful aggregate input).
+     */
+    private static StatsByPreprocessing preprocessStatsByAliasing(String segment, CommandPosition pos, Set<String> scope) {
         int byOffset = findTopLevelBy(segment, pos.bodyStart());
-        if (byOffset < 0) {
-            return segment;
-        }
-        int byBodyStart = byOffset + "BY".length();
-        List<int[]> groupRanges = splitTopLevelCommaPiecesAsRanges(segment, byBodyStart);
-        if (groupRanges.isEmpty()) {
-            return segment;
-        }
+        int aggBodyStart = pos.bodyStart();
+        int aggBodyEnd = byOffset >= 0 ? byOffset : segment.length();
+        int byBodyStart = byOffset >= 0 ? byOffset + "BY".length() : -1;
+
         StringBuilder sb = new StringBuilder(segment);
-        for (int i = groupRanges.size() - 1; i >= 0; i--) {
-            int[] r = groupRanges.get(i);
-            String groupText = segment.substring(r[0], r[1]);
-            Matcher m = BARE_IDENTIFIER.matcher(groupText);
-            if (m.matches() && scope.contains(m.group(1))) {
-                int absStart = r[0] + m.start(1);
-                int absEnd = r[0] + m.end(1);
-                String name = m.group(1);
-                sb.replace(absStart, absEnd, name + " = " + name);
+        List<String> aliased = new ArrayList<>();
+        Set<String> shadowed = new HashSet<>();
+
+        if (byBodyStart >= 0) {
+            List<int[]> byRanges = splitTopLevelCommaPiecesAsRanges(segment, byBodyStart);
+            for (int i = byRanges.size() - 1; i >= 0; i--) {
+                rewriteStatsPiece(sb, segment, byRanges.get(i), scope, true, aliased, shadowed);
             }
         }
-        return sb.toString();
+        List<int[]> aggRanges = splitTopLevelCommaPiecesAsRanges(segment, aggBodyStart, aggBodyEnd);
+        for (int i = aggRanges.size() - 1; i >= 0; i--) {
+            rewriteStatsPiece(sb, segment, aggRanges.get(i), scope, false, aliased, shadowed);
+        }
+        return new StatsByPreprocessing(sb.toString(), List.copyOf(aliased), Set.copyOf(shadowed));
+    }
+
+    /**
+     * Classifies one comma-separated piece of a STATS or INLINE STATS body and applies the
+     * corresponding in-place rewrite to {@code sb}. {@code range} indexes into the unmodified
+     * {@code segment} text and is only valid because the caller walks pieces back-to-front; an
+     * earlier-piece edit cannot affect a later piece's range. {@code isByPiece} distinguishes
+     * grouping-key pieces from aggregate pieces; only grouping-key pieces are eligible for the
+     * bare-name {@link #BY_ALIAS_PREFIX} aliasing because a bare in-scope name in an aggregate
+     * position is not a meaningful aggregate input. See {@link #preprocessStatsByAliasing} for
+     * the per-case rewrite contract.
+     */
+    private static void rewriteStatsPiece(
+        StringBuilder sb,
+        String segment,
+        int[] range,
+        Set<String> scope,
+        boolean isByPiece,
+        List<String> aliased,
+        Set<String> shadowed
+    ) {
+        String pieceText = segment.substring(range[0], range[1]);
+        if (isByPiece) {
+            Matcher bare = BARE_IDENTIFIER.matcher(pieceText);
+            if (bare.matches() && scope.contains(bare.group(1))) {
+                int absStart = range[0] + bare.start(1);
+                int absEnd = range[0] + bare.end(1);
+                String name = bare.group(1);
+                sb.replace(absStart, absEnd, BY_ALIAS_PREFIX + name + " = " + name);
+                aliased.add(name);
+                shadowed.add(name);
+                return;
+            }
+        }
+        Matcher alias = STATS_PIECE_ALIAS_LHS.matcher(pieceText);
+        if (alias.find()) {
+            String aliasName = alias.group(1);
+            if (scope.contains(aliasName)) {
+                if (isByPiece) {
+                    sb.insert(range[0] + alias.start(1), BY_ALIAS_PREFIX);
+                    aliased.add(aliasName);
+                }
+                shadowed.add(aliasName);
+            }
+            return;
+        }
+        if (containsInScopeIdentifier(pieceText, scope)) {
+            int contentStart = range[0];
+            while (contentStart < range[1] && Character.isWhitespace(segment.charAt(contentStart))) {
+                contentStart++;
+            }
+            int contentEnd = range[1];
+            while (contentEnd > contentStart && Character.isWhitespace(segment.charAt(contentEnd - 1))) {
+                contentEnd--;
+            }
+            if (contentStart >= contentEnd) {
+                return;
+            }
+            String original = segment.substring(contentStart, contentEnd);
+            sb.insert(contentStart, "`" + original + "` = ");
+        }
+    }
+
+    /**
+     * Returns true when {@code text} contains a word-bounded occurrence of any name in
+     * {@code scope}, ignoring matches that fall inside a string literal or comment. Used by
+     * the STATS/INLINE STATS preprocessor to decide whether an unaliased non-bare piece needs
+     * an auto-name-preserving alias because the field-reference pass will wrap at least one of
+     * its identifiers.
+     */
+    private static boolean containsInScopeIdentifier(String text, Set<String> scope) {
+        if (scope.isEmpty()) {
+            return false;
+        }
+        String masked = maskStringsAndComments(text);
+        Matcher m = ANY_IDENTIFIER.matcher(masked);
+        while (m.find()) {
+            if (scope.contains(m.group(1))) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -975,12 +1566,21 @@ public final class EsqlQueryKeywordFieldRewriter {
      * until the segment's end or a top-level pipe character.
      */
     private static List<int[]> splitTopLevelCommaPiecesAsRanges(String segment, int from) {
+        return splitTopLevelCommaPiecesAsRanges(segment, from, segment.length());
+    }
+
+    /**
+     * Same as {@link #splitTopLevelCommaPiecesAsRanges(String, int)} but with an explicit
+     * exclusive end offset. Used to split aggregate pieces of a STATS body without spilling
+     * past the {@code BY} keyword (the BY-clause text would otherwise be treated as a
+     * continuation of the last aggregate piece because BY is not a comma boundary).
+     */
+    private static List<int[]> splitTopLevelCommaPiecesAsRanges(String segment, int from, int toExclusive) {
         String masked = maskStringsAndComments(segment);
         List<int[]> ranges = new ArrayList<>();
         int depth = 0;
-        int n = masked.length();
         int start = from;
-        for (int i = from; i < n; i++) {
+        for (int i = from; i < toExclusive; i++) {
             char c = masked.charAt(i);
             if (c == '(') {
                 depth++;
@@ -994,7 +1594,7 @@ public final class EsqlQueryKeywordFieldRewriter {
                 return ranges;
             }
         }
-        ranges.add(new int[] { start, n });
+        ranges.add(new int[] { start, toExclusive });
         return ranges;
     }
 
@@ -1029,6 +1629,8 @@ public final class EsqlQueryKeywordFieldRewriter {
         addAssignmentTargetRanges(segment, nonReferenceRanges);
         List<int[]> matchOperatorLhsRanges = new ArrayList<>();
         addMatchOperatorLhsRanges(segment, matchOperatorLhsRanges);
+        List<int[]> qualifiedNameBracketRanges = new ArrayList<>();
+        addQualifiedNameBracketRanges(segment, qualifiedNameBracketRanges);
 
         record CandidateMatch(int start, int end, String field) {}
         List<CandidateMatch> matches = new ArrayList<>();
@@ -1040,6 +1642,10 @@ public final class EsqlQueryKeywordFieldRewriter {
             Matcher m = p.matcher(segment);
             while (m.find()) {
                 if (overlapsAnyRange(m.start(), m.end(), nonReferenceRanges)) {
+                    continue;
+                }
+                if (overlapsAnyRange(m.start(), m.end(), qualifiedNameBracketRanges)) {
+                    skipSink.add(new SkipEvent(SkipSite.QUALIFIED_NAME_BRACKETS, field));
                     continue;
                 }
                 if (overlapsAnyRange(m.start(), m.end(), matchOperatorLhsRanges)) {
@@ -1064,12 +1670,19 @@ public final class EsqlQueryKeywordFieldRewriter {
     }
 
     /**
-     * Records one {@link SkipEvent} per in-scope identifier appearing inside the body of a
-     * {@code MV_EXPAND} or {@code ENRICH} command. Both grammar slots accept only attribute
-     * references (no expressions), so the rewriter passes the body through unchanged; this
-     * method makes the resulting "we did not wrap field X here" decisions visible to callers.
-     * String literals and line comments inside the body are masked first so an identifier that
-     * happens to appear inside one of them does not falsely trigger a skip event.
+     * Records one {@link SkipEvent} per in-scope identifier appearing inside the body of an
+     * attribute-only command ({@code MV_EXPAND}, {@code ENRICH}, {@code LOOKUP JOIN}, or
+     * {@code INSIST_🐔}). All four grammar slots accept only attribute references (no
+     * expressions) on their key position, so the rewriter passes the body through unchanged;
+     * this method makes the resulting "we did not wrap field X here" decisions visible to
+     * callers. String literals and line comments inside the body are masked first so an
+     * identifier that happens to appear inside one of them does not falsely trigger a skip event.
+     * <p>
+     * For {@code LOOKUP JOIN} the body includes the index pattern that precedes the {@code ON}
+     * keyword. Index names are not field references and almost never collide with field names
+     * in scope, so scanning the entire body (rather than only the post-{@code ON} portion) is
+     * safe; in the rare case of a collision the resulting "skipped a wrap on the index pattern"
+     * event is harmless because the rewriter already would not have wrapped there.
      */
     private static void recordNameOnlyBodySkips(
         String cmd,
@@ -1081,7 +1694,13 @@ public final class EsqlQueryKeywordFieldRewriter {
         if (scope.isEmpty()) {
             return;
         }
-        SkipSite site = cmd.equals("MV_EXPAND") ? SkipSite.MV_EXPAND_ARG : SkipSite.ENRICH_BODY;
+        SkipSite site = switch (cmd) {
+            case "MV_EXPAND" -> SkipSite.MV_EXPAND_ARG;
+            case "ENRICH" -> SkipSite.ENRICH_BODY;
+            case "LOOKUP JOIN" -> SkipSite.LOOKUP_JOIN_ON;
+            case "INSIST_🐔" -> SkipSite.INSIST_BODY;
+            default -> throw new AssertionError("recordNameOnlyBodySkips called for unsupported command [" + cmd + "]");
+        };
         String body = segment.substring(pos.bodyStart());
         String masked = maskStringsAndComments(body);
         for (String field : scope) {
@@ -1097,44 +1716,28 @@ public final class EsqlQueryKeywordFieldRewriter {
 
     /**
      * Returns a copy of {@code query} with every double-quoted string literal (including the
-     * {@code """..."""} triple-quoted form) and every {@code // ...} line comment replaced by
-     * spaces of equal length. Offsets of all other characters are preserved.
+     * {@code """..."""} triple-quoted form), every backtick-quoted identifier ({@code `...`}),
+     * and every {@code // ...} line comment replaced by spaces of equal length. Offsets of all
+     * other characters are preserved.
+     * <p>
+     * Backticks are masked alongside string literals because the rewriter both consumes
+     * masked text (for splitter and find-keyword passes that must not be fooled by content
+     * inside a backtick-quoted identifier) and emits backtick-quoted aliases of its own
+     * during STATS auto-name preservation, which the field-reference pass must leave intact.
+     * The grammar treats a backtick-quoted identifier as a single atomic token whose contents
+     * are never field references, so masking them is safe across every caller.
      */
     private static String maskStringsAndComments(String query) {
         char[] out = query.toCharArray();
         int i = 0;
         int n = out.length;
         while (i < n) {
-            char c = out[i];
-            if (c == '"') {
-                int start = i;
-                if (i + 2 < n && out[i + 1] == '"' && out[i + 2] == '"') {
-                    i += 3;
-                    while (i + 2 < n && (out[i] != '"' || out[i + 1] != '"' || out[i + 2] != '"')) {
-                        i++;
-                    }
-                    i = Math.min(i + 3, n);
-                } else {
-                    i++;
-                    while (i < n && out[i] != '"') {
-                        if (out[i] == '\\' && i + 1 < n) {
-                            i++;
-                        }
-                        i++;
-                    }
-                    i = Math.min(i + 1, n);
-                }
-                for (int k = start; k < i; k++) {
+            int next = endOfMaskedSpan(query, i);
+            if (next > i) {
+                for (int k = i; k < next; k++) {
                     out[k] = ' ';
                 }
-            } else if (c == '/' && i + 1 < n && out[i + 1] == '/') {
-                int start = i;
-                while (i < n && out[i] != '\n') {
-                    i++;
-                }
-                for (int k = start; k < i; k++) {
-                    out[k] = ' ';
-                }
+                i = next;
             } else {
                 i++;
             }
@@ -1143,44 +1746,79 @@ public final class EsqlQueryKeywordFieldRewriter {
     }
 
     /**
-     * Same as {@link #maskStringsAndComments} but records the [start, end) ranges of each string
-     * literal and line comment directly into {@code ranges}. Used by {@link #rewriteFieldRefs} to
-     * build the protected-range list without re-scanning.
+     * Same as {@link #maskStringsAndComments} but records the [start, end) ranges of each
+     * masked span (string literal, backtick-quoted identifier, or line comment) directly into
+     * {@code ranges}. Used by {@link #rewriteFieldRefs} to build the protected-range list
+     * without re-scanning.
      */
     private static void addStringAndCommentRanges(String query, List<int[]> ranges) {
         int i = 0;
         int n = query.length();
         while (i < n) {
-            char c = query.charAt(i);
-            if (c == '"') {
-                int start = i;
-                if (i + 2 < n && query.charAt(i + 1) == '"' && query.charAt(i + 2) == '"') {
-                    i += 3;
-                    while (i + 2 < n && (query.charAt(i) != '"' || query.charAt(i + 1) != '"' || query.charAt(i + 2) != '"')) {
-                        i++;
-                    }
-                    i = Math.min(i + 3, n);
-                } else {
-                    i++;
-                    while (i < n && query.charAt(i) != '"') {
-                        if (query.charAt(i) == '\\' && i + 1 < n) {
-                            i++;
-                        }
-                        i++;
-                    }
-                    i = Math.min(i + 1, n);
-                }
-                ranges.add(new int[] { start, i });
-            } else if (c == '/' && i + 1 < n && query.charAt(i + 1) == '/') {
-                int start = i;
-                while (i < n && query.charAt(i) != '\n') {
-                    i++;
-                }
-                ranges.add(new int[] { start, i });
+            int next = endOfMaskedSpan(query, i);
+            if (next > i) {
+                ranges.add(new int[] { i, next });
+                i = next;
             } else {
                 i++;
             }
         }
+    }
+
+    /**
+     * Returns the exclusive end offset of the masked span beginning at {@code i} in
+     * {@code query}, or {@code i} when no span begins there. A masked span is one of:
+     * <ul>
+     *   <li>a triple-quoted string literal ({@code """..."""} &mdash; no escape processing);</li>
+     *   <li>a standard string literal ({@code "..."} &mdash; backslash escapes consume the
+     *       next character);</li>
+     *   <li>a backtick-quoted identifier ({@code `...`} &mdash; no escape processing in the
+     *       grammar, and no backtick has appeared in any csv-spec column name in the corpus,
+     *       so backslashes are treated as ordinary characters here); or</li>
+     *   <li>a {@code //} line comment that runs to the next newline.</li>
+     * </ul>
+     * Anything else returns {@code i}, signalling that the caller should advance one
+     * character. The end offset of an unterminated span is the end of {@code query}; never
+     * past it.
+     */
+    private static int endOfMaskedSpan(String query, int i) {
+        int n = query.length();
+        if (i >= n) {
+            return i;
+        }
+        char c = query.charAt(i);
+        if (c == '"') {
+            if (i + 2 < n && query.charAt(i + 1) == '"' && query.charAt(i + 2) == '"') {
+                int j = i + 3;
+                while (j + 2 < n && (query.charAt(j) != '"' || query.charAt(j + 1) != '"' || query.charAt(j + 2) != '"')) {
+                    j++;
+                }
+                return Math.min(j + 3, n);
+            }
+            int j = i + 1;
+            while (j < n && query.charAt(j) != '"') {
+                if (query.charAt(j) == '\\' && j + 1 < n) {
+                    j++;
+                }
+                j++;
+            }
+            return Math.min(j + 1, n);
+        }
+        if (c == '`') {
+            int j = i + 1;
+            while (j < n && query.charAt(j) != '`') {
+                j++;
+            }
+            return Math.min(j + 1, n);
+        }
+        if (c == '/' && i + 1 < n && query.charAt(i + 1) == '/') {
+            int j = i;
+            while (j < n && query.charAt(j) != '\n') {
+                j++;
+            }
+            return j;
+        }
+        return i;
     }
 
     /**
@@ -1219,6 +1857,35 @@ public final class EsqlQueryKeywordFieldRewriter {
             int end = m.end(1);
             if (overlapsAnyRange(start, end, ranges) == false) {
                 ranges.add(new int[] { start, end });
+            }
+        }
+    }
+
+    /**
+     * Adds the contents of every {@code [<index>].[<field>]} qualified-name reference to
+     * {@code ranges}. ES|QL's parser accepts only a bare unquoted identifier inside each bracket
+     * pair (see {@code qualifiedName} / {@code qualifiedNamePattern} in the grammar), so wrapping
+     * a name there in {@code field_extract(...)} would not parse. The captured group spans cover
+     * the bracket interiors only, leaving the brackets themselves outside the protected range so
+     * that the rest of the segment can still be matched normally on either side.
+     * <p>
+     * String literals and line comments are masked first so a literal that happens to contain
+     * {@code "].["} (for example a sample query embedded in a {@code KQL(...)} argument) cannot
+     * trigger spurious bracket protection.
+     */
+    private static void addQualifiedNameBracketRanges(String query, List<int[]> ranges) {
+        String masked = maskStringsAndComments(query);
+        Matcher m = QUALIFIED_NAME_BRACKETS.matcher(masked);
+        while (m.find()) {
+            int qualifierStart = m.start(1);
+            int qualifierEnd = m.end(1);
+            int nameStart = m.start(2);
+            int nameEnd = m.end(2);
+            if (qualifierEnd > qualifierStart && overlapsAnyRange(qualifierStart, qualifierEnd, ranges) == false) {
+                ranges.add(new int[] { qualifierStart, qualifierEnd });
+            }
+            if (nameEnd > nameStart && overlapsAnyRange(nameStart, nameEnd, ranges) == false) {
+                ranges.add(new int[] { nameStart, nameEnd });
             }
         }
     }

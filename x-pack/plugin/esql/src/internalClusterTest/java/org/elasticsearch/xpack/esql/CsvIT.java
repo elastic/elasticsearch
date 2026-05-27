@@ -153,15 +153,19 @@ public class CsvIT extends ESTestCase {
         /**
          * Returns the ES|QL query to send to the cluster, given the full {@link CsvSpecReader.CsvTestCase}
          * for context (in particular, {@link CsvSpecReader.CsvTestCase#expectedResults} lets a variant
-         * recover the expected output column order). The default {@link #IDENTITY_INDEX_LOAD_STRATEGY}
-         * returns the original query unchanged.
+         * recover the expected output column order). {@code testId} is the
+         * {@code <fileName>.<testName>} pair the test runner uses to identify the case (the
+         * same form {@link org.junit.AssumptionViolatedException} log lines surface) so a
+         * variant can consult a per-test silencing registry without threading the test
+         * instance into the strategy. The default {@link #IDENTITY_INDEX_LOAD_STRATEGY}
+         * returns the original query unchanged regardless of {@code testId}.
          * <p>
          * Implementations may throw {@link org.junit.AssumptionViolatedException} (typically via
          * {@code assumeTrue} / {@code assumeFalse}) to skip the test under this variant when the original
          * query is not relevant for the variant &mdash; for example, when no field that this variant rewrites
          * appears in the query and so re-running the spec would only re-test the unmodified behavior.
          */
-        String transformQuery(CsvSpecReader.CsvTestCase testCase);
+        String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase);
     }
 
     public static final IndexLoadStrategy IDENTITY_INDEX_LOAD_STRATEGY = new IndexLoadStrategy() {
@@ -176,7 +180,7 @@ public class CsvIT extends ESTestCase {
         }
 
         @Override
-        public String transformQuery(CsvSpecReader.CsvTestCase testCase) {
+        public String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
             return testCase.query;
         }
     };
@@ -308,7 +312,7 @@ public class CsvIT extends ESTestCase {
         inference.ensureNoFailures();
         views.ensureNoFailures();
 
-        String queryToRun = indexLoadStrategy.transformQuery(testCase);
+        String queryToRun = indexLoadStrategy.transformQuery(groupName + "." + testName, testCase);
         var request = syncEsqlQueryRequest(queryToRun);
         if (testCase.requestTimeRangeGte != null && testCase.requestTimeRangeGte.isEmpty() == false) {
             request.filter(new RangeQueryBuilder("@timestamp").gte(testCase.requestTimeRangeGte).lte(testCase.requestTimeRangeLte));

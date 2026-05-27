@@ -12,21 +12,30 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.junit.AfterClass;
 import org.junit.AssumptionViolatedException;
 import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.net.URL;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.EnumMap;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
+import java.util.concurrent.atomic.AtomicInteger;
+
+import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
 
 /**
  * Integration test that runs the {@link CsvIT} csv-spec corpus against indices where every field
@@ -56,11 +65,14 @@ import java.util.TreeSet;
  * Three categories are emitted:
  * <ul>
  *   <li>{@code skip-convert; dataset=&lt;X&gt;; field=&lt;Y&gt;; reason=...} &mdash; once at startup
- *       per keyword field that this variant will never convert to {@code flattened}. Two reasons
+ *       per keyword field that this variant will never convert to {@code flattened}. Three reasons
  *       are produced: {@code reason=enrich-policy match_field for [policy]} for fields that must
- *       remain {@code keyword} in the source dataset of an enrich policy, and
- *       {@code reason=keyword carries [param]} for fields whose declaration uses a parameter in
- *       {@link KeywordToFlattenedTransformer#PARAMS_INCOMPATIBLE_WITH_FLATTENED}.</li>
+ *       remain {@code keyword} in the source dataset of an enrich policy,
+ *       {@code reason=LOOKUP JOIN match field for [target]} for fields used as join keys in any
+ *       csv-spec {@code LOOKUP JOIN ... ON ...} clause (kept as keyword on every dataset that
+ *       participates in the join, so neither side becomes {@code flattened} and the join's type
+ *       check passes), and {@code reason=keyword carries [param]} for fields whose declaration
+ *       uses a parameter in {@link KeywordToFlattenedTransformer#PARAMS_INCOMPATIBLE_WITH_FLATTENED}.</li>
  *   <li>{@code scope-excluded; field=&lt;X&gt;; reason=keyword in {...} but non-keyword in {...}} &mdash;
  *       per launched query (and per recursive subquery), once per field whose cross-dataset path
  *       intersection eliminates it from the rewrite scope. The two dataset sets identify which
@@ -68,10 +80,14 @@ import java.util.TreeSet;
  *   <li>{@code skip-wrap; site=&lt;SITE&gt;; field=&lt;X&gt;; reason=...} &mdash; per launched query,
  *       once per distinct {@code (site, field)} pair the rewriter's
  *       {@link EsqlQueryKeywordFieldRewriter.SkipSite} machinery declined to wrap. Sites cover
- *       grammar slots that accept only an attribute (e.g. {@code MV_EXPAND}, {@code ENRICH ON})
- *       and the LHS of the match operator {@code :}. These positions are still exercised at the
- *       runtime layer (the bare attribute reaches the engine on a {@code flattened} column), but
- *       {@code field_extract} itself is not tested there.</li>
+ *       grammar slots that accept only an attribute ({@code MV_EXPAND}, {@code ENRICH ON / WITH},
+ *       {@code LOOKUP JOIN ... ON ...}) and the LHS of the match operator {@code :}. These
+ *       positions are still exercised at the runtime layer (the bare attribute reaches the
+ *       engine), but {@code field_extract} itself is not tested there. Tests whose
+ *       <em>only</em> in-scope field references are inside {@code LOOKUP JOIN ... ON ...} are
+ *       additionally marked skipped (via {@code AssumptionViolatedException}) so the JUnit XML
+ *       {@code <skipped>} element carries a precise reason instead of running as if
+ *       {@code field_extract} were exercised.</li>
  * </ul>
  *
  * <p>Known limitations:</p>
@@ -81,9 +97,12 @@ import java.util.TreeSet;
  *   <li>Datasets whose keyword fields are referenced by special index modes (e.g. time-series
  *       dimensions) may fail at index creation time.</li>
  *   <li>Query rewriting is regex-driven; ES|QL grammar surfaces that take an attribute but not an
- *       arbitrary expression (e.g. {@code DISSECT &lt;field&gt;}, {@code LOOKUP JOIN ... ON &lt;field&gt;})
- *       will fail when the field is wrapped in a function call. Those failures are the intended
- *       output of this test. See {@link EsqlQueryKeywordFieldRewriter} for the full list.</li>
+ *       arbitrary expression (e.g. {@code DISSECT &lt;field&gt;}) will fail when the field is wrapped
+ *       in a function call. Those failures are the intended output of this test &mdash; the
+ *       attribute-only positions the rewriter explicitly carves out
+ *       ({@code MV_EXPAND}, {@code ENRICH ON / WITH}, {@code LOOKUP JOIN ... ON ...}, match
+ *       operator {@code :} LHS) emit {@code skip-wrap} log lines instead so the inventory remains
+ *       complete. See {@link EsqlQueryKeywordFieldRewriter} for the full list.</li>
  *   <li>Output column types: {@code field_extract} is only injected in expression contexts, so a
  *       converted keyword field that is projected directly (e.g. {@code KEEP first_name},
  *       {@code SORT first_name}, or appearing untouched in the output of a STATS-less query) comes
@@ -123,6 +142,32 @@ public class CsvFlattenedKeywordIT extends CsvIT {
     }
 
     /**
+     * Per-JVM counters for the post-run summary emitted by {@link #logKeywordToFlattenedSummary}.
+     * Each counter corresponds to one exit path of {@link KeywordToFlattenedStrategy#transformQuery}
+     * &mdash; the four paths together account for every test method this strategy sees, so the
+     * summary lets a developer read a single log line and know how many tests the rewriter
+     * actually ran versus how many it short-circuited (and why).
+     * <p>
+     * The counters are deliberately not reset between tests in the same JVM: the summary
+     * reports totals for the full lifetime of the test class, which is what is interesting
+     * after a {@code ./gradlew} invocation. With Gradle's forked test JVMs each fork emits its
+     * own summary line; the user can {@code grep "keyword→flattened summary"} the run output
+     * to see all of them.
+     */
+    private static final AtomicInteger LAUNCHED_COUNT = new AtomicInteger();
+    private static final AtomicInteger NO_KEYWORD_REFS_COUNT = new AtomicInteger();
+    private static final AtomicInteger ONLY_LOOKUP_JOIN_ON_COUNT = new AtomicInteger();
+    private static final EnumMap<SilencedFlattenedFindings.Finding, AtomicInteger> SILENCED_COUNTS_BY_FINDING = new EnumMap<>(
+        SilencedFlattenedFindings.Finding.class
+    );
+
+    static {
+        for (SilencedFlattenedFindings.Finding f : SilencedFlattenedFindings.Finding.values()) {
+            SILENCED_COUNTS_BY_FINDING.put(f, new AtomicInteger());
+        }
+    }
+
+    /**
      * Runs after {@link CsvIT#setupCluster()} (which JUnit guarantees runs first because it is
      * declared on the superclass) and replaces the identity strategy with one that rewrites
      * keyword fields to flattened, wraps source values, and rewrites the query.
@@ -133,56 +178,158 @@ public class CsvFlattenedKeywordIT extends CsvIT {
     }
 
     /**
+     * Logs a single human-readable summary of how the {@code field_extract()} variant routed
+     * the tests in this JVM: how many were launched (and therefore exercised the rewriter
+     * end-to-end), how many were short-circuited because the query had nothing for the
+     * rewriter to wrap, how many were short-circuited because the only keyword references
+     * were inside {@code LOOKUP JOIN ... ON ...} clauses, and how many were silenced as known
+     * limitations. The silenced count is broken out per
+     * {@link SilencedFlattenedFindings.Finding} so a finding-by-finding tally is visible in
+     * the same place &mdash; useful both as a smoke check after a fix lands and as the
+     * baseline reading when un-silencing a finding via the
+     * {@link SilencedFlattenedFindings} system properties.
+     * <p>
+     * The summary line is emitted at {@code INFO} so it lands in the standard internal-cluster
+     * test JVM stdout and the JUnit XML {@code <system-out>}; the line begins with the literal
+     * {@code keyword→flattened summary:} prefix so it can be grepped out of a long Gradle log
+     * without any additional filter.
+     */
+    @AfterClass
+    public static void logKeywordToFlattenedSummary() {
+        int silenced = 0;
+        for (AtomicInteger c : SILENCED_COUNTS_BY_FINDING.values()) {
+            silenced += c.get();
+        }
+        int launched = LAUNCHED_COUNT.get();
+        int noRefs = NO_KEYWORD_REFS_COUNT.get();
+        int onlyLookup = ONLY_LOOKUP_JOIN_ON_COUNT.get();
+        int touched = launched + silenced + noRefs + onlyLookup;
+        logger.info(
+            "keyword→flattened summary: touched={} launched={} silenced={} no-keyword-refs={} only-lookup-join-on={}",
+            touched,
+            launched,
+            silenced,
+            noRefs,
+            onlyLookup
+        );
+        for (Map.Entry<SilencedFlattenedFindings.Finding, AtomicInteger> e : SILENCED_COUNTS_BY_FINDING.entrySet()) {
+            int v = e.getValue().get();
+            if (v > 0) {
+                logger.info("keyword→flattened summary: silenced[{} / {}]={}", e.getKey().name(), e.getKey().issueRef(), v);
+            }
+        }
+    }
+
+    /**
      * Strategy implementation that delegates JSON manipulation to {@link KeywordToFlattenedTransformer}
      * and query rewriting to {@link EsqlQueryKeywordFieldRewriter}.
      * <p>
      * Three pieces of state are kept, all populated eagerly at construction time:
      * <ul>
-     *   <li>{@code protectedKeywordPathsByEnrichSourceIndex} &mdash; for every enrich policy
-     *       declared in {@link CsvTestsDataLoader#ENRICH_POLICIES}, the policy's
-     *       {@code match_field} (under the policy's source index). These paths must remain
-     *       {@code keyword} regardless of the variant under test: the enrich-policy reindex into
-     *       the internal {@code .enrich-*} index expects a {@code keyword} value at the match
-     *       field, and converting the source field to {@code flattened} causes that reindex to
-     *       fail. The failure is cached by {@link CsvIT}'s resource loader, so every later test in
-     *       the same JVM fails with the same {@code RuntimeException: Resource loading failure}.
-     *       Excluding the match field at the source keeps the policy load deterministic.</li>
+     *   <li>{@code protectedKeywordPathsByDatasetIndexName} &mdash; for every dataset, the union
+     *       of paths that must remain {@code keyword} regardless of how this variant operates.
+     *       The union has two contributors:
+     *       <ol>
+     *         <li>For every enrich policy declared in
+     *             {@link CsvTestsDataLoader#ENRICH_POLICIES}, the policy's {@code match_field}
+     *             under the policy's source index. The enrich-policy reindex into the internal
+     *             {@code .enrich-*} index expects a {@code keyword} value at the match field;
+     *             converting the source field to {@code flattened} causes that reindex to fail
+     *             and the failure is cached by {@link CsvIT}'s resource loader, so every later
+     *             test in the same JVM fails with the same
+     *             {@code RuntimeException: Resource loading failure}. Excluding the match field
+     *             at the source keeps the policy load deterministic.</li>
+     *         <li>For every {@code LOOKUP JOIN ... ON &lt;field&gt;} clause in any csv-spec test
+     *             query, the join attribute is added to every dataset that participates in the
+     *             query (the lookup target itself plus every {@code FROM}/{@code TS} source).
+     *             Both sides of the join must remain {@code keyword}: if only one side were
+     *             converted to {@code flattened} the analyzer would reject the join with
+     *             {@code KEYWORD vs FLATTENED} type-mismatch, and even with both sides flattened
+     *             the engine refuses
+     *             {@code JOIN with right field [...] of type [FLATTENED] is not supported}.</li>
+     *       </ol>
+     *   </li>
      *   <li>{@code keywordPathsByDatasetIndexName} &mdash; the keyword paths that
      *       {@link KeywordToFlattenedTransformer} actually rewrites for each dataset (after the
-     *       enrich-policy exclusions above are applied). Used both to wrap per-document source
-     *       values when {@link CsvIT} indexes the dataset, and as one input to the per-query
-     *       scope computed by {@link #resolveKeywordPathsForQuery}.</li>
+     *       protected paths above are applied). Used both to wrap per-document source values when
+     *       {@link CsvIT} indexes the dataset, and as one input to the per-query scope computed
+     *       by {@link #resolveKeywordPathsForQuery}.</li>
      *   <li>{@code nonKeywordPathsByDatasetIndexName} &mdash; every dotted field path declared in
      *       a dataset's mapping whose type is <em>not</em> {@code keyword} (e.g. {@code long},
      *       {@code ip}, {@code text}, {@code geo_point}, plus keyword-typed paths that the
-     *       transformer's denylist or the per-dataset enrich-policy exclusions kept as keyword).
-     *       Used to subtract cross-dataset conflicts from the per-query keyword scope &mdash; if
-     *       a field exists as keyword in one dataset and as a non-keyword type in another dataset
-     *       referenced by the same query, wrapping the field in {@code field_extract(...)} would
-     *       fail verification on the second dataset, so the field is excluded from the rewrite
-     *       scope for that query.</li>
+     *       transformer's denylist or the protected-paths set kept as keyword). Used to subtract
+     *       cross-dataset conflicts from the per-query keyword scope &mdash; if a field exists as
+     *       keyword in one dataset and as a non-keyword type in another dataset referenced by
+     *       the same query, wrapping the field in {@code field_extract(...)} would fail
+     *       verification on the second dataset, so the field is excluded from the rewrite scope
+     *       for that query.</li>
      * </ul>
      */
     private static final class KeywordToFlattenedStrategy implements IndexLoadStrategy {
-        private final Map<String, Set<String>> protectedKeywordPathsByEnrichSourceIndex;
+        /**
+         * Per-dataset union of every path that must remain {@code keyword} regardless of why.
+         * Both the per-index startup mapping pass ({@link #computeDatasetPaths}) and the runtime
+         * mapping rewrite ({@link #transformMapping(CsvTestsDataLoader.TestDataset, String)})
+         * read from this single map so the two paths cannot drift apart and produce a dataset
+         * whose declared mapping disagrees with the variant's view of which paths are keyword.
+         * The map carries the union of:
+         * <ul>
+         *   <li>enrich-policy {@code match_field}s (per
+         *       {@link #computeEnrichMatchFieldExclusions}) &mdash; keeps the policy's source
+         *       field as keyword so the policy reindex into {@code .enrich-*} succeeds, and</li>
+         *   <li>{@code LOOKUP JOIN ... ON ...} attributes (per
+         *       {@link #computeLookupJoinFieldExclusions}) &mdash; keeps the join key as keyword
+         *       on every dataset that participates in any csv-spec {@code LOOKUP JOIN}, on
+         *       <em>both</em> sides of the join, so neither the
+         *       {@code KEYWORD vs FLATTENED} type-mismatch error nor the
+         *       {@code JOIN with right field of type [FLATTENED] is not supported} error fires
+         *       on any csv-spec query that uses the join.</li>
+         * </ul>
+         */
+        private final Map<String, Set<String>> protectedKeywordPathsByDatasetIndexName;
         private final Map<String, Set<String>> keywordPathsByDatasetIndexName;
         private final Map<String, Set<String>> nonKeywordPathsByDatasetIndexName;
 
         KeywordToFlattenedStrategy() {
             EnrichExclusionResult enrichResult = computeEnrichMatchFieldExclusions();
-            this.protectedKeywordPathsByEnrichSourceIndex = enrichResult.byIndex();
-            DatasetPathsResult datasetPaths = computeDatasetPaths(protectedKeywordPathsByEnrichSourceIndex);
+            LookupJoinExclusionResult lookupResult = computeLookupJoinFieldExclusions();
+            this.protectedKeywordPathsByDatasetIndexName = unionExclusionsByIndex(enrichResult.byIndex(), lookupResult.byIndex());
+            DatasetPathsResult datasetPaths = computeDatasetPaths(protectedKeywordPathsByDatasetIndexName);
             this.keywordPathsByDatasetIndexName = datasetPaths.keywordPathsByDatasetIndexName();
             this.nonKeywordPathsByDatasetIndexName = datasetPaths.nonKeywordPathsByDatasetIndexName();
             // C-class transparency: emit one INFO line for every keyword field that this variant will
             // intentionally never convert. The user can grep for "skip-convert" to inventory the
-            // permanent blind spots of the test variant. Both sources are emitted here:
+            // permanent blind spots of the test variant. Three sources are emitted:
             // * enrich-policy match_fields: the policy reindex into .enrich-* requires keyword,
             // and converting the source field would poison the test resource loader.
+            // * LOOKUP JOIN ON attributes: must remain keyword on every participating dataset to
+            // keep both sides of the join type-aligned and to dodge the engine's lack of support
+            // for JOIN on flattened.
             // * mapping-denylist hits: keyword fields declaring TSDB / multi-fields / copy_to /
             // runtime-script parameters that are incompatible with flattened.
             logEnrichMatchFieldExclusions(enrichResult.exclusions());
+            logLookupJoinFieldExclusions(lookupResult.exclusions());
             logMappingDenylistHits(datasetPaths.skippedFieldsByDataset());
+        }
+
+        /**
+         * Returns a per-index map whose value at each key is the union of the values that key
+         * has in {@code first} and {@code second}. Both inputs may omit keys; missing keys are
+         * treated as the empty set. The returned map and its value sets are immutable.
+         */
+        private static Map<String, Set<String>> unionExclusionsByIndex(Map<String, Set<String>> first, Map<String, Set<String>> second) {
+            Map<String, Set<String>> merged = new HashMap<>();
+            for (Map.Entry<String, Set<String>> e : first.entrySet()) {
+                merged.computeIfAbsent(e.getKey(), k -> new HashSet<>()).addAll(e.getValue());
+            }
+            for (Map.Entry<String, Set<String>> e : second.entrySet()) {
+                merged.computeIfAbsent(e.getKey(), k -> new HashSet<>()).addAll(e.getValue());
+            }
+            Map<String, Set<String>> immutable = new HashMap<>();
+            for (Map.Entry<String, Set<String>> e : merged.entrySet()) {
+                immutable.put(e.getKey(), Set.copyOf(e.getValue()));
+            }
+            return Map.copyOf(immutable);
         }
 
         /**
@@ -308,6 +455,121 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         }
 
         /**
+         * One {@code LOOKUP JOIN} attribute that contributes to the per-participating-index
+         * exclusion set, with enough metadata for the startup logger to attribute each exclusion
+         * to a representative {@code (target, field)} occurrence in the csv-spec corpus. The same
+         * {@code (sourceIndex, field)} pair is emitted only once even if many queries mention it,
+         * so the logger does not double-count multi-use fields.
+         *
+         * @param sourceIndex the dataset whose mapping will keep {@code field} as {@code keyword}
+         *                    (either the lookup-target or a {@code FROM} side of any csv-spec
+         *                    query that uses {@code field} as a {@code LOOKUP JOIN} key)
+         * @param field       the dotted field path that must remain {@code keyword} in
+         *                    {@code sourceIndex}
+         * @param target      the lookup-target index where {@code field} is the join key &mdash;
+         *                    used only in the log line so the user can see which join introduced
+         *                    the exclusion. May equal {@code sourceIndex} when the source-side of
+         *                    the exclusion is the lookup target itself.
+         */
+        private record LookupJoinFieldExclusion(String sourceIndex, String field, String target) {}
+
+        /**
+         * Bundles the by-index protected-paths map (used at runtime by the transformer) with the
+         * per-{@code (sourceIndex, field)} exclusion list (used at startup by the logger). Both
+         * views are populated by a single scan of every csv-spec query so the test variant cannot
+         * drift between "what we tell the transformer to keep as keyword" and "what we report to
+         * the user as kept".
+         */
+        private record LookupJoinExclusionResult(Map<String, Set<String>> byIndex, List<LookupJoinFieldExclusion> exclusions) {}
+
+        /**
+         * Walks every csv-spec test query in the corpus, extracts each
+         * {@code LOOKUP JOIN &lt;target&gt; ON &lt;body&gt;} clause via
+         * {@link EsqlQueryDatasetResolver#extractLookupJoinTargets}, and returns both
+         * <ol>
+         *   <li>a by-source-index map that adds each join attribute to <em>every</em> dataset the
+         *       query touches (the lookup target itself plus every {@code FROM}/{@code TS} index
+         *       resolved by {@link EsqlQueryDatasetResolver#resolveDatasetsForQuery}). Both sides
+         *       must be kept as {@code keyword}: if only the right side were converted to
+         *       {@code flattened} the analyzer would reject the join with
+         *       {@code JOIN left field [...] of type [KEYWORD] is incompatible with right field
+         *       [...] of type [FLATTENED]}, and even if both sides were flattened the engine
+         *       refuses {@code JOIN with right field [...] of type [FLATTENED] is not supported}.</li>
+         *   <li>a per-{@code (sourceIndex, field, target)} list deduplicated to one entry per
+         *       triple, used by the startup logger to surface every exclusion the variant
+         *       installed.</li>
+         * </ol>
+         * Resolution of the lookup target uses the same dataset registry as
+         * {@link EsqlQueryDatasetResolver#resolveDatasetsForQuery}, so an unknown target index
+         * (e.g. a typo or a future-only test) is silently dropped &mdash; the exclusion set
+         * cannot reference a dataset that the variant will not load anyway.
+         */
+        private static LookupJoinExclusionResult computeLookupJoinFieldExclusions() {
+            Map<String, Set<String>> exclusionsByIndex = new HashMap<>();
+            Map<String, LookupJoinFieldExclusion> uniqueExclusions = new LinkedHashMap<>();
+            for (CsvSpecReader.CsvTestCase testCase : loadAllCsvSpecTestCases()) {
+                String query = testCase.query;
+                if (query == null || query.isEmpty()) {
+                    continue;
+                }
+                Map<String, Set<String>> targets = EsqlQueryDatasetResolver.extractLookupJoinTargets(query);
+                if (targets.isEmpty()) {
+                    continue;
+                }
+                Set<CsvTestsDataLoader.TestDataset> participants = EsqlQueryDatasetResolver.resolveDatasetsForQuery(
+                    query,
+                    CsvTestsDataLoader.CSV_DATASET
+                );
+                for (Map.Entry<String, Set<String>> targetEntry : targets.entrySet()) {
+                    String targetIndex = targetEntry.getKey();
+                    Set<String> fields = targetEntry.getValue();
+                    for (String field : fields) {
+                        for (CsvTestsDataLoader.TestDataset participant : participants) {
+                            String participantIndex = participant.indexName();
+                            exclusionsByIndex.computeIfAbsent(participantIndex, k -> new HashSet<>()).add(field);
+                            uniqueExclusions.putIfAbsent(
+                                participantIndex + "\0" + field + "\0" + targetIndex,
+                                new LookupJoinFieldExclusion(participantIndex, field, targetIndex)
+                            );
+                        }
+                    }
+                }
+            }
+            Map<String, Set<String>> immutable = new HashMap<>();
+            for (Map.Entry<String, Set<String>> entry : exclusionsByIndex.entrySet()) {
+                immutable.put(entry.getKey(), Set.copyOf(entry.getValue()));
+            }
+            return new LookupJoinExclusionResult(Map.copyOf(immutable), List.copyOf(uniqueExclusions.values()));
+        }
+
+        /**
+         * Loads every csv-spec test case on the test classpath via the same machinery
+         * {@link CsvIT#readScriptSpec} uses for the parameterized factory. Used by
+         * {@link #computeLookupJoinFieldExclusions} to scan the corpus once at startup;
+         * propagating the unchecked exceptions out of here is acceptable because the strategy
+         * cannot operate without knowing which fields participate in any {@code LOOKUP JOIN}.
+         */
+        private static List<CsvSpecReader.CsvTestCase> loadAllCsvSpecTestCases() {
+            try {
+                List<URL> urls = classpathResources("/*.csv-spec");
+                List<Object[]> rows = SpecReader.readScriptSpec(urls, specParser());
+                List<CsvSpecReader.CsvTestCase> cases = new ArrayList<>(rows.size());
+                for (Object[] row : rows) {
+                    if (row[4] instanceof CsvSpecReader.CsvTestCase tc) {
+                        cases.add(tc);
+                    }
+                }
+                return cases;
+            } catch (IOException e) {
+                throw new UncheckedIOException("failed to enumerate csv-spec resources for LOOKUP JOIN exclusions", e);
+            } catch (RuntimeException e) {
+                throw e;
+            } catch (Exception e) {
+                throw new RuntimeException("failed to load csv-spec test cases for LOOKUP JOIN exclusions", e);
+            }
+        }
+
+        /**
          * Parses {@code policy.loadPolicy()} and returns the {@code match_field} value of its
          * single policy-type block (the top-level key is the policy type: {@code match},
          * {@code geo_match}, or {@code range}). Returns {@code null} if the policy JSON does not
@@ -336,7 +598,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
 
         @Override
         public String transformMapping(CsvTestsDataLoader.TestDataset dataset, String originalMapping) throws IOException {
-            Set<String> excluded = protectedKeywordPathsByEnrichSourceIndex.getOrDefault(dataset.indexName(), Set.of());
+            Set<String> excluded = protectedKeywordPathsByDatasetIndexName.getOrDefault(dataset.indexName(), Set.of());
             return KeywordToFlattenedTransformer.transformMapping(originalMapping, excluded).transformedMapping();
         }
 
@@ -347,7 +609,20 @@ public class CsvFlattenedKeywordIT extends CsvIT {
         }
 
         @Override
-        public String transformQuery(CsvSpecReader.CsvTestCase testCase) {
+        public String transformQuery(String testId, CsvSpecReader.CsvTestCase testCase) {
+            // Silenced findings short-circuit the rewrite entirely. The registry lists tests
+            // whose failure is a known limitation of field_extract() or of an upstream
+            // grammar/engine constraint (see SilencedFlattenedFindings.Finding for the
+            // categories); running the rewrite would only reproduce the documented failure
+            // and obscure new regressions in the rest of the suite. The unsilencing knobs
+            // documented on SilencedFlattenedFindings let a developer working on a specific
+            // finding category re-enable the relevant tests locally.
+            Optional<SilencedFlattenedFindings.Finding> silencedAs = SilencedFlattenedFindings.findingFor(testId);
+            if (silencedAs.isPresent()) {
+                SILENCED_COUNTS_BY_FINDING.get(silencedAs.get()).incrementAndGet();
+                logger.info("keyword→flattened: skipping; silenced finding [{} / {}]", testId, silencedAs.get().issueRef());
+                throw new AssumptionViolatedException(SilencedFlattenedFindings.assumptionMessage(testId, silencedAs.get()));
+            }
             String originalQuery = testCase.query;
             List<String> expectedColumnOrder = parseExpectedColumnOrder(testCase.expectedResults);
             // Pass the per-query resolver itself rather than a pre-resolved flat scope so that the
@@ -363,6 +638,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 expectedColumnOrder
             );
             if (result.modified() == false) {
+                NO_KEYWORD_REFS_COUNT.incrementAndGet();
                 // Logged at INFO so the launched/skipped split is visible in the test JVM stdout, alongside the
                 // assumption-violation message that surfaces in the JUnit XML <skipped> element.
                 logger.info("keyword→flattened: skipping; no keyword field references in query");
@@ -371,12 +647,32 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                         + "so re-running the spec would only re-test the unmodified behavior"
                 );
             }
+            // Policy C: even when the query was modified (typically by tail-end EVAL/KEEP recovery
+            // alone), if the only sites the rewriter actually visited were LOOKUP JOIN ... ON
+            // bodies then no field_extract call survives in the launched query. ES|QL's analyzer
+            // rejects an expression on either side of a join condition, so wrapping the join key
+            // is not an option; the test would re-run unchanged behavior and therefore adds no
+            // new coverage of field_extract. We mark such tests as skipped via
+            // AssumptionViolatedException so the JUnit XML <skipped> element carries the precise
+            // reason, while still emitting the per-skip-event log lines below so the inventory
+            // remains complete.
+            if (result.rewrittenFieldNames().isEmpty() && hasOnlyLookupJoinOnSkips(result.skipEvents())) {
+                ONLY_LOOKUP_JOIN_ON_COUNT.incrementAndGet();
+                logger.info("keyword→flattened: skipping; only field references in query are inside LOOKUP JOIN ... ON ...");
+                logRewriterSkipEvents(result.skipEvents());
+                throw new AssumptionViolatedException(
+                    "skipping: query's only keyword field references appear inside LOOKUP JOIN ... ON ..., "
+                        + "where ES|QL accepts only a bare attribute and field_extract cannot be substituted; "
+                        + "the unmodified spec already covers this behavior"
+                );
+            }
             // The short "launched" marker is emitted unconditionally so that every launched test has a single,
             // grep-able log line tying the test method (from the JUnit thread context) to the set of fields
             // the rewriter actually wrapped. The multi-line rewritten query itself is gated on
             // LOG_REWRITTEN_QUERIES_PROPERTY because, at full-corpus scale, dumping every rewritten query at
             // INFO produces thousands of multi-line blocks &mdash; useful when analyzing a specific run, but
             // noisy enough to bury the rest of the test output when always on.
+            LAUNCHED_COUNT.incrementAndGet();
             logger.info("keyword→flattened: launched; rewrote field references {}", result.rewrittenFieldNames());
             // B-class transparency: emit one INFO line per intentionally-skipped wrap site so the
             // user can grep for "skip-wrap" and inventory exactly which positions in this query
@@ -387,6 +683,26 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 logger.info("keyword→flattened: rewritten query:\n{}", result.rewrittenQuery());
             }
             return result.rewrittenQuery();
+        }
+
+        /**
+         * Returns {@code true} when {@code events} is non-empty and every recorded site is
+         * {@link EsqlQueryKeywordFieldRewriter.SkipSite#LOOKUP_JOIN_ON}. Used by
+         * {@link #transformQuery} to recognise queries whose only field references appear inside
+         * a {@code LOOKUP JOIN ... ON ...} body (where {@code field_extract} cannot be
+         * substituted) so the test can be marked skipped with a precise reason rather than run
+         * as if it exercised {@code field_extract} when it does not.
+         */
+        private static boolean hasOnlyLookupJoinOnSkips(List<EsqlQueryKeywordFieldRewriter.SkipEvent> events) {
+            if (events.isEmpty()) {
+                return false;
+            }
+            for (EsqlQueryKeywordFieldRewriter.SkipEvent event : events) {
+                if (event.site() != EsqlQueryKeywordFieldRewriter.SkipSite.LOOKUP_JOIN_ON) {
+                    return false;
+                }
+            }
+            return true;
         }
 
         /**
@@ -424,6 +740,9 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 case MV_EXPAND_ARG -> "MV_EXPAND grammar slot accepts only an attribute, not an expression";
                 case ENRICH_BODY -> "ENRICH ON / WITH grammar slots accept only attributes, not expressions";
                 case MATCH_OPERATOR_LHS -> "match operator [:] LHS accepts only an attribute, not an expression";
+                case LOOKUP_JOIN_ON -> "LOOKUP JOIN ... ON ... accepts only an attribute, not an expression";
+                case INSIST_BODY -> "INSIST_🐔 grammar slot accepts only attributes, not expressions";
+                case QUALIFIED_NAME_BRACKETS -> "[<index>].[<field>] qualified-reference brackets accept only an identifier";
             };
         }
 
@@ -447,6 +766,30 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                     exclusion.sourceIndex(),
                     exclusion.matchField(),
                     exclusion.policyName()
+                );
+            }
+        }
+
+        /**
+         * Emits one INFO line per {@code (dataset, field, lookup-target)} triple the variant
+         * keeps as {@code keyword} so a csv-spec {@code LOOKUP JOIN ... ON &lt;field&gt;} clause
+         * can still type-match. The user can grep for {@code skip-convert} to inventory every
+         * field the test variant will never exercise with {@code field_extract}, and grep for
+         * {@code reason=LOOKUP JOIN} to narrow down to this subset.
+         */
+        private static void logLookupJoinFieldExclusions(List<LookupJoinFieldExclusion> exclusions) {
+            List<LookupJoinFieldExclusion> sorted = new ArrayList<>(exclusions);
+            sorted.sort(
+                Comparator.comparing(LookupJoinFieldExclusion::sourceIndex)
+                    .thenComparing(LookupJoinFieldExclusion::field)
+                    .thenComparing(LookupJoinFieldExclusion::target)
+            );
+            for (LookupJoinFieldExclusion exclusion : sorted) {
+                logger.info(
+                    "keyword→flattened: skip-convert; dataset={}; field={}; reason=LOOKUP JOIN match field for [{}]",
+                    exclusion.sourceIndex(),
+                    exclusion.field(),
+                    exclusion.target()
                 );
             }
         }
@@ -490,6 +833,14 @@ public class CsvFlattenedKeywordIT extends CsvIT {
          * trailing {@code KEEP} that the rewriter appends &mdash; the {@code field_extract}
          * tail-end recovery already converts the column type back to {@code keyword}.
          * <p>
+         * The csv-spec header occasionally writes a column name in double quotes when the name
+         * itself is not a bare identifier &mdash; for instance {@code "COUNT(*)":long} for an
+         * un-aliased aggregate, or to disambiguate a name that contains a colon. The surrounding
+         * quotes are part of the header syntax and not part of the column name in the actual
+         * pipeline output, so they are stripped here. The rewriter then re-introduces backticks
+         * (the ES|QL parser-level quoting form) when emitting the trailing {@code KEEP}; see
+         * {@code quoteIdentifierIfNeeded} on {@link EsqlQueryKeywordFieldRewriter}.
+         * <p>
          * Returns an empty list when {@code expectedResults} is {@code null}, blank, or otherwise
          * cannot be parsed into a header line of {@code name:type} pairs. In that case the
          * rewriter falls back to a bare tail-end EVAL with no column-order restoration; tests
@@ -512,6 +863,9 @@ public class CsvFlattenedKeywordIT extends CsvIT {
                 }
                 int colon = trimmed.indexOf(':');
                 String name = colon < 0 ? trimmed : trimmed.substring(0, colon).trim();
+                if (name.length() >= 2 && name.charAt(0) == '"' && name.charAt(name.length() - 1) == '"') {
+                    name = name.substring(1, name.length() - 1);
+                }
                 if (name.isEmpty()) {
                     continue;
                 }

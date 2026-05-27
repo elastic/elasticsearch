@@ -451,6 +451,47 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
         }
     }
 
+    public void testMatchWithRowAndMultiValues() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_SUPPORT_NON_ES_FIELDS.isEnabled());
+        var query = """
+            ROW content = ["This is a brown fox", "This is a brown dog", "This dog is really brown"]
+            | MV_EXPAND content
+            | EVAL content = to_text(mv_append(content, "extra"))
+            | WHERE match(content, "dog")
+            | SORT content
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            assertColumnNames(resp.columns(), List.of("content"));
+            assertColumnTypes(resp.columns(), List.of("text"));
+            assertValues(
+                resp.values(),
+                List.of(List.of(List.of("This dog is really brown", "extra")), List.of(List.of("This is a brown dog", "extra")))
+            );
+        }
+    }
+
+    public void testMatchWithRowAndNullValues() {
+        assumeTrue("requires query pragmas", canUseQueryPragmas());
+        assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_SUPPORT_NON_ES_FIELDS.isEnabled());
+        var query = """
+            ROW content = ["This is a brown fox", "This is a brown dog", "This dog is really brown"]
+            | MV_EXPAND content
+            | EVAL content = to_text(case(content == "This is a brown dog", null, content))
+            | WHERE match(content, "dog")
+            | SORT content
+            """;
+        var pragmas = new QueryPragmas(Settings.builder().put(QueryPragmas.RUNTIME_LEXICAL_SEARCH.getKey(), true).build());
+
+        try (var resp = run(syncEsqlQueryRequest(query).pragmas(pragmas))) {
+            assertColumnNames(resp.columns(), List.of("content"));
+            assertColumnTypes(resp.columns(), List.of("text"));
+            assertValues(resp.values(), List.of(List.of("This dog is really brown")));
+        }
+    }
+
     public void testMatchRuntimeExpression() {
         assumeTrue("requires query pragmas", canUseQueryPragmas());
         assumeTrue("requires runtime search support", EsqlCapabilities.Cap.MATCH_SUPPORT_NON_ES_FIELDS.isEnabled());

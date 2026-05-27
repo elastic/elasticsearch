@@ -5,16 +5,13 @@
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
 import java.io.IOException;
-import java.lang.IllegalArgumentException;
 import java.lang.Override;
 import java.lang.String;
 import org.apache.lucene.analysis.Analyzer;
-import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.compute.operator.DriverContext;
@@ -31,7 +28,7 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
 
   private final Source source;
 
-  private final ExpressionEvaluator value;
+  private final ExpressionEvaluator fieldBlock;
 
   private final String queryString;
 
@@ -41,10 +38,10 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public MatchTextEvaluator(Source source, ExpressionEvaluator value, String queryString,
+  public MatchTextEvaluator(Source source, ExpressionEvaluator fieldBlock, String queryString,
       Analyzer analyzer, DriverContext driverContext) {
     this.source = source;
-    this.value = value;
+    this.fieldBlock = fieldBlock;
     this.queryString = queryString;
     this.analyzer = analyzer;
     this.driverContext = driverContext;
@@ -52,56 +49,23 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
 
   @Override
   public Block eval(Page page) {
-    try (BytesRefBlock valueBlock = (BytesRefBlock) value.eval(page)) {
-      BytesRefVector valueVector = valueBlock.asVector();
-      if (valueVector == null) {
-        return eval(page.getPositionCount(), valueBlock);
-      }
-      return eval(page.getPositionCount(), valueVector);
+    try (BytesRefBlock fieldBlockBlock = (BytesRefBlock) fieldBlock.eval(page)) {
+      return eval(page.getPositionCount(), fieldBlockBlock);
     }
   }
 
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += value.baseRamBytesUsed();
+    baseRamBytesUsed += fieldBlock.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public BooleanBlock eval(int positionCount, BytesRefBlock valueBlock) {
+  public BooleanBlock eval(int positionCount, BytesRefBlock fieldBlockBlock) {
     try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      BytesRef valueScratch = new BytesRef();
       position: for (int p = 0; p < positionCount; p++) {
-        switch (valueBlock.getValueCount(p)) {
-          case 0:
-              result.appendNull();
-              continue position;
-          case 1:
-              break;
-          default:
-              warnings().registerException(new IllegalArgumentException("single-value function encountered multi-value"));
-              result.appendNull();
-              continue position;
-        }
-        BytesRef value = valueBlock.getBytesRef(valueBlock.getFirstValueIndex(p), valueScratch);
         try {
-          result.appendBoolean(Match.processTextKeyword(value, this.queryString, this.analyzer));
-        } catch (IOException e) {
-          warnings().registerException(e);
-          result.appendNull();
-        }
-      }
-      return result.build();
-    }
-  }
-
-  public BooleanBlock eval(int positionCount, BytesRefVector valueVector) {
-    try(BooleanBlock.Builder result = driverContext.blockFactory().newBooleanBlockBuilder(positionCount)) {
-      BytesRef valueScratch = new BytesRef();
-      position: for (int p = 0; p < positionCount; p++) {
-        BytesRef value = valueVector.getBytesRef(p, valueScratch);
-        try {
-          result.appendBoolean(Match.processTextKeyword(value, this.queryString, this.analyzer));
+          result.appendBoolean(Match.process(p, fieldBlockBlock, this.queryString, this.analyzer));
         } catch (IOException e) {
           warnings().registerException(e);
           result.appendNull();
@@ -113,12 +77,12 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "MatchTextEvaluator[" + "value=" + value + ", queryString=" + queryString + ", analyzer=" + analyzer + "]";
+    return "MatchTextEvaluator[" + "fieldBlock=" + fieldBlock + ", queryString=" + queryString + ", analyzer=" + analyzer + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(value);
+    Releasables.closeExpectNoException(fieldBlock);
   }
 
   private Warnings warnings() {
@@ -131,28 +95,28 @@ public final class MatchTextEvaluator implements ExpressionEvaluator {
   static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final ExpressionEvaluator.Factory value;
+    private final ExpressionEvaluator.Factory fieldBlock;
 
     private final String queryString;
 
     private final Analyzer analyzer;
 
-    public Factory(Source source, ExpressionEvaluator.Factory value, String queryString,
+    public Factory(Source source, ExpressionEvaluator.Factory fieldBlock, String queryString,
         Analyzer analyzer) {
       this.source = source;
-      this.value = value;
+      this.fieldBlock = fieldBlock;
       this.queryString = queryString;
       this.analyzer = analyzer;
     }
 
     @Override
     public MatchTextEvaluator get(DriverContext context) {
-      return new MatchTextEvaluator(source, value.get(context), queryString, analyzer, context);
+      return new MatchTextEvaluator(source, fieldBlock.get(context), queryString, analyzer, context);
     }
 
     @Override
     public String toString() {
-      return "MatchTextEvaluator[" + "value=" + value + ", queryString=" + queryString + ", analyzer=" + analyzer + "]";
+      return "MatchTextEvaluator[" + "fieldBlock=" + fieldBlock + ", queryString=" + queryString + ", analyzer=" + analyzer + "]";
     }
   }
 }

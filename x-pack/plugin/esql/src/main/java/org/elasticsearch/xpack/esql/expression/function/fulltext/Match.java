@@ -20,6 +20,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.ann.Position;
+import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
@@ -420,17 +422,34 @@ public class Match extends SingleFieldFullTextFunction implements OptionalArgume
         return super.toEvaluator(toEvaluator);
     }
 
-    @Evaluator(extraName = "Text", warnExceptions = { IOException.class })
-    static boolean processTextKeyword(BytesRef value, @Fixed String queryString, @Fixed Analyzer analyzer) throws IOException {
-        MemoryIndex index = new MemoryIndex();
-        index.addField(CONTENT_FIELD, value.utf8ToString(), new StandardAnalyzer());
-        IndexSearcher searcher = index.createSearcher();
+    @Evaluator(extraName = "Text", warnExceptions = { IOException.class }, allNullsIsNull = false)
+    static boolean process(@Position int position, BytesRefBlock fieldBlock, @Fixed String queryString, @Fixed Analyzer analyzer)
+        throws IOException {
+        if (fieldBlock == null) {
+            return false;
+        }
 
-        org.apache.lucene.util.QueryBuilder queryBuilder = new org.apache.lucene.util.QueryBuilder(analyzer);
-        org.apache.lucene.search.Query query = queryBuilder.createBooleanQuery(CONTENT_FIELD, queryString, BooleanClause.Occur.SHOULD);
+        final var valueCount = fieldBlock.getValueCount(position);
+        final var startIndex = fieldBlock.getFirstValueIndex(position);
+        var value = new BytesRef();
 
-        TopDocs topDocs = searcher.search(query, 1);
-        return topDocs.scoreDocs.length > 0;
+        for (int valueIndex = startIndex; valueIndex < startIndex + valueCount; valueIndex++) {
+            // TODO: See if we really need a memory index, we could match the terms directly from the analyzer token stream.
+            MemoryIndex index = new MemoryIndex();
+            value = fieldBlock.getBytesRef(valueIndex, value);
+            index.addField(CONTENT_FIELD, value.utf8ToString(), analyzer);
+            IndexSearcher searcher = index.createSearcher();
+
+            org.apache.lucene.util.QueryBuilder queryBuilder = new org.apache.lucene.util.QueryBuilder(analyzer);
+            // TODO: Use the operator specified in the query options instead of `BooleanClause.Occur.SHOULD`.
+            org.apache.lucene.search.Query query = queryBuilder.createBooleanQuery(CONTENT_FIELD, queryString, BooleanClause.Occur.SHOULD);
+
+            TopDocs topDocs = searcher.search(query, 1);
+            if (topDocs.scoreDocs.length > 0) {
+                return true;
+            }
+        }
+        return false;
     }
 
     @Override

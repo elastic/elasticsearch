@@ -28,7 +28,7 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+EXTERNAL "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name", "multi_value_syntax": "brackets"}
 | SORT name ASC
 | LIMIT 10
 ;
@@ -46,7 +46,7 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+EXTERNAL "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "union_by_name", "multi_value_syntax": "brackets"}
 | KEEP name, city
 | SORT name ASC
 | LIMIT 10
@@ -82,7 +82,7 @@ required_capability: external_source_read_schema
 required_capability: external_union_by_name_keyword_fallback
 required_capability: datasource_file_readers_no_text_type
 
-EXTERNAL "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "union_by_name"}
+EXTERNAL "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "union_by_name", "multi_value_syntax": "brackets"}
 | SORT id ASC
 | LIMIT 10
 ;

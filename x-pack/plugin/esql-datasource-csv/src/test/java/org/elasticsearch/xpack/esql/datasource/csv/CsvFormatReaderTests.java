@@ -528,6 +528,50 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testMultiValueSyntaxDefaultsToNone() {
+        // Standard CSV (RFC 4180) has no array/multi-value concept; the default must be NONE so a
+        // bracketed cell is literal text, not a parsed multi-value. BRACKETS is opt-in.
+        assertEquals(CsvFormatOptions.MultiValueSyntax.NONE, CsvFormatOptions.DEFAULT.multiValueSyntax());
+        assertEquals(CsvFormatOptions.MultiValueSyntax.NONE, CsvFormatOptions.TSV.multiValueSyntax());
+    }
+
+    public void testMultiValueDefaultReadsBracketsAsLiteral() throws IOException {
+        // With the default multi_value_syntax (NONE), a quoted "[a,b,c]" cell is a single literal
+        // string — NOT a 3-element multi-value. Mirror of testMultiValueBracketsVersion, which opts
+        // into BRACKETS and gets three values from the same shape.
+        String csv = "pkg:keyword,tags:keyword\n1,\"[a,b,c]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory); // CsvFormatOptions.DEFAULT (multi_value=NONE)
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock tags = (BytesRefBlock) page.getBlock(1);
+            assertEquals(1, tags.getValueCount(0)); // one literal value, not three
+            assertEquals(new BytesRef("[a,b,c]"), tags.getBytesRef(tags.getFirstValueIndex(0), new BytesRef()));
+        }
+    }
+
+    public void testTsvDefaultReadsBracketsAsLiteral() throws IOException {
+        // TSV uses a tab delimiter and the same NONE default. The bracket multi-value parser is
+        // comma-specific, so tab-delimited input always takes the standard (Jackson) path regardless
+        // of multi_value_syntax: a "[a,b,c]" cell is one literal value, and the commas inside it are
+        // not field separators (the tab is).
+        String tsv = "pkg:keyword\ttags:keyword\n1\t[a,b,c]\n";
+        StorageObject object = createStorageObject(tsv);
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock tags = (BytesRefBlock) page.getBlock(1);
+            assertEquals(1, tags.getValueCount(0));
+            assertEquals(new BytesRef("[a,b,c]"), tags.getBytesRef(tags.getFirstValueIndex(0), new BytesRef()));
+        }
+    }
+
     public void testSchemaWithDateNanosType() throws IOException {
         String csv = """
             event:keyword,ts:date_nanos

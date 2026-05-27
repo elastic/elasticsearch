@@ -15,7 +15,7 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row"}
+EXTERNAL "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row", "multi_value_syntax": "brackets"}
 | SORT name ASC;
 warningRegex:CSV read from \[.*multifile_ubn_b\.csv\] encountered parse errors handled per policy.*
 warningRegex:Row \[\d+\] error: (CSV row has \[3\] columns but schema defines \[2\] columns|Failed to parse CSV value \[.*\] as \[INTEGER\]).*
@@ -31,7 +31,7 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row"}
+EXTERNAL "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row", "multi_value_syntax": "brackets"}
 | STATS count = COUNT(*);
 warningRegex:CSV read from \[.*multifile_ubn_b\.csv\] encountered parse errors handled per policy.*
 warningRegex:Row \[\d+\] error: (CSV row has \[3\] columns but schema defines \[2\] columns|Failed to parse CSV value \[.*\] as \[INTEGER\]).*
@@ -46,7 +46,7 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
 
-EXTERNAL "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row"}
+EXTERNAL "{{employees_multifile_ubn}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "skip_row", "multi_value_syntax": "brackets"}
 | WHERE age IS NOT NULL
 | SORT name ASC;
 warningRegex:CSV read from \[.*multifile_ubn_b\.csv\] encountered parse errors handled per policy.*
@@ -73,7 +73,7 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
 
-EXTERNAL "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field"}
+EXTERNAL "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field", "multi_value_syntax": "brackets"}
 | SORT id ASC;
 warningRegex:CSV read from \[.*multifile_type_drift_b\.csv\] encountered parse errors handled per policy.*
 warningRegex:Row \[\d+\] field \[col\] value \[.*\]: Failed to parse CSV value \[.*\] as \[INTEGER\].*
@@ -93,7 +93,7 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
 
-EXTERNAL "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field"}
+EXTERNAL "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field", "multi_value_syntax": "brackets"}
 | WHERE col IS NOT NULL
 | SORT id ASC;
 warningRegex:CSV read from \[.*multifile_type_drift_b\.csv\] encountered parse errors handled per policy.*
@@ -111,7 +111,7 @@ required_capability: external_csv_header_row_option
 required_capability: external_source_read_schema
 required_capability: datasource_file_readers_no_text_type
 
-EXTERNAL "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field"}
+EXTERNAL "{{employees_multifile_type_drift}}" WITH {"header_row": true, "schema_resolution": "first_file_wins", "error_mode": "null_field", "multi_value_syntax": "brackets"}
 | STATS count = COUNT(*), non_null_col = COUNT(col);
 warningRegex:CSV read from \[.*multifile_type_drift_b\.csv\] encountered parse errors handled per policy.*
 warningRegex:Row \[\d+\] field \[col\] value \[.*\]: Failed to parse CSV value \[.*\] as \[INTEGER\].*

@@ -71,6 +71,8 @@ import org.elasticsearch.xpack.core.inference.results.ChunkedInferenceError;
 import org.elasticsearch.xpack.core.inference.results.EmbeddingResults;
 import org.elasticsearch.xpack.inference.InferenceException;
 import org.elasticsearch.xpack.inference.InferenceLicenceCheck;
+import org.elasticsearch.xpack.inference.mapper.BYOSemanticAction;
+import org.elasticsearch.xpack.inference.mapper.BYOSemanticHandler;
 import org.elasticsearch.xpack.inference.mapper.SemanticFieldMapper;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextField;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
@@ -78,6 +80,7 @@ import org.elasticsearch.xpack.inference.mapper.SemanticTextUtils;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 
 import java.io.IOException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -635,8 +638,19 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         EXPLICIT_NULL
                     );
                     if (inferenceMetadataFieldsValue != null) {
-                        // Inference has already been computed
-                        continue;
+                        // Check if the source field has a BYO value — if so, don't skip
+                        boolean hasBYOValue = false;
+                        for (var sf : entry.getSourceFields()) {
+                            var sfVal = XContentMapValues.extractValue(sf, docMap, EXPLICIT_NULL);
+                            if (BYOSemanticHandler.isBYOValue(sfVal)) {
+                                hasBYOValue = true;
+                                break;
+                            }
+                        }
+                        if (hasBYOValue == false) {
+                            // Inference has already been computed
+                            continue;
+                        }
                     }
                 }
 
@@ -649,6 +663,43 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     }
 
                     var valueObj = XContentMapValues.extractValue(sourceField, docMap, EXPLICIT_NULL);
+
+                    // BYO (bring-your-own) semantic_text: the user supplies pre-computed chunks/vectors
+                    if (useLegacyFormat == false && BYOSemanticHandler.isBYOValue(valueObj)) {
+                        try {
+                            @SuppressWarnings("unchecked")
+                            Map<String, Object> byoValue = (Map<String, Object>) valueObj;
+                            BYOSemanticAction action = BYOSemanticHandler.getAction(byoValue);
+                            Instant now = Instant.now();
+
+                            if (action == null) {
+                                // Single-shot BYO
+                                MinimalServiceSettings byoSettings = modelRegistry.getMinimalServiceSettings(inferenceId);
+                                BYOSemanticHandler.handleSingleShot(field, byoValue, docMap, inferenceId, byoSettings, now);
+                            } else {
+                                switch (action) {
+                                    case STAGE_INIT -> BYOSemanticHandler.handleStageInit(field, byoValue, docMap, now);
+                                    case STAGE -> BYOSemanticHandler.handleStage(field, byoValue, docMap, now);
+                                    case COMMIT -> {
+                                        MinimalServiceSettings byoSettings = modelRegistry.getMinimalServiceSettings(inferenceId);
+                                        BYOSemanticHandler.handleCommit(field, byoValue, docMap, inferenceId, byoSettings, now);
+                                    }
+                                    case CANCEL -> BYOSemanticHandler.handleCancel(field, docMap);
+                                }
+                            }
+
+                            // Remove the BYO value from the source field and update the source.
+                            // sourceField may be a dot-separated path (e.g. "obj.field"), so we must
+                            // traverse the map hierarchy rather than doing a flat key remove.
+                            removeNestedValue(sourceField, docMap);
+                            indexRequest.getIndexRequest().source(docMap, XContentType.JSON);
+                        } catch (Exception e) {
+                            setInferenceResponseFailure(itemIndex, e);
+                        }
+                        // Skip normal inference for this field regardless of success/failure
+                        break;
+                    }
+
                     if (useLegacyFormat == false && indexRequest.isUpdateRequest() && valueObj == EXPLICIT_NULL) {
                         /**
                          * It's an update request, and the source field is explicitly set to null,
@@ -1017,6 +1068,29 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
         }
 
         builder.endObject();
+    }
+
+    /**
+     * Removes a (possibly dot-separated) path from a nested map structure.
+     * For a flat key like {@code "field"} this is equivalent to {@code map.remove("field")}.
+     * For a dot-separated path like {@code "obj.field"} the method traverses each segment as a
+     * sub-map key and removes only the leaf entry, leaving sibling keys in the sub-map intact.
+     * If any intermediate segment is missing or is not a {@link Map} the call is a no-op.
+     */
+    @SuppressWarnings("unchecked")
+    static void removeNestedValue(String dotPath, Map<String, Object> map) {
+        int dotIndex = dotPath.indexOf('.');
+        if (dotIndex < 0) {
+            map.remove(dotPath);
+            return;
+        }
+        String head = dotPath.substring(0, dotIndex);
+        String tail = dotPath.substring(dotIndex + 1);
+        Object child = map.get(head);
+        if (child instanceof Map) {
+            removeNestedValue(tail, (Map<String, Object>) child);
+        }
+        // if child is absent or not a Map, the key doesn't exist — nothing to remove
     }
 
     static IndexRequest getIndexRequestOrNull(DocWriteRequest<?> docWriteRequest) {

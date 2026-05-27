@@ -1,0 +1,108 @@
+setup:
+  - requires:
+      cluster_features: "semantic_text.prevent_legacy_format_new_indices"
+      reason: BYO semantic_text requires the non-legacy inference metadata fields format
+
+  - do:
+      inference.put:
+        task_type: text_embedding
+        inference_id: dense-byo-inference-id
+        body: >
+          {
+            "service": "text_embedding_test_service",
+            "service_settings": {
+              "model": "my_model",
+              "dimensions": 3,
+              "similarity": "cosine",
+              "api_key": "abc64"
+            },
+            "task_settings": {
+            }
+          }
+
+  - do:
+      indices.create:
+        index: byo-test-index
+        body:
+          mappings:
+            properties:
+              dense_field:
+                type: semantic_text
+                inference_id: dense-byo-inference-id
+
+---
+"Single-shot BYO indexes document with pre-computed dense embeddings":
+  - do:
+      index:
+        index: byo-test-index
+        id: doc_1
+        body:
+          dense_field:
+            text: "hello world"
+            chunks:
+              - start_offset: 0
+                end_offset: 5
+                embeddings: [0.1, 0.2, 0.3]
+              - start_offset: 5
+                end_offset: 11
+                embeddings: [0.4, 0.5, 0.6]
+        refresh: true
+
+  - do:
+      search:
+        index: byo-test-index
+        body:
+          _source:
+            exclude_vectors: false
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 1 }
+  - match: { hits.total.relation: eq }
+  - match: { hits.hits.0._id: doc_1 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks: 1 }
+  - length: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field: 2 }
+  - exists: hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.embeddings
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.start_offset: 0 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.0.end_offset: 5 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.1.start_offset: 5 }
+  - match: { hits.hits.0._source._inference_fields.dense_field.inference.chunks.dense_field.1.end_offset: 11 }
+
+---
+"Single-shot BYO indexes multiple documents":
+  - do:
+      bulk:
+        index: byo-test-index
+        refresh: true
+        body: |
+          {"index":{"_id":"multi_1"}}
+          {"dense_field":{"text":"first document","chunks":[{"start_offset":0,"end_offset":14,"embeddings":[0.1,0.2,0.3]}]}}
+          {"index":{"_id":"multi_2"}}
+          {"dense_field":{"text":"second document","chunks":[{"start_offset":0,"end_offset":15,"embeddings":[0.4,0.5,0.6]}]}}
+
+  - do:
+      search:
+        index: byo-test-index
+        body:
+          query:
+            match_all: {}
+
+  - match: { hits.total.value: 2 }
+  - match: { hits.total.relation: eq }
+
+---
+"Single-shot BYO with incomplete chunk coverage returns error":
+  - do:
+      catch: bad_request
+      index:
+        index: byo-test-index
+        id: doc_incomplete
+        body:
+          dense_field:
+            text: "hello world"
+            chunks:
+              - start_offset: 0
+                end_offset: 5
+                embeddings: [0.1, 0.2, 0.3]
+
+  - match: { error.type: status_exception }

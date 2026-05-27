@@ -79,6 +79,7 @@ import org.elasticsearch.xpack.core.inference.action.StoreInferenceEndpointsActi
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.core.inference.action.UpdateInferenceModelAction;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.inference.action.StagedSemanticCleanupAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportDeleteInferenceEndpointAction;
 import org.elasticsearch.xpack.inference.action.TransportEmbeddingAction;
@@ -94,6 +95,7 @@ import org.elasticsearch.xpack.inference.action.TransportInferenceUsageAction;
 import org.elasticsearch.xpack.inference.action.TransportPutCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.TransportRerankAction;
+import org.elasticsearch.xpack.inference.action.TransportStagedSemanticCleanupAction;
 import org.elasticsearch.xpack.inference.action.TransportStoreEndpointsAction;
 import org.elasticsearch.xpack.inference.action.TransportUnifiedCompletionInferenceAction;
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
@@ -137,6 +139,7 @@ import org.elasticsearch.xpack.inference.rest.RestGetInferenceServicesAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutCCMConfigurationAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
+import org.elasticsearch.xpack.inference.rest.RestStagedSemanticCleanupAction;
 import org.elasticsearch.xpack.inference.rest.RestStreamInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
@@ -306,7 +309,8 @@ public class InferencePlugin extends Plugin
             new ActionHandler(AuthorizationTaskExecutor.Action.INSTANCE, AuthorizationTaskExecutor.Action.class),
             new ActionHandler(GetInferenceFieldsInternalAction.INSTANCE, TransportGetInferenceFieldsInternalAction.class),
             new ActionHandler(EmbeddingAction.INSTANCE, TransportEmbeddingAction.class),
-            new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class)
+            new ActionHandler(RerankAction.INSTANCE, TransportRerankAction.class),
+            new ActionHandler(StagedSemanticCleanupAction.INSTANCE, TransportStagedSemanticCleanupAction.class)
         );
     }
 
@@ -327,7 +331,8 @@ public class InferencePlugin extends Plugin
             new RestGetInferenceServicesAction(),
             new RestGetCCMConfigurationAction(ccmFeature.get()),
             new RestPutCCMConfigurationAction(ccmFeature.get()),
-            new RestDeleteCCMConfigurationAction(ccmFeature.get())
+            new RestDeleteCCMConfigurationAction(ccmFeature.get()),
+            new RestStagedSemanticCleanupAction()
         );
     }
 

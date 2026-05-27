@@ -76,6 +76,31 @@ public class EsqlLogContext extends QueryLoggerContext {
         return Optional.ofNullable(response).map(it -> it.getExecutionInfo().queryProfile());
     }
 
+    /**
+     * Returns the response-root rollup counters for the slow-log walk, or {@link Optional#empty()}
+     * when no response is available (failure paths). These values mirror what appears under
+     * {@code profile.*} when {@code profile=true}, but are surfaced unconditionally so the slow log
+     * carries the same per-query cost signal regardless of whether the caller asked for a profile.
+     */
+    Optional<RollupCounters> getRollupCounters() {
+        if (response == null) {
+            return Optional.empty();
+        }
+        return Optional.of(
+            new RollupCounters(
+                response.documentsFound(),
+                response.valuesLoaded(),
+                response.rowsEmitted(),
+                response.bytesRead(),
+                response.readNanos(),
+                response.cpuNanos()
+            )
+        );
+    }
+
+    /** Snapshot of the query-level rollup counters surfaced into the slow log. */
+    record RollupCounters(long documentsFound, long valuesLoaded, long rowsEmitted, long bytesRead, long readNanos, long cpuNanos) {}
+
     @Override
     public String[] getIndices() {
         if (response == null) {

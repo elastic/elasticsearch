@@ -107,7 +107,21 @@ public class JsonExtract extends EsqlScalarFunction {
 
             This function does not support wildcards (`*`), recursive descent
             (`..`), array slicing (`[0:3]`), filter expressions
-            (`?(@.price<10)`), or negative array indices (`[-1]`).""",
+            (`?(@.price<10)`), or negative array indices (`[-1]`).
+
+            When called with [`_source`][source], this function reads
+            `_source` as Elasticsearch returns it. On indices using
+            [synthetic `_source`][synthetic], Elasticsearch reconstructs
+            `_source` from stored data when documents are retrieved, so the
+            JSON the function sees can differ from the original document.
+            See [synthetic `_source` modifications][modifications] for the
+            changes that apply — for example, arrays are moved to leaves,
+            fields are named as in the mapping, and object keys are sorted
+            alphabetically.
+
+            [source]: /reference/elasticsearch/mapping-reference/mapping-source-field.md
+            [synthetic]: /reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source
+            [modifications]: /reference/elasticsearch/mapping-reference/mapping-source-field.md#synthetic-source-modifications""",
         examples = {
             @Example(file = "json_extract", tag = "json_extract"),
             @Example(file = "json_extract", tag = "json_extract_dollar", description = """
@@ -224,7 +238,7 @@ public class JsonExtract extends EsqlScalarFunction {
     }
 
     @Evaluator(extraName = "Constant", warnExceptions = IllegalArgumentException.class)
-    static void processConstant(BytesRefBlock.Builder builder, BytesRef str, @Fixed JsonPath path) {
+    static void processConstant(BytesRefBlock.Builder builder, BytesRef str, @Fixed(jitConstant = true) JsonPath path) {
         doExtract(builder, str, path);
     }
 
@@ -346,19 +360,19 @@ public class JsonExtract extends EsqlScalarFunction {
                         int end = (int) endLocation.byteOffset() + rawOffset;
                         builder.appendBytesRef(new BytesRef(rawBytes, start, end - start));
                     } else {
-                        // Fallback if offsets are unavailable (shouldn't happen for JSON)
-                        copyCurrentStructureFallback(builder, parser);
+                        // Standard if offsets are unavailable (shouldn't happen for JSON)
+                        copyCurrentStructureStandard(builder, parser);
                     }
                 } else {
                     // Non-JSON format (SMILE/CBOR/YAML) — must re-serialize to JSON
-                    copyCurrentStructureFallback(builder, parser);
+                    copyCurrentStructureStandard(builder, parser);
                 }
             }
             default -> throw new IllegalArgumentException("unexpected token: " + token);
         }
     }
 
-    private static void copyCurrentStructureFallback(BytesRefBlock.Builder builder, XContentParser parser) throws IOException {
+    private static void copyCurrentStructureStandard(BytesRefBlock.Builder builder, XContentParser parser) throws IOException {
         try (XContentBuilder jsonBuilder = XContentBuilder.builder(XContentType.JSON.xContent())) {
             jsonBuilder.copyCurrentStructure(parser);
             builder.appendBytesRef(BytesReference.bytes(jsonBuilder).toBytesRef());

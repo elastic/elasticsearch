@@ -85,8 +85,12 @@ POST /_security/user/remote_user
 }
 ```
 
+For the full reference of cross-cluster role privileges across all deployment types, refer to [Configure privileges for {{ccs}}](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md#_configure_privileges_for_ccs).
+
 ::::{note}
 All cross-cluster requests from the local cluster are bound by the cross-cluster API key's privileges, which are controlled by the remote cluster's administrator. Local roles can only further reduce these permissions; they cannot increase access beyond what the API key allows.
+
+For example, if the remote cluster's administrator creates a cross-cluster API key that excludes the indices you need, the role you defined on the local cluster cannot grant access to them.
 ::::
 
 ## Query across multiple clusters [ccq-from]

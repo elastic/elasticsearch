@@ -24,7 +24,7 @@ import java.lang.foreign.MemorySegment;
  * the scoring logic (quantize, bulk, corrections) is handled by template methods here.
  */
 abstract sealed class NativeMemorySegmentScorer extends MemorySegmentES940OSQVectorsScorer.MemorySegmentScorer permits NativeD1Q4Scorer,
-    NativeD2Q4Scorer, NativeD4Q4Scorer {
+    NativeD2Q4Scorer, NativeD4Q4Scorer, NativeD2Q4PackedScorer {
 
     private byte[] cachedQueryArray;
     private MemorySegment cachedQuerySeg;

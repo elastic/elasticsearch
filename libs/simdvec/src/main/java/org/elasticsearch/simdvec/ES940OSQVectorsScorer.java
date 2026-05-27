@@ -119,7 +119,7 @@ public class ES940OSQVectorsScorer {
         this.additionalCorrections = new float[bulkSize];
         this.bulkSize = bulkSize;
         this.scratch = encoding.indexBits() == 7 ? new byte[dimensions] : null;
-        this.packedScratch = encoding == QuantEncoding.D4Q4_PACKED ? new byte[length] : null;
+        this.packedScratch = encoding.bitEncoding == BitEncoding.PACKED ? new byte[length] : null;
     }
 
     public ES940OSQVectorsScorer(

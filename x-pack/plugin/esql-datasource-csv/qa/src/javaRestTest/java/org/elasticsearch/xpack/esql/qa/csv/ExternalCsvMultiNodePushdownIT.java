@@ -104,7 +104,7 @@ public class ExternalCsvMultiNodePushdownIT extends ESRestTestCase {
         return entityAsMap(response);
     }
 
-    /** Name of the node whose driver ran the {@code AsyncExternalSourceOperator} (the file scan). */
+    /** Name of the node whose driver ran the external-source operator (the file scan). */
     @SuppressWarnings("unchecked")
     private static String scanNodeName(Map<String, Object> response) {
         Map<String, Object> profile = (Map<String, Object>) response.get("profile");
@@ -112,7 +112,10 @@ public class ExternalCsvMultiNodePushdownIT extends ESRestTestCase {
         for (Map<String, Object> driver : drivers) {
             List<Map<String, Object>> operators = (List<Map<String, Object>>) driver.get("operators");
             for (Map<String, Object> operator : operators) {
-                if (String.valueOf(operator.get("operator")).startsWith("AsyncExternalSourceOperator")) {
+                // The operator class is {@code AsyncExternalSourceOperator} but its profile-facing
+                // toString() drops the {@code Async} prefix for user readability — match on the
+                // public name to stay in sync with the profile output.
+                if (String.valueOf(operator.get("operator")).startsWith("ExternalDataSourceOperator")) {
                     return String.valueOf(driver.get("node_name"));
                 }
             }

@@ -10,6 +10,7 @@
 package org.elasticsearch.common.io.stream;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
@@ -18,6 +19,7 @@ import java.util.Objects;
 
 import static java.util.Collections.singletonList;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.lessThan;
 
 public class DelayableWriteableTests extends ESTestCase {
     // NOTE: we don't use AbstractWireSerializingTestCase because we don't implement equals and hashCode.
@@ -165,6 +167,81 @@ public class DelayableWriteableTests extends ESTestCase {
         assertSame(d, d.asSerialized(Example::new, writableRegistry()));
     }
 
+    /**
+     * {@link DelayableWriteable#compressToBytes} must report pre-compression size via {@link StreamOutput#position()}
+     * on the compressor, and a smaller on-the-wire blob.
+     */
+    public void testCompressToBytes() throws IOException {
+        Example e = new Example("a".repeat(1024));
+        TransportVersion version = TransportVersionUtils.randomVersionSupporting(DelayableWriteable.DELAYABLE_WRITEABLE_UNCOMPRESSED_SIZE);
+
+        // Verify the helper returns compressed bytes and the pre-compression size.
+        DelayableWriteable.CompressedBytes compressed = DelayableWriteable.compressToBytes(e, version);
+
+        long expectedUncompressed;
+        try (CountingStreamOutput counting = new CountingStreamOutput()) {
+            counting.setTransportVersion(version);
+            e.writeTo(counting);
+            expectedUncompressed = counting.position();
+        }
+        assertThat(compressed.uncompressedSize(), equalTo(expectedUncompressed));
+        assertThat((long) compressed.bytes().length(), lessThan(compressed.uncompressedSize()));
+
+        try (StreamInput in = CompressorFactory.COMPRESSOR.threadLocalStreamInput(compressed.bytes().streamInput())) {
+            in.setTransportVersion(version);
+            assertThat(new Example(in), equalTo(e));
+        }
+    }
+
+    public void testGetUncompressedSerializedSizeReferencing() throws IOException {
+        Example e = new Example(randomAlphaOfLength(64));
+        DelayableWriteable<Example> referencing = DelayableWriteable.referencing(e);
+        long expected;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            e.writeTo(out);
+            expected = out.size();
+        }
+        assertThat(referencing.getUncompressedSerializedSize(), equalTo(expected));
+    }
+
+    public void testGetUncompressedSerializedSizeSerialized() throws IOException {
+        // Use a long, highly compressible string so the compressed payload is much smaller than the uncompressed one.
+        Example e = new Example("a".repeat(1024));
+        DelayableWriteable<Example> serialized = DelayableWriteable.referencing(e).asSerialized(Example::new, writableRegistry());
+        long expectedUncompressed;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(TransportVersion.current());
+            e.writeTo(out);
+            expectedUncompressed = out.size();
+        }
+        assertThat(serialized.getUncompressedSerializedSize(), equalTo(expectedUncompressed));
+    }
+
+    public void testGetUncompressedSerializedSizeFallsBackOnOlderTransportVersion() throws IOException {
+        Example e = new Example("a".repeat(1024));
+        TransportVersion compressNoSize = randomVersionWithCompressionButNoUncompressedSize();
+        DelayableWriteable<Example> serialized = copyInstance(
+            DelayableWriteable.referencing(e),
+            writableRegistry(),
+            StreamOutput::writeWriteable,
+            in -> DelayableWriteable.delayed(Example::new, in),
+            compressNoSize
+        );
+        assertTrue(serialized.isSerialized());
+        long expectedUncompressed;
+        try (BytesStreamOutput out = new BytesStreamOutput()) {
+            out.setTransportVersion(compressNoSize);
+            e.writeTo(out);
+            expectedUncompressed = out.size();
+        }
+        // Falls back to decompress-and-count: the peer didn't transmit the uncompressed length, so the
+        // first call to getUncompressedSerializedSize() drains the decompressor to compute it.
+        assertThat(serialized.getUncompressedSerializedSize(), equalTo(expectedUncompressed));
+        // Subsequent calls hit the cached value.
+        assertThat(serialized.getUncompressedSerializedSize(), equalTo(expectedUncompressed));
+    }
+
     private <T extends Writeable> void roundTripTestCase(DelayableWriteable<T> original, Writeable.Reader<T> reader) throws IOException {
         DelayableWriteable<T> roundTripped = roundTrip(original, reader, TransportVersion.current());
         assertThat(roundTripped.expand(), equalTo(original.expand()));
@@ -203,5 +280,16 @@ public class DelayableWriteableTests extends ESTestCase {
 
     private static TransportVersion randomOldVersion() {
         return TransportVersionUtils.randomVersionNotSupporting(TransportVersion.current());
+    }
+
+    private static TransportVersion randomVersionWithCompressionButNoUncompressedSize() {
+        TransportVersion compress = TransportVersion.fromName("compress_delayable_writeable");
+        TransportVersion uncompressedSize = TransportVersion.fromName("delayable_writeable_uncompressed_size");
+        return ESTestCase.randomFrom(
+            TransportVersionUtils.allReleasedVersions()
+                .stream()
+                .filter(v -> v.supports(compress) && v.supports(uncompressedSize) == false)
+                .toList()
+        );
     }
 }

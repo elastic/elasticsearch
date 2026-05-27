@@ -134,6 +134,10 @@ public class ExternalSourceResolver {
                         ExternalSourceResolution.ResolvedSource resolvedSource = resolveSource(path, config, hints, hivePartitioning);
                         resolved.put(path, resolvedSource);
                         LOGGER.debug("Successfully resolved external source: {}", path);
+                    } catch (IllegalArgumentException | UnsupportedOperationException e) {
+                        LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
+                        listener.onFailure(e);
+                        return;
                     } catch (Exception e) {
                         LOGGER.error("Failed to resolve external source [{}]: {}", path, e.getMessage(), e);
                         String exceptionMessage = e.getMessage();
@@ -859,19 +863,27 @@ public class ExternalSourceResolver {
             }
         }
 
+        // Per-query nullability: a partition column is non-nullable when no file in the matched
+        // fileset has a null value for it. The Hive sentinel __HIVE_DEFAULT_PARTITION__ is decoded
+        // to null in PartitionMetadata#filePartitionValues, so this is precise rather than
+        // pessimistic. The same dataset may yield different nullability across globs depending on
+        // which files match.
+        Set<String> nullableColumns = partitionMetadata.nullablePartitionColumns();
+
         for (Map.Entry<String, DataType> entry : partitionColumns.entrySet()) {
             String name = entry.getKey();
             DataType type = entry.getValue();
+            Nullability nullability = nullableColumns.contains(name) ? Nullability.TRUE : Nullability.FALSE;
             // synthetic=false: partition columns are user-addressable (referenceable in WHERE, STATS BY, EVAL, ...).
             // Marking them synthetic causes AnalyzerRules.maybeResolveAgainstList to skip them during name resolution
             // and produces "Unknown column [X], did you mean [X]?" errors.
-            enrichedSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, type, Nullability.TRUE, null, false));
+            enrichedSchema.add(new ReferenceAttribute(Source.EMPTY, null, name, type, nullability, null, false));
         }
 
         return withSchema(metadata, List.copyOf(enrichedSchema));
     }
 
-    static ExternalSourceMetadata enrichSchemaWithFileMetadataColumns(ExternalSourceMetadata metadata) {
+    public static ExternalSourceMetadata enrichSchemaWithFileMetadataColumns(ExternalSourceMetadata metadata) {
         List<Attribute> originalSchema = metadata.schema();
         Set<String> existingNames = new LinkedHashSet<>();
         for (Attribute attr : originalSchema) {

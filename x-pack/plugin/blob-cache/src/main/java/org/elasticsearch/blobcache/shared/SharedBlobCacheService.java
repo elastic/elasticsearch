@@ -807,7 +807,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
     }
 
     // used by tests
-    long countCachedRegions(Predicate<KeyType> predicate) {
+    public long countCachedRegions(Predicate<KeyType> predicate) {
         if (cache instanceof LFUCache lfuCache) {
             return lfuCache.countCachedRegions(predicate);
         }
@@ -2509,6 +2509,11 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
          */
         private void maybeScheduleDecayAndNewEpoch(long currentEpoch) {
             decayAndNewEpochTask.spawnIfNotRunning(currentEpoch);
+        }
+
+        // used by tests
+        long countCachedRegions(Predicate<KeyType> predicate) {
+            return keyMapping.countMatchingKey2s(regionKey -> predicate.test(regionKey.file()));
         }
 
         /**

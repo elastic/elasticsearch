@@ -219,10 +219,8 @@ public class RecoveriesCollection {
                 removed.recoveryId(),
                 sendShardFailure
             );
-            // Get indexShard reference before calling fail() which may decrement references to zero
-            final IndexShard indexShard = removed.indexShard();
+            removed.indexShard().recoveryStats().decCurrentAsTarget();
             removed.fail(e, sendShardFailure);
-            indexShard.recoveryStats().decCurrentAsTarget();
             notifyRecoverySchedulingListeners();
         }
     }
@@ -232,10 +230,8 @@ public class RecoveriesCollection {
         RecoveryTarget removed = onGoingRecoveries.remove(id);
         if (removed != null) {
             logger.trace("{} marking recovery from {} as done, id [{}]", removed.shardId(), removed.sourceNode(), removed.recoveryId());
-            // Get indexShard reference before calling markAsDone() which may decrement references to zero
-            final IndexShard indexShard = removed.indexShard();
+            removed.indexShard().recoveryStats().decCurrentAsTarget();
             removed.markAsDone();
-            indexShard.recoveryStats().decCurrentAsTarget();
             notifyRecoverySchedulingListeners();
         }
     }

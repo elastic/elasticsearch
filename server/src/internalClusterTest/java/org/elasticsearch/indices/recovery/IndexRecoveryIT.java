@@ -757,7 +757,6 @@ public class IndexRecoveryIT extends AbstractIndexRecoveryIntegTestCase {
         // --- Shard recovery complete. Verify throttling millis remain reflected in node stats.
 
         logger.info("--> checking that both nodes A and B no longer have recoveries in progress, but that they do retain throttling stats");
-
         awaitRecoveryCountStats(Map.of(nodeA, RecoveryStats::noCurrentRecoveries, nodeB, RecoveryStats::noCurrentRecoveries));
         assertNodeThrottleTimeStats(nodeA, true);
         assertNodeThrottleTimeStats(nodeB, false);

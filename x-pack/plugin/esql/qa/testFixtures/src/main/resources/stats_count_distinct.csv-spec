@@ -198,6 +198,8 @@ COUNT_DISTINCT(foo):long
 ;
 
 countDistinctOfCaseWithDataNodeFold
+required_capability: load_constant_keyword
+
 FROM employees, sample_data
 | EVAL foo = CASE(event_duration > 0, languages)
 | STATS COUNT_DISTINCT(foo);
@@ -207,6 +209,8 @@ COUNT_DISTINCT(foo):long
 ;
 
 countDistinctOfCaseWithConstantKeywordFold
+required_capability: load_constant_keyword
+
 FROM event_alerts, event_logs
 | EVAL alert_severity = CASE(event_type == "alert", severity)
 | STATS COUNT_DISTINCT(alert_severity);
@@ -234,6 +238,8 @@ COUNT_DISTINCT(foo):long
 ;
 
 countDistinctOfCaseWithDataNodeFoldExplicitNull
+required_capability: load_constant_keyword
+
 FROM employees, sample_data
 | EVAL foo = CASE(event_duration > 0, languages, null)
 | STATS COUNT_DISTINCT(foo);
@@ -243,6 +249,8 @@ COUNT_DISTINCT(foo):long
 ;
 
 countDistinctOfCaseWithConstantKeywordFoldExplicitNull
+required_capability: load_constant_keyword
+
 FROM event_alerts, event_logs
 | EVAL alert_severity = CASE(event_type == "alert", severity, null)
 | STATS COUNT_DISTINCT(alert_severity);
@@ -252,6 +260,8 @@ COUNT_DISTINCT(alert_severity):long
 ;
 
 countDistinctOfEmptyConstantKeyword
+required_capability: load_constant_keyword
+
 FROM event_empty
 | STATS COUNT_DISTINCT(severity);
 
@@ -260,6 +270,8 @@ COUNT_DISTINCT(severity):long
 ;
 
 countDistinctOfCaseFoldableAnd
+required_capability: load_constant_keyword
+
 FROM event_alerts, event_logs
 | EVAL foo = CASE(event_type == "alert" AND severity > 0, username)
 | STATS COUNT_DISTINCT(foo);
@@ -269,6 +281,8 @@ COUNT_DISTINCT(foo):long
 ;
 
 countDistinctOfCaseFoldableAndExplicitNull
+required_capability: load_constant_keyword
+
 FROM event_alerts, event_logs
 | EVAL foo = CASE(event_type == "alert" AND severity > 0, username, null)
 | STATS COUNT_DISTINCT(foo);
@@ -278,6 +292,8 @@ COUNT_DISTINCT(foo):long
 ;
 
 countDistinctOfCaseNotInCondition
+required_capability: load_constant_keyword
+
 FROM event_alerts, event_logs
 | EVAL foo = CASE(NOT event_type IN ("login", "other"), username, null)
 | STATS COUNT_DISTINCT(foo);
@@ -287,6 +303,8 @@ COUNT_DISTINCT(foo):long
 ;
 
 countDistinctOfMultipleCasesWithByExpression
+required_capability: load_constant_keyword
+
 FROM event_alerts, event_logs
 | EVAL severity_case = CASE(event_type == "alert", severity, null),
        username_case = CASE(event_type == "login", username, null)
@@ -300,6 +318,8 @@ COUNT_DISTINCT(severity_case):long | COUNT_DISTINCT(username_case):long | ts_mon
 ;
 
 countDistinctOfProductionLikePatternAndNotIn
+required_capability: load_constant_keyword
+
 FROM event_alerts, event_logs
 | EVAL case1 = CASE(event_type == "alert" AND severity > 0, username, null),
        case2 = CASE(NOT event_type IN ("alert", "other"), username, null)

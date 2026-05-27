@@ -2005,6 +2005,12 @@ public class EsqlCapabilities {
         FIX_UNROLLED_FOLDABLE_MV_WARNING,
 
         /**
+         * Can we load {@code constant_keyword} field values? This is supported everywhere but
+         * the unit CsvTests.
+         */
+        LOAD_CONSTANT_KEYWORD,
+
+        /**
          * Fix for SET reporting wrong line/column number (-1:-1) in validation errors.
          * see <a href="https://github.com/elastic/elasticsearch/issues/145873">ES|QL: wrong line/column number #145873</a>
          */

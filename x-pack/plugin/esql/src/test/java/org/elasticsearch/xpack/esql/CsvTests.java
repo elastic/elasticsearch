@@ -346,6 +346,10 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.METADATA_SCORE.capabilityName())
             );
             assumeFalseLogging(
+                "CSV tests cannot fold constant_keyword fields",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.LOAD_CONSTANT_KEYWORD.capabilityName())
+            );
+            assumeFalseLogging(
                 "CSV tests cannot currently handle FORK",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.FORK_V9.capabilityName())
             );

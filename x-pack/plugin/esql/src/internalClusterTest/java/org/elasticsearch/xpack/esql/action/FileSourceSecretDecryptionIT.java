@@ -59,6 +59,7 @@ import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
@@ -87,6 +88,8 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
     static volatile boolean capturedSecretKeyPresent;
     /** Name of the thread that built the provider, logged for debugging. */
     static volatile String capturedConstructionThread;
+    /** Makes each secret value unique so the provider cache never short-circuits a re-run. */
+    private static final AtomicLong SECRET_SEQ = new AtomicLong();
 
     /**
      * {@link EsqlPluginWithEnterpriseOrTrialLicense} suppresses {@link ExtensiblePlugin#loadExtensions}
@@ -359,11 +362,11 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
     }
 
     private void runAndAssertSecretDecrypted(Path fixture, String format) throws Exception {
-        // Use a per-format secret value so the StorageProviderRegistry's (scheme, config) provider
-        // cache and the schema cache produce distinct keys per test. Otherwise a SUITE-scoped cache
-        // hit from an earlier test would short-circuit createTrackingConsumedKeys and the factory
-        // would never observe (or re-capture) the secret.
-        final String secretValue = SECRET_VALUE + "_" + format;
+        // Unique per invocation: the StorageProviderRegistry caches providers by (scheme, config), so a
+        // repeated value (across formats, or across re-runs of the same test under CI flakiness detection)
+        // would hit the SUITE-scoped cache and skip createTrackingConsumedKeys, and the factory would never
+        // observe the secret. A monotonic suffix keeps every run a cache miss.
+        final String secretValue = SECRET_VALUE + "_" + format + "_" + SECRET_SEQ.incrementAndGet();
         assertAcked(
             client().execute(
                 PutDataSourceAction.INSTANCE,

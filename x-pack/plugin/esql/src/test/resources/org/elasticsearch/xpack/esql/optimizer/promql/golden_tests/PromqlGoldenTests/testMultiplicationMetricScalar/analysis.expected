@@ -1,7 +1,7 @@
 Limit[10000[INTEGER],false,false]
 \_PromqlCommand start=[null] end=[null] step=[PT1H] buckets=[null] scrape_interval=[PT1M] valueColumnName=[network_in_bits] promql=[<>
 VectorBinaryArithmetic[,MUL]
-|_InstantSelector[network.total_bytes_in{f}#0,[],[__name__=network.total_bytes_in],@ null]
+|_InstantSelector[network.total_bytes_in{f}#0,[],[__name__=[network.total_bytes_in]],@ null]
 | \_PlaceholderRelation[]
 \_LiteralSelector[8[INTEGER]]
   \_PlaceholderRelation[]

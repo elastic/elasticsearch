@@ -1406,6 +1406,12 @@ public class EsqlCapabilities {
         SUGGESTED_CAST,
 
         /**
+         * Support for {@code TO_COUNTER} function and the {@code ::counter} cast operator, which converts
+         * {@code long}, {@code integer}, and {@code double} values to their counter-typed equivalents.
+         */
+        TO_COUNTER,
+
+        /**
          * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
          */
         TO_LOWER_EMPTY_STRING,
@@ -2906,6 +2912,12 @@ public class EsqlCapabilities {
          * Support for COALESCE with date_range type.
          */
         COALESCE_DATE_RANGE(Build.current().isSnapshot()),
+
+        /**
+         * Support for ESQL parameters in PromQL label matchers:
+         * <a href="https://github.com/elastic/elasticsearch/issues/148620">#148620</a>
+         */
+        PROMQL_LABEL_MATCHER_PARAMS,
 
         // Last capability should still have a comma for fewer merge conflicts when adding new ones :)
         // This comment prevents the semicolon from being on the previous capability when Spotless formats the file.

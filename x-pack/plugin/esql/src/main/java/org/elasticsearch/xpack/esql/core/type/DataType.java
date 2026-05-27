@@ -588,6 +588,12 @@ public enum DataType implements Writeable {
         NAME_OR_ALIAS_TO_TYPE = Collections.unmodifiableMap(map);
     }
 
+    /**
+     * The identifier used in the {@code ::counter} cast operator. This is a virtual cast target —
+     * not a real {@link DataType} — that resolves to the counter variant of the input's numeric type.
+     */
+    public static final String COUNTER_CAST_NAME = "counter";
+
     public static Collection<DataType> types() {
         return TYPES;
     }

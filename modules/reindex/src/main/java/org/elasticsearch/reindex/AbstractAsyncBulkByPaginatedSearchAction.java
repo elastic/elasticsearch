@@ -393,6 +393,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      */
     protected void copyRouting(RequestWrapper<?> request, String routing) {
         request.setRouting(routing);
+        request.setRoutingFromSlice(mainRequest.getSearchRequest().isRoutingFromSlice());
     }
 
     /**
@@ -1063,6 +1064,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
 
         String getRouting();
 
+        void setRoutingFromSlice(boolean routingFromSlice);
+
         void setSource(Map<String, Object> source);
 
         Map<String, Object> getSource();
@@ -1124,6 +1127,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         @Override
         public String getRouting() {
             return request.routing();
+        }
+
+        @Override
+        public void setRoutingFromSlice(boolean routingFromSlice) {
+            request.setRoutingFromSlice(routingFromSlice);
         }
 
         @Override
@@ -1203,6 +1211,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         @Override
         public String getRouting() {
             return request.routing();
+        }
+
+        @Override
+        public void setRoutingFromSlice(boolean routingFromSlice) {
+            request.setRoutingFromSlice(routingFromSlice);
         }
 
         @Override

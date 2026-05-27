@@ -12,8 +12,10 @@ package org.elasticsearch.repositories.s3;
 import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
+import fixture.s3.S3HttpHandler;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -23,9 +25,14 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
+import java.util.List;
+import java.util.Optional;
 import java.util.function.Supplier;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.matchesPattern;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCase {
@@ -42,6 +49,7 @@ public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCas
     protected static final TestTrustStore trustStore = new TestTrustStore(testTlsCertificate::getPemCertificateStream);
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
+
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
         testTlsCertificate,
@@ -49,7 +57,25 @@ public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCas
         BASE_PATH,
         S3ConsistencyModel::randomConsistencyModel,
         fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
-    );
+    ) {
+        @Override
+        protected HttpHandler createHandler() {
+            final var delegate = asInstanceOf(S3HttpHandler.class, super.createHandler());
+            return exchange -> {
+                final var request = delegate.parseRequest(exchange);
+                if ((request.isUploadPartRequest() || request.isPutObjectRequest())
+                    && Optional.ofNullable(exchange.getRequestHeaders().get(S3HttpHandler.COPY_SOURCE_HEADER))
+                        .orElse(List.of())
+                        .isEmpty()) {
+                    assertThat(
+                        exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER),
+                        anyOf(equalTo("STREAMING-UNSIGNED-PAYLOAD-TRAILER"), matchesPattern(S3HttpHandler.SHA256_PATTERN))
+                    );
+                }
+                delegate.handle(exchange);
+            };
+        }
+    };
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")

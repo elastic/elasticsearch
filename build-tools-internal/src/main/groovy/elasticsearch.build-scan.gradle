@@ -8,6 +8,9 @@
  */
 
 
+import com.fasterxml.jackson.databind.ObjectMapper
+import com.fasterxml.jackson.databind.SerializationFeature
+
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 
@@ -186,12 +189,20 @@ develocity {
           buildScanPublished { scan ->
 
             try {
-              // Update task-status.json with build scan details
+              // Update task-status.json with build scan details. Done via direct file
+              // update rather than through the build service because the service may
+              // already be closed by the time buildScanPublished fires.
               try {
-                def taskStatusService = gradle.sharedServices.registrations.findByName('taskStatusTracker')?.service?.orNull
-                taskStatusService?.setBuildScanAndRewrite("${scan.buildScanId}".toString(), "${scan.buildScanUri}".toString())
+                def taskStatusFile = new File(settings.settingsDir, 'build/task-status.json')
+                if (taskStatusFile.exists()) {
+                  def mapper = new ObjectMapper()
+                  def report = mapper.readValue(taskStatusFile, Map)
+                  report.put('buildScanId', "${scan.buildScanId}".toString())
+                  report.put('buildScanUrl', "${scan.buildScanUri}".toString())
+                  mapper.enable(SerializationFeature.INDENT_OUTPUT).writeValue(taskStatusFile, report)
+                }
               } catch (Exception e) {
-                logger.warn("Could not update task-status with build scan details", e)
+                logger.warn("Could not update task-status.json with build scan details", e)
               }
 
               // Attach build scan link as build metadata

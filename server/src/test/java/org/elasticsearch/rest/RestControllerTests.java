@@ -1237,12 +1237,12 @@ public class RestControllerTests extends ESTestCase {
         }
     }
 
-    public void testDispatchAllowsSafelistedBodyTypesWhenHandlerAcceptsThem() {
+    public void testDispatchRejectsSafelistedBodyTypesEvenWhenHandlerAcceptsThem() {
         final RestController restController = restControllerAllowingSafelistedContentTypes();
         restController.registerHandler(new Route(POST, "/plain"), new RestHandler() {
             @Override
             public void handleRequest(RestRequest request, RestChannel channel, NodeClient client) {
-                channel.sendResponse(new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY));
+                fail("handler should not receive safelisted content without the form-encoded POST opt-in");
             }
 
             @Override
@@ -1253,7 +1253,7 @@ public class RestControllerTests extends ESTestCase {
         });
 
         final RestRequest request = formRequest(POST, "/plain", "plain text", "text/plain");
-        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.OK);
+        final AssertingChannel channel = new AssertingChannel(request, randomBoolean(), RestStatus.NOT_ACCEPTABLE);
         restController.dispatchRequest(request, channel, client.threadPool().getThreadContext());
         assertTrue(channel.getSendResponseCalled());
     }

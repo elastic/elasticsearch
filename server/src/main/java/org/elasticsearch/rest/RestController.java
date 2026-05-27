@@ -540,13 +540,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
         final boolean consumeFormEncodedBodyParameters;
         if (request.hasContent()) {
             final boolean isBrowserSafelistedContentType = isBrowserSafelistedContentType(request);
-            final boolean browserSafelistedContentTypeAllowed = isBrowserSafelistedContentType
-                && interceptor.allowsBrowserSafelistedContentType(request);
-            consumeFormEncodedBodyParameters = browserSafelistedContentTypeAllowed
+            consumeFormEncodedBodyParameters = isBrowserSafelistedContentType
                 && request.method() == RestRequest.Method.POST
                 && handler.supportsReadOnlyFormEncodedPostBody()
-                && isFormEncodedBody(request);
-            if ((isBrowserSafelistedContentType && browserSafelistedContentTypeAllowed == false)
+                && isFormEncodedBody(request)
+                && interceptor.allowsBrowserSafelistedContentType(request);
+            if ((isBrowserSafelistedContentType && consumeFormEncodedBodyParameters == false)
                 || (consumeFormEncodedBodyParameters == false && handler.mediaTypesValid(request) == false)) {
                 sendContentTypeErrorMessage(request.getAllHeaderValues("Content-Type"), channel);
                 return;

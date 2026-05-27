@@ -35,7 +35,7 @@ const getArray = (strOrArray: string | string[] | undefined): string[] => {
 };
 
 const labelCheckAllow = (pipeline: EsPipeline, labels: string[]): boolean => {
-  if (pipeline.config?.["allow-labels"]) {
+  if (pipeline.config?.["allow-labels"]?.length) {
     return getArray(pipeline.config["allow-labels"]).some((label) => labels.includes(label));
   }
   return true;

@@ -13,6 +13,12 @@ If you are an Enterprise Search user and want to upgrade to Elastic 9.0, refer t
 It includes detailed steps, tooling, and resources to help you transition to supported alternatives in 9.x, such as Elasticsearch, the Open Web Crawler, and self-managed connectors.
 :::
 
+## 9.4.1 [connectors-9.4.1-release-notes]
+
+### Fixes [connectors-9.4.1-fixes]
+
+* Fixes a bug for {{connectors-app}} Document Level Security, where the generated query filter used an incorrect subfield. [#4006](https://github.com/elastic/connectors/pull/4006), [#4005](https://github.com/elastic/connectors/issues/4005)
+
 ## 9.4.0 [connectors-9.4.0-release-notes]
 
 ### Fixes [connectors-9.4.0-fixes]

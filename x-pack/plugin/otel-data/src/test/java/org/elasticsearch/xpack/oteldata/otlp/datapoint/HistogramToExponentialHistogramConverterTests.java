@@ -164,7 +164,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
             new Object[] {
                 "single bucket",
                 (Supplier<TestCase>) () -> new TestCase(
-                    HistogramDataPoint.newBuilder().addBucketCounts(10L).addExplicitBounds(5.0).setSum(25.0).build(),
+                    HistogramDataPoint.newBuilder().addAllBucketCounts(List.of(10L, 0L)).addExplicitBounds(5.0).setSum(25.0).build(),
                     List.of(10L),
                     List.of(2.5),
                     25.0,
@@ -247,7 +247,12 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
             new Object[] {
                 "single bucket clamp to negative min",
                 (Supplier<TestCase>) () -> new TestCase(
-                    HistogramDataPoint.newBuilder().addBucketCounts(1L).addExplicitBounds(5.0).setSum(25.0).setMin(-42).build(),
+                    HistogramDataPoint.newBuilder()
+                        .addAllBucketCounts(List.of(1L, 0L))
+                        .addExplicitBounds(5.0)
+                        .setSum(25.0)
+                        .setMin(-42)
+                        .build(),
                     List.of(1L),
                     List.of(-42.0),
                     25.0,
@@ -257,7 +262,12 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
             new Object[] {
                 "single bucket clamp to negative max",
                 (Supplier<TestCase>) () -> new TestCase(
-                    HistogramDataPoint.newBuilder().addBucketCounts(1L).addExplicitBounds(5.0).setSum(25.0).setMax(-42).build(),
+                    HistogramDataPoint.newBuilder()
+                        .addAllBucketCounts(List.of(1L, 0L))
+                        .addExplicitBounds(5.0)
+                        .setSum(25.0)
+                        .setMax(-42)
+                        .build(),
                     List.of(1L),
                     List.of(-42.0),
                     25.0,
@@ -268,7 +278,7 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                 "single bucket clamp to negative min and max",
                 (Supplier<TestCase>) () -> new TestCase(
                     HistogramDataPoint.newBuilder()
-                        .addBucketCounts(10L)
+                        .addAllBucketCounts(List.of(10L, 0L))
                         .addExplicitBounds(5.0)
                         .setSum(25.0)
                         .setMax(-42)
@@ -339,6 +349,16 @@ public class HistogramToExponentialHistogramConverterTests extends ESTestCase {
                     null,
                     -0.42,
                     0.5
+                ) },
+            new Object[] {
+                "no explicit bounds with count and sum",
+                (Supplier<TestCase>) () -> new TestCase(
+                    HistogramDataPoint.newBuilder().setCount(10L).setSum(100.0).build(),
+                    List.of(10L),
+                    List.of(10.0),
+                    100.0,
+                    null,
+                    null
                 ) }
         );
 

@@ -22,6 +22,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MappingLookup;
@@ -607,13 +608,13 @@ public class UpdateRequestTests extends ESTestCase {
             request = new UpdateRequest("test", "1").fromXContent(parser);
         }
         UpdateHelper updateHelper = new UpdateHelper(mock(ScriptService.class));
-        UpdateHelper.Result result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, true);
+        UpdateHelper.Result result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, true, false);
 
         assertThat(result.action(), instanceOf(UpdateResponse.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
 
         // Try again, with detectNoop turned off
-        result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, false);
+        result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, false, false);
         assertThat(result.action(), instanceOf(IndexRequest.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
         assertThat(result.updatedSourceAsMap().get("body").toString(), equalTo("foo"));
@@ -621,7 +622,7 @@ public class UpdateRequestTests extends ESTestCase {
         try (var parser = createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"bar\"}}"))) {
             // Change the request to be a different doc
             request = new UpdateRequest("test", "1").fromXContent(parser);
-            result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, true);
+            result = updateHelper.prepareUpdateIndexRequest(indexShard, request, getResult, true, false);
 
             assertThat(result.action(), instanceOf(IndexRequest.class));
             assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.UPDATED));
@@ -640,7 +641,8 @@ public class UpdateRequestTests extends ESTestCase {
             indexShard,
             request,
             getResult,
-            ESTestCase::randomNonNegativeLong
+            ESTestCase::randomNonNegativeLong,
+            false
         );
 
         assertThat(result.action(), instanceOf(IndexRequest.class));
@@ -650,7 +652,7 @@ public class UpdateRequestTests extends ESTestCase {
         // Now where the script changes the op to "delete"
         request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = 'delete'"));
 
-        result = updateHelper.prepareUpdateScriptRequest(indexShard, request, getResult, ESTestCase::randomNonNegativeLong);
+        result = updateHelper.prepareUpdateScriptRequest(indexShard, request, getResult, ESTestCase::randomNonNegativeLong, false);
 
         assertThat(result.action(), instanceOf(DeleteRequest.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.DELETED));
@@ -663,10 +665,49 @@ public class UpdateRequestTests extends ESTestCase {
             request = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = 'bad'"));
         }
 
-        result = updateHelper.prepareUpdateScriptRequest(indexShard, request, getResult, ESTestCase::randomNonNegativeLong);
+        result = updateHelper.prepareUpdateScriptRequest(indexShard, request, getResult, ESTestCase::randomNonNegativeLong, false);
 
         assertThat(result.action(), instanceOf(UpdateResponse.class));
         assertThat(result.getResponseResult(), equalTo(DocWriteResponse.Result.NOOP));
+    }
+
+    public void testRoutingFromSlicePropagatesToGeneratedWriteRequests() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+        IndexShard indexShard = createMockIndexShard(new ShardId("test", "", 0));
+        GetResult getResult = new GetResult("test", "1", 0, 1, 0, true, new BytesArray("{\"body\": \"bar\"}"), null, null);
+
+        UpdateRequest mergeRequest;
+        try (var parser = createParser(JsonXContent.jsonXContent, new BytesArray("{\"doc\": {\"body\": \"foo\"}}"))) {
+            mergeRequest = new UpdateRequest("test", "1").fromXContent(parser);
+        }
+        mergeRequest.routing("s1").setRoutingFromSlice(true);
+        UpdateHelper.Result mergeResult = updateHelper.prepareUpdateIndexRequest(indexShard, mergeRequest, getResult, false, true);
+        IndexRequest mergedIndexRequest = (IndexRequest) mergeResult.action();
+        assertTrue(mergedIndexRequest.isRoutingFromSlice());
+
+        UpdateRequest scriptedIndexRequest = new UpdateRequest("test", "1").script(mockInlineScript("ctx._source.body = \"foo\""));
+        scriptedIndexRequest.routing("s1").setRoutingFromSlice(true);
+        UpdateHelper.Result scriptedIndexResult = updateHelper.prepareUpdateScriptRequest(
+            indexShard,
+            scriptedIndexRequest,
+            getResult,
+            ESTestCase::randomNonNegativeLong,
+            true
+        );
+        assertThat(scriptedIndexResult.action(), instanceOf(IndexRequest.class));
+        assertTrue(((IndexRequest) scriptedIndexResult.action()).isRoutingFromSlice());
+
+        UpdateRequest scriptedDeleteRequest = new UpdateRequest("test", "1").script(mockInlineScript("ctx.op = 'delete'"));
+        scriptedDeleteRequest.routing("s1").setRoutingFromSlice(true);
+        UpdateHelper.Result scriptedDeleteResult = updateHelper.prepareUpdateScriptRequest(
+            indexShard,
+            scriptedDeleteRequest,
+            getResult,
+            ESTestCase::randomNonNegativeLong,
+            true
+        );
+        assertThat(scriptedDeleteResult.action(), instanceOf(DeleteRequest.class));
+        assertTrue(((DeleteRequest) scriptedDeleteResult.action()).isRoutingFromSlice());
     }
 
     public void testToString() throws IOException {

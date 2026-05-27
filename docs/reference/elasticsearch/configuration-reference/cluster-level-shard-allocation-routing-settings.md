@@ -168,7 +168,7 @@ Max headroom settings have their default values only if their respective waterma
 ::::{tip}
 :name: disk-based-shard-allocation-does-not-balance
 
-It is normal for the nodes in your cluster to be using very different amounts of disk space. The [balance](#shards-rebalancing-settings) of the cluster depends on a combination of factors which includes the number of shards on each node, the indices to which those shards belong, and the resource needs of each shard in terms of its size on disk and its CPU usage. {{es}} must trade off all of these factors against each other, and a cluster which is balanced when looking at the combination of all of these factors may not appear to be balanced if you focus attention on just one of them.
+It is normal for the nodes in your cluster to be using very different amounts of disk space, especially if the cluster has more disk space in total than it really needs. Disk usage does not correlate with other more important resource requirements, so it is a mistake to try and make your cluster's disk usage equal across nodes. The [balance](#shards-rebalancing-settings) of the cluster depends on a combination of factors which includes the number of shards on each node, the indices to which those shards belong, and the resource needs of each shard in terms of its size on disk and its CPU usage. {{es}} must trade off all of these factors against each other, and a cluster which is balanced when looking at the combination of all of these factors may not appear to be balanced if you focus attention on just one of them.
 
 ::::
 

@@ -261,7 +261,7 @@ public class FixtureUtils {
      * Find the first pipe character that's not inside a quoted string.
      * Used by fixture injectParams methods to locate where to insert WITH clauses.
      */
-    static int findFirstPipeAfterExternal(String query) {
+    public static int findFirstPipeAfterExternal(String query) {
         boolean inQuotes = false;
         char quoteChar = 0;
 
@@ -359,7 +359,7 @@ public class FixtureUtils {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 String name = file.getFileName().toString();
-                if (name.endsWith(".csv") || name.endsWith(".ndjson")) {
+                if (name.endsWith(".csv") || name.endsWith(".ndjson") || name.endsWith(".tsv")) {
                     byte[] content = Files.readAllBytes(file);
                     Path parent = file.getParent();
                     for (String suffix : COMPRESSED_EXTENSIONS) {

@@ -44,7 +44,10 @@ public final class OtlpTracesParser {
         ExportTraceServiceRequest request = ExportTraceServiceRequest.parseFrom(input);
         List<ReceivedTelemetry> result = new ArrayList<>();
         for (ResourceSpans resourceSpans : request.getResourceSpansList()) {
-            result.add(new ReceivedTelemetry.ReceivedResource(extractAttributes(resourceSpans.getResource().getAttributesList())));
+            // Resource attributes pass through unchanged: no "otel.attributes." prefix
+            // (unlike extractSpanAttributes below, which adds it to mimic the APM intake shape).
+            // AbstractTracesIT.REQUIRED_RESOURCE_KEYS asserts on the OTel SemConv names directly.
+            result.add(new ReceivedTelemetry.ReceivedResource(extractRawAttributes(resourceSpans.getResource().getAttributesList())));
             for (ScopeSpans scopeSpans : resourceSpans.getScopeSpansList()) {
                 for (Span span : scopeSpans.getSpansList()) {
                     String traceId = toHex(span.getTraceId().toByteArray());
@@ -52,7 +55,7 @@ public final class OtlpTracesParser {
                     Optional<String> parentSpanId = span.getParentSpanId().isEmpty()
                         ? Optional.empty()
                         : Optional.of(toHex(span.getParentSpanId().toByteArray()));
-                    Map<String, Object> attributes = extractAttributes(span.getAttributesList());
+                    Map<String, Object> attributes = extractSpanAttributes(span);
                     result.add(new ReceivedTelemetry.ReceivedSpan(span.getName(), traceId, spanId, parentSpanId, attributes));
                 }
             }
@@ -60,7 +63,35 @@ public final class OtlpTracesParser {
         return result;
     }
 
-    private static Map<String, Object> extractAttributes(List<KeyValue> kvs) {
+    /**
+     * Test-only normalisation that brings raw OTLP span attributes into the same shape the APM intake
+     * parser produces, so a single contract assertion in {@link AbstractTracesIT} can compare them:
+     * <ul>
+     *   <li>each OTel attribute key is prefixed with {@code otel.attributes.} (e.g. {@code http.method}
+     *       becomes {@code otel.attributes.http.method}), matching how the APM agent nests attributes
+     *       in its intake NDJSON;</li>
+     *   <li>the {@link Span.SpanKind} enum is surfaced as an {@code otel.span_kind} entry
+     *       (e.g. {@code "SERVER"}), matching the same intake nesting.</li>
+     * </ul>
+     * <p>
+     * The translation lives in the test parser, not on the production wire: the OTLP wire format
+     * carries flat OTel keys natively. Whether downstream consumers querying APM-Server-stored
+     * documents see equivalent fields from both export paths depends on APM Server's own intake-to-
+     * storage normalisation; that question is a separate verification effort outside this code.
+     */
+    private static Map<String, Object> extractSpanAttributes(Span span) {
+        Map<String, Object> attributes = new LinkedHashMap<>();
+        String kindName = span.getKind().name(); // e.g. "SPAN_KIND_SERVER"
+        if (kindName.startsWith("SPAN_KIND_")) {
+            attributes.put("otel.span_kind", kindName.substring("SPAN_KIND_".length()));
+        }
+        for (KeyValue kv : span.getAttributesList()) {
+            attributes.put("otel.attributes." + kv.getKey(), toJavaValue(kv.getValue()));
+        }
+        return Map.copyOf(attributes);
+    }
+
+    private static Map<String, Object> extractRawAttributes(List<KeyValue> kvs) {
         Map<String, Object> attributes = new LinkedHashMap<>();
         for (KeyValue kv : kvs) {
             attributes.put(kv.getKey(), toJavaValue(kv.getValue()));

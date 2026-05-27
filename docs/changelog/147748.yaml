@@ -1,6 +1,0 @@
-area: ES|QL
-issues:
- - 147448
-pr: 147748
-summary: "Disallow empty lists in named params, only"
-type: bug

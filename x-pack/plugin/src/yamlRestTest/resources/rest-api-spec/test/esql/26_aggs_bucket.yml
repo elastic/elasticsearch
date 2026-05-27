@@ -289,3 +289,192 @@
   - match: { values.2.1: "2024-08-01T00:00:00.000Z" }
   - match: { values.3.0: 1 }
   - match: { values.3.1: "2024-09-01T00:00:00.000Z" }
+
+---
+"BUCKET column metadata in REST response":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [column_metadata_bucket]
+      reason: "BUCKET exposes interval metadata on grouping columns"
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_dates" } }
+          - { "date": "1985-07-09T00:00:00.000Z" }
+          - { "index": { "_index": "test_numbers" } }
+          - { "number": 1 }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_dates | STATS date=VALUES(date) BY bucket=BUCKET(date, 20, "1985-01-01T00:00:00Z", "1986-01-01T00:00:00Z")'
+
+  - match:    { columns.0.name: date }
+  - is_false: columns.0._meta
+  - match:    { columns.1.name: bucket }
+  - match:    { columns.1.type: date }
+  - match:    { columns.1._meta.bucket.interval: 1 }
+  - match:    { columns.1._meta.bucket.unit: month }
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_numbers | STATS c = COUNT(*) BY b = BUCKET(number, 10)'
+
+  - match:    { columns.0.name: c }
+  - match:    { columns.0.type: long }
+  - is_false: columns.0._meta
+  - match:    { columns.1.name: b }
+  - match:    { columns.1.type: double }
+  - match:    { columns.1._meta.bucket.interval: 10.0 }
+
+  # Sanity: a query without BUCKET produces no _meta on any column.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_numbers | STATS c = COUNT(*) BY number'
+
+  - match:    { columns.0.name: c }
+  - is_false: columns.0._meta
+  - match:    { columns.1.name: number }
+  - is_false: columns.1._meta
+
+---
+"BUCKET column metadata in columnar response":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [column_metadata_bucket]
+      reason: "BUCKET exposes interval metadata on grouping columns"
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_dates" } }
+          - { "date": "1985-07-09T00:00:00.000Z" }
+
+  # _meta lives on column descriptors and must be present regardless of the values format.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'FROM test_dates | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month)'
+          columnar: true
+
+  - match:    { columns.0.name: c }
+  - is_false: columns.0._meta
+  - match:    { columns.1.name: bucket }
+  - match:    { columns.1.type: date }
+  - match:    { columns.1._meta.bucket.interval: 1 }
+  - match:    { columns.1._meta.bucket.unit: month }
+
+---
+"BUCKET column metadata coexists with approximation metadata":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [column_metadata_bucket, approximation_v7]
+      reason: "BUCKET exposes interval metadata; approximation exposes its own metadata. Both must coexist."
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - { "index": { "_index": "test_dates" } }
+          - { "date": "1985-07-09T00:00:00.000Z" }
+
+  # When approximation is enabled, the response contains both the bucket grouping column (with bucket
+  # metadata) and the synthetic _approximation_* columns (with approximation metadata). Both _meta maps
+  # must surface side by side without colliding.
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'SET approximation={"rows":10000}; FROM test_dates | STATS c=COUNT(*) BY bucket=BUCKET(date, 1 month)'
+
+  - match:    { columns.0.name: c }
+  - is_false: columns.0._meta
+  - match:    { columns.1.name: bucket }
+  - match:    { columns.1._meta.bucket.interval: 1 }
+  - match:    { columns.1._meta.bucket.unit: month }
+  - match:    { columns.2.name: "_approximation_confidence_interval(c)" }
+  - match:    { columns.2._meta.approximation.type: confidence_interval }
+  - match:    { columns.2._meta.approximation.column: c }
+  - match:    { columns.3.name: "_approximation_certified(c)" }
+  - match:    { columns.3._meta.approximation.type: certified }
+  - match:    { columns.3._meta.approximation.column: c }
+
+---
+"TBUCKET column metadata in REST response":
+  - requires:
+      test_runner_features: [allowed_warnings_regex, capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [column_metadata_bucket, tbucket]
+      reason: "TBUCKET exposes interval metadata on grouping columns"
+
+  - do:
+      indices.create:
+        index: ts_metrics
+        body:
+          settings:
+            index:
+              mode: time_series
+              routing_path: [host]
+              time_series:
+                start_time: 2024-06-01T00:00:00Z
+                end_time: 2024-06-02T00:00:00Z
+          mappings:
+            properties:
+              "@timestamp":
+                type: date
+              host:
+                type: keyword
+                time_series_dimension: true
+              metric:
+                type: long
+                time_series_metric: gauge
+
+  - do:
+      bulk:
+        refresh: true
+        index: ts_metrics
+        body:
+          - '{"index": {}}'
+          - '{"@timestamp": "2024-06-01T12:00:00Z", "host": "host-1", "metric": 42}'
+
+  - do:
+      allowed_warnings_regex:
+        - "No limit defined, adding default limit of \\[.*\\]"
+      esql.query:
+        body:
+          query: 'TS ts_metrics | STATS max(metric) BY tb = TBUCKET(30 minutes)'
+
+  - is_false: columns.0._meta
+  - match:    { columns.1.name: tb }
+  - match:    { columns.1.type: date }
+  - match:    { columns.1._meta.bucket.interval: 30 }
+  - match:    { columns.1._meta.bucket.unit: minute }

@@ -46,6 +46,8 @@ def nativeImageLinuxX64 = tasks.register('nativeImageLinuxX64', NativeImageBuild
   imageTag = nativeImageImage
   platform = 'linux/amd64'
   mainClass = launcherMainClass
+  // Use the AMD64 baseline so the binary runs on any x86_64 CPU; GraalVM 25 defaults to v3 which requires AVX2.
+  extraArgs = ['-march=compatibility']
   outputFile = layout.buildDirectory.file('native/linux-x86_64/server-launcher')
 }
 

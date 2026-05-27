@@ -24,9 +24,9 @@ import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.index.reindex.AbstractBulkByScrollRequestBuilder;
+import org.elasticsearch.index.reindex.AbstractBulkByPaginatedSearchRequestBuilder;
+import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
-import org.elasticsearch.index.reindex.BulkByScrollTask;
 import org.elasticsearch.index.reindex.DeleteByQueryAction;
 import org.elasticsearch.index.reindex.DeleteByQueryRequestBuilder;
 import org.elasticsearch.index.reindex.ReindexAction;
@@ -105,7 +105,7 @@ public class RetryTests extends ESIntegTestCase {
     }
 
     public void testReindexFromRemote() throws Exception {
-        Function<Client, AbstractBulkByScrollRequestBuilder<?, ?>> function = client -> {
+        Function<Client, AbstractBulkByPaginatedSearchRequestBuilder<?, ?>> function = client -> {
             /*
              * Use the master node for the reindex from remote because that node
              * doesn't have a copy of the data on it.
@@ -156,7 +156,7 @@ public class RetryTests extends ESIntegTestCase {
 
     private void testCase(
         String action,
-        Function<Client, AbstractBulkByScrollRequestBuilder<?, ?>> request,
+        Function<Client, AbstractBulkByPaginatedSearchRequestBuilder<?, ?>> request,
         BulkIndexByScrollResponseMatcher matcher
     ) throws Exception {
         /*
@@ -189,7 +189,7 @@ public class RetryTests extends ESIntegTestCase {
         assertFalse(initialBulkResponse.buildFailureMessage(), initialBulkResponse.hasFailures());
         indicesAdmin().prepareRefresh("source").get();
 
-        AbstractBulkByScrollRequestBuilder<?, ?> builder = request.apply(internalCluster().masterClient());
+        AbstractBulkByPaginatedSearchRequestBuilder<?, ?> builder = request.apply(internalCluster().masterClient());
         // Make sure we use more than one batch so we have to scroll
         builder.source().setSize(DOC_COUNT / randomIntBetween(2, 10));
 
@@ -246,7 +246,7 @@ public class RetryTests extends ESIntegTestCase {
     /**
      * Fetch the status for a task of type "action". Fails if there aren't exactly one of that type of task running.
      */
-    private BulkByScrollTask.Status taskStatus(String action) {
+    private BulkByPaginatedSearchTask.Status taskStatus(String action) {
         /*
          * We always use the master client because we always start the test requests on the
          * master. We do this simply to make sure that the test request is not started on the
@@ -254,7 +254,7 @@ public class RetryTests extends ESIntegTestCase {
          */
         ListTasksResponse response = clusterAdmin().prepareListTasks().setActions(action).setDetailed(true).get();
         assertThat(response.getTasks(), hasSize(1));
-        return (BulkByScrollTask.Status) response.getTasks().get(0).status();
+        return (BulkByPaginatedSearchTask.Status) response.getTasks().get(0).status();
     }
 
 }

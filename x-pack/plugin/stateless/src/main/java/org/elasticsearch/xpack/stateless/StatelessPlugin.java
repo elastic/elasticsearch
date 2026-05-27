@@ -193,7 +193,7 @@ import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForReco
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
-import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationIndexListener;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationMetricsCollector;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
@@ -314,6 +314,9 @@ public class StatelessPlugin extends Plugin
     public static final String UPLOAD_PREWARM_THREAD_POOL = BlobStoreRepository.STATELESS_SHARD_UPLOAD_PREWARMING_THREAD_NAME;
     public static final String UPLOAD_PREWARM_THREAD_POOL_SETTING = "stateless." + UPLOAD_PREWARM_THREAD_POOL + "_thread_pool";
 
+    public static final String BLOB_COPY_THREAD_POOL = BlobStoreRepository.STATELESS_BLOB_COPY_THREAD_NAME;
+    public static final String BLOB_COPY_THREAD_POOL_SETTING = "stateless." + BLOB_COPY_THREAD_POOL + "_thread_pool";
+
     public static final String MEMORY_NODE_ATTR = NAME + ".memory";
 
     /**
@@ -349,6 +352,8 @@ public class StatelessPlugin extends Plugin
         final int prewarmMaxThreads;
         final int uploadPrewarmCoreThreads;
         final int uploadPrewarmMaxThreads;
+        final int blobCopyCoreThreads;
+        final int blobCopyMaxThreads;
 
         if (hasIndexRole) {
             shardReadMaxThreads = Math.min(processors * 4, 10);
@@ -370,6 +375,8 @@ public class StatelessPlugin extends Plugin
             // threads around to reduce churn and re-use the existing buffers more
             uploadPrewarmMaxThreads = Math.min(processors * 4, 10);
             uploadPrewarmCoreThreads = uploadPrewarmMaxThreads / 2;
+            blobCopyCoreThreads = 0;
+            blobCopyMaxThreads = 4;
         } else {
             shardReadMaxThreads = Math.min(processors * 4, 28);
             translogCoreThreads = 0;
@@ -387,6 +394,8 @@ public class StatelessPlugin extends Plugin
             fillVirtualBatchedCompoundCommitCacheMaxThreads = Math.max(processors, 2);
             uploadPrewarmCoreThreads = 0;
             uploadPrewarmMaxThreads = 1;
+            blobCopyCoreThreads = 0;
+            blobCopyMaxThreads = 1;
         }
 
         return new ExecutorBuilder<?>[] {
@@ -457,7 +466,15 @@ public class StatelessPlugin extends Plugin
                 TimeValue.timeValueMinutes(5),
                 true,
                 UPLOAD_PREWARM_THREAD_POOL_SETTING
-            ) };
+            ),
+            new ScalingExecutorBuilder(
+                BLOB_COPY_THREAD_POOL,
+                blobCopyCoreThreads,
+                blobCopyMaxThreads,
+                TimeValue.timeValueMinutes(5),
+                true,
+                BLOB_COPY_THREAD_POOL_SETTING
+            ), };
     }
 
     private final SetOnce<SplitTargetService> splitTargetService = new SetOnce<>();
@@ -481,7 +498,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<RefreshManagerService> refreshManagerService = new SetOnce<>();
     private final SetOnce<HollowShardsService> hollowShardsService = new SetOnce<>();
     private final SetOnce<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler = new SetOnce<>();
-    private final SetOnce<RecoveryMetricsCollector> recoveryMetricsCollector = new SetOnce<>();
+    private final SetOnce<StatelessRecoveryMetricsCollector> recoveryMetricsCollector = new SetOnce<>();
     private final SetOnce<DocumentParsingProvider> documentParsingProvider = new SetOnce<>();
     private final SetOnce<BlobCacheMetrics> blobCacheMetrics = new SetOnce<>();
     private final SetOnce<IndicesService> indicesService = new SetOnce<>();
@@ -924,7 +941,7 @@ public class StatelessPlugin extends Plugin
                 new BlobStoreHealthIndicator(settings, clusterService, electionStrategy.get(), threadPool::relativeTimeInMillis).init()
             )
         );
-        components.add(setAndGet(recoveryMetricsCollector, new RecoveryMetricsCollector(services.telemetryProvider())));
+        components.add(setAndGet(recoveryMetricsCollector, new StatelessRecoveryMetricsCollector(services.telemetryProvider())));
         documentParsingProvider.set(services.documentParsingProvider());
         skipMerges.set(new ShouldSkipMerges(indicesService));
         if (hasMasterRole && USE_INDEX_REFRESH_BLOCK_SETTING.get(settings)) {
@@ -1250,6 +1267,7 @@ public class StatelessPlugin extends Plugin
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_ENABLED_SETTING,
             SharedBlobCacheWarmingService.SEARCH_OFFLINE_WARMING_PREFETCH_COMMITS_ENABLED_SETTING,
             SharedBlobCacheWarmingService.UPLOAD_PREWARM_MAX_SIZE_SETTING,
+            SharedBlobCacheWarmingService.WARM_BYTE_RANGE_THROTTLE_RATIO_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_WITH_SHUTDOWN_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_RELOCATION_SETTING,
             SharedBlobCacheWarmingService.SEARCH_RECOVERY_WARMING_TIMEOUT_NON_RELOCATION_SETTING,
@@ -1481,7 +1499,8 @@ public class StatelessPlugin extends Plugin
                 clusterService.get().getClusterSettings(),
                 getStatelessSharedBlobCacheService(),
                 snapshotsCommitService,
-                clusterService.get()
+                clusterService.get(),
+                recoveryMetricsCollector.get()
             )
         );
         indexModule.addIndexEventListener(recoveryMetricsCollector.get());
@@ -1534,13 +1553,8 @@ public class StatelessPlugin extends Plugin
                     false // translog is replicated to the object store, no need fsync that
                 );
 
-                var internalRefreshListeners = config.getInternalRefreshListener();
-                if (internalRefreshListeners == null) {
-                    internalRefreshListeners = List.of();
-                }
-
-                internalRefreshListeners = Stream.concat(
-                    internalRefreshListeners.stream(),
+                var internalRefreshListeners = Stream.concat(
+                    config.getInternalRefreshListener().stream(),
                     Stream.of(getUpdateMetricsRefreshListener(config))
                 ).toList();
 
@@ -1576,41 +1590,15 @@ public class StatelessPlugin extends Plugin
                     indexEngineDeletionPolicyCommitsListener = null;
                 }
 
-                EngineConfig newConfig = new EngineConfig(
-                    config.getShardId(),
-                    config.getThreadPool(),
-                    config.getThreadPoolMergeExecutorService(),
-                    config.getIndexSettings(),
-                    config.getWarmer(),
-                    config.getStore(),
-                    getMergePolicy(config),
-                    config.getAnalyzer(),
-                    config.getSimilarity(),
-                    getCodecProvider(config),
-                    config.getEventListener(),
-                    config.getQueryCache(),
-                    config.getQueryCachingPolicy(),
-                    newTranslogConfig,
-                    config.getFlushMergesAfter(),
-                    config.getExternalRefreshListener(),
-                    internalRefreshListeners,
-                    config.getIndexSort(),
-                    config.getCircuitBreakerService(),
-                    config.getGlobalCheckpointSupplier(),
-                    config.retentionLeasesSupplier(),
-                    config.getPrimaryTermSupplier(),
-                    config.getSnapshotCommitSupplier(),
-                    config.getLeafSorter(),
-                    config.getRelativeTimeInNanosSupplier(),
-                    config.getIndexCommitListener(),
-                    config.isPromotableToPrimary(),
-                    config.getMapperService(),
-                    config.getEngineResetLock(),
-                    config.getMergeMetrics(),
+                EngineConfig newConfig = EngineConfig.builder(config)
+                    .mergePolicy(getMergePolicy(config))
+                    .codecProvider(getCodecProvider(config))
+                    .translogConfig(newTranslogConfig)
+                    .internalRefreshListener(internalRefreshListeners)
                     // Here we pass an index deletion policy wrapper to the engine. This is the only way we have to pass the
                     // LocalCommitsRefs and the listener to the IndexWriter's policy, because the IndexWriter is created during
                     // InternalEngine construction, before IndexEngine class attributes are set.
-                    policy -> {
+                    .indexDeletionPolicyWrapper(policy -> {
                         if (hollowShardsEnabled) {
                             // If there is no default policy, we assume it is an hollow index engine
                             if (policy instanceof CombinedDeletionPolicy combinedDeletionPolicy) {
@@ -1626,8 +1614,8 @@ public class StatelessPlugin extends Plugin
                         } else {
                             return policy;
                         }
-                    }
-                );
+                    })
+                    .build();
 
                 final Engine engine = newHollowOrIndexEngine(indexSettings, newConfig);
 

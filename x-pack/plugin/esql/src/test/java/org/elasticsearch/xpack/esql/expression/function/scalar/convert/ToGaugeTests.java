@@ -91,6 +91,9 @@ public class ToGaugeTests extends AbstractScalarFunctionTestCase {
             List.of()
         );
 
+        // aggregate_metric_double -> aggregate_metric_double (pass-through evaluator)
+        TestCaseSupplier.forUnaryAggregateMetricDouble(suppliers, read, DataType.AGGREGATE_METRIC_DOUBLE, agg -> agg, List.of());
+
         // false: return type depends entirely on input type; an untyped null input has no inferable gauge variant
         return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers);
     }

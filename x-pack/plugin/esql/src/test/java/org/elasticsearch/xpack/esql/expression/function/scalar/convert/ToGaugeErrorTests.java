@@ -37,7 +37,7 @@ public class ToGaugeErrorTests extends ErrorsForCasesWithoutExamplesTestCase {
                 false,
                 validPerPosition,
                 signature,
-                (v, p) -> "counter_double or counter_integer or counter_long or double or integer or long"
+                (v, p) -> "aggregate_metric_double or counter_double or counter_integer or counter_long or double or integer or long"
             )
         );
     }

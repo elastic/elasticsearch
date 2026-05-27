@@ -4,6 +4,7 @@
 
 | field | result |
 | --- | --- |
+| aggregate_metric_double | aggregate_metric_double |
 | counter_double | double |
 | counter_integer | integer |
 | counter_long | long |

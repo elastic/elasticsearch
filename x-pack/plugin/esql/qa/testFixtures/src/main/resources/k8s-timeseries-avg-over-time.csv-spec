@@ -154,6 +154,48 @@ tx:double   | time_bucket:datetime
 4574.5      | 2024-05-09T23:50:00.000Z
 ;
 
+// Verify that ::gauge is a no-op on aggregate_metric_double — network.eth0.tx in k8s-downsampled
+// is already aggregate_metric_double, so ::gauge does not change the value or the type.
+// Results must be identical to avg_over_time_of_aggregate_metric_double (same query, no cast).
+avgOverTimeOnAggregateMetricDoubleToGaugeCastNoop
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_v0
+required_capability: to_gauge
+
+TS k8s-downsampled
+| STATS tx = sum(avg_over_time(network.eth0.tx::gauge)) BY time_bucket = bucket(@timestamp, 10minute)
+| EVAL tx = round(tx, 6)
+| KEEP tx, time_bucket
+| SORT time_bucket
+| LIMIT 10
+;
+
+tx:double   | time_bucket:datetime
+4362.2      | 2024-05-09T23:30:00.000Z
+5643.666667 | 2024-05-09T23:40:00.000Z
+4574.5      | 2024-05-09T23:50:00.000Z
+;
+
+// Same as above using the to_gauge() function form.
+avgOverTimeOnAggregateMetricDoubleToGaugeFunctionNoop
+required_capability: ts_command_v0
+required_capability: aggregate_metric_double_v0
+required_capability: to_gauge
+
+TS k8s-downsampled
+| STATS tx = sum(avg_over_time(to_gauge(network.eth0.tx))) BY time_bucket = bucket(@timestamp, 10minute)
+| EVAL tx = round(tx, 6)
+| KEEP tx, time_bucket
+| SORT time_bucket
+| LIMIT 10
+;
+
+tx:double   | time_bucket:datetime
+4362.2      | 2024-05-09T23:30:00.000Z
+5643.666667 | 2024-05-09T23:40:00.000Z
+4574.5      | 2024-05-09T23:50:00.000Z
+;
+
 avg_over_time_of_aggregate_metric_double_grouping
 required_capability: ts_command_v0
 required_capability: aggregate_metric_double_v0

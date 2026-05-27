@@ -228,11 +228,9 @@ public class PromqlPlanBinaryOperatorTests extends AbstractPromqlPlanOptimizerTe
         var plan = planPromql("PROMQL index=k8s step=1m max(network.eth0.rx) > 1000");
         GreaterThan gt = plan.collect(Filter.class)
             .stream()
-            .map(Filter::condition)
-            .filter(GreaterThan.class::isInstance)
-            .map(GreaterThan.class::cast)
-            .findAny()
-            .get();
+            .flatMap(f -> f.condition().collect(GreaterThan.class).stream())
+            .findFirst()
+            .orElseThrow();
         assertThat(gt.left().sourceText(), equalTo("max(network.eth0.rx)"));
         assertThat(as(gt.right(), Literal.class).fold(null), equalTo(1000.0));
 

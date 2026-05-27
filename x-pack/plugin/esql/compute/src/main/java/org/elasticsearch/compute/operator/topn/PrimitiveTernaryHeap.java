@@ -91,6 +91,7 @@ final class PrimitiveTernaryHeap implements Releasable {
 
     private final int capacity;
     private int size;
+    private int nullsInHeap;
     /**
      * Bytes registered with {@link #breaker}; recorded so {@link #close()} can release exactly
      * what was reserved even if the constructor's last bookkeeping step is updated later.
@@ -213,8 +214,10 @@ final class PrimitiveTernaryHeap implements Releasable {
         // the downHeap fast path keys off.
         if (isNull) {
             nulls.set(size);
+            nullsInHeap++;
         }
         upHeap(size);
+        assert assertNullCount();
     }
 
     /**
@@ -224,6 +227,7 @@ final class PrimitiveTernaryHeap implements Releasable {
      */
     void updateTop(long value, long rowPosition, boolean isNull) {
         assert size > 0 : "updateTop on empty heap";
+        boolean wasNull = nulls.get(1);
         values[1] = value;
         rowPositions[1] = rowPosition;
         if (isNull) {
@@ -233,7 +237,9 @@ final class PrimitiveTernaryHeap implements Releasable {
             // root; without this the stale bit would survive into draining.
             nulls.clear(1);
         }
+        nullsInHeap += (isNull ? 1 : 0) - (wasNull ? 1 : 0);
         downHeap(1);
+        assert assertNullCount();
     }
 
     /**
@@ -247,14 +253,19 @@ final class PrimitiveTernaryHeap implements Releasable {
      */
     int popTop() {
         assert size > 0 : "popTop on empty heap";
+        boolean poppedNull = nulls.get(1);
         int popped = size;
         // Swap root with last live slot, then sift down. The popped slot at index `popped`
         // (formerly index 1) holds the popped values until the next mutation.
         swap(1, popped);
         size--;
+        if (poppedNull) {
+            nullsInHeap--;
+        }
         if (size > 0) {
             downHeap(1);
         }
+        assert assertNullCount();
         return popped;
     }
 
@@ -268,6 +279,10 @@ final class PrimitiveTernaryHeap implements Releasable {
 
     boolean isNullAt(int slot) {
         return nulls.get(slot);
+    }
+
+    int nullsInHeap() {
+        return nullsInHeap;
     }
 
     /**
@@ -292,6 +307,7 @@ final class PrimitiveTernaryHeap implements Releasable {
             boolean ni = nulls.get(i);
             boolean nj = nulls.get(j);
             if (ni != nj) {
+                // Swapping preserves the number of live nulls, so nullsInHeap is unchanged here.
                 nulls.set(i, nj);
                 nulls.set(j, ni);
             }
@@ -414,6 +430,7 @@ final class PrimitiveTernaryHeap implements Releasable {
      * in randomised sequences (Stage 3 alignment test).
      */
     boolean assertInvariant() {
+        assert assertNullCount();
         for (int parent = 1; parent <= size; parent++) {
             int firstChild = 3 * (parent - 1) + 2;
             for (int c = firstChild; c < firstChild + 3 && c <= size; c++) {
@@ -433,6 +450,17 @@ final class PrimitiveTernaryHeap implements Releasable {
                         + "]";
             }
         }
+        return true;
+    }
+
+    private boolean assertNullCount() {
+        int liveNulls = 0;
+        for (int slot = 1; slot <= size; slot++) {
+            if (nulls.get(slot)) {
+                liveNulls++;
+            }
+        }
+        assert nullsInHeap == liveNulls : "nullsInHeap [" + nullsInHeap + "] != live null bits [" + liveNulls + "]";
         return true;
     }
 

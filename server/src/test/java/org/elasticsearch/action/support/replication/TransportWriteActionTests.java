@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.support.replication;
 
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
@@ -53,6 +54,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -408,7 +410,24 @@ public class TransportWriteActionTests extends ESTestCase {
         TestAction testAction = new TestAction(randomBoolean(), randomBoolean());
         final PlainActionFuture<TransportReplicationAction.PrimaryResult<TestRequest, TestResponse>> future = new PlainActionFuture<>();
         taskManager.cancel(task, "test", () -> {});
-        testAction.shardOperationOnPrimary(task, request, indexShard, future);
+
+        try (var mockLog = MockLog.capture(TestAction.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation(
+                    "Pre Submission Cancellation",
+                    TestAction.class.getCanonicalName(),
+                    Level.WARN,
+                    String.format(
+                        "Bulk Transport Write Action request [%s] for Index shard [[test][1]] is cancelled pre-submission.",
+                        request.getDescription()
+                    )
+                )
+            );
+
+            testAction.shardOperationOnPrimary(task, request, indexShard, future);
+            mockLog.assertAllExpectationsMatched();
+        }
+
     }
 
     private class TestAction extends TransportWriteAction<TestRequest, TestRequest, TestResponse> {

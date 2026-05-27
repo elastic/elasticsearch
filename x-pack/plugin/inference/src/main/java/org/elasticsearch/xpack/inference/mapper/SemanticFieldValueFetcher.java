@@ -159,6 +159,10 @@ class SemanticFieldValueFetcher implements ValueFetcher {
 
     private List<Object> fetchOriginalValues(Source source) {
         Object valueObj = source.extractValue(fieldType.name(), null);
+        if (valueObj == null) {
+            return List.of();
+        }
+
         return SemanticTextUtils.nodeObjectValues(fieldType.name(), valueObj, false);
     }
 

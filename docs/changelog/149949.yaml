@@ -1,0 +1,6 @@
+pr: 149949
+summary: Filter index modes by transport version in node stats
+area: Infra/Metrics
+type: bug
+issues:
+ - 149399

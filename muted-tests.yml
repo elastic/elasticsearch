@@ -276,9 +276,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
   method: testShardPrewarming
   issue: https://github.com/elastic/elasticsearch/issues/147838
-- class: org.elasticsearch.xpack.stateless.cluster.coordination.StatelessCoordinationTests
-  method: testAckListenerReceivesNacksIfPublicationTimesOut
-  issue: https://github.com/elastic/elasticsearch/issues/147839
 - class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/147841
@@ -393,9 +390,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148619
-- class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
-  method: testGenerationalFileBlobReferenceIsRetainedCorrectly
-  issue: https://github.com/elastic/elasticsearch/issues/148723
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexWhileNodeStopping
   issue: https://github.com/elastic/elasticsearch/issues/148807

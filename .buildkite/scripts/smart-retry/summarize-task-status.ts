@@ -208,15 +208,16 @@ export function printSummary(summary: TaskStatusSummary): void {
   printTaskSection("Interrupted Tasks", summary.interruptedTasks, "⏸️");
 
   const hasIssues =
+    summary.preemptedAt ||
     summary.failedTasks.length +
       summary.failedTests.length +
       summary.flakyTasks.length +
       summary.flakyTests.length +
       summary.interruptedTasks.length >
-    0;
+      0;
   if (!hasIssues) {
     console.log("✅ All tasks and tests passed across all runs.\n");
-  } else {
+  } else if (!summary.preemptedAt) {
     printHeaderFooter(summary);
   }
 }

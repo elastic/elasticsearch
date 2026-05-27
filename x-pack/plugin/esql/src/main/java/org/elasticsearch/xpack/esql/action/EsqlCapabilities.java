@@ -1411,6 +1411,12 @@ public class EsqlCapabilities {
         SUGGESTED_CAST,
 
         /**
+         * Support for {@code TO_COUNTER} function and the {@code ::counter} cast operator, which converts
+         * {@code long}, {@code integer}, and {@code double} values to their counter-typed equivalents.
+         */
+        TO_COUNTER,
+
+        /**
          * Guards a bug fix matching {@code TO_LOWER(f) == ""}.
          */
         TO_LOWER_EMPTY_STRING,

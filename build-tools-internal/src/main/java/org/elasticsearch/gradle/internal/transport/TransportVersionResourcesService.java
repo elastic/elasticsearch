@@ -329,15 +329,30 @@ public abstract class TransportVersionResourcesService implements BuildService<T
                     String mergeBase = gitCommandOrNull("merge-base", upstreamRef, "HEAD");
                     if (mergeBase == null || mergeBase.isBlank()) {
                         // merge-base can fail if the upstream ref has no common history (e.g. when a remote
-                        // pointing to a different repo is picked up). Fall back to the local branch name.
+                        // pointing to a different repo is picked up). Fall back to the upstream ref directly.
                         logger.warn(
                             "Could not determine merge-base with ["
                                 + upstreamRef
-                                + "]; falling back to local 'main' as upstream ref for transport version resources"
+                                + "]; falling back to upstream ref directly for transport version resources"
                         );
-                        mergeBase = gitCommand("merge-base", "main", "HEAD").strip();
+                        refName = upstreamRef;
+                    } else {
+                        mergeBase = mergeBase.strip();
+                        // In shallow CI clones the merge-base commit may exist as a ref but its tree objects may
+                        // not have been fetched. Verify the tree is accessible before using it.
+                        if (gitCommandOrNull("cat-file", "-e", mergeBase + "^{tree}") == null) {
+                            logger.warn(
+                                "Merge-base ["
+                                    + mergeBase
+                                    + "] tree not available (shallow clone?); falling back to upstream ref ["
+                                    + upstreamRef
+                                    + "] for transport version resources"
+                            );
+                            refName = upstreamRef;
+                        } else {
+                            refName = mergeBase;
+                        }
                     }
-                    refName = mergeBase;
                 }
 
                 baseRefName.set(refName);

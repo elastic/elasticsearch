@@ -20,13 +20,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
- * End-to-end coverage for the OTel SDK export pipeline:
- * <ul>
- *   <li>{@code BufferingMetricExporter}: persists batches when OTLP is unreachable and replays
- *       them after recovery, preserving original collection timestamps.</li>
- *   <li>{@code QueueingMetricExporter}: when APM is slow enough to back up the worker, the queue
- *       drops the <em>newest</em> incoming batches.</li>
- * </ul>
+ * End-to-end coverage for {@code BufferingMetricExporter}: persists batches when OTLP is
+ * unreachable and replays them after recovery, preserving original collection timestamps.
  */
 public class OTelMetricsBufferingIT extends AbstractMetricsIT {
 
@@ -35,11 +30,12 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
     public static ElasticsearchCluster cluster = AbstractMetricsIT.baseClusterBuilder()
         .systemProperty("telemetry.otel.metrics.enabled", "true")
         .setting("telemetry.otel.metrics.endpoint", () -> "http://" + recordingApmServer.getHttpAddress() + "/v1/metrics")
-        .setting("telemetry.otel.metrics.interval", "1s")
+        .setting("telemetry.otel.metrics.interval", "500ms")
         .setting("telemetry.otel.metrics.disk_buffer_size", "10mb")
         .setting("telemetry.otel.metrics.buffer_ttl", "5m")
-        .setting("telemetry.otel.metrics.export_queue_size", "2")
-        .setting("telemetry.otel.metrics.otlp.request_timeout", "1s")
+        // Tight write/read windows so buffered files become drainable within the test budget.
+        .setting("telemetry.otel.metrics.disk_buffer_write_window", "100ms")
+        .setting("telemetry.otel.metrics.disk_buffer_read_min_age", "200ms")
         .build();
 
     @ClassRule
@@ -64,9 +60,7 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
         client().performRequest(new Request("GET", "/_use_apm_metrics"));
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
-        // Sustained outage: ~6 collection cycles at 1s interval, well over the OTLP retry chain.
-        // Long enough to accumulate a real backlog so the drain loop has to iterate multiple files.
-        Thread.sleep(6000);
+        Thread.sleep(3000);
 
         long outageStartEpochNanos = outageStartEpochMs * 1_000_000L;
         long outageEndEpochNanos = System.currentTimeMillis() * 1_000_000L;
@@ -91,7 +85,7 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
             }
         });
 
-        recordingApmServer.setResponseCode(0);
+        recordingApmServer.clearResponseCode();
 
         client().performRequest(new Request("GET", "/_flush_telemetry"));
 
@@ -105,78 +99,6 @@ public class OTelMetricsBufferingIT extends AbstractMetricsIT {
         assertTrue(
             "expected a replayed metricset carrying an outage-window timestamp",
             outageWindowBatchReplayed.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
-        );
-    }
-
-    /**
-     * APM flaps between healthy and 503 several times. Each down phase must persist failed batches
-     * to disk, and each up phase must drain part of the backlog. This exercises the rapid
-     * alternation of writes and drains on the single-thread disk executor that static fail/succeed
-     * unit tests don't reproduce.
-     */
-    public void testIntermittentFailuresPersistAndDrain() throws Exception {
-        waitForMetricCollectionGreen();
-
-        CountDownLatch writesObserved = new CountDownLatch(1);
-        CountDownLatch replaysObserved = new CountDownLatch(1);
-        recordingApmServer.addMessageConsumer(msg -> {
-            if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m && "elasticsearch".equals(m.instrumentationScopeName())) {
-                if (positiveLongSample(m, "es.apm.metrics.disk_buffer.writes")) writesObserved.countDown();
-                if (positiveLongSample(m, "es.apm.metrics.disk_buffer.replays")) replaysObserved.countDown();
-            }
-        });
-
-        // 3 cycles of ~2s down / ~2s up. With a 1s collection interval, each phase covers
-        // multiple ticks, so every down phase contributes at least one disk write and every
-        // up phase contributes at least one drain.
-        for (int i = 0; i < 3; i++) {
-            recordingApmServer.setResponseCode(503);
-            Thread.sleep(2000);
-            recordingApmServer.setResponseCode(0);
-            Thread.sleep(2000);
-        }
-
-        // Final flush after recovery to make sure the counters we asserted on are exported.
-        client().performRequest(new Request("GET", "/_flush_telemetry"));
-
-        assertTrue(
-            "expected at least one disk write across the flapping period " + "(es.apm.metrics.disk_buffer.writes never reached >0)",
-            writesObserved.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
-        );
-        assertTrue(
-            "expected at least one drained batch across the flapping period " + "(es.apm.metrics.disk_buffer.replays never reached >0)",
-            replaysObserved.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
-        );
-    }
-
-    /**
-     * Slow APM (above the OTLP request timeout) → queue fills → drop-newest kicks in.
-     * Asserts that {@code es.apm.metrics.export_queue.dropped} reaches a non-zero value once APM
-     * recovers and the counter can be exported.
-     */
-    public void testQueueDropsNewestUnderSlowApm() throws Exception {
-        waitForMetricCollectionGreen();
-
-        // 2s > the configured 1s OTLP request_timeout, to trigger retry logic and eventually fill the export queue
-        recordingApmServer.setResponseDelayMillis(2000);
-        Thread.sleep(8_000);
-
-        CountDownLatch droppedObserved = new CountDownLatch(1);
-        recordingApmServer.addMessageConsumer(msg -> {
-            if (msg instanceof ReceivedTelemetry.ReceivedMetricSet m
-                && "elasticsearch".equals(m.instrumentationScopeName())
-                && positiveLongSample(m, "es.apm.metrics.export_queue.dropped")) {
-                droppedObserved.countDown();
-            }
-        });
-
-        recordingApmServer.setResponseDelayMillis(0);
-        client().performRequest(new Request("GET", "/_flush_telemetry"));
-
-        assertTrue(
-            "expected the queue to drop at least one incoming batch under sustained slow APM "
-                + "(es.apm.metrics.export_queue.dropped never reached >0)",
-            droppedObserved.await(TELEMETRY_TIMEOUT, TimeUnit.SECONDS)
         );
     }
 

@@ -87,7 +87,6 @@ public class APMMeterService extends AbstractLifecycleComponent {
                 LOGGER.warn("Exception flushing OTel MeterSupplier", e);
             }
         }
-        meterRegistry.setProvider(noopMeterSupplier.get());
     }
 
     @Override
@@ -97,6 +96,7 @@ public class APMMeterService extends AbstractLifecycleComponent {
         } catch (Exception e) {
             LOGGER.warn("Exception closing OTel MeterSupplier", e);
         }
+        meterRegistry.setProvider(noopMeterSupplier.get());
     }
 
     private static final class NoOpMeterSupplier implements MeterSupplier {

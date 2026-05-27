@@ -47,7 +47,6 @@ public class RecordingApmServer extends ExternalResource {
     private volatile Consumer<ReceivedTelemetry> consumer;
     private volatile boolean running = true;
     private volatile int overrideResponseCode = 0;
-    private volatile long responseDelayMillis = 0;
 
     @Override
     protected void before() throws Throwable {
@@ -95,34 +94,25 @@ public class RecordingApmServer extends ExternalResource {
     }
 
     /**
-     * Override the HTTP response code for all subsequent responses. Pass {@code 0} to reset to the default (201).
+     * Override the HTTP response code for all subsequent responses. Codes {@code >= 400}
+     * short-circuit telemetry parsing to simulate APM server failures.
+     * Call {@link #clearResponseCode()} to restore default.
      */
     public void setResponseCode(int code) {
         this.overrideResponseCode = code;
     }
 
-    /**
-     * Delay every response by the given duration before sending headers/body. Pass {@code 0} to reset.
-     */
-    public void setResponseDelayMillis(long delayMillis) {
-        this.responseDelayMillis = delayMillis;
+    /** Restore the default response (201) for subsequent requests. */
+    public void clearResponseCode() {
+        this.overrideResponseCode = 0;
     }
 
     private void handle(HttpExchange exchange) throws IOException {
         try (exchange) {
-            long delay = responseDelayMillis;
-            if (delay > 0) {
-                try {
-                    Thread.sleep(delay);
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
-                    return;
-                }
-            }
             int responseCode = overrideResponseCode;
-            if (responseCode > 0) {
+            if (responseCode >= 400) {
                 exchange.getRequestBody().readAllBytes();
-                exchange.sendResponseHeaders(responseCode, -1);
+                exchange.sendResponseHeaders(responseCode, 0);
                 return;
             }
 

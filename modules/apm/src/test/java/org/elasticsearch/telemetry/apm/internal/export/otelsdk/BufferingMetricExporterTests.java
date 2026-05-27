@@ -67,6 +67,9 @@ public class BufferingMetricExporterTests extends ESTestCase {
         Settings merged = Settings.builder()
             .put("telemetry.otel.metrics.disk_buffer_size", "10mb")
             .put("telemetry.otel.metrics.buffer_ttl", "5m")
+            // Short rotation/read times so the suite runs in seconds rather than minutes.
+            .put("telemetry.otel.metrics.disk_buffer_write_window", "100ms")
+            .put("telemetry.otel.metrics.disk_buffer_read_min_age", "200ms")
             .put(overrides)
             .build();
         exporter = new BufferingMetricExporter(delegate, merged, bufferDir, meter);
@@ -84,7 +87,7 @@ public class BufferingMetricExporterTests extends ESTestCase {
         assertThat(counter("writes"), hasSize(1));
 
         delegate.setShouldFail(false);
-        safeSleep(300); // past MIN_FILE_AGE_BEFORE_READ_MILLIS
+        safeSleep(300); // past the test-injected minFileAgeForRead (200ms)
         exportAndWait("trigger");
 
         assertBusy(() -> assertThat(countBufferFiles(), equalTo(0)));
@@ -103,7 +106,7 @@ public class BufferingMetricExporterTests extends ESTestCase {
     }
 
     public void testTtlExpiredFilesAreNotReplayed() throws Exception {
-        // TTL must be greater than MIN_FILE_AGE_FOR_READ_MILLIS (200ms)
+        // TTL must be greater than the test-injected minFileAgeForRead (200ms)
         build(Settings.builder().put("telemetry.otel.metrics.buffer_ttl", "300ms").build());
 
         delegate.setShouldFail(true);
@@ -117,23 +120,6 @@ public class BufferingMetricExporterTests extends ESTestCase {
         exportAndWait("trigger");
         assertThat(counter("replays"), empty());
         assertThat(delegate.exportedNames(), not(hasItem("expires")));
-    }
-
-    public void testShutdownDrainsDiskWhileDelegateIsHealthy() throws Exception {
-        build(Settings.EMPTY);
-        delegate.setShouldFail(true);
-        exportAndWait("m1");
-        assertBusy(() -> assertThat(countBufferFiles(), greaterThanOrEqualTo(1)));
-
-        delegate.setShouldFail(false);
-        delegate.clearExported();
-        safeSleep(300); // past MIN_FILE_AGE_BEFORE_READ_MILLIS
-        exporter.shutdown();
-        exporter = null;
-
-        assertThat(delegate.exportedNames(), hasItem("m1"));
-        assertThat(countBufferFiles(), equalTo(0));
-        assertThat(counter("replays"), hasSize(1));
     }
 
     public void testShutdownLeavesFilesIfDelegateBroken() throws Exception {

@@ -27,7 +27,10 @@ public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
         .setting("telemetry.otel.metrics.interval", "1s")
         .setting("telemetry.otel.metrics.disk_buffer_size", "10mb")
         .setting("telemetry.otel.metrics.buffer_ttl", "5m")
-        .setting("telemetry.otel.metrics.otlp.request_timeout", "1s")
+        .setting("telemetry.otel.otlp.send_timeout", "1s")
+        // Tight write/read windows so pre-existing buffered files become drainable within the test budget.
+        .setting("telemetry.otel.metrics.disk_buffer_write_window", "100ms")
+        .setting("telemetry.otel.metrics.disk_buffer_read_min_age", "200ms")
         .build();
 
     @ClassRule
@@ -51,7 +54,7 @@ public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
         closeClients();
         initClient();
         recordingApmServer.reset();
-        recordingApmServer.setResponseCode(0);
+        recordingApmServer.clearResponseCode();
 
         CountDownLatch replayed = new CountDownLatch(1);
         recordingApmServer.addMessageConsumer(msg -> {

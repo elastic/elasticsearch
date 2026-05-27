@@ -17,14 +17,16 @@ import io.opentelemetry.instrumentation.runtimetelemetry.RuntimeTelemetry;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.InternalTelemetryVersion;
 import io.opentelemetry.sdk.common.export.RetryPolicy;
+import io.opentelemetry.sdk.metrics.Aggregation;
+import io.opentelemetry.sdk.metrics.InstrumentSelector;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.View;
 import io.opentelemetry.sdk.metrics.export.AggregationTemporalitySelector;
 import io.opentelemetry.sdk.metrics.export.MetricExporter;
 import io.opentelemetry.sdk.metrics.export.PeriodicMetricReader;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
 
@@ -73,11 +75,16 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     }
 
     private SdkMeterProvider buildHealthMeterProvider() {
-        return sdkMeterProvider(buildMetricReader(createOTLPExporter(MeterProvider.noop())));
+        InstrumentSelector sdkSelfMetrics = InstrumentSelector.builder().setMeterName("io.opentelemetry.sdk.metrics").build();
+        return SdkMeterProvider.builder()
+            .setResource(OtelSdkResource.get(settings))
+            .registerMetricReader(buildMetricReader(createOTLPExporter(MeterProvider.noop())))
+            .registerView(sdkSelfMetrics, View.builder().setAggregation(Aggregation.drop()).build())
+            .build();
     }
 
     private SdkMeterProvider buildSystemMeterProvider(MeterProvider healthProvider, Meter selfMeter) {
-        var exporter = wrapWithQueue(wrapWithBuffering(createOTLPExporter(healthProvider), diskBufferPath, selfMeter), selfMeter);
+        var exporter = wrapWithBuffering(createOTLPExporter(healthProvider), diskBufferPath, selfMeter);
         return sdkMeterProvider(buildMetricReader(exporter));
     }
 
@@ -92,13 +99,6 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             return delegate;
         }
         return new BufferingMetricExporter(delegate, settings, bufferPath, selfMeter);
-    }
-
-    private MetricExporter wrapWithQueue(MetricExporter delegate, Meter selfMeter) {
-        if (OtelSdkSettings.TELEMETRY_OTEL_METRICS_EXPORT_QUEUE_SIZE.get(settings) == 0) {
-            return delegate;
-        }
-        return new QueueingMetricExporter(delegate, settings, selfMeter);
     }
 
     private SdkMeterProvider sdkMeterProvider(PeriodicMetricReader reader) {
@@ -117,8 +117,8 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
             .setMeterProvider(() -> healthExportMeterProvider)
             .setAggregationTemporalitySelector(AggregationTemporalitySelector.deltaPreferred())
             .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
-            .setTimeout(OtelSdkSettings.TELEMETRY_OTEL_METRICS_OTLP_REQUEST_TIMEOUT.get(settings).toDuration())
-            .setConnectTimeout(OtelSdkSettings.TELEMETRY_OTEL_METRICS_OTLP_CONNECT_TIMEOUT.get(settings).toDuration())
+            .setTimeout(OtelSdkSettings.TELEMETRY_OTEL_OTLP_SEND_TIMEOUT.get(settings).toDuration())
+            .setConnectTimeout(OtelSdkSettings.TELEMETRY_OTEL_OTLP_CONNECT_TIMEOUT.get(settings).toDuration())
             .setRetryPolicy(buildRetryPolicy());
         String authHeader = buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
@@ -128,14 +128,14 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     }
 
     private RetryPolicy buildRetryPolicy() {
-        int maxAttempts = OtelSdkSettings.TELEMETRY_OTEL_METRICS_RETRY_MAX_ATTEMPTS.get(settings);
+        int maxAttempts = OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_MAX_ATTEMPTS.get(settings);
         if (maxAttempts <= 1) {
             return null;
         }
         return RetryPolicy.builder()
             .setMaxAttempts(maxAttempts)
-            .setInitialBackoff(OtelSdkSettings.TELEMETRY_OTEL_METRICS_RETRY_INITIAL_BACKOFF.get(settings).toDuration())
-            .setBackoffMultiplier(OtelSdkSettings.TELEMETRY_OTEL_METRICS_RETRY_BACKOFF_MULTIPLIER.get(settings))
+            .setInitialBackoff(OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_INITIAL_BACKOFF.get(settings).toDuration())
+            .setBackoffMultiplier(OtelSdkSettings.TELEMETRY_OTEL_OTLP_RETRY_BACKOFF_MULTIPLIER.get(settings))
             .build();
     }
 
@@ -159,7 +159,7 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         if (snapshot == null) {
             return;
         }
-        long timeoutMillis = OtelSdkSettings.computeExportOperationTimeout(settings).millis();
+        long timeoutMillis = OtelSdkSettings.TELEMETRY_OTEL_OTLP_SEND_TIMEOUT.get(settings).millis();
         // PeriodicMetricReader records collection.duration after each collection, so a second cycle is required to ship it.
         snapshot.systemMeterProvider.forceFlush().join(timeoutMillis, TimeUnit.MILLISECONDS);
         snapshot.systemMeterProvider.forceFlush().join(timeoutMillis, TimeUnit.MILLISECONDS);
@@ -189,13 +189,11 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
 
         @Override
         public void close() {
-            try {
-                if (runtimeTelemetry != null) {
-                    runtimeTelemetry.close();
-                }
-            } finally {
-                IOUtils.closeWhileHandlingException(systemMeterProvider, meterHealthMeterProvider);
+            if (runtimeTelemetry != null) {
+                runtimeTelemetry.close();
             }
+            systemMeterProvider.close();
+            meterHealthMeterProvider.close();
         }
     }
 }

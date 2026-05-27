@@ -110,6 +110,20 @@ public class EsqlQueryLoggingIT extends AbstractEsqlIntegTestCase {
                 String tookKey = EsqlLogProducer.PROFILE_PREFIX + marker.name() + ".took";
                 assertTrue("Expected profile field present: " + tookKey, message.containsKey(tookKey));
             }
+            // Query-level rollup counters surfaced from the response root. Present on every success
+            // path; for Lucene-only queries (this IT) the external-source-specific counters
+            // (rows_emitted / bytes_read / read_nanos) are zero because no operator overrode the
+            // corresponding Operator.Status defaults.
+            for (String key : new String[] {
+                "documents_found",
+                "values_loaded",
+                "rows_emitted",
+                "bytes_read",
+                "read_nanos",
+                "cpu_nanos" }) {
+                String fullKey = EsqlLogProducer.PROFILE_PREFIX + key;
+                assertTrue("Expected rollup field present: " + fullKey, message.containsKey(fullKey));
+            }
             assertThat(message.get(QUERY_FIELD_RESULT_COUNT), equalTo(Long.toString(hits)));
             assertThat(message.get(QUERY_FIELD_INDICES), equalTo("index-*"));
         }

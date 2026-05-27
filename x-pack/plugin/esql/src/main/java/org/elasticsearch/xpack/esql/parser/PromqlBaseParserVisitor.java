@@ -126,6 +126,12 @@ public interface PromqlBaseParserVisitor<T> extends ParseTreeVisitor<T> {
    */
   T visitLabel(PromqlBaseParser.LabelContext ctx);
   /**
+   * Visit a parse tree produced by {@link PromqlBaseParser#labelValue}.
+   * @param ctx the parse tree
+   * @return the visitor result
+   */
+  T visitLabelValue(PromqlBaseParser.LabelValueContext ctx);
+  /**
    * Visit a parse tree produced by {@link PromqlBaseParser#labelName}.
    * @param ctx the parse tree
    * @return the visitor result

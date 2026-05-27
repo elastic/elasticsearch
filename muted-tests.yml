@@ -208,9 +208,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search.vectors/41_knn_search_byte_quantized_bfloat16/KNN Vector similarity search only}
   issue: https://github.com/elastic/elasticsearch/issues/147251
-- class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
-  method: testDeploymentSurvivesRestart {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/145728
 - class: org.elasticsearch.xpack.core.transform.transforms.pivot.ScriptConfigTests
   method: testFromXContent
   issue: https://github.com/elastic/elasticsearch/issues/147543
@@ -276,9 +273,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.StatelessOnlinePrewarmingIT
   method: testShardPrewarming
   issue: https://github.com/elastic/elasticsearch/issues/147838
-- class: org.elasticsearch.xpack.stateless.cluster.coordination.StatelessCoordinationTests
-  method: testAckListenerReceivesNacksIfPublicationTimesOut
-  issue: https://github.com/elastic/elasticsearch/issues/147839
 - class: org.elasticsearch.xpack.stateless.commits.StatelessClusterIntegrityStressIT
   method: testRandomActivities
   issue: https://github.com/elastic/elasticsearch/issues/147841
@@ -393,9 +387,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.GenerativeUnmappedLoadIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148619
-- class: org.elasticsearch.xpack.stateless.commits.StatelessBatchedBehavioursIT
-  method: testGenerationalFileBlobReferenceIsRetainedCorrectly
-  issue: https://github.com/elastic/elasticsearch/issues/148723
 - class: org.elasticsearch.xpack.stateless.commits.StatelessFileDeletionIT
   method: testDeleteIndexWhileNodeStopping
   issue: https://github.com/elastic/elasticsearch/issues/148807

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.ByteArrayInputStream;
@@ -29,6 +30,13 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+/**
+ * The metrics-delegation test uses the {@link TestStorageObjects} real-class fixture per AGENTS.md.
+ * The remaining tests retain Mockito because they simulate stream lifecycle, async listener callbacks
+ * (via {@code doAnswer}), and exception-throwing I/O — a real-class subclass would have to reimplement
+ * each, which is what AGENTS.md calls out as "the real class is complex". Tracked as follow-up to
+ * incrementally extend {@code TestStorageObjects} with builders for those shapes.
+ */
 public class QueryBudgetedStorageObjectTests extends ESTestCase {
 
     public void testStreamCloseReleasesBudget() throws Exception {
@@ -121,6 +129,15 @@ public class QueryBudgetedStorageObjectTests extends ESTestCase {
 
         assertTrue(latch.await(5, TimeUnit.SECONDS));
         assertEquals(0, budget.inFlight());
+    }
+
+    public void testMetricsDelegatesToWrapped() {
+        QueryConcurrencyBudget budget = new QueryConcurrencyBudget(3, 60_000L, null);
+        StorageObjectMetrics snapshot = new StorageObjectMetrics(5, 999, 2048, 1);
+        StorageObject delegate = TestStorageObjects.metricsOnly(snapshot);
+
+        QueryBudgetedStorageObject obj = new QueryBudgetedStorageObject(delegate, budget);
+        assertSame(snapshot, obj.metrics());
     }
 
     public void testNewStreamReleasesOnDelegateException() throws Exception {

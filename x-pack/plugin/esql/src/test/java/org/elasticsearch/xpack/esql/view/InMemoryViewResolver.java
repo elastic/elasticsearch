@@ -71,8 +71,8 @@ public class InMemoryViewResolver extends ViewResolver {
     }
 
     @Override
-    protected void doResolveOriginViews(String projectRouting, ActionListener<Boolean> listener) {
-        listener.onResponse(true);
+    protected void doResolveOriginViews(String projectRouting, ActionListener<OriginViewsResolution> listener) {
+        listener.onResponse(new OriginViewsResolution(true, null));
     }
 
     public void close() {

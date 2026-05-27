@@ -646,7 +646,7 @@ public final class ParallelParsingCoordinator {
 
         /**
          * Signals the coordinator-side reconciler that the per-chunk partials shipped via
-         * {@link org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture#record} cover
+         * {@link ExternalStatsCapture#record} cover
          * the entire file cleanly. Without this marker, partial contributions are discarded.
          */
         private void publishFinalizeMarker() {

@@ -15,15 +15,26 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator;
+import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
+import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
+import java.util.Optional;
+import java.util.OptionalLong;
+import java.util.function.Function;
 
 /**
  * Iterator that reads NDJSON lines and produces ESQL Pages.
@@ -47,11 +58,11 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     /** Non-null iff the iterator is eligible to populate {@link ExternalStats} on close (whole-file read). */
     private final StorageObject cacheableObject;
     /** Stream-side byte counter for stream-only sources (length() throws). Null for byte-array fast path. */
-    private final org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream byteCounter;
+    private final CountingInputStream byteCounter;
     /** True only when the decoder returned a natural EOF (not on {@code rowLimit} truncation). */
     private boolean naturallyExhausted = false;
     /** Lazily built once the first page emits, so we use the decoder's resolved projected attributes. */
-    private org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator columnStats;
+    private ColumnStatsAccumulator columnStats;
     /** Snapshotted at byte-array fast-path init; the streaming path queries {@link #byteCounter}. */
     private final long byteArrayBytesRead;
 
@@ -66,7 +77,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
     /** Pinned at iterator open; closes the open-vs-close mtime-race window for the cache key. */
     private final long pinnedMtimeMillis;
     /** Computes the cache fingerprint from the FULL file schema at close time — must match {@code metadata()}'s input. */
-    private final java.util.function.Function<List<Attribute>, String> fingerprinter;
+    private final Function<List<Attribute>, String> fingerprinter;
     /** Full file schema as passed by the planner. Non-null on the wholeFileRead path; used for fingerprint at close. */
     private final List<Attribute> fingerprintSchema;
     private final String sourceLocation;
@@ -85,7 +96,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         ErrorPolicy errorPolicy,
         StorageObject cacheableObject,
         long pinnedMtimeMillis,
-        java.util.function.Function<List<Attribute>, String> fingerprinter,
+        Function<List<Attribute>, String> fingerprinter,
         boolean chunkMode,
         NdJsonReaderCounters counters
     ) throws IOException {
@@ -127,8 +138,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         } else {
             // Wrap on the streaming path so close-time bytesRead works for stream-only sources
             // (bzip2 / zstd-streamed) whose length() throws.
-            org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream counted =
-                new org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream(inputStream);
+            CountingInputStream counted = new CountingInputStream(inputStream);
             this.byteCounter = counted;
             this.byteArrayBytesRead = -1;
             this.pageDecoder = new NdJsonPageDecoder(
@@ -232,9 +242,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
             if (projected == null || projected.isEmpty()) {
                 return;
             }
-            columnStats = org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator.forProjectedAttributes(
-                projected.toArray(new Attribute[0])
-            );
+            columnStats = ColumnStatsAccumulator.forProjectedAttributes(projected.toArray(new Attribute[0]));
         }
         if (columnStats.isEmpty()) {
             return;
@@ -256,10 +264,10 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
             && fingerprinter != null
             && pageDecoder.errorCount() > 0
             && chunkMode) {
-            java.util.Map<String, Object> poison = new java.util.HashMap<>();
+            Map<String, Object> poison = new HashMap<>();
             poison.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
             poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
-            org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.record(sourceLocation, poison);
+            ExternalStatsCapture.record(sourceLocation, poison);
         }
         if (cacheableObject != null
             && naturallyExhausted
@@ -271,44 +279,36 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
             // projected attributes only when those equal the full schema (no projection pruning).
             List<Attribute> fullSchema = fingerprintSchema != null ? fingerprintSchema : pageDecoder.projectedAttributes();
             if (fullSchema != null && fullSchema.isEmpty() == false) {
-                java.util.Map<String, ExternalStats.ColumnStats> cols = columnStats == null ? java.util.Map.of() : columnStats.snapshot();
-                java.util.OptionalLong bytesRead = byteCounter != null
-                    ? java.util.OptionalLong.of(byteCounter.getBytesRead())
-                    : (byteArrayBytesRead >= 0 ? java.util.OptionalLong.of(byteArrayBytesRead) : java.util.OptionalLong.empty());
+                Map<String, ExternalStats.ColumnStats> cols = columnStats == null ? Map.of() : columnStats.snapshot();
+                OptionalLong bytesRead = byteCounter != null
+                    ? OptionalLong.of(byteCounter.getBytesRead())
+                    : (byteArrayBytesRead >= 0 ? OptionalLong.of(byteArrayBytesRead) : OptionalLong.empty());
                 String fingerprint = fingerprinter.apply(fullSchema);
                 ExternalStats.Stats statsRecord = new ExternalStats.Stats(rowsEmitted, bytesRead, cols);
                 // Surface to thread-bound capture sink so the contribution rides back to the
                 // coordinator via DriverCompletionInfo for multi-JVM warm-path consumption.
-                org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics sourceStats =
-                    org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats.build(
-                        java.util.Optional.of(statsRecord),
-                        sizeInBytesFromLength(),
-                        fullSchema
-                    );
-                java.util.Map<String, Object> base = new java.util.HashMap<>();
+                SourceStatistics sourceStats = TextFormatStats.build(Optional.of(statsRecord), sizeInBytesFromLength(), fullSchema);
+                Map<String, Object> base = new HashMap<>();
                 base.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
                 base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
                 if (chunkMode) {
                     base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
                 }
-                java.util.Map<String, Object> flat = org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer.embedStatistics(
-                    base,
-                    sourceStats
-                );
-                org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.record(sourceLocation, flat);
+                Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(base, sourceStats);
+                ExternalStatsCapture.record(sourceLocation, flat);
             }
         }
         IOUtils.close(pageDecoder);
     }
 
-    private java.util.OptionalLong sizeInBytesFromLength() {
+    private OptionalLong sizeInBytesFromLength() {
         if (cacheableObject == null) {
-            return java.util.OptionalLong.empty();
+            return OptionalLong.empty();
         }
         try {
-            return java.util.OptionalLong.of(cacheableObject.length());
+            return OptionalLong.of(cacheableObject.length());
         } catch (IOException | UnsupportedOperationException e) {
-            return java.util.OptionalLong.empty();
+            return OptionalLong.empty();
         }
     }
 

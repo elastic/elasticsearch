@@ -37,9 +37,14 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.core.util.DateUtils;
 import org.elasticsearch.xpack.esql.datasources.SourceStatisticsSerializer;
+import org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport;
+import org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator;
+import org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream;
 import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.cache.SchemaCacheKey;
 import org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats;
+import org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
@@ -71,6 +76,7 @@ import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashSet;
@@ -965,8 +971,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         // CountingInputStream tracks decompressed-byte consumption for stream-only sources whose
         // length() throws UnsupportedOperationException. The byte count flows through {@link
         // ExternalStats} as sizeInBytes when the file lacks a publishable length.
-        org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream stream =
-            new org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream(rawStream);
+        CountingInputStream stream = new CountingInputStream(rawStream);
         BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
         List<Attribute> effectiveSchema;
         List<Attribute> readSchema = context.readSchema();
@@ -1334,8 +1339,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     @Override
-    public org.elasticsearch.xpack.esql.datasources.spi.AggregatePushdownSupport aggregatePushdownSupport() {
-        return new org.elasticsearch.xpack.esql.datasources.TextAggregatePushdownSupport();
+    public AggregatePushdownSupport aggregatePushdownSupport() {
+        return new TextAggregatePushdownSupport();
     }
 
     @Override
@@ -1801,12 +1806,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
         /** Non-null iff the iterator is eligible to populate {@link ExternalStats} on close (whole-file read). */
         private final StorageObject cacheableObject;
         /** Non-null iff stats capture is enabled. Wraps the underlying stream so bytesRead is available at close. */
-        private final org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream byteCounter;
+        private final CountingInputStream byteCounter;
         private long rowsEmittedForCache = 0;
         /** True only when {@link #hasNext()} returned false from natural exhaustion (not from close or an exception). */
         private boolean naturallyExhausted = false;
         /** Lazily built once the schema and projection are known. {@code null} until the first batch resolves them. */
-        private org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator columnStats;
+        private ColumnStatsAccumulator columnStats;
 
         /** Pinned at iterator open; closes the open-vs-close mtime-race window for the cache key. */
         private final long pinnedMtimeMillis;
@@ -1825,7 +1830,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             ErrorPolicy errorPolicy,
             String sourceLocation,
             StorageObject cacheableObject,
-            org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream byteCounter,
+            CountingInputStream byteCounter,
             long pinnedMtimeMillis,
             boolean chunkMode,
             CsvReaderCounters counters
@@ -1905,7 +1910,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return;
             }
             if (columnStats == null) {
-                columnStats = org.elasticsearch.xpack.esql.datasources.cache.ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
+                columnStats = ColumnStatsAccumulator.forProjectedAttributes(projectedAttrs);
             }
             for (int i = 0; i < columnCount; i++) {
                 columnStats.acceptBlockAt(i, page.getBlock(i));
@@ -1938,9 +1943,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 // before EOF, so naturallyExhausted already gates it out.)
                 if (cacheableObject != null && naturallyExhausted && pinnedMtimeMillis >= 0 && schema != null) {
                     if (rowsSkipped == 0) {
-                        java.util.Map<String, ExternalStats.ColumnStats> cols = columnStats == null
-                            ? java.util.Map.of()
-                            : columnStats.snapshot();
+                        Map<String, ExternalStats.ColumnStats> cols = columnStats == null ? Map.of() : columnStats.snapshot();
                         OptionalLong bytesRead = byteCounter == null ? OptionalLong.empty() : OptionalLong.of(byteCounter.getBytesRead());
                         String fingerprint = computeConfigFingerprint();
                         ExternalStats.Stats statsRecord = new ExternalStats.Stats(rowsEmittedForCache, bytesRead, cols);
@@ -1951,10 +1954,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     } else if (chunkMode) {
                         // rowsSkipped > 0 here: a parallel chunk dropped rows mid-scan, so its partial
                         // would under-count. Poison the file — the reconciler discards every contribution.
-                        java.util.Map<String, Object> poison = new java.util.HashMap<>();
+                        Map<String, Object> poison = new HashMap<>();
                         poison.put(ExternalStats.MTIME_MILLIS_KEY, pinnedMtimeMillis);
                         poison.put(ExternalStats.CHUNK_HAD_ERRORS_KEY, Boolean.TRUE);
-                        org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.record(sourceLocation, poison);
+                        ExternalStatsCapture.record(sourceLocation, poison);
                     }
                 }
                 reader.close();
@@ -1982,20 +1985,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
             List<Attribute> resolvedSchema,
             OptionalLong lengthSize
         ) {
-            org.elasticsearch.xpack.esql.datasources.spi.SourceStatistics sourceStats =
-                org.elasticsearch.xpack.esql.datasources.cache.TextFormatStats.build(
-                    java.util.Optional.of(stats),
-                    lengthSize,
-                    resolvedSchema
-                );
-            java.util.Map<String, Object> base = new java.util.HashMap<>();
+            SourceStatistics sourceStats = TextFormatStats.build(Optional.of(stats), lengthSize, resolvedSchema);
+            Map<String, Object> base = new HashMap<>();
             base.put(ExternalStats.MTIME_MILLIS_KEY, mtimeMillis);
             base.put(ExternalStats.CONFIG_FINGERPRINT_KEY, fingerprint);
             if (chunkMode) {
                 base.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
             }
-            java.util.Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(base, sourceStats);
-            org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture.record(filePath, flat);
+            Map<String, Object> flat = SourceStatisticsSerializer.embedStatistics(base, sourceStats);
+            ExternalStatsCapture.record(filePath, flat);
         }
 
         private Page readNextBatch() throws IOException {

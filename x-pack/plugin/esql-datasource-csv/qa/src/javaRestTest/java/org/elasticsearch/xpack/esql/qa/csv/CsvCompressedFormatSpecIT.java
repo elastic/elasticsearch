@@ -54,10 +54,6 @@ public class CsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCas
         // external-basic / external-multifile read the multi-value employees fixture, which does not
         // parse as CSV under the default multi_value_syntax: none. Use the scalar twin (csv-basic) and
         // csv-headerless (which opts into brackets explicitly) instead.
-        return readExternalSpecTestsWithFormats(
-            COMPRESSED_FORMATS,
-            "/csv-basic.csv-spec",
-            "/csv-headerless.csv-spec"
-        );
+        return readExternalSpecTestsWithFormats(COMPRESSED_FORMATS, "/csv-basic.csv-spec", "/csv-headerless.csv-spec");
     }
 }

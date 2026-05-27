@@ -59,6 +59,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
     private final Client client;
     private final TransformAuditor auditor;
     private final Settings destIndexSettings;
+    private final TransformCloudCredentialManager cloudCredentialManager;
 
     @Inject
     public TransportUpgradeTransformsAction(
@@ -92,6 +93,7 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
             ? new SecurityContext(settings, threadPool.getThreadContext())
             : null;
         this.destIndexSettings = transformExtensionHolder.getTransformExtension().getTransformDestinationIndexSettings();
+        this.cloudCredentialManager = transformServices.cloudCredentialManager();
     }
 
     @Override
@@ -175,7 +177,8 @@ public class TransportUpgradeTransformsAction extends TransportMasterNodeAction<
                 false, // hasLinkedProjects (irrelevant since checkAccess is false)
                 timeout,
                 destIndexSettings,
-                null, // no cloudCredentialManager — skip credential minting for internal upgrade
+                cloudCredentialManager,
+                false, // mintCloudCredential — validate with stored credential only
                 listener
             );
         }, failure -> {

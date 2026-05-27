@@ -172,6 +172,7 @@ public class TransportUpdateTransformAction extends TransportTasksAction<Transfo
                     request.getTimeout(),
                     destIndexSettings,
                     cloudCredentialManager,
+                    true, // mintCloudCredential
                     ActionListener.wrap(updateResult -> {
                         TransformConfig originalConfig = configAndVersion.v1();
                         TransformConfig updatedConfig = updateResult.getConfig();

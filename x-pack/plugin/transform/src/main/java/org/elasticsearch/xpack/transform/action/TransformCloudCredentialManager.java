@@ -81,6 +81,24 @@ public class TransformCloudCredentialManager {
     }
 
     /**
+     * Converts a {@link PersistedCloudCredential} (internal API key from storage) into a
+     * {@link CloudCredential} suitable for attaching to a validate-transform request payload.
+     * Closes {@code persisted} after conversion — the returned credential is owned by the caller
+     * and must be closed via {@link ActionListener#releaseAfter} on the validate request.
+     */
+    @Nullable
+    public CloudCredential cloudCredentialFromPersisted(@Nullable PersistedCloudCredential persisted) {
+        if (persisted == null) {
+            return null;
+        }
+        try {
+            return credentialManager.resolverOf(persisted).resolve();
+        } finally {
+            persisted.close();
+        }
+    }
+
+    /**
      * Returns the cloud-managed credential for the caller in the current thread context, or
      * {@code null} if the feature flag is off or the caller is not cloud-managed. Intended for
      * callers that need to attach the credential to an internal action's request payload so it

@@ -26,6 +26,7 @@ import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.XPackSettings;
 import org.elasticsearch.xpack.core.security.SecurityContext;
+import org.elasticsearch.xpack.core.security.cloud.CloudCredential;
 import org.elasticsearch.xpack.core.transform.action.ValidateTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.AuthorizationState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -110,6 +111,11 @@ public class TransformUpdater {
      * @param dryRun whether to actually write the configuration back or whether to just check for updates
      * @param checkAccess whether to run access checks
      * @param hasLinkedProjects whether the current project has linked projects (skips source index privilege checks)
+     * @param cloudCredentialManager UIAM credential manager; always required.
+     * @param mintCloudCredential when {@code true} and UIAM is enabled, mint a new credential before writing the
+     *                            config (Update); validation uses the caller's thread-context token only. When
+     *                            {@code false} (Reset, Upgrade), validation loads a stored credential by
+     *                            {@link TransformConfig#getCredentialId()} when no caller credential is present.
      * @param listener the listener called containing the result of the update
      */
 
@@ -130,7 +136,8 @@ public class TransformUpdater {
         final boolean hasLinkedProjects,
         final TimeValue timeout,
         final Settings destIndexSettings,
-        @Nullable final TransformCloudCredentialManager cloudCredentialManager,
+        final TransformCloudCredentialManager cloudCredentialManager,
+        final boolean mintCloudCredential,
         ActionListener<UpdateResult> listener
     ) {
         // rewrite config into a new format if necessary
@@ -181,8 +188,8 @@ public class TransformUpdater {
                 clusterState,
                 destIndexSettings,
                 ActionListener.wrap(r -> updateTransformListener.onResponse(null), configWriteFailure -> {
-                    if (cloudCredentialManager == null || newTokenId == null) {
-                        // Reset / Upgrade callers never minted a credential, so nothing to compensate.
+                    if (newTokenId == null || mintCloudCredential == false) {
+                        // No fresh mint to roll back (Reset / Upgrade, or mint was skipped).
                         l.onFailure(configWriteFailure);
                         return;
                     }
@@ -203,7 +210,7 @@ public class TransformUpdater {
         // <4> Mint cloud credential if UIAM is present. Runs after the noop/dryRun short-circuits in
         // <3> so a noop update never mints an orphan credential at UIAM.
         ActionListener<Map<String, String>> mintCredentialListener = writeConfigListener.delegateFailureAndWrap((l, destIndexMappings) -> {
-            if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && cloudCredentialManager != null) {
+            if (TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() && mintCloudCredential) {
                 cloudCredentialManager.mintAndPersist(
                     updatedConfig.getId(),
                     l.delegateFailureAndWrap((ll, newTokenId) -> ll.onResponse(Tuple.tuple(destIndexMappings, newTokenId)))
@@ -242,7 +249,16 @@ public class TransformUpdater {
         // <2> Validate source and destination indices
         ActionListener<AuthorizationState> checkPrivilegesListener = validateTransformListener.delegateFailureAndWrap((l, authState) -> {
             authStateHolder.set(authState);
-            validateTransform(updatedConfig, client, deferValidation, timeout, cloudCredentialManager, l);
+            validateTransform(
+                updatedConfig,
+                client,
+                deferValidation,
+                timeout,
+                transformConfigManager,
+                cloudCredentialManager,
+                mintCloudCredential,
+                l
+            );
         });
 
         // <1> Early check to verify that the user can create the destination index and can read from the source
@@ -275,28 +291,63 @@ public class TransformUpdater {
         Client client,
         boolean deferValidation,
         TimeValue timeout,
-        @Nullable TransformCloudCredentialManager cloudCredentialManager,
+        TransformConfigManager transformConfigManager,
+        TransformCloudCredentialManager cloudCredentialManager,
+        boolean mintCloudCredential,
         ActionListener<Map<String, String>> listener
     ) {
         ActionListener<ValidateTransformAction.Response> wrapped = listener.delegateFailureAndWrap(
             (l, response) -> l.onResponse(response.getDestIndexMappings())
         );
-        // Internal callers (Reset, Upgrade) pass a null cloudCredentialManager and never carry a UIAM
-        // credential. External callers (Update) attach the caller's credential to the request payload
-        // so it survives the system-origin context stash inside executeAsyncWithOrigin.
-        var callerCredential = cloudCredentialManager == null ? null : cloudCredentialManager.currentCallerCredential();
+
+        // Update: prefer the caller's UIAM credential from the thread context (survives validate via
+        // the request payload through executeAsyncWithOrigin's system-origin stash).
+        var callerCredential = cloudCredentialManager.currentCallerCredential();
+        if (callerCredential != null) {
+            dispatchValidateTransform(config, client, deferValidation, timeout, callerCredential, wrapped);
+            return;
+        }
+
+        if (mintCloudCredential) {
+            dispatchValidateTransform(config, client, deferValidation, timeout, null, wrapped);
+            return;
+        }
+
+        // Reset / Upgrade: load the transform's stored internal credential when the config references one.
+        var credentialId = config.getCredentialId();
+        if (credentialId == null || TransformConfig.TRANSFORM_CROSS_PROJECT.isEnabled() == false) {
+            dispatchValidateTransform(config, client, deferValidation, timeout, null, wrapped);
+            return;
+        }
+
+        transformConfigManager.getTransformCloudCredentialByTokenId(
+            credentialId,
+            true,
+            listener.delegateFailureAndWrap((l, persisted) -> {
+                var storedCredential = cloudCredentialManager.cloudCredentialFromPersisted(persisted);
+                dispatchValidateTransform(config, client, deferValidation, timeout, storedCredential, wrapped);
+            })
+        );
+    }
+
+    private static void dispatchValidateTransform(
+        TransformConfig config,
+        Client client,
+        boolean deferValidation,
+        TimeValue timeout,
+        @Nullable CloudCredential credential,
+        ActionListener<ValidateTransformAction.Response> listener
+    ) {
         // Hoist into a local so we can hand the same instance to executeAsyncWithOrigin and to
         // releaseAfter, which closes the request (and its CloudCredential SecureString) once the
-        // dispatch listener fires. Plugs the leak when the request is forwarded to a remote node
-        // or when dispatch fails synchronously before the receiver-side releaseAfter is set up.
-        // Request.close() is null-safe so this path is identical for non-UIAM callers (Reset, Upgrade).
-        var validateRequest = new ValidateTransformAction.Request(config, deferValidation, timeout, callerCredential);
+        // dispatch listener fires.
+        var validateRequest = new ValidateTransformAction.Request(config, deferValidation, timeout, credential);
         ClientHelper.executeAsyncWithOrigin(
             client,
             ClientHelper.TRANSFORM_ORIGIN,
             ValidateTransformAction.INSTANCE,
             validateRequest,
-            ActionListener.releaseAfter(wrapped, validateRequest)
+            ActionListener.releaseAfter(listener, validateRequest)
         );
     }
 

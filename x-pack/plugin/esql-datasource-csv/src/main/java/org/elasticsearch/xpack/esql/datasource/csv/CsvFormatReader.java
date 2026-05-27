@@ -639,11 +639,6 @@ public class CsvFormatReader implements SegmentableFormatReader {
      * Node-stable identity of the row-interpretation-affecting {@code WITH} config — the same
      * canonical string {@link SchemaCacheKey#buildFormatConfig} stores on the cache key, so a data
      * node's shipped-back contribution and the coordinator's cache entry compare equal across JVMs.
-     * Distinct {@code WITH} options produce distinct values, so a same-file re-query under different
-     * options never serves stale stats. Error policy and resolved schema are deliberately excluded:
-     * the capture gate only caches clean (no-rows-dropped) scans, so cached counts are policy-
-     * independent, and the schema is projection-dependent (would differ between a coordinator's
-     * full-schema resolution and a data node's projected read).
      */
     private String computeConfigFingerprint() {
         return canonicalConfig;

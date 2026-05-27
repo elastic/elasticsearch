@@ -330,6 +330,35 @@ public class ExternalSourceCacheServiceTests extends ESTestCase {
         assertEquals(key1.formatConfig(), key2.formatConfig());
     }
 
+    public void testSchemaCacheKeySeparatesErrorModeAndSchemaResolution() {
+        SchemaCacheKey base = SchemaCacheKey.build("s3://b/f.csv", 1000L, ".csv", Map.of("format", "csv", "header_row", true));
+        SchemaCacheKey nullField = SchemaCacheKey.build(
+            "s3://b/f.csv",
+            1000L,
+            ".csv",
+            Map.of("format", "csv", "header_row", true, "error_mode", "null_field")
+        );
+        SchemaCacheKey skipRow = SchemaCacheKey.build(
+            "s3://b/f.csv",
+            1000L,
+            ".csv",
+            Map.of("format", "csv", "header_row", true, "error_mode", "skip_row")
+        );
+        SchemaCacheKey unionByName = SchemaCacheKey.build(
+            "s3://b/f.csv",
+            1000L,
+            ".csv",
+            Map.of("format", "csv", "header_row", true, "schema_resolution", "union_by_name")
+        );
+        assertNotEquals(base.formatConfig(), nullField.formatConfig());
+        assertNotEquals(base.formatConfig(), skipRow.formatConfig());
+        assertNotEquals(nullField.formatConfig(), skipRow.formatConfig());
+        assertNotEquals(base.formatConfig(), unionByName.formatConfig());
+        assertTrue(nullField.formatConfig().contains("error_mode=null_field"));
+        assertTrue(skipRow.formatConfig().contains("error_mode=skip_row"));
+        assertTrue(unionByName.formatConfig().contains("schema_resolution=union_by_name"));
+    }
+
     public void testReconcileSourceStatsDiscriminatesOnConfigFingerprint() throws Exception {
         // Two queries over the SAME file under different WITH options produce two distinct
         // SchemaCacheEntry records that share (path, mtime) but differ on formatConfig. Each

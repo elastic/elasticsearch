@@ -37,8 +37,12 @@ public record SchemaCacheKey(
     // widen/narrow the inferred type for borderline columns.
     // - column_prefix: only changes column NAMES (when header_row=false), but names are part
     // of the schema.
-    // Runtime-only options that don't affect schema (e.g. multi_value_syntax — bracket parsing
-    // happens after schema inference) are intentionally NOT included.
+    // - error_mode / max_errors / max_error_ratio: change which rows survive and which cells are
+    // null-filled, so captured row and column null counts must not be shared across policies.
+    // - schema_resolution: changes multi-file schema merge (FFW vs UNION_BY_NAME) and therefore
+    // which per-file stats are aggregated for aggregate pushdown.
+    // Runtime-only options that don't affect schema or captured stats (e.g. multi_value_syntax —
+    // bracket parsing happens after schema inference) are intentionally NOT included.
     private static final Set<String> FORMAT_AFFECTING_PARAMS = Set.of(
         "delimiter",
         "quote",
@@ -57,7 +61,11 @@ public record SchemaCacheKey(
         "max_field_size",
         "schema_sample_size",
         "skip_rows",
-        "trim_whitespace"
+        "trim_whitespace",
+        "error_mode",
+        "max_errors",
+        "max_error_ratio",
+        "schema_resolution"
     );
 
     private static final Set<String> CREDENTIAL_PARAMS = Set.of(

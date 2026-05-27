@@ -578,9 +578,9 @@ FROM exp_histo_sample
 | SORT instance
 ;
 
-first_hist:exponential_histogram                         | instance:keyword
-"{""scale"":0}"                                          | dummy-empty
-"{""scale"":0,""zero"":{""threshold"":2.0E-5}}"          | dummy-zero_threshold_only
+first_hist:exponential_histogram | instance:keyword
+"{""scale"":0}" | dummy-empty
+"{""scale"":0,""zero"":{""threshold"":2.0E-5}}" | dummy-zero_threshold_only
 ;
 
 # ----------------------------------------------------------------------------------------------------------------------
@@ -610,9 +610,9 @@ FROM tdigest_standard_index
 | SORT instance
 ;
 
-first_td:tdigest                                                                                                     | instance:keyword
-"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}"      | hand-rolled
-"{""centroids"":[], ""counts"":[]}"                                                                                  | hand-rolled-empty
+first_td:tdigest | instance:keyword
+"{""min"": 0.1, ""max"": 0.5, ""sum"": 16.4, ""centroids"":[0.1,0.2,0.3,0.4,0.5], ""counts"":[3,7,23,12,6]}" | hand-rolled
+"{""centroids"":[], ""counts"":[]}" | hand-rolled-empty
 ;
 
 # ----------------------------------------------------------------------------------------------------------------------

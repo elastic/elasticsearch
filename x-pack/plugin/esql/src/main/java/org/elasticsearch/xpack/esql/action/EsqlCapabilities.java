@@ -2881,7 +2881,7 @@ public class EsqlCapabilities {
         FIRST_AGG_EXTENDED_TYPES,
 
         /**
-         * Support FIRST and EARLIEST aggregation on the remaining types: dense_vector, exponential_histogram.
+         * Support FIRST and EARLIEST aggregation on the remaining types: dense_vector, exponential_histogram, tdigest.
          */
         FIRST_AGG_EXTENDED_TYPES_2,
 

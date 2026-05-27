@@ -179,7 +179,6 @@ public class WriteLoadConstraintSettings {
 
     private volatile WriteLoadDeciderStatus writeLoadDeciderStatus;
     private volatile TimeValue minimumRerouteInterval;
-    // this is a float type because it's only used in comparisons with other floats (and comparing floats with doubles can trip some tests)
     private volatile float allocationUtilizationThreshold;
     private volatile TimeValue queueLatencyThreshold;
     private volatile double hotspotUtilizationThreshold;
@@ -195,6 +194,8 @@ public class WriteLoadConstraintSettings {
         );
         clusterSettings.initializeAndWatch(
             WRITE_LOAD_DECIDER_ALLOCATION_UTILIZATION_THRESHOLD_SETTING,
+            // this is a float type because it's only used in comparisons with other floats
+            // (and comparing floats with doubles can trip some tests)
             value -> allocationUtilizationThreshold = (float) value.getAsRatio()
         );
 

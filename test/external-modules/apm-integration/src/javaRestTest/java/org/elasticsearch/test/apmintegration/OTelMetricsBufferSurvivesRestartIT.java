@@ -48,6 +48,7 @@ public class OTelMetricsBufferSurvivesRestartIT extends AbstractTelemetryIT {
 
     public void testPreExistingBufferFilesDrainAfterRestart() throws Exception {
         recordingApmServer.setResponseCode(503);
+        client().performRequest(new Request("GET", "/_use_apm_metrics"));
         Thread.sleep(3000);
 
         cluster.restart(false);

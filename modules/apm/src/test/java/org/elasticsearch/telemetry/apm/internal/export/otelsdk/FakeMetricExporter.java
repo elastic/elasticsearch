@@ -19,35 +19,18 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
-import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * Test double for {@link MetricExporter} shared across the otelsdk exporter tests. Records every
- * export, can be toggled to fail subsequent calls, and can be gated open/closed to make tests
- * observe in-flight exports.
+ * export and can be toggled to fail subsequent calls.
  */
 class FakeMetricExporter implements MetricExporter {
 
     private final List<MetricData> exported = Collections.synchronizedList(new ArrayList<>());
-    private final AtomicInteger inflight = new AtomicInteger();
     private volatile boolean shouldFail;
-    private boolean blocked;
 
     void setShouldFail(boolean fail) {
         shouldFail = fail;
-    }
-
-    synchronized void block() {
-        blocked = true;
-    }
-
-    synchronized void release() {
-        blocked = false;
-        notifyAll();
-    }
-
-    int inflight() {
-        return inflight.get();
     }
 
     List<String> exportedNames() {
@@ -62,21 +45,8 @@ class FakeMetricExporter implements MetricExporter {
 
     @Override
     public CompletableResultCode export(Collection<MetricData> metrics) {
-        inflight.incrementAndGet();
-        try {
-            synchronized (this) {
-                while (blocked) {
-                    wait();
-                }
-            }
-            exported.addAll(metrics);
-            return shouldFail ? CompletableResultCode.ofFailure() : CompletableResultCode.ofSuccess();
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            return CompletableResultCode.ofFailure();
-        } finally {
-            inflight.decrementAndGet();
-        }
+        exported.addAll(metrics);
+        return shouldFail ? CompletableResultCode.ofFailure() : CompletableResultCode.ofSuccess();
     }
 
     @Override

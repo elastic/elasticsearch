@@ -46,7 +46,7 @@ public class RecordingApmServer extends ExternalResource {
     private final Thread messageConsumerThread = consumerThread();
     private volatile Consumer<ReceivedTelemetry> consumer;
     private volatile boolean running = true;
-    private volatile int overrideResponseCode = 0;
+    private volatile int responseCode = 201;
 
     @Override
     protected void before() throws Throwable {
@@ -99,17 +99,17 @@ public class RecordingApmServer extends ExternalResource {
      * Call {@link #clearResponseCode()} to restore default.
      */
     public void setResponseCode(int code) {
-        this.overrideResponseCode = code;
+        this.responseCode = code;
     }
 
     /** Restore the default response (201) for subsequent requests. */
     public void clearResponseCode() {
-        this.overrideResponseCode = 0;
+        this.responseCode = 201;
     }
 
     private void handle(HttpExchange exchange) throws IOException {
         try (exchange) {
-            int responseCode = overrideResponseCode;
+            int responseCode = this.responseCode;
             if (responseCode >= 400) {
                 exchange.getRequestBody().readAllBytes();
                 exchange.sendResponseHeaders(responseCode, 0);
@@ -143,7 +143,7 @@ public class RecordingApmServer extends ExternalResource {
                     logger.warn("failed to parse request", t);
                 }
             }
-            exchange.sendResponseHeaders(201, 0);
+            exchange.sendResponseHeaders(responseCode, 0);
         }
     }
 

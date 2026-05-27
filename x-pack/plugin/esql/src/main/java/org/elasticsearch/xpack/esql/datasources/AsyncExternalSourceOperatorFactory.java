@@ -144,6 +144,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
     private final ExternalSliceQueue sliceQueue;
     private final ErrorPolicy errorPolicy;
     private final int parsingParallelism;
+    private final int maxRecordBytes;
     private final List<Expression> pushedExpressions;
     private final FilterPushdownSupport pushdownSupport;
     private final Closeable onClose;
@@ -217,6 +218,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ExternalSliceQueue sliceQueue,
         ErrorPolicy errorPolicy,
         int parsingParallelism,
+        int maxRecordBytes,
         @Nullable List<Expression> pushedExpressions,
         @Nullable FilterPushdownSupport pushdownSupport,
         @Nullable Closeable onClose,
@@ -263,6 +265,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         this.sliceQueue = sliceQueue;
         this.errorPolicy = errorPolicy != null ? errorPolicy : formatReader.defaultErrorPolicy();
         this.parsingParallelism = Math.max(1, parsingParallelism);
+        this.maxRecordBytes = maxRecordBytes;
         this.pushedExpressions = pushedExpressions != null ? pushedExpressions : List.of();
         this.pushdownSupport = pushdownSupport;
         this.onClose = onClose;
@@ -326,6 +329,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private ExternalSliceQueue sliceQueue;
         private ErrorPolicy errorPolicy;
         private int parsingParallelism = 1;
+        private int maxRecordBytes = SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES;
         private List<Expression> pushedExpressions;
         private FilterPushdownSupport pushdownSupport;
         private Closeable onClose;
@@ -403,6 +407,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
             return this;
         }
 
+        public Builder maxRecordBytes(int maxRecordBytes) {
+            this.maxRecordBytes = maxRecordBytes;
+            return this;
+        }
+
         public Builder pushedExpressions(@Nullable List<Expression> pushedExpressions) {
             this.pushedExpressions = pushedExpressions;
             return this;
@@ -465,6 +474,7 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 sliceQueue,
                 errorPolicy,
                 parsingParallelism,
+                maxRecordBytes,
                 pushedExpressions,
                 pushdownSupport,
                 onClose,
@@ -1722,7 +1732,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         parsingParallelism,
                         executor,
                         policy,
-                        perFileReadSchema
+                        perFileReadSchema,
+                        maxRecordBytes
                     );
                 } catch (Exception e) {
                     try {

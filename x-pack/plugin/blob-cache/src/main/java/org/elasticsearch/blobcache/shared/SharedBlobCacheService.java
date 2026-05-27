@@ -2421,7 +2421,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private SharedBytes.IO maybeEvictAndTake(final LFUCacheEntry incoming, final Runnable evictedNotification) {
             assert Thread.holdsLock(SharedBlobCacheService.this);
 
-            final long currentEpoch = epoch.get();
+            final long currentEpoch = epoch.get(); // must be captured before attempting to evict a freq 0
             SharedBytes.IO result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, 0);
             if (freqs[0].count < freq0DecayScheduleThreshold && freeRegions.isEmpty()) {
                 maybeScheduleDecayAndNewEpoch(currentEpoch);

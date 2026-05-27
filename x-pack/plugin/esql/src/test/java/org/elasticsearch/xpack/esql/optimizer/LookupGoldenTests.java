@@ -145,6 +145,9 @@ public class LookupGoldenTests extends GoldenTestCase {
      * Constant field matching the filter value: {@code language_name} is a constant {@code "English"},
      * and the filter is {@code WHERE language_name == "English"}. The constant replaces the field reference,
      * the filter folds to {@code true} and is pruned.
+     *
+     * This test also serves as a negative test for the bulk lookup optimization in the case where
+     * the join key data type is not a KEYWORD.  The optimization is not used because language_code is an INTEGER.
      */
     public void testConstantFieldMatchingFilter() {
         SearchStats stats = new EsqlTestUtils.TestConfigurableSearchStats().withConstantValue("language_name", "English");

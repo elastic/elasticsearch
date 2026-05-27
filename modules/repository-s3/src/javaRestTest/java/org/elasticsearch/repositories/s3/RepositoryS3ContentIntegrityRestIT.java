@@ -12,9 +12,12 @@ package org.elasticsearch.repositories.s3;
 import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
+import fixture.s3.S3HttpHandler;
 
 import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
 import org.junit.ClassRule;
@@ -24,16 +27,17 @@ import org.junit.rules.TestRule;
 import java.util.function.Supplier;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
+import static org.hamcrest.Matchers.equalTo;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
-public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3RestTestCase {
+public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3RestTestCase {
 
-    private static final String PREFIX = getIdentifierPrefix("RepositoryS3BasicCredentialsRestIT");
+    private static final String PREFIX = getIdentifierPrefix("RepositoryS3ContentIntegrityRestIT");
     private static final String BUCKET = PREFIX + "bucket";
     private static final String BASE_PATH = PREFIX + "base_path";
     private static final String ACCESS_KEY = PREFIX + "access-key";
     private static final String SECRET_KEY = PREFIX + "secret-key";
-    private static final String CLIENT = "basic_credentials_client";
+    private static final String CLIENT = "content_integrity_client";
 
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
@@ -42,7 +46,17 @@ public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3Rest
         BASE_PATH,
         S3ConsistencyModel::randomConsistencyModel,
         fixedAccessKey(ACCESS_KEY, regionSupplier, "s3")
-    );
+    ) {
+        @SuppressForbidden(reason = "implementing HTTP server for test fixture")
+        @Override
+        protected HttpHandler createHandler() {
+            final var delegate = asInstanceOf(S3HttpHandler.class, super.createHandler());
+            return exchange -> {
+                delegate.assertContentSha256Header(exchange, equalTo("STREAMING-AWS4-HMAC-SHA256-PAYLOAD"));
+                delegate.handle(exchange);
+            };
+        }
+    };
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")

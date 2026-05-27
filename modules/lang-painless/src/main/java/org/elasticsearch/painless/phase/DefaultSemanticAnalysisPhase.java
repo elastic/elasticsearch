@@ -2384,10 +2384,9 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
         // A static lambda in a cancellation-aware script needs the script receiver captured so its
         // body can fetch _getCancellationCheck() and decrement $cancelPoll — the same wire effect as
-        // a lambda that calls an instance method.  Reuse the instance-capture machinery to push the
+        // a lambda that calls an instance method. Reuse the instance-capture machinery to push the
         // script receiver as a synthetic leading capture in that case too.
-        boolean needsScriptCapture = lambdaScope.usesInstanceMethod()
-            || scriptScope.getScriptClassInfo().supportsCancellation();
+        boolean needsScriptCapture = lambdaScope.usesInstanceMethod() || scriptScope.getScriptClassInfo().supportsCancellation();
 
         if (needsScriptCapture) {
             semanticScope.setCondition(userLambdaNode, InstanceCapturingLambda.class);

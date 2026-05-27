@@ -1,5 +1,5 @@
 dateRange
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 FROM decades
 | SORT decade;
 
@@ -20,7 +20,7 @@ date_range:date_range  | decade:integer | description:keyword
 ;
 
 dateRangeToString
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM decades
 | WHERE decade == 1900
@@ -32,7 +32,7 @@ date_range:date_range  | decade:integer | description:keyword | range:keyword
 ;
 
 dateRangeIdentityFieldType
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM decades
 | WHERE decade == 1900
@@ -44,7 +44,7 @@ date_range:date_range  | decade:integer | description:keyword | range:date_range
 ;
 
 dateRangeToStringFieldType
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM decades
 | WHERE decade == 1900
@@ -57,7 +57,7 @@ date_range:date_range  | decade:integer | description:keyword | range:keyword
 
 // Requires range_within (TO_DATE_RANGE(keyword) support).
 toDateRangeFromString
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 // tag::to_date_range-str[]
 ROW str = "2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z"
@@ -72,7 +72,7 @@ str:keyword                                          | range:date_range
 ;
 
 toDateRangeIdentity
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM decades
 | WHERE decade == 1900
@@ -85,7 +85,7 @@ date_range:date_range  | decade:integer | description:keyword | range:date_range
 
 // Requires range_within (TO_DATE_RANGE(keyword) support).
 toDateRangeFromShortFormat
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 ROW str = "2024-06-01..2024-06-30"
 | EVAL range = TO_DATE_RANGE(str)
@@ -97,7 +97,7 @@ str:keyword            | range:date_range
 
 // Requires range_within (TO_DATE_RANGE(keyword) support).
 toDateRangeWithEval
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 ROW start_date = "2023-01-01T00:00:00.000Z", end_date = "2024-01-01T00:00:00.000Z"
 | EVAL range_str = CONCAT(start_date, "..", end_date)
@@ -111,7 +111,7 @@ start_date:keyword              | end_date:keyword                | range:date_r
 
 // Requires range_within (TO_DATE_RANGE(keyword) support).
 toDateRangeSingleDay
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 ROW str = "2024-07-04T00:00:00.000Z..2024-07-05T00:00:00.000Z"
 | EVAL range = TO_DATE_RANGE(str)
@@ -126,7 +126,7 @@ str:keyword                                          | range:date_range
 // "2021-01-01" parses to 2020-12-31T23:00:00Z in millis; RANGE_MIN/MAX return datetimes (always
 // serialised in UTC) and TO_STRING formats with the query timezone — both confirm end-to-end.
 toDateRangeRespectsQueryTimezone
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 required_capability: type_conversion_timezone_support
 SET time_zone="Europe/Paris"\;
 
@@ -141,7 +141,7 @@ src:keyword            | min:datetime              | max:datetime              |
 
 
 toDateRangeMalformedInput
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 ROW s = "not-a-range"
 | EVAL r = TO_DATE_RANGE(s)
@@ -155,7 +155,7 @@ not-a-range | null
 
 
 toDateRangeFromStringMultiValue
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 ROW s = ["2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z", "2022-01-01T00:00:00.000Z..2023-01-01T00:00:00.000Z"]
 | EVAL r = MV_SORT(TO_STRING(TO_DATE_RANGE(s)))
@@ -167,7 +167,7 @@ s:keyword                                                                       
 
 
 toStringDateRangeMultiValue
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM mv_decades
 | EVAL s = MV_SORT(TO_STRING(date_range))
@@ -186,7 +186,7 @@ decade:integer | s:keyword
 ###############################################
 
 rangeWithinWithEmployees
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 // tag::rangeWithin[]
 FROM employees
@@ -204,7 +204,7 @@ emp_no:integer | hire_date:date
 ;
 
 rangeWithinWithDateRangesTable
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1955-06-15"), date_range)
@@ -216,7 +216,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinAtBoundaryStart
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1950-01-01"), date_range)
@@ -228,7 +228,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinAtBoundaryEnd
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1959-12-31T23:59:59.999Z"), date_range)
@@ -240,7 +240,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinOutsideRange
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("2050-01-01"), date_range)
@@ -251,7 +251,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinWithEval
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM decades
 | EVAL test_date = TO_DATETIME("1965-07-20")
@@ -265,7 +265,7 @@ decade:integer | description:keyword | in_range:boolean
 ;
 
 rangeWithinMultipleMatches
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM employees
 | WHERE RANGE_WITHIN(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
@@ -277,7 +277,7 @@ count:long
 ;
 
 rangeWithinWithNull
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM employees
 | WHERE emp_no == 10040
@@ -290,7 +290,7 @@ emp_no:integer | birth_date:date | in_range:boolean
 ;
 
 rangeWithinWithStats
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM employees
 | EVAL in_1985 = RANGE_WITHIN(hire_date, TO_DATE_RANGE("1985-01-01..1986-01-01"))
@@ -302,7 +302,7 @@ count_in_1985:long | total:long
 ;
 
 rangeWithinBeforeStart
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1899-12-31T23:59:59.999Z"), date_range)
@@ -313,7 +313,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinAfterEnd
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("2030-01-01T00:00:00.000Z"), date_range)
@@ -324,7 +324,7 @@ decade:integer | description:keyword
 ;
 
 rangeWithinWithLiteralRange
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 ROW date = TO_DATETIME("2024-06-15T12:00:00.000Z")
 | EVAL in_june = RANGE_WITHIN(date, TO_DATE_RANGE("2024-06-01..2024-07-01"))
@@ -339,7 +339,7 @@ date:date                     | in_june:boolean | in_july:boolean
 // RANGE_WITHIN with LOOKUP JOIN: date from lookup, date_range from FROM (existing indices only).
 // join_key=1 matches two rows in multi_column_joinable_lookup, so LOOKUP JOIN emits multi-value warnings.
 rangeWithinDateFromLookupRangeFromFrom
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 required_capability: join_lookup_v12
 required_capability: lookup_join_on_boolean_expression
 
@@ -364,7 +364,7 @@ date_range:date_range                              | decade:integer | descriptio
 ###############################################
 
 literalRangeWithinRange
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 ROW y2020 = TO_DATE_RANGE("2020-01-01T00:00:00.000Z..2021-01-01T00:00:00.000Z"),
     y2021 = TO_DATE_RANGE("2021-01-01T00:00:00.000Z..2022-01-01T00:00:00.000Z"),
@@ -389,7 +389,7 @@ false            | false            | true               | false              | 
 
 
 fieldRangeWithinRange
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM decades
 | EVAL c1900 = TO_DATE_RANGE("1900-01-01T00:00:00.000Z..2000-01-01T00:00:00.000Z"),
@@ -430,7 +430,7 @@ decade:integer | in1900s:bool | in2000s:bool | inThirty:bool | inFeb2000:bool | 
 
 // Multiple ranges in WHERE (OR) -- test disjunction
 rangeWithinMultipleRangesInWhere
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1955-06-15"), date_range) OR RANGE_WITHIN(TO_DATETIME("1975-06-15"), date_range)
@@ -445,7 +445,7 @@ decade:integer | description:keyword
 
 // Boundary: point at inclusive start of range
 rangeWithinBoundaryCondition
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM decades
 | WHERE RANGE_WITHIN(TO_DATETIME("1980-01-01"), date_range)
@@ -457,11 +457,72 @@ decade:integer | description:keyword
 ;
 
 ###############################################
+# RANGE_WITHIN / RANGE_INTERSECTS without Lucene pushdown
+# The second argument is built from a field via TO_DATE_RANGE(TO_STRING(...)), so it is not
+# foldable and the optimizer cannot translate the predicate to a Lucene query. The scalar
+# evaluator handles every row instead.
+###############################################
+
+// RANGE_WITHIN: point inside a range derived from the same field row — not pushed down.
+rangeWithinNoPushdownPoint
+required_capability: date_range_field_type_v6
+
+FROM decades
+| WHERE RANGE_WITHIN(TO_DATETIME("1985-06-01"), TO_DATE_RANGE(TO_STRING(date_range)))
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+1980           | Radical Eighties
+;
+
+// RANGE_WITHIN: small literal range inside a row's derived range — not pushed down.
+rangeWithinNoPushdownRange
+required_capability: date_range_field_type_v6
+
+FROM decades
+| WHERE RANGE_WITHIN(TO_DATE_RANGE("1955-01-01..1958-01-01"), TO_DATE_RANGE(TO_STRING(date_range)))
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+1950           | Nifty Fifties
+;
+
+// RANGE_INTERSECTS: point against a derived range — not pushed down (same result as RANGE_WITHIN for a point).
+rangeIntersectsNoPushdownPoint
+required_capability: date_range_field_type_v6
+
+FROM decades
+| WHERE RANGE_INTERSECTS(TO_DATETIME("1985-06-01"), TO_DATE_RANGE(TO_STRING(date_range)))
+| KEEP decade, description
+;
+
+decade:integer | description:keyword
+1980           | Radical Eighties
+;
+
+// RANGE_INTERSECTS: a range straddling two decades intersects both — not pushed down.
+rangeIntersectsNoPushdownRange
+required_capability: date_range_field_type_v6
+
+FROM decades
+| WHERE RANGE_INTERSECTS(TO_DATE_RANGE("1975-01-01..1985-01-01"), TO_DATE_RANGE(TO_STRING(date_range)))
+| KEEP decade, description
+| SORT decade
+;
+
+decade:integer | description:keyword
+1970           | Groovy Seventies
+1980           | Radical Eighties
+;
+
+###############################################
 # range_min / range_max tests
 ###############################################
 
 rangeMin
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 // tag::range_min[]
 FROM decades
@@ -478,7 +539,7 @@ date_range:date_range  | min_bound:date
 ;
 
 rangeMax
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 // tag::range_max[]
 FROM decades
@@ -495,7 +556,7 @@ date_range:date_range  | max_bound:date
 ;
 
 rangeMinMaxReparse
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM decades
 | WHERE decade == 1900 OR decade == 2000
@@ -513,7 +574,7 @@ date_range:date_range  | min_bound:date           | max_bound:date           | n
 
 // Multi-valued ranges. Single-value positions return the bound; multi-value positions warn and yield null.
 rangeMinMultiValueWarns
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM mv_decades
 | EVAL m = RANGE_MIN(date_range)
@@ -530,7 +591,7 @@ decade:integer | m:date
 ;
 
 rangeMaxMultiValueWarns
-required_capability: date_range_field_type_v5
+required_capability: date_range_field_type_v6
 
 FROM mv_decades
 | EVAL m = RANGE_MAX(date_range)
@@ -546,42 +607,126 @@ decade:integer | m:date
 2000           | null
 ;
 
-// (date, date_range): the right-hand range is multi-valued, so positions 1950 and 2000 warn.
-rangeWithinPointMultiValueWarns
-required_capability: date_range_field_type_v5
+// Diagnostic: bare KEEP of MV date_range to verify base data is correct (no SORT to isolate).
+mvDecadesBaseData
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| KEEP decade, date_range
+;
+
+ignoreOrder:true
+decade:integer | date_range:date_range
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
+1950           | [1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z, 1955-01-01T00:00:00.000Z..1965-01-01T00:00:00.000Z]
+2000           | [1995-01-01T00:00:00.000Z..2005-01-01T00:00:00.000Z, 2000-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z]
+;
+
+// (date, date_range): MV date_range → null. 1955 is in 1950's SV equivalent but 1950/2000 are MV.
+rangeWithinPointMultiValue
+required_capability: date_range_field_type_v6
 
 FROM mv_decades
 | EVAL within = RANGE_WITHIN(TO_DATETIME("1955-01-01T00:00:00.000Z"), date_range)
-| KEEP decade, within
+| KEEP decade, date_range, within
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_WITHIN\(TO_DATETIME\(.*\), date_range\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
-decade:integer | within:boolean
-1900           | false
-1950           | null
-2000           | null
+decade:integer | date_range:date_range                                                                                                    | within:boolean
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | false
+1950           | [1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z, 1955-01-01T00:00:00.000Z..1965-01-01T00:00:00.000Z]                | null
+2000           | [1995-01-01T00:00:00.000Z..2005-01-01T00:00:00.000Z, 2000-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z]                | null
 ;
 
-// (date_range, date_range): the left-hand range is multi-valued, so positions 1950 and 2000 warn.
-rangeWithinRangeMultiValueWarns
-required_capability: date_range_field_type_v5
+// (date_range, date_range): MV date_range → null.
+rangeWithinRangeMultiValue
+required_capability: date_range_field_type_v6
 
 FROM mv_decades
 | EVAL within = RANGE_WITHIN(date_range, TO_DATE_RANGE("1800-01-01T00:00:00.000Z..2100-01-01T00:00:00.000Z"))
-| KEEP decade, within
+| KEEP decade, date_range, within
 | SORT decade
 ;
-warningRegex:evaluation of \[RANGE_WITHIN\(date_range, TO_DATE_RANGE\(.*\)\)\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
 warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
 
-decade:integer | within:boolean
-1900           | true
-1950           | null
-2000           | null
+decade:integer | date_range:date_range                                                                                                    | within:boolean
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | true
+1950           | [1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z, 1955-01-01T00:00:00.000Z..1965-01-01T00:00:00.000Z]                | null
+2000           | [1995-01-01T00:00:00.000Z..2005-01-01T00:00:00.000Z, 2000-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z]                | null
 ;
 
+// (date, date_range): SV field with matching point; MV fields → null.
+rangeWithinPointMultiValueSvMatch
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| EVAL within = RANGE_WITHIN(TO_DATETIME("1905-01-01T00:00:00.000Z"), date_range)
+| KEEP decade, date_range, within
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | date_range:date_range                                                                                                    | within:boolean
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | true
+1950           | [1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z, 1955-01-01T00:00:00.000Z..1965-01-01T00:00:00.000Z]                | null
+2000           | [1995-01-01T00:00:00.000Z..2005-01-01T00:00:00.000Z, 2000-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z]                | null
+;
+
+// (date, date_range): 1961-01-01 would hit the second MV range [1955..1965); MV → null.
+rangeWithinPointMultiValueSomeMatch
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| EVAL within = RANGE_WITHIN(TO_DATETIME("1961-01-01T00:00:00.000Z"), date_range)
+| KEEP decade, date_range, within
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | date_range:date_range                                                                                                    | within:boolean
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | false
+1950           | [1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z, 1955-01-01T00:00:00.000Z..1965-01-01T00:00:00.000Z]                | null
+2000           | [1995-01-01T00:00:00.000Z..2005-01-01T00:00:00.000Z, 2000-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z]                | null
+;
+
+// (date_range, date_range): MV fields → null regardless of whether any range would have matched.
+rangeWithinRangeMultiValueSomeAndNone
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| EVAL within = RANGE_WITHIN(date_range, TO_DATE_RANGE("1996-01-01T00:00:00.000Z..2020-01-01T00:00:00.000Z"))
+| KEEP decade, date_range, within
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | date_range:date_range                                                                                                    | within:boolean
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | false
+1950           | [1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z, 1955-01-01T00:00:00.000Z..1965-01-01T00:00:00.000Z]                | null
+2000           | [1995-01-01T00:00:00.000Z..2005-01-01T00:00:00.000Z, 2000-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z]                | null
+;
+
+// WHERE pushdown over MV date_range: null-for-MV semantics; MV docs emit a warning and are excluded.
+rangeWithinPushdownMultiValue
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| WHERE RANGE_WITHIN(date_range, TO_DATE_RANGE("1800-01-01..2100-01-01"))
+| KEEP decade, date_range
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | date_range:date_range
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
+;
 
 
 ###############################################
@@ -631,6 +776,19 @@ ROW outer = TO_DATE_RANGE("1900-01-01..2000-01-01"),
 
 contains_inner:boolean | contains_overlap:boolean
 true                   | false
+;
+
+rangeContainsPushdownMultiValue
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| WHERE RANGE_CONTAINS(date_range, TO_DATETIME("1905-01-01"))
+| KEEP decade, date_range
+| SORT decade
+;
+
+decade:integer | date_range:date_range
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
 ;
 
 
@@ -714,4 +872,367 @@ ROW a = TO_DATETIME("2024-06-15"),
 
 same:boolean | different:boolean
 true         | false
+;
+
+// (date_range, date_range): MV date_range → null.
+rangeIntersectsRangeMultiValue
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| EVAL intersects = RANGE_INTERSECTS(date_range, TO_DATE_RANGE("1905-01-01T00:00:00.000Z..1970-01-01T00:00:00.000Z"))
+| KEEP decade, date_range, intersects
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | date_range:date_range                                                                                                    | intersects:boolean
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | true
+1950           | [1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z, 1955-01-01T00:00:00.000Z..1965-01-01T00:00:00.000Z]                | null
+2000           | [1995-01-01T00:00:00.000Z..2005-01-01T00:00:00.000Z, 2000-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z]                | null
+;
+
+// (date_range, date_range): MV date_range → null regardless of which ranges would have matched.
+rangeIntersectsRangeMultiValueSomeMatch
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| EVAL intersects = RANGE_INTERSECTS(date_range, TO_DATE_RANGE("1945-01-01T00:00:00.000Z..1952-01-01T00:00:00.000Z"))
+| KEEP decade, date_range, intersects
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | date_range:date_range                                                                                                    | intersects:boolean
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | false
+1950           | [1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z, 1955-01-01T00:00:00.000Z..1965-01-01T00:00:00.000Z]                | null
+2000           | [1995-01-01T00:00:00.000Z..2005-01-01T00:00:00.000Z, 2000-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z]                | null
+;
+
+// (date_range, date_range): literal [1960..1963) would hit the second MV range [1955..1965); MV → null.
+rangeIntersectsRangeMultiValueSomeMatchSecond
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| EVAL intersects = RANGE_INTERSECTS(date_range, TO_DATE_RANGE("1960-01-01T00:00:00.000Z..1963-01-01T00:00:00.000Z"))
+| KEEP decade, date_range, intersects
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | date_range:date_range                                                                                                    | intersects:boolean
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | false
+1950           | [1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z, 1955-01-01T00:00:00.000Z..1965-01-01T00:00:00.000Z]                | null
+2000           | [1995-01-01T00:00:00.000Z..2005-01-01T00:00:00.000Z, 2000-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z]                | null
+;
+
+// (date, date_range): MV date_range → null.
+rangeIntersectsPointMultiValue
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| EVAL intersects = RANGE_INTERSECTS(TO_DATETIME("1905-01-01T00:00:00.000Z"), date_range)
+| KEEP decade, date_range, intersects
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | date_range:date_range                                                                                                    | intersects:boolean
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | true
+1950           | [1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z, 1955-01-01T00:00:00.000Z..1965-01-01T00:00:00.000Z]                | null
+2000           | [1995-01-01T00:00:00.000Z..2005-01-01T00:00:00.000Z, 2000-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z]                | null
+;
+
+// (date, date_range): 1957-01-01 would hit both MV ranges; MV → null.
+rangeIntersectsPointMultiValueAllMatch
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| EVAL intersects = RANGE_INTERSECTS(TO_DATETIME("1957-01-01T00:00:00.000Z"), date_range)
+| KEEP decade, date_range, intersects
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | date_range:date_range                                                                                                    | intersects:boolean
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | false
+1950           | [1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z, 1955-01-01T00:00:00.000Z..1965-01-01T00:00:00.000Z]                | null
+2000           | [1995-01-01T00:00:00.000Z..2005-01-01T00:00:00.000Z, 2000-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z]                | null
+;
+
+// (date, date_range): 1961-01-01 would hit the second MV range [1955..1965); MV → null.
+rangeIntersectsPointMultiValueSomeMatch
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| EVAL intersects = RANGE_INTERSECTS(TO_DATETIME("1961-01-01T00:00:00.000Z"), date_range)
+| KEEP decade, date_range, intersects
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | date_range:date_range                                                                                                    | intersects:boolean
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z                                                                      | false
+1950           | [1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z, 1955-01-01T00:00:00.000Z..1965-01-01T00:00:00.000Z]                | null
+2000           | [1995-01-01T00:00:00.000Z..2005-01-01T00:00:00.000Z, 2000-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z]                | null
+;
+
+// (date field, date_range literal): MV event_dates → null. 1905-06-01 is within [1900..2010).
+rangeWithinMvDatePoint
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| EVAL within = RANGE_WITHIN(event_dates, TO_DATE_RANGE("1900-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z"))
+| KEEP decade, event_dates, within
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | event_dates:date                                                      | within:boolean
+1900           | 1905-06-01T00:00:00.000Z                                              | true
+1950           | [1952-01-01T00:00:00.000Z, 1962-01-01T00:00:00.000Z]                  | null
+2000           | [1998-01-01T00:00:00.000Z, 2003-01-01T00:00:00.000Z]                  | null
+;
+
+// (date field, date_range literal): 1962 would match [1960..1970) with ANY semantics; MV → null.
+rangeWithinMvDatePointPartialMatch
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| EVAL within = RANGE_WITHIN(event_dates, TO_DATE_RANGE("1960-01-01T00:00:00.000Z..1970-01-01T00:00:00.000Z"))
+| KEEP decade, event_dates, within
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | event_dates:date                                                      | within:boolean
+1900           | 1905-06-01T00:00:00.000Z                                              | false
+1950           | [1952-01-01T00:00:00.000Z, 1962-01-01T00:00:00.000Z]                  | null
+2000           | [1998-01-01T00:00:00.000Z, 2003-01-01T00:00:00.000Z]                  | null
+;
+
+// (date field, date_range literal): MV event_dates → null.
+rangeIntersectsMvDatePoint
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| EVAL intersects = RANGE_INTERSECTS(event_dates, TO_DATE_RANGE("1900-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z"))
+| KEEP decade, event_dates, intersects
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | event_dates:date                                                      | intersects:boolean
+1900           | 1905-06-01T00:00:00.000Z                                              | true
+1950           | [1952-01-01T00:00:00.000Z, 1962-01-01T00:00:00.000Z]                  | null
+2000           | [1998-01-01T00:00:00.000Z, 2003-01-01T00:00:00.000Z]                  | null
+;
+
+// (date field, date_range literal): 1962 would intersect [1960..1970) with ANY semantics; MV → null.
+rangeIntersectsMvDatePointPartialMatch
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| EVAL intersects = RANGE_INTERSECTS(event_dates, TO_DATE_RANGE("1960-01-01T00:00:00.000Z..1970-01-01T00:00:00.000Z"))
+| KEEP decade, event_dates, intersects
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | event_dates:date                                                      | intersects:boolean
+1900           | 1905-06-01T00:00:00.000Z                                              | false
+1950           | [1952-01-01T00:00:00.000Z, 1962-01-01T00:00:00.000Z]                  | null
+2000           | [1998-01-01T00:00:00.000Z, 2003-01-01T00:00:00.000Z]                  | null
+;
+
+// WHERE pushdown on date field: MV event_dates rows produce null → excluded.
+rangeWithinPushdownMvDatePoint
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| WHERE RANGE_WITHIN(event_dates, TO_DATE_RANGE("1900-01-01..2010-01-01"))
+| KEEP decade, event_dates
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_WITHIN.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | event_dates:date
+1900           | 1905-06-01T00:00:00.000Z
+;
+
+// WHERE pushdown on date field: MV event_dates rows produce null → excluded.
+rangeIntersectsPushdownMvDatePoint
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| WHERE RANGE_INTERSECTS(event_dates, TO_DATE_RANGE("1900-01-01..2010-01-01"))
+| KEEP decade, event_dates
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | event_dates:date
+1900           | 1905-06-01T00:00:00.000Z
+;
+
+rangeIntersectsPushdownMultiValue
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| WHERE RANGE_INTERSECTS(date_range, TO_DATE_RANGE("1800-01-01..2100-01-01"))
+| KEEP decade, date_range
+| SORT decade
+;
+warningRegex:evaluation of \[RANGE_INTERSECTS.*\] failed, treating result as null. Only first 20 failures recorded.
+warningRegex:java.lang.IllegalArgumentException: single-value function encountered multi-value
+
+decade:integer | date_range:date_range
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
+;
+
+
+###############################################
+# MV_EXPAND tests
+###############################################
+
+// MV_EXPAND on a date_range field: each MV position is split into individual rows.
+mvExpandDateRange
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| MV_EXPAND date_range
+| KEEP decade, date_range
+;
+
+ignoreOrder:true
+decade:integer | date_range:date_range
+1900           | 1900-01-01T00:00:00.000Z..1910-01-01T00:00:00.000Z
+1950           | 1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z
+1950           | 1955-01-01T00:00:00.000Z..1965-01-01T00:00:00.000Z
+2000           | 1995-01-01T00:00:00.000Z..2005-01-01T00:00:00.000Z
+2000           | 2000-01-01T00:00:00.000Z..2010-01-01T00:00:00.000Z
+;
+
+// MV_EXPAND followed by a scalar filter: after expansion each row has a single date_range value.
+mvExpandDateRangeThenFilter
+required_capability: date_range_field_type_v6
+
+FROM mv_decades
+| MV_EXPAND date_range
+| WHERE RANGE_WITHIN(TO_DATETIME("1951-01-01"), date_range)
+| KEEP decade, description, date_range
+;
+
+decade:integer | description:keyword | date_range:date_range
+1950           | Two                 | 1950-01-01T00:00:00.000Z..1960-01-01T00:00:00.000Z
+;
+
+
+###############################################
+# COALESCE tests
+###############################################
+
+// COALESCE returns the first non-null date_range when the first arg is non-null.
+coalesceDateRange
+required_capability: date_range_field_type_v6
+required_capability: coalesce_date_range
+
+FROM decades
+| WHERE decade == 1900
+| EVAL c = COALESCE(date_range, TO_DATE_RANGE("2000-01-01..2001-01-01"))
+| KEEP decade, c
+;
+
+decade:integer | c:date_range
+1900           | 1900-01-01..1910-01-01
+;
+
+// COALESCE skips null and returns the second date_range argument.
+coalesceDateRangeNullFirst
+required_capability: date_range_field_type_v6
+required_capability: coalesce_date_range
+
+ROW a = TO_DATE_RANGE("2022-01-01T00:00:00.000Z..2023-01-01T00:00:00.000Z")
+| EVAL r = COALESCE(null, a)
+| KEEP r
+;
+
+r:date_range
+2022-01-01T00:00:00.000Z..2023-01-01T00:00:00.000Z
+;
+
+// COALESCE with a single date_range argument returns that value unchanged.
+coalesceDateRangeSingleArg
+required_capability: date_range_field_type_v6
+required_capability: coalesce_date_range
+
+FROM decades
+| WHERE decade == 1900
+| EVAL c = COALESCE(date_range)
+| KEEP decade, c
+;
+
+decade:integer | c:date_range
+1900           | 1900-01-01..1910-01-01
+;
+
+// COALESCE over multiple date_range fields; the first non-null wins.
+coalesceDateRangeMultipleArgs
+required_capability: date_range_field_type_v6
+required_capability: coalesce_date_range
+
+ROW a = TO_DATE_RANGE("2020-01-01..2021-01-01"),
+    b = TO_DATE_RANGE("2022-01-01..2023-01-01")
+| EVAL r = COALESCE(a, b)
+| KEEP r
+;
+
+r:date_range
+2020-01-01..2021-01-01
+;
+
+// For decades divisible by 20, synthesise a 15-year "extended" range from the decade integer;
+// for all others the override is null, so COALESCE falls back to the stored date_range field.
+// The extended ranges (e.g. 1900-01-01..1915-01-01) are clearly distinguishable from the
+// original 10-year spans (e.g. 1900-01-01..1910-01-01).
+coalesceDateRangeFromFieldValue
+required_capability: date_range_field_type_v6
+required_capability: coalesce_date_range
+
+FROM decades
+| EVAL override_str = CASE(
+    decade % 20 == 0,
+    CONCAT(TO_STRING(decade), "-01-01..", TO_STRING(decade + 15), "-01-01")
+  )
+| EVAL override = TO_DATE_RANGE(override_str)
+| EVAL result = COALESCE(override, date_range)
+| KEEP decade, result
+| SORT decade
+;
+
+decade:integer | result:date_range
+1900           | 1900-01-01..1915-01-01
+1910           | 1910-01-01..1920-01-01
+1920           | 1920-01-01..1935-01-01
+1930           | 1930-01-01..1940-01-01
+1940           | 1940-01-01..1955-01-01
+1950           | 1950-01-01..1960-01-01
+1960           | 1960-01-01..1975-01-01
+1970           | 1970-01-01..1980-01-01
+1980           | 1980-01-01..1995-01-01
+1990           | 1990-01-01..2000-01-01
+2000           | 2000-01-01..2015-01-01
+2010           | 2010-01-01..2020-01-01
+2020           | 2020-01-01..2035-01-01
 ;

@@ -70,11 +70,6 @@ public class InMemoryViewResolver extends ViewResolver {
         action.execute(mock(Task.class), request, listener);
     }
 
-    @Override
-    protected void doResolveOriginViews(String projectRouting, ActionListener<OriginViewsResolution> listener) {
-        listener.onResponse(new OriginViewsResolution(true, null));
-    }
-
     public void close() {
         clusterService.close();
     }

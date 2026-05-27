@@ -47,6 +47,23 @@ class JdkZstdLibrary implements ZstdLibrary {
         FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT)
     );
 
+    // Heap-array overloads bound with critical() so they accept heap MemorySegments directly —
+    // the JDK-8318645 restriction does not apply because these are flat downcalls (no embedded
+    // struct holding an ADDRESS field). Equivalent to zstd-jni's GetPrimitiveArrayCritical path
+    // but without G1 region pinning: critical(true) tells the JVM the call won't safepoint, so
+    // the heap segments stay addressable for the duration of the downcall without pinning.
+    // Same C entry points as the off-heap handles above; only the linker option differs.
+    private static final MethodHandle decompressHeap$mh = downcallHandle(
+        "ZSTD_decompress",
+        FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT),
+        LinkerHelperUtil.critical()
+    );
+    private static final MethodHandle compressHeap$mh = downcallHandle(
+        "ZSTD_compress",
+        FunctionDescriptor.of(JAVA_LONG, ADDRESS, JAVA_INT, ADDRESS, JAVA_INT, JAVA_INT),
+        LinkerHelperUtil.critical()
+    );
+
     // --- streaming API ---
     private static final MethodHandle createDStream$mh = downcallHandle("ZSTD_createDStream", FunctionDescriptor.of(ADDRESS));
     private static final MethodHandle freeDStream$mh = downcallHandle("ZSTD_freeDStream", FunctionDescriptor.of(JAVA_LONG, ADDRESS));
@@ -164,6 +181,32 @@ class JdkZstdLibrary implements ZstdLibrary {
         var segmentSrc = MemorySegment.ofBuffer(src.duplicate().clear()).asSlice(srcOffset, srcSize);
         try {
             return (long) decompress$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public long decompress(byte[] dst, int dstOffset, int dstSize, byte[] src, int srcOffset, int srcSize) {
+        // Heap MemorySegments — bounds checked in the Zstd facade. The critical() linker option on
+        // decompressHeap$mh tells Panama to pass these heap addresses through without copying,
+        // matching the zero-extra-copy behavior the original Phase-1 plan wanted but couldn't have
+        // for the streaming path (JDK-8318645). Flat downcall, no embedded struct, so it's safe.
+        var segmentDst = MemorySegment.ofArray(dst).asSlice(dstOffset, dstSize);
+        var segmentSrc = MemorySegment.ofArray(src).asSlice(srcOffset, srcSize);
+        try {
+            return (long) decompressHeap$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize);
+        } catch (Throwable t) {
+            throw new AssertionError(t);
+        }
+    }
+
+    @Override
+    public long compress(byte[] dst, int dstOffset, int dstSize, byte[] src, int srcOffset, int srcSize, int level) {
+        var segmentDst = MemorySegment.ofArray(dst).asSlice(dstOffset, dstSize);
+        var segmentSrc = MemorySegment.ofArray(src).asSlice(srcOffset, srcSize);
+        try {
+            return (long) compressHeap$mh.invokeExact(segmentDst, dstSize, segmentSrc, srcSize, level);
         } catch (Throwable t) {
             throw new AssertionError(t);
         }

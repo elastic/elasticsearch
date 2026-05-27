@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
@@ -136,6 +137,28 @@ public class TimeSeriesES95FullClusterRestartIT extends ParameterizedFullCluster
 
         final Map<String, Object> settings = getFlatIndexSettings(index);
         assertThat(settings.get("index.time_series.es95_codec.enabled"), Matchers.equalTo("true"));
+    }
+
+    public void testFinalSettingRejectsLiveUpdate() throws IOException {
+        requireES95Codec();
+        if (isRunningAgainstOldCluster()) {
+            return;
+        }
+        final String index = "tsdb-final-guard";
+        createTSDBIndex(index, false);
+        bulkIndexTSDBDocuments(index, randomIntBetween(MIN_DOC_COUNT, MAX_DOC_COUNT));
+        refreshIndex(index);
+
+        final ResponseException exception = expectThrows(ResponseException.class, () -> {
+            final Request request = new Request("PUT", "/" + index + "/_settings");
+            request.setJsonEntity("{\"index.time_series.es95_codec.enabled\":true}");
+            client().performRequest(request);
+        });
+        assertThat(exception.getResponse().getStatusLine().getStatusCode(), Matchers.equalTo(400));
+        assertThat(exception.getMessage(), Matchers.containsString("Can't update non dynamic setting"));
+
+        final Map<String, Object> settings = getFlatIndexSettings(index);
+        assertThat(settings.get("index.time_series.es95_codec.enabled"), Matchers.nullValue());
     }
 
     public void testQueryAcrossOldAndNewCodecIndices() throws IOException {

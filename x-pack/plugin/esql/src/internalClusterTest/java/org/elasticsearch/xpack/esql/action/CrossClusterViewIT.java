@@ -65,7 +65,7 @@ public class CrossClusterViewIT extends AbstractCrossClusterTestCase {
     }
 
     public void testRemoteViewFailsOnOneCluster() {
-        Exception e = expectThrows(
+        expectThrows(
             Exception.class,
             containsString(
                 "ES|QL queries with remote views are not supported. Matched [cluster-a:logs-mobile, cluster-a:logs-web]."

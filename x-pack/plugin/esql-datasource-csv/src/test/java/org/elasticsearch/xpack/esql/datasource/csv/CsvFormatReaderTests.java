@@ -542,7 +542,10 @@ public class CsvFormatReaderTests extends ESTestCase {
             assertEquals(2, addrs.getValueCount(0));
             int idx = addrs.getFirstValueIndex(0);
             assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("1.1.1.1"))), addrs.getBytesRef(idx, new BytesRef()));
-            assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("8.8.8.8"))), addrs.getBytesRef(idx + 1, new BytesRef()));
+            assertEquals(
+                new BytesRef(InetAddressPoint.encode(InetAddresses.forString("8.8.8.8"))),
+                addrs.getBytesRef(idx + 1, new BytesRef())
+            );
         }
     }
 

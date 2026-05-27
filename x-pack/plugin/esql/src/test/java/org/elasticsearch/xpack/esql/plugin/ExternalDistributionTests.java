@@ -26,7 +26,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 import org.elasticsearch.xpack.esql.expression.Order;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -450,7 +450,11 @@ public class ExternalDistributionTests extends ESTestCase {
     public void testLocalPlanRetainsEvalOnExternalFields() {
         ExternalRelation external = createMultiFieldExternalRelation();
         Attribute salaryAttr = external.output().get(1);
-        var alias = new org.elasticsearch.xpack.esql.core.expression.Alias(SRC, "abs_salary", new Abs(SRC, salaryAttr));
+        var alias = new org.elasticsearch.xpack.esql.core.expression.Alias(
+            SRC,
+            "case_salary",
+            new Case(SRC, new Literal(SRC, true, DataType.BOOLEAN), List.of(salaryAttr))
+        );
         Eval eval = new Eval(SRC, external, List.of(alias));
         FragmentExec fragment = new FragmentExec(eval);
         ExchangeSinkExec sink = new ExchangeSinkExec(SRC, eval.output(), false, fragment);

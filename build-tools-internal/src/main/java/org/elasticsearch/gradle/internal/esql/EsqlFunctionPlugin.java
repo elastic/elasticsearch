@@ -108,9 +108,9 @@ public class EsqlFunctionPlugin implements Plugin<Project> {
             ideaPlugin.getModel().getModule().getSourceDirs().add(project.file(generatedPath));
         });
         project.getPluginManager().withPlugin("com.diffplug.spotless", spotlessPlugin -> {
-            project.getExtensions().getByType(SpotlessExtension.class).java(java -> {
-                java.targetExclude("src/main/generated/**/*.java");
-            });
+            project.getExtensions()
+                .getByType(SpotlessExtension.class)
+                .java(java -> { java.targetExclude("src/main/generated/**/*.java"); });
         });
         project.getTasks().withType(Checkstyle.class).configureEach(checkstyleTask -> {
             checkstyleTask.exclude(element -> element.getFile().toString().contains("src/main/generated"));

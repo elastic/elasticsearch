@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.license.License;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
-import org.elasticsearch.plugins.ExtensiblePlugin;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 
 import java.util.List;

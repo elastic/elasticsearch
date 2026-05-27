@@ -27,7 +27,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Node;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.LogicalVerifier;
@@ -1297,21 +1297,21 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
         // in Configuration, this would cause deserialization to fail.
 
         String viewName = "my_view";
-        String viewQuery = "FROM employees | EVAL x = ABS(salary)";
+        String viewQuery = "FROM employees | EVAL x = CASE(true, salary)";
         String shortOuterQuery = "FROM v";
 
         // "FROM employees | EVAL x = " is 26 characters (0-indexed 0-25)
-        // "ABS(salary)" starts at index 26 (0-indexed), column 27 (1-indexed)
+        // "CASE(true, salary)" starts at index 26 (0-indexed), column 27 (1-indexed)
         // The Source constructor takes (line, charPositionInLine, text) where charPositionInLine is 0-indexed
-        Source sourceFromView = new Source(1, 26, "ABS(salary)");
+        Source sourceFromView = new Source(1, 26, "CASE(true, salary)");
 
-        // Create an expression with this source - Abs writes source().writeTo(out)
+        // Create an expression with this source - Case writes source().writeTo(out)
         Literal literalArg = new Literal(Source.EMPTY, 42, DataType.INTEGER);
-        Abs absExpr = new Abs(sourceFromView, literalArg);
+        Case caseExpr = new Case(sourceFromView, new Literal(Source.EMPTY, true, DataType.BOOLEAN), List.of(literalArg));
 
         // Wrap in an Eval plan to make it serializable
         LogicalPlan child = EsRelationSerializationTests.randomEsRelation();
-        Alias alias = new Alias(Source.EMPTY, "x", absExpr);
+        Alias alias = new Alias(Source.EMPTY, "x", caseExpr);
         Eval eval = new Eval(Source.EMPTY, child, List.of(alias));
 
         // Test 1: Without view name tagging, this should fail
@@ -1329,8 +1329,8 @@ public class InMemoryViewServiceTests extends AbstractStatementParserTests {
 
         // Test 2: With view name tagging AND view queries in Configuration, this should work
         Source taggedSource = sourceFromView.withViewName(viewName);
-        Abs taggedAbsExpr = new Abs(taggedSource, literalArg);
-        Alias taggedAlias = new Alias(Source.EMPTY, "x", taggedAbsExpr);
+        Case taggedCaseExpr = new Case(taggedSource, new Literal(Source.EMPTY, true, DataType.BOOLEAN), List.of(literalArg));
+        Alias taggedAlias = new Alias(Source.EMPTY, "x", taggedCaseExpr);
         Eval taggedEval = new Eval(Source.EMPTY, child, List.of(taggedAlias));
 
         Configuration configWithViewQueries = ConfigurationTestUtils.randomConfiguration(shortOuterQuery)

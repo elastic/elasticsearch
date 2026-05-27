@@ -225,21 +225,11 @@ public abstract class AbstractStatelessPluginIntegTestCase extends ESIntegTestCa
         }
     }
 
-    // A test-only plugin to register settings for cache boost preference so that it can be exercised in stateless ITs
-    // without the need for the serverless plugin.
-    public static class CacheBoostPreferenceSettingsPlugin extends Plugin {
-        @Override
-        public List<Setting<?>> getSettings() {
-            return List.of(StatelessSharedBlobCacheService.STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING);
-        }
-    }
-
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final var plugins = new ArrayList<Class<? extends Plugin>>();
         plugins.addAll(super.nodePlugins());
         plugins.addAll(getRequiredNodePlugins(addMockFsRepository()));
-        plugins.add(CacheBoostPreferenceSettingsPlugin.class);
         return List.copyOf(plugins);
     }
 

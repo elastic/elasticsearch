@@ -1,0 +1,5 @@
+area: PromQL
+issues: []
+pr: 149977
+summary: "ES|QL PromQL: implicit to_counter() for counter functions on plain numerics"
+type: enhancement

@@ -48,6 +48,9 @@ import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.indices.EmptySystemIndices;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.node.NodeClosedException;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.CapturingTransport;
@@ -396,6 +399,16 @@ public class TransportWriteActionTests extends ESTestCase {
             assertFalse(success.get());
             assertNotNull(failure.get());
         }
+    }
+
+    public void testCancelTransportWriteActionPreSubmission() {
+        var taskManager = new TaskManager(Settings.EMPTY, threadPool, Task.HEADERS_TO_COPY);
+        TestRequest request = new TestRequest();
+        CancellableTask task = (CancellableTask) taskManager.register(randomIdentifier(), randomIdentifier(), request);
+        TestAction testAction = new TestAction(randomBoolean(), randomBoolean());
+        final PlainActionFuture<TransportReplicationAction.PrimaryResult<TestRequest, TestResponse>> future = new PlainActionFuture<>();
+        taskManager.cancel(task, "test", () -> {});
+        testAction.shardOperationOnPrimary(task, request, indexShard, future);
     }
 
     private class TestAction extends TransportWriteAction<TestRequest, TestRequest, TestResponse> {

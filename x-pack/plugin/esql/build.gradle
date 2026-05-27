@@ -420,6 +420,7 @@ tasks.named('stringTemplates').configure {
   var booleanProperties = prop("Boolean", "Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray")
   var expHistoProperties = prop("ExponentialHistogram", "ExponentialHistogram", "ExponentialHistogram", "EXPONENTIAL_HISTOGRAM", "", "")
   var tdigestProperties = prop("TDigest", "TDigest", "tdigest", "TDIGEST", "", "")
+  var longRangeProperties = prop("LongRange", "LongRange", "LongRange", "LONG_RANGE", "", "")
 
   File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/X-InEvaluator.java.st")
   template {
@@ -499,6 +500,12 @@ tasks.named('stringTemplates').configure {
     it.properties = tdigestProperties
     it.inputFile = coalesceInputFile
     it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceTDigestEvaluator.java"
+  }
+
+  template {
+    it.properties = longRangeProperties
+    it.inputFile = coalesceInputFile
+    it.outputFile = "org/elasticsearch/xpack/esql/expression/function/scalar/nulls/CoalesceLongRangeEvaluator.java"
   }
 
   File roundToInput = file("src/main/java/org/elasticsearch/xpack/esql/expression/function/scalar/math/X-RoundTo.java.st")

@@ -113,6 +113,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.NotEquals;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.inference.InferenceResolution;
 import org.elasticsearch.xpack.esql.optimizer.LocalLogicalPlanOptimizer;
@@ -672,6 +673,7 @@ public final class EsqlTestUtils {
         return new MutableAnalyzerContext(
             configuration,
             functionRegistry,
+            TEST_PROMQL_FUNCTION_REGISTRY,
             indexResolutions,
             lookupResolution,
             enrichResolution,
@@ -696,6 +698,9 @@ public final class EsqlTestUtils {
 
     public static final EsqlFunctionRegistry TEST_FUNCTION_REGISTRY = new EsqlFunctionRegistry();
 
+    public static final PromqlFunctionRegistry TEST_PROMQL_FUNCTION_REGISTRY = new PromqlFunctionRegistry();
+
+    public static final EsqlParser TEST_PARSER = new EsqlParser(new EsqlConfig(TEST_FUNCTION_REGISTRY));
     /**
      * A lightweight {@link IpLocationService} for parse-time tests. Backed by a null-returning
      * {@link IpDatabaseProvider} so that {@code getIpDataLookupInfo} resolves database schemas

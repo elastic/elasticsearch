@@ -79,6 +79,7 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PARSER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_PROMQL_FUNCTION_REGISTRY;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.queryClusterSettings;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfoTests.createEsqlExecutionInfo;
@@ -660,6 +661,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             CrossProjectModeDecider.NOOP,
             dataSourceModule,
             TEST_FUNCTION_REGISTRY,
+            TEST_PROMQL_FUNCTION_REGISTRY,
             TEST_PARSER,
             null
         );

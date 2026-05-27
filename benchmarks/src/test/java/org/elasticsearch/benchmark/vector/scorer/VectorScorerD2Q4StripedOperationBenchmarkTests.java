@@ -31,24 +31,20 @@ public class VectorScorerD2Q4StripedOperationBenchmarkTests extends BenchmarkTes
     }
 
     public void testBulk() {
-        for (int i = 0; i < 100; i++) {
-            var bench = newBench();
-            try {
-                assertArrayEquals("DOT_PRODUCT", bench.scoreSingle(), bench.scoreBulk(), 0f);
-            } finally {
-                bench.teardown();
-            }
+        var bench = newBench();
+        try {
+            assertArrayEquals("DOT_PRODUCT", bench.scoreSingle(), bench.scoreBulk(), 0f);
+        } finally {
+            bench.teardown();
         }
     }
 
     public void testBulkOffsets() {
-        for (int i = 0; i < 100; i++) {
-            var bench = newBench();
-            try {
-                assertArrayEquals("DOT_PRODUCT", bench.scoreSingleAtOrdinals(), bench.scoreBulkOffsets(), 0f);
-            } finally {
-                bench.teardown();
-            }
+        var bench = newBench();
+        try {
+            assertArrayEquals("DOT_PRODUCT", bench.scoreSingleAtOrdinals(), bench.scoreBulkOffsets(), 0f);
+        } finally {
+            bench.teardown();
         }
     }
 

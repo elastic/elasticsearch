@@ -14,10 +14,13 @@ import org.elasticsearch.logging.Logger;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Set;
+import java.util.function.Function;
 
 /**
  * Base class for datasource configurations. Handles map-backed storage, unknown field
@@ -83,21 +86,25 @@ public abstract class DataSourceConfiguration {
     }
 
     /**
-     * Returns a copy of {@code raw} containing only entries whose key is in {@code fieldDefs}.
-     * Used at query time where the WITH clause carries a mix of storage and format options;
-     * the storage plugin must ignore keys it does not own rather than reject them as unknown.
-     * Returns {@code null}/empty unchanged.
+     * Returns a copy of {@code raw} containing only entries whose key is in {@code fieldDefs},
+     * paired with the set of keys that were kept. Used at query time where a query-time configuration map
+     * carries a mix of storage and format options; the storage plugin must ignore keys it does
+     * not own rather than reject them as unknown. Returns {@code null}/empty unchanged.
      *
      * <p>Dropped keys are logged at {@code DEBUG} so a user who misspells e.g. {@code accout} can
      * find out why the storage config came back with defaults. Only key <em>names</em> are
      * logged — values are never emitted, since this method is unaware of which keys are secrets.
      * Format keys (like {@code header_row}) will appear here too, which is expected.
      */
-    protected static Map<String, Object> filterKnown(Map<String, Object> raw, Map<String, DataSourceConfigDefinition> fieldDefs) {
+    protected static Configured<Map<String, Object>> filterKnown(
+        Map<String, Object> raw,
+        Map<String, DataSourceConfigDefinition> fieldDefs
+    ) {
         if (raw == null || raw.isEmpty()) {
-            return raw;
+            return new Configured<>(raw, Set.of());
         }
         Map<String, Object> filtered = new HashMap<>(raw.size());
+        Set<String> consumed = new HashSet<>();
         // Cache the debug flag so we don't re-check on every entry; an in-flight log-level change
         // is not worth tracking precisely here.
         boolean debug = logger.isDebugEnabled();
@@ -105,6 +112,7 @@ public abstract class DataSourceConfiguration {
         for (Map.Entry<String, Object> entry : raw.entrySet()) {
             if (fieldDefs.containsKey(entry.getKey())) {
                 filtered.put(entry.getKey(), entry.getValue());
+                consumed.add(entry.getKey());
             } else if (debug) {
                 if (dropped == null) {
                     dropped = new ArrayList<>();
@@ -115,7 +123,23 @@ public abstract class DataSourceConfiguration {
         if (dropped != null) {
             logger.debug("filtered out unknown keys [{}] from datasource config; recognized fields are [{}]", dropped, fieldDefs.keySet());
         }
-        return filtered;
+        return new Configured<>(filtered, consumed);
+    }
+
+    /**
+     * Filters {@code raw} to keys in {@code fieldDefs} via {@link #filterKnown}, then constructs
+     * a configuration from the kept entries (or {@code null} if none kept). Pairs the result with
+     * the consumed-keys set. Use from each subclass's {@code fromQueryConfig} to eliminate the
+     * filter-construct-pair pipeline boilerplate.
+     */
+    protected static <T> Configured<T> filterAndConstruct(
+        Map<String, Object> raw,
+        Map<String, DataSourceConfigDefinition> fieldDefs,
+        Function<Map<String, Object>, T> constructor
+    ) {
+        Configured<Map<String, Object>> filtered = filterKnown(raw, fieldDefs);
+        T value = (filtered.value() == null || filtered.value().isEmpty()) ? null : constructor.apply(filtered.value());
+        return new Configured<>(value, filtered.consumedKeys());
     }
 
     /**

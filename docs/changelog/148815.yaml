@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 141318
+pr: 148815
+summary: Fix ArrayIndexOutOfBoundsException in centroid grouping evaluateFinal
+type: bug

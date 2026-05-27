@@ -23,10 +23,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.csv.CsvFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
+import org.elasticsearch.xpack.esql.datasources.spi.NoConfigFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
+import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -91,6 +93,42 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
             byte[] bytes = content.getBytes(StandardCharsets.UTF_8);
             assertTrue("Segment boundary at " + offset + " should follow a newline", offset == 0 || bytes[(int) offset - 1] == '\n');
         }
+    }
+
+    /**
+     * Regression guard: {@link ParallelParsingCoordinator#computeSegments} opens a range stream for
+     * each nominal split probe, reads only enough bytes to find the next record boundary, then must
+     * call {@link StorageObject#abortStream} — not a draining {@code close()}.
+     */
+    public void testComputeSegmentsDoesNotDrainStream() throws IOException {
+        BlockFactory blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("test")).build();
+
+        StringBuilder csv = new StringBuilder("id,name\n");
+        while (csv.length() < 3 * 1024 * 1024) {
+            csv.append(csv.length()).append(",value\n");
+        }
+        byte[] payload = csv.toString().getBytes(StandardCharsets.UTF_8);
+        long fileLength = payload.length;
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(payload, tracking);
+
+        CsvFormatReader csvReader = new CsvFormatReader(blockFactory);
+        List<long[]> segments = ParallelParsingCoordinator.computeSegments(
+            csvReader,
+            object,
+            fileLength,
+            4,
+            csvReader.minimumSegmentSize()
+        );
+
+        assertThat("expected multiple parse segments", segments.size(), Matchers.greaterThan(1));
+        assertTrue("each segment probe must abort the underlying stream", tracking.abortCalls.get() >= segments.size() - 1);
+        assertThat(
+            "segment probes must not drain the range streams; consumed " + tracking.bytesConsumed.get() + " of " + fileLength + " bytes",
+            tracking.bytesConsumed.get(),
+            Matchers.lessThan(fileLength / 2)
+        );
     }
 
     public void testParallelReadPreservesOrder() throws Exception {
@@ -675,7 +713,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * Minimal SegmentableFormatReader that scans for newlines.
      */
-    private static class NewlineSegmentableReader implements SegmentableFormatReader {
+    private static class NewlineSegmentableReader implements SegmentableFormatReader, NoConfigFormatReader {
+
         private final long minSegmentSize;
 
         NewlineSegmentableReader(long minSegmentSize) {
@@ -739,7 +778,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * A line-oriented format reader that reads newline-delimited text and produces
      * single-column pages with keyword blocks. Used for testing parallel parsing.
      */
-    private static class LineFormatReader implements SegmentableFormatReader {
+    private static class LineFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+
         private final BlockFactory blockFactory;
 
         LineFormatReader(BlockFactory blockFactory) {
@@ -866,7 +906,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
      * {@link #read} call. Lets tests assert per-segment flag wiring without re-implementing line
      * parsing.
      */
-    private static class ContextRecordingFormatReader implements SegmentableFormatReader {
+    private static class ContextRecordingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+
         private final BlockFactory blockFactory;
         private final long minSegmentSize;
         private final List<FormatReadContext> contexts = new CopyOnWriteArrayList<>();
@@ -948,7 +989,8 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     /**
      * A line-oriented reader that throws after producing a configurable number of lines.
      */
-    private static class FailingFormatReader implements SegmentableFormatReader {
+    private static class FailingFormatReader implements SegmentableFormatReader, NoConfigFormatReader {
+
         private final BlockFactory blockFactory;
         private final int failAfterLines;
 

@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Fork;
@@ -294,7 +295,8 @@ public abstract class FullTextFunction extends Function
                     && (lp instanceof MvExpand == false)
                     && (lp instanceof Fork == false)
                     && (lp instanceof LimitBy == false)
-                    && (lp instanceof TopNBy == false),
+                    && (lp instanceof TopNBy == false)
+                    && (lp instanceof Dedup == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );

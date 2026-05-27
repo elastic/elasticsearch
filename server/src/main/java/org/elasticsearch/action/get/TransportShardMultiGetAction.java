@@ -67,6 +67,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
     private final IndicesService indicesService;
     private final ExecutorSelector executorSelector;
     private final NodeClient client;
+    private volatile TimeValue statelessGetRealtimeActivePrimaryTimeout;
 
     @Inject
     public TransportShardMultiGetAction(
@@ -94,6 +95,11 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         this.indicesService = indicesService;
         this.executorSelector = executorSelector;
         this.client = client;
+        clusterService.getClusterSettings()
+            .initializeAndWatch(
+                TransportGetAction.STATELESS_GET_REALTIME_ACTIVE_PRIMARY_TIMEOUT_SETTING,
+                v -> this.statelessGetRealtimeActivePrimaryTimeout = v
+            );
     }
 
     @Override
@@ -127,7 +133,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
         IndexService indexService = indicesService.indexServiceSafe(shardId.getIndex());
         IndexShard indexShard = indexService.getShard(shardId.id());
         if (indexShard.routingEntry().isPromotableToPrimary() == false) {
-            handleMultiGetOnUnpromotableShard(request, indexShard, listener);
+            handleMultiGetOnUnpromotableShard(request, shardId, listener);
             return;
         }
         assert DiscoveryNode.isStateless(clusterService.getSettings()) == false
@@ -168,10 +174,9 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
 
     private void handleMultiGetOnUnpromotableShard(
         MultiGetShardRequest request,
-        IndexShard indexShard,
+        ShardId shardId,
         ActionListener<MultiGetShardResponse> listener
     ) throws IOException {
-        ShardId shardId = indexShard.shardId();
         if (request.refresh()) {
             logger.trace("send refresh action for shard {}", shardId);
             // TODO: Do we need to pass in shardCountSummary here ?
@@ -189,11 +194,11 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             final var observer = new ClusterStateObserver(
                 state,
                 clusterService,
-                TimeValue.timeValueSeconds(60),
+                statelessGetRealtimeActivePrimaryTimeout,
                 logger,
                 threadPool.getThreadContext()
             );
-            shardMultiGetFromTranslog(request, indexShard, projectResolver.getProjectState(state), observer, listener);
+            shardMultiGetFromTranslog(request, shardId, projectResolver.getProjectState(state), observer, listener);
         } else {
             // A non-real-time mget with no explicit refresh requested.
             super.asyncShardOperation(request, shardId, listener);
@@ -202,14 +207,14 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
 
     private void shardMultiGetFromTranslog(
         MultiGetShardRequest request,
-        IndexShard indexShard,
+        ShardId shardId,
         ProjectState state,
         ClusterStateObserver observer,
         ActionListener<MultiGetShardResponse> listener
     ) {
         DiscoveryNode node;
         try {
-            node = getCurrentNodeOfPrimary(state, indexShard.shardId());
+            node = getCurrentNodeOfPrimary(state, shardId);
         } catch (Exception e) {
             listener.onFailure(e);
             return;
@@ -227,7 +232,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                 observer.waitForNextChange(new ClusterStateObserver.Listener() {
                     @Override
                     public void onNewClusterState(ClusterState state) {
-                        shardMultiGetFromTranslog(request, indexShard, state.projectState(projectId), observer, l);
+                        shardMultiGetFromTranslog(request, shardId, state.projectState(projectId), observer, l);
                     }
 
                     @Override
@@ -244,16 +249,15 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                 l.onFailure(e);
             }
         });
-        tryShardMultiGetFromTranslog(request, indexShard, node, retryingListener);
+        tryShardMultiGetFromTranslog(request, shardId, node, retryingListener);
     }
 
     private void tryShardMultiGetFromTranslog(
         MultiGetShardRequest request,
-        IndexShard indexShard,
+        ShardId shardId,
         DiscoveryNode node,
         ActionListener<MultiGetShardResponse> listener
     ) {
-        final var shardId = indexShard.shardId();
         TransportShardMultiGetFomTranslogAction.Request mgetFromTranslogRequest = new TransportShardMultiGetFomTranslogAction.Request(
             request,
             shardId
@@ -263,7 +267,7 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
             node,
             TransportShardMultiGetFomTranslogAction.NAME,
             mgetFromTranslogRequest,
-            new ActionListenerResponseHandler<>(listener.delegateFailure((l, r) -> {
+            new ActionListenerResponseHandler<>(listener.delegateFailureAndWrap((l, r) -> {
                 var responseHasMissingLocations = false;
                 for (int i = 0; i < r.multiGetShardResponse().locations.size(); i++) {
                     if (r.multiGetShardResponse().responses.get(i) == null && r.multiGetShardResponse().failures.get(i) == null) {
@@ -293,7 +297,11 @@ public class TransportShardMultiGetAction extends TransportSingleShardAction<Mul
                             ),
                             threadPool.getThreadContext()
                         );
-                        indexShard.waitForPrimaryTermAndGeneration(r.primaryTerm(), r.segmentGeneration(), termAndGenerationListener);
+                        getIndexShard(shardId).waitForPrimaryTermAndGeneration(
+                            r.primaryTerm(),
+                            r.segmentGeneration(),
+                            termAndGenerationListener
+                        );
                     }
                 }
             }), TransportShardMultiGetFomTranslogAction.Response::new, getExecutor(shardId))

@@ -266,7 +266,7 @@ public final class BlockUtils {
             case FLOAT -> blockFactory.newConstantFloatBlockWith((float) val, size);
             case EXPONENTIAL_HISTOGRAM -> blockFactory.newConstantExponentialHistogramBlock((ExponentialHistogram) val, size);
             case TDIGEST -> blockFactory.newConstantTDigestBlock((TDigestHolder) val, size);
-            case LONG_RANGE -> blockFactory.newConstantLongRangeBlock((LongRangeBlockBuilder.LongRange) val, size);
+            case LONG_RANGE -> blockFactory.newConstantLongRangeBlockWith((LongRangeBlockBuilder.LongRange) val, size);
             default -> throw new UnsupportedOperationException("unsupported element type [" + type + "]");
         };
     }

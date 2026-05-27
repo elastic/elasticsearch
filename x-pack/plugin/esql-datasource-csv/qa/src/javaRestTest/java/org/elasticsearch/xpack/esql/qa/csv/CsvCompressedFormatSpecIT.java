@@ -51,6 +51,12 @@ public class CsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCas
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTestsWithFormats(COMPRESSED_FORMATS, "/external-basic.csv-spec");
+        return readExternalSpecTestsWithFormats(
+            COMPRESSED_FORMATS,
+            "/external-basic.csv-spec",
+            "/csv-headerless.csv-spec",
+            "/external-multifile.csv-spec",
+            "/external-multifile-resolution.csv-spec"
+        );
     }
 }

@@ -30,7 +30,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.InferencePlugin.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
+import static org.elasticsearch.inference.telemetry.InferenceProductContext.X_ELASTIC_PRODUCT_USE_CASE_HTTP_HEADER;
 
 public class ElasticInferenceServiceDenseEmbeddingsRequest extends ElasticInferenceServiceRequest implements OutboundDenseEmbeddingRequest {
 

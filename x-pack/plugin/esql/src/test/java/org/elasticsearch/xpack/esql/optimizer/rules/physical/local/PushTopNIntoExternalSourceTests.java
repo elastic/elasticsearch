@@ -136,6 +136,24 @@ public class PushTopNIntoExternalSourceTests extends ESTestCase {
         assertEquals(ext.output(), annotated.output());
     }
 
+    public void testTopNNotPushedWhenSourceHasPushedFilter() {
+        ExternalSourceExec ext = new ExternalSourceExec(
+            Source.EMPTY,
+            "file:///test.parquet",
+            "parquet",
+            List.of(USER_ID, REGION),
+            Map.of(),
+            Map.of(),
+            "some_pushed_filter",
+            null
+        );
+        AggregateExec agg = aggregateExec(USER_ID, ext, countStarAlias());
+        TopNExec topN = topN(USER_ID, Order.OrderDirection.ASC, 10, agg);
+
+        PhysicalPlan result = applyRule(topN);
+        assertSame("rule must be no-op when source has a pushed filter", topN, result);
+    }
+
     // --- helpers ---
 
     private static TopNExec topN(Attribute sortAttr, Order.OrderDirection direction, int limit, PhysicalPlan child) {

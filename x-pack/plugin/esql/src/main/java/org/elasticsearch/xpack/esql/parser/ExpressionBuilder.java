@@ -16,6 +16,7 @@ import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.TooComplexToDeterminizeException;
+import org.elasticsearch.Build;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.common.regex.Regex;
@@ -45,6 +46,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLikeList;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -790,6 +792,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     private Expression castToType(Source source, ParseTree parseTree, EsqlBaseParser.DataTypeContext dataTypeCtx) {
+        // DataType.COUNTER_CAST_NAME is a virtual cast target — not a real DataType, but maps to the counter
+        // variant of the input's numeric type (long→counter_long, double→counter_double, integer→counter_integer).
+        if (dataTypeCtx instanceof EsqlBaseParser.ToDataTypeContext toDataType) {
+            String typeName = visitIdentifier(toDataType.identifier()).toLowerCase(Locale.ROOT);
+            if (DataType.COUNTER_CAST_NAME.equals(typeName)) {
+                return new ToCounter(source, expression(parseTree));
+            }
+        }
         DataType dataType = typedParsing(this, dataTypeCtx, DataType.class);
         var converterToFactory = EsqlDataTypeConverter.converterFunctionFactory(dataType);
         if (converterToFactory == null) {
@@ -797,6 +807,9 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
         }
         Expression expr = expression(parseTree);
         var convertFunction = converterToFactory.apply(source, expr, ConfigurationAware.CONFIGURATION_MARKER);
+        if (Build.current().isSnapshot() == false && EsqlFunctionRegistry.isSnapshotOnly(convertFunction.getClass())) {
+            throw new ParsingException(source, "Unsupported conversion to type [{}]", dataType);
+        }
         return convertFunction;
     }
 
@@ -804,7 +817,7 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     public DataType visitToDataType(EsqlBaseParser.ToDataTypeContext ctx) {
         String typeName = visitIdentifier(ctx.identifier());
         DataType dataType = DataType.fromNameOrAlias(typeName);
-        if (dataType == DataType.UNSUPPORTED) {
+        if (dataType == DataType.UNSUPPORTED || dataType.supportedVersion().supportedLocally() == false) {
             throw new ParsingException(source(ctx), "Unknown data type named [{}]", typeName);
         }
         return dataType;

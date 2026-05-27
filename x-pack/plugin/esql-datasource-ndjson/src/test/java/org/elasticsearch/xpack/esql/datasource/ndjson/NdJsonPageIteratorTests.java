@@ -898,6 +898,33 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    public void testNullsInArray2() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"id":1,"name":null,"age":null,"active":null}
+            """;
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("id", "name", "age", "active"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+
+            assertPage(page, """
+                      INT      |     NULL      |     NULL      |     NULL     \s
+                ---------------+---------------+---------------+---------------
+                1              |null           |null           |null          \s
+                """);
+
+            assertEquals(page.getBlock(0).getPositionCount(), page.getBlock(1).getPositionCount());
+            assertFalse(page.getBlock(0).isNull(0));
+            assertTrue(page.getBlock(1).isNull(0));
+            assertTrue(page.getBlock(2).isNull(0));
+        }
+    }
+
     public void testNestedArraysMisalignment() throws IOException {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
 
@@ -1421,6 +1448,82 @@ public class NdJsonPageIteratorTests extends ESTestCase {
     public void testFindNextRecordBoundaryEmptyStream() throws IOException {
         var reader = new NdJsonFormatReader(null, blockFactory);
         assertEquals(-1, reader.findNextRecordBoundary(new ByteArrayInputStream(new byte[0])));
+    }
+
+    // --- findLastRecordBoundary tests ---
+
+    public void testFindLastRecordBoundaryLfTerminated() {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        byte[] data = "{\"a\":1}\n{\"b\":2}\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastRecordBoundaryCrLfTerminated() {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        byte[] data = "{\"a\":1}\r\n{\"b\":2}\r\n".getBytes(StandardCharsets.UTF_8);
+        int boundary = reader.findLastRecordBoundary(data, data.length);
+        assertEquals(data.length - 1, boundary);
+        assertEquals('\n', data[boundary]);
+    }
+
+    public void testFindLastRecordBoundaryLoneCrTerminated() {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        byte[] data = "{\"a\":1}\r{\"b\":2}\r".getBytes(StandardCharsets.UTF_8);
+        int boundary = reader.findLastRecordBoundary(data, data.length);
+        assertEquals(data.length - 1, boundary);
+        assertEquals('\r', data[boundary]);
+    }
+
+    public void testFindLastRecordBoundaryMixedTerminators() {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        byte[] data = "{\"a\":1}\n{\"b\":2}\r\n{\"c\":3}\r".getBytes(StandardCharsets.UTF_8);
+        int boundary = reader.findLastRecordBoundary(data, data.length);
+        assertEquals(data.length - 1, boundary);
+        assertEquals('\r', data[boundary]);
+    }
+
+    public void testFindLastRecordBoundaryEmpty() {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        assertEquals(-1, reader.findLastRecordBoundary(new byte[0], 0));
+    }
+
+    public void testFindLastRecordBoundaryNoTerminator() {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        byte[] data = "{\"a\":1}".getBytes(StandardCharsets.UTF_8);
+        assertEquals(-1, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastRecordBoundarySingleRecordWithTrailingLf() {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        byte[] data = "{\"a\":1}\n".getBytes(StandardCharsets.UTF_8);
+        assertEquals(data.length - 1, reader.findLastRecordBoundary(data, data.length));
+    }
+
+    public void testFindLastRecordBoundaryTrailingUnterminatedRecord() {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        byte[] data = "{\"a\":1}\n{\"b\":2}".getBytes(StandardCharsets.UTF_8);
+        int boundary = reader.findLastRecordBoundary(data, data.length);
+        assertEquals("{\"a\":1}\n".length() - 1, boundary);
+        assertEquals('\n', data[boundary]);
+    }
+
+    public void testFindLastRecordBoundaryLengthSubsetOfBuffer() {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        byte[] body = "{\"a\":1}\n{\"b\":2}\n".getBytes(StandardCharsets.UTF_8);
+        byte[] padded = new byte[body.length + 64];
+        System.arraycopy(body, 0, padded, 0, body.length);
+        Arrays.fill(padded, body.length, padded.length, (byte) 0xff);
+        assertEquals(body.length - 1, reader.findLastRecordBoundary(padded, body.length));
+    }
+
+    public void testFindLastRecordBoundarySingleLf() {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        assertEquals(0, reader.findLastRecordBoundary(new byte[] { '\n' }, 1));
+    }
+
+    public void testFindLastRecordBoundarySingleCr() {
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        assertEquals(0, reader.findLastRecordBoundary(new byte[] { '\r' }, 1));
     }
 
     private int blockIdx(SourceMetadata meta, String name) {

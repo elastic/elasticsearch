@@ -136,14 +136,12 @@ class LastValueFieldDownsampler extends AbstractFieldDownsampler<FormattedDocVal
                 }
 
                 var iterator = list.iterator();
-                var helper = new FlattenedFieldSyntheticWriterHelper(() -> {
-                    if (iterator.hasNext()) {
-                        return iterator.next();
-                    } else {
-                        return null;
-                    }
-                }, FlattenedFieldSyntheticWriterHelper.SortedOffsetValues.NONE);
-                helper.write(builder, FlattenedFieldSyntheticWriterHelper.OutputStructure.NESTED);
+                FlattenedFieldSyntheticWriterHelper helper = new FlattenedFieldSyntheticWriterHelper(
+                    () -> iterator.hasNext() ? iterator.next() : null,
+                    FlattenedFieldSyntheticWriterHelper.SortedOffsetValues.NONE,
+                    List.of()
+                );
+                helper.writeNested(builder);
                 builder.endObject();
             }
         }

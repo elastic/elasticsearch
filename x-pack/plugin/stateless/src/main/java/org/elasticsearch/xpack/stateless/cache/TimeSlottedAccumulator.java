@@ -53,12 +53,12 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
     /** Start of the oldest retained slot (i.e., the tail at index 0), in epoch milliseconds. Fixed at construction,
      *  computed from granularity and pastSlots.
      */
-    private final long tailSlotMillis;
+    private final long tailSlotStartMillis;
 
     /** Start of the newest retained slot (i.e., the head at index {@code pastSlots + futureSlots - 1}), in epoch milliseconds.
      *  Fixed at construction, computed from granularity and pastSlots.
      */
-    private final long headSlotMillis;
+    private final long headSlotStartMillis;
 
     /** Exclusive end of the retained window: {@code headSlotMillis + granularityMillis}. */
     private final long retainedEndExclusiveMillis;
@@ -104,11 +104,11 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
         }
         this.granularityMillis = granularity.millis();
         this.counts = new AtomicLongArray(totalSlots);
-        long anchorSlotMillis = alignTimestampToSlotMillis(Math.max(0, timeProvider.getAsLong()));
+        long anchorSlotStartMillis = toSlotStartMillis(Math.max(0, timeProvider.getAsLong()));
         try {
-            this.tailSlotMillis = Math.subtractExact(anchorSlotMillis, Math.multiplyExact(pastSlots - 1, granularityMillis));
-            this.headSlotMillis = Math.addExact(anchorSlotMillis, Math.multiplyExact(futureSlots, granularityMillis));
-            this.retainedEndExclusiveMillis = Math.addExact(headSlotMillis, granularityMillis);
+            this.tailSlotStartMillis = Math.subtractExact(anchorSlotStartMillis, Math.multiplyExact(pastSlots - 1, granularityMillis));
+            this.headSlotStartMillis = Math.addExact(anchorSlotStartMillis, Math.multiplyExact(futureSlots, granularityMillis));
+            this.retainedEndExclusiveMillis = Math.addExact(headSlotStartMillis, granularityMillis);
         } catch (ArithmeticException e) {
             throw new IllegalArgumentException("slot configuration overflows", e);
         }
@@ -163,15 +163,15 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
         if (endMillis <= startMillis) {
             return 0;
         }
-        startMillis = Math.max(tailSlotMillis, Math.max(0, startMillis));
+        startMillis = Math.max(tailSlotStartMillis, Math.max(0, startMillis));
         endMillis = Math.min(endMillis, retainedEndExclusiveMillis);
         if (endMillis <= startMillis) {
             return 0;
         }
-        int start = Math.max(0, slotForTimestamp(startMillis));
-        int end = Math.min(counts.length(), slotForTimestamp(endMillis - 1) + 1);
+        int startSlot = Math.max(0, slotForTimestamp(startMillis));
+        int endSlot = Math.min(counts.length(), slotForTimestamp(endMillis - 1) + 1);
         long total = 0;
-        for (int slot = start; slot < end; slot++) {
+        for (int slot = startSlot; slot < endSlot; slot++) {
             long result;
             long right = counts.get(slot);
             try {
@@ -189,16 +189,16 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
      * {@code [tailSlotMillis, headSlotMillis]}, then returns the offset from the tail (whose index is 0).
      */
     private int slotForTimestamp(long timestampMillis) {
-        long slot = Math.clamp(alignTimestampToSlotMillis(Math.max(0, timestampMillis)), tailSlotMillis, headSlotMillis);
-        return (int) Math.floorDiv(slot - tailSlotMillis, granularityMillis);
+        long slot = Math.clamp(toSlotStartMillis(Math.max(0, timestampMillis)), tailSlotStartMillis, headSlotStartMillis);
+        return (int) Math.floorDiv(slot - tailSlotStartMillis, granularityMillis);
     }
 
     /**
      * Truncates {@code timestampMillis} down to its granularity-aligned slot timestamp.
      * <p>
-     * Example: granularity 1h, {@code timestamp=10:37} -> slot {@code 10:00}.
+     * Example: granularity 1h, {@code timestamp=10:37} -> {@code 10:00}.
      */
-    private long alignTimestampToSlotMillis(long timestampMillis) {
+    private long toSlotStartMillis(long timestampMillis) {
         return Math.floorDiv(timestampMillis, granularityMillis) * granularityMillis;
     }
 

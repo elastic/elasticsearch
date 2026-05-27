@@ -112,8 +112,8 @@ public abstract class BaseTranslogReader implements Comparable<BaseTranslogReade
         if (op.primaryTerm() > getPrimaryTerm() && getPrimaryTerm() != SequenceNumbers.UNASSIGNED_PRIMARY_TERM) {
             throw new TranslogCorruptedException(
                 path.toString(),
-                "operation's term is newer than translog header term; "
-                    + "operation term["
+                "records's term is newer than translog header term; "
+                    + "record term["
                     + op.primaryTerm()
                     + "], translog header term ["
                     + getPrimaryTerm()

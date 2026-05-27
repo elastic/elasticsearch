@@ -300,6 +300,7 @@ public class TranslogWriter extends BaseTranslogReader implements Closeable {
                 minSeqNo = SequenceNumbers.min(minSeqNo, seqNo);
                 maxSeqNo = SequenceNumbers.max(maxSeqNo, seqNo);
                 nonFsyncedSequenceNumbers.add(seqNo);
+                // TODO implement a assertNoSeqNumberConflict version which works with batch.
             }
 
             operationCounter += ops.size();

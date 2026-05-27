@@ -51,9 +51,12 @@ public class TsvCompressedFormatSpecIT extends AbstractExternalSourceSpecTestCas
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s/%8$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
+        // external-basic's multi-value queries assume brackets parsing, no longer the default. Use the
+        // scalar twin (csv-basic); the multifile specs project only scalar columns, so they parse under
+        // the default for TSV (tab delimiter — no misalignment).
         return readExternalSpecTestsWithFormats(
             COMPRESSED_FORMATS,
-            "/external-basic.csv-spec",
+            "/csv-basic.csv-spec",
             "/external-multifile.csv-spec",
             "/external-multifile-resolution.csv-spec"
         );

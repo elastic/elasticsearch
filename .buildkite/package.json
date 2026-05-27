@@ -10,6 +10,7 @@
     "vitest": "^3.2.1"
   },
   "dependencies": {
+    "cli-table3": "^0.6.5",
     "yaml": "^2.3.2"
   }
 }

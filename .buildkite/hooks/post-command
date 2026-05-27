@@ -15,6 +15,7 @@ if [[ -f build/task-status.json ]]; then
   buildkite-agent artifact upload task-status.json.gz
   cd -
 
+  echo "+++ Overall job status"
   node .buildkite/scripts/smart-retry/summarize-task-status.ts build/task-status.json
 fi
 

@@ -11,6 +11,7 @@
  *   Interrupted Tasks — INTERRUPTED in the current run
  */
 import { readFileSync } from "node:fs";
+import Table from "cli-table3";
 
 import { normalizeTaskStatus } from "./smart-retry.ts";
 import type { MultiRunTaskStatus, TaskStatusReport } from "./types.ts";
@@ -141,11 +142,15 @@ function printHeaderFooter(summary: TaskStatusSummary) {
   if (summary.preemptedAt) {
     console.log(`  Preempted at: ${summary.preemptedAt}`);
     console.log(`  This means that GCP terminated the spot instance before its work was complete.`);
-    console.log(`  The job should be auto-retrying. If not, likely because it reached the maximum number of automatic retries, you can manually retry it.`);
+    console.log(
+      `  The job should be auto-retrying. If not, likely because it reached the maximum number of automatic retries, you can manually retry it.`,
+    );
   }
   if (summary.buildScans.length > 0) {
     const links = summary.buildScans
-      .map((scan, i) => buildkiteInlineLink(scan.url, summary.buildScans.length > 1 ? `Build Scan (run ${i + 1})` : "Build Scan"))
+      .map((scan, i) =>
+        buildkiteInlineLink(scan.url, summary.buildScans.length > 1 ? `Build Scan (run ${i + 1})` : "Build Scan"),
+      )
       .join("  ");
     console.log(`  ${links}`);
   }
@@ -163,7 +168,18 @@ export function printSummary(summary: TaskStatusSummary): void {
     if (items.length === 0) return;
     console.log(`${emoji} ${title} (${items.length}):`);
     console.log(`${"-".repeat(60)}`);
-    console.table(items.map((t) => ({ "Task Path": t.path, "Build Scan": scanLink(t.buildScanUrl) })));
+
+    const table = new Table({
+      head: ["Task", "Build Scan"],
+      style: {
+        head: [],
+      },
+    });
+
+    for (const item of items) {
+      table.push([item.path, scanLink(item.buildScanUrl), item.buildScanUrl]);
+    }
+    console.log(table.toString());
     console.log();
   }
 
@@ -171,7 +187,17 @@ export function printSummary(summary: TaskStatusSummary): void {
     if (items.length === 0) return;
     console.log(`${emoji} ${title} (${items.length}):`);
     console.log(`${"-".repeat(60)}`);
-    console.table(items.map((t) => ({ "Task Path": t.task, Test: t.test, "Build Scan": scanLink(t.buildScanUrl) })));
+    const table = new Table({
+      head: ["Task", "Test", "Build Scan"],
+      style: {
+        head: [],
+      },
+    });
+
+    for (const item of items) {
+      table.push([item.task, item.test, scanLink(item.buildScanUrl)]);
+    }
+    console.log(table.toString());
     console.log();
   }
 
@@ -180,8 +206,6 @@ export function printSummary(summary: TaskStatusSummary): void {
   printTaskSection("Flaky Tasks", summary.flakyTasks, "⚠️");
   printTestSection("Flaky Tests", summary.flakyTests, "⚠️");
   printTaskSection("Interrupted Tasks", summary.interruptedTasks, "⏸️");
-
-  printHeaderFooter(summary);
 
   const hasIssues =
     summary.failedTasks.length +
@@ -192,6 +216,8 @@ export function printSummary(summary: TaskStatusSummary): void {
     0;
   if (!hasIssues) {
     console.log("✅ All tasks and tests passed across all runs.\n");
+  } else {
+    printHeaderFooter(summary);
   }
 }
 

@@ -94,6 +94,7 @@ public class NdJsonPageDecoder implements Closeable {
     private final BitSet blockTracker;
     private final ErrorPolicy errorPolicy;
     private final SkipWarnings skipWarnings;
+    private final NdJsonReaderCounters counters;
     private long totalRowCount;
     private long errorCount;
 
@@ -122,7 +123,8 @@ public class NdJsonPageDecoder implements Closeable {
         int batchSize,
         BlockFactory blockFactory,
         ErrorPolicy errorPolicy,
-        String sourceLocation
+        String sourceLocation,
+        NdJsonReaderCounters counters
     ) throws IOException {
         this(
             input,
@@ -135,6 +137,7 @@ public class NdJsonPageDecoder implements Closeable {
             blockFactory,
             errorPolicy,
             sourceLocation,
+            counters,
             NdJsonUtils.JSON_FACTORY
         );
     }
@@ -154,7 +157,8 @@ public class NdJsonPageDecoder implements Closeable {
         int batchSize,
         BlockFactory blockFactory,
         ErrorPolicy errorPolicy,
-        String sourceLocation
+        String sourceLocation,
+        NdJsonReaderCounters counters
     ) throws IOException {
         this(
             null,
@@ -167,13 +171,15 @@ public class NdJsonPageDecoder implements Closeable {
             blockFactory,
             errorPolicy,
             sourceLocation,
+            counters,
             NdJsonUtils.JSON_FACTORY
         );
     }
 
     /**
      * Test-only: accepts an injected {@link JsonFactory} so tests can wrap the created parser in a
-     * delegate (e.g. to count token-advance calls) without reflection.
+     * delegate (e.g. to count token-advance calls) without reflection. Uses a fresh counters
+     * instance since these tests don't assert on the counter snapshot.
      */
     NdJsonPageDecoder(
         InputStream input,
@@ -185,7 +191,20 @@ public class NdJsonPageDecoder implements Closeable {
         String sourceLocation,
         JsonFactory factory
     ) throws IOException {
-        this(input, null, 0, 0, attributes, projectedColumns, batchSize, blockFactory, errorPolicy, sourceLocation, factory);
+        this(
+            input,
+            null,
+            0,
+            0,
+            attributes,
+            projectedColumns,
+            batchSize,
+            blockFactory,
+            errorPolicy,
+            sourceLocation,
+            new NdJsonReaderCounters(),
+            factory
+        );
     }
 
     private NdJsonPageDecoder(
@@ -199,6 +218,7 @@ public class NdJsonPageDecoder implements Closeable {
         BlockFactory blockFactory,
         ErrorPolicy errorPolicy,
         String sourceLocation,
+        NdJsonReaderCounters counters,
         JsonFactory factory
     ) throws IOException {
         this.jsonFactory = factory;
@@ -220,7 +240,9 @@ public class NdJsonPageDecoder implements Closeable {
             this.parserSliceStart = 0;
         }
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
+        Check.isTrue(counters != null, "counters must not be null");
         this.errorPolicy = errorPolicy;
+        this.counters = counters;
         this.skipWarnings = SkipWarnings.of(
             errorPolicy,
             "NDJSON read from ["
@@ -367,6 +389,9 @@ public class NdJsonPageDecoder implements Closeable {
     }
 
     Page decodePage() throws IOException {
+        long startNanos = System.nanoTime();
+        long startTotalRowCount = totalRowCount;
+        long startErrorCount = errorCount;
         var blockBuilders = new Block.Builder[projectedAttributes.size()];
         // Setting up builders may trip the circuit breaker. Make sure they're all always closed
         try {
@@ -374,6 +399,11 @@ public class NdJsonPageDecoder implements Closeable {
             return errorPolicy.isStrict() ? decodePageFailFast(blockBuilders) : decodePageLenient(blockBuilders);
         } finally {
             Releasables.close(blockBuilders);
+            long deltaTotal = totalRowCount - startTotalRowCount;
+            long deltaErrors = errorCount - startErrorCount;
+            counters.addRowsEmitted(deltaTotal - deltaErrors);
+            counters.addParseErrors(deltaErrors);
+            counters.addReadNanos(System.nanoTime() - startNanos);
         }
     }
 

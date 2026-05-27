@@ -14,6 +14,7 @@ import org.elasticsearch.blobcache.common.ByteRange;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.env.NodeEnvironment;
@@ -33,6 +34,13 @@ import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 public class StatelessSharedBlobCacheService extends SharedBlobCacheService<FileCacheKey> {
+
+    // Overall setting to disable/enable the cache boost preference feature.
+    public static final Setting<Boolean> STATELESS_CACHE_BOOST_PREFERENCE_ENABLED_SETTING = Setting.boolSetting(
+        "stateless.cache_boost_preference.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
 
     // Stateless shared blob cache service populates-and-reads in-thread. And it relies on the cache service to fetch gap bytes
     // asynchronously using a CacheBlobReader.

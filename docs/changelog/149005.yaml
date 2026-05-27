@@ -1,0 +1,5 @@
+area: Infra/REST API
+issues: []
+pr: 149005
+summary: Support form encoded REST bodies for authenticated requests
+type: enhancement

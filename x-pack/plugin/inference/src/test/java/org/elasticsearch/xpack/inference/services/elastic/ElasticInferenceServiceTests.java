@@ -96,7 +96,6 @@ import static org.elasticsearch.common.xcontent.XContentHelper.stripWhitespace;
 import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
 import static org.elasticsearch.inference.DataFormat.BASE64;
 import static org.elasticsearch.inference.DataType.IMAGE;
-import static org.elasticsearch.inference.DataType.TEXT;
 import static org.elasticsearch.inference.InferenceStringTests.TEST_DATA_URI;
 import static org.elasticsearch.inference.InferenceStringTests.createRandomUsingDataTypes;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
@@ -539,7 +538,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 model,
                 new RerankRequest(
                     InferenceString.fromStringList(List.of("doc1")),
-                    new InferenceString(TEXT, "search query"),
+                    InferenceString.ofText("search query"),
                     randomNonNegativeIntOrNull(),
                     returnDocuments,
                     Map.of()
@@ -700,7 +699,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var topN = randomNonNegativeIntOrNull();
             var rerankRequest = new RerankRequest(
                 InferenceString.fromStringList(docsStrings),
-                new InferenceString(TEXT, queryString),
+                InferenceString.ofText(queryString),
                 topN,
                 null,
                 Map.of()
@@ -772,7 +771,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
                 model,
                 new RerankRequest(
                     InferenceString.fromStringList(List.of("doc1")),
-                    new InferenceString(TEXT, "search query"),
+                    InferenceString.ofText("search query"),
                     randomNonNegativeIntOrNull(),
                     null,
                     Map.of()
@@ -1536,7 +1535,7 @@ public class ElasticInferenceServiceTests extends InferenceServiceTestCase {
             var inputs = List.of(
                 new InferenceStringGroup("first_text_input"),
                 new InferenceStringGroup(
-                    List.of(new InferenceString(IMAGE, BASE64, TEST_DATA_URI), new InferenceString(DataType.TEXT, "second_text_input"))
+                    List.of(new InferenceString(IMAGE, BASE64, TEST_DATA_URI), InferenceString.ofText("second_text_input"))
                 )
             );
 

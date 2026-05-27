@@ -63,6 +63,15 @@ public class CCSSingleCoordinatorSearchProgressListener extends SearchProgressLi
         for (Map.Entry<String, Integer> entry : totalByClusterAlias.entrySet()) {
             String clusterAlias = entry.getKey();
 
+            // Skip clusters that are not in participatingProjects. This can happen when reconcileProjects
+            // excludes a cluster (e.g. the alias resolves to no indices, or all shards were can-match'd
+            // away remotely), yet the cluster still appears in skippedByClusterAlias because
+            // numSkippedShards is populated from all SearchShardsResponse entries before reconciliation.
+            // Without this guard, swapCluster would call the remapping function with v=null and throw NPE,
+            // silently aborting the loop and leaving all remaining clusters stuck in RUNNING state.
+            if (clusters.getCluster(clusterAlias) == null) {
+                continue;
+            }
             clusters.swapCluster(clusterAlias, (k, v) -> {
                 assert Objects.equals(v.getTotalShards(), v.getSkippedShards())
                     : "total shards should not be set on a Cluster before onListShards, except skipped";

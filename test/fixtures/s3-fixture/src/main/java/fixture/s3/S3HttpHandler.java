@@ -57,7 +57,10 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
+import static org.elasticsearch.test.ESTestCase.assertThat;
 import static org.elasticsearch.test.fixture.HttpHeaderParser.parseRangeHeader;
+import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.matchesPattern;
 import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertNotNull;
 import static org.junit.Assert.assertNull;
@@ -847,6 +850,21 @@ public class S3HttpHandler implements HttpHandler {
         }
 
         return new S3Request(exchange.getRequestMethod(), exchange.getRequestURI().getPath(), queryParameters);
+    }
+
+    /**
+     * Assert that if the exchange is a {@code PutObject} or {@code UploadPart} request then {@code X-amz-content-sha256} header is present
+     * and either contains a full SHA256 hash or another value matching the provided {@link org.hamcrest.Matcher}.
+     */
+    public void assertSha256ContentHeader(HttpExchange exchange, org.hamcrest.Matcher<String> otherPermittedValues) {
+        final var request = parseRequest(exchange);
+        if ((request.isUploadPartRequest() || request.isPutObjectRequest())
+            && Optional.ofNullable(exchange.getRequestHeaders().get(S3HttpHandler.COPY_SOURCE_HEADER)).orElse(List.of()).isEmpty()) {
+            assertThat(
+                exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER),
+                anyOf(matchesPattern(S3HttpHandler.SHA256_PATTERN), otherPermittedValues)
+            );
+        }
     }
 
     public class S3Request {

@@ -9,13 +9,13 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.sun.net.httpserver.HttpHandler;
-
 import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
+
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;
@@ -23,14 +23,10 @@ import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TestRule;
 
-import java.util.List;
-import java.util.Optional;
 import java.util.function.Supplier;
 
 import static fixture.aws.AwsCredentialsUtils.fixedAccessKey;
-import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.matchesPattern;
 
 @ThreadLeakFilters(filters = { TestContainersThreadFilter.class })
 public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3RestTestCase {
@@ -55,16 +51,7 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         protected HttpHandler createHandler() {
             final var delegate = asInstanceOf(S3HttpHandler.class, super.createHandler());
             return exchange -> {
-                final var request = delegate.parseRequest(exchange);
-                if ((request.isUploadPartRequest() || request.isPutObjectRequest())
-                    && Optional.ofNullable(exchange.getRequestHeaders().get(S3HttpHandler.COPY_SOURCE_HEADER))
-                        .orElse(List.of())
-                        .isEmpty()) {
-                    assertThat(
-                        exchange.getRequestHeaders().getFirst(S3HttpHandler.CONTENT_SHA256_HEADER),
-                        anyOf(equalTo("STREAMING-AWS4-HMAC-SHA256-PAYLOAD"), matchesPattern(S3HttpHandler.SHA256_PATTERN))
-                    );
-                }
+                delegate.assertSha256ContentHeader(exchange, equalTo("STREAMING-AWS4-HMAC-SHA256-PAYLOAD"));
                 delegate.handle(exchange);
             };
         }

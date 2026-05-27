@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.esql.view.PutViewAction;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.util.concurrent.TimeUnit;
 
 import static java.util.concurrent.TimeUnit.*;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -98,7 +99,7 @@ public class CrossClusterViewIT extends AbstractCrossClusterTestCase {
             client(clusterAlias).execute(
                 PutViewAction.INSTANCE,
                 new PutViewAction.Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, new View(viewName, query))
-            ).actionGet(30, SECONDS)
+            ).actionGet(30, TimeUnit.SECONDS)
         );
     }
 

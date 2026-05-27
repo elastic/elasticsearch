@@ -44,10 +44,12 @@ public class RecoveriesCollection {
         this.logger = logger;
     }
 
+    /** Registers a recovery scheduling listener */
     public void addRecoverySchedulingListener(RecoverySchedulingListener listener) {
         recoverySchedulingListeners.add(listener);
     }
 
+    /** Unregisters a recovery scheduling listener */
     public void removeRecoverySchedulingListener(RecoverySchedulingListener listener) {
         recoverySchedulingListeners.remove(listener);
     }
@@ -160,7 +162,7 @@ public class RecoveriesCollection {
     }
 
     /**
-     * gets the {@link RecoveryTarget } for a given id. The RecoveryStatus returned has it's ref count already incremented
+     * Gets the {@link RecoveryTarget } for a given id. The RecoveryStatus returned has it's ref count already incremented
      * to make sure it's safe to use. However, you must call {@link RecoveryTarget#decRef()} when you are done with it, typically
      * by using this method in a try-with-resources clause.
      * <p>
@@ -184,7 +186,7 @@ public class RecoveriesCollection {
         return recoveryRef;
     }
 
-    /** cancel the recovery with the given id (if found) and remove it from the recovery collection */
+    /** Cancels the recovery with the given id (if found) and remove it from the recovery collection */
     public boolean cancelRecovery(long id, String reason) {
         RecoveryTarget removed = onGoingRecoveries.remove(id);
         boolean cancelled = false;
@@ -205,7 +207,7 @@ public class RecoveriesCollection {
     }
 
     /**
-     * fail the recovery with the given id (if found) and remove it from the recovery collection
+     * Fails the recovery with the given id (if found) and remove it from the recovery collection
      *
      * @param id               id of the recovery to fail
      * @param e                exception with reason for the failure
@@ -227,7 +229,7 @@ public class RecoveriesCollection {
         }
     }
 
-    /** mark the recovery with the given id as done (if found) */
+    /** Marks the recovery with the given id as done (if found) */
     public void markRecoveryAsDone(long id) {
         RecoveryTarget removed = onGoingRecoveries.remove(id);
         if (removed != null) {
@@ -244,7 +246,7 @@ public class RecoveriesCollection {
     }
 
     /**
-     * cancel all ongoing recoveries for the given shard
+     * Cancels all ongoing recoveries for the given shard
      *
      * @param reason       reason for cancellation
      * @param shardId      shardId for which to cancel recoveries
@@ -281,7 +283,7 @@ public class RecoveriesCollection {
     }
 
     /**
-     * a reference to {@link RecoveryTarget}, which implements {@link Releasable}. closing the reference
+     * A reference to {@link RecoveryTarget}, which implements {@link Releasable}. closing the reference
      * causes {@link RecoveryTarget#decRef()} to be called. This makes sure that the underlying resources
      * will not be freed until {@link RecoveryRef#close()} is called.
      */

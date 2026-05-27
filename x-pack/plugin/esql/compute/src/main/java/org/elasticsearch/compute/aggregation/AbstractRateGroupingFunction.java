@@ -11,13 +11,20 @@ import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.ExponentialHistogramBlock;
+import org.elasticsearch.compute.data.ExponentialHistogramScratch;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
 
 import java.util.Arrays;
+
+import static org.elasticsearch.compute.aggregation.AbstractRateGroupingFunction.BufferedArray.indexInPage;
+import static org.elasticsearch.compute.aggregation.AbstractRateGroupingFunction.BufferedArray.pageIndex;
 
 class AbstractRateGroupingFunction {
     /**
@@ -35,7 +42,6 @@ class AbstractRateGroupingFunction {
         private final CircuitBreaker breaker;
         private long acquiredBytes;
         LongBuffer timestamps;
-        int valueCount;
 
         int[] sliceStarts;
         int[] sliceGroupIds;
@@ -54,8 +60,8 @@ class AbstractRateGroupingFunction {
         }
 
         final void prepareSlicesOnly(int groupId, long firstTimestamp) {
-            if (lastGroupId == groupId && valueCount > 0) {
-                if (timestamps.get(valueCount - 1) > firstTimestamp) {
+            if (lastGroupId == groupId && timestamps.size() > 0) {
+                if (timestamps.get(timestamps.size() - 1) > firstTimestamp) {
                     return; // continue with the current slice
                 }
             }
@@ -73,7 +79,7 @@ class AbstractRateGroupingFunction {
             if (groupId > maxGroupId) {
                 maxGroupId = groupId;
             }
-            sliceStarts[sliceCount] = valueCount;
+            sliceStarts[sliceCount] = timestamps.size();
             sliceGroupIds[sliceCount] = groupId;
             lastGroupId = groupId;
             sliceCount++;
@@ -98,12 +104,11 @@ class AbstractRateGroupingFunction {
             for (int i = 0; i < sliceCount; i++) {
                 int groupIndex = sliceGroupIds[i] - minGroupId;
                 int startOffset = sliceStarts[i];
-                int endOffset = (i + 1) < sliceCount ? sliceStarts[i + 1] : valueCount;
+                int endOffset = (i + 1) < sliceCount ? sliceStarts[i + 1] : timestamps.size();
                 int dstIndex = runningOffsets[groupIndex]++;
                 sliceOffsets[dstIndex * 2] = startOffset;
                 sliceOffsets[dstIndex * 2 + 1] = endOffset;
             }
-            valueCount = 0;
             sliceCount = 0;
             lastGroupId = -1;
             var queues = new FlushQueues(this, minGroupId, maxGroupId, runningOffsets, sliceOffsets);
@@ -111,6 +116,8 @@ class AbstractRateGroupingFunction {
             maxGroupId = Integer.MIN_VALUE;
             return queues;
         }
+
+        abstract void clearBuffers();
 
         @Override
         public void close() {
@@ -220,6 +227,7 @@ class AbstractRateGroupingFunction {
         private long acquiredBytes;
         protected long capacity;
         protected int numPages;
+        int size;
 
         BufferedArray(CircuitBreaker breaker, long initialCapacity, int bytesPerElement) {
             this.breaker = breaker;
@@ -243,6 +251,14 @@ class AbstractRateGroupingFunction {
             capacity = (long) newNumPages << PAGE_SHIFT;
         }
 
+        final int size() {
+            return size;
+        }
+
+        final void clear() {
+            size = 0;
+        }
+
         @Override
         public void close() {
             if (acquiredBytes > 0) {
@@ -261,8 +277,8 @@ class AbstractRateGroupingFunction {
     }
 
     /**
-     * Paged long array backed by {@code long[][]}
-     * Avoids the VarHandle byte[]-backed LongArray and leverage {@link System#arraycopy} when possible
+     * Append-only paged long array backed by {@code long[][]}.
+     * Avoids the VarHandle byte[]-backed LongArray and leverages {@link System#arraycopy} when possible.
      */
     static final class LongBuffer extends BufferedArray {
         long[][] pages;
@@ -276,23 +292,26 @@ class AbstractRateGroupingFunction {
         }
 
         long get(long index) {
+            assert index < size : "Index [" + index + "] out of bounds, size: " + size;
             return pages[pageIndex(index)][indexInPage(index)];
         }
 
-        void set(long index, long value) {
-            pages[pageIndex(index)][indexInPage(index)] = value;
+        void append(long value) {
+            pages[pageIndex(size)][indexInPage(size)] = value;
+            size++;
         }
 
-        void appendRange(long dst, LongVector src, int from, int count) {
-            int indexInPageStart = indexInPage(dst);
+        void appendRange(LongVector src, int from, int count) {
+            int indexInPageStart = indexInPage(size);
             if (indexInPageStart + count <= PAGE_SIZE) {
-                src.copyTo(from, pages[pageIndex(dst)], indexInPageStart, count);
-                return;
+                src.copyTo(from, pages[pageIndex(size)], indexInPageStart, count);
+            } else {
+                for (int i = 0; i < count; i++) {
+                    long d = size + i;
+                    pages[pageIndex(d)][indexInPage(d)] = src.getLong(from + i);
+                }
             }
-            for (int i = 0; i < count; i++) {
-                long d = dst + i;
-                pages[pageIndex(d)][indexInPage(d)] = src.getLong(from + i);
-            }
+            size += count;
         }
 
         void ensureCapacity(long minCapacity) {
@@ -308,8 +327,8 @@ class AbstractRateGroupingFunction {
     }
 
     /**
-     * Paged double array backed by {@code double[][]}
-     * Avoids the VarHandle byte[]-backed DoubleArray and leverage {@link System#arraycopy} when possible
+     * Append-only paged double array backed by {@code double[][]}.
+     * Avoids the VarHandle byte[]-backed DoubleArray and leverages {@link System#arraycopy} when possible.
      */
     static final class DoubleBuffer extends BufferedArray {
         double[][] pages;
@@ -323,23 +342,26 @@ class AbstractRateGroupingFunction {
         }
 
         double get(long index) {
+            assert index < size : "Index [" + index + "] out of bounds, size: " + size;
             return pages[pageIndex(index)][indexInPage(index)];
         }
 
-        void set(long index, double value) {
-            pages[pageIndex(index)][indexInPage(index)] = value;
+        void append(double value) {
+            pages[pageIndex(size)][indexInPage(size)] = value;
+            size++;
         }
 
-        void appendRange(long dst, DoubleVector src, int from, int count) {
-            int indexInPageStart = indexInPage(dst);
+        void appendRange(DoubleVector src, int from, int count) {
+            int indexInPageStart = indexInPage(size);
             if (indexInPageStart + count <= PAGE_SIZE) {
-                src.copyTo(from, pages[pageIndex(dst)], indexInPageStart, count);
-                return;
+                src.copyTo(from, pages[pageIndex(size)], indexInPageStart, count);
+            } else {
+                for (int i = 0; i < count; i++) {
+                    long d = size + i;
+                    pages[pageIndex(d)][indexInPage(d)] = src.getDouble(from + i);
+                }
             }
-            for (int i = 0; i < count; i++) {
-                long d = dst + i;
-                pages[pageIndex(d)][indexInPage(d)] = src.getDouble(from + i);
-            }
+            size += count;
         }
 
         void ensureCapacity(long minCapacity) {
@@ -355,8 +377,8 @@ class AbstractRateGroupingFunction {
     }
 
     /**
-     * Paged int array backed by {@code int[][]}
-     * Avoids the VarHandle byte[]-backed IntArray and leverage {@link System#arraycopy} when possible
+     * Append-only paged int array backed by {@code int[][]}.
+     * Avoids the VarHandle byte[]-backed IntArray and leverages {@link System#arraycopy} when possible.
      */
     static final class IntBuffer extends BufferedArray {
         int[][] pages;
@@ -370,23 +392,26 @@ class AbstractRateGroupingFunction {
         }
 
         int get(long index) {
+            assert index < size : "Index [" + index + "] out of bounds, size: " + size;
             return pages[pageIndex(index)][indexInPage(index)];
         }
 
-        void set(long index, int value) {
-            pages[pageIndex(index)][indexInPage(index)] = value;
+        void append(int value) {
+            pages[pageIndex(size)][indexInPage(size)] = value;
+            size++;
         }
 
-        void appendRange(long dst, IntVector src, int from, int count) {
-            int indexInPageStart = indexInPage(dst);
+        void appendRange(IntVector src, int from, int count) {
+            int indexInPageStart = indexInPage(size);
             if (indexInPageStart + count <= PAGE_SIZE) {
-                src.copyTo(from, pages[pageIndex(dst)], indexInPageStart, count);
-                return;
+                src.copyTo(from, pages[pageIndex(size)], indexInPageStart, count);
+            } else {
+                for (int i = 0; i < count; i++) {
+                    long d = size + i;
+                    pages[pageIndex(d)][indexInPage(d)] = src.getInt(from + i);
+                }
             }
-            for (int i = 0; i < count; i++) {
-                long d = dst + i;
-                pages[pageIndex(d)][indexInPage(d)] = src.getInt(from + i);
-            }
+            size += count;
         }
 
         void ensureCapacity(long minCapacity) {
@@ -400,4 +425,110 @@ class AbstractRateGroupingFunction {
             }
         }
     }
+
+    /**
+     * Append-only paged buffer for {@link ExponentialHistogram} values backed by {@link ExponentialHistogramBlock} pages.
+     * Pages are built lazily via a block builder and finalized when full or when a read is requested.
+     */
+    static final class ExponentialHistogramBuffer implements Releasable {
+
+        private final BlockFactory factory;
+        private ExponentialHistogramBlock[] pages;
+        private ExponentialHistogramBlock.Builder activeBuilder;
+        private int size = 0;
+
+        ExponentialHistogramBuffer(BlockFactory factory, long initialCapacity) {
+            this.factory = factory;
+            int initialNumPages = Math.max(1, Math.toIntExact((initialCapacity + PAGE_SIZE - 1) >>> PAGE_SHIFT));
+            pages = new ExponentialHistogramBlock[initialNumPages];
+            size = 0;
+        }
+
+        int size() {
+            return size;
+        }
+
+        ExponentialHistogram get(long index, ExponentialHistogramScratch scratch) {
+            assert index < size : "Index [" + index + "] out of bounds, size: " + size;
+            buildCurrentPage();
+            return pages[pageIndex(index)].getExponentialHistogram(indexInPage(index), scratch);
+        }
+
+        void append(ExponentialHistogram value) {
+            initBuilderForNextPosition();
+            activeBuilder.append(value);
+            size++;
+            if (size % PAGE_SIZE == 0) {
+                buildCurrentPage();
+            }
+        }
+
+        void appendRange(ExponentialHistogramBlock src, int from, int count) {
+            assert assertSingleValued(src, from, count);
+            int freeSlotsOnCurrentPage = PAGE_SIZE - indexInPage(size);
+            int pos = from;
+            int remainingCount = count;
+            while (remainingCount >= freeSlotsOnCurrentPage) {
+                initBuilderForNextPosition();
+                activeBuilder.copyFrom(src, pos, pos + freeSlotsOnCurrentPage);
+                size += freeSlotsOnCurrentPage;
+                pos += freeSlotsOnCurrentPage;
+                remainingCount -= freeSlotsOnCurrentPage;
+                freeSlotsOnCurrentPage = PAGE_SIZE;
+                buildCurrentPage();
+            }
+
+            if (remainingCount > 0) {
+                initBuilderForNextPosition();
+                activeBuilder.copyFrom(src, pos, pos + remainingCount);
+                size += remainingCount;
+            }
+        }
+
+        private boolean assertSingleValued(ExponentialHistogramBlock src, int from, int count) {
+            for (int i = from; i < from + count; i++) {
+                assert src.isNull(i) == false : "Tried to append null value to ExponentialHistogramBuffer";
+                assert src.getValueCount(i) == 1 : "Tried to append multi-value to ExponentialHistogramBuffer";
+            }
+            return true;
+        }
+
+        private void initBuilderForNextPosition() {
+            if (activeBuilder == null) {
+                assert size % PAGE_SIZE == 0 : "Cannot append after reading";
+                activeBuilder = factory.newExponentialHistogramBlockBuilder(PAGE_SIZE);
+            }
+        }
+
+        private void buildCurrentPage() {
+            if (activeBuilder != null) {
+                int pageIdx = pageIndex(size - 1);
+                if (pageIdx >= pages.length) {
+                    pages = Arrays.copyOf(pages, pageIdx * 2);
+                }
+                assert pages[pageIdx] == null;
+                pages[pageIdx] = activeBuilder.build();
+                activeBuilder = null;
+            }
+        }
+
+        void ensureCapacity(long minCapacity) {
+            // Pages are allocated on demand automatically via the block builder
+        }
+
+        void clear() {
+            size = 0;
+            Releasables.close(activeBuilder);
+            Releasables.close(pages);
+            activeBuilder = null;
+            Arrays.fill(pages, null);
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(activeBuilder);
+            Releasables.close(pages);
+        }
+    }
+
 }

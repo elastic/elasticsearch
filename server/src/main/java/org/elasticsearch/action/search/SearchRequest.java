@@ -398,7 +398,7 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
             if (getProjectRouting() != null) {
                 validationException = addValidationError("[projectRouting] cannot be used with point in time", validationException);
             }
-            if (routing() != null) {
+            if (routing() != null && isRoutingFromSlice() == false) {
                 validationException = addValidationError("[routing] cannot be used with point in time", validationException);
             }
             if (isRoutingFromSlice()) {
@@ -561,12 +561,20 @@ public class SearchRequest extends LegacyActionRequest implements IndicesRequest
     }
 
     /**
-     * Sets slice-routing provenance and the user-provided {@code _slice} value.
-     * Passing {@code null} clears slice-routing provenance.
+     * Sets the user-provided {@code _slice} value and derives routing/provenance from it.
+     * Passing {@code null} clears slice-routing provenance and any routing previously derived from {@code _slice}.
      */
     public SearchRequest searchSlice(@Nullable String searchSlice) {
         this.searchSlice = searchSlice;
-        this.routingFromSlice = searchSlice != null;
+        if (searchSlice == null) {
+            if (routingFromSlice) {
+                this.routing = null;
+            }
+            this.routingFromSlice = false;
+        } else {
+            this.routingFromSlice = true;
+            this.routing = SliceIndexing.SLICE_ALL.equals(searchSlice) ? null : searchSlice;
+        }
         return this;
     }
 

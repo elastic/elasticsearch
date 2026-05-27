@@ -44,6 +44,32 @@ public interface RestHandler {
     }
 
     /**
+     * Whether this handler accepts read-only {@code POST} requests with
+     * {@code application/x-www-form-urlencoded} bodies as an alternative to
+     * query-string parameters.
+     * <p>
+     * This opt-in is intended for endpoints such as Prometheus-compatible APIs
+     * that expose equivalent {@code GET} and {@code POST} routes. Handlers that
+     * opt in may only declare {@code GET} and {@code POST} routes, must still
+     * declare the corresponding {@code POST} routes explicitly, and each opted-in
+     * {@code POST} route must have a matching {@code GET} route for the same path.
+     * <p>
+     * Elasticsearch rejects browser-safelisted media types such as
+     * {@code application/x-www-form-urlencoded} by default as a CSRF safeguard.
+     * Opting in here creates a narrowly scoped exemption for {@code POST} requests
+     * to endpoints that need form-encoded compatibility with existing clients.
+     * <p>
+     * Because these requests bypass the default CSRF-oriented content-type
+     * rejection, every corresponding {@code POST} route must be equivalent to
+     * its {@code GET} route and must not mutate cluster or index state. Use this
+     * only for read-only APIs where {@code POST} is merely an alternate transport
+     * for request parameters.
+     */
+    default boolean supportsReadOnlyFormEncodedPostBody() {
+        return false;
+    }
+
+    /**
      * Returns the concrete RestHandler for this RestHandler. That is, if this is a delegating RestHandler it returns the delegate.
      * Otherwise it returns itself.
      * @return The underlying RestHandler

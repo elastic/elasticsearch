@@ -599,6 +599,125 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertTrue(e.getMessage(), e.getMessage().contains("Failed to parse CSV date_nanos value"));
     }
 
+    public void testMultiValueBracketsManyBatchesVariedCardinality() throws IOException {
+        // Varied multi-value data across many pages: int / keyword / ip / date_nanos columns, cardinality
+        // cycling 1..3, read at a small batch size so multi-value cells must be assembled across page
+        // boundaries. Guards against value misassembly or cardinality drift at batch edges.
+        int rows = 60;
+        String[] ipPool = { "1.1.1.1", "8.8.8.8", "10.0.0.1" };
+        String[] dnPool = {
+            "2024-01-15T12:34:56.123456789Z",
+            "2024-02-20T00:00:00.000000000Z",
+            "2024-03-30T23:59:59.999999999Z" };
+        StringBuilder csv = new StringBuilder("id:integer,ints:integer,kws:keyword,addrs:ip,dns:date_nanos\n");
+        for (int i = 1; i <= rows; i++) {
+            int c = (i - 1) % 3 + 1; // 1, 2, 3
+            StringBuilder ints = new StringBuilder();
+            StringBuilder kws = new StringBuilder();
+            StringBuilder addrs = new StringBuilder();
+            StringBuilder dns = new StringBuilder();
+            for (int k = 0; k < c; k++) {
+                String sep = k == 0 ? "" : ",";
+                ints.append(sep).append(i * 10 + k);
+                kws.append(sep).append("kw_").append(i).append('_').append(k);
+                addrs.append(sep).append(ipPool[k]);
+                dns.append(sep).append(dnPool[k]);
+            }
+            csv.append(i)
+                .append(",\"[").append(ints).append("]\"")
+                .append(",\"[").append(kws).append("]\"")
+                .append(",\"[").append(addrs).append("]\"")
+                .append(",\"[").append(dns).append("]\"")
+                .append('\n');
+        }
+        StorageObject object = createStorageObject(csv.toString());
+        CsvFormatReader reader = mvcReader(blockFactory);
+
+        int pages = 0;
+        int globalRow = 0;
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                pages++;
+                IntBlock idB = (IntBlock) page.getBlock(0);
+                IntBlock intsB = (IntBlock) page.getBlock(1);
+                BytesRefBlock kwsB = (BytesRefBlock) page.getBlock(2);
+                BytesRefBlock addrsB = (BytesRefBlock) page.getBlock(3);
+                LongBlock dnsB = (LongBlock) page.getBlock(4);
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    int i = ++globalRow;
+                    int c = (i - 1) % 3 + 1;
+                    assertEquals(i, idB.getInt(p));
+                    assertEquals("row " + i + " ints cardinality", c, intsB.getValueCount(p));
+                    assertEquals(i * 10, intsB.getInt(intsB.getFirstValueIndex(p)));
+                    assertEquals("row " + i + " kws cardinality", c, kwsB.getValueCount(p));
+                    assertEquals(new BytesRef("kw_" + i + "_0"), kwsB.getBytesRef(kwsB.getFirstValueIndex(p), new BytesRef()));
+                    assertEquals("row " + i + " addrs cardinality", c, addrsB.getValueCount(p));
+                    assertEquals("row " + i + " dns cardinality", c, dnsB.getValueCount(p));
+                }
+            }
+        }
+        assertEquals(rows, globalRow);
+        assertTrue("expected multiple pages, got " + pages, pages > 1);
+    }
+
+    public void testNoneScalarAllTypesManyBatches() throws IOException {
+        // none (no MV): a varied all-types scalar dataset across many pages parses without any
+        // multi-value handling. Exercises long / double / boolean / datetime / date_nanos / ip / version
+        // scalar reads at a scale that spans several batches.
+        int rows = 50;
+        String[] ipPool = { "1.1.1.1", "8.8.8.8", "10.0.0.1" };
+        StringBuilder csv = new StringBuilder(
+            "id:integer,n_long:long,n_dbl:double,kw:keyword,flag:boolean,ts:datetime,dn:date_nanos,addr:ip,ver:version\n"
+        );
+        for (int i = 1; i <= rows; i++) {
+            csv.append(i)
+                .append(',')
+                .append(1000000000L + i)
+                .append(',')
+                .append(i)
+                .append(".5,")
+                .append("name_")
+                .append(i)
+                .append(',')
+                .append(i % 2 == 0)
+                .append(',')
+                .append("2024-01-01T00:00:00Z,")
+                .append("2024-01-15T12:34:56.123456789Z,")
+                .append(ipPool[i % 3])
+                .append(",1.0.")
+                .append(i)
+                .append('\n');
+        }
+        StorageObject object = createStorageObject(csv.toString());
+        CsvFormatReader reader = noMvcReader(blockFactory);
+
+        int pages = 0;
+        int total = 0;
+        boolean checkedLatePage = false;
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                pages++;
+                IntBlock idB = (IntBlock) page.getBlock(0);
+                LongBlock longB = (LongBlock) page.getBlock(1);
+                BytesRefBlock kwB = (BytesRefBlock) page.getBlock(3);
+                for (int p = 0; p < page.getPositionCount(); p++) {
+                    int i = ++total;
+                    assertEquals(i, idB.getInt(p));
+                    assertEquals(1000000000L + i, longB.getLong(p));
+                    assertEquals(new BytesRef("name_" + i), kwB.getBytesRef(p, new BytesRef()));
+                    if (i == 35) {
+                        checkedLatePage = true;
+                    }
+                }
+            }
+        }
+        assertEquals(rows, total);
+        assertTrue("expected multiple pages, got " + pages, pages > 1);
+        assertTrue("expected to verify a row on a later page", checkedLatePage);
+    }
+
     public void testMultiValueSyntaxDefaultsToNone() {
         // Standard CSV (RFC 4180) has no array/multi-value concept; the default must be NONE so a
         // bracketed cell is literal text, not a parsed multi-value. BRACKETS is opt-in.

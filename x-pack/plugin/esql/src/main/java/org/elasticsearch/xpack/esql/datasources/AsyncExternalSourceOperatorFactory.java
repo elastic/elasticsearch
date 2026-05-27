@@ -811,7 +811,11 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         @Nullable List<Attribute> perFileReadSchema,
         @Nullable List<String> perFileCols
     ) {
-        if (mapping == null || mapping.isIdentity()) {
+        // Empty queryDataSchema = no data columns projected (COUNT(*), _file.*-only, or a TopN with
+        // all data columns deferred to _rowPosition): nothing to reshape, and the full-width mapping
+        // would trip SchemaAdaptingIterator's size-vs-width guard. Treat it like identity and pass the
+        // pages through (deferred extraction is handled in wrapWithEncoderIfNeeded).
+        if (mapping == null || mapping.isIdentity() || queryDataSchema.isEmpty()) {
             return pages;
         }
         // When deferred extraction is enabled for this factory, the reader appends the synthetic

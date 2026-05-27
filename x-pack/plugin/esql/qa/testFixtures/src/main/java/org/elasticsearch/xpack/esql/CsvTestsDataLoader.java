@@ -324,6 +324,24 @@ public class CsvTestsDataLoader {
         });
     }
 
+    /**
+     * Load only the named datasets into ES. The names must be keys in {@link #CSV_DATASET_MAP}.
+     */
+    public static void loadDatasetsIntoEs(RestClient client, List<String> datasetNames) throws IOException {
+        Set<String> loadedDatasets = new HashSet<>();
+        for (String name : datasetNames) {
+            TestDataset dataset = CSV_DATASET_MAP.get(name);
+            if (dataset == null) {
+                throw new IllegalArgumentException("Unknown dataset: " + name);
+            }
+            load(client, dataset, logger, (restClient, indexName, indexMapping, indexSettings) -> {
+                ESRestTestCase.createIndex(restClient, indexName, indexSettings, indexMapping, null);
+            });
+            loadedDatasets.add(dataset.indexName);
+        }
+        forceMerge(client, loadedDatasets, logger);
+    }
+
     private static void loadDataSetIntoEs(RestClient client, boolean supportsIndexModeLookup, IndexCreator indexCreator)
         throws IOException {
         Logger logger = LogManager.getLogger(CsvTestsDataLoader.class);

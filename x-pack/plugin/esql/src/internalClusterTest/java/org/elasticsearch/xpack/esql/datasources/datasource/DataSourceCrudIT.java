@@ -170,9 +170,7 @@ public class DataSourceCrudIT extends ESIntegTestCase {
         final String dsName = "persists_across_restart";
         assertAcked(client().execute(PutDataSourceAction.INSTANCE, putDataSourceRequest(dsName, Map.of("region", "us-west-2"))));
 
-        // Full-cluster restart. GATEWAY-only context ({@code org.elasticsearch.cluster.metadata.DataSourceMetadata.context() =
-        // EnumSet.of(GATEWAY)})
-        // means the metadata is persisted to disk via the gateway and survives restart.
+        // Full-cluster restart. DataSourceMetadata.context() is GATEWAY-only, so the metadata is persisted to disk and survives restart.
         internalCluster().fullRestart();
         ensureYellow();
 

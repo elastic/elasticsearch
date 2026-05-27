@@ -138,7 +138,10 @@ public final class ReshardUnownedBitsetCache implements IndexReader.ClosedListen
     }
 
     /**
-     * Returns the bitset of documents matching the query (unowned docs), or {@code null} if none match.
+     * Returns the bitset of documents matching the query (unowned docs), the bitset is empty if there are no
+     * unowned docs.
+     * The returned bitset can be null, however it is an unlikely scenario for a ShardSplittingQuery.
+     * It can happen for a nested index with no parent docs on leaf.
      */
     @Nullable
     public BitSet getBitSet(final Query query, final LeafReaderContext context) throws ExecutionException {

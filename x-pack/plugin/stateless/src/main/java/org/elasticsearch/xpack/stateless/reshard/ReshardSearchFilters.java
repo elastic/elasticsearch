@@ -23,7 +23,6 @@ import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
@@ -39,7 +38,6 @@ import java.util.concurrent.ExecutionException;
  */
 public final class ReshardSearchFilters implements Closeable {
 
-    @Nullable
     private final ReshardUnownedBitsetCache unownedBitsetCache;
 
     public ReshardSearchFilters(Settings settings) {
@@ -47,7 +45,7 @@ public final class ReshardSearchFilters implements Closeable {
     }
 
     // visible for testing
-    ReshardSearchFilters(@Nullable ReshardUnownedBitsetCache unownedBitsetCache) {
+    ReshardSearchFilters(ReshardUnownedBitsetCache unownedBitsetCache) {
         this.unownedBitsetCache = unownedBitsetCache;
     }
 
@@ -57,7 +55,6 @@ public final class ReshardSearchFilters implements Closeable {
     }
 
     // visible for testing
-    @Nullable
     ReshardUnownedBitsetCache unownedBitsetCache() {
         return unownedBitsetCache;
     }
@@ -84,13 +81,7 @@ public final class ReshardSearchFilters implements Closeable {
         // and resharding metadata will very likely not exist or differ for the same reason.
         IndexMetadata adjustedMetadata = adjustMetadataForPitRelocation(currentIndexMetadata, relocatedReshardingMetadata);
 
-        return maybeWrapDirectoryReader(
-            reader,
-            shardId,
-            relocatedSplitShardCountSummary,
-            adjustedMetadata,
-            mapperService
-        );
+        return maybeWrapDirectoryReader(reader, shardId, relocatedSplitShardCountSummary, adjustedMetadata, mapperService);
     }
 
     // visible for testing
@@ -222,8 +213,7 @@ public final class ReshardSearchFilters implements Closeable {
         private final Query query;
         private final ReshardUnownedBitsetCache unownedBitsetCache;
 
-        QueryFilterDirectoryReader(DirectoryReader in, Query query, @Nullable ReshardUnownedBitsetCache unownedBitsetCache)
-            throws IOException {
+        QueryFilterDirectoryReader(DirectoryReader in, Query query, ReshardUnownedBitsetCache unownedBitsetCache) throws IOException {
             super(in, new SubReaderWrapper() {
                 @Override
                 public LeafReader wrap(LeafReader reader) {
@@ -252,7 +242,7 @@ public final class ReshardSearchFilters implements Closeable {
         private int numDocs = -1;
         private BitSet filteredDocs;
 
-        protected QueryFilterLeafReader(LeafReader in, Query query, @Nullable ReshardUnownedBitsetCache unownedBitsetCache) {
+        protected QueryFilterLeafReader(LeafReader in, Query query, ReshardUnownedBitsetCache unownedBitsetCache) {
             super(in);
             this.query = query;
             this.unownedBitsetCache = unownedBitsetCache;
@@ -312,26 +302,15 @@ public final class ReshardSearchFilters implements Closeable {
                 synchronized (this) {
                     if (numDocs == -1) {
                         try {
-                            if (unownedBitsetCache != null) {
-                                filteredDocs = unownedBitsetCache.getBitSet(query, in.getContext());
-                            } else {
-                                filteredDocs = queryFilteredDocs();
-                            }
+                            filteredDocs = unownedBitsetCache.getBitSet(query, in.getContext());
                             numDocs = calculateNumDocs(in, filteredDocs);
                         } catch (ExecutionException e) {
                             Throwable cause = e.getCause();
                             throw new ElasticsearchException("Failed to execute filtered documents query", cause != null ? cause : e);
-                        } catch (IOException e) {
-                            throw new ElasticsearchException("Failed to execute filtered documents query", e);
                         }
                     }
                 }
             }
-        }
-
-        // Returns a BitSet of documents that match the query, or null if no documents match.
-        private BitSet queryFilteredDocs() throws IOException {
-            return ReshardUnownedBitsetCache.computeBitSet(query, in.getContext());
         }
 
         private static int calculateNumDocs(LeafReader reader, BitSet unownedDocs) {

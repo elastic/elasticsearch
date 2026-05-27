@@ -125,7 +125,7 @@ public class ReshardUnownedBitsetCacheTests extends ESTestCase {
         }
     }
 
-    // When no documents match the query, a NULL bitset is returned (we check cached path twice). Note that
+    // When a NULL bitset is returned (we check cached path twice). Note that
     // cache still holds one entry (NULL_MARKER).
     public void testGetBitSetReturnsNullWhenQueryMatchesNoDocuments() throws Exception {
         Directory directory = newDirectory();

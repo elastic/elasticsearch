@@ -113,6 +113,7 @@ public class SearchEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final SearchCommitPrefetcher commitPrefetcher;
     private final SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings;
+    // Used for filtering unowned documents from a shard during resharding.
     private final ReshardSearchFilters reshardSearchFilters;
     // task runner used to process commit notifications and incoming PIT metadata merges sequentially
     private final ThrottledTaskRunner processCommitTaskRunner;

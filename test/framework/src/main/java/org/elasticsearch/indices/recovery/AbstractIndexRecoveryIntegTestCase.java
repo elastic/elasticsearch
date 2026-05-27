@@ -12,7 +12,6 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.create.CreateSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
-import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -25,8 +24,10 @@ import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.MockEngineFactoryPlugin;
 import org.elasticsearch.index.recovery.RecoveryStats;
+import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.Plugin;
@@ -95,7 +96,13 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             // Check if all conditions are met
             for (final var nodePredicate : predicatePerNode.entrySet()) {
                 final var checkIndicesService = internalCluster().getInstance(IndicesService.class, nodePredicate.getKey());
-                final var stats = checkIndicesService.stats(CommonStatsFlags.ALL, false).getRecoveryStats();
+
+                final var stats = new RecoveryStats();
+                for (IndexService indexService : checkIndicesService) {
+                    for (IndexShard shard : indexService) {
+                        stats.add(shard.recoveryStats());
+                    }
+                }
                 if (nodePredicate.getValue().test(stats) == false) {
                     return;
                 }

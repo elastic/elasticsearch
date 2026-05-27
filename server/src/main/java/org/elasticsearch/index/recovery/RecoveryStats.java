@@ -81,6 +81,9 @@ public class RecoveryStats implements ToXContentFragment, Writeable {
         return currentAsSourceQueued.get();
     }
 
+    /**
+     * Returns true if there are no ongoing or queued recoveries
+     */
     public boolean noCurrentRecoveries() {
         return currentAsSourceQueued.get() == 0 && currentAsSource.get() == 0 && currentAsTarget.get() == 0;
     }

@@ -50,10 +50,14 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
 
     private final AtomicLongArray counts;
 
-    /** Oldest retained (tail) slot's granularity-aligned time; fixed at construction. */
+    /** Start of the oldest retained slot (i.e., the tail at index 0), in epoch milliseconds. Fixed at construction,
+     *  computed from granularity and pastSlots.
+     */
     private final long tailSlotMillis;
 
-    /** Newest retained (head) slot's granularity-aligned time; fixed at construction. */
+    /** Start of the newest retained slot (i.e., the head at index {@code pastSlots + futureSlots - 1}), in epoch milliseconds.
+     *  Fixed at construction, computed from granularity and pastSlots.
+     */
     private final long headSlotMillis;
 
     /** Exclusive end of the retained window: {@code headSlotMillis + granularityMillis}. */

@@ -52,6 +52,70 @@ public class NumericTopNOperatorTests extends ComputeTestCase {
         assertParity(false, true);
     }
 
+    public void testPublishesRawThreshold() {
+        List<Long> values = List.of(1L, 2L, 100L, 99L, 98L);
+        for (boolean asc : List.of(true, false)) {
+            BlockFactory blockFactory = blockFactory();
+            SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(asc, false);
+            try (SharedNumericThreshold threshold = supplier.get()) {
+                Operator operator = new NumericTopNOperator.NumericTopNOperatorFactory(2, ElementType.LONG, asc, false, supplier).get(
+                    new DriverContext(blockFactory.bigArrays(), blockFactory, null)
+                );
+                List<Page> output = runTopN(operator, blockFactory, values, new boolean[values.size()]);
+                try {
+                    assertThat(threshold.current(), equalTo(asc ? 2L : 99L));
+                    assertThat(threshold.offeredCount(), equalTo(asc ? 1L : 3L));
+                } finally {
+                    output.forEach(Page::releaseBlocks);
+                }
+            }
+        }
+    }
+
+    public void testNullSaturationMarksNoFurtherCandidates() {
+        for (boolean asc : List.of(true, false)) {
+            SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(asc, true);
+            try (SharedNumericThreshold threshold = supplier.get()) {
+                BlockFactory blockFactory = blockFactory();
+                int count = 20;
+                boolean[] nulls = new boolean[count];
+                java.util.Arrays.fill(nulls, true);
+                Operator operator = new NumericTopNOperator.NumericTopNOperatorFactory(10, ElementType.LONG, asc, true, supplier).get(
+                    new DriverContext(blockFactory.bigArrays(), blockFactory, null)
+                );
+                List<Page> output = runTopN(operator, blockFactory, java.util.Collections.nCopies(count, 0L), nulls);
+                try {
+                    assertTrue(threshold.noFurtherCandidates());
+                    assertThat(threshold.current(), equalTo(asc ? Long.MIN_VALUE : Long.MAX_VALUE));
+                } finally {
+                    output.forEach(Page::releaseBlocks);
+                }
+            }
+        }
+    }
+
+    public void testNullSaturationDoesNotMarkForNullsLast() {
+        for (boolean asc : List.of(true, false)) {
+            SharedNumericThreshold.Supplier supplier = new SharedNumericThreshold.Supplier(asc, false);
+            try (SharedNumericThreshold threshold = supplier.get()) {
+                BlockFactory blockFactory = blockFactory();
+                int count = 20;
+                boolean[] nulls = new boolean[count];
+                java.util.Arrays.fill(nulls, true);
+                Operator operator = new NumericTopNOperator.NumericTopNOperatorFactory(10, ElementType.LONG, asc, false, supplier).get(
+                    new DriverContext(blockFactory.bigArrays(), blockFactory, null)
+                );
+                List<Page> output = runTopN(operator, blockFactory, java.util.Collections.nCopies(count, 0L), nulls);
+                try {
+                    assertFalse(threshold.noFurtherCandidates());
+                    assertThat(threshold.current(), equalTo(asc ? Long.MAX_VALUE : Long.MIN_VALUE));
+                } finally {
+                    output.forEach(Page::releaseBlocks);
+                }
+            }
+        }
+    }
+
     /**
      * Low-cardinality input exercises the {@code _rowPosition} tiebreaker path: many input
      * rows share the same encoded value, so the heap's internal ordering matters and the

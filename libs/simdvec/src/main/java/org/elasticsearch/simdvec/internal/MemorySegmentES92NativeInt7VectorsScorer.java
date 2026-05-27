@@ -10,63 +10,37 @@ package org.elasticsearch.simdvec.internal;
 
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.store.IndexInput;
-import org.elasticsearch.nativeaccess.NativeAccess;
 
 import java.io.IOException;
 import java.lang.foreign.MemorySegment;
 
-import static org.elasticsearch.simdvec.internal.vectorization.JdkFeatures.SUPPORTS_HEAP_SEGMENTS;
 import static org.elasticsearch.simdvec.internal.vectorization.ScoreCorrections.nativeApplyCorrectionsBulk;
 
 /** Native / panamized scorer for 7-bit quantized vectors stored as an {@link IndexInput}. **/
-public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92PanamaInt7VectorsScorer {
+public final class MemorySegmentES92NativeInt7VectorsScorer extends MemorySegmentES92PanamaInt7VectorsScorer {
 
-    private static final boolean NATIVE_SUPPORTED = SUPPORTS_HEAP_SEGMENTS
-        && NativeAccess.instance().getVectorSimilarityFunctions().isPresent();
-
-    public MemorySegmentES92Int7VectorsScorer(IndexInput in, int dimensions, int bulkSize) {
+    public MemorySegmentES92NativeInt7VectorsScorer(IndexInput in, int dimensions, int bulkSize) {
         super(in, dimensions, bulkSize);
-    }
-
-    @Override
-    public boolean hasNativeAccess() {
-        return NATIVE_SUPPORTED;
     }
 
     @Override
     public long int7DotProduct(byte[] q) throws IOException {
         assert q.length == dimensions;
-        if (NATIVE_SUPPORTED) {
-            return nativeInt7DotProduct(q);
-        } else {
-            return panamaInt7DotProduct(q);
-        }
-    }
-
-    private long nativeInt7DotProduct(byte[] q) throws IOException {
         return IndexInputUtils.withSlice(in, dimensions, this::getScratch, segment -> {
             final MemorySegment querySegment = MemorySegment.ofArray(q);
             return (long) Similarities.dotProductI7u(segment, querySegment, dimensions);
         });
     }
 
-    private void nativeInt7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
+    @Override
+    public void int7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
+        assert q.length == dimensions;
         IndexInputUtils.withSlice(in, (long) dimensions * count, this::getScratch, segment -> {
             final MemorySegment scoresSegment = MemorySegment.ofArray(scores);
             final MemorySegment querySegment = MemorySegment.ofArray(q);
             Similarities.dotProductI7uBulk(segment, querySegment, dimensions, count, scoresSegment);
             return null;
         });
-    }
-
-    @Override
-    public void int7DotProductBulk(byte[] q, int count, float[] scores) throws IOException {
-        assert q.length == dimensions;
-        if (NATIVE_SUPPORTED) {
-            nativeInt7DotProductBulk(q, count, scores);
-        } else {
-            panamaInt7DotProductBulk(q, count, scores);
-        }
     }
 
     @Override
@@ -81,38 +55,23 @@ public final class MemorySegmentES92Int7VectorsScorer extends MemorySegmentES92P
         float[] scores,
         int bulkSize
     ) throws IOException {
-        assert q.length == dimensions;
-        if (NATIVE_SUPPORTED) {
-            nativeInt7DotProductBulk(q, bulkSize, scores);
-            IndexInputUtils.withSlice(in, 16L * bulkSize, this::getScratch, memorySegment -> {
-                nativeApplyCorrectionsBulk(
-                    similarityFunction,
-                    memorySegment,
-                    bulkSize,
-                    dimensions,
-                    queryLowerInterval,
-                    queryUpperInterval,
-                    queryComponentSum,
-                    queryAdditionalCorrection,
-                    SEVEN_BIT_SCALE,
-                    SEVEN_BIT_SCALE,
-                    centroidDp,
-                    MemorySegment.ofArray(scores)
-                );
-                return null;
-            });
-        } else {
-            panamaInt7DotProductBulk(q, bulkSize, scores);
-            panamaApplyCorrectionsBulk(
+        int7DotProductBulk(q, bulkSize, scores);
+        IndexInputUtils.withSlice(in, 16L * bulkSize, this::getScratch, memorySegment -> {
+            nativeApplyCorrectionsBulk(
+                similarityFunction,
+                memorySegment,
+                bulkSize,
+                dimensions,
                 queryLowerInterval,
                 queryUpperInterval,
                 queryComponentSum,
                 queryAdditionalCorrection,
-                similarityFunction,
+                SEVEN_BIT_SCALE,
+                SEVEN_BIT_SCALE,
                 centroidDp,
-                scores,
-                bulkSize
+                MemorySegment.ofArray(scores)
             );
-        }
+            return null;
+        });
     }
 }

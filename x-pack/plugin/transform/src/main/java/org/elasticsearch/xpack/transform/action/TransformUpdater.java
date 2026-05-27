@@ -320,14 +320,10 @@ public class TransformUpdater {
             return;
         }
 
-        transformConfigManager.getTransformCloudCredentialByTokenId(
-            credentialId,
-            true,
-            listener.delegateFailureAndWrap((l, persisted) -> {
-                var storedCredential = cloudCredentialManager.cloudCredentialFromPersisted(persisted);
-                dispatchValidateTransform(config, client, deferValidation, timeout, storedCredential, wrapped);
-            })
-        );
+        transformConfigManager.getTransformCloudCredentialByTokenId(credentialId, true, listener.delegateFailureAndWrap((l, persisted) -> {
+            var storedCredential = cloudCredentialManager.cloudCredentialFromPersisted(persisted);
+            dispatchValidateTransform(config, client, deferValidation, timeout, storedCredential, wrapped);
+        }));
     }
 
     private static void dispatchValidateTransform(

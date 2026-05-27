@@ -111,7 +111,7 @@ public final class ThrottlingRecoveryService {
 
     private void closeAndFillSlots(RecoveryTask recoveryTask) {
         logger.trace(
-            "--> close recovery: recoverySource: [{}], shardId: [{}]",
+            "close recovery: recoverySource: [{}], shardId: [{}]",
             recoveryTask.recoveryState.getRecoverySource(),
             recoveryTask.recoveryState.getShardId()
         );

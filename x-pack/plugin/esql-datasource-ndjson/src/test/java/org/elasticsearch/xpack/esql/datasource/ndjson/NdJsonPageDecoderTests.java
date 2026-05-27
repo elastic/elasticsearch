@@ -110,7 +110,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 10,
                 blockFactory,
                 ErrorPolicy.STRICT,
-                "test://growth"
+                "test://growth",
+                new NdJsonReaderCounters()
             )
         ) {
             try (Page page = decoder.decodePage()) {
@@ -175,7 +176,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 10,
                 blockFactory,
                 ErrorPolicy.STRICT,
-                "test://no-keyword"
+                "test://no-keyword",
+                new NdJsonReaderCounters()
             )
         ) {
             try (Page page = decoder.decodePage()) {
@@ -230,7 +232,8 @@ public class NdJsonPageDecoderTests extends ESTestCase {
                 1024,
                 blockFactory,
                 ErrorPolicy.STRICT,
-                "test://decode"
+                "test://decode",
+                new NdJsonReaderCounters()
             )
         ) {
             return decoder.decodePage();

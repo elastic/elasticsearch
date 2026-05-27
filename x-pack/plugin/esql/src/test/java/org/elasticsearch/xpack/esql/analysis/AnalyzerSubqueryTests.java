@@ -29,6 +29,7 @@ import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToString;
 import org.elasticsearch.xpack.esql.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThan;
@@ -2215,6 +2216,322 @@ public class AnalyzerSubqueryTests extends ESTestCase {
                 EsRelation relation = as(subquery.child(), EsRelation.class);
                 assertEquals(i == 0 ? "no_fields_index" : "empty_index", relation.indexPattern());
             }
+        }
+    }
+
+    /*
+     * Project[[_meta_field{r}#31, emp_no{r}#32, fname{r}#5, gender{r}#34, hire_date{r}#35, job{r}#36, job.raw{r}#37, languages{r}#38,
+     *          last_name{r}#39, long_noidx{r}#40, salary{r}#41, emp_no_str{r}#8]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Eval[[$$emp_no$converted_to$keyword{r$}#44 AS emp_no_str#8]]
+     *     \_Project[[_meta_field{r}#31, emp_no{r}#32, first_name{r}#33 AS fname#5, gender{r}#34, hire_date{r}#35, job{r}#36,
+     *                job.raw{r}#37, languages{r}#38, last_name{r}#39, long_noidx{r}#40, salary{r}#41,
+     *                $$emp_no$converted_to$keyword{r$}#44]]
+     *       \_UnionAll[[_meta_field{r}#31, emp_no{r}#32, $$emp_no$converted_to$keyword{r$}#44, first_name{r}#33, gender{r}#34,
+     *                   hire_date{r}#35, job{r}#36, job.raw{r}#37, languages{r}#38, last_name{r}#39, long_noidx{r}#40, salary{r}#41]]
+     *         |_Project[[_meta_field{f}#15, emp_no{f}#9, $$emp_no$converted_to$keyword{r$}#42, first_name{f}#10, gender{f}#11,
+     *                    hire_date{f}#16, job{f}#17, job.raw{f}#18, languages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14]]
+     *         | \_Eval[[TOSTRING(emp_no{f}#9) AS $$emp_no$converted_to$keyword#42]]
+     *         |   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, ..]
+     *         \_Project[[_meta_field{f}#26, emp_no{f}#20, $$emp_no$converted_to$keyword{r$}#43, first_name{f}#21, gender{f}#22,
+     *                    hire_date{f}#27, job{f}#28, job.raw{f}#29, languages{f}#23, last_name{f}#24, long_noidx{f}#30, salary{f}#25]]
+     *           \_Eval[[TOSTRING(emp_no{f}#20) AS $$emp_no$converted_to$keyword#43]]
+     *             \_Subquery[]
+     *               \_EsRelation[test][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
+     */
+    public void testSubqueryWithRenameAndEvalWithConversionFunction() {
+        assumeTrue(
+            "Require the fix of synthetic attributes carry over",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES.isEnabled()
+        );
+        LogicalPlan plan = basic().query("""
+            FROM test, (FROM test)
+            | RENAME first_name AS fname
+            | EVAL emp_no_str = to_string(emp_no)
+            """);
+
+        String syntheticName = "$$emp_no$converted_to$keyword";
+
+        // The outer Project is the final user-facing projection added during finishing analysis.
+        Project outerProject = as(plan, Project.class);
+        // The synthetic attribute must NOT leak into the user-visible output.
+        assertTrue(
+            "User-visible projection should not expose [" + syntheticName + "]",
+            outerProject.projections().stream().noneMatch(p -> syntheticName.equals(p.name()))
+        );
+
+        Limit limit = as(outerProject.child(), Limit.class);
+        Eval outerEval = as(limit.child(), Eval.class);
+        assertEquals(1, outerEval.fields().size());
+        Alias outerAlias = outerEval.fields().get(0);
+        assertEquals("emp_no_str", outerAlias.name());
+        // ResolveUnionTypesInUnionAll's replaceConvertFunctions rewrote to_string(emp_no) to a direct ref.
+        ReferenceAttribute outerRef = as(outerAlias.child(), ReferenceAttribute.class);
+        assertEquals(syntheticName, outerRef.name());
+        assertEquals(KEYWORD, outerRef.dataType());
+
+        Project renameProject = as(outerEval.child(), Project.class);
+        // The fix carries the synthetic attribute through the RENAME-Project so that the reference
+        // inserted above (in outerEval) has a binding. Without the fix this assertion would fail.
+        assertTrue(
+            "Project above UnionAll must expose [" + syntheticName + "] in its projections",
+            renameProject.projections().stream().anyMatch(p -> syntheticName.equals(p.name()))
+        );
+        // Confirm the RENAME's original alias is still present.
+        assertTrue(
+            "Project should still rename first_name to fname",
+            renameProject.projections().stream().anyMatch(p -> p instanceof Alias a && "fname".equals(a.name()))
+        );
+
+        UnionAll unionAll = as(renameProject.child(), UnionAll.class);
+        // Sanity: the synthetic must also be in the UnionAll's output (this part isn't new).
+        assertTrue(
+            "UnionAll output must contain [" + syntheticName + "]",
+            unionAll.output().stream().anyMatch(a -> syntheticName.equals(a.name()))
+        );
+        assertEquals(2, unionAll.children().size());
+        // Each branch must materialize the synthetic via TOSTRING(emp_no) AS $$emp_no$converted_to$keyword.
+        for (int i = 0; i < 2; i++) {
+            Project branchProject = as(unionAll.children().get(i), Project.class);
+            assertTrue(
+                "UnionAll branch [" + i + "] must expose [" + syntheticName + "]",
+                branchProject.projections().stream().anyMatch(p -> syntheticName.equals(p.name()))
+            );
+            Eval branchEval = as(branchProject.child(), Eval.class);
+            assertTrue(
+                "UnionAll branch [" + i + "] Eval must define [" + syntheticName + "] via TOSTRING(emp_no)",
+                branchEval.fields().stream().anyMatch(a -> syntheticName.equals(a.name()))
+            );
+        }
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Eval[[TOSTRING(id{r}#5) AS id_str#8]]
+     *   \_Project[[_meta_field{r}#31, emp_no{r}#32 AS id#5, first_name{r}#33, gender{r}#34, hire_date{r}#35, job{r}#36,
+     *              job.raw{r}#37, languages{r}#38, last_name{r}#39, long_noidx{r}#40, salary{r}#41]]
+     *     \_UnionAll[[_meta_field{r}#31, emp_no{r}#32, first_name{r}#33, gender{r}#34, hire_date{r}#35, job{r}#36,
+     *                 job.raw{r}#37, languages{r}#38, last_name{r}#39, long_noidx{r}#40, salary{r}#41]]
+     *       |_Project[[_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, ..., salary{f}#14]]
+     *       | \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, ..]
+     *       \_Project[[_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..., salary{f}#25]]
+     *         \_Subquery[]
+     *           \_EsRelation[test][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
+     */
+    public void testSubqueryWithRenameOnSameFieldAsConvertFunction() {
+        LogicalPlan plan = basic().query("""
+            FROM test, (FROM test)
+            | RENAME emp_no AS id
+            | EVAL id_str = to_string(id)
+            """);
+
+        // No synthetic exists anywhere in the analyzed plan.
+        plan.forEachUp(p -> p.output().forEach(attr -> {
+            assertFalse(
+                "Unexpected synthetic attribute [" + attr.name() + "] in plan node " + p.nodeName(),
+                attr.synthetic() && attr.name().startsWith("$$") && attr.name().contains("$converted_to$")
+            );
+        }));
+
+        // The EVAL contains the un-pushed-down TOSTRING(id) function call.
+        Limit limit = as(plan, Limit.class);
+        Eval outerEval = as(limit.child(), Eval.class);
+        assertEquals(1, outerEval.fields().size());
+        Alias idStrAlias = outerEval.fields().get(0);
+        assertEquals("id_str", idStrAlias.name());
+        ToString toStringFn = as(idStrAlias.child(), ToString.class);
+        ReferenceAttribute idRef = as(toStringFn.field(), ReferenceAttribute.class);
+        assertEquals("id", idRef.name());
+
+        // RENAME-Project below the EVAL exposes the alias [emp_no AS id], and only the regular columns
+        // (no synthetic carry-over because no synthetic was ever created).
+        Project renameProject = as(outerEval.child(), Project.class);
+        assertTrue(
+            "RENAME-Project must rename emp_no to id",
+            renameProject.projections().stream().anyMatch(p -> p instanceof Alias a && "id".equals(a.name()))
+        );
+        assertTrue(
+            "RENAME-Project should not carry over any synthetic conversion attributes",
+            renameProject.projections().stream().noneMatch(p -> p.name().startsWith("$$") && p.name().contains("$converted_to$"))
+        );
+
+        UnionAll unionAll = as(renameProject.child(), UnionAll.class);
+        assertEquals(2, unionAll.children().size());
+        assertTrue(
+            "UnionAll output should not contain any synthetic conversion attributes",
+            unionAll.output().stream().noneMatch(a -> a.name().startsWith("$$") && a.name().contains("$converted_to$"))
+        );
+    }
+
+    /*
+     * Project[[_meta_field{r}#31, id{r}#8, first_name{r}#33, gender{r}#34, hire_date{r}#35, job{r}#36, job.raw{r}#37,
+     *          languages{r}#38, last_name{r}#39, long_noidx{r}#40, salary{r}#41, emp_no_str{r}#5]]
+     * \_Limit[1000[INTEGER],false,false]
+     *   \_Project[[_meta_field{r}#31, emp_no{r}#32 AS id#8, first_name{r}#33, gender{r}#34, hire_date{r}#35, job{r}#36,
+     *              job.raw{r}#37, languages{r}#38, last_name{r}#39, long_noidx{r}#40, salary{r}#41, emp_no_str{r}#5,
+     *              $$emp_no$converted_to$keyword{r$}#44]]
+     *     \_Eval[[$$emp_no$converted_to$keyword{r$}#44 AS emp_no_str#5]]
+     *       \_UnionAll[[_meta_field{r}#31, emp_no{r}#32, $$emp_no$converted_to$keyword{r$}#44, first_name{r}#33, gender{r}#34,
+     *                   hire_date{r}#35, job{r}#36, job.raw{r}#37, languages{r}#38, last_name{r}#39, long_noidx{r}#40, salary{r}#41]]
+     *         |_Project[[_meta_field{f}#15, emp_no{f}#9, $$emp_no$converted_to$keyword{r$}#42, first_name{f}#10, gender{f}#11,
+     *                    hire_date{f}#16, job{f}#17, job.raw{f}#18, languages{f}#12, last_name{f}#13, long_noidx{f}#19, salary{f}#14]]
+     *         | \_Eval[[TOSTRING(emp_no{f}#9) AS $$emp_no$converted_to$keyword#42]]
+     *         |   \_EsRelation[test][_meta_field{f}#15, emp_no{f}#9, first_name{f}#10, ..]
+     *         \_Project[[_meta_field{f}#26, emp_no{f}#20, $$emp_no$converted_to$keyword{r$}#43, first_name{f}#21, gender{f}#22,
+     *                    hire_date{f}#27, job{f}#28, job.raw{f}#29, languages{f}#23, last_name{f}#24, long_noidx{f}#30, salary{f}#25]]
+     *           \_Eval[[TOSTRING(emp_no{f}#20) AS $$emp_no$converted_to$keyword#43]]
+     *             \_Subquery[]
+     *               \_EsRelation[test][_meta_field{f}#26, emp_no{f}#20, first_name{f}#21, ..]
+     */
+    public void testSubqueryWithConvertFunctionBeforeRenameOnSameField() {
+        assumeTrue(
+            "Require the fix of synthetic attributes carry over",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES.isEnabled()
+        );
+        LogicalPlan plan = basic().query("""
+            FROM test, (FROM test)
+            | EVAL emp_no_str = to_string(emp_no)
+            | RENAME emp_no AS id
+            """);
+
+        String syntheticName = "$$emp_no$converted_to$keyword";
+
+        // The outer Project added by UnionTypesCleanup drops the synthetic from the user-visible output.
+        Project outerProject = as(plan, Project.class);
+        assertTrue(
+            "User-visible projection should not expose [" + syntheticName + "]",
+            outerProject.projections().stream().noneMatch(p -> syntheticName.equals(p.name()))
+        );
+        // ...but must expose the user-facing renamed column and the new EVAL column.
+        assertTrue("User-visible projection must expose [id]", outerProject.projections().stream().anyMatch(p -> "id".equals(p.name())));
+        assertTrue(
+            "User-visible projection must expose [emp_no_str]",
+            outerProject.projections().stream().anyMatch(p -> "emp_no_str".equals(p.name()))
+        );
+
+        Limit limit = as(outerProject.child(), Limit.class);
+        Project renameProject = as(limit.child(), Project.class);
+        // The RENAME-Project must alias emp_no to id and ALSO carry over the synthetic so it remains
+        // visible above the EVAL until UnionTypesCleanup strips it. Without the fix, the synthetic would
+        // be dropped here.
+        assertTrue(
+            "RENAME-Project must rename emp_no to id",
+            renameProject.projections().stream().anyMatch(p -> p instanceof Alias a && "id".equals(a.name()))
+        );
+        assertTrue(
+            "RENAME-Project must expose [emp_no_str] (the EVAL alias)",
+            renameProject.projections().stream().anyMatch(p -> "emp_no_str".equals(p.name()))
+        );
+        assertTrue(
+            "RENAME-Project must carry over the synthetic [" + syntheticName + "]",
+            renameProject.projections().stream().anyMatch(p -> syntheticName.equals(p.name()))
+        );
+
+        Eval evalNode = as(renameProject.child(), Eval.class);
+        assertEquals(1, evalNode.fields().size());
+        Alias evalAlias = evalNode.fields().get(0);
+        assertEquals("emp_no_str", evalAlias.name());
+        ReferenceAttribute evalRef = as(evalAlias.child(), ReferenceAttribute.class);
+        assertEquals(syntheticName, evalRef.name());
+
+        UnionAll unionAll = as(evalNode.child(), UnionAll.class);
+        assertTrue(
+            "UnionAll output must contain [" + syntheticName + "]",
+            unionAll.output().stream().anyMatch(a -> syntheticName.equals(a.name()))
+        );
+    }
+
+    /*
+     * Limit[1000[INTEGER],false,false]
+     * \_Aggregate[[],[ABSENT($$id_int$converted_to$keyword{r$}#41,true[BOOLEAN],PT0S[TIME_DURATION])
+     *               AS absent(to_string(id_int))#11]]
+     *   \_MvExpand[other2{r}#5,other2{r}#38]
+     *     \_LookupJoin[LEFT,[id_int{r}#34, other2{r}#5],[id_int{f}#24, other2{f}#31],false,null]
+     *       |_Project[[extra1{r}#32, extra2{r}#33 AS other2#5, id_int{r}#34, ip_addr{r}#35, is_active_bool{r}#36,
+     *                  name_str{r}#37, $$id_int$converted_to$keyword{r$}#41]]
+     *       | \_UnionAll[[extra1{r}#32, extra2{r}#33, id_int{r}#34, $$id_int$converted_to$keyword{r$}#41,
+     *                     ip_addr{r}#35, is_active_bool{r}#36, name_str{r}#37]]
+     *       |   |_Project[[extra1{f}#16, extra2{f}#17, id_int{f}#12, $$id_int$converted_to$keyword{r$}#39,
+     *       |   |          ip_addr{f}#15, is_active_bool{f}#14, name_str{f}#13]]
+     *       |   | \_Eval[[TOSTRING(id_int{f}#12) AS $$id_int$converted_to$keyword#39]]
+     *       |   |   \_EsRelation[multi_column_joinable][extra1{f}#16, extra2{f}#17, id_int{f}#12, ip_addr{f..]
+     *       |   \_Project[[extra1{f}#22, extra2{f}#23, id_int{f}#18, $$id_int$converted_to$keyword{r$}#40,
+     *       |              ip_addr{f}#21, is_active_bool{f}#20, name_str{f}#19]]
+     *       |     \_Eval[[TOSTRING(id_int{f}#18) AS $$id_int$converted_to$keyword#40]]
+     *       |       \_Subquery[]
+     *       |         \_EsRelation[multi_column_joinable][extra1{f}#22, extra2{f}#23, id_int{f}#18, ip_addr{f..]
+     *       \_EsRelation[multi_column_joinable_lookup][LOOKUP][date{f}#28, date_nanos{f}#29, id_int{f}#24, ip_addr..]
+     */
+    public void testSubqueryWithRenameAndOtherProcessingCommandsWithConversionFunction() {
+        assumeTrue(
+            "Require the fix of synthetic attributes carry over",
+            EsqlCapabilities.Cap.SUBQUERY_IN_FROM_COMMAND_CARRY_OVER_SYNTHETIC_CONVERT_ATTRIBUTES.isEnabled()
+        );
+        LogicalPlan plan = analyzer().addIndex("multi_column_joinable", "mapping-multi_column_joinable.json")
+            .addLookupIndex("multi_column_joinable_lookup", "mapping-multi_column_joinable_lookup.json")
+            .query("""
+                FROM multi_column_joinable, (FROM multi_column_joinable)
+                | RENAME extra2 AS other2
+                | LOOKUP JOIN multi_column_joinable_lookup ON id_int, other2
+                | MV_EXPAND other2
+                | STATS absent(to_string(id_int))
+                """);
+
+        String syntheticName = "$$id_int$converted_to$keyword";
+
+        // Limit -> Aggregate (STATS) -> MvExpand -> LookupJoin -> Project (RENAME) -> UnionAll.
+        Limit limit = as(plan, Limit.class);
+        Aggregate aggregate = as(limit.child(), Aggregate.class);
+        // The aggregate's only expression is absent(to_string(id_int)), with to_string(id_int) already rewritten
+        // by ResolveUnionTypesInUnionAll.replaceConvertFunctions to a reference to the synthetic attribute.
+        assertEquals(1, aggregate.aggregates().size());
+        Alias aggAlias = as(aggregate.aggregates().get(0), Alias.class);
+        assertEquals("absent(to_string(id_int))", aggAlias.name());
+        // The Aggregate's child input set must expose the synthetic so the rewritten reference resolves.
+        assertTrue(
+            "Aggregate's input must include [" + syntheticName + "] for absent(to_string(id_int)) to resolve",
+            aggregate.inputSet().stream().anyMatch(a -> syntheticName.equals(a.name()))
+        );
+
+        MvExpand mvExpand = as(aggregate.child(), MvExpand.class);
+        ReferenceAttribute mvExpandTarget = as(mvExpand.target(), ReferenceAttribute.class);
+        assertEquals("other2", mvExpandTarget.name());
+
+        LookupJoin lookupJoin = as(mvExpand.child(), LookupJoin.class);
+        EsRelation lookupRight = as(lookupJoin.right(), EsRelation.class);
+        assertEquals("multi_column_joinable_lookup", lookupRight.indexPattern());
+
+        // The Project produced by RENAME extra2 AS other2 sits directly above the UnionAll on the LookupJoin's
+        // left side. Its projections must include the synthetic carried over from the UnionAll - this is the
+        // post-condition guaranteed by carryOverSyntheticAttributesThroughProjects.
+        Project renameProject = as(lookupJoin.left(), Project.class);
+        assertTrue(
+            "RENAME-Project above UnionAll must alias extra2 to other2",
+            renameProject.projections().stream().anyMatch(p -> p instanceof Alias a && "other2".equals(a.name()))
+        );
+        assertTrue(
+            "RENAME-Project above UnionAll must expose [" + syntheticName + "] in its projections",
+            renameProject.projections().stream().anyMatch(p -> syntheticName.equals(p.name()))
+        );
+
+        UnionAll unionAll = as(renameProject.child(), UnionAll.class);
+        assertTrue(
+            "UnionAll output must contain [" + syntheticName + "]",
+            unionAll.output().stream().anyMatch(a -> syntheticName.equals(a.name()))
+        );
+        assertEquals(2, unionAll.children().size());
+        // Each branch materializes the synthetic via TOSTRING(id_int) AS $$id_int$converted_to$keyword.
+        for (int i = 0; i < 2; i++) {
+            Project branchProject = as(unionAll.children().get(i), Project.class);
+            assertTrue(
+                "UnionAll branch [" + i + "] must expose [" + syntheticName + "]",
+                branchProject.projections().stream().anyMatch(p -> syntheticName.equals(p.name()))
+            );
+            Eval branchEval = as(branchProject.child(), Eval.class);
+            assertTrue(
+                "UnionAll branch [" + i + "] Eval must define [" + syntheticName + "] via TOSTRING(id_int)",
+                branchEval.fields().stream().anyMatch(a -> syntheticName.equals(a.name()))
+            );
         }
     }
 

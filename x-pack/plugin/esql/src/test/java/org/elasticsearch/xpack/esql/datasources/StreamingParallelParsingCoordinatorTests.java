@@ -22,6 +22,9 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.datasource.ndjson.NdJsonFormatReader;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStats;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
+import org.elasticsearch.xpack.esql.datasources.cache.StatsCapturingIterator;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -30,6 +33,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SimpleSourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.hamcrest.Matchers;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -38,8 +42,10 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -126,6 +132,61 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
         } finally {
             executor.shutdownNow();
         }
+    }
+
+    /**
+     * Mirror of {@code ParallelParsingCoordinatorTests#testParallelReadPropagatesPerSegmentPartialsToSink}
+     * for the streaming coordinator: the per-chunk parser tasks run on worker threads, so without an
+     * explicit sink parameter the reader's close hook publishes into a {@link ThreadLocal} that's
+     * never bound there and every per-chunk contribution is dropped. The 9-arg {@code parallelRead}
+     * overload threads a consumer-owned sink; this test asserts the worker bind actually wires the
+     * publish into it.
+     */
+    public void testParallelReadPropagatesPerChunkPartialsToSink() throws Exception {
+        // Content needs to span > 2 chunk-buffers so the segmentator dispatches more than one chunk;
+        // chunkSize == reader.minimumSegmentSize() (= 512 here), so ~5000 bytes gives ~10 chunks.
+        int lineCount = 500;
+        String content = buildContent(lineCount);
+        InputStream stream = new ByteArrayInputStream(content.getBytes(StandardCharsets.UTF_8));
+        String path = "mem://streaming-capture-test";
+        StatsPublishingLineReader reader = new StatsPublishingLineReader(512, path);
+
+        Map<String, List<Map<String, Object>>> sink = ExternalStatsCapture.newSink();
+        ExecutorService executor = Executors.newFixedThreadPool(6);
+        try {
+            CloseableIterator<Page> outer = StreamingParallelParsingCoordinator.parallelRead(
+                reader,
+                stream,
+                List.of("line"),
+                50,
+                4,
+                executor,
+                ErrorPolicy.STRICT,
+                null,
+                SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+                sink
+            );
+            try (CloseableIterator<Page> iter = StatsCapturingIterator.wrap(outer, sink)) {
+                while (iter.hasNext()) {
+                    iter.next().releaseBlocks();
+                }
+            }
+        } finally {
+            executor.shutdownNow();
+        }
+
+        List<Map<String, Object>> contributions = sink.getOrDefault(path, List.of());
+        long partialCount = contributions.stream().filter(m -> Boolean.TRUE.equals(m.get(ExternalStats.PARTIAL_CHUNK_KEY))).count();
+        assertThat(
+            "Streaming parallel parsing must propagate per-chunk partials to the bound sink. Saw "
+                + contributions.size()
+                + " total contributions, "
+                + partialCount
+                + " partials. Contributions: "
+                + contributions,
+            partialCount,
+            Matchers.greaterThanOrEqualTo(2L)
+        );
     }
 
     public void testParserErrorPropagates() throws Exception {
@@ -713,7 +774,8 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
                 executor,
                 ErrorPolicy.STRICT,
                 null,
-                maxRecordBytes
+                maxRecordBytes,
+                null
             );
             RuntimeException ex = expectThrows(RuntimeException.class, () -> collectLines(iterator));
             String chain = ex.toString() + (ex.getCause() != null ? " | cause: " + ex.getCause() : "");
@@ -1112,6 +1174,113 @@ public class StreamingParallelParsingCoordinatorTests extends ESTestCase {
 
         @Override
         public void close() {}
+    }
+
+    /**
+     * Wraps {@link LineFormatReader} so each chunk's iterator publishes a per-chunk
+     * {@code _stats.*} contribution via {@link ExternalStatsCapture#record} on natural EOF — same
+     * close-hook pattern as the production CSV / NDJSON chunk paths. Used by
+     * {@link #testParallelReadPropagatesPerChunkPartialsToSink} to observe whether streaming
+     * parallel-parsing worker threads can reach a bound sink. Publishes under a fixed
+     * {@code path} (not the per-chunk synthetic path the coordinator constructs) so the test can
+     * key into the sink by a known string.
+     */
+    private static class StatsPublishingLineReader implements SegmentableFormatReader, NoConfigFormatReader {
+
+        private final LineFormatReader delegate;
+        private final String path;
+
+        StatsPublishingLineReader(long minSegment, String path) {
+            this(new LineFormatReader(minSegment), path);
+        }
+
+        private StatsPublishingLineReader(LineFormatReader delegate, String path) {
+            this.delegate = delegate;
+            this.path = path;
+        }
+
+        @Override
+        public long findNextRecordBoundary(InputStream stream) throws IOException {
+            return delegate.findNextRecordBoundary(stream);
+        }
+
+        @Override
+        public long minimumSegmentSize() {
+            return delegate.minimumSegmentSize();
+        }
+
+        @Override
+        public SourceMetadata metadata(StorageObject object) {
+            return delegate.metadata(object);
+        }
+
+        @Override
+        public FormatReader withSchema(List<Attribute> schema) {
+            // Streaming coordinator swaps `reader` for the result; keep the publishing wrapper so
+            // post-inference chunk reads still record under `path`.
+            LineFormatReader bound = (LineFormatReader) delegate.withSchema(schema);
+            return new StatsPublishingLineReader(bound, path);
+        }
+
+        @Override
+        public CloseableIterator<Page> read(StorageObject object, FormatReadContext context) throws IOException {
+            return wrapPublishing(delegate.read(object, context), context);
+        }
+
+        CloseableIterator<Page> wrapPublishing(CloseableIterator<Page> inner, FormatReadContext context) {
+            boolean chunkMode = context.recordAligned();
+            return new CloseableIterator<>() {
+                long rowsEmitted = 0;
+                boolean naturallyExhausted = false;
+
+                @Override
+                public boolean hasNext() {
+                    if (inner.hasNext()) {
+                        return true;
+                    }
+                    naturallyExhausted = true;
+                    return false;
+                }
+
+                @Override
+                public Page next() {
+                    Page p = inner.next();
+                    rowsEmitted += p.getPositionCount();
+                    return p;
+                }
+
+                @Override
+                public void close() throws IOException {
+                    try {
+                        inner.close();
+                    } finally {
+                        if (naturallyExhausted) {
+                            Map<String, Object> stats = new HashMap<>();
+                            stats.put(SourceStatisticsSerializer.STATS_ROW_COUNT, rowsEmitted);
+                            if (chunkMode) {
+                                stats.put(ExternalStats.PARTIAL_CHUNK_KEY, Boolean.TRUE);
+                            }
+                            ExternalStatsCapture.record(path, stats);
+                        }
+                    }
+                }
+            };
+        }
+
+        @Override
+        public String formatName() {
+            return "test-stats-publishing-streaming-line";
+        }
+
+        @Override
+        public List<String> fileExtensions() {
+            return delegate.fileExtensions();
+        }
+
+        @Override
+        public void close() {
+            delegate.close();
+        }
     }
 
     /**

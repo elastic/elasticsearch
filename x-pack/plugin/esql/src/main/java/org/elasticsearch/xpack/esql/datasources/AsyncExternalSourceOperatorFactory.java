@@ -1370,7 +1370,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 // Under UBN, the query projection may include columns missing from this file; the adapter
                 // (SchemaAdaptingIterator wrapping the reader output below) null-fills those.
                 List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
-                pages = openWithParallelism(fileReader, obj, perFileCols, errorPolicy, recordAlignedMacro, firstSplit, perFileReadSchema);
+                pages = openWithParallelism(
+                    fileReader,
+                    obj,
+                    perFileCols,
+                    errorPolicy,
+                    recordAlignedMacro,
+                    firstSplit,
+                    perFileReadSchema,
+                    state.buffer.capturedSourceMetadataSink()
+                );
                 if (pages == null) {
                     boolean lastSplit = "true".equals(fileSplit.config().get(FileSplitProvider.LAST_SPLIT_KEY));
                     FormatReadContext ctx = FormatReadContext.builder()
@@ -1527,7 +1536,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 }
             }
             List<String> perFileCols = perFileQueryProjection(cols, perFileReadSchema);
-            pages = openWithParallelism(fileReader, obj, perFileCols, errorPolicy, false, true, perFileReadSchema);
+            pages = openWithParallelism(
+                fileReader,
+                obj,
+                perFileCols,
+                errorPolicy,
+                false,
+                true,
+                perFileReadSchema,
+                state.buffer.capturedSourceMetadataSink()
+            );
             if (pages == null) {
                 int fileBudget = rowLimit == FormatReader.NO_LIMIT ? FormatReader.NO_LIMIT : state.rowsRemaining;
                 FormatReadContext ctx = FormatReadContext.builder()
@@ -1617,7 +1635,16 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ActionListener<Void> failureListener = failureListener(buffer, driverContext);
         executor.execute(ActionRunnable.run(failureListener, () -> {
             FormatReader reader = readerWithDynamicThreshold(formatReader);
-            CloseableIterator<Page> pages = openWithParallelism(reader, storageObject, projectedColumns, errorPolicy, false, true, null);
+            CloseableIterator<Page> pages = openWithParallelism(
+                reader,
+                storageObject,
+                projectedColumns,
+                errorPolicy,
+                false,
+                true,
+                null,
+                buffer.capturedSourceMetadataSink()
+            );
             if (pages == null) {
                 FormatReadContext ctx = FormatReadContext.builder()
                     .projectedColumns(projectedColumns)
@@ -1832,7 +1859,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         ErrorPolicy policy,
         boolean recordAlignedMacroSplit,
         boolean splitIncludesFileLeader,
-        @Nullable List<Attribute> perFileReadSchema
+        @Nullable List<Attribute> perFileReadSchema,
+        @Nullable Map<String, List<Map<String, Object>>> captureSink
     ) throws IOException {
         if (rowLimit != FormatReader.NO_LIMIT || parsingParallelism <= 1) {
             return null;
@@ -1855,7 +1883,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                     recordAlignedMacroSplit,
                     splitIncludesFileLeader,
                     perFileReadSchema,
-                    maxConcurrentOpenSegments
+                    maxConcurrentOpenSegments,
+                    captureSink
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {
@@ -1891,7 +1920,8 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                         executor,
                         policy,
                         perFileReadSchema,
-                        maxRecordBytes
+                        maxRecordBytes,
+                        captureSink
                     );
                 } catch (Exception e) {
                     try {

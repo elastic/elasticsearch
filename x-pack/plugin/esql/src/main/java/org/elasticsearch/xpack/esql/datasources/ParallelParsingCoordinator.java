@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.datasources;
 
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -176,11 +177,11 @@ public final class ParallelParsingCoordinator {
     }
 
     /**
-     * Full-control overload that propagates the planner-resolved {@code readSchema} (so multi-file
-     * headerless reads do not drift per file). Pass {@code null} to fall back to per-file inference.
-     * Uses the {@link #DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS default} open-segment cap; callers that
-     * resolve the {@code max_concurrent_open_segments} pragma use the {@code maxConcurrentOpenSegments}
-     * overload.
+     * Forwards to the full-control overload with the {@link #DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS
+     * default} open-segment cap and {@code captureSink=null} (text-format readers' close hooks
+     * then publish into whatever {@link ExternalStatsCapture} sink — if any — happens to be bound
+     * on the calling thread). Callers that resolve the {@code max_concurrent_open_segments} pragma
+     * or care about cross-thread stats capture use the 12-arg overload.
      *
      * @param readSchema planner-bound read schema, or {@code null} for per-file inference
      */
@@ -207,17 +208,28 @@ public final class ParallelParsingCoordinator {
             splitStartsAtRecordBoundary,
             splitIncludesFileLeader,
             readSchema,
-            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS
+            DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
+            null
         );
     }
 
     /**
-     * Full-control overload that also takes the {@code max_concurrent_open_segments} cap — the per-file
-     * limit on byte-range segments whose read streams are open at once. Because the consumer drains
-     * segments in order, only the head segments need be open; this caps the open-stream / buffer count
-     * independent of file count and length. See {@link OrderedParallelIterator}.
+     * Full-control overload that takes both the {@code max_concurrent_open_segments} cap and an
+     * explicit {@code captureSink} for per-chunk source-stats contributions.
+     * <p>
+     * {@code maxConcurrentOpenSegments} is the per-file limit on byte-range segments whose read
+     * streams are open at once. Because the consumer drains segments in order, only the head
+     * segments need be open; this caps the open-stream / buffer count independent of file count and
+     * length. See {@link OrderedParallelIterator}.
+     * <p>
+     * Each segment is parsed on a worker thread; this coordinator binds {@code captureSink} on that
+     * worker around the per-segment {@link CloseableIterator#close()} so text-format readers' close
+     * hooks see the same sink the consumer-thread wrapper sees. Pass {@code null} when no capture
+     * is desired (tests, benchmarks).
      *
      * @param maxConcurrentOpenSegments per-file cap on concurrently-open segment streams (>= 1)
+     * @param captureSink               consumer-owned per-file stats sink to bind on each parser
+     *                                  worker, or {@code null} to disable capture
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -230,7 +242,8 @@ public final class ParallelParsingCoordinator {
         boolean splitStartsAtRecordBoundary,
         boolean splitIncludesFileLeader,
         List<Attribute> readSchema,
-        int maxConcurrentOpenSegments
+        int maxConcurrentOpenSegments,
+        @Nullable Map<String, List<Map<String, Object>>> captureSink
     ) throws IOException {
         long fileLength = storageObject.length();
         long minSegment = reader.minimumSegmentSize();
@@ -278,7 +291,8 @@ public final class ParallelParsingCoordinator {
             maxConcurrentOpenSegments,
             effectivePolicy,
             splitIncludesFileLeader,
-            readSchema
+            readSchema,
+            captureSink
         );
         // Fully constructed and published before any worker is dispatched — see OrderedParallelIterator#start.
         iterator.start();
@@ -360,8 +374,17 @@ public final class ParallelParsingCoordinator {
         private final int batchSize;
         private final ErrorPolicy errorPolicy;
         private final boolean splitIncludesFileLeader;
-        @org.elasticsearch.core.Nullable
+        @Nullable
         private final List<Attribute> readSchema;
+        /**
+         * Consumer-owned per-file stats sink. Captured at construction so each segment worker can
+         * bind it around {@code reader.read(...).close()} — the text-format readers' close hooks
+         * publish per-chunk {@code _stats.*} contributions through {@link ExternalStatsCapture},
+         * and {@code ACTIVE} is a plain {@link ThreadLocal} that does not propagate to executor
+         * threads. {@code null} disables per-segment capture (e.g. tests, benchmarks).
+         */
+        @Nullable
+        private final Map<String, List<Map<String, Object>>> captureSink;
 
         private final List<long[]> segments;
         private final Executor executor;
@@ -385,7 +408,8 @@ public final class ParallelParsingCoordinator {
             int maxConcurrentOpenSegments,
             ErrorPolicy errorPolicy,
             boolean splitIncludesFileLeader,
-            List<Attribute> readSchema
+            List<Attribute> readSchema,
+            @Nullable Map<String, List<Map<String, Object>>> captureSink
         ) {
             this.reader = reader;
             this.storageObject = storageObject;
@@ -394,6 +418,7 @@ public final class ParallelParsingCoordinator {
             this.errorPolicy = errorPolicy;
             this.splitIncludesFileLeader = splitIncludesFileLeader;
             this.readSchema = readSchema;
+            this.captureSink = captureSink;
             this.segments = segments;
             this.executor = executor;
             // Single clamp site for the effective window: the configured cap, never more than the parser
@@ -482,8 +507,16 @@ public final class ParallelParsingCoordinator {
                     .recordAligned(true)
                     .readSchema(readSchema)
                     .build();
+                // Bind the consumer-owned sink on this worker so the reader's close hook (which
+                // publishes the chunk's _stats.* contribution via ExternalStatsCapture.record) reaches
+                // the same map the consumer-thread StatsCapturingIterator binds. The bind handle is
+                // declared *after* the pages iterator so try-with-resources closes pages first — the
+                // record() call happens with the sink still bound, then the handle restores the
+                // previous binding. ExternalStatsCapture.bind tolerates a null sink (no-op handle),
+                // so the captureSink == null branch is just the existing semantics.
+                ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
                 CloseableIterator<Page> pages = reader.read(segObj, ctx);
-                try (pages) {
+                try (bound; pages) {
                     while (pages.hasNext()) {
                         if (firstError.get() != null || closed) {
                             break;

@@ -15,6 +15,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.datasources.cache.ExternalStatsCapture;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -28,6 +29,7 @@ import java.io.InputStream;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.CountDownLatch;
@@ -102,15 +104,18 @@ public final class StreamingParallelParsingCoordinator {
             executor,
             errorPolicy,
             null,
-            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES,
+            null
         );
     }
 
     /**
-     * Variant that propagates the planner-resolved {@code readSchema}. Mirrors the same parameter on
-     * {@link ParallelParsingCoordinator#parallelRead}; the streaming path must thread it so multi-file
-     * globs over gzip/zstd/bz2 inputs honor the planner's typing instead of re-inferring per file.
-     * Pass {@code null} when no read schema is bound.
+     * Full-control overload that takes both the {@code max_record_size} grow-loop bound and an
+     * explicit consumer-owned {@code captureSink} for per-chunk source-stats contributions. Each
+     * chunk is parsed on a worker thread; this coordinator binds {@code captureSink} on that worker
+     * around the per-chunk {@link CloseableIterator#close()} so text-format readers' close hooks
+     * publish into the same map the consumer-thread wrapper sees. Pass {@code null} for the sink
+     * when no capture is desired (tests, benchmarks).
      */
     public static CloseableIterator<Page> parallelRead(
         SegmentableFormatReader reader,
@@ -121,7 +126,8 @@ public final class StreamingParallelParsingCoordinator {
         Executor executor,
         ErrorPolicy errorPolicy,
         @Nullable List<Attribute> readSchema,
-        int maxRecordBytes
+        int maxRecordBytes,
+        @Nullable Map<String, List<Map<String, Object>>> captureSink
     ) throws IOException {
         if (logger.isDebugEnabled()) {
             logger.debug(
@@ -152,7 +158,8 @@ public final class StreamingParallelParsingCoordinator {
             executor,
             effectivePolicy,
             readSchema,
-            maxRecordBytes
+            maxRecordBytes,
+            captureSink
         );
     }
 
@@ -177,6 +184,13 @@ public final class StreamingParallelParsingCoordinator {
         /** See {@link FormatReadContext#readSchema()}. {@code null} = per-file inference. */
         @Nullable
         private final List<Attribute> readSchema;
+        /**
+         * Consumer-owned per-file stats sink. Captured at construction so each chunk's parser worker
+         * can bind it around {@code reader.read(...).close()} — see {@link ExternalStatsCapture} for
+         * why this can't piggyback on the thread-local in production.
+         */
+        @Nullable
+        private final Map<String, List<Map<String, Object>>> captureSink;
 
         private final ArrayBlockingQueue<byte[]> bufferPool;
         private final ArrayBlockingQueue<Chunk> chunkQueue;
@@ -236,7 +250,8 @@ public final class StreamingParallelParsingCoordinator {
             Executor executor,
             ErrorPolicy errorPolicy,
             @Nullable List<Attribute> readSchema,
-            int maxRecordBytes
+            int maxRecordBytes,
+            @Nullable Map<String, List<Map<String, Object>>> captureSink
         ) {
             this.reader = reader;
             this.projectedColumns = projectedColumns;
@@ -244,6 +259,7 @@ public final class StreamingParallelParsingCoordinator {
             this.errorPolicy = errorPolicy;
             this.readSchema = readSchema;
             this.maxRecordBytes = maxRecordBytes;
+            this.captureSink = captureSink;
             this.bufferPoolSize = parallelism + 1;
             this.pageQueueRingSize = parallelism + 1;
 
@@ -525,7 +541,14 @@ public final class StreamingParallelParsingCoordinator {
                     .recordAligned(true)
                     .readSchema(readSchema)
                     .build();
-                try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
+                // Bind the consumer-owned sink on this worker so the reader's close hook reaches
+                // the same map the consumer-thread StatsCapturingIterator binds. Declared after the
+                // pages iterator so try-with closes pages first — record() runs with sink still bound,
+                // handle then restores the previous binding. ExternalStatsCapture.bind treats null
+                // pre-existing as remove, so this is safe on the generic executor pool.
+                ExternalStatsCapture.Handle bound = captureSink != null ? ExternalStatsCapture.bind(captureSink) : () -> {};
+                CloseableIterator<Page> pages = reader.read(chunkObj, ctx);
+                try (bound; pages) {
                     while (pages.hasNext()) {
                         if (firstError.get() != null || closed) {
                             break;

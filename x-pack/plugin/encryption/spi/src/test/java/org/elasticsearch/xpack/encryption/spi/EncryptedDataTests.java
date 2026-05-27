@@ -57,12 +57,7 @@ public class EncryptedDataTests extends AbstractXContentSerializingTestCase<Encr
         assertThat(str, containsString("::es_redacted::"));
     }
 
-    /**
-     * Round-trips through {@code writeGenericValue}/{@code readGenericValue} — the path ES|QL plan configs
-     * use — to prove the carrier survives generic-value serialization as a {@link
-     * org.elasticsearch.common.io.stream.GenericNamedWriteable}, so an encrypted secret can travel inside a
-     * plan's config map.
-     */
+    /** The carrier must survive {@code writeGenericValue}/{@code readGenericValue} — the path ES|QL plan configs use. */
     public void testRidesGenericValueSerialization() throws IOException {
         EncryptedData original = createTestInstance();
         NamedWriteableRegistry registry = new NamedWriteableRegistry(List.of(EncryptedData.ENTRY));

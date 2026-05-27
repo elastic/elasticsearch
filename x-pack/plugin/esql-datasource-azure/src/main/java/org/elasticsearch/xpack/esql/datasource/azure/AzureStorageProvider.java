@@ -144,8 +144,7 @@ public final class AzureStorageProvider implements StorageProvider {
                 throw new IllegalStateException("Azure credentials require connection_string, (account + key), or (account + sas_token)");
             }
         } else {
-            // The node's ambient identity must never authenticate a data-source read: a node in one cloud
-            // may target a container in another. Require explicit credentials or anonymous access.
+            // No ambient fallback: the node may run in a different cloud than the container it targets.
             throw new IllegalArgumentException(
                 "Azure data source requires credentials: provide WITH (connection_string = '...'), "
                     + "WITH (account = '...', key = '...'), WITH (account = '...', sas_token = '...'), "

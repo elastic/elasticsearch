@@ -66,11 +66,7 @@ public class StorageProviderRegistry implements Closeable {
     private final StorageProviderCache configuredProviderCache = new StorageProviderCache();
 
     private final Settings settings;
-    /**
-     * Decrypts encrypted data-source secrets just before a provider client is built — the single point of
-     * use shared by every construction path (file source, split discovery, storage manager), on both the
-     * coordinator (resolution) and data nodes (execution). {@code null} in tests with no encryption.
-     */
+    /** Decrypts data-source secrets at the single provider-build chokepoint; {@code null} in tests with no encryption. */
     @Nullable
     private final DataSourceCredentials credentials;
     private volatile int maxConcurrentRequests;

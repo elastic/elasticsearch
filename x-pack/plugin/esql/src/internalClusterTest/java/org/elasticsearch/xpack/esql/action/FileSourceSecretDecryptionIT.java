@@ -64,22 +64,11 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.xpack.esql.action.EsqlQueryRequest.syncEsqlQueryRequest;
 
 /**
- * Proves the file-on-blob-storage read path never decrypts secret data-source credentials before
- * handing them to a {@link StorageProvider}.
- *
- * <p>Secrets are encrypted at rest as {@link org.elasticsearch.xpack.encryption.spi.EncryptedData}
- * (see {@code DataSourceService.applyEncryption}) and forwarded raw under the {@code _datasource}
- * config key (see {@code DatasetRewriter.mergeSettings}). On the connector/catalog path the lazy
- * wrappers in {@code DataSourceModule} call {@code DataSourceCredentials.decryptInPlace} before each
- * use. The file path — {@code FileSourceFactory} via {@code ExternalSourceResolver.storageConfig} —
- * has no such step, so the {@link StorageProvider} factory receives the secret as an
- * {@code EncryptedData} object instead of the decrypted plaintext {@code String}.
- *
- * <p>The {@link CapturingStorageProvider} below records the runtime value (and class) of the
- * {@code secret_token} config key at provider-construction time and also serves the underlying local
- * fixture file so the format reader can actually read it. The test asserts the captured value is the
- * plaintext {@code "S3CR3T"} String. With the gap present this assertion FAILS — the captured value
- * is an {@code EncryptedData}.
+ * Regression guard for the file-on-blob-storage read path: the {@link StorageProvider} factory must
+ * receive the decrypted plaintext secret, not the {@link org.elasticsearch.xpack.encryption.spi.EncryptedData}
+ * carrier it is stored as. {@code StorageProviderRegistry} decrypts at the single point every provider
+ * client is built. The capturing provider records the value it observes for the {@code secret_token} key;
+ * the test asserts it is the plaintext {@code String} across csv/tsv/ndjson/parquet.
  *
  * <p>Single-node by design, mirroring {@link FromDatasetIT}; multi-node dataset publication trips an
  * unrelated assertion on {@code main}.
@@ -96,7 +85,7 @@ public class FileSourceSecretDecryptionIT extends AbstractEsqlIntegTestCase {
     static volatile Object capturedSecret;
     /** Whether the {@link #SECRET_KEY} key was even present in the config map handed to the factory. */
     static volatile boolean capturedSecretKeyPresent;
-    /** Coarse marker for where the provider got created — resolution (coordinator) vs execution (data node). */
+    /** Name of the thread that built the provider, logged for debugging. */
     static volatile String capturedConstructionThread;
 
     /**

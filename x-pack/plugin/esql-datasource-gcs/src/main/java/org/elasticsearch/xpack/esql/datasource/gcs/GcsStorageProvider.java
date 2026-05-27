@@ -115,8 +115,7 @@ public final class GcsStorageProvider implements StorageProvider {
                 }
                 builder.setCredentials(credentials);
             } else {
-                // The node's ambient identity must never authenticate a data-source read: a node in one cloud
-                // may target a bucket in another. Require explicit credentials or anonymous access.
+                // No ambient fallback: the node may run in a different cloud than the bucket it targets.
                 throw new IllegalArgumentException(
                     "GCS data source requires credentials: provide WITH (service_account_credentials = '...'), "
                         + "or WITH (auth = 'none') for public buckets"

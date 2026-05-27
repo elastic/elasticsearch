@@ -121,8 +121,7 @@ public final class S3StorageProvider implements StorageProvider {
         } else if (config != null && config.hasCredentials()) {
             credentialsProvider = StaticCredentialsProvider.create(AwsBasicCredentials.create(config.accessKey(), config.secretKey()));
         } else {
-            // The node's ambient identity must never authenticate a data-source read: a node in one cloud
-            // may target a bucket in another. Require explicit credentials or anonymous access.
+            // No ambient fallback: the node may run in a different cloud than the bucket it targets.
             throw new IllegalArgumentException(
                 "S3 data source requires credentials: provide WITH (access_key = '...', secret_key = '...'), "
                     + "or WITH (auth = 'none') for public buckets"

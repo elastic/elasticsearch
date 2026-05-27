@@ -57,6 +57,8 @@ import org.elasticsearch.xpack.esql.datasources.spi.ColumnBlockConversions;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractorAware;
 import org.elasticsearch.xpack.esql.datasources.spi.Configured;
+import org.elasticsearch.xpack.esql.datasources.spi.DynamicThreshold;
+import org.elasticsearch.xpack.esql.datasources.spi.DynamicThresholdAware;
 import org.elasticsearch.xpack.esql.datasources.spi.FilterPushdownSupport;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
@@ -103,7 +105,7 @@ import java.util.concurrent.ExecutionException;
  *   <li>Direct conversion from Parquet to ESQL blocks</li>
  * </ul>
  */
-public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtractorAware {
+public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtractorAware, DynamicThresholdAware {
 
     private static final Logger logger = LogManager.getLogger(ParquetFormatReader.class);
 
@@ -120,6 +122,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     private final boolean forceBaselinePath;
     private final boolean optimizedReader;
     private final boolean lateMaterializationEnabled;
+    private final DynamicThreshold dynamicThreshold;
     // Shared across all iterators created by this reader: holds lazy decompressor instances and
     // pays the per-codec init cost once. The factory is stateless across files/row groups.
     private final PlainCompressionCodecFactory codecFactory = new PlainCompressionCodecFactory();
@@ -193,11 +196,11 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
     }
 
     public ParquetFormatReader(BlockFactory blockFactory) {
-        this(blockFactory, FilterCompat.NOOP, null, false, true, true);
+        this(blockFactory, FilterCompat.NOOP, null, false, true, true, null);
     }
 
     ParquetFormatReader(BlockFactory blockFactory, boolean optimizedReader) {
-        this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader, true);
+        this(blockFactory, FilterCompat.NOOP, null, false, optimizedReader, true, null);
     }
 
     private ParquetFormatReader(
@@ -206,7 +209,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         ParquetPushedExpressions pushedExpressions,
         boolean forceBaselinePath,
         boolean optimizedReader,
-        boolean lateMaterializationEnabled
+        boolean lateMaterializationEnabled,
+        DynamicThreshold dynamicThreshold
     ) {
         this.blockFactory = blockFactory;
         this.pushedFilter = pushedFilter;
@@ -214,6 +218,7 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         this.forceBaselinePath = forceBaselinePath;
         this.optimizedReader = optimizedReader;
         this.lateMaterializationEnabled = lateMaterializationEnabled;
+        this.dynamicThreshold = dynamicThreshold;
     }
 
     /**
@@ -222,13 +227,29 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
      * testing against the optimized path.
      */
     ParquetFormatReader withBaselinePath() {
-        return new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, true, optimizedReader, lateMaterializationEnabled);
+        return new ParquetFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            true,
+            optimizedReader,
+            lateMaterializationEnabled,
+            dynamicThreshold
+        );
     }
 
     @Override
     public ParquetFormatReader withPushedFilter(Object pushedFilter) {
         if (pushedFilter instanceof FilterCompat.Filter filter) {
-            return new ParquetFormatReader(blockFactory, filter, null, forceBaselinePath, optimizedReader, lateMaterializationEnabled);
+            return new ParquetFormatReader(
+                blockFactory,
+                filter,
+                null,
+                forceBaselinePath,
+                optimizedReader,
+                lateMaterializationEnabled,
+                dynamicThreshold
+            );
         }
         if (pushedFilter instanceof ParquetPushedExpressions exprs) {
             return new ParquetFormatReader(
@@ -237,10 +258,24 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
                 exprs,
                 forceBaselinePath,
                 optimizedReader,
-                lateMaterializationEnabled
+                lateMaterializationEnabled,
+                dynamicThreshold
             );
         }
         return this;
+    }
+
+    @Override
+    public FormatReader withDynamicThreshold(DynamicThreshold threshold) {
+        return new ParquetFormatReader(
+            blockFactory,
+            pushedFilter,
+            pushedExpressions,
+            forceBaselinePath,
+            optimizedReader,
+            lateMaterializationEnabled,
+            threshold
+        );
     }
 
     @Override
@@ -252,7 +287,15 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         boolean newLateMat = parseBooleanConfig(config, CONFIG_LATE_MATERIALIZATION, lateMaterializationEnabled);
         FormatReader result = (newOptimized == optimizedReader && newLateMat == lateMaterializationEnabled)
             ? this
-            : new ParquetFormatReader(blockFactory, pushedFilter, pushedExpressions, forceBaselinePath, newOptimized, newLateMat);
+            : new ParquetFormatReader(
+                blockFactory,
+                pushedFilter,
+                pushedExpressions,
+                forceBaselinePath,
+                newOptimized,
+                newLateMat,
+                dynamicThreshold
+            );
         return Configured.fromKnownSubset(result, config, RECOGNIZED_KEYS);
     }
 
@@ -291,7 +334,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /**
      * Opens a Parquet reader, mapping parquet-mr failures (checked and unchecked) to an
-     * {@link IOException} that includes the storage object URI for operators and REST clients.
+     * {@link IllegalArgumentException} that includes the storage object URI. This ensures
+     * invalid/corrupt Parquet files produce HTTP 400 rather than 500.
      */
     private static ParquetFileReader openParquetFile(
         StorageObject object,
@@ -417,12 +461,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return offsets;
     }
 
-    private static IOException newInvalidParquetFileException(String uri, Exception e) {
+    private static IllegalArgumentException newInvalidParquetFileException(String uri, Exception e) {
         String detail = e.getMessage();
         if (detail == null || detail.isEmpty()) {
             detail = e.getClass().getSimpleName();
         }
-        return new IOException("Could not read [" + uri + "] as a Parquet file: " + detail, e);
+        return new IllegalArgumentException("Could not read [" + uri + "] as a Parquet file: " + detail, e);
     }
 
     @Override
@@ -433,9 +477,39 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         try (ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, options)) {
             FileMetaData fileMetaData = reader.getFileMetaData();
             MessageType parquetSchema = fileMetaData.getSchema();
+            validateFooterIntegrity(object.path().toString(), parquetSchema, reader.getRowGroups());
             List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
             SourceStatistics statistics = extractStatistics(reader, schema);
             return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
+        }
+    }
+
+    /**
+     * Validates footer-level invariants that, if violated, indicate a corrupt file. Currently
+     * checks that required columns (maxDefinitionLevel == 0) do not report non-zero null counts
+     * in their row-group statistics. Such files pass parquet-mr footer parsing but produce
+     * garbage or exceptions during data-page decoding.
+     */
+    static void validateFooterIntegrity(String uri, MessageType schema, List<BlockMetaData> rowGroups) {
+        for (BlockMetaData rowGroup : rowGroups) {
+            for (ColumnChunkMetaData col : rowGroup.getColumns()) {
+                String[] path = col.getPath().toArray();
+                ColumnDescriptor desc = schema.getColumnDescription(path);
+                if (desc != null && desc.getMaxDefinitionLevel() == 0) {
+                    Statistics<?> stats = col.getStatistics();
+                    if (stats != null && stats.getNumNulls() > 0) {
+                        throw new IllegalArgumentException(
+                            "Could not read ["
+                                + uri
+                                + "] as a Parquet file: column ["
+                                + col.getPath().toDotString()
+                                + "] is declared required but row group reports "
+                                + stats.getNumNulls()
+                                + " null(s)"
+                        );
+                    }
+                }
+            }
         }
     }
 
@@ -1086,8 +1160,24 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
             effectivePushed,
             triviallyPassesPredicate,
             this,
-            fullFooter
+            fullFooter,
+            dynamicThreshold,
+            resolveDynamicThresholdColumn(fileSchema, dynamicThreshold)
         );
+    }
+
+    private static ColumnDescriptor resolveDynamicThresholdColumn(MessageType schema, DynamicThreshold dynamicThreshold) {
+        if (dynamicThreshold == null) {
+            return null;
+        }
+        String columnName = dynamicThreshold.columnName();
+        for (ColumnDescriptor descriptor : schema.getColumns()) {
+            String[] path = descriptor.getPath();
+            if (String.join(".", path).equals(columnName) || (path.length == 1 && path[0].equals(columnName))) {
+                return descriptor;
+            }
+        }
+        return null;
     }
 
     /**

@@ -29,6 +29,10 @@ import java.util.concurrent.atomic.AtomicInteger;
  * to thread the script receiver through the lambda's captured fields, so the lambda
  * body shares the script's persistent {@code $cancelPoll} counter and can fetch the
  * cancel {@code Runnable} via {@code _getCancellationCheck()}.
+ *
+ * Also covers nested lambdas (lambda inside a lambda) and method references inside
+ * lambdas, to confirm the script receiver propagates correctly through multiple
+ * levels of synthetic indirection.
  */
 public class DefLambdaCancellationTests extends ScriptTestCase {
 
@@ -119,5 +123,179 @@ public class DefLambdaCancellationTests extends ScriptTestCase {
         AtomicInteger callCount = new AtomicInteger();
         script._setCancellationCheck(callCount::incrementAndGet);
         script.execute();
+    }
+
+    /**
+     * Nested def lambdas: an outer def lambda iterates a def collection, and each invocation
+     * dispatches an inner def lambda whose body contains the spinning loop.  Both levels are
+     * non-static methods on the script class and share the same {@code $cancelPoll} counter,
+     * so the runnable fires regardless of which level the loop lives in.
+     */
+    public void testNestedDefLambdas() {
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "def outer = new ArrayList(); outer.add(new ArrayList()); outer.get(0).add(1);"
+                + "outer.removeIf(inner -> {"
+                + "  inner.removeIf(x -> { int i = 0; while (i < 2000000) { i++; } return false; });"
+                + "  return false;"
+                + "});"
+        );
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-nested-def");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-nested-def", ex.getCause().getMessage());
+        assertTrue(callCount.get() >= 1);
+    }
+
+    /**
+     * Typed outer lambda containing a def inner lambda: the inner lambda's receiver is def
+     * (since it came out of a def collection), so the inner is def-dispatched while the outer
+     * uses {@code LambdaBootstrap}.  Both must propagate the script receiver.
+     */
+    public void testTypedLambdaContainingDefLambda() {
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "List outer = new ArrayList(); def inner = new ArrayList(); inner.add(1); outer.add(inner);"
+                + "outer.removeIf(item -> {"
+                + "  item.removeIf(x -> { int i = 0; while (i < 2000000) { i++; } return false; });"
+                + "  return false;"
+                + "});"
+        );
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-typed-outer-def-inner");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-typed-outer-def-inner", ex.getCause().getMessage());
+        assertTrue(callCount.get() >= 1);
+    }
+
+    /**
+     * Def outer lambda containing a typed inner lambda: the inner lambda's body declares its
+     * own typed receiver, so the inner is statically dispatched.  Both must still poll.
+     */
+    public void testDefLambdaContainingTypedLambda() {
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "def outer = new ArrayList(); outer.add(1);"
+                + "outer.removeIf(x -> {"
+                + "  List inner = new ArrayList(); inner.add(1);"
+                + "  inner.removeIf(y -> { int i = 0; while (i < 2000000) { i++; } return false; });"
+                + "  return false;"
+                + "});"
+        );
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-def-outer-typed-inner");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-def-outer-typed-inner", ex.getCause().getMessage());
+        assertTrue(callCount.get() >= 1);
+    }
+
+    /**
+     * Method reference to a user-defined Painless function passed to a def-typed forEach.
+     * The user function is itself an instance method on the script class with
+     * {@code IRCCancellationCheck} attached, so the cancellation poll fires on every
+     * invocation — not because of any lambda machinery but via the regular function-entry
+     * decrement.
+     */
+    public void testDefMethodReferenceToUserFunction() {
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "void process(def x) { int i = 0; while (i < 2000000) { i++; } }"
+                + "def l = new ArrayList(); l.add(1);"
+                + "l.forEach(this::process);"
+        );
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-def-methodref");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-def-methodref", ex.getCause().getMessage());
+        assertTrue(callCount.get() >= 1);
+    }
+
+    /**
+     * Method reference inside a def lambda body: the outer def lambda is the cancellation-
+     * aware wrapper; the inner forEach over a def collection takes a method reference to a
+     * user-defined Painless function.  Cancellation fires from the user function's own
+     * cancellation poll.
+     */
+    public void testMethodReferenceInsideDefLambda() {
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "void process(def x) { int i = 0; while (i < 2000000) { i++; } }"
+                + "def outer = new ArrayList(); def inner = new ArrayList(); inner.add(1); outer.add(inner);"
+                + "outer.removeIf(item -> { item.forEach(this::process); return false; });"
+        );
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-methodref-in-def-lambda");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-methodref-in-def-lambda", ex.getCause().getMessage());
+        assertTrue(callCount.get() >= 1);
+    }
+
+    /**
+     * Def lambda whose body calls a user-defined Painless function directly: the lambda
+     * itself dispatches via DefBootstrap; the function call inside the lambda body is a
+     * normal local-function invocation which carries its own cancellation prologue.
+     */
+    public void testDefLambdaCallingUserFunction() {
+        ScriptedMetricAggContexts.InitScript script = compileInit(
+            "void spin() { int i = 0; while (i < 2000000) { i++; } }"
+                + "def l = new ArrayList(); l.add(1);"
+                + "l.removeIf(x -> { spin(); return false; });"
+        );
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-def-call-user-fn");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-def-call-user-fn", ex.getCause().getMessage());
+        assertTrue(callCount.get() >= 1);
+    }
+
+    /**
+     * Verifies that the cancellation poll fires even when neither lambda has a loop, purely
+     * from the per-invocation function-entry decrement.  With many def lambda invocations,
+     * the shared {@code $cancelPoll} counter eventually drops to zero and the runnable
+     * fires.  This is the case that motivated the entry-time decrement in the first place.
+     */
+    public void testManyDefLambdaInvocationsTripCounter() {
+        StringBuilder source = new StringBuilder("def l = new ArrayList();");
+        for (int i = 0; i < 3000; i++) {
+            source.append(" l.add(").append(i).append(");");
+        }
+        source.append(" l.removeIf(x -> { return false; });");
+
+        ScriptedMetricAggContexts.InitScript script = compileInit(source.toString());
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-many-invocations");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-many-invocations", ex.getCause().getMessage());
+        assertTrue(callCount.get() >= 1);
     }
 }

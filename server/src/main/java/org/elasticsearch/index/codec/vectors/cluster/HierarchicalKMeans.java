@@ -802,6 +802,13 @@ public class HierarchicalKMeans {
             }
         }
 
+        // Post-check: bail to full rebuild if the single assignment pass produced a degenerate
+        // distribution. Mirrors the guard in clusterByConcatenation.
+        if (concatClusteringIsDegenerate(centroidVectorCount)) {
+            logger.debug("clusterByInsertion: post-assignment distribution is degenerate, falling back to full rebuild");
+            return cluster(vectors, targetSize);
+        }
+
         splitOversizedClusters(vectors, kMeansIntermediate, centroidVectorCount, assignments, targetSize);
 
         // Neighborhood-aware refinement + SOAR with minimal iteration.

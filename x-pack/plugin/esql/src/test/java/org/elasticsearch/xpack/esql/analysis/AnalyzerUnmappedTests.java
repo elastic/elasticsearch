@@ -483,19 +483,12 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoadForkWithLookupJoin_ForkErrors() {
-        test().addLanguagesLookup()
-            .statementError(
-                setUnmappedLoad("""
-                    FROM test
-                    | EVAL language_code = languages
-                    | LOOKUP JOIN languages_lookup ON language_code
-                    | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
-                    """),
-                allOf(
-                    containsString("Found 1 problem"),
-                    containsString("FORK is not supported with unmapped_fields=\"load\"")
-                )
-            );
+        test().addLanguagesLookup().statementError(setUnmappedLoad("""
+            FROM test
+            | EVAL language_code = languages
+            | LOOKUP JOIN languages_lookup ON language_code
+            | FORK (WHERE emp_no > 1) (WHERE emp_no < 100)
+            """), allOf(containsString("Found 1 problem"), containsString("FORK is not supported with unmapped_fields=\"load\"")));
     }
 
     public void testLoadMode_AllowsSingleSubqueryInFrom() {

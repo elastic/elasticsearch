@@ -98,20 +98,19 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
 
         /**
          * Exclude the given expressions from the local expressions of all prior added {@link ResolvedIndexExpression}.
+         * When {@code excludeRemotes} is {@code true}, a matching entry is dropped entirely; otherwise the local side
+         * is cleared but any remote expressions on the entry are preserved.
          */
-        public void excludeFromLocalExpressions(Set<String> expressionsToExclude) {
+        public void excludeFromExpressions(Set<String> expressionsToExclude, boolean excludeRemotes) {
             Objects.requireNonNull(expressionsToExclude);
             if (expressionsToExclude.isEmpty() == false) {
                 final var iter = expressions.listIterator();
                 while (iter.hasNext()) {
                     final ResolvedIndexExpression current = iter.next();
                     if (expressionsToExclude.contains(current.original())) {
-                        if (current.remoteExpressions().isEmpty()) {
+                        if (excludeRemotes || current.remoteExpressions().isEmpty()) {
                             iter.remove();
                         } else {
-                            // Preserve any remote expressions associated with the original entry; only the local side is excluded.
-                            // Without this, qualified origin index exclusions like "shared,_origin:-shared" would incorrectly drop
-                            // the linked copy "linked:shared" carried on the original "shared" entry.
                             iter.set(new ResolvedIndexExpression(current.original(), LocalExpressions.NONE, current.remoteExpressions()));
                         }
                         continue;

@@ -195,7 +195,7 @@ public class IndexAbstractionResolver {
                 }
             } else {
                 if (minus) {
-                    resolvedExpressionsBuilder.excludeFromLocalExpressions(resolvedIndices);
+                    resolvedExpressionsBuilder.excludeFromExpressions(resolvedIndices, remoteExpressions.isEmpty() == false);
                     // Exclusion from local indices is done by excludeFromLocalExpressions.
                     // No need to add itself unless it has remote expressions.
                     maybeAddWithRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, remoteExpressions);
@@ -207,7 +207,7 @@ public class IndexAbstractionResolver {
             final HashSet<String> resolvedIndices = new HashSet<>();
             resolveSelectorsAndCollect(indexAbstraction, selectorString, indicesOptions, resolvedIndices, projectMetadata);
             if (minus) {
-                resolvedExpressionsBuilder.excludeFromLocalExpressions(resolvedIndices);
+                resolvedExpressionsBuilder.excludeFromExpressions(resolvedIndices, remoteExpressions.isEmpty() == false);
                 maybeAddWithRemoteExpressions(resolvedExpressionsBuilder, originalIndexExpression, remoteExpressions);
             } else {
                 final boolean authorized = isAuthorized.test(indexAbstraction, selector);

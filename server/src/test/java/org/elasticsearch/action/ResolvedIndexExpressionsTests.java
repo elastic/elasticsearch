@@ -24,11 +24,11 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class ResolvedIndexExpressionsTests extends ESTestCase {
 
-    public void testLocalExclusionMatchingOriginalPreservesRemoteExpressions() {
+    public void testExclusionMatchingOriginalPreservesRemoteWhenOnlyLocalCancelled() {
         ResolvedIndexExpressions.Builder builder = ResolvedIndexExpressions.builder();
         builder.addExpressions("shared-index", new HashSet<>(Set.of("shared-index")), SUCCESS, Set.of("remote:shared-index"));
 
-        builder.excludeFromLocalExpressions(Set.of("shared-index"));
+        builder.excludeFromExpressions(Set.of("shared-index"), false);
 
         List<ResolvedIndexExpression> expressions = builder.build().expressions();
         assertThat(expressions, hasSize(1));
@@ -37,11 +37,20 @@ public class ResolvedIndexExpressionsTests extends ESTestCase {
         assertThat(expressions.get(0).remoteExpressions(), contains("remote:shared-index"));
     }
 
+    public void testExclusionMatchingOriginalRemovesEntryWhenRemoteAlsoCancelled() {
+        ResolvedIndexExpressions.Builder builder = ResolvedIndexExpressions.builder();
+        builder.addExpressions("shared-index", new HashSet<>(Set.of("shared-index")), SUCCESS, Set.of("remote:shared-index"));
+
+        builder.excludeFromExpressions(Set.of("shared-index"), true);
+
+        assertThat(builder.build().expressions(), empty());
+    }
+
     public void testLocalExclusionMatchingOriginalRemovesLocalOnlyExpression() {
         ResolvedIndexExpressions.Builder builder = ResolvedIndexExpressions.builder();
         builder.addExpressions("shared-index", new HashSet<>(Set.of("shared-index")), SUCCESS, Set.of());
 
-        builder.excludeFromLocalExpressions(Set.of("shared-index"));
+        builder.excludeFromExpressions(Set.of("shared-index"), randomBoolean());
 
         assertThat(builder.build().expressions(), empty());
     }
@@ -50,7 +59,7 @@ public class ResolvedIndexExpressionsTests extends ESTestCase {
         ResolvedIndexExpressions.Builder builder = ResolvedIndexExpressions.builder();
         builder.addExpressions("index-*", new HashSet<>(Set.of("index-1", "shared-index")), SUCCESS, Set.of("remote:index-*"));
 
-        builder.excludeFromLocalExpressions(Set.of("shared-index"));
+        builder.excludeFromExpressions(Set.of("shared-index"), randomBoolean());
 
         List<ResolvedIndexExpression> expressions = builder.build().expressions();
         assertThat(expressions, hasSize(1));

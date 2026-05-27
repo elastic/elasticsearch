@@ -35,7 +35,7 @@ public class EvictionPolicyTests extends ESTestCase {
     private record TestKey(ShardId shardId, String file) implements SharedBlobCacheService.KeyBase {}
 
     /**
-     * Tests the default eviction policy: all entries are evictable in a single pass and no degradation is supported.
+     * Tests the default eviction policy: all entries are evictable.
      * Fills the cache completely, then inserts new entries and verifies that old entries are evicted to make room.
      */
     public void testDefaultEvictionPolicy() throws IOException {
@@ -53,7 +53,6 @@ public class EvictionPolicyTests extends ESTestCase {
         final ShardId shard2 = new ShardId("index2", randomUUID(), 0);
 
         final var policy = new DefaultEvictionPolicy<TestKey>();
-        assertFalse(policy.supportsDegradation());
 
         final DeterministicTaskQueue taskQueue = new DeterministicTaskQueue();
         try (
@@ -98,13 +97,13 @@ public class EvictionPolicyTests extends ESTestCase {
     }
 
     /**
-     * Tests a degrading eviction policy with quota-based protection.
+     * Tests an eviction policy with quota-based protection.
      * <p>
-     * The policy assigns quotas to "recent" and "old" tiers. In the first pass (degraded=false), an entry
-     * is evictable only if its tier exceeds its quota. When both tiers are at quota, the first pass finds
-     * nothing and the second pass (degraded=true) evicts entries from the same tier as the incoming data.
+     * The policy assigns quotas to "recent" and "old" tiers. An entry is evictable if its tier exceeds
+     * its quota. When both tiers are at quota, the policy relaxes its criteria and evicts entries from
+     * the same tier as the incoming data.
      */
-    public void testDegradingPolicyTwoPasses() throws IOException {
+    public void testQuotaBasedPolicy() throws IOException {
         final int numRegions = randomIntBetween(2, 5) * 100;
         final long regionSizeInBytes = size(100);
         Settings settings = Settings.builder()
@@ -135,17 +134,16 @@ public class EvictionPolicyTests extends ESTestCase {
             }
 
             @Override
-            public boolean canEvict(CacheRegion<TimestampKey> region, CacheRegion<TimestampKey> incoming, boolean degraded) {
+            public boolean canEvict(CacheRegion<TimestampKey> region, CacheRegion<TimestampKey> incoming) {
                 boolean regionIsRecent = isRecent(region.key());
-                if (degraded) {
-                    // In degraded mode, ony evict regions within the same window
-                    return regionIsRecent == isRecent(incoming.key());
+                if (regionIsRecent && recentCount.get() > recentQuota) {
+                    return true;
                 }
-                if (regionIsRecent) {
-                    return recentCount.get() > recentQuota;
-                } else {
-                    return oldCount.get() > oldQuota;
+                if (regionIsRecent == false && oldCount.get() > oldQuota) {
+                    return true;
                 }
+                // No tier is over quota — relax: evict within same tier as incoming
+                return regionIsRecent == isRecent(incoming.key());
             }
 
             @Override
@@ -164,11 +162,6 @@ public class EvictionPolicyTests extends ESTestCase {
                 } else {
                     oldCount.decrementAndGet();
                 }
-            }
-
-            @Override
-            public boolean supportsDegradation() {
-                return true;
             }
         };
 
@@ -230,16 +223,15 @@ public class EvictionPolicyTests extends ESTestCase {
                 }
             }
 
-            // Now insert more recent regions. Both tiers are at their quota so the first pass
-            // (degraded=false) finds nothing evictable. The second pass (degraded=true) evicts
-            // entries from the same tier as the incoming data (recent evicts recent).
+            // Now insert more recent regions. Both tiers are at their quota so the policy
+            // relaxes its criteria and evicts entries from the same tier as the incoming data.
             final int extraRecentRegions = randomIntBetween(1, numRegions);
             for (int i = 0; i < extraRecentRegions; i++) {
                 var cacheKey = new TimestampKey(recentShard, "extra-recent-file-" + i, now);
                 cacheService.get(cacheKey, randomLongBetween(1, regionSizeInBytes - 1L), 0);
             }
 
-            // Each extra recent entry evicts an existing recent entry (same tier) via the degraded pass.
+            // Each extra recent entry evicts an existing recent entry (same tier).
             // Old data is never touched — it stays at its quota.
             assertThat(cacheService.countCachedRegions(key -> key.shardId().equals(oldShard)), equalTo((long) oldQuota));
             assertThat(cacheService.countCachedRegions(key -> key.shardId().equals(recentShard)), equalTo((long) recentQuota));

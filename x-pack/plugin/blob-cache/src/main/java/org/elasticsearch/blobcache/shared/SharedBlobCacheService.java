@@ -2421,27 +2421,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private SharedBytes.IO maybeEvictAndTake(final LFUCacheEntry incoming, final Runnable evictedNotification) {
             assert Thread.holdsLock(SharedBlobCacheService.this);
 
-            // First pass: respect policy quotas (degraded = false)
-            SharedBytes.IO result = maybeEvictAndTakeWithPolicy(incoming, evictedNotification, epoch.get(), false);
-            if (result != null) {
-                return result;
-            }
-            if (evictionPolicy.supportsDegradation()) {
-                // Second pass: graceful degradation (degraded = true)
-                return maybeEvictAndTakeWithPolicy(incoming, evictedNotification, epoch.get(), true);
-            }
-            return null; // Give up
-        }
-
-        private SharedBytes.IO maybeEvictAndTakeWithPolicy(
-            final LFUCacheEntry incoming,
-            final Runnable evictedNotification,
-            final long currentEpoch,
-            final boolean degraded
-        ) {
-            assert degraded == false || evictionPolicy.supportsDegradation();
-            SharedBytes.IO result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, 0, degraded);
-            if (degraded == false && freqs[0].count < freq0DecayScheduleThreshold && freeRegions.isEmpty()) {
+            final long currentEpoch = epoch.get();
+            SharedBytes.IO result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, 0);
+            if (freqs[0].count < freq0DecayScheduleThreshold && freeRegions.isEmpty()) {
                 maybeScheduleDecayAndNewEpoch(currentEpoch);
             }
             if (result != null) {
@@ -2453,7 +2435,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                 if (freeRegion != null) {
                     return freeRegion;
                 }
-                result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, currentFreq, degraded);
+                result = maybeEvictAndTakeForFrequency(incoming, evictedNotification, currentFreq);
                 if (result != null) {
                     return result;
                 }
@@ -2464,11 +2446,10 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private SharedBytes.IO maybeEvictAndTakeForFrequency(
             final LFUCacheEntry incoming,
             final Runnable evictedNotification,
-            final int freq,
-            final boolean degraded
+            final int freq
         ) {
             for (LFUCacheEntry entry = freqs[freq].head; entry != null; entry = entry.next) {
-                if (evictionPolicy.canEvict(entry.chunk, incoming.chunk, degraded) == false) {
+                if (evictionPolicy.canEvict(entry.chunk, incoming.chunk) == false) {
                     continue;
                 }
 
@@ -2525,7 +2506,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         private boolean maybeEvictLeastUsed(final CacheFileRegion<KeyType> incoming) {
             synchronized (SharedBlobCacheService.this) {
                 for (LFUCacheEntry entry = freqs[0].head; entry != null; entry = entry.next) {
-                    if (evictionPolicy.canEvict(entry.chunk, incoming, false) == false) {
+                    if (evictionPolicy.canEvict(entry.chunk, incoming) == false) {
                         continue;
                     }
 

@@ -33,11 +33,8 @@ public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> 
      * @param region   the existing cache region being considered for eviction
      * @param incoming the new cache region that needs a slot; eviction of {@code region} would free
      *                 space for this entry
-     * @param degraded {@code true} when a prior pass with {@code degraded=false} found no evictable
-     *                 entries but the cache still needs to free space. Implementations should relax
-     *                 their protection criteria in this mode.
      */
-    boolean canEvict(CacheRegion<KeyType> region, CacheRegion<KeyType> incoming, boolean degraded);
+    boolean canEvict(CacheRegion<KeyType> region, CacheRegion<KeyType> incoming);
 
     /**
      * Called when a region is assigned a cache slot (after successful allocation or eviction+take).
@@ -56,17 +53,4 @@ public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> 
      * associated key have both been removed from the cache.
      */
     void onEvicted(CacheRegion<KeyType> region);
-
-    /**
-     * Returns {@code true} if this policy supports a degraded eviction pass.
-     * <p>
-     * When the first eviction pass (with {@code degraded=false}) fails to free any region,
-     * the cache service checks this flag. If it returns {@code true}, a second pass is made
-     * with {@code degraded=true}, signalling {@link #canEvict} to relax its protection
-     * criteria so that otherwise-protected regions become eligible for eviction.
-     * <p>
-     * Policies that do not distinguish between normal and degraded modes (e.g., a policy
-     * that treats all entries as evictable) should return {@code false}.
-     */
-    boolean supportsDegradation();
 }

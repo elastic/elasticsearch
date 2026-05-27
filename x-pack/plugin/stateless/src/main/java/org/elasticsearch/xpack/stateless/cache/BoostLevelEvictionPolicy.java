@@ -22,7 +22,7 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 public class BoostLevelEvictionPolicy implements EvictionPolicy<FileCacheKey> {
 
     @Override
-    public boolean canEvict(CacheRegion<FileCacheKey> region, CacheRegion<FileCacheKey> incoming, boolean degraded) {
+    public boolean canEvict(CacheRegion<FileCacheKey> region, CacheRegion<FileCacheKey> incoming) {
         return true;
     }
 
@@ -31,9 +31,4 @@ public class BoostLevelEvictionPolicy implements EvictionPolicy<FileCacheKey> {
 
     @Override
     public void onEvicted(CacheRegion<FileCacheKey> region) {}
-
-    @Override
-    public boolean supportsDegradation() {
-        return true;
-    }
 }

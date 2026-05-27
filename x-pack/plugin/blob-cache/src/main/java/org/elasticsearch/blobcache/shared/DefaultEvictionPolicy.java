@@ -13,7 +13,7 @@ package org.elasticsearch.blobcache.shared;
 public class DefaultEvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> implements EvictionPolicy<KeyType> {
 
     @Override
-    public boolean canEvict(CacheRegion<KeyType> region, CacheRegion<KeyType> incoming, boolean degraded) {
+    public boolean canEvict(CacheRegion<KeyType> region, CacheRegion<KeyType> incoming) {
         return true;
     }
 
@@ -22,9 +22,4 @@ public class DefaultEvictionPolicy<KeyType extends SharedBlobCacheService.KeyBas
 
     @Override
     public void onEvicted(CacheRegion<KeyType> region) {}
-
-    @Override
-    public boolean supportsDegradation() {
-        return false;
-    }
 }

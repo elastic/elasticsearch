@@ -40,15 +40,17 @@ import java.util.Objects;
  *       {@code AnalyzerContext.optionalLinkedResolution}, keyed by the shadow's full
  *       {@link #optionalLinkedPattern()} (view name + applicable exclusions).
  *       <em>(deferred to the lenient field-caps PR)</em></li>
- *   <li>The {@code ResolveViewShadow} analyzer rule (sibling of {@code ResolveTable}, in the
- *       Initialize batch) consults {@code AnalyzerContext.optionalLinkedResolution} for this shadow's
- *       {@link #optionalLinkedPattern()}. If a remote <em>index</em> is found the shadow is replaced
- *       with a corresponding {@code EsRelation}; otherwise the shadow is left unresolved.
+ *   <li>The {@code Analyzer.ResolveViewShadows} rule (in the Initialize batch, after
+ *       {@code ResolveTable}) consults {@code AnalyzerContext.optionalLinkedResolution} for this
+ *       shadow's {@link #optionalLinkedPattern()}. If a remote <em>index</em> is found, the shadow
+ *       is replaced with a corresponding {@code EsRelation} and the shadow's cluster aliases are
+ *       excluded from the sibling view-body branch (esql-planning#795); otherwise the shadow is
+ *       dropped from the {@link ViewUnionAll}.
  *       <em>(this PR — backed by a mocked {@code optionalLinkedResolution} map until the lenient
  *       field-caps PR provides real data)</em></li>
- *   <li>{@code ViewCompactionPostIndexResolution} runs after {@code ResolveViewShadow}: any
- *       still-unresolved shadow is stripped, then nested {@link ViewUnionAll}s are flattened
- *       and remaining {@code NamedSubquery} wrappers unwrapped. Per Strategy A in
+ *   <li>{@code ViewCompactionPostIndexResolution} runs after {@code ResolveViewShadows}: nested
+ *       {@link ViewUnionAll}s are flattened and remaining {@code NamedSubquery} wrappers unwrapped.
+ *       Per Strategy A in
  *       <a href="https://github.com/elastic/esql-planning/issues/543">esql-planning#543</a>,
  *       sibling {@code EsRelation}s stay separate (a {@code UnionAll}/{@link ViewUnionAll}
  *       of {@code EsRelation}s) rather than being merged via a third combined field-caps call.

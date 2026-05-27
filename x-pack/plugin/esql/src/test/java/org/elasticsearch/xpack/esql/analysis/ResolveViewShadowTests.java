@@ -33,13 +33,14 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 
 /**
- * Tests for the {@code Analyzer.ResolveViewShadow} analyzer rule. Each test builds a small plan
+ * Tests for the {@code Analyzer.ResolveViewShadows} analyzer rule. Each test builds a small plan
  * tree by hand (since {@link ViewShadowRelation} has no surface syntax) and runs the analyzer
  * with mocked {@link AnalyzerContext#optionalLinkedResolution()} maps to verify the rule's behaviour:
  * <ul>
- *   <li>shadow with a valid lenient resolution → replaced with {@code EsRelation};</li>
- *   <li>shadow with no lenient entry (or an invalid resolution) → left unresolved, then stripped
- *       by {@code ViewCompactionPostIndexResolution};</li>
+ *   <li>shadow with a valid lenient resolution → replaced with {@code EsRelation}, and the
+ *       shadow's clusters are excluded from the sibling view-body branch;</li>
+ *   <li>shadow with no lenient entry (or an invalid resolution) → dropped from the
+ *       {@link ViewUnionAll} by {@code ResolveViewShadows};</li>
  *   <li>strict + matched shadow at the same level → both kept as siblings (Strategy A — no
  *       merging into a single combined {@code EsRelation});</li>
  *   <li>two shadows with the same view name but different exclusions resolve independently —
@@ -62,13 +63,18 @@ public class ResolveViewShadowTests extends ESTestCase {
 
     /**
      * Shadow with a valid lenient {@link IndexResolution} → replaced with an {@link EsRelation}
-     * over the resolved remote index's mapping.
+     * over the resolved remote index's mapping. Because {@code ResolveViewShadows} operates on
+     * {@link ViewUnionAll} nodes (matching production structure from {@link
+     * org.elasticsearch.xpack.esql.view.ViewResolver}), the shadow is wrapped in a single-branch
+     * {@code ViewUnionAll}; the rule collapses the lone survivor directly to the {@code EsRelation}.
      */
     public void testShadowResolvesToEsRelationWhenLenientMatches() {
         EsIndex remoteV1 = EsIndexGenerator.esIndex("v1", LoadMapping.loadMapping("mapping-one-field.json"));
         var analyzer = analyzer().addLenientShadow(remoteV1).buildAnalyzer();
 
-        LogicalPlan plan = analyzer.analyze(new ViewShadowRelation(EMPTY, "v1", List.of()));
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("v1#shadow", new ViewShadowRelation(EMPTY, "v1", List.of()));
+        LogicalPlan plan = analyzer.analyze(new ViewUnionAll(EMPTY, branches, List.of()));
 
         var limit = as(plan, Limit.class);
         var esRelation = as(unwrapProject(limit.child()), EsRelation.class);
@@ -82,9 +88,9 @@ public class ResolveViewShadowTests extends ESTestCase {
     }
 
     /**
-     * Shadow with no lenient match → falls through {@code ResolveViewShadow} unchanged. With a
-     * strict sibling in a {@link ViewUnionAll}, {@code ViewCompactionPostIndexResolution}'s strip
-     * removes the unresolved shadow; the surviving sibling is the strict {@link EsRelation}.
+     * Shadow with no lenient match → dropped by {@code ResolveViewShadows}. With a strict sibling
+     * in a {@link ViewUnionAll}, the rule removes the unresolved shadow; the surviving sibling is
+     * the strict {@link EsRelation}.
      */
     public void testShadowStrippedWhenNoLenientMatch() {
         EsIndex strictIdx = EsIndexGenerator.esIndex("strict_idx", LoadMapping.loadMapping("mapping-one-field.json"));
@@ -156,7 +162,9 @@ public class ResolveViewShadowTests extends ESTestCase {
         EsIndex remoteV1 = EsIndexGenerator.esIndex("v1", LoadMapping.loadMapping("mapping-one-field.json"));
         var analyzer = analyzer().addLenientShadow(shadow.optionalLinkedPattern(), IndexResolution.valid(remoteV1)).buildAnalyzer();
 
-        LogicalPlan plan = analyzer.analyze(shadow);
+        LinkedHashMap<String, LogicalPlan> branches = new LinkedHashMap<>();
+        branches.put("v1#shadow", shadow);
+        LogicalPlan plan = analyzer.analyze(new ViewUnionAll(EMPTY, branches, List.of()));
 
         var limit = as(plan, Limit.class);
         var esRelation = as(unwrapProject(limit.child()), EsRelation.class);
@@ -184,8 +192,10 @@ public class ResolveViewShadowTests extends ESTestCase {
             .addIndex(EsIndexGenerator.esIndex("strict_idx", LoadMapping.loadMapping("mapping-one-field.json")))
             .buildAnalyzer();
 
-        // matchedShadow alone: resolves to EsRelation.
-        LogicalPlan matchedPlan = analyzer.analyze(matchedShadow);
+        // matchedShadow in a single-branch ViewUnionAll: resolves to EsRelation.
+        LinkedHashMap<String, LogicalPlan> matchedBranches = new LinkedHashMap<>();
+        matchedBranches.put("my-data#shadow", matchedShadow);
+        LogicalPlan matchedPlan = analyzer.analyze(new ViewUnionAll(EMPTY, matchedBranches, List.of()));
         var matchedEs = as(unwrapProject(as(matchedPlan, Limit.class).child()), EsRelation.class);
         assertEquals("my-data", matchedEs.indexPattern());
 
@@ -211,7 +221,9 @@ public class ResolveViewShadowTests extends ESTestCase {
      * analysis the EMPTY_SUBQUERY branch is pruned and the shadow resolves to an
      * {@code EsRelation}; the surviving wrapper is a single-child {@link ViewUnionAll} carrying
      * just the resolved {@code v1} branch under its preserved name. (The single-child wrapper
-     * is preserved here — only {@code ViewCompaction.stripViewShadowRelations} collapses.)
+     * is preserved here — {@code ResolveViewShadows} only collapses when <em>all</em> surviving
+     * entries are from dropped shadows; in this case EMPTY_SUBQUERY survives {@code ResolveViewShadows}
+     * and is later pruned by {@code PruneEmptyUnionAllBranch}, leaving the wrapper intact.)
      */
     public void testPruneEmptySubqueryBranchPreservesShadowResolutionInViewUnionAll() {
         EsIndex remoteV1 = EsIndexGenerator.esIndex("v1", LoadMapping.loadMapping("mapping-one-field.json"));
@@ -229,7 +241,7 @@ public class ResolveViewShadowTests extends ESTestCase {
         assertWarnings(NO_LIMIT_WARNING);
     }
 
-    // ── ExcludeShadowedClusters tests ─────────────────────────────────────────────────────────────
+    // ── Cluster exclusion tests (ResolveViewShadows) ─────────────────────────────────────────────
 
     /**
      * When a shadow is resolved, its cluster aliases must be removed from every {@link EsRelation}
@@ -239,7 +251,7 @@ public class ResolveViewShadowTests extends ESTestCase {
      *
      * <p>In {@link org.elasticsearch.xpack.esql.view.ViewResolver} the view-body branch is always
      * keyed by the <em>view name</em> (e.g. {@code "v1"}), and the shadow branch is keyed
-     * {@code "v1#shadow"}. The {@code ExcludeShadowedClusters} rule strips the {@code "#shadow"}
+     * {@code "v1#shadow"}. The {@code ResolveViewShadows} rule strips the {@code "#shadow"}
      * suffix to find the matching view-body key.
      *
      * <p>Setup: ViewUnionAll with key {@code "v1"} → UR {@code "source_idx"} (the view body),
@@ -389,7 +401,7 @@ public class ResolveViewShadowTests extends ESTestCase {
      * removed from its {@link EsRelation} leaves, but branch "b" must be completely unchanged —
      * there is no shadow claiming its clusters.
      *
-     * <p>This is the canonical multi-view case from esql-planning#795: the ExcludeShadowedClusters
+     * <p>This is the canonical multi-view case from esql-planning#795: the {@code ResolveViewShadows}
      * rule must pair each shadow with <em>its own</em> view branch rather than broadcasting the
      * exclusion across all non-shadow branches.
      */
@@ -467,7 +479,7 @@ public class ResolveViewShadowTests extends ESTestCase {
      * Builds a two-branch {@link ViewUnionAll} that mirrors the structure produced by
      * {@link org.elasticsearch.xpack.esql.view.ViewResolver}: the {@code strictName} key is the
      * <em>view name</em> (so it matches {@code shadow.viewName()}), and the shadow is keyed
-     * {@code shadow.viewName() + "#shadow"}. Tests that want the {@code ExcludeShadowedClusters}
+     * {@code shadow.viewName() + "#shadow"}. Tests that want the {@code ResolveViewShadows}
      * rule to fire must pass the view name as {@code strictName}, not the source-index name.
      */
     private static ViewUnionAll viewUnionAllOf(String strictName, LogicalPlan strict, ViewShadowRelation shadow) {

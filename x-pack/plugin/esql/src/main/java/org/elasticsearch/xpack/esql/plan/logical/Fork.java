@@ -132,7 +132,8 @@ public class Fork extends LogicalPlan implements PostAnalysisPlanVerificationAwa
      * </ul>
      * Single-survivor collapse semantics — a {@link UnionAll}/{@link ViewUnionAll} with one
      * branch left is equivalent to that branch — are not part of this primitive; callers that
-     * want that collapse do it explicitly (see {@code ViewCompaction.stripViewShadowRelations}).
+     * want that collapse do it explicitly (see {@code Analyzer.ResolveViewShadows} or
+     * {@code ViewCompaction.stripViewShadowRelations}).
      * A {@link Fork} with a single branch is still a {@link Fork} per FORK syntax.
      */
     public LogicalPlan pruneEmptyBranches(Predicate<LogicalPlan> isEmpty) {

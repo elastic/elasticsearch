@@ -195,7 +195,7 @@ public class EsRelation extends LeafPlan {
      * Returns a new {@link EsRelation} with the given cluster aliases removed from
      * {@link #originalIndices()}, {@link #concreteIndices()}, and {@link #indexNameWithModes()}.
      * <p>
-     * Used by the {@code ExcludeShadowedClusters} analyzer rule: when a linked-project remote index
+     * Used by the {@code Analyzer.ResolveViewShadows} rule: when a linked-project remote index
      * (resolved via a {@link ViewShadowRelation}) shares a name with the local view, the view body
      * must NOT run on that cluster — only the remote index should.
      * </p>
@@ -210,26 +210,13 @@ public class EsRelation extends LeafPlan {
         if (clustersToExclude.isEmpty()) {
             return this;
         }
-        boolean modified = false;
         Map<String, List<String>> newOriginalIndices = new HashMap<>(originalIndices);
         Map<String, List<String>> newConcreteIndices = new HashMap<>(concreteIndices);
-        for (String cluster : clustersToExclude) {
-            if (newOriginalIndices.remove(cluster) != null) {
-                modified = true;
-            }
-            if (newConcreteIndices.remove(cluster) != null) {
-                modified = true;
-            }
-        }
+        boolean modified = newOriginalIndices.keySet().removeAll(clustersToExclude);
+        modified |= newConcreteIndices.keySet().removeAll(clustersToExclude);
         Map<String, IndexMode> newIndexNameWithModes = new HashMap<>(indexNameWithModes);
-        for (var it = newIndexNameWithModes.entrySet().iterator(); it.hasNext();) {
-            String qualifiedName = it.next().getKey();
-            String clusterAlias = RemoteClusterAware.getClusterAlias(RemoteClusterAware.splitIndexName(qualifiedName));
-            if (clustersToExclude.contains(clusterAlias)) {
-                it.remove();
-                modified = true;
-            }
-        }
+        modified |= newIndexNameWithModes.entrySet()
+            .removeIf(e -> clustersToExclude.contains(RemoteClusterAware.getClusterAlias(RemoteClusterAware.splitIndexName(e.getKey()))));
         if (modified == false) {
             return this;
         }

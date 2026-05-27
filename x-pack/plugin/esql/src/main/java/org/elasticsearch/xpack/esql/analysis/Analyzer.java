@@ -237,8 +237,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             Limiter.ONCE,
             new ResolveConfigurationAware(),
             new ResolveTable(),
-            new ResolveViewShadow(),
-            new ExcludeShadowedClusters(),
+            new ResolveViewShadows(),
             new ViewCompactionPostIndexResolution(),
             new ResolveExternalRelations(),
             new PruneEmptyUnionAllBranch(),
@@ -470,141 +469,128 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     /**
-     * Resolves {@link ViewShadowRelation} nodes against {@link AnalyzerContext#optionalLinkedResolution()}.
-     * <p>
-     * Each {@code ViewShadowRelation} represents a "if a remote project has an index with this
-     * view's name, treat it as if the user wrote a remote index reference at this position"
-     * lookup. The lenient field-caps integration (deferred to a follow-up PR) populates
-     * {@code optionalLinkedResolution}, keyed by the shadow's {@link ViewShadowRelation#optionalLinkedPattern()}
-     * (view name + applicable exclusions). The full pattern is the lookup key — different
-     * exclusion lists at the same view name produce distinct {@code ViewShadowRelation}
-     * instances and may resolve differently (e.g. one comes back empty because of the
-     * exclusions, the other resolves to a remote index). This rule:
-     * <ul>
-     *   <li>If a valid {@link IndexResolution} is present for the shadow's
-     *       {@link ViewShadowRelation#optionalLinkedPattern()}, replaces the shadow with an
-     *       {@link EsRelation} built from the resolved {@link EsIndex} (same shape as
-     *       {@link ResolveTable}'s {@code resolveIndex} for a strict UR).</li>
-     *   <li>Otherwise leaves the shadow unresolved. {@link ViewCompactionPostIndexResolution}
-     *       (which runs immediately after this rule) strips any unresolved shadow.</li>
-     * </ul>
+     * Single-pass rule that, for each {@link ViewUnionAll}, simultaneously:
+     * <ol>
+     *   <li><b>Resolves</b> each {@link ViewShadowRelation} branch against
+     *       {@link AnalyzerContext#optionalLinkedResolution()}: if a valid {@link IndexResolution}
+     *       is present the shadow is replaced with an {@link EsRelation} built from the resolved
+     *       {@link EsIndex}; otherwise the shadow is <em>dropped</em> from the map.</li>
+     *   <li><b>Excludes</b> the resolved shadow's cluster aliases from every {@link EsRelation}
+     *       leaf inside the <em>sibling</em> view-body branch for the same view name (stripping
+     *       the {@code "#shadow"} suffix gives the sibling key). This prevents a linked project
+     *       from being queried twice — once through the remote index (shadow branch) and once
+     *       through the local view body — satisfying the esql-planning#795 requirement.</li>
+     * </ol>
+     *
+     * <p>The lookup key is the shadow's full {@link ViewShadowRelation#optionalLinkedPattern()}
+     * (view name + applicable exclusions), so two shadows with the same view name but different
+     * exclusion lists resolve independently.
+     *
+     * <p>Cluster exclusion is per-view: a shadow for view {@code "a"} on {@code clusterx} removes
+     * {@code clusterx} only from branch {@code "a"}, not from any sibling branch {@code "b"}
+     * that has no corresponding shadow.
+     *
+     * <p>If the map shrinks to a single entry after dropping unresolved shadows, the lone
+     * survivor is returned directly (same collapse semantics as the old
+     * {@code ViewCompaction.stripViewShadowRelations}).
      */
-    private static class ResolveViewShadow extends ParameterizedAnalyzerRule<ViewShadowRelation, AnalyzerContext> {
+    private static class ResolveViewShadows extends ParameterizedAnalyzerRule<ViewUnionAll, AnalyzerContext> {
+
+        private static final String SHADOW_SUFFIX = "#shadow";
 
         @Override
-        protected LogicalPlan rule(ViewShadowRelation shadow, AnalyzerContext context) {
-            IndexResolution resolution = context.optionalLinkedResolution().get(shadow.optionalLinkedPattern());
-            if (resolution == null || resolution.isValid() == false) {
-                // No remote index found (or lookup didn't run yet) — leave the shadow alone for
-                // ViewCompactionPostIndexResolution to strip.
-                return shadow;
+        protected LogicalPlan rule(ViewUnionAll vua, AnalyzerContext context) {
+            // Pass 1: iterate namedSubqueries once, processing every ViewShadowRelation entry.
+            // Shadow keys have the form "<viewName>#shadow" (ViewResolver convention). Null keys
+            // arise from unnamed user-written subqueries and are never shadows.
+            //
+            // For each shadow:
+            // - resolved → replaced with EsRelation; the shadow's viewName() is added to
+            // shadowClustersByView so that the sibling view-body branch (keyed exactly by
+            // the viewName) can have those clusters pruned in pass 2.
+            // - unresolved → dropped (not written to the output map).
+            //
+            // Non-shadow entries are copied unchanged into the output map; they are pruned in
+            // pass 2 if a corresponding shadow was resolved.
+            Map<String, Set<String>> shadowClustersByView = new HashMap<>();
+            LinkedHashMap<String, LogicalPlan> children = new LinkedHashMap<>();
+            boolean modified = false;
+            for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
+                String key = entry.getKey();
+                LogicalPlan child = entry.getValue();
+                if (key != null && key.endsWith(SHADOW_SUFFIX) && child instanceof ViewShadowRelation shadow) {
+                    IndexResolution resolution = context.optionalLinkedResolution().get(shadow.optionalLinkedPattern());
+                    if (resolution != null && resolution.isValid()) {
+                        EsIndex esIndex = resolution.get();
+                        var attributes = mappingAsAttributes(shadow.source(), esIndex.mapping());
+                        children.put(
+                            key,
+                            new EsRelation(
+                                shadow.source(),
+                                esIndex.name(),
+                                IndexMode.STANDARD,
+                                esIndex.originalIndices(),
+                                esIndex.concreteIndices(),
+                                esIndex.indexNameWithModes(),
+                                attributes.isEmpty() ? NO_FIELDS : attributes
+                            )
+                        );
+                        shadowClustersByView.computeIfAbsent(shadow.viewName(), k -> new HashSet<>())
+                            .addAll(esIndex.concreteIndices().keySet());
+                    }
+                    // unresolved shadow → dropped (not added to children)
+                    modified = true;
+                } else {
+                    children.put(key, child);
+                }
             }
-            EsIndex esIndex = resolution.get();
-            var attributes = mappingAsAttributes(shadow.source(), esIndex.mapping());
-            return new EsRelation(
-                shadow.source(),
-                esIndex.name(),
-                IndexMode.STANDARD,
-                esIndex.originalIndices(),
-                esIndex.concreteIndices(),
-                esIndex.indexNameWithModes(),
-                attributes.isEmpty() ? NO_FIELDS : attributes
-            );
+
+            if (modified == false) {
+                return vua; // no ViewShadowRelation entries found — nothing to do
+            }
+
+            // Pass 2: prune shadow-claimed clusters from each matching view-body branch.
+            // Because shadowClustersByView is keyed by plain view names (e.g. "v1"), a lookup
+            // for a shadow key ("v1#shadow") naturally returns null — shadow branches are left
+            // untouched without any explicit suffix check here.
+            if (shadowClustersByView.isEmpty() == false) {
+                LinkedHashMap<String, LogicalPlan> pruned = new LinkedHashMap<>(children.size());
+                for (Map.Entry<String, LogicalPlan> entry : children.entrySet()) {
+                    Set<String> clustersToExclude = shadowClustersByView.get(entry.getKey());
+                    if (clustersToExclude != null && clustersToExclude.isEmpty() == false) {
+                        pruned.put(
+                            entry.getKey(),
+                            entry.getValue().transformUp(EsRelation.class, rel -> rel.withoutClusters(clustersToExclude))
+                        );
+                    } else {
+                        pruned.put(entry.getKey(), entry.getValue());
+                    }
+                }
+                children = pruned;
+            }
+
+            // Collapse a single-survivor map (all shadows dropped) to its lone child — same
+            // semantics as the old ViewCompaction.stripViewShadowRelations collapse.
+            if (children.size() == 1) {
+                return children.values().iterator().next();
+            }
+            return new ViewUnionAll(vua.source(), children, vua.output());
         }
     }
 
     /**
      * Phase 2 of view compaction. Runs in the Initialize batch right after {@link ResolveTable},
      * once all reachable {@link UnresolvedRelation}s have been replaced with {@code EsRelation}s
-     * (and once CPS's lenient field-caps rule has rewritten any matched {@code ViewShadowRelation}s).
-     * Strips remaining unresolved shadows, flattens nested {@code ViewUnionAll} structures, and
-     * unwraps remaining {@code NamedSubquery} wrappers. See {@link ViewCompaction} for the rationale
-     * behind splitting compaction across the analyzer boundary.
+     * (and once {@link ResolveViewShadows} has resolved or dropped every {@link ViewShadowRelation}).
+     * Flattens nested {@code ViewUnionAll} structures and unwraps remaining {@code NamedSubquery}
+     * wrappers. See {@link ViewCompaction} for the rationale behind splitting compaction across
+     * the analyzer boundary.
      */
     private static class ViewCompactionPostIndexResolution extends Rule<LogicalPlan, LogicalPlan> {
 
         @Override
         public LogicalPlan apply(LogicalPlan plan) {
             return ViewCompaction.postIndexResolution(plan);
-        }
-    }
-
-    /**
-     * Runs between {@link ResolveViewShadow} and {@link ViewCompactionPostIndexResolution}: for
-     * each {@link ViewUnionAll} that contains a resolved shadow (a {@link ViewShadowRelation} that
-     * {@code ResolveViewShadow} has replaced with an {@link EsRelation}), removes the shadow's
-     * cluster aliases from every {@link EsRelation} inside the <em>sibling</em> view-body branches.
-     *
-     * <p>
-     * <b>Rationale:</b>
-     * When a linked project (CPS) has an index whose name matches a local view name, the shadow
-     * mechanism routes that project's data through the resolved remote {@code EsRelation} (the
-     * shadow branch). Without this rule the local view body would <em>also</em> run on that
-     * linked project, executing the view's source queries there in parallel — effectively reading
-     * from the same project twice under two different code paths. That violates the invariant that
-     * a single project must be covered by exactly one branch.
-     * </p>
-     * <p>
-     * The fix is straightforward: the shadow's resolved {@code EsRelation} already encodes which
-     * cluster aliases are "claimed" by the remote index. We subtract those aliases from every
-     * {@code EsRelation} leaf in the sibling view-body branches via
-     * {@link EsRelation#withoutClusters(Set)}. If a source index in the view body existed only on
-     * the now-excluded cluster(s), its {@code EsRelation} becomes empty for those fields, but
-     * that is correct — that cluster is served by the shadow, not the view.
-     * </p>
-     */
-    private static class ExcludeShadowedClusters extends Rule<LogicalPlan, LogicalPlan> {
-
-        @Override
-        public LogicalPlan apply(LogicalPlan plan) {
-            return plan.transformDown(ViewUnionAll.class, ExcludeShadowedClusters::excludeFromViewBody);
-        }
-
-        private static final String SHADOW_SUFFIX = "#shadow";
-
-        private static ViewUnionAll excludeFromViewBody(ViewUnionAll vua) {
-            // Build a per-view-name map of cluster aliases claimed by each resolved shadow.
-            // Shadow entry keys have the form "<viewName>#shadow"
-            // (see ViewResolver.replaceViewsUnresolvedRelation); null keys arise from unnamed
-            // user-written subqueries and are never shadows. Critically, each shadow is paired
-            // with its own view branch — the shadow for view "a" must only remove clusters from
-            // branch "a", not from sibling branch "b" which has no corresponding shadow.
-            Map<String, Set<String>> shadowClustersByView = new HashMap<>();
-            for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
-                String key = entry.getKey();
-                if (key != null && key.endsWith(SHADOW_SUFFIX) && entry.getValue() instanceof EsRelation shadowRel) {
-                    Set<String> clusters = shadowRel.concreteIndices().keySet();
-                    if (clusters.isEmpty() == false) {
-                        String viewName = key.substring(0, key.length() - SHADOW_SUFFIX.length());
-                        shadowClustersByView.computeIfAbsent(viewName, k -> new HashSet<>()).addAll(clusters);
-                    }
-                }
-            }
-            if (shadowClustersByView.isEmpty()) {
-                return vua;
-            }
-
-            // For each non-shadow branch, strip only the clusters claimed by *that branch's own
-            // shadow*. Branches whose view has no resolved shadow are left completely untouched.
-            LinkedHashMap<String, LogicalPlan> newSubqueries = new LinkedHashMap<>();
-            boolean modified = false;
-            for (Map.Entry<String, LogicalPlan> entry : vua.namedSubqueries().entrySet()) {
-                String key = entry.getKey();
-                LogicalPlan child = entry.getValue();
-                if (key != null && key.endsWith(SHADOW_SUFFIX)) {
-                    newSubqueries.put(key, child);
-                } else {
-                    Set<String> clustersToExclude = key != null ? shadowClustersByView.get(key) : null;
-                    if (clustersToExclude != null) {
-                        LogicalPlan newChild = child.transformDown(EsRelation.class, rel -> rel.withoutClusters(clustersToExclude));
-                        modified |= (newChild != child);
-                        newSubqueries.put(key, newChild);
-                    } else {
-                        newSubqueries.put(key, child);
-                    }
-                }
-            }
-            return modified ? new ViewUnionAll(vua.source(), newSubqueries, vua.output()) : vua;
         }
     }
 

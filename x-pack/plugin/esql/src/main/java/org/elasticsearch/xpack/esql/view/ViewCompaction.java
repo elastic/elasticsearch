@@ -37,18 +37,17 @@ import java.util.Map;
  *       {@link ViewUnionAll}s nested. The {@link UnresolvedRelation} index patterns it leaves in
  *       the tree are exactly what {@code PreAnalyzer} hands to field-caps and what
  *       {@code ResolveTable} later looks up.</li>
- *   <li>{@link #postIndexResolution(LogicalPlan)} — runs as an analyzer rule after {@code ResolveTable}.
- *       Strips any {@link ViewShadowRelation} that lenient field-caps did not fold into a sibling
- *       {@code EsRelation} (in Phase A this is all of them, since lenient field-caps is not yet
- *       wired up — see esql-planning#543), then flattens nested {@link ViewUnionAll}s and unwraps
- *       remaining {@link NamedSubquery} wrappers.</li>
+ *   <li>{@link #postIndexResolution(LogicalPlan)} — runs as an analyzer rule after
+ *       {@code Analyzer.ResolveViewShadows} (which has already resolved or dropped every
+ *       {@link ViewShadowRelation}). Flattens nested {@link ViewUnionAll}s and unwraps remaining
+ *       {@link NamedSubquery} wrappers.</li>
  * </ol>
  * <p>
  * The split is what lets a colleague implement lenient field-caps purely as a Phase B analyzer
  * rule that lives between {@code ResolveTable} and {@link #postIndexResolution}: shadows that match
- * remote indices get rewritten to {@link UnresolvedRelation}/{@code EsRelation}; shadows that
- * fail to match are simply left unresolved and {@link #postIndexResolution} sweeps them away. Ordering
- * details: see <a href="https://github.com/elastic/esql-planning/issues/472">esql-planning#472</a>.
+ * remote indices are resolved by {@code ResolveViewShadows}, which also excludes the claimed
+ * clusters from the sibling view-body branches (see esql-planning#795). Ordering details: see
+ * <a href="https://github.com/elastic/esql-planning/issues/472">esql-planning#472</a>.
  * <p>
  * Note: a small amount of compaction stays inside {@link ViewResolver#buildPlanFromBranches} —
  * specifically the per-level sibling {@link UnresolvedRelation} merge — to keep the resolved tree
@@ -81,21 +80,23 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
     }
 
     /**
-     * Phase 2, runs as an analyzer rule after {@code ResolveTable}. Strips
-     * {@link ViewShadowRelation} siblings that lenient field-caps did not resolve, then flattens
-     * nested {@link ViewUnionAll} structures and unwraps remaining {@link NamedSubquery}
-     * wrappers. By the time this runs, all reachable {@link UnresolvedRelation}s have been
-     * replaced by {@code EsRelation}s, so the {@link UnresolvedRelation}-merge step inside
-     * {@link #compactNestedViewUnionAlls} is effectively a no-op — sibling {@code EsRelation}s
-     * stay separate (Strategy A from esql-planning#543).
+     * Phase 2, runs as an analyzer rule after {@code Analyzer.ResolveViewShadows}. In the
+     * production pipeline every {@link ViewShadowRelation} has already been resolved or dropped by
+     * {@code ResolveViewShadows} before this method is called; the strip step below is a no-op in
+     * that case but serves as a safety net for callers (such as test helpers) that invoke
+     * {@link #apply(LogicalPlan)} or this method directly without going through the full analyzer.
+     * By the time the strip completes, all reachable {@link UnresolvedRelation}s have been
+     * replaced by {@code EsRelation}s. This phase then flattens nested {@link ViewUnionAll}
+     * structures and unwraps remaining {@link NamedSubquery} wrappers. The
+     * {@link UnresolvedRelation}-merge step inside {@link #compactNestedViewUnionAlls} is
+     * effectively a no-op — sibling {@code EsRelation}s stay separate (Strategy A from
+     * esql-planning#543).
      */
     public static LogicalPlan postIndexResolution(LogicalPlan plan) {
         plan = stripViewShadowRelations(plan);
-        // Strip can collapse a {@code ViewUnionAll[NamedSubquery, ViewShadowRelation]} to its sole
-        // {@link NamedSubquery} when the shadow is removed. That exposes a {@code Subquery[NamedSubquery]}
-        // pattern (and a parent {@link UnionAll} containing a {@link NamedSubquery} child) that
-        // {@link #rewriteUnionAllsWithNamedSubqueries} needs to see in order to unwrap and convert
-        // to {@link ViewUnionAll}, so we re-run the rewrite after the strip.
+        // Strip can collapse a ViewUnionAll to a lone NamedSubquery child when the only other
+        // branch was a shadow. Re-run the rewrite to convert any exposed Subquery[NamedSubquery]
+        // patterns into proper ViewUnionAll nodes before the final flatten and unwrap.
         plan = rewriteUnionAllsWithNamedSubqueries(plan);
         plan = compactNestedViewUnionAlls(plan);
         plan = plan.transformDown(NamedSubquery.class, UnaryPlan::child);
@@ -104,16 +105,14 @@ public class ViewCompaction extends Rule<LogicalPlan, LogicalPlan> {
 
     /**
      * Drop any still-unresolved {@link ViewShadowRelation} siblings from {@link ViewUnionAll}s.
-     * Delegates to {@link ViewUnionAll#pruneEmptyBranches(java.util.function.Predicate)} so the
-     * named-subqueries map stays in sync with the surviving children. Shares the same primitive
-     * as {@code Analyzer.PruneEmptyUnionAllBranch} and {@code PruneEmptyForkBranches} —
-     * different predicates, same shape — which keeps these rules order-independent: running
-     * them in any order yields the same end state for the branches each predicate identifies.
+     * In the production pipeline this is a no-op because {@code Analyzer.ResolveViewShadows} has
+     * already handled every shadow before {@link #postIndexResolution} runs. The method is kept
+     * as a safety net for callers (e.g. test helpers) that invoke {@link #apply} or
+     * {@link #postIndexResolution} directly without going through the full analyzer.
      * <p>
-     * Strip-specific extra: collapses a single-survivor {@link ViewUnionAll} to that lone
-     * child. A view-resolved union with one branch left is no longer a branching choice — it's
-     * just that single resolved subtree. (The other prune rules don't do this — they preserve
-     * the wrapper. The collapse is a {@link ViewCompaction} semantic, not a {@link UnionAll} one.)
+     * Delegates to {@link ViewUnionAll#pruneEmptyBranches(java.util.function.Predicate)} so the
+     * named-subqueries map stays in sync with the surviving children. Single-survivor collapse:
+     * a view-resolved union with one branch left is no longer a branching choice.
      */
     private static LogicalPlan stripViewShadowRelations(LogicalPlan plan) {
         return plan.transformDown(ViewUnionAll.class, vua -> {

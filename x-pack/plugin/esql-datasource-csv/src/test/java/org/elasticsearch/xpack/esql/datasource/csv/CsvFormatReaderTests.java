@@ -1113,6 +1113,170 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    /** Mid-field literal quotes (odd counts) must not suppress the boundary — pre-fix this returned -1. */
+    public void testTsvFindLastRecordBoundaryWithLiteralMidFieldQuotes() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        // one mid-field quote in row 1, three in row 2; none at field start
+        String data = "1\ta\"b\tc\n2\td\"e\"f\"g\th\n";
+        byte[] buf = data.getBytes(StandardCharsets.UTF_8);
+
+        int boundary = reader.findLastRecordBoundary(buf, buf.length);
+        assertEquals("must find the terminating newline of the last complete record", buf.length - 1, boundary);
+        assertEquals('\n', (char) buf[boundary]);
+    }
+
+    /** Same, on a 105-column ClickBench-shaped row with dense literal quotes. */
+    public void testTsvFindLastRecordBoundaryClickBenchShaped() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        String row = clickBenchShapedTsvRow();
+        byte[] buf = (row + row).getBytes(StandardCharsets.UTF_8);
+
+        int boundary = reader.findLastRecordBoundary(buf, buf.length);
+        assertEquals(buf.length - 1, boundary);
+        assertEquals('\n', (char) buf[boundary]);
+    }
+
+    /** The streaming sibling findNextRecordBoundary applies the same field-start rule. */
+    public void testTsvFindNextRecordBoundaryWithLiteralMidFieldQuotes() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        String row1 = "1\ta\"b\tc\n";
+        String data = row1 + "2\td\te\n";
+        byte[] buf = data.getBytes(StandardCharsets.UTF_8);
+
+        long consumed = reader.findNextRecordBoundary(new BufferedInputStream(new ByteArrayInputStream(buf)));
+        assertEquals(row1.length(), consumed);
+    }
+
+    /**
+     * A field-leading quote opens a quoted field; an embedded {@code ""} is a literal quote and a lone
+     * {@code "} closes the field. Pins the doubled-quote peek (the {@code peekByte} window) in both scanners.
+     */
+    public void testTsvDoubledQuoteInQuotedFieldIsLiteral() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        String row1 = "\"a\"\"b\"\tc\n"; // quoted field a"b (doubled quote), then c
+        byte[] buf = (row1 + "d\te\n").getBytes(StandardCharsets.UTF_8);
+
+        assertEquals(row1.length(), reader.findNextRecordBoundary(new BufferedInputStream(new ByteArrayInputStream(buf))));
+        assertEquals(buf.length - 1, reader.findLastRecordBoundary(buf, buf.length));
+    }
+
+    /** Oracle: the boundary scanner and {@link CsvFormatReader#readCsvRecord} must agree on record count, CSV and TSV. */
+    public void testRecordBoundaryCountAgreesWithReadCsvRecord() throws IOException {
+        for (boolean tsv : new boolean[] { true, false }) {
+            CsvFormatOptions options = tsv ? CsvFormatOptions.TSV : CsvFormatOptions.DEFAULT;
+            CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(options);
+            char delim = options.delimiter();
+            boolean bracketAware = options.multiValueSyntax() == CsvFormatOptions.MultiValueSyntax.BRACKETS && delim == ',';
+
+            int rows = randomIntBetween(5, 50);
+            StringBuilder sb = new StringBuilder();
+            for (int r = 0; r < rows; r++) {
+                int cols = randomIntBetween(1, 8);
+                for (int c = 0; c < cols; c++) {
+                    if (c > 0) {
+                        sb.append(delim);
+                    }
+                    sb.append(randomFieldWithLiteralQuotes(delim));
+                }
+                sb.append('\n');
+            }
+            String data = sb.toString();
+            byte[] buf = data.getBytes(StandardCharsets.UTF_8);
+
+            // Oracle: records produced by the real tokenizer.
+            int parserRecords = 0;
+            try (BufferedReader br = new BufferedReader(new StringReader(data))) {
+                while (CsvFormatReader.readCsvRecord(br, options.quoteChar(), delim, bracketAware) != null) {
+                    parserRecords++;
+                }
+            }
+
+            // Scanner: records found by driving findNextRecordBoundary forward.
+            int scannerRecords = 0;
+            BufferedInputStream in = new BufferedInputStream(new ByteArrayInputStream(buf));
+            while (reader.findNextRecordBoundary(in) >= 0) {
+                scannerRecords++;
+            }
+
+            assertEquals("record count mismatch (tsv=" + tsv + ") for data:\n" + data, parserRecords, scannerRecords);
+            // Buffer ends on a complete record, so the last byte is the final record boundary.
+            assertEquals(buf.length - 1, reader.findLastRecordBoundary(buf, buf.length));
+        }
+    }
+
+    /** Fuzz: the scanner never returns -1 for a buffer ending on a complete record, at any quote count. */
+    public void testTsvBoundaryNeverMinusOneWhenCompleteRecordPresent() throws IOException {
+        CsvFormatReader reader = new CsvFormatReader(blockFactory).withOptions(CsvFormatOptions.TSV);
+        for (int iter = 0; iter < 200; iter++) {
+            StringBuilder sb = new StringBuilder();
+            int rows = randomIntBetween(1, 6);
+            for (int r = 0; r < rows; r++) {
+                int cols = randomIntBetween(1, 6);
+                for (int c = 0; c < cols; c++) {
+                    if (c > 0) {
+                        sb.append('\t');
+                    }
+                    // Plain field with a random number of literal mid-field quotes (no field-leading quote).
+                    sb.append('x');
+                    int quotes = randomIntBetween(0, 5);
+                    for (int q = 0; q < quotes; q++) {
+                        sb.append(randomBoolean() ? '"' : 'y');
+                    }
+                }
+                sb.append('\n');
+            }
+            byte[] buf = sb.toString().getBytes(StandardCharsets.UTF_8);
+            int boundary = reader.findLastRecordBoundary(buf, buf.length);
+            assertEquals("returned -1 for a buffer ending on a complete record:\n" + sb, buf.length - 1, boundary);
+        }
+    }
+
+    /** A 105-column TSV row with literal quotes scattered through a handful of text-like columns. */
+    private static String clickBenchShapedTsvRow() {
+        StringBuilder row = new StringBuilder();
+        for (int c = 0; c < 105; c++) {
+            if (c > 0) {
+                row.append('\t');
+            }
+            switch (c % 7) {
+                case 0 -> row.append(c);                              // numeric column
+                case 3 -> row.append("http://x/?q=\"a\"&p=").append(c); // URL-like, literal quotes
+                case 5 -> row.append("Title \"with\" quotes ").append(c); // text, literal quotes
+                default -> row.append('v').append(c);
+            }
+        }
+        row.append('\n');
+        return row.toString();
+    }
+
+    /** A field that is either plain text with random mid-field literal quotes, or a properly quoted field. */
+    private String randomFieldWithLiteralQuotes(char delim) {
+        if (randomInt(4) == 0) {
+            // Properly quoted field: may embed the delimiter, a newline, and doubled quotes.
+            StringBuilder b = new StringBuilder("\"");
+            int n = randomIntBetween(0, 6);
+            for (int i = 0; i < n; i++) {
+                int pick = randomInt(4);
+                switch (pick) {
+                    case 0 -> b.append(delim);
+                    case 1 -> b.append('\n');
+                    case 2 -> b.append("\"\""); // escaped literal quote inside the quoted field
+                    default -> b.append((char) ('a' + randomInt(25)));
+                }
+            }
+            b.append('"');
+            return b.toString();
+        }
+        // Plain field: starts with a letter (never a field-leading quote), then random text + literal quotes.
+        StringBuilder b = new StringBuilder();
+        b.append((char) ('a' + randomInt(25)));
+        int n = randomIntBetween(0, 8);
+        for (int i = 0; i < n; i++) {
+            b.append(randomBoolean() ? '"' : (char) ('a' + randomInt(25)));
+        }
+        return b.toString();
+    }
+
     public void testPipeDelimited() throws IOException {
         String csv = "id:long|name:keyword|score:double\n1|Alice|95.5\n2|Bob|87.3\n";
         CsvFormatOptions options = new CsvFormatOptions(

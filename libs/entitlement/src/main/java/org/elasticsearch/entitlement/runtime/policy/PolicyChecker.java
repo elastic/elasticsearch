@@ -35,8 +35,6 @@ public interface PolicyChecker {
 
     void checkCreateTempFile(Class<?> callerClass);
 
-    void checkDefineClass(Class<?> callerClass);
-
     void checkEntitlementPresent(Class<?> callerClass, Class<? extends Entitlement> entitlementClass);
 
     void checkEntitlementForUrl(Class<?> callerClass, URL url);

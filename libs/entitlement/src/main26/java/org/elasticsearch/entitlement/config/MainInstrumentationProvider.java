@@ -22,7 +22,6 @@ public class MainInstrumentationProvider implements InstrumentationConfig {
             new FileStoreInstrumentation(),
             new FileSystemProviderInstrumentation(),
             new L10nInstrumentation(),
-            new MethodHandlesLookupInstrumentation(),
             new NetworkInstrumentation(),
             new PathInstrumentation(),
             new SecurityInstrumentation(),

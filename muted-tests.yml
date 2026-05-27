@@ -597,3 +597,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.datasource.parquet.PageColumnReaderCorrectnessTests
   method: testV1Zstd
   issue: https://github.com/elastic/elasticsearch/issues/150019
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
+  method: testDataVisibility
+  issue: https://github.com/elastic/elasticsearch/issues/150028

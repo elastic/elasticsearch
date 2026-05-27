@@ -103,7 +103,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new NIOFSDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                new MemorySegmentES92Int7VectorsScorer(in, 64, 16);
+                new MemorySegmentES92NativeInt7VectorsScorer(in, 64, 16);
             }
         }
     }
@@ -113,7 +113,7 @@ public class IndexInputUtilsTests extends ESTestCase {
         try (Directory dir = new MMapDirectory(createTempDir())) {
             writeData(dir, data);
             try (IndexInput in = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
-                new MemorySegmentES92Int7VectorsScorer(in, 64, 16);
+                new MemorySegmentES92NativeInt7VectorsScorer(in, 64, 16);
             }
         }
     }
@@ -124,7 +124,7 @@ public class IndexInputUtilsTests extends ESTestCase {
             writeData(dir, data);
             try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
                 IndexInput in = new DirectAccessIndexInput("dai", rawIn, data, NativeAccess.instance());
-                new MemorySegmentES92Int7VectorsScorer(in, 64, 16);
+                new MemorySegmentES92NativeInt7VectorsScorer(in, 64, 16);
             }
         }
     }
@@ -135,7 +135,7 @@ public class IndexInputUtilsTests extends ESTestCase {
             writeData(dir, data);
             try (IndexInput rawIn = dir.openInput(FILE_NAME, IOContext.DEFAULT)) {
                 IndexInput wrapped = new FilterIndexInput("plain-wrapper", rawIn) {};
-                expectThrows(IllegalArgumentException.class, () -> new MemorySegmentES92Int7VectorsScorer(wrapped, 64, 16));
+                expectThrows(IllegalArgumentException.class, () -> new MemorySegmentES92NativeInt7VectorsScorer(wrapped, 64, 16));
             }
         }
     }

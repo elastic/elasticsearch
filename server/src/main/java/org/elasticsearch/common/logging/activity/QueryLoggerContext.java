@@ -12,9 +12,11 @@ package org.elasticsearch.common.logging.activity;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
@@ -26,6 +28,8 @@ import java.util.stream.Collectors;
 public abstract class QueryLoggerContext extends ActivityLoggerContext {
     // Cached "isSystem" flag
     private Boolean isSystemSearch = null;
+
+    public static final ToXContent.Params FORMAT_PARAMS = new ToXContent.MapParams(Collections.singletonMap("pretty", "false"));
 
     protected QueryLoggerContext(Task task, String type, long tookInNanos, @Nullable Exception error) {
         super(task, type, tookInNanos, error);

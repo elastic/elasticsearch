@@ -168,9 +168,13 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      */
     private static final Version REMOTE_SHARD_DOC_SUPPORTED = Version.V_7_12_0;
 
-    private final ReindexSettings reindexSettings;
+    protected final ReindexSettings reindexSettings;
     private final CircuitBreaker circuitBreaker;
     private final String breakerLabel;
+
+    protected CircuitBreaker getCircuitBreaker() {
+        return circuitBreaker;
+    }
 
     AbstractAsyncBulkByPaginatedSearchAction(
         BulkByPaginatedSearchTask task,
@@ -260,6 +264,9 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         BackoffPolicy backoffPolicy = buildBackoffPolicy();
         bulkRetry = new Retry(BackoffPolicy.wrap(backoffPolicy, worker::countBulkRetry), threadPool);
         this.remoteVersion = remoteVersion;
+        this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
+        this.breakerLabel = Objects.requireNonNull(breakerLabel);
+        this.reindexSettings = Objects.requireNonNull(reindexSettings);
         paginatedHitSource = buildScrollableResultSource(
             backoffPolicy,
             prepareSearchRequest(
@@ -271,9 +278,6 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             )
         );
         scriptApplier = Objects.requireNonNull(buildScriptApplier(), "script applier must not be null");
-        this.reindexSettings = Objects.requireNonNull(reindexSettings);
-        this.circuitBreaker = Objects.requireNonNull(circuitBreaker);
-        this.breakerLabel = Objects.requireNonNull(breakerLabel);
     }
 
     /** Computes the minimum time a relocated task must run before it can be relocated again. Visible for testing. */
@@ -589,6 +593,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             return;
         }
         if (asyncResponse.hasRemainingHits() == false) {
+            asyncResponse.releaseRemainingHits();
             refreshAndFinish(emptyList(), emptyList(), false);
             return;
         }
@@ -625,6 +630,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         final Releasable cleanup = Releasables.wrap(releaseBatchHits, () -> {
             long r = reservedBytes.getAndSet(0);
             if (r > 0) circuitBreaker.addWithoutBreaking(-r);
+            asyncResponse.response().closeBodyReleasable();
         });
         boolean cleanupHandedOff = false;
         try {
@@ -1383,6 +1389,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
             for (; consumedOffset < hits.size(); consumedOffset++) {
                 hits.get(consumedOffset).release();
             }
+            asyncResponse.response().closeBodyReleasable();
         }
 
         void done(TimeValue extraKeepAlive) {

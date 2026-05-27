@@ -123,23 +123,19 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
     }
 
     /**
-     * Flushes metrics in three sequential steps: sys → health1 → health2.
+     * Flushes metrics in four sequential steps: sys1 → health1 → sys2 → health2.
      * <p>
      * Two ordering constraints drive this design:
      * <ol>
-     *   <li>{@code OtlpHttpMetricExporter} records exporter health telemetry (e.g.
-     *       {@code otel.sdk.exporter.metric_data_point.exported}) into the health provider only
-     *       after its HTTP export completes, so the health flush must follow the system flush.</li>
-     *   <li>{@code PeriodicMetricReader} records {@code otel.sdk.metric_reader.collection.duration}
-     *       in a {@code whenComplete} callback that races with the {@code forceFlush()} result
-     *       completing, so health1 may start before {@code collection.duration} is written. By the
-     *       time health1 finishes its own HTTP export, the race has resolved; health2 reliably
-     *       captures {@code collection.duration} from the system flush.</li>
+     *   <li>{@code OtlpHttpMetricExporter} records exporter health telemetry (e.g. {@code otel.sdk.exporter.metric_data_point.exported})
+     *   into the health provider only after its HTTP export completes, so the health flush must follow the system flush in each cycle.
+     *   <li>{@code PeriodicMetricReader} records {@code otel.sdk.metric_reader.collection.duration} into the {@code SdkMeterProvider} that
+     *   owns it: meaning, it will only be published when the provider runs again. This counts for both system and health providers.
      * </ol>
      * Callers must join the result with an appropriate timeout.
      * <p>
-     * The returned result always succeeds: flush is best-effort and intermediate failures are silently
-     * ignored, consistent with the contract of {@link MeterSupplier#attemptFlushMetrics()}.
+     * The returned result always succeeds: flush is best-effort and intermediate failures are silently ignored, consistent with the
+     * contract of {@link MeterSupplier#attemptFlushMetrics()}.
      */
     @Override
     public CompletableResultCode attemptFlushMetrics() {
@@ -155,7 +151,10 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         // close() may race here; SdkMeterProvider.forceFlush() on a stopped provider is a safe no-op.
         CompletableResultCode result = new CompletableResultCode();
         sys.forceFlush()
-            .whenComplete(() -> health.forceFlush().whenComplete(() -> health.forceFlush().whenComplete(() -> result.succeed())));
+            .whenComplete(
+                () -> health.forceFlush()
+                    .whenComplete(() -> sys.forceFlush().whenComplete(() -> health.forceFlush().whenComplete(() -> result.succeed())))
+            );
         return result;
     }
 

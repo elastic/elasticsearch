@@ -106,6 +106,13 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
     public void setUp() throws Exception {
         super.setUp();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+        // Every test in this class writes to the same in-memory path ("memory://correctness_test.parquet")
+        // with a different file body. The JVM-wide FooterByteCache is keyed by (path, length) and would
+        // otherwise serve the previous test's footer when the new file happens to land on the same byte
+        // length (which testRandomSchema's seeded combinations occasionally do). Clear it before each
+        // test so every iteration reads its own footer. Other tests in this package that reuse a single
+        // path follow the same pattern (see OptimizedReaderFileVariantTests).
+        ParquetStorageObjectAdapter.clearFooterCacheForTests();
     }
 
     // --- Explicit V1/V2 x compression matrix ---
@@ -130,6 +137,10 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_1_0, CompressionCodecName.LZ4_RAW);
     }
 
+    public void testV1Lz4HadoopFramed() throws IOException {
+        assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_1_0, CompressionCodecName.LZ4);
+    }
+
     public void testV2Uncompressed() throws IOException {
         assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.UNCOMPRESSED);
     }
@@ -148,6 +159,10 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
 
     public void testV2Lz4Raw() throws IOException {
         assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.LZ4_RAW);
+    }
+
+    public void testV2Lz4HadoopFramed() throws IOException {
+        assertReadersMatch(ParquetProperties.WriterVersion.PARQUET_2_0, CompressionCodecName.LZ4);
     }
 
     // --- filterBlock tests ---
@@ -319,7 +334,8 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
             CompressionCodecName.SNAPPY,
             CompressionCodecName.ZSTD,
             CompressionCodecName.GZIP,
-            CompressionCodecName.LZ4_RAW
+            CompressionCodecName.LZ4_RAW,
+            CompressionCodecName.LZ4
         );
 
         byte[] data = writeTestFile(version, codec, schema, numRows, (group, row) -> {
@@ -479,7 +495,7 @@ public class PageColumnReaderCorrectnessTests extends ESTestCase {
         try (
             ParquetWriter<Group> writer = ExampleParquetWriter.builder(outputFile(out))
                 .withConf(new PlainParquetConfiguration())
-                .withCodecFactory(new PlainCompressionCodecFactory())
+                .withCodecFactory(LegacyLz4HadoopFramedCodecFactory.forCodec(codec))
                 .withType(schema)
                 .withWriterVersion(version)
                 .withCompressionCodec(codec)

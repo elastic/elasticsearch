@@ -19,7 +19,7 @@ import org.elasticsearch.simdvec.internal.Similarities;
 
 import java.lang.foreign.MemorySegment;
 
-public final class Native22ESVectorUtilSupport extends Panama22ESVectorUtilSupport {
+public final class Native22ESVectorUtilSupport extends PanamaESVectorUtilSupport {
 
     /*
      * This is technically separate to the Panama22 implementation, but there's

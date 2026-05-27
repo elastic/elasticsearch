@@ -38,10 +38,12 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.FieldExtract;
 import org.elasticsearch.xpack.esql.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.local.LucenePushdownPredicates;
 import org.elasticsearch.xpack.esql.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
@@ -481,11 +483,26 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
 
     @Override
     public Translatable translatable(LucenePushdownPredicates pushdownPredicates) {
-        return pushdownPredicates.isPushableAttribute(value) && Expressions.foldable(list()) ? Translatable.YES : Translatable.NO;
+        if (Expressions.foldable(list()) == false) {
+            return Translatable.NO;
+        }
+        if (pushdownPredicates.isPushableAttribute(value)) {
+            return Translatable.YES;
+        }
+        if (value instanceof FieldExtract fe && fe.tryAsKeyedSubfieldName(pushdownPredicates).isPresent()) {
+            return Translatable.YES;
+        }
+        return Translatable.NO;
     }
 
     @Override
     public Query asQuery(LucenePushdownPredicates pushdownPredicates, TranslatorHandler handler) {
+        if (value() instanceof FieldExtract fe) {
+            var keyedName = fe.tryAsKeyedSubfieldName(pushdownPredicates);
+            if (keyedName.isPresent()) {
+                return translateFieldExtractIn(keyedName.get());
+            }
+        }
         return translate(pushdownPredicates, handler);
     }
 
@@ -521,6 +538,39 @@ public class In extends EsqlScalarFunction implements TranslationAware.SingleVal
         }
 
         return queries.stream().reduce((q1, q2) -> or(source(), q1, q2)).get();
+    }
+
+    /**
+     * Translate {@code field_extract(<flattened root>, "<key>") IN (<literals>)} into a
+     * {@link TermsQuery} against the keyed sub-field. The data node's {@code FieldTypeLookup}
+     * resolves {@code <root>.<key>} to a {@code KeyedFlattenedFieldType} which prefixes each term
+     * with the key separator at search time.
+     * <p>
+     *     The result is wrapped in {@link SingleValueQuery} to preserve ES|QL's single-value-only
+     *     comparison semantics for multi-valued sub-keys (consistent with {@code field_extract}
+     *     used inside {@code Equals}/{@code NotEquals}).
+     * </p>
+     */
+    private Query translateFieldExtractIn(String keyedName) {
+        Set<Object> terms = new LinkedHashSet<>();
+        for (Expression rhs : list()) {
+            if (Expressions.isGuaranteedNull(rhs)) {
+                continue;
+            }
+            Object v = literalValueOf(rhs);
+            if (v instanceof BytesRef br) {
+                v = br.utf8ToString();
+            }
+            terms.add(v);
+        }
+        if (terms.isEmpty()) {
+            // All RHS values were guaranteed-null, so no doc can match. translate() above has the
+            // same edge case (its reduce throws NoSuchElementException), but we should not
+            // claim the predicate is translatable in that case. The folder normally rewrites such
+            // an IN to a constant false beforehand, so this branch is defensive.
+            throw new EsqlIllegalArgumentException("field_extract IN with all-null list cannot be translated to a query");
+        }
+        return new SingleValueQuery(new TermsQuery(source(), keyedName, terms), keyedName, false);
     }
 
     private static boolean needsTypeSpecificValueHandling(DataType fieldType) {

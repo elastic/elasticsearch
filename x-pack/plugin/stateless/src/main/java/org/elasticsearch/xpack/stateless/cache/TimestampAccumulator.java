@@ -18,9 +18,11 @@ package org.elasticsearch.xpack.stateless.cache;
 public interface TimestampAccumulator {
 
     /**
-     * Adds {@code delta} (can be negative) to the sum associated with {@code timestampMillis}.
+     * Adds {@code delta} (can be negative) to the count in the slot containing {@code timestampMillis}.
+     *
+     * @return the slot count after applying {@code delta}. E.g., to assert it is not negative.
      */
-    void accumulate(long timestampMillis, long delta);
+    long accumulate(long timestampMillis, long delta);
 
     /**
      * Returns the sum of counts in the interval {@code [startMillis, endMillis)}.

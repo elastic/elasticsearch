@@ -71,7 +71,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         int rulesNumber = randomIntBetween(maxSynonymRules / 2, maxSynonymRules);
 
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> putFuture = new PlainActionFuture<>();
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber), refresh, true, putFuture);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber), refresh, randomBoolean(), putFuture);
         SynonymsManagementAPIService.SynonymsReloadResult putResult = safeGet(putFuture);
         assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED, putResult.synonymsOperationResult());
         assertEquals(refresh, putResult.reloadAnalyzersResponse() != null);
@@ -151,7 +151,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
         String synonymSetId = randomIdentifier();
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> putFuture = new PlainActionFuture<>();
-        synsApiService.putSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber), false, true, putFuture);
+        synsApiService.putSynonymsSet(synonymSetId, randomSynonymsSet(rulesNumber), false, randomBoolean(), putFuture);
         assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED, safeGet(putFuture).synonymsOperationResult());
 
         PlainActionFuture<PagedResult<SynonymRule>> getFuture = new PlainActionFuture<>();
@@ -206,7 +206,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
             randomIdentifier(),
             randomSynonymsSet(maxSynonymRules + 1, maxSynonymRules * 2),
             randomBoolean(),
-            true,
+            randomBoolean(),
             future
         );
         var ex = expectThrows(IllegalArgumentException.class, () -> future.actionGet(TEST_REQUEST_TIMEOUT));
@@ -218,7 +218,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         int rulesToUpdate = randomIntBetween(1, 10);
         int synonymsToCreate = maxSynonymRules - rulesToUpdate;
         String synonymSetId = randomIdentifier();
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(synonymsToCreate), true, true, new ActionListener<>() {
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(synonymsToCreate), true, randomBoolean(), new ActionListener<>() {
             @Override
             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                 // Create as many rules as should fail
@@ -289,7 +289,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         SynonymRule[] synonymsSet = randomSynonymsSet(maxSynonymRules);
 
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> putFuture = new PlainActionFuture<>();
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, synonymsSet, true, true, putFuture);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, synonymsSet, true, randomBoolean(), putFuture);
         safeGet(putFuture);
 
         // Updating an existing rule at max capacity should succeed
@@ -309,7 +309,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         SynonymRule[] synonymsSet = randomSynonymsSet(maxSynonymRules);
 
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> putFuture = new PlainActionFuture<>();
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, synonymsSet, true, true, putFuture);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, synonymsSet, true, randomBoolean(), putFuture);
         safeGet(putFuture);
 
         // Creating a new rule when at max capacity should fail
@@ -342,7 +342,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         // Create a rule fails
         CountDownLatch putLatch = new CountDownLatch(1);
         String synonymSetId = randomIdentifier();
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(1), true, true, new ActionListener<>() {
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(1), true, randomBoolean(), new ActionListener<>() {
             @Override
             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                 fail("Shouldn't have been able to create synonyms with refresh in synonyms index health");
@@ -398,7 +398,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
         // But, we can still create a synonyms set without refresh
         CountDownLatch putNoRefreshLatch = new CountDownLatch(1);
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(1), false, true, new ActionListener<>() {
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(1), false, randomBoolean(), new ActionListener<>() {
             @Override
             public void onResponse(SynonymsManagementAPIService.SynonymsReloadResult synonymsReloadResult) {
                 // Expected

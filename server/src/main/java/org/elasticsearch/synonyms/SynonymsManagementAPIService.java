@@ -681,9 +681,10 @@ public class SynonymsManagementAPIService {
         UpdateSynonymsResultStatus status,
         ActionListener<SynonymsReloadResult> listener
     ) {
-        // Count is best-effort: search results may lag behind recent writes by up to one refresh
-        // interval, and concurrent appends can push the total beyond the configured limit.
-        // Both are acceptable trade-offs, consistent with putSynonymRule.
+        // Best-effort count, consistent with putSynonymRule. Two known limitations:
+        // stale search results can let concurrent appends exceed the limit; and rules
+        // that overwrite existing IDs are counted as new, so pure-update appends at the
+        // limit are incorrectly rejected.
         client.prepareSearch(SYNONYMS_ALIAS_NAME)
             .setQuery(
                 QueryBuilders.boolQuery()

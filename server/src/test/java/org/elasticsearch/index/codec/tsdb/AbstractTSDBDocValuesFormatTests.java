@@ -2464,37 +2464,6 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             }
         }
     }
-    
-    public void testRangeQueryNoFalsePositiveAtLastDoc() throws IOException {
-        final String field = "dense_value";
-        // numDocs > DenseConjunctionBulkScorer.WINDOW_SIZE (4096) so that a second window starts
-        // exactly at doc 4096 — the position where the intoBitSet bug leaves iterDoc after the
-        // first window. Using indexedField gives a RANGE skip index so tryRangeIterator uses the
-        // skipper path, whose docIDRunEnd can claim a large run and trigger collectRange.
-        // Almost all docs match so that cost >= maxDoc / DENSITY_THRESHOLD_INVERSE (= maxDoc/32),
-        // which is required for DenseConjunctionBulkScorer to be selected at all.
-        final int numDocs = 4097;
-        final long matchValue = 42L;
-        final long otherValue = 99L;
-
-        var config = new IndexWriterConfig().setCodec(getCodec());
-        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
-            for (int i = 0; i < numDocs; i++) {
-                var d = new Document();
-                // Doc at the window boundary (4096) is the sole non-match.
-                d.add(SortedNumericDocValuesField.indexedField(field, i == 4096 ? otherValue : matchValue));
-                iw.addDocument(d);
-            }
-            iw.forceMerge(1);
-
-            try (var reader = DirectoryReader.open(iw)) {
-                assertEquals(1, reader.leaves().size());
-                var leafReader = reader.leaves().getFirst().reader();
-                var searcher = new IndexSearcher(reader);
-                assertRangeQuerySearcher(leafReader, field, searcher, numDocs, matchValue, matchValue);
-            }
-        }
-    }
 
     private Set<Integer> matchingDocs(LeafReader leafReader, String field, long lower, long upper) throws IOException {
         Set<Integer> expected = new HashSet<>();

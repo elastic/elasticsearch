@@ -84,19 +84,19 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         assertEquals(rulesNumber, getResult.pageResults().length);
     }
 
-    public void testPutSynonymsSetReplaceAllFalse() throws Exception {
+    public void testPutSynonymsSetAppend() throws Exception {
         String synonymSetId = randomIdentifier();
         SynonymRule[] initialRules = randomSynonymsSet(randomIntBetween(1, 5));
         SynonymRule[] additionalRules = randomSynonymsSet(randomIntBetween(1, 5));
 
         // append=true on a non-existent set creates it
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> createFuture = new PlainActionFuture<>();
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, initialRules, false, false, createFuture);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, initialRules, false, true, createFuture);
         assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED, safeGet(createFuture).synonymsOperationResult());
 
         // append=true on an existing set adds rules without removing existing ones
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> addFuture = new PlainActionFuture<>();
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, additionalRules, false, false, addFuture);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, additionalRules, false, true, addFuture);
         assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.UPDATED, safeGet(addFuture).synonymsOperationResult());
 
         // All rules are present
@@ -106,32 +106,32 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         assertEquals(initialRules.length + additionalRules.length, result.totalResults());
     }
 
-    public void testPutSynonymsSetReplaceAllFalseOnEmptySetReturnsUpdated() throws Exception {
+    public void testPutSynonymsSetAppendOnEmptySetReturnsUpdated() throws Exception {
         String synonymSetId = randomIdentifier();
 
         // Create an empty set
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> createFuture = new PlainActionFuture<>();
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, new SynonymRule[0], false, true, createFuture);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, new SynonymRule[0], false, false, createFuture);
         assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.CREATED, safeGet(createFuture).synonymsOperationResult());
 
         // append=true on an existing empty set returns UPDATED (the set document exists)
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> addFuture = new PlainActionFuture<>();
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(randomIntBetween(1, 5)), false, false, addFuture);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, randomSynonymsSet(randomIntBetween(1, 5)), false, true, addFuture);
         assertEquals(SynonymsManagementAPIService.UpdateSynonymsResultStatus.UPDATED, safeGet(addFuture).synonymsOperationResult());
     }
 
-    public void testPutSynonymsSetReplaceAllFalseRejectsWhenLimitExceeded() throws Exception {
+    public void testPutSynonymsSetAppendRejectsWhenLimitExceeded() throws Exception {
         String synonymSetId = randomIdentifier();
         SynonymRule[] initialRules = randomSynonymsSet(maxSynonymRules - 1);
 
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> createFuture = new PlainActionFuture<>();
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, initialRules, false, true, createFuture);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, initialRules, false, false, createFuture);
         safeGet(createFuture);
 
         // Adding two more rules would exceed the limit
         SynonymRule[] extraRules = randomSynonymsSet(2);
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> addFuture = new PlainActionFuture<>();
-        synonymsManagementAPIService.putSynonymsSet(synonymSetId, extraRules, false, false, addFuture);
+        synonymsManagementAPIService.putSynonymsSet(synonymSetId, extraRules, false, true, addFuture);
         var ex = expectThrows(IllegalArgumentException.class, () -> addFuture.actionGet(TEST_REQUEST_TIMEOUT));
         assertThat(ex.getMessage(), containsString("cannot exceed " + maxSynonymRules));
     }
@@ -449,8 +449,8 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
 
         String setA = randomIdentifier();
         String setB = randomIdentifier();
-        putSynonymsSet(service, setA, randomSynonymsSet(rulesPerSet, rulesPerSet));
-        putSynonymsSet(service, setB, randomSynonymsSet(rulesPerSet, rulesPerSet));
+        putSynonymsSet(service, setA, randomSynonymsSet(rulesPerSet, rulesPerSet), false);
+        putSynonymsSet(service, setB, randomSynonymsSet(rulesPerSet, rulesPerSet), false);
 
         try (var mockLog = MockLog.capture(SynonymsManagementAPIService.class)) {
             mockLog.addExpectation(
@@ -479,7 +479,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         String missingSetId = randomIdentifier();
 
         // Create an empty synonym set (no rules, but the set document exists)
-        putSynonymsSet(synonymsManagementAPIService, existsSetId, new SynonymRule[0]);
+        putSynonymsSet(synonymsManagementAPIService, existsSetId, new SynonymRule[0], false);
 
         try (var mockLog = MockLog.capture(SynonymsManagementAPIService.class)) {
             mockLog.addExpectation(
@@ -528,8 +528,8 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         String setA = randomIdentifier();
         String setB = randomIdentifier();
 
-        putSynonymsSet(synonymsManagementAPIService, setA, new SynonymRule[] { new SynonymRule("rule-a-1", "quick, fast") });
-        putSynonymsSet(synonymsManagementAPIService, setB, new SynonymRule[] { new SynonymRule("rule-b-1", "jumps, leaps") });
+        putSynonymsSet(synonymsManagementAPIService, setA, new SynonymRule[] { new SynonymRule("rule-a-1", "quick, fast") }, false);
+        putSynonymsSet(synonymsManagementAPIService, setB, new SynonymRule[] { new SynonymRule("rule-b-1", "jumps, leaps") }, false);
 
         String content = readAll(Analysis.getReaderFromIndex(Set.of(setA, setB), synonymsManagementAPIService, false));
         assertThat(content, containsString("quick, fast"));
@@ -543,7 +543,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         String existingSet = randomIdentifier();
         String missingSet = randomIdentifier();
 
-        putSynonymsSet(synonymsManagementAPIService, existingSet, new SynonymRule[] { new SynonymRule("r1", "quick, fast") });
+        putSynonymsSet(synonymsManagementAPIService, existingSet, new SynonymRule[] { new SynonymRule("r1", "quick, fast") }, false);
 
         String content = readAll(Analysis.getReaderFromIndex(Set.of(existingSet, missingSet), synonymsManagementAPIService, true));
         assertThat(content, containsString("quick, fast"));
@@ -556,7 +556,7 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         String existingSet = randomIdentifier();
         String missingSet = randomIdentifier();
 
-        putSynonymsSet(synonymsManagementAPIService, existingSet, new SynonymRule[] { new SynonymRule("r1", "quick, fast") });
+        putSynonymsSet(synonymsManagementAPIService, existingSet, new SynonymRule[] { new SynonymRule("r1", "quick, fast") }, false);
 
         ResourceNotFoundException e = expectThrows(
             ResourceNotFoundException.class,
@@ -565,9 +565,9 @@ public class SynonymsManagementAPIServiceIT extends ESIntegTestCase {
         assertThat(e.getMessage(), containsString(missingSet));
     }
 
-    private static void putSynonymsSet(SynonymsManagementAPIService service, String setName, SynonymRule[] synonymsSet) {
+    private static void putSynonymsSet(SynonymsManagementAPIService service, String setName, SynonymRule[] synonymsSet, boolean append) {
         PlainActionFuture<SynonymsManagementAPIService.SynonymsReloadResult> future = new PlainActionFuture<>();
-        service.putSynonymsSet(setName, synonymsSet, false, future);
+        service.putSynonymsSet(setName, synonymsSet, false, append, future);
         safeGet(future);
     }
 

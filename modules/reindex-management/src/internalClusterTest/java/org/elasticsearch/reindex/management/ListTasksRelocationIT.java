@@ -99,20 +99,6 @@ public class ListTasksRelocationIT extends ESIntegTestCase {
 
         shutdownNodeNameAndRelocate(nodeBName);
 
-        // After relocation the new parent task is registered before its child slice tasks are
-        // dispatched, leaving a brief window where the listing shows fewer children than expected.
-        // Poll until the relocated parent task is visible; by that point all active slices have
-        // been dispatched. Some slices may have completed before or shortly after relocation and
-        // are not re-created, so we do not assert an exact child count here.
-        assertBusy(() -> {
-            final List<TaskInfo> tasks = listAllReindexTasks();
-            assertThat(
-                "at least one reindex task visible after relocation",
-                tasks.stream().filter(t -> t.parentTaskId().isSet() == false).toList(),
-                hasSize(1)
-            );
-        });
-
         final List<TaskInfo> allTasks = listAllReindexTasks();
         final List<TaskInfo> parents = allTasks.stream().filter(t -> t.parentTaskId().isSet() == false).toList();
         assertThat("exactly one reindex parent", parents, hasSize(1));

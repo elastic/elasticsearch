@@ -59,7 +59,7 @@ public class SynonymGraphTokenFilterFactory extends SynonymTokenFilterFactory {
             name(),
             synonyms,
             analysisMode,
-            rulesReader.resource(),
+            rulesReader.resources(),
             ts -> new SynonymGraphFilter(ts, synonyms, false)
         );
     }

@@ -606,3 +606,21 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:where-like.likeContainsLongerLiteralOnEvalOutput}
   issue: https://github.com/elastic/elasticsearch/issues/149921
+- class: org.elasticsearch.xpack.esql.datasources.CompressionDelegatingFormatReaderTests
+  method: testDelegatesMetadataAndReadZstd
+  issue: https://github.com/elastic/elasticsearch/issues/149943
+- class: org.elasticsearch.xpack.esql.datasources.DecompressingStorageObjectTests
+  method: testDecompressStreamZstd
+  issue: https://github.com/elastic/elasticsearch/issues/149944
+- class: org.elasticsearch.xpack.stateless.allocation.StatelessDesiredBalanceReconcilerTests
+  method: testStatelessFallbackAllocation
+  issue: https://github.com/elastic/elasticsearch/issues/149947
+- class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeUnmappedLoadIT
+  method: test
+  issue: https://github.com/elastic/elasticsearch/issues/148619
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:lookup-join.floatEqualsDouble}
+  issue: https://github.com/elastic/elasticsearch/issues/149952
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:conditional.docsCaseColumnExpression}
+  issue: https://github.com/elastic/elasticsearch/issues/149953

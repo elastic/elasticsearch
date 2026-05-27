@@ -37,18 +37,21 @@ public class SecurityRestFilter implements RestInterceptor {
     private final SecondaryAuthenticator secondaryAuthenticator;
     private final AuditTrailService auditTrailService;
     private final boolean enabled;
+    private final boolean httpSslEnabled;
     private final ThreadContext threadContext;
     private final OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
     private final AuthenticationContextSerializer authenticationSerializer = new AuthenticationContextSerializer();
 
     public SecurityRestFilter(
         boolean enabled,
+        boolean httpSslEnabled,
         ThreadContext threadContext,
         SecondaryAuthenticator secondaryAuthenticator,
         AuditTrailService auditTrailService,
         OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService
     ) {
         this.enabled = enabled;
+        this.httpSslEnabled = httpSslEnabled;
         this.threadContext = threadContext;
         this.secondaryAuthenticator = secondaryAuthenticator;
         this.auditTrailService = auditTrailService;
@@ -104,7 +107,7 @@ public class SecurityRestFilter implements RestInterceptor {
 
     @Override
     public boolean allowsBrowserSafelistedContentType(RestRequest request) {
-        if (enabled == false) {
+        if (enabled == false || httpSslEnabled == false) {
             return false;
         }
         try {

@@ -28,7 +28,8 @@ public interface RestInterceptor {
 
     /**
      * Whether this request may use browser-safelisted content types such as
-     * {@code application/x-www-form-urlencoded}.
+     * {@code application/x-www-form-urlencoded}. Form-encoded POST bodies still
+     * require an explicit handler opt-in via {@link RestHandler#supportsReadOnlyFormEncodedPostBody()}.
      */
     default boolean allowsBrowserSafelistedContentType(RestRequest request) {
         return false;

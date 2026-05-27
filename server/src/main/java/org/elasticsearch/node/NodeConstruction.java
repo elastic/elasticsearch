@@ -151,6 +151,7 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
@@ -1353,19 +1354,23 @@ class NodeConstruction {
             )
         );
 
-        RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoriesService);
+        final RecoveryPlannerService recoveryPlannerService = getRecoveryPlannerService(threadPool, clusterService, repositoriesService);
         modules.add(b -> {
             serviceProvider.processRecoverySettings(pluginsService, settingsModule.getClusterSettings(), recoverySettings);
-            SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
-            var peerRecovery = new PeerRecoverySourceService(
+            final SnapshotFilesProvider snapshotFilesProvider = new SnapshotFilesProvider(repositoriesService);
+            final RecoveryMetricsCollector recoveryMetricsCollector = new RecoveryMetricsCollector(telemetryProvider);
+            final PeerRecoverySourceService peerRecovery = new PeerRecoverySourceService(
                 transportService,
                 indicesService,
                 clusterService,
                 recoverySettings,
-                recoveryPlannerService
+                recoveryPlannerService,
+                recoveryMetricsCollector
             );
             resourcesToClose.add(peerRecovery);
+
             b.bind(PeerRecoverySourceService.class).toInstance(peerRecovery);
+            b.bind(RecoveryMetricsCollector.class).toInstance(recoveryMetricsCollector);
             b.bind(PeerRecoveryTargetService.class)
                 .toInstance(
                     new PeerRecoveryTargetService(

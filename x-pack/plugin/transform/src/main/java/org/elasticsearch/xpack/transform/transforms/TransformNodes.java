@@ -134,11 +134,12 @@ public final class TransformNodes {
      * Don't do this if a reset is in progress, because the feature reset API touches
      * all features even if they have never been used.
      *
-     * @param clusterState state
+     * @param project project metadata
+     * @param nodes cluster nodes
      */
-    public static void warnIfNoTransformNodes(ClusterState clusterState) {
-        if (TransformMetadata.getTransformMetadata(clusterState).resetMode() == false) {
-            if (hasAnyTransformNode(clusterState.getNodes()) == false) {
+    public static void warnIfNoTransformNodes(ProjectMetadata project, DiscoveryNodes nodes) {
+        if (TransformMetadata.transformMetadata(project).resetMode() == false) {
+            if (hasAnyTransformNode(nodes) == false) {
                 HeaderWarning.addWarning(TransformMessages.REST_WARN_NO_TRANSFORM_NODES);
             }
         }

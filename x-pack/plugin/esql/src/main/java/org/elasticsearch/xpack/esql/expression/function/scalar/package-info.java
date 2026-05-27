@@ -155,14 +155,14 @@
  *         Actually, running the tests in the example above should have done it for you.
  *         Make sure to commit the following generated files
  *         <ul>
- *              <li>{@code docs/reference/query-languages/esql/_snippets/functions/description/myfunction.md}</li>
- *              <li>{@code docs/reference/query-languages/esql/_snippets/functions/examples/myfunction.md}</li>
- *              <li>{@code docs/reference/query-languages/esql/_snippets/functions/layout/myfunction.md}</li>
- *              <li>{@code docs/reference/query-languages/esql/_snippets/functions/parameters/myfunction.md}</li>
- *              <li>{@code docs/reference/query-languages/esql/_snippets/functions/types/myfunction.md}</li>
- *              <li>{@code docs/reference/query-languages/esql/kibana/definition/functions/myfunction.json}</li>
- *              <li>{@code docs/reference/query-languages/esql/kibana/docs/functions/myfunction.md}</li>
- *              <li>{@code docs/reference/query-languages/esql/images/functions/myfunction.svg}</li>
+ *              <li>{@code docs/reference/query-languages/esql/_snippets/generated/{plugin}/functions/description/myfunction.md}</li>
+ *              <li>{@code docs/reference/query-languages/esql/_snippets/generated/{plugin}/functions/examples/myfunction.md}</li>
+ *              <li>{@code docs/reference/query-languages/esql/_snippets/generated/{plugin}/functions/layout/myfunction.md}</li>
+ *              <li>{@code docs/reference/query-languages/esql/_snippets/generated/{plugin}/functions/parameters/myfunction.md}</li>
+ *              <li>{@code docs/reference/query-languages/esql/_snippets/generated/{plugin}/functions/types/myfunction.md}</li>
+ *              <li>{@code docs/reference/query-languages/esql/kibana/generated/{plugin}/definition/functions/myfunction.json}</li>
+ *              <li>{@code docs/reference/query-languages/esql/kibana/generated/{plugin}/docs/functions/myfunction.md}</li>
+ *              <li>{@code docs/reference/query-languages/esql/images/generated/{plugin}/functions/myfunction.svg}</li>
  *         </ul>
  *
  *         In order to make your function appear in the docs, you should add a reference to it in the most suitable two md files under the

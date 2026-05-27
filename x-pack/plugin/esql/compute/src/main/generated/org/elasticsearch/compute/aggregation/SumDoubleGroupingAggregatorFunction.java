@@ -152,7 +152,6 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void addIntermediateInput(int positionOffset, IntArrayBlock groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block valueUncast = page.getBlock(channels.get(0));
     if (valueUncast.areAllValuesNull()) {
@@ -252,7 +251,6 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void addIntermediateInput(int positionOffset, IntBigArrayBlock groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block valueUncast = page.getBlock(channels.get(0));
     if (valueUncast.areAllValuesNull()) {
@@ -338,7 +336,6 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
 
   @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
-    state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
     Block valueUncast = page.getBlock(channels.get(0));
     if (valueUncast.areAllValuesNull()) {
@@ -388,6 +385,16 @@ public final class SumDoubleGroupingAggregatorFunction implements GroupingAggreg
       int valuesPosition = groupPosition + positionOffset;
       SumDoubleAggregator.combineIntermediate(state, groupId, value.getDouble(valuesPosition), delta.getDouble(valuesPosition), seen.getBoolean(valuesPosition));
     }
+  }
+
+  @Override
+  public GroupingAggregatorFunction.AddInput prepareProcessIntermediateInputPage(
+      SeenGroupIds seenGroupIds, Page page) {
+    BooleanVector seen = ((BooleanBlock) page.getBlock(channels.get(2))).asVector();
+    if (seen == null || seen.isConstant() == false || seen.getBoolean(0) == false) {
+      state.enableGroupIdTracking(seenGroupIds);
+    }
+    return new GroupingAggregatorFunction.IntermediateAddInput(this, seenGroupIds, page);
   }
 
   private void maybeEnableGroupIdTracking(SeenGroupIds seenGroupIds, DoubleBlock vBlock) {

@@ -15,6 +15,8 @@ import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FoldContext;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.math.Maths;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -25,10 +27,12 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Div;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Mul;
 import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionDefinition;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.math.BigInteger;
@@ -54,12 +58,11 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
         )
         .name("round");
     public static final PromqlFunctionDefinition PROMQL_DEFINITION = PromqlFunctionDefinition.def()
-        .binaryOptionalValueTransformation(PromqlFunctionDefinition.TO_NEAREST, (source, value, toNearest) -> {
+        .binaryOptionalValueTransformation(PromqlFunctionDefinition.TO_NEAREST, (source, value, toNearest, configuration) -> {
             if (toNearest == null) {
                 return new Round(source, value, null);
             } else {
-                // round to nearest multiple of toNearest: round(value / toNearest) * toNearest
-                return new Mul(source, new Round(source, new Div(source, value, toNearest), null), toNearest);
+                return promqlRoundToNearest(source, value, toNearest, configuration);
             }
         })
         .example("round(rate(http_requests_total[5m]))")
@@ -67,6 +70,24 @@ public class Round extends EsqlScalarFunction implements OptionalArgument {
         .name("round");
 
     private static final BiFunction<Source, ExpressionEvaluator.Factory, ExpressionEvaluator.Factory> EVALUATOR_IDENTITY = (s, e) -> e;
+
+    /**
+     * PromQL {@code round(v, to_nearest)} rounds to the nearest multiple of {@code to_nearest},
+     * with ties resolved by rounding up. Matches Prometheus:
+     * {@code floor(v * (1 / to_nearest) + 0.5) / (1 / to_nearest)}.
+     * <p>
+     * Precomputing {@code 1 / to_nearest} when foldable avoids the floating point accuracy issues
+     * caused by dividing by small {@code to_nearest} values.
+     */
+    private static Expression promqlRoundToNearest(Source source, Expression value, Expression toNearest, Configuration configuration) {
+        Expression inverse = toNearest.foldable()
+            ? Literal.fromDouble(source, 1.0 / ((Number) toNearest.fold(FoldContext.small())).doubleValue())
+            : new Div(source, Literal.fromDouble(source, 1.0), toNearest);
+        Expression half = Literal.fromDouble(source, 0.5);
+        Expression scaled = new Mul(source, value, inverse);
+        Expression withHalf = new Add(source, scaled, half, configuration);
+        return new Div(source, new Floor(source, withHalf), inverse);
+    }
 
     private final Expression field, decimals;
 

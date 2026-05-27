@@ -72,6 +72,11 @@ public final class PromqlFunctionDefinition {
         Expression build(Source source, Expression date, Configuration configuration);
     }
 
+    @FunctionalInterface
+    public interface PromqlBinaryOptionalValueTransformation {
+        Expression build(Source source, Expression value, Expression toNearest, Configuration configuration);
+    }
+
     public record PromqlParamInfo(String name, PromqlDataType type, String description, boolean optional, boolean child) {
         public static PromqlParamInfo child(String name, PromqlDataType type, String description) {
             return new PromqlParamInfo(name, type, description, false, true);
@@ -281,14 +286,15 @@ public final class PromqlFunctionDefinition {
 
         public PromqlFunctionDefinition.Builder binaryOptionalValueTransformation(
             PromqlParamInfo p,
-            FunctionDefinition.BinaryBuilder<? extends Expression> ctorRef
+            PromqlBinaryOptionalValueTransformation ctorRef
         ) {
             this.functionType = FunctionType.VALUE_TRANSFORMATION;
             this.arity = PromqlFunctionArity.range(1, 2);
             this.builder = (source, target, ctx, extraParams) -> ctorRef.build(
                 source,
                 target,
-                extraParams.isEmpty() ? null : extraParams.getFirst()
+                extraParams.isEmpty() ? null : extraParams.getFirst(),
+                ctx.configuration()
             );
             this.params = List.of(INSTANT_VECTOR, p);
             return this;

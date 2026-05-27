@@ -27,7 +27,7 @@ public final class RoundToIntFloor10Evaluator implements ExpressionEvaluator {
 
   private final Source source;
 
-  private final ExpressionEvaluator field;
+  private final ExpressionEvaluator v;
 
   private final int p0;
 
@@ -53,10 +53,10 @@ public final class RoundToIntFloor10Evaluator implements ExpressionEvaluator {
 
   private Warnings warnings;
 
-  public RoundToIntFloor10Evaluator(Source source, ExpressionEvaluator field, int p0, int p1, int p2,
+  public RoundToIntFloor10Evaluator(Source source, ExpressionEvaluator v, int p0, int p1, int p2,
       int p3, int p4, int p5, int p6, int p7, int p8, int p9, DriverContext driverContext) {
     this.source = source;
-    this.field = field;
+    this.v = v;
     this.p0 = p0;
     this.p1 = p1;
     this.p2 = p2;
@@ -72,26 +72,26 @@ public final class RoundToIntFloor10Evaluator implements ExpressionEvaluator {
 
   @Override
   public Block eval(Page page) {
-    try (IntBlock fieldBlock = (IntBlock) field.eval(page)) {
-      IntVector fieldVector = fieldBlock.asVector();
-      if (fieldVector == null) {
-        return eval(page.getPositionCount(), fieldBlock);
+    try (IntBlock vBlock = (IntBlock) v.eval(page)) {
+      IntVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        return eval(page.getPositionCount(), vBlock);
       }
-      return eval(page.getPositionCount(), fieldVector).asBlock();
+      return eval(page.getPositionCount(), vVector).asBlock();
     }
   }
 
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += field.baseRamBytesUsed();
+    baseRamBytesUsed += v.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public IntBlock eval(int positionCount, IntBlock fieldBlock) {
+  public IntBlock eval(int positionCount, IntBlock vBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        switch (fieldBlock.getValueCount(p)) {
+        switch (vBlock.getValueCount(p)) {
           case 0:
               result.appendNull();
               continue position;
@@ -102,18 +102,18 @@ public final class RoundToIntFloor10Evaluator implements ExpressionEvaluator {
               result.appendNull();
               continue position;
         }
-        int field = fieldBlock.getInt(fieldBlock.getFirstValueIndex(p));
-        result.appendInt(RoundToInt.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8, this.p9));
+        int v = vBlock.getInt(vBlock.getFirstValueIndex(p));
+        result.appendInt(RoundToInt.floor10(v, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8, this.p9));
       }
       return result.build();
     }
   }
 
-  public IntVector eval(int positionCount, IntVector fieldVector) {
+  public IntVector eval(int positionCount, IntVector vVector) {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        int field = fieldVector.getInt(p);
-        result.appendInt(p, RoundToInt.process(field, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8, this.p9));
+        int v = vVector.getInt(p);
+        result.appendInt(p, RoundToInt.floor10(v, this.p0, this.p1, this.p2, this.p3, this.p4, this.p5, this.p6, this.p7, this.p8, this.p9));
       }
       return result.build();
     }
@@ -121,12 +121,12 @@ public final class RoundToIntFloor10Evaluator implements ExpressionEvaluator {
 
   @Override
   public String toString() {
-    return "RoundToIntFloor10Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + ", p7=" + p7 + ", p8=" + p8 + ", p9=" + p9 + "]";
+    return "RoundToIntFloor10Evaluator[" + "v=" + v + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + ", p7=" + p7 + ", p8=" + p8 + ", p9=" + p9 + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(field);
+    Releasables.closeExpectNoException(v);
   }
 
   private Warnings warnings() {
@@ -139,7 +139,7 @@ public final class RoundToIntFloor10Evaluator implements ExpressionEvaluator {
   static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory v;
 
     private final int p0;
 
@@ -161,10 +161,10 @@ public final class RoundToIntFloor10Evaluator implements ExpressionEvaluator {
 
     private final int p9;
 
-    public Factory(Source source, ExpressionEvaluator.Factory field, int p0, int p1, int p2, int p3,
+    public Factory(Source source, ExpressionEvaluator.Factory v, int p0, int p1, int p2, int p3,
         int p4, int p5, int p6, int p7, int p8, int p9) {
       this.source = source;
-      this.field = field;
+      this.v = v;
       this.p0 = p0;
       this.p1 = p1;
       this.p2 = p2;
@@ -179,12 +179,12 @@ public final class RoundToIntFloor10Evaluator implements ExpressionEvaluator {
 
     @Override
     public RoundToIntFloor10Evaluator get(DriverContext context) {
-      return new RoundToIntFloor10Evaluator(source, field.get(context), p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, context);
+      return new RoundToIntFloor10Evaluator(source, v.get(context), p0, p1, p2, p3, p4, p5, p6, p7, p8, p9, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToIntFloor10Evaluator[" + "field=" + field + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + ", p7=" + p7 + ", p8=" + p8 + ", p9=" + p9 + "]";
+      return "RoundToIntFloor10Evaluator[" + "v=" + v + ", p0=" + p0 + ", p1=" + p1 + ", p2=" + p2 + ", p3=" + p3 + ", p4=" + p4 + ", p5=" + p5 + ", p6=" + p6 + ", p7=" + p7 + ", p8=" + p8 + ", p9=" + p9 + "]";
     }
   }
 }

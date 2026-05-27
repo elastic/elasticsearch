@@ -22,49 +22,49 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
  * {@link ExpressionEvaluator} implementation for {@link RoundToInt}.
  * This class is generated. Edit {@code EvaluatorImplementer} instead.
  */
-public final class RoundToIntBinarySearchEvaluator implements ExpressionEvaluator {
-  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToIntBinarySearchEvaluator.class);
+public final class RoundToIntFloorSearchEvaluator implements ExpressionEvaluator {
+  private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(RoundToIntFloorSearchEvaluator.class);
 
   private final Source source;
 
-  private final ExpressionEvaluator field;
+  private final ExpressionEvaluator v;
 
-  private final int[] points;
+  private final int[] p;
 
   private final DriverContext driverContext;
 
   private Warnings warnings;
 
-  public RoundToIntBinarySearchEvaluator(Source source, ExpressionEvaluator field, int[] points,
+  public RoundToIntFloorSearchEvaluator(Source source, ExpressionEvaluator v, int[] p,
       DriverContext driverContext) {
     this.source = source;
-    this.field = field;
-    this.points = points;
+    this.v = v;
+    this.p = p;
     this.driverContext = driverContext;
   }
 
   @Override
   public Block eval(Page page) {
-    try (IntBlock fieldBlock = (IntBlock) field.eval(page)) {
-      IntVector fieldVector = fieldBlock.asVector();
-      if (fieldVector == null) {
-        return eval(page.getPositionCount(), fieldBlock);
+    try (IntBlock vBlock = (IntBlock) v.eval(page)) {
+      IntVector vVector = vBlock.asVector();
+      if (vVector == null) {
+        return eval(page.getPositionCount(), vBlock);
       }
-      return eval(page.getPositionCount(), fieldVector).asBlock();
+      return eval(page.getPositionCount(), vVector).asBlock();
     }
   }
 
   @Override
   public long baseRamBytesUsed() {
     long baseRamBytesUsed = BASE_RAM_BYTES_USED;
-    baseRamBytesUsed += field.baseRamBytesUsed();
+    baseRamBytesUsed += v.baseRamBytesUsed();
     return baseRamBytesUsed;
   }
 
-  public IntBlock eval(int positionCount, IntBlock fieldBlock) {
+  public IntBlock eval(int positionCount, IntBlock vBlock) {
     try(IntBlock.Builder result = driverContext.blockFactory().newIntBlockBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        switch (fieldBlock.getValueCount(p)) {
+        switch (vBlock.getValueCount(p)) {
           case 0:
               result.appendNull();
               continue position;
@@ -75,18 +75,18 @@ public final class RoundToIntBinarySearchEvaluator implements ExpressionEvaluato
               result.appendNull();
               continue position;
         }
-        int field = fieldBlock.getInt(fieldBlock.getFirstValueIndex(p));
-        result.appendInt(RoundToInt.process(field, this.points));
+        int v = vBlock.getInt(vBlock.getFirstValueIndex(p));
+        result.appendInt(RoundToInt.floorSearch(v, this.p));
       }
       return result.build();
     }
   }
 
-  public IntVector eval(int positionCount, IntVector fieldVector) {
+  public IntVector eval(int positionCount, IntVector vVector) {
     try(IntVector.FixedBuilder result = driverContext.blockFactory().newIntVectorFixedBuilder(positionCount)) {
       position: for (int p = 0; p < positionCount; p++) {
-        int field = fieldVector.getInt(p);
-        result.appendInt(p, RoundToInt.process(field, this.points));
+        int v = vVector.getInt(p);
+        result.appendInt(p, RoundToInt.floorSearch(v, this.p));
       }
       return result.build();
     }
@@ -94,12 +94,12 @@ public final class RoundToIntBinarySearchEvaluator implements ExpressionEvaluato
 
   @Override
   public String toString() {
-    return "RoundToIntBinarySearchEvaluator[" + "field=" + field + "]";
+    return "RoundToIntFloorSearchEvaluator[" + "v=" + v + "]";
   }
 
   @Override
   public void close() {
-    Releasables.closeExpectNoException(field);
+    Releasables.closeExpectNoException(v);
   }
 
   private Warnings warnings() {
@@ -112,24 +112,24 @@ public final class RoundToIntBinarySearchEvaluator implements ExpressionEvaluato
   static class Factory implements ExpressionEvaluator.Factory {
     private final Source source;
 
-    private final ExpressionEvaluator.Factory field;
+    private final ExpressionEvaluator.Factory v;
 
-    private final int[] points;
+    private final int[] p;
 
-    public Factory(Source source, ExpressionEvaluator.Factory field, int[] points) {
+    public Factory(Source source, ExpressionEvaluator.Factory v, int[] p) {
       this.source = source;
-      this.field = field;
-      this.points = points;
+      this.v = v;
+      this.p = p;
     }
 
     @Override
-    public RoundToIntBinarySearchEvaluator get(DriverContext context) {
-      return new RoundToIntBinarySearchEvaluator(source, field.get(context), points, context);
+    public RoundToIntFloorSearchEvaluator get(DriverContext context) {
+      return new RoundToIntFloorSearchEvaluator(source, v.get(context), p, context);
     }
 
     @Override
     public String toString() {
-      return "RoundToIntBinarySearchEvaluator[" + "field=" + field + "]";
+      return "RoundToIntFloorSearchEvaluator[" + "v=" + v + "]";
     }
   }
 }

@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.stats.SearchStats;
 import java.util.ArrayList;
 import java.util.List;
 
+import static org.elasticsearch.common.Rounding.RoundingConvention.UP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.dateWithTypeToString;
 
@@ -74,10 +75,6 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
                 (interval, minValue, maxValue) -> DateTrunc.createRounding(interval, dateTrunc.zoneId(), minValue, maxValue)
             );
         } else if (e instanceof Bucket bucket) {
-            // TODO(sidosera): https://github.com/elastic/elasticsearch/issues/148306
-            if (bucket.roundingConfiguration() == Rounding.RoundingConvention.UP) {
-                return e;
-            }
             roundTo = maybeToRoundTo(
                 bucket.source(),
                 bucket.field(),
@@ -121,8 +118,8 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
             if (min != null && max != null && foldableTimeExpression.foldable() && min <= max) {
                 Object foldedInterval = foldableTimeExpression.fold(FoldContext.small() /* TODO remove me */);
                 Rounding.Prepared rounding = roundingFunction.apply(foldedInterval, min, max);
-                long[] roundingPoints = rounding.fixedRoundingPoints();
-                if (roundingPoints == null) {
+                RoundTo roundTo = createRoundTo(source, field, rounding);
+                if (roundTo == null) {
                     logger.trace(
                         "Fixed rounding point is null for field {}, minValue {} in string format {} and maxValue {} in string format {}",
                         fieldName,
@@ -133,12 +130,7 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
                     );
                     return null;
                 }
-
-                List<Expression> expressions = new ArrayList<>(roundingPoints.length);
-                for (long p : roundingPoints) {
-                    expressions.add(new Literal(Source.EMPTY, p, fieldType));
-                }
-                return new RoundTo(source, field, expressions);
+                return roundTo;
             }
         }
         return null;
@@ -194,5 +186,21 @@ public class ReplaceDateTruncBucketWithRoundTo extends ParameterizedRule<Logical
 
     private Long toLong(Object value) {
         return value instanceof Long l ? l : null;
+    }
+
+    private static RoundTo createRoundTo(Source source, Expression field, Rounding.Prepared rounding) {
+        long[] roundingPoints = rounding.fixedRoundingPoints();
+        if (roundingPoints == null) {
+            return null;
+        }
+        DataType fieldType = field.dataType();
+        List<Expression> literals = new ArrayList<>(roundingPoints.length);
+        for (long p : roundingPoints) {
+            literals.add(new Literal(Source.EMPTY, p, fieldType));
+        }
+        if (rounding.getUnprepared() instanceof Rounding.ToUpperRounding) {
+            return new RoundTo(source, field, literals, UP);
+        }
+        return new RoundTo(source, field, literals);
     }
 }

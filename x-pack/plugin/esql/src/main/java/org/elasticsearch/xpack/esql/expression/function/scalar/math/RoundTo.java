@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -40,7 +41,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
+import static org.elasticsearch.common.Rounding.RoundingConvention.DOWN;
 import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.ROUND_TO_BLOCK_LOADER;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -49,10 +50,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.expression.function.grouping.Bucket.ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
 /**
- * Round down to one of a list of values.
+ * Round to one from the list of values.
  */
 public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "RoundTo", RoundTo::new);
@@ -60,6 +62,7 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
 
     private final Expression field;
     private final List<Expression> points;
+    private final Rounding.RoundingConvention convention;
 
     private DataType resultType;
 
@@ -83,16 +86,24 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
             description = "Remaining rounding points. Must be constants."
         ) List<Expression> points
     ) {
+        this(source, field, points, null);
+    }
+
+    public RoundTo(Source source, Expression field, List<Expression> points, Rounding.RoundingConvention convention) {
         super(source, Iterators.toList(Iterators.concat(Iterators.single(field), points.iterator())));
         this.field = field;
         this.points = points;
+        this.convention = convention != null ? convention : DOWN;
     }
 
     private RoundTo(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(Expression.class),
-            in.readNamedWriteableCollectionAsList(Expression.class)
+            in.readNamedWriteableCollectionAsList(Expression.class),
+            in.getTransportVersion().supports(ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION)
+                ? in.readEnum(Rounding.RoundingConvention.class)
+                : null
         );
     }
 
@@ -101,6 +112,9 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
         source().writeTo(out);
         out.writeNamedWriteable(field);
         out.writeNamedWriteableCollection(points);
+        if (out.getTransportVersion().supports(ESQL_SUPPORT_EXPLICIT_BUCKET_ROUNDING_CONFIGURATION)) {
+            out.writeEnum(convention);
+        }
     }
 
     @Override
@@ -127,7 +141,7 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
 
         DataType dataType = dataType();
         if (dataType == null || SIGNATURES.containsKey(dataType) == false) {
-            return new TypeResolution(format(null, "all arguments must be numeric, date, or data_nanos"));
+            return new TypeResolution("all arguments must be numeric, date, or data_nanos");
         }
 
         return TypeResolution.TYPE_RESOLVED;
@@ -165,12 +179,12 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
 
     @Override
     public final Expression replaceChildren(List<Expression> newChildren) {
-        return new RoundTo(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
+        return new RoundTo(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()), convention);
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, RoundTo::new, field(), points());
+        return NodeInfo.create(this, RoundTo::new, field(), points(), convention);
     }
 
     public Expression field() {
@@ -181,23 +195,32 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
         return points;
     }
 
+    public Rounding.RoundingConvention roundingConvention() {
+        return convention;
+    }
+
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         DataType dataType = dataType();
         Build build = SIGNATURES.get(dataType);
         if (build == null) {
-            throw new IllegalStateException("unsupported type");
+            throw new IllegalStateException("not supported for type " + dataType);
         }
 
         ExpressionEvaluator.Factory field = toEvaluator.apply(field());
         field = Cast.cast(source(), field().dataType(), dataType, field);
         List<Object> points = Iterators.toList(Iterators.map(points().iterator(), p -> Foldables.valueOf(toEvaluator.foldCtx(), p)));
         List<Number> sortedPoints = sortedRoundingPoints(points, dataType); // provide sorted points to the evaluator
-        return build.build(source(), field, sortedPoints);
+        return build.build(source(), field, sortedPoints, convention);
     }
 
     interface Build {
-        ExpressionEvaluator.Factory build(Source source, ExpressionEvaluator.Factory field, List<Number> points);
+        ExpressionEvaluator.Factory build(
+            Source source,
+            ExpressionEvaluator.Factory field,
+            List<Number> points,
+            Rounding.RoundingConvention convention
+        );
     }
 
     private static final Map<DataType, Build> SIGNATURES = Map.ofEntries(
@@ -245,7 +268,7 @@ public class RoundTo extends EsqlScalarFunction implements BlockLoaderExpression
             if (sortedPoints == null) {
                 return null;
             }
-            return new PushedBlockLoaderExpression(f, new BlockLoaderFunctionConfig.RoundToLongs(sortedPoints));
+            return new PushedBlockLoaderExpression(f, new BlockLoaderFunctionConfig.RoundToLongs(sortedPoints, convention));
         }
         return null;
     }

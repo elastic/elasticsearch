@@ -7,88 +7,140 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-// begin generated imports
+import org.elasticsearch.common.Rounding;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.expression.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 
 import java.util.Arrays;
-// end generated imports
 
 /**
- * Implementations of {@link RoundTo} for specific types.
- * <p>
- *   We have specializations for when there are very few rounding points because
- *   those are very fast and quite common.
- * </p>
+ * Implementations of {@link RoundTo} for {@code double}.
  * This class is generated. Edit {@code X-RoundTo.java.st} instead.
  */
 class RoundToDouble {
-    static final RoundTo.Build BUILD = (source, field, points) -> {
-        double[] f = points.stream().mapToDouble(p -> p.doubleValue()).toArray();
-        return switch (f.length) {
-            // TODO should be a consistent way to do the 0 version - is CASE(MV_COUNT(f) == 1, f[0])
-            case 1 -> new RoundToDouble1Evaluator.Factory(source, field, f[0]);
+    static final RoundTo.Build BUILD = (source, field, points, convention) -> {
+        // TODO handle 0 points case - currently falls through to floorMany/ceilingMany and crashes
+        double[] p = points.stream().mapToDouble(n -> n.doubleValue()).toArray();
+        return switch (convention) {
+            case Rounding.RoundingConvention.DOWN -> floor(source, field, p);
+            case Rounding.RoundingConvention.UP -> ceiling(source, field, p);
+        };
+    };
+
+    private static ExpressionEvaluator.Factory floor(Source source, ExpressionEvaluator.Factory field, double[] p) {
+        return switch (p.length) {
+            case 1 -> new RoundToDoubleConstantEvaluator.Factory(source, field, p[0]);
             /*
              * These hand-unrolled implementations are even faster than the linear scan implementations.
              */
-            case 2 -> new RoundToDouble2Evaluator.Factory(source, field, f[0], f[1]);
-            case 3 -> new RoundToDouble3Evaluator.Factory(source, field, f[0], f[1], f[2]);
-            case 4 -> new RoundToDouble4Evaluator.Factory(source, field, f[0], f[1], f[2], f[3]);
-            case 5 -> new RoundToDouble5Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4]);
-            case 6 -> new RoundToDouble6Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5]);
-            case 7 -> new RoundToDouble7Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6]);
-            case 8 -> new RoundToDouble8Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7]);
-            case 9 -> new RoundToDouble9Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8]);
-            case 10 -> new RoundToDouble10Evaluator.Factory(source, field, f[0], f[1], f[2], f[3], f[4], f[5], f[6], f[7], f[8], f[9]);
+            case 2 -> new RoundToDoubleFloor2Evaluator.Factory(source, field, p[0], p[1]);
+            case 3 -> new RoundToDoubleFloor3Evaluator.Factory(source, field, p[0], p[1], p[2]);
+            case 4 -> new RoundToDoubleFloor4Evaluator.Factory(source, field, p[0], p[1], p[2], p[3]);
+            case 5 -> new RoundToDoubleFloor5Evaluator.Factory(source, field, p[0], p[1], p[2], p[3], p[4]);
+            case 6 -> new RoundToDoubleFloor6Evaluator.Factory(source, field, p[0], p[1], p[2], p[3], p[4], p[5]);
+            case 7 -> new RoundToDoubleFloor7Evaluator.Factory(source, field, p[0], p[1], p[2], p[3], p[4], p[5], p[6]);
+            case 8 -> new RoundToDoubleFloor8Evaluator.Factory(source, field, p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
+            case 9 -> new RoundToDoubleFloor9Evaluator.Factory(source, field, p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]);
+            case 10 -> new RoundToDoubleFloor10Evaluator.Factory(source, field, p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8], p[9]);
             /*
              * Break point of 10 experimentally derived on Nik's laptop (13th Gen Intel(R) Core(TM) i7-1370P)
              * on 2025-05-22.
              */
-            default -> {
-                yield new RoundToDoubleBinarySearchEvaluator.Factory(source, field, f);
-            }
+            default -> floorMany(source, field, p);
         };
-    };
-
-    @Evaluator(extraName = "BinarySearch")
-    static double process(double field, @Fixed(includeInToString = false) double[] points) {
-        int idx = Arrays.binarySearch(points, field);
-        return points[idx >= 0 ? idx : Math.max(0, -idx - 2)];
     }
 
-    @Evaluator(extraName = "1")
-    static double process(double field, @Fixed double p0) {
-        return p0;
+    private static ExpressionEvaluator.Factory ceiling(Source source, ExpressionEvaluator.Factory field, double[] p) {
+        return switch (p.length) {
+            case 1 -> new RoundToDoubleConstantEvaluator.Factory(source, field, p[0]);
+            /*
+             * These hand-unrolled implementations are even faster than the linear scan implementations.
+             */
+            case 2 -> new RoundToDoubleCeiling2Evaluator.Factory(source, field, p[0], p[1]);
+            case 3 -> new RoundToDoubleCeiling3Evaluator.Factory(source, field, p[0], p[1], p[2]);
+            case 4 -> new RoundToDoubleCeiling4Evaluator.Factory(source, field, p[0], p[1], p[2], p[3]);
+            case 5 -> new RoundToDoubleCeiling5Evaluator.Factory(source, field, p[0], p[1], p[2], p[3], p[4]);
+            case 6 -> new RoundToDoubleCeiling6Evaluator.Factory(source, field, p[0], p[1], p[2], p[3], p[4], p[5]);
+            case 7 -> new RoundToDoubleCeiling7Evaluator.Factory(source, field, p[0], p[1], p[2], p[3], p[4], p[5], p[6]);
+            case 8 -> new RoundToDoubleCeiling8Evaluator.Factory(source, field, p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7]);
+            case 9 -> new RoundToDoubleCeiling9Evaluator.Factory(source, field, p[0], p[1], p[2], p[3], p[4], p[5], p[6], p[7], p[8]);
+            case 10 -> new RoundToDoubleCeiling10Evaluator.Factory(
+                source,
+                field,
+                p[0],
+                p[1],
+                p[2],
+                p[3],
+                p[4],
+                p[5],
+                p[6],
+                p[7],
+                p[8],
+                p[9]
+            );
+            /*
+             * Break point of 10 experimentally derived on Nik's laptop (13th Gen Intel(R) Core(TM) i7-1370P)
+             * on 2025-05-22.
+             */
+            default -> ceilingMany(source, field, p);
+        };
     }
 
-    @Evaluator(extraName = "2")
-    static double process(double field, @Fixed double p0, @Fixed double p1) {
-        if (field < p1) {
+    private static ExpressionEvaluator.Factory floorMany(Source source, ExpressionEvaluator.Factory field, double[] p) {
+        return new RoundToDoubleFloorSearchEvaluator.Factory(source, field, p);
+    }
+
+    private static ExpressionEvaluator.Factory ceilingMany(Source source, ExpressionEvaluator.Factory field, double[] p) {
+        return new RoundToDoubleCeilingSearchEvaluator.Factory(source, field, p);
+    }
+
+    @Evaluator(extraName = "Constant")
+    static double constant(double v, @Fixed double p) {
+        return p;
+    }
+
+    @Evaluator(extraName = "FloorSearch")
+    static double floorSearch(double v, @Fixed(includeInToString = false) double[] p) {
+        int i = Arrays.binarySearch(p, v);
+        return p[i >= 0 ? i : Math.max(0, -i - 2)];
+    }
+
+    @Evaluator(extraName = "CeilingSearch")
+    static double ceilingSearch(double v, @Fixed(includeInToString = false) double[] p) {
+        int i = Arrays.binarySearch(p, v);
+        return p[i >= 0 ? i : Math.min(p.length - 1, -i - 1)];
+    }
+
+    @Evaluator(extraName = "Floor2")
+    static double floor2(double v, @Fixed double p0, @Fixed double p1) {
+        if (v < p1) {
             return p0;
         }
         return p1;
     }
 
-    @Evaluator(extraName = "3")
-    static double process(double field, @Fixed double p0, @Fixed double p1, @Fixed double p2) {
-        if (field < p1) {
+    @Evaluator(extraName = "Floor3")
+    static double floor3(double v, @Fixed double p0, @Fixed double p1, @Fixed double p2) {
+        if (v < p1) {
             return p0;
         }
-        if (field < p2) {
+        if (v < p2) {
             return p1;
         }
         return p2;
     }
 
-    @Evaluator(extraName = "4")
-    static double process(double field, @Fixed double p0, @Fixed double p1, @Fixed double p2, @Fixed double p3) {
-        if (field < p1) {
+    @Evaluator(extraName = "Floor4")
+    static double floor4(double v, @Fixed double p0, @Fixed double p1, @Fixed double p2, @Fixed double p3) {
+        if (v < p1) {
             return p0;
         }
-        if (field < p2) {
+        if (v < p2) {
             return p1;
         }
-        if (field < p3) {
+        if (v < p3) {
             return p2;
         }
         return p3;
@@ -97,18 +149,18 @@ class RoundToDouble {
     /*
      * Manual binary search for 5 rounding points, it is faster than linear search or array style binary search.
      */
-    @Evaluator(extraName = "5")
-    static double process(double field, @Fixed double p0, @Fixed double p1, @Fixed double p2, @Fixed double p3, @Fixed double p4) {
-        if (field < p2) {
-            if (field < p1) {
+    @Evaluator(extraName = "Floor5")
+    static double floor5(double v, @Fixed double p0, @Fixed double p1, @Fixed double p2, @Fixed double p3, @Fixed double p4) {
+        if (v < p2) {
+            if (v < p1) {
                 return p0;
             }
             return p1;
         }
-        if (field < p3) {
+        if (v < p3) {
             return p2;
         }
-        if (field < p4) {
+        if (v < p4) {
             return p3;
         }
         return p4;
@@ -117,9 +169,9 @@ class RoundToDouble {
     /*
      * Manual binary search for 6 rounding points, it is faster than linear search or array style binary search.
      */
-    @Evaluator(extraName = "6")
-    static double process(
-        double field,      // hack to keep the formatter happy.
+    @Evaluator(extraName = "Floor6")
+    static double floor6(
+        double v,          // hack to keep the formatter happy.
         @Fixed double p0,  // int is so short this should be on one line but double is not.
         @Fixed double p1,  // That's not compatible with the templates.
         @Fixed double p2,  // So we comment to make the formatter not try to change the line.
@@ -127,19 +179,19 @@ class RoundToDouble {
         @Fixed double p4,
         @Fixed double p5
     ) {
-        if (field < p2) {
-            if (field < p1) {
+        if (v < p2) {
+            if (v < p1) {
                 return p0;
             }
             return p1;
         }
-        if (field < p4) {
-            if (field < p3) {
+        if (v < p4) {
+            if (v < p3) {
                 return p2;
             }
             return p3;
         }
-        if (field < p5) {
+        if (v < p5) {
             return p4;
         }
         return p5;
@@ -148,9 +200,9 @@ class RoundToDouble {
     /*
      * Manual binary search for 7 rounding points, it is faster than linear search or array style binary search.
      */
-    @Evaluator(extraName = "7")
-    static double process(
-        double field,      // hack to keep the formatter happy.
+    @Evaluator(extraName = "Floor7")
+    static double floor7(
+        double v,          // hack to keep the formatter happy.
         @Fixed double p0,  // int is so short this should be on one line but double is not.
         @Fixed double p1,  // That's not compatible with the templates.
         @Fixed double p2,  // So we comment to make the formatter not try to change the line.
@@ -159,22 +211,22 @@ class RoundToDouble {
         @Fixed double p5,
         @Fixed double p6
     ) {
-        if (field < p3) {
-            if (field < p1) {
+        if (v < p3) {
+            if (v < p1) {
                 return p0;
             }
-            if (field < p2) {
+            if (v < p2) {
                 return p1;
             }
             return p2;
         }
-        if (field < p5) {
-            if (field < p4) {
+        if (v < p5) {
+            if (v < p4) {
                 return p3;
             }
             return p4;
         }
-        if (field < p6) {
+        if (v < p6) {
             return p5;
         }
         return p6;
@@ -183,37 +235,37 @@ class RoundToDouble {
     /*
      * Manual binary search for 8 rounding points, it is faster than linear search or array style binary search.
      */
-    @Evaluator(extraName = "8")
-    static double process(
-        double field,
-        @Fixed double p0,
-        @Fixed double p1,
-        @Fixed double p2,
+    @Evaluator(extraName = "Floor8")
+    static double floor8(
+        double v,          // hack to keep the formatter happy.
+        @Fixed double p0,  // int is so short this should be on one line but double is not.
+        @Fixed double p1,  // That's not compatible with the templates.
+        @Fixed double p2,  // So we comment to make the formatter not try to change the line.
         @Fixed double p3,
         @Fixed double p4,
         @Fixed double p5,
         @Fixed double p6,
         @Fixed double p7
     ) {
-        if (field < p3) {
-            if (field < p1) {
+        if (v < p3) {
+            if (v < p1) {
                 return p0;
             }
-            if (field < p2) {
+            if (v < p2) {
                 return p1;
             }
             return p2;
         }
-        if (field < p5) {
-            if (field < p4) {
+        if (v < p5) {
+            if (v < p4) {
                 return p3;
             }
             return p4;
         }
-        if (field < p6) {
+        if (v < p6) {
             return p5;
         }
-        if (field < p7) {
+        if (v < p7) {
             return p6;
         }
         return p7;
@@ -222,12 +274,12 @@ class RoundToDouble {
     /*
      * Manual binary search for 9 rounding points, it is faster than linear search or array style binary search.
      */
-    @Evaluator(extraName = "9")
-    static double process(
-        double field,
-        @Fixed double p0,
-        @Fixed double p1,
-        @Fixed double p2,
+    @Evaluator(extraName = "Floor9")
+    static double floor9(
+        double v,          // hack to keep the formatter happy.
+        @Fixed double p0,  // int is so short this should be on one line but double is not.
+        @Fixed double p1,  // That's not compatible with the templates.
+        @Fixed double p2,  // So we comment to make the formatter not try to change the line.
         @Fixed double p3,
         @Fixed double p4,
         @Fixed double p5,
@@ -235,28 +287,28 @@ class RoundToDouble {
         @Fixed double p7,
         @Fixed double p8
     ) {
-        if (field < p4) {
-            if (field < p1) {
+        if (v < p4) {
+            if (v < p1) {
                 return p0;
             }
-            if (field < p2) {
+            if (v < p2) {
                 return p1;
             }
-            if (field < p3) {
+            if (v < p3) {
                 return p2;
             }
             return p3;
         }
-        if (field < p6) {
-            if (field < p5) {
+        if (v < p6) {
+            if (v < p5) {
                 return p4;
             }
             return p5;
         }
-        if (field < p7) {
+        if (v < p7) {
             return p6;
         }
-        if (field < p8) {
+        if (v < p8) {
             return p7;
         }
         return p8;
@@ -265,12 +317,12 @@ class RoundToDouble {
     /*
      * Manual binary search for 10 rounding points, it is faster than linear search or array style binary search.
      */
-    @Evaluator(extraName = "10")
-    static double process(
-        double field,
-        @Fixed double p0,
-        @Fixed double p1,
-        @Fixed double p2,
+    @Evaluator(extraName = "Floor10")
+    static double floor10(
+        double v,          // hack to keep the formatter happy.
+        @Fixed double p0,  // int is so short this should be on one line but double is not.
+        @Fixed double p1,  // That's not compatible with the templates.
+        @Fixed double p2,  // So we comment to make the formatter not try to change the line.
         @Fixed double p3,
         @Fixed double p4,
         @Fixed double p5,
@@ -279,31 +331,279 @@ class RoundToDouble {
         @Fixed double p8,
         @Fixed double p9
     ) {
-        if (field < p4) {
-            if (field < p1) {
+        if (v < p4) {
+            if (v < p1) {
                 return p0;
             }
-            if (field < p2) {
+            if (v < p2) {
                 return p1;
             }
-            if (field < p3) {
+            if (v < p3) {
                 return p2;
             }
             return p3;
         }
-        if (field < p7) {
-            if (field < p5) {
+        if (v < p7) {
+            if (v < p5) {
                 return p4;
             }
-            if (field < p6) {
+            if (v < p6) {
                 return p5;
             }
             return p6;
         }
-        if (field < p8) {
+        if (v < p8) {
             return p7;
         }
-        if (field < p9) {
+        if (v < p9) {
+            return p8;
+        }
+        return p9;
+    }
+
+    @Evaluator(extraName = "Ceiling2")
+    static double ceiling2(double v, @Fixed double p0, @Fixed double p1) {
+        if (v <= p0) {
+            return p0;
+        }
+        return p1;
+    }
+
+    @Evaluator(extraName = "Ceiling3")
+    static double ceiling3(double v, @Fixed double p0, @Fixed double p1, @Fixed double p2) {
+        if (v <= p0) {
+            return p0;
+        }
+        if (v <= p1) {
+            return p1;
+        }
+        return p2;
+    }
+
+    @Evaluator(extraName = "Ceiling4")
+    static double ceiling4(double v, @Fixed double p0, @Fixed double p1, @Fixed double p2, @Fixed double p3) {
+        if (v <= p0) {
+            return p0;
+        }
+        if (v <= p1) {
+            return p1;
+        }
+        if (v <= p2) {
+            return p2;
+        }
+        return p3;
+    }
+
+    /*
+     * Manual binary search for 5 rounding points, it is faster than linear search or array style binary search.
+     */
+    @Evaluator(extraName = "Ceiling5")
+    static double ceiling5(double v, @Fixed double p0, @Fixed double p1, @Fixed double p2, @Fixed double p3, @Fixed double p4) {
+        if (v <= p1) {
+            if (v <= p0) {
+                return p0;
+            }
+            return p1;
+        }
+        if (v <= p2) {
+            return p2;
+        }
+        if (v <= p3) {
+            return p3;
+        }
+        return p4;
+    }
+
+    /*
+     * Manual binary search for 6 rounding points, it is faster than linear search or array style binary search.
+     */
+    @Evaluator(extraName = "Ceiling6")
+    static double ceiling6(
+        double v,          // hack to keep the formatter happy.
+        @Fixed double p0,  // int is so short this should be on one line but double is not.
+        @Fixed double p1,  // That's not compatible with the templates.
+        @Fixed double p2,  // So we comment to make the formatter not try to change the line.
+        @Fixed double p3,
+        @Fixed double p4,
+        @Fixed double p5
+    ) {
+        if (v <= p1) {
+            if (v <= p0) {
+                return p0;
+            }
+            return p1;
+        }
+        if (v <= p3) {
+            if (v <= p2) {
+                return p2;
+            }
+            return p3;
+        }
+        if (v <= p4) {
+            return p4;
+        }
+        return p5;
+    }
+
+    /*
+     * Manual binary search for 7 rounding points, it is faster than linear search or array style binary search.
+     */
+    @Evaluator(extraName = "Ceiling7")
+    static double ceiling7(
+        double v,          // hack to keep the formatter happy.
+        @Fixed double p0,  // int is so short this should be on one line but double is not.
+        @Fixed double p1,  // That's not compatible with the templates.
+        @Fixed double p2,  // So we comment to make the formatter not try to change the line.
+        @Fixed double p3,
+        @Fixed double p4,
+        @Fixed double p5,
+        @Fixed double p6
+    ) {
+        if (v <= p2) {
+            if (v <= p0) {
+                return p0;
+            }
+            if (v <= p1) {
+                return p1;
+            }
+            return p2;
+        }
+        if (v <= p4) {
+            if (v <= p3) {
+                return p3;
+            }
+            return p4;
+        }
+        if (v <= p5) {
+            return p5;
+        }
+        return p6;
+    }
+
+    /*
+     * Manual binary search for 8 rounding points, it is faster than linear search or array style binary search.
+     */
+    @Evaluator(extraName = "Ceiling8")
+    static double ceiling8(
+        double v,          // hack to keep the formatter happy.
+        @Fixed double p0,  // int is so short this should be on one line but double is not.
+        @Fixed double p1,  // That's not compatible with the templates.
+        @Fixed double p2,  // So we comment to make the formatter not try to change the line.
+        @Fixed double p3,
+        @Fixed double p4,
+        @Fixed double p5,
+        @Fixed double p6,
+        @Fixed double p7
+    ) {
+        if (v <= p2) {
+            if (v <= p0) {
+                return p0;
+            }
+            if (v <= p1) {
+                return p1;
+            }
+            return p2;
+        }
+        if (v <= p4) {
+            if (v <= p3) {
+                return p3;
+            }
+            return p4;
+        }
+        if (v <= p5) {
+            return p5;
+        }
+        if (v <= p6) {
+            return p6;
+        }
+        return p7;
+    }
+
+    /*
+     * Manual binary search for 9 rounding points, it is faster than linear search or array style binary search.
+     */
+    @Evaluator(extraName = "Ceiling9")
+    static double ceiling9(
+        double v,          // hack to keep the formatter happy.
+        @Fixed double p0,  // int is so short this should be on one line but double is not.
+        @Fixed double p1,  // That's not compatible with the templates.
+        @Fixed double p2,  // So we comment to make the formatter not try to change the line.
+        @Fixed double p3,
+        @Fixed double p4,
+        @Fixed double p5,
+        @Fixed double p6,
+        @Fixed double p7,
+        @Fixed double p8
+    ) {
+        if (v <= p3) {
+            if (v <= p0) {
+                return p0;
+            }
+            if (v <= p1) {
+                return p1;
+            }
+            if (v <= p2) {
+                return p2;
+            }
+            return p3;
+        }
+        if (v <= p5) {
+            if (v <= p4) {
+                return p4;
+            }
+            return p5;
+        }
+        if (v <= p6) {
+            return p6;
+        }
+        if (v <= p7) {
+            return p7;
+        }
+        return p8;
+    }
+
+    /*
+     * Manual binary search for 10 rounding points, it is faster than linear search or array style binary search.
+     */
+    @Evaluator(extraName = "Ceiling10")
+    static double ceiling10(
+        double v,          // hack to keep the formatter happy.
+        @Fixed double p0,  // int is so short this should be on one line but double is not.
+        @Fixed double p1,  // That's not compatible with the templates.
+        @Fixed double p2,  // So we comment to make the formatter not try to change the line.
+        @Fixed double p3,
+        @Fixed double p4,
+        @Fixed double p5,
+        @Fixed double p6,
+        @Fixed double p7,
+        @Fixed double p8,
+        @Fixed double p9
+    ) {
+        if (v <= p3) {
+            if (v <= p0) {
+                return p0;
+            }
+            if (v <= p1) {
+                return p1;
+            }
+            if (v <= p2) {
+                return p2;
+            }
+            return p3;
+        }
+        if (v <= p6) {
+            if (v <= p4) {
+                return p4;
+            }
+            if (v <= p5) {
+                return p5;
+            }
+            return p6;
+        }
+        if (v <= p7) {
+            return p7;
+        }
+        if (v <= p8) {
             return p8;
         }
         return p9;

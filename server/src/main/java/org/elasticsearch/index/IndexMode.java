@@ -879,6 +879,22 @@ public enum IndexMode {
         };
     }
 
+    /**
+     * Whether this index mode can be serialized to a node on the given transport version. Feature-flagged modes were
+     * introduced in specific transport versions, and {@link #writeTo} refuses to send them to older nodes. Callers that
+     * may target mixed-version nodes (for example node stats during a rolling upgrade) should drop unsupported modes
+     * before writing rather than letting the whole response fail.
+     */
+    public static boolean isWriteableTo(IndexMode indexMode, TransportVersion version) {
+        if ((indexMode == COLUMNAR || indexMode == LOGSDB_COLUMNAR) && version.supports(COLUMNAR_INDEX_MODES_ADDED) == false) {
+            return false;
+        }
+        if (indexMode == VECTORDB_DOCUMENT && version.supports(VECTORDB_DOCUMENT_INDEX_MODE) == false) {
+            return false;
+        }
+        return true;
+    }
+
     public static void writeTo(IndexMode indexMode, StreamOutput out) throws IOException {
         if ((indexMode == COLUMNAR || indexMode == LOGSDB_COLUMNAR)
             && out.getTransportVersion().supports(COLUMNAR_INDEX_MODES_ADDED) == false) {

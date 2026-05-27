@@ -9,6 +9,7 @@
 
 package org.elasticsearch.monitor.metrics;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -114,7 +115,18 @@ public final class IndexModeStatsActionType extends ActionType<IndexModeStatsAct
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeMap(stats, (o, m) -> IndexMode.writeTo(m, o), (o, s) -> s.writeTo(o));
+            final TransportVersion version = out.getTransportVersion();
+            Map<IndexMode, IndexStats> writeableStats = stats;
+            if (stats.keySet().stream().anyMatch(mode -> IndexMode.isWriteableTo(mode, version) == false)) {
+                // Drop modes the target node predates so a mixed-version rolling upgrade does not fail the whole response.
+                writeableStats = new EnumMap<>(IndexMode.class);
+                for (Map.Entry<IndexMode, IndexStats> entry : stats.entrySet()) {
+                    if (IndexMode.isWriteableTo(entry.getKey(), version)) {
+                        writeableStats.put(entry.getKey(), entry.getValue());
+                    }
+                }
+            }
+            out.writeMap(writeableStats, (o, m) -> IndexMode.writeTo(m, o), (o, s) -> s.writeTo(o));
         }
     }
 

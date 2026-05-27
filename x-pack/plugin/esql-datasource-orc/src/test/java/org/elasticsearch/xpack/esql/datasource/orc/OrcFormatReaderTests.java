@@ -89,6 +89,49 @@ public class OrcFormatReaderTests extends ESTestCase {
         assertFalse("ORC requires random access and cannot be wrapped in a whole-file compressor", reader.supportsWholeFileCompression());
     }
 
+    /**
+     * Verifies {@link OrcFormatReader#statusSnapshot()} reports populated counters after a real
+     * read drains an ORC file. Sibling-parity with
+     * {@code NdJsonFormatReaderStatusSnapshotTests} / {@code CsvFormatReaderStatusSnapshotTests};
+     * lives here to reuse the Hadoop FileSystem test infrastructure rather than duplicate it.
+     */
+    public void testStatusSnapshotPopulatedAfterDrain() throws Exception {
+        TypeDescription schema = TypeDescription.createStruct()
+            .addField("id", TypeDescription.createLong())
+            .addField("name", TypeDescription.createString());
+
+        byte[] orcData = createOrcFile(schema, batch -> {
+            batch.size = 3;
+            LongColumnVector idCol = (LongColumnVector) batch.cols[0];
+            BytesColumnVector nameCol = (BytesColumnVector) batch.cols[1];
+            for (int i = 0; i < 3; i++) {
+                idCol.vector[i] = i;
+                nameCol.setVal(i, ("row-" + i).getBytes(StandardCharsets.UTF_8));
+            }
+        });
+
+        StorageObject storageObject = createStorageObject(orcData);
+        OrcFormatReader reader = new OrcFormatReader(blockFactory);
+
+        // Snapshot before drain: format identifier present, row count at zero.
+        var before = reader.statusSnapshot();
+        assertEquals("orc", before.format());
+        assertEquals(0L, before.rowsEmitted());
+        assertEquals(0L, before.readNanos());
+
+        try (CloseableIterator<Page> iterator = reader.read(storageObject, null, 1024)) {
+            while (iterator.hasNext()) {
+                Page page = iterator.next();
+                page.releaseBlocks();
+            }
+        }
+
+        var after = reader.statusSnapshot();
+        assertEquals("orc", after.format());
+        assertEquals("3 data rows drained from the file", 3L, after.rowsEmitted());
+        assertTrue("read_nanos should be > 0 after at least one batch", after.readNanos() > 0);
+    }
+
     public void testReadSchemaFromSimpleOrc() throws Exception {
         TypeDescription schema = TypeDescription.createStruct()
             .addField("id", TypeDescription.createLong())

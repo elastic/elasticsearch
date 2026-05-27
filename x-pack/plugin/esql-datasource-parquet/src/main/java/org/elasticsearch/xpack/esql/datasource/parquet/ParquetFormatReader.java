@@ -334,7 +334,8 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
 
     /**
      * Opens a Parquet reader, mapping parquet-mr failures (checked and unchecked) to an
-     * {@link IOException} that includes the storage object URI for operators and REST clients.
+     * {@link IllegalArgumentException} that includes the storage object URI. This ensures
+     * invalid/corrupt Parquet files produce HTTP 400 rather than 500.
      */
     private static ParquetFileReader openParquetFile(
         StorageObject object,
@@ -460,12 +461,12 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         return offsets;
     }
 
-    private static IOException newInvalidParquetFileException(String uri, Exception e) {
+    private static IllegalArgumentException newInvalidParquetFileException(String uri, Exception e) {
         String detail = e.getMessage();
         if (detail == null || detail.isEmpty()) {
             detail = e.getClass().getSimpleName();
         }
-        return new IOException("Could not read [" + uri + "] as a Parquet file: " + detail, e);
+        return new IllegalArgumentException("Could not read [" + uri + "] as a Parquet file: " + detail, e);
     }
 
     @Override
@@ -476,9 +477,39 @@ public class ParquetFormatReader implements RangeAwareFormatReader, ColumnExtrac
         try (ParquetFileReader reader = openParquetFileCached(object, parquetInputFile, options)) {
             FileMetaData fileMetaData = reader.getFileMetaData();
             MessageType parquetSchema = fileMetaData.getSchema();
+            validateFooterIntegrity(object.path().toString(), parquetSchema, reader.getRowGroups());
             List<Attribute> schema = convertParquetSchemaToAttributes(parquetSchema);
             SourceStatistics statistics = extractStatistics(reader, schema);
             return new SimpleSourceMetadata(schema, formatName(), object.path().toString(), statistics, null);
+        }
+    }
+
+    /**
+     * Validates footer-level invariants that, if violated, indicate a corrupt file. Currently
+     * checks that required columns (maxDefinitionLevel == 0) do not report non-zero null counts
+     * in their row-group statistics. Such files pass parquet-mr footer parsing but produce
+     * garbage or exceptions during data-page decoding.
+     */
+    static void validateFooterIntegrity(String uri, MessageType schema, List<BlockMetaData> rowGroups) {
+        for (BlockMetaData rowGroup : rowGroups) {
+            for (ColumnChunkMetaData col : rowGroup.getColumns()) {
+                String[] path = col.getPath().toArray();
+                ColumnDescriptor desc = schema.getColumnDescription(path);
+                if (desc != null && desc.getMaxDefinitionLevel() == 0) {
+                    Statistics<?> stats = col.getStatistics();
+                    if (stats != null && stats.getNumNulls() > 0) {
+                        throw new IllegalArgumentException(
+                            "Could not read ["
+                                + uri
+                                + "] as a Parquet file: column ["
+                                + col.getPath().toDotString()
+                                + "] is declared required but row group reports "
+                                + stats.getNumNulls()
+                                + " null(s)"
+                        );
+                    }
+                }
+            }
         }
     }
 

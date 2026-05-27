@@ -20,7 +20,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(xpackModule('ccr'))
   testImplementation project(xpackModule('esql'))
-  testImplementation project(':x-pack:plugin:encryption') // EsqlPlugin's data-source wiring needs a real EncryptionService in-JVM
+  testImplementation project(':x-pack:plugin:encryption')
   testImplementation project(':x-pack:plugin:encryption:spi')
   testImplementation project(xpackModule('esql-core'))
 }

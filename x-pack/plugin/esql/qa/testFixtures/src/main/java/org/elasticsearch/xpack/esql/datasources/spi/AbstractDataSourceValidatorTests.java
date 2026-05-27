@@ -80,8 +80,6 @@ public abstract class AbstractDataSourceValidatorTests extends ESTestCase {
         return 2;
     }
 
-    // --- Secret-flag invariants -------------------------------------------------------------------
-
     public void testSecretFlagPropagation() {
         Map<String, DataSourceSetting> validated = validator().validateDatasource(sampleConfigWithAllSecrets());
         for (String fieldName : expectedSecretFieldNames()) {
@@ -172,8 +170,6 @@ public abstract class AbstractDataSourceValidatorTests extends ESTestCase {
         }
     }
 
-    // --- Basic input handling ---------------------------------------------------------------------
-
     public void testType() {
         assertEquals(expectedType(), validator().type());
     }
@@ -197,8 +193,6 @@ public abstract class AbstractDataSourceValidatorTests extends ESTestCase {
             assertEquals("rawValue differs for [" + key + "] between runs", first.get(key).rawValue(), second.get(key).rawValue());
         }
     }
-
-    // --- Dataset resource handling ----------------------------------------------------------------
 
     public void testValidateDatasetRequiresResource() {
         expectThrows(ValidationException.class, () -> validator().validateDataset(Map.of(), null, Map.of()));

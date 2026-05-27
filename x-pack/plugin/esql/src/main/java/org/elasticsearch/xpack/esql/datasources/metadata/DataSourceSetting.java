@@ -20,6 +20,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.encryption.spi.EncryptedData;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 /**
@@ -136,12 +137,19 @@ public final class DataSourceSetting implements Writeable, ToXContentObject {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         DataSourceSetting that = (DataSourceSetting) o;
-        return secret == that.secret && Objects.equals(value, that.value);
+        if (secret != that.secret) {
+            return false;
+        }
+        // A non-secret value can be a byte[] (writeGenericValue round-trips it); Objects.equals would compare by identity.
+        if (value instanceof byte[] a && that.value instanceof byte[] b) {
+            return Arrays.equals(a, b);
+        }
+        return Objects.equals(value, that.value);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(value, secret);
+        return Objects.hash(value instanceof byte[] b ? Arrays.hashCode(b) : value, secret);
     }
 
     @Override

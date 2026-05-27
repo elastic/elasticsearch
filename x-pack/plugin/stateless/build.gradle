@@ -44,7 +44,7 @@ dependencies {
   internalClusterTestImplementation project(':modules:mapper-extras')
   internalClusterTestImplementation project(xpackModule('esql'))
   internalClusterTestImplementation project(xpackModule('esql-core'))
-  internalClusterTestImplementation project(':x-pack:plugin:encryption') // EsqlPlugin's data-source wiring needs a real EncryptionService in-JVM
+  internalClusterTestImplementation project(':x-pack:plugin:encryption')
   internalClusterTestImplementation project(':x-pack:plugin:encryption:spi')
   internalClusterTestImplementation 'com.google.cloud:google-cloud-storage:2.50.0'
 

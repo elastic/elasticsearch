@@ -913,6 +913,14 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     @SuppressForbidden(reason = "require usage of Lucene's IOUtils#closeWhileHandlingException(...)")
     public CentroidAssignments calculateCentroids(FieldInfo fieldInfo, KMeansFloatVectorValues floatVectorValues, MergeState mergeState)
         throws IOException {
+        // Sliced indices treat each slice as an independent partition that must be clustered on its
+        // own. The tiered merge strategy operates on the merged segment as a flat whole, which would
+        // silently collapse slice boundaries, so always fall back to the sliced full rebuild here.
+        // TODO: teach the tiered strategy about slices and reuse per-slice priors.
+        if (sliceField != null) {
+            return calculateCentroidsFullRebuildSliced(floatVectorValues, fieldInfo, mergeState);
+        }
+
         // Gather prior segment statistics for tiered merge strategy selection
         int numSegments = mergeState.knnVectorsReaders.length;
         int[] segmentSizes = new int[numSegments];
@@ -963,11 +971,6 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     totalVectors,
                     totalCentroids
                 );
-            }
-
-            // Slice metadata is on disk and readers return flat segments -> FullRebuild
-            if (action instanceof TieredMergeStrategy.FullRebuild && sliceField != null) {
-                return calculateCentroidsFullRebuildSliced(floatVectorValues, fieldInfo, mergeState);
             }
 
             HierarchicalKMeans hierarchicalKMeans;

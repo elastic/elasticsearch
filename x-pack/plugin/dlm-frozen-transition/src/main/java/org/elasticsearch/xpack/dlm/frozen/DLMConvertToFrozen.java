@@ -679,11 +679,7 @@ public class DLMConvertToFrozen implements DLMFrozenTransitionRunnable {
                 @Override
                 public void onTimeout(TimeValue timeout) {
                     observerError.set(
-                        new ElasticsearchException(
-                            "DLM timed out after [{}] waiting for index [{}] shards to be allocated",
-                            timeout,
-                            indexName
-                        )
+                        new ElasticsearchException("DLM timed out after [{}] waiting for index [{}] shards to be allocated", timeout, index)
                     );
                     latch.countDown();
                 }

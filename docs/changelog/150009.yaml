@@ -1,0 +1,4 @@
+pr: 150009
+summary: "ES|QL CSV: default `multi_value_syntax` to `none`"
+area: ES|QL
+type: enhancement

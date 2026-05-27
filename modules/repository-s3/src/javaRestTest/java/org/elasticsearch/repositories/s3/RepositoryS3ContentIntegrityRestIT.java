@@ -9,13 +9,13 @@
 
 package org.elasticsearch.repositories.s3;
 
-import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
-import com.sun.net.httpserver.HttpHandler;
-
 import fixture.aws.DynamicRegionSupplier;
 import fixture.s3.S3ConsistencyModel;
 import fixture.s3.S3HttpFixture;
 import fixture.s3.S3HttpHandler;
+
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakFilters;
+import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.fixtures.testcontainers.TestContainersThreadFilter;

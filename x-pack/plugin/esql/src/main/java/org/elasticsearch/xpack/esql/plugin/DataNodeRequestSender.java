@@ -201,45 +201,49 @@ abstract class DataNodeRequestSender {
         try {
             while (sendingLock.tryLock()) {
                 try {
-                    if (changed.compareAndSet(true, false) == false) {
-                        break;
-                    }
-                    var pendingRetries = new HashSet<ShardId>();
-                    for (ShardId shardId : pendingShardIds) {
-                        if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
-                            if (isRetryableFailure(shardFailures.get(shardId))) {
-                                pendingRetries.add(shardId);
+                    if (changed.compareAndSet(true, false)) {
+                        var pendingRetries = new HashSet<ShardId>();
+                        for (ShardId shardId : pendingShardIds) {
+                            if (targetShards.getShard(shardId).remainingNodes.isEmpty()) {
+                                if (isRetryableFailure(shardFailures.get(shardId))) {
+                                    pendingRetries.add(shardId);
+                                }
                             }
                         }
-                    }
-                    if (pendingRetries.isEmpty() == false && remainingUnavailableShardResolutionAttempts.decrementAndGet() >= 0) {
-                        for (var entry : resolveShards(pendingRetries).entrySet()) {
-                            targetShards.getShard(entry.getKey()).remainingNodes.addAll(entry.getValue());
+                        if (pendingRetries.isEmpty() == false && remainingUnavailableShardResolutionAttempts.decrementAndGet() >= 0) {
+                            for (var entry : resolveShards(pendingRetries).entrySet()) {
+                                targetShards.getShard(entry.getKey()).remainingNodes.addAll(entry.getValue());
+                            }
                         }
-                    }
-                    for (ShardId shardId : pendingShardIds) {
-                        if (targetShards.getShard(shardId).remainingNodes.isEmpty()
-                            && (isRetryableFailure(shardFailures.get(shardId)) == false || pendingRetries.contains(shardId))) {
-                            shardFailures.compute(
-                                shardId,
-                                (k, v) -> new ShardFailure(
-                                    true,
-                                    v == null ? new NoShardAvailableActionException(shardId, "no shard copies found") : v.failure
-                                )
-                            );
+                        for (ShardId shardId : pendingShardIds) {
+                            if (targetShards.getShard(shardId).remainingNodes.isEmpty()
+                                && (isRetryableFailure(shardFailures.get(shardId)) == false || pendingRetries.contains(shardId))) {
+                                shardFailures.compute(
+                                    shardId,
+                                    (k, v) -> new ShardFailure(
+                                        true,
+                                        v == null ? new NoShardAvailableActionException(shardId, "no shard copies found") : v.failure
+                                    )
+                                );
+                            }
                         }
-                    }
-                    if (reportedFailure
-                        || (allowPartialResults == false && shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal))) {
-                        reportedFailure = true;
-                        reportFailures(computeListener);
-                    } else {
-                        for (NodeRequest request : selectNodeRequests(targetShards)) {
-                            sendOneNodeRequest(targetShards, computeListener, request);
+                        if (reportedFailure
+                            || (allowPartialResults == false
+                                && shardFailures.values().stream().anyMatch(shardFailure -> shardFailure.fatal))) {
+                            reportedFailure = true;
+                            reportFailures(computeListener);
+                        } else {
+                            for (NodeRequest request : selectNodeRequests(targetShards)) {
+                                sendOneNodeRequest(targetShards, computeListener, request);
+                            }
                         }
                     }
                 } finally {
                     sendingLock.unlock();
+                }
+                // recheck after releasing the lock as another response might have set changed, but failed to acquire the lock
+                if (changed.get() == false) {
+                    break;
                 }
             }
         } finally {

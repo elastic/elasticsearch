@@ -415,8 +415,8 @@ public final class ParallelParsingCoordinator {
          * queue, starving the head segment the consumer is waiting on.
          */
         void start() {
-            int initial = Math.min(maxConcurrentSegments, segments.size());
-            for (int i = 0; i < initial; i++) {
+            // maxConcurrentSegments is already clamped to <= segments.size() in the constructor.
+            for (int i = 0; i < maxConcurrentSegments; i++) {
                 submitSegment(i);
             }
         }

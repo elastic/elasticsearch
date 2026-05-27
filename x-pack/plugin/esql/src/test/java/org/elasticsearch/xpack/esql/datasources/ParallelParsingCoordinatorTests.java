@@ -304,7 +304,7 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
     }
 
     /**
-     * Best-effort reproduction of the unbounded-fanout congestion (elastic/esql-planning#830 in plain terms:
+     * Best-effort reproduction of the unbounded-fanout congestion (in plain terms:
      * a wide read opened every segment's stream at once and pinned the heap). Run uncapped, the peak should
      * climb well above the small cap. Demonstrating that requires threads to actually overlap, which a
      * heavily loaded or serializing scheduler cannot guarantee, so this is an {@code assumeTrue} diagnostic,

@@ -15,6 +15,7 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.jspecify.annotations.NonNull;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -443,5 +444,16 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
 
     public static String randomDataURI() {
         return TEST_DATA_URI + randomAlphanumericOfLength(5);
+    }
+
+    public static @NonNull Map<String, String> inferenceStringToMap(InferenceString inferenceString) {
+        return Map.of(
+            "format",
+            inferenceString.dataType().toString(),
+            "type",
+            inferenceString.dataFormat().toString(),
+            "value",
+            inferenceString.value()
+        );
     }
 }

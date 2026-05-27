@@ -26,8 +26,10 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.search.crossproject.TargetProjects;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -77,16 +79,27 @@ public class EsqlResolveViewAction extends TransportLocalProjectMetadataAction<
 
     public static class Request extends LocalClusterStateRequest implements IndicesRequest.Replaceable {
 
-        private String[] indices = new String[0];
-        private ResolvedIndexExpressions resolvedIndexExpressions;
         private static final IndicesOptions VIEW_INDICES_OPTIONS = IndicesOptions.builder()
             .wildcardOptions(IndicesOptions.WildcardOptions.builder().allowEmptyExpressions(true))
             .indexAbstractionOptions(IndicesOptions.IndexAbstractionOptions.builder().resolveViews(true).build())
             .concreteTargetOptions(IndicesOptions.ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
             .build();
 
-        public Request(TimeValue masterTimeout) {
+        private static final IndicesOptions CPS_VIEW_INDICES_OPTIONS = IndicesOptions.builder(VIEW_INDICES_OPTIONS)
+            .crossProjectModeOptions(new IndicesOptions.CrossProjectModeOptions(true))
+            .build();
+
+        private final IndicesOptions indicesOptions;
+        private String[] indices = new String[0];
+        @Nullable
+        private String projectRouting;
+        @Nullable
+        private TargetProjects resolvedTargetProjects;
+        private ResolvedIndexExpressions resolvedIndexExpressions;
+
+        public Request(TimeValue masterTimeout, boolean cpsEnabled) {
             super(masterTimeout);
+            this.indicesOptions = cpsEnabled ? CPS_VIEW_INDICES_OPTIONS : VIEW_INDICES_OPTIONS;
         }
 
         @Override
@@ -107,7 +120,36 @@ public class EsqlResolveViewAction extends TransportLocalProjectMetadataAction<
 
         @Override
         public IndicesOptions indicesOptions() {
-            return VIEW_INDICES_OPTIONS;
+            return indicesOptions;
+        }
+
+        @Override
+        public boolean allowsCrossProject() {
+            return true;
+        }
+
+        @Override
+        public boolean allowsRemoteIndices() {
+            return true;
+        }
+
+        public void setProjectRouting(@Nullable String projectRouting) {
+            this.projectRouting = projectRouting;
+        }
+
+        @Override
+        public String getProjectRouting() {
+            return projectRouting;
+        }
+
+        @Override
+        public void setResolvedTargetProjects(TargetProjects resolvedTargetProjects) {
+            this.resolvedTargetProjects = resolvedTargetProjects;
+        }
+
+        @Override
+        public TargetProjects getResolvedTargetProjects() {
+            return resolvedTargetProjects;
         }
 
         @Override

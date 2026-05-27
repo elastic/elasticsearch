@@ -1,0 +1,80 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  implementation project(':modules:workload-identity')
+
+  implementation 'com.azure:azure-core:1.51.0'
+  implementation 'io.projectreactor:reactor-core:3.4.38'
+  implementation "org.reactivestreams:reactive-streams:${versions.reactive_streams}"
+  implementation "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-databind:${versions.jackson}"
+  implementation "com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}"
+  implementation "com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}"
+  implementation "org.slf4j:slf4j-api:${versions.slf4j}"
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+def dependencyMappings = {
+  mapping from: /azure-.*/, to: 'azure'
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /reactive-streams.*/, to: 'reactive-streams'
+}
+tasks.named('dependencyLicenses').configure(dependencyMappings)
+tasks.named('dependenciesInfo').configure(dependencyMappings)
+
+tasks.named("thirdPartyAudit").configure {
+  // TODO: add the necessary dependencies while implementing the credentials provider
+  ignoreMissingClasses(
+    // optional reactor-netty metric collection (we don't use reactor-netty here)
+    'io.micrometer.core.instrument.Clock',
+    'io.micrometer.core.instrument.Counter',
+    'io.micrometer.core.instrument.Counter$Builder',
+    'io.micrometer.core.instrument.DistributionSummary',
+    'io.micrometer.core.instrument.DistributionSummary$Builder',
+    'io.micrometer.core.instrument.Meter',
+    'io.micrometer.core.instrument.MeterRegistry',
+    'io.micrometer.core.instrument.Metrics',
+    'io.micrometer.core.instrument.Tag',
+    'io.micrometer.core.instrument.Tags',
+    'io.micrometer.core.instrument.Timer',
+    'io.micrometer.core.instrument.Timer$Builder',
+    'io.micrometer.core.instrument.Timer$Sample',
+    'io.micrometer.core.instrument.binder.jvm.ExecutorServiceMetrics',
+    'io.micrometer.core.instrument.composite.CompositeMeterRegistry',
+    'io.micrometer.core.instrument.search.Search',
+
+    // optional reactor-core Kotlin extensions
+    'kotlin.collections.ArraysKt',
+    'kotlin.jvm.JvmClassMappingKt',
+    'kotlin.jvm.functions.Function0',
+    'kotlin.jvm.functions.Function1',
+    'kotlin.jvm.internal.FunctionReference',
+    'kotlin.jvm.internal.Intrinsics',
+    'kotlin.jvm.internal.Reflection',
+    'kotlin.jvm.internal.markers.KMappedMarker',
+    'kotlin.reflect.KClass',
+    'kotlin.reflect.KDeclarationContainer',
+    'kotlin.sequences.Sequence',
+
+    // optional reactor-core BlockHound integration
+    'reactor.blockhound.BlockHound$Builder',
+    'reactor.blockhound.integration.BlockHoundIntegration',
+  )
+
+  ignoreViolations(
+    // reactor-core uses sun.misc.SharedSecrets to capture call sites for debug stack traces
+    'reactor.core.publisher.Traces$SharedSecretsCallSiteSupplierFactory$TracingException',
+  )
+}

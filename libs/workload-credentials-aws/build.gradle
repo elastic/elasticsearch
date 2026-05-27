@@ -1,0 +1,107 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  implementation project(':modules:workload-identity')
+
+  implementation "software.amazon.awssdk:auth:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:identity-spi:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:utils:${versions.awsv2sdk}"
+  implementation "software.amazon.awssdk:annotations:${versions.awsv2sdk}"
+}
+
+tasks.named('forbiddenApisMain').configure {
+  replaceSignatureFiles 'jdk-signatures'
+}
+
+def dependencyMappings = {
+  mapping from: 'annotations', to: 'aws-sdk-2'
+  mapping from: 'auth', to: 'aws-sdk-2'
+  mapping from: 'identity-spi', to: 'aws-sdk-2'
+  mapping from: 'utils', to: 'aws-sdk-2'
+}
+tasks.named('dependencyLicenses').configure(dependencyMappings)
+tasks.named('dependenciesInfo').configure(dependencyMappings)
+
+tasks.named("thirdPartyAudit").configure {
+  // TODO: add the necessary dependencies while implementing the credentials provider
+  ignoreMissingClasses(
+    'org.reactivestreams.Publisher',
+    'org.reactivestreams.Subscriber',
+    'org.reactivestreams.Subscription',
+    'org.slf4j.Logger',
+    'org.slf4j.LoggerFactory',
+    'org.slf4j.event.Level',
+    'software.amazon.awssdk.core.CredentialType',
+    'software.amazon.awssdk.core.SdkSystemSetting',
+    'software.amazon.awssdk.core.SelectedAuthScheme',
+    'software.amazon.awssdk.core.async.AsyncRequestBody',
+    'software.amazon.awssdk.core.async.SdkPublisher',
+    'software.amazon.awssdk.core.checksums.Algorithm',
+    'software.amazon.awssdk.core.checksums.ChecksumSpecs',
+    'software.amazon.awssdk.core.checksums.ChecksumSpecs$Builder',
+    'software.amazon.awssdk.core.checksums.SdkChecksum',
+    'software.amazon.awssdk.core.exception.SdkClientException',
+    'software.amazon.awssdk.core.exception.SdkClientException$Builder',
+    'software.amazon.awssdk.core.exception.SdkServiceException',
+    'software.amazon.awssdk.core.interceptor.ExecutionAttribute',
+    'software.amazon.awssdk.core.interceptor.ExecutionAttribute$DerivedAttributeBuilder',
+    'software.amazon.awssdk.core.interceptor.ExecutionAttributes',
+    'software.amazon.awssdk.core.interceptor.SdkExecutionAttribute',
+    'software.amazon.awssdk.core.interceptor.SdkInternalExecutionAttribute',
+    'software.amazon.awssdk.core.internal.chunked.AwsChunkedEncodingConfig',
+    'software.amazon.awssdk.core.internal.io.AwsChunkedEncodingInputStream',
+    'software.amazon.awssdk.core.internal.io.AwsChunkedEncodingInputStream$Builder',
+    'software.amazon.awssdk.core.internal.signer.SigningMethod',
+    'software.amazon.awssdk.core.internal.util.ClassLoaderHelper',
+    'software.amazon.awssdk.core.internal.util.HttpChecksumUtils',
+    'software.amazon.awssdk.core.signer.AsyncRequestBodySigner',
+    'software.amazon.awssdk.core.signer.AsyncSigner',
+    'software.amazon.awssdk.core.signer.Presigner',
+    'software.amazon.awssdk.core.signer.Signer',
+    'software.amazon.awssdk.core.util.SdkUserAgent',
+    'software.amazon.awssdk.http.ContentStreamProvider',
+    'software.amazon.awssdk.http.HttpStatusFamily',
+    'software.amazon.awssdk.http.SdkHttpFullRequest',
+    'software.amazon.awssdk.http.SdkHttpFullRequest$Builder',
+    'software.amazon.awssdk.http.SdkHttpMethod',
+    'software.amazon.awssdk.http.SdkHttpRequest',
+    'software.amazon.awssdk.http.SdkHttpRequest$Builder',
+    'software.amazon.awssdk.http.auth.aws.signer.AwsV4FamilyHttpSigner',
+    'software.amazon.awssdk.http.auth.aws.signer.AwsV4HttpSigner',
+    'software.amazon.awssdk.http.auth.aws.signer.AwsV4aHttpSigner',
+    'software.amazon.awssdk.http.auth.aws.signer.RegionSet',
+    'software.amazon.awssdk.http.auth.signer.BearerHttpSigner',
+    'software.amazon.awssdk.http.auth.spi.scheme.AuthSchemeOption',
+    'software.amazon.awssdk.http.auth.spi.scheme.AuthSchemeOption$Builder',
+    'software.amazon.awssdk.http.auth.spi.signer.AsyncSignRequest',
+    'software.amazon.awssdk.http.auth.spi.signer.HttpSigner',
+    'software.amazon.awssdk.http.auth.spi.signer.SignRequest',
+    'software.amazon.awssdk.http.auth.spi.signer.SignedRequest',
+    'software.amazon.awssdk.profiles.Profile',
+    'software.amazon.awssdk.profiles.ProfileFile',
+    'software.amazon.awssdk.profiles.ProfileFile$Builder',
+    'software.amazon.awssdk.profiles.ProfileFileSupplier',
+    'software.amazon.awssdk.profiles.ProfileFileSystemSetting',
+    'software.amazon.awssdk.profiles.internal.ProfileSection',
+    'software.amazon.awssdk.protocols.jsoncore.JsonNode',
+    'software.amazon.awssdk.protocols.jsoncore.JsonNodeParser',
+    'software.amazon.awssdk.protocols.jsoncore.JsonNodeParser$Builder',
+    'software.amazon.awssdk.regions.Region',
+    'software.amazon.awssdk.regions.RegionScope',
+    'software.amazon.awssdk.regions.util.HttpResourcesUtils',
+    'software.amazon.awssdk.regions.util.ResourcesEndpointProvider',
+    'software.amazon.awssdk.regions.util.ResourcesEndpointRetryParameters',
+    'software.amazon.awssdk.regions.util.ResourcesEndpointRetryPolicy',
+    'software.amazon.eventstream.HeaderValue',
+    'software.amazon.eventstream.Message',
+  )
+}

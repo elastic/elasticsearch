@@ -48,6 +48,11 @@ public class TsvFormatSpecIT extends AbstractExternalSourceSpecTestCase {
 
     @ParametersFactory(argumentFormatting = "csv-spec:%2$s.%3$s [%7$s]")
     public static List<Object[]> readScriptSpec() throws Exception {
-        return readExternalSpecTests("/external-basic.csv-spec", "/external-multifile.csv-spec", "/external-multifile-resolution.csv-spec");
+        return readExternalSpecTests(
+            "/external-basic.csv-spec",
+            "/external-multifile.csv-spec",
+            "/external-multifile-resolution.csv-spec",
+            "/tsv-multivalue.csv-spec"
+        );
     }
 }

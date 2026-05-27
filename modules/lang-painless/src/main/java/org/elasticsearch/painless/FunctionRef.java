@@ -14,6 +14,7 @@ import org.elasticsearch.painless.lookup.PainlessConstructor;
 import org.elasticsearch.painless.lookup.PainlessLookup;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
+import org.elasticsearch.painless.spi.annotation.CancellationAwareAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.objectweb.asm.Type;
@@ -221,13 +222,23 @@ public class FunctionRef {
                 delegateMethodName = painlessMethod.javaMethod().getName();
                 delegateMethodType = painlessMethod.methodType();
 
+                // @cancellation_aware augmentations carry a leading PainlessScript parameter
+                // in methodType (and the underlying Java method) so the body can poll the
+                // cancel runnable. At a method-reference call site the script receiver is
+                // threaded in via withSyntheticScriptCapture below; strip the leading
+                // PainlessScript here so the factory/delegate split sees the same shape it
+                // would for a non-cancellation augmentation.
+                if (painlessMethod.annotations().containsKey(CancellationAwareAnnotation.class)) {
+                    delegateMethodType = delegateMethodType.dropParameterTypes(0, 1);
+                }
+
                 // interfaces that override a method from Object receive the method handle for
                 // Object rather than for the interface; we change the first parameter to match
                 // the interface type so the constant interface method reference is correctly
                 // written to the constant pool
                 if (delegateInvokeType != H_INVOKESTATIC
-                    && painlessMethod.javaMethod().getDeclaringClass() != painlessMethod.methodType().parameterType(0)) {
-                    if (painlessMethod.methodType().parameterType(0) != Object.class) {
+                    && painlessMethod.javaMethod().getDeclaringClass() != delegateMethodType.parameterType(0)) {
+                    if (delegateMethodType.parameterType(0) != Object.class) {
                         throw new IllegalStateException("internal error");
                     }
 

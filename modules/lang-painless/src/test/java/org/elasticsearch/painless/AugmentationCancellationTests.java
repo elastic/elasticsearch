@@ -145,6 +145,40 @@ public class AugmentationCancellationTests extends ScriptTestCase {
         script.execute();
     }
 
+    /**
+     * Method reference to a {@code @cancellation_aware} augmentation.  With the script-first
+     * signature, {@code FunctionRef.withSyntheticScriptCapture} prepends the script class at
+     * factoryMethodType position 0 — matching the augmentation's first parameter directly —
+     * and the construction site pushes the script receiver via the existing
+     * {@code IRCInstanceCapture} bytecode path.  Pass {@code list::each} as a Painless local
+     * function argument typed {@code Function<Consumer, Object>} so the FunctionRef takes
+     * effect; the augmentation still polls the runnable from inside its driver loop.
+     */
+    public void testEachAugmentationMethodRefFiresCancelRunnable() {
+        StringBuilder source = new StringBuilder("void populate(List l) {");
+        for (int i = 0; i < 1500; i++) {
+            source.append(" l.add(").append(i).append(");");
+        }
+        source.append("} ");
+        // Apply a Function<Consumer, Object> to a typed Consumer so the lambda has a known
+        // functional interface target.
+        source.append("def apply(Function f, Consumer arg) { return f.apply(arg); } ");
+        source.append("List l = new ArrayList(); populate(l); ");
+        source.append("apply(l::each, x -> x.toString());");
+
+        ScriptedMetricAggContexts.InitScript script = compileInit(source.toString());
+
+        AtomicInteger callCount = new AtomicInteger();
+        script._setCancellationCheck(() -> {
+            callCount.incrementAndGet();
+            throw new RuntimeException("cancelled-methodref");
+        });
+
+        ScriptException ex = expectThrows(ScriptException.class, script::execute);
+        assertEquals("cancelled-methodref", ex.getCause().getMessage());
+        assertTrue(callCount.get() >= 1);
+    }
+
     public void testEachAugmentationWithUserCapture() {
         // User-defined Painless functions must precede statements in the script. Inline the
         // capture declaration into the body the same helper builds.

@@ -266,6 +266,8 @@ public record SourceOperatorContext(
         private Set<String> partitionColumnNames;
         private ExternalSliceQueue sliceQueue;
         private int parsingParallelism = 1;
+        // Test-only fallback; production sets this from the authoritative max_concurrent_open_segments pragma
+        // default (QueryPragmas). Mirror that value if it changes.
         private int maxConcurrentOpenSegments = 4;
         private int parallelism = 1;
 

@@ -13,5 +13,8 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionDefinition;
  * Extension point for {@link FunctionDefinition functions}.
  */
 public interface FunctionPlugin {
+    /**
+     * Esql functions.
+     */
     FunctionDefinition[] functions();
 }

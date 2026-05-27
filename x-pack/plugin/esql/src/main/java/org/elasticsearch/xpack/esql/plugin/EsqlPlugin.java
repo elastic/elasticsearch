@@ -553,7 +553,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin, ExtensiblePlugin
 
         entries.addAll(ExpressionWritables.getNamedWriteables());
         entries.addAll(PlanWritables.getNamedWriteables());
-        entries.addAll(functionRegistry.get().writeables());
+        EsqlFunctionRegistry registry = functionRegistry.get();
+        if (registry != null) {
+            entries.addAll(registry.writeables());
+        }
         return entries;
     }
 

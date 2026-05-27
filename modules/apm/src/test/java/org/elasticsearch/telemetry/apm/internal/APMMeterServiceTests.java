@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm.internal;
 
 import io.opentelemetry.api.OpenTelemetry;
 import io.opentelemetry.api.metrics.Meter;
+import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.telemetry.apm.internal.export.MeterSupplier;
@@ -34,8 +35,9 @@ public class APMMeterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void attemptFlushMetrics() {
+            public CompletableResultCode attemptFlushMetrics() {
                 calls.add("attemptFlushMetrics");
+                return CompletableResultCode.ofSuccess();
             }
 
             @Override
@@ -65,8 +67,9 @@ public class APMMeterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void attemptFlushMetrics() {
+            public CompletableResultCode attemptFlushMetrics() {
                 calls.add("attemptFlushMetrics");
+                return CompletableResultCode.ofSuccess();
             }
         };
         MeterSupplier noopSupplier = () -> OpenTelemetry.noop().getMeter("noop");
@@ -92,8 +95,45 @@ public class APMMeterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void attemptFlushMetrics() {
+            public CompletableResultCode attemptFlushMetrics() {
                 throw new RuntimeException("simulated flush failure");
+            }
+
+            @Override
+            public void close() {
+                calls.add("close");
+            }
+        };
+        MeterSupplier trackingNoopSupplier = new MeterSupplier() {
+            @Override
+            public Meter get() {
+                calls.add("noop");
+                return OpenTelemetry.noop().getMeter("noop");
+            }
+        };
+
+        Settings settings = Settings.builder().put(APMAgentSettings.TELEMETRY_METRICS_ENABLED_SETTING.getKey(), true).build();
+        APMMeterService service = new APMMeterService(settings, trackingSupplier, trackingNoopSupplier);
+        service.start();
+        service.stop(); // must not throw
+
+        assertThat(calls, contains("close", "noop"));
+    }
+
+    /**
+     * A flush that returns ofFailure() must not prevent close() or the registry switch to noop.
+     */
+    public void testDoStopClosesAndSwitchesToNoopEvenIfFlushFails() {
+        List<String> calls = new ArrayList<>();
+        MeterSupplier trackingSupplier = new MeterSupplier() {
+            @Override
+            public Meter get() {
+                return OpenTelemetry.noop().getMeter("test");
+            }
+
+            @Override
+            public CompletableResultCode attemptFlushMetrics() {
+                return CompletableResultCode.ofFailure();
             }
 
             @Override
@@ -131,8 +171,9 @@ public class APMMeterServiceTests extends ESTestCase {
             }
 
             @Override
-            public void attemptFlushMetrics() {
+            public CompletableResultCode attemptFlushMetrics() {
                 calls.add("attemptFlushMetrics");
+                return CompletableResultCode.ofSuccess();
             }
 
             @Override

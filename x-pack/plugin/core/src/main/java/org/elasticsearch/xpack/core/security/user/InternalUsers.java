@@ -18,8 +18,10 @@ import org.elasticsearch.action.admin.indices.readonly.TransportAddIndexBlockAct
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.rollover.LazyRolloverAction;
 import org.elasticsearch.action.admin.indices.rollover.RolloverAction;
+import org.elasticsearch.action.admin.indices.segments.IndicesSegmentsAction;
 import org.elasticsearch.action.admin.indices.settings.get.GetSettingsAction;
 import org.elasticsearch.action.admin.indices.settings.put.TransportUpdateSettingsAction;
+import org.elasticsearch.action.admin.indices.shrink.TransportResizeAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
@@ -158,7 +160,7 @@ public class InternalUsers {
         UsernamesField.DATA_STREAM_LIFECYCLE_NAME,
         new RoleDescriptor(
             UsernamesField.DATA_STREAM_LIFECYCLE_ROLE,
-            new String[] {},
+            new String[] { "manage" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("*")
@@ -173,7 +175,10 @@ public class InternalUsers {
                             IndicesStatsAction.NAME + "*",
                             TransportUpdateSettingsAction.TYPE.name(),
                             DownsampleAction.NAME,
-                            TransportAddIndexBlockAction.TYPE.name()
+                            TransportAddIndexBlockAction.TYPE.name(),
+                            IndicesSegmentsAction.NAME,
+                            ModifyDataStreamsAction.NAME,
+                            TransportResizeAction.TYPE.name()
                         )
                     )
                     .allowRestrictedIndices(false)
@@ -313,6 +318,7 @@ public class InternalUsers {
         new RoleDescriptor(
             UsernamesField.CROSS_PROJECT_SEARCH_ROLE_NAME,
             new String[] {
+                XPackInfoAction.REMOTE_TYPE.name(),
                 RemoteClusterService.REMOTE_CLUSTER_HANDSHAKE_ACTION_NAME,
                 TaskCancellationService.REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
                 TaskCancellationService.REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,

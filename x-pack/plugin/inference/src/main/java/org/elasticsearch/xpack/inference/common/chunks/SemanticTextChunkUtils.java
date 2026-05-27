@@ -88,7 +88,15 @@ public class SemanticTextChunkUtils {
                 )
             );
         }
-        return (String) nestedSources.get(cand.index()).get(SemanticTextField.CHUNKED_TEXT_FIELD);
+
+        String content = (String) nestedSources.get(cand.index()).get(SemanticTextField.CHUNKED_TEXT_FIELD);
+        if (content == null) {
+            throw new IllegalStateException(
+                String.format(Locale.ROOT, "Invalid content detected for field [%s]: missing text for the chunk [%s]", fieldName, cand)
+            );
+        }
+
+        return content;
     }
 
     public static List<Query> extractQueries(FieldMapper embeddingsField, TaskType taskType, Query query) {

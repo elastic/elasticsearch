@@ -921,13 +921,19 @@ public class SemanticFieldMapper extends FieldMapper implements InferenceFieldMa
          * Get a {@link ValueFetcher} for the original value(s) directly written to this field.
          */
         protected ValueFetcher originalValueFetcher(SearchExecutionContext context) {
-            return SourceValueFetcher.toString(name(), context, null);
+            return new SemanticFieldValueFetcher(
+                this,
+                getChunksField().bitsetProducer(),
+                context.searcher(),
+                SemanticFieldValueFetcher.Mode.ORIGINAL_VALUES
+            );
         }
 
         /**
          * Get a {@link ValueFetcher} for all values written to this field, both directly and via {@code copy_to}.
          */
         protected ValueFetcher allValuesFetcher(MappedFieldType.BlockLoaderContext blContext) {
+            // TODO: Implement a different all values fetcher
             return SourceValueFetcher.toString(blContext.sourcePaths(name()), blContext.indexSettings());
         }
 

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.query.QueryBuilders;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.plugins.Plugin;
@@ -100,7 +99,7 @@ public class TextSimilarityRankTests extends ESSingleNodeTestCase {
                         inferenceId,
                         new RerankRequest(
                             fromStringList(docFeatures),
-                            new InferenceString(DataType.TEXT, inferenceText),
+                            InferenceString.ofText(inferenceText),
                             null,
                             null,
                             Map.of("inferenceResultCount", inferenceResultCount)

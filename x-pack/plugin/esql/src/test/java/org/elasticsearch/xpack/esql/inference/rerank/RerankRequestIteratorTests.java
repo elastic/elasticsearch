@@ -11,7 +11,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.test.ComputeTestCase;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.BaseInferenceActionRequest;
@@ -65,7 +64,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
             assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
             assertThat(request.getTaskType(), equalTo(TaskType.RERANK));
-            assertThat(request.getRerankRequest().query(), equalTo(new InferenceString(DataType.TEXT, QUERY_TEXT)));
+            assertThat(request.getRerankRequest().query(), equalTo(InferenceString.ofText(QUERY_TEXT)));
             assertThat(request.getRerankRequest().inputs().size(), equalTo(size));
             assertThat(requestItem.positionValueCounts().length, equalTo(size));
             assertThat(request.getTimeout(), equalTo(expectedTimeout(timeout)));
@@ -130,7 +129,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                     RerankAction.Request request = (RerankAction.Request) requestItem.inferenceRequest();
                     assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
                     assertThat(request.getTaskType(), equalTo(TaskType.RERANK));
-                    assertThat(request.getRerankRequest().query(), equalTo(new InferenceString(DataType.TEXT, QUERY_TEXT)));
+                    assertThat(request.getRerankRequest().query(), equalTo(InferenceString.ofText(QUERY_TEXT)));
 
                     // Number of documents should match input size
                     assertThat(request.getRerankRequest().inputs().size(), equalTo(documentsInBatch));
@@ -506,12 +505,12 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
                 // Verify the combined inputs: [a, x, b, y, c, z]
                 List<InferenceString> inputs = ((RerankAction.Request) item.inferenceRequest()).getRerankRequest().inputs();
-                assertThat(inputs.get(0), equalTo(new InferenceString(DataType.TEXT, "a")));
-                assertThat(inputs.get(1), equalTo(new InferenceString(DataType.TEXT, "x")));
-                assertThat(inputs.get(2), equalTo(new InferenceString(DataType.TEXT, "b")));
-                assertThat(inputs.get(3), equalTo(new InferenceString(DataType.TEXT, "y")));
-                assertThat(inputs.get(4), equalTo(new InferenceString(DataType.TEXT, "c")));
-                assertThat(inputs.get(5), equalTo(new InferenceString(DataType.TEXT, "z")));
+                assertThat(inputs.get(0), equalTo(InferenceString.ofText("a")));
+                assertThat(inputs.get(1), equalTo(InferenceString.ofText("x")));
+                assertThat(inputs.get(2), equalTo(InferenceString.ofText("b")));
+                assertThat(inputs.get(3), equalTo(InferenceString.ofText("y")));
+                assertThat(inputs.get(4), equalTo(InferenceString.ofText("c")));
+                assertThat(inputs.get(5), equalTo(InferenceString.ofText("z")));
                 assertThat(((RerankAction.Request) item.inferenceRequest()).getTimeout(), equalTo(expectedTimeout(timeout)));
 
                 assertFalse(requestIterator.hasNext());
@@ -567,10 +566,10 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
                 // Verify the inputs: [a, y, c, z]
                 List<InferenceString> inputs = ((RerankAction.Request) item.inferenceRequest()).getRerankRequest().inputs();
-                assertThat(inputs.get(0), equalTo(new InferenceString(DataType.TEXT, "a")));
-                assertThat(inputs.get(1), equalTo(new InferenceString(DataType.TEXT, "y")));
-                assertThat(inputs.get(2), equalTo(new InferenceString(DataType.TEXT, "c")));
-                assertThat(inputs.get(3), equalTo(new InferenceString(DataType.TEXT, "z")));
+                assertThat(inputs.get(0), equalTo(InferenceString.ofText("a")));
+                assertThat(inputs.get(1), equalTo(InferenceString.ofText("y")));
+                assertThat(inputs.get(2), equalTo(InferenceString.ofText("c")));
+                assertThat(inputs.get(3), equalTo(InferenceString.ofText("z")));
                 assertThat(((RerankAction.Request) item.inferenceRequest()).getTimeout(), equalTo(expectedTimeout(timeout)));
 
                 assertFalse(requestIterator.hasNext());
@@ -643,18 +642,18 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
                 // Verify the order of inputs: values from block1 first, then block2 for each position
                 List<InferenceString> inputs = ((RerankAction.Request) item.inferenceRequest()).getRerankRequest().inputs();
                 // Position 0: a, x1, x2
-                assertThat(inputs.get(0), equalTo(new InferenceString(DataType.TEXT, "a")));
-                assertThat(inputs.get(1), equalTo(new InferenceString(DataType.TEXT, "x1")));
-                assertThat(inputs.get(2), equalTo(new InferenceString(DataType.TEXT, "x2")));
+                assertThat(inputs.get(0), equalTo(InferenceString.ofText("a")));
+                assertThat(inputs.get(1), equalTo(InferenceString.ofText("x1")));
+                assertThat(inputs.get(2), equalTo(InferenceString.ofText("x2")));
                 // Position 1: b1, b2, y
-                assertThat(inputs.get(3), equalTo(new InferenceString(DataType.TEXT, "b1")));
-                assertThat(inputs.get(4), equalTo(new InferenceString(DataType.TEXT, "b2")));
-                assertThat(inputs.get(5), equalTo(new InferenceString(DataType.TEXT, "y")));
+                assertThat(inputs.get(3), equalTo(InferenceString.ofText("b1")));
+                assertThat(inputs.get(4), equalTo(InferenceString.ofText("b2")));
+                assertThat(inputs.get(5), equalTo(InferenceString.ofText("y")));
                 // Position 2: c, z1, z2, z3
-                assertThat(inputs.get(6), equalTo(new InferenceString(DataType.TEXT, "c")));
-                assertThat(inputs.get(7), equalTo(new InferenceString(DataType.TEXT, "z1")));
-                assertThat(inputs.get(8), equalTo(new InferenceString(DataType.TEXT, "z2")));
-                assertThat(inputs.get(9), equalTo(new InferenceString(DataType.TEXT, "z3")));
+                assertThat(inputs.get(6), equalTo(InferenceString.ofText("c")));
+                assertThat(inputs.get(7), equalTo(InferenceString.ofText("z1")));
+                assertThat(inputs.get(8), equalTo(InferenceString.ofText("z2")));
+                assertThat(inputs.get(9), equalTo(InferenceString.ofText("z3")));
                 assertThat(((RerankAction.Request) item.inferenceRequest()).getTimeout(), equalTo(expectedTimeout(timeout)));
 
                 assertFalse(requestIterator.hasNext());
@@ -728,7 +727,7 @@ public class RerankRequestIteratorTests extends ComputeTestCase {
 
                 assertThat(request.getInferenceEntityId(), equalTo(inferenceId));
                 assertThat(request.getTaskType(), equalTo(TaskType.RERANK));
-                assertThat(request.getRerankRequest().query(), equalTo(new InferenceString(DataType.TEXT, QUERY_TEXT)));
+                assertThat(request.getRerankRequest().query(), equalTo(InferenceString.ofText(QUERY_TEXT)));
                 assertThat(request.getTimeout(), equalTo(expectedTimeout(timeout)));
 
                 int batchItemCount = request.getRerankRequest().inputs().size();

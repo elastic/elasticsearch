@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.rank.textsimilarity;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.RerankRequest;
@@ -143,7 +142,7 @@ public class TextSimilarityRankFeaturePhaseRankCoordinatorContext extends RankFe
     protected RerankAction.Request generateRequest(List<String> docFeatures) {
         return new RerankAction.Request(
             inferenceId,
-            new RerankRequest(fromStringList(docFeatures), new InferenceString(DataType.TEXT, inferenceText), null, null, null),
+            new RerankRequest(fromStringList(docFeatures), InferenceString.ofText(inferenceText), null, null, null),
             TIMEOUT_NOT_DETERMINED
         );
     }

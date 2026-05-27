@@ -15,7 +15,6 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.expression.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.RerankRequest;
 import org.elasticsearch.xpack.core.inference.action.RerankAction;
@@ -209,7 +208,7 @@ class RerankRequestIterator implements BulkInferenceRequestItemIterator {
             return null;
         }
 
-        var rerankRequest = new RerankRequest(fromStringList(inputs), new InferenceString(DataType.TEXT, queryText), null, null, null);
+        var rerankRequest = new RerankRequest(fromStringList(inputs), InferenceString.ofText(queryText), null, null, null);
         return new RerankAction.Request(inferenceId, rerankRequest, timeout);
     }
 

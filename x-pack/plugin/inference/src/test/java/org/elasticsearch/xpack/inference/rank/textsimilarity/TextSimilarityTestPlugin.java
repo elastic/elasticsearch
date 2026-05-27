@@ -17,7 +17,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceString;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -241,7 +240,7 @@ public class TextSimilarityTestPlugin extends Plugin implements ActionPlugin {
                             inferenceId,
                             new RerankRequest(
                                 fromStringList(docFeatures),
-                                new InferenceString(DataType.TEXT, inferenceText),
+                                InferenceString.ofText(inferenceText),
                                 null,
                                 null,
                                 Map.of("throwing", true)

@@ -65,7 +65,7 @@ public final class DataSourceModule implements Closeable {
         DataSourceCredentials credentials
     ) {
         this.capabilities = capabilities;
-        this.storageProviderRegistry = new StorageProviderRegistry(settings);
+        this.storageProviderRegistry = new StorageProviderRegistry(settings, credentials);
 
         DecompressionCodecRegistry codecRegistry = new DecompressionCodecRegistry();
         for (DataSourcePlugin plugin : dataSourcePlugins) {

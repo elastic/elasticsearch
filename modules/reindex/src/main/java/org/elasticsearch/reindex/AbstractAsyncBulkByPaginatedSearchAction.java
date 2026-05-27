@@ -421,7 +421,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
                     long delta = bulkRequest.estimatedSizeInBytes() - reservedBytes.get();
                     if (delta >= reindexSettings.getMemoryAccountingThresholdInBytes()) {
                         circuitBreaker.addEstimateBytesAndMaybeBreak(delta, breakerLabel);
-                        reservedBytes.set(bulkRequest.estimatedSizeInBytes());
+                        reservedBytes.addAndGet(delta);
                     }
                 }
             }

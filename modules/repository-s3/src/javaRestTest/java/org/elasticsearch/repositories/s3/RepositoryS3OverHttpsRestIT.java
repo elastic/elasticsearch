@@ -58,7 +58,7 @@ public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCas
         protected HttpHandler createHandler() {
             final var delegate = asInstanceOf(S3HttpHandler.class, super.createHandler());
             return exchange -> {
-                delegate.assertSha256ContentHeader(exchange, equalTo("UNSIGNED-PAYLOAD"));
+                delegate.assertContentSha256Header(exchange, equalTo("UNSIGNED-PAYLOAD"));
                 delegate.handle(exchange);
             };
         }

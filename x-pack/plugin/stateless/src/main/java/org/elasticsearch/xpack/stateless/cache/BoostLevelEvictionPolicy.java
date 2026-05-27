@@ -7,8 +7,8 @@
 
 package org.elasticsearch.xpack.stateless.cache;
 
+import org.elasticsearch.blobcache.shared.CacheRegion;
 import org.elasticsearch.blobcache.shared.EvictionPolicy;
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService.CacheFileRegion;
 import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
 
 /**
@@ -17,20 +17,20 @@ import org.elasticsearch.xpack.stateless.lucene.FileCacheKey;
  * the expected quota for that level.
  * <p>
  * The boost level concept is internal to this implementation. It is derived from the region's
- * timestamp and the active `BoostConfiguration`.
+ * timestamp and the active {@code BoostConfiguration}.
  */
 public class BoostLevelEvictionPolicy implements EvictionPolicy<FileCacheKey> {
 
     @Override
-    public boolean canEvict(CacheFileRegion<FileCacheKey> region, CacheFileRegion<FileCacheKey> incoming, boolean degraded) {
+    public boolean canEvict(CacheRegion<FileCacheKey> region, CacheRegion<FileCacheKey> incoming, boolean degraded) {
         return true;
     }
 
     @Override
-    public void onCached(CacheFileRegion<FileCacheKey> region) {}
+    public void onCached(CacheRegion<FileCacheKey> region) {}
 
     @Override
-    public void onEvicted(CacheFileRegion<FileCacheKey> region) {}
+    public void onEvicted(CacheRegion<FileCacheKey> region) {}
 
     @Override
     public boolean supportDegradation() {

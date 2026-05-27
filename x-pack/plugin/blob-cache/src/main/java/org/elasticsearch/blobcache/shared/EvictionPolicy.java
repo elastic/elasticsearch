@@ -7,8 +7,6 @@
 
 package org.elasticsearch.blobcache.shared;
 
-import org.elasticsearch.blobcache.shared.SharedBlobCacheService.CacheFileRegion;
-
 /**
  * Pluggable eviction strategy for {@link SharedBlobCacheService}.
  * <p>
@@ -39,7 +37,7 @@ public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> 
      *                 entries but the cache still needs to free space. Implementations should relax
      *                 their protection criteria in this mode.
      */
-    boolean canEvict(CacheFileRegion<KeyType> region, CacheFileRegion<KeyType> incoming, boolean degraded);
+    boolean canEvict(CacheRegion<KeyType> region, CacheRegion<KeyType> incoming, boolean degraded);
 
     /**
      * Called when a region is assigned a cache slot (after successful allocation or eviction+take).
@@ -48,7 +46,7 @@ public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> 
      * This method is called under the cache service's monitor lock and must not perform I/O. The method is called after the region and its
      * associated key have both been added to the cache.
      */
-    void onCached(CacheFileRegion<KeyType> region);
+    void onCached(CacheRegion<KeyType> region);
 
     /**
      * Called when a region is evicted from the cache.
@@ -57,7 +55,7 @@ public interface EvictionPolicy<KeyType extends SharedBlobCacheService.KeyBase> 
      * This method is called under the cache service's monitor lock and must not perform I/O. The method is called after the region and its
      * associated key have both been removed from the cache.
      */
-    void onEvicted(CacheFileRegion<KeyType> region);
+    void onEvicted(CacheRegion<KeyType> region);
 
     /**
      * Returns {@code true} if this policy supports a degraded eviction pass.

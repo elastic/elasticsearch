@@ -879,7 +879,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         sharedBytes.decRef();
     }
 
-    public record RegionKey<KeyType>(KeyType file, int region) {
+    private record RegionKey<KeyType>(KeyType file, int region) {
         @Override
         public String toString() {
             return "Chunk{" + "file=" + file + ", region=" + region + '}';
@@ -951,7 +951,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
      * always be used, ensuring the right ordering between incRef/tryIncRef and ensureOpen
      * (see LFUCache#maybeEvictAndTakeForFrequency)
      */
-    public static class CacheFileRegion<KeyType extends KeyBase> extends EvictableRefCounted {
+    static class CacheFileRegion<KeyType extends KeyBase> extends EvictableRefCounted implements CacheRegion<KeyType> {
 
         private static final VarHandle VH_IO = findIOVarHandle();
 
@@ -1082,8 +1082,9 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return io;
         }
 
-        public RegionKey<KeyType> regionKey() {
-            return regionKey;
+        @Override
+        public KeyType key() {
+            return regionKey.file();
         }
 
         /**

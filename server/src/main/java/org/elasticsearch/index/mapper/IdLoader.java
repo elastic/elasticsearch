@@ -149,7 +149,6 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 SortedDocValues routingHashDocValues = DocValues.getSorted(reader, TimeSeriesRoutingHashFieldMapper.NAME);
                 return new LazyTsIdLeaf(tsIdDocValues, timestampDocValues, routingHashDocValues, useSyntheticId);
             }
-
             RoutingHashBuilder[] builders = null;
             if (indexRouting != null) {
                 // this branch is for legacy indices before IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID
@@ -537,6 +536,113 @@ public sealed interface IdLoader permits IdLoader.TsIdLoader, IdLoader.StoredIdL
                 );
             }
             return ids[idx];
+        }
+    }
+
+    /**
+     * Lazy variant of {@link TsIdLeaf} that computes the _id for a doc id on demand instead of pre-computing
+     * the ids for a known set of doc ids. Used when the set of doc ids in the leaf is not known up front.
+     * Callers must invoke {@link #getId(int)} with non-decreasing doc ids since the underlying doc values
+     * iterators only support forward iteration.
+     */
+    final class LazyTsIdLeaf implements Leaf {
+
+        private final SortedDocValues tsIdDocValues;
+        private final SortedNumericDocValues timestampDocValues;
+        private final SortedDocValues routingHashDocValues;
+        private final boolean useSyntheticId;
+
+        LazyTsIdLeaf(
+            SortedDocValues tsIdDocValues,
+            SortedNumericDocValues timestampDocValues,
+            SortedDocValues routingHashDocValues,
+            boolean useSyntheticId
+        ) {
+            this.tsIdDocValues = tsIdDocValues;
+            this.timestampDocValues = timestampDocValues;
+            this.routingHashDocValues = routingHashDocValues;
+            this.useSyntheticId = useSyntheticId;
+        }
+
+        @Override
+        public String getId(int subDocId) {
+            try {
+                boolean found = tsIdDocValues.advanceExact(subDocId);
+                assert found;
+                BytesRef tsid = tsIdDocValues.lookupOrd(tsIdDocValues.ordValue());
+                found = timestampDocValues.advanceExact(subDocId);
+                assert found;
+                assert timestampDocValues.docValueCount() == 1;
+                long timestamp = timestampDocValues.nextValue();
+                found = routingHashDocValues.advanceExact(subDocId);
+                assert found;
+                BytesRef routingHashBytes = routingHashDocValues.lookupOrd(routingHashDocValues.ordValue());
+                int routingHash = TimeSeriesRoutingHashFieldMapper.decode(
+                    Uid.decodeId(routingHashBytes.bytes, routingHashBytes.offset, routingHashBytes.length)
+                );
+                if (useSyntheticId) {
+                    return TsidExtractingIdFieldMapper.createSyntheticId(tsid, timestamp, routingHash);
+                } else {
+                    return TsidExtractingIdFieldMapper.createId(routingHash, tsid, timestamp);
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        }
+    }
+
+    /**
+     * Legacy counterpart of {@link LazyTsIdLeaf} for indices created before
+     * {@link IndexVersions#TIME_SERIES_ROUTING_HASH_IN_ID}, where the routing hash is recomputed from the
+     * routing path fields rather than read from {@link TimeSeriesRoutingHashFieldMapper}.
+     */
+    final class LazyLegacyTsIdLeaf implements Leaf {
+
+        private final SortedDocValues tsIdDocValues;
+        private final SortedNumericDocValues timestampDocValues;
+        private final RoutingHashBuilder routingBuilder;
+        private final List<String> routingPaths;
+        private final SortedSetDocValues[] routingFieldDvs;
+        private final byte[] scratch = new byte[16];
+
+        LazyLegacyTsIdLeaf(
+            SortedDocValues tsIdDocValues,
+            SortedNumericDocValues timestampDocValues,
+            RoutingHashBuilder routingBuilder,
+            List<String> routingPaths,
+            SortedSetDocValues[] routingFieldDvs
+        ) {
+            this.tsIdDocValues = tsIdDocValues;
+            this.timestampDocValues = timestampDocValues;
+            this.routingBuilder = routingBuilder;
+            this.routingPaths = routingPaths;
+            this.routingFieldDvs = routingFieldDvs;
+        }
+
+        @Override
+        public String getId(int subDocId) {
+            try {
+                boolean found = tsIdDocValues.advanceExact(subDocId);
+                assert found;
+                BytesRef tsid = tsIdDocValues.lookupOrd(tsIdDocValues.ordValue());
+                found = timestampDocValues.advanceExact(subDocId);
+                assert found;
+                assert timestampDocValues.docValueCount() == 1;
+                long timestamp = timestampDocValues.nextValue();
+                routingBuilder.clear();
+                for (int i = 0; i < routingFieldDvs.length; i++) {
+                    SortedSetDocValues dv = routingFieldDvs[i];
+                    if (dv.advanceExact(subDocId)) {
+                        for (int j = 0; j < dv.docValueCount(); j++) {
+                            BytesRef routingValue = dv.lookupOrd(dv.nextOrd());
+                            routingBuilder.addMatching(routingPaths.get(i), routingValue);
+                        }
+                    }
+                }
+                return TsidExtractingIdFieldMapper.createId(false, routingBuilder, tsid, timestamp, scratch);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     }
 

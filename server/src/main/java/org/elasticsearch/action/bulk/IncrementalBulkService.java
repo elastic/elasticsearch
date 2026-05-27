@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -47,7 +48,7 @@ public class IncrementalBulkService {
     private final Client client;
     private final AtomicBoolean enabledForTests = new AtomicBoolean(true);
     private final IndexingPressure indexingPressure;
-    // public static TransportVersion CANCELLABLE_BULK_OPERATIONS = TransportVersion.fromName("cancellable_bulk_operations");
+    public static TransportVersion CANCELLABLE_BULK_OPERATIONS = TransportVersion.fromName("cancellable_bulk_operations");
 
     /* Capture in milliseconds because the APM histogram only has a range of 100,000 */
     private final LongHistogram chunkWaitTimeMillisHistogram;

@@ -243,6 +243,14 @@ public abstract class TransportWriteAction<
     ) {
         assert task instanceof CancellableTask;
         if (((CancellableTask) task).notifyIfCancelled(listener)) {
+            logger.warn(
+                () -> format(
+                    "Bulk Transport Write Action request [%s] for Index shard [%s] is cancelled pre-submission.",
+                    request.getDescription(),
+                    request.shardId
+                )
+            );
+            indexingPressure.markPrimaryOperationCancelled();
             return;
         }
 
@@ -250,6 +258,14 @@ public abstract class TransportWriteAction<
             @Override
             protected void doRun() {
                 if (((CancellableTask) task).notifyIfCancelled(listener)) {
+                    logger.warn(
+                        () -> format(
+                            "Bulk Transport Write Action request [%s] for Index shard [%s] is cancelled post-submission.",
+                            request.getDescription(),
+                            request.shardId
+                        )
+                    );
+                    indexingPressure.markPrimaryOperationCancelled();
                     return;
                 }
 

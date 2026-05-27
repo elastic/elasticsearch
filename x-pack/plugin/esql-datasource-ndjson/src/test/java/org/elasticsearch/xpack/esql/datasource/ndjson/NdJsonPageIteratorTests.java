@@ -819,6 +819,37 @@ public class NdJsonPageIteratorTests extends ESTestCase {
         }
     }
 
+    public void testMixedValuesToString() throws IOException {
+        var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
+
+        String ndjson = """
+            {"id": 1, "data": "a"}
+            {"id": 2, "data": 1}
+            {"id": 3, "data": 2.3}
+            {"id": 4, "data": null}
+            {"id": 5, "data": true}
+            {"id": 6, "data": false}
+            """;
+
+        var reader = new NdJsonFormatReader(null, blockFactory);
+        var object = new BytesStorageObject("file:///test.ndjson", ndjson.getBytes(StandardCharsets.UTF_8));
+
+        try (var iterator = reader.read(object, List.of("id", "data"), 100)) {
+            assertTrue(iterator.hasNext());
+            var page = iterator.next();
+            assertPage(page, """
+                      INT      |   BYTES_REF  \s
+                ---------------+---------------
+                1              |a             \s
+                2              |1             \s
+                3              |2.3           \s
+                4              |null          \s
+                5              |true          \s
+                6              |false         \s
+                """);
+        }
+    }
+
     public void testNestedObject() throws IOException {
         var blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("none")).build();
 

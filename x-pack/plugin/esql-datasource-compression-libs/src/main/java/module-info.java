@@ -14,11 +14,11 @@
  * mapping) invisible to ESQL data source plugins.
  *
  * <p>The {@code requires} clauses on the bundled compression libraries
- * ({@code com.github.luben.zstd_jni}, {@code snappy.java}, {@code aircompressor}) pull
- * those auto-modules into this plugin's resolved module layer so the per-auto-module
- * {@code load_native_libraries} entitlements declared in {@code entitlement-policy.yaml}
- * can be enabled for them — ES's {@code PluginsLoader.enableNativeAccess} only enables
- * native access on modules it can find in the resolved layer.
+ * ({@code snappy.java}, {@code aircompressor}) pull those auto-modules into this plugin's
+ * resolved module layer so the per-auto-module {@code load_native_libraries} entitlements
+ * declared in {@code entitlement-policy.yaml} can be enabled for them — ES's
+ * {@code PluginsLoader.enableNativeAccess} only enables native access on modules it can find
+ * in the resolved layer.
  *
  * <p>The {@code transitive} qualifier covers two readability paths to extending plugins
  * (parquet, snappy, zstd, future orc/iceberg):
@@ -29,12 +29,16 @@
  *     even though no JPMS readability is involved on the consumer side.</li>
  * <li><b>Future (extenders become named modules):</b> a future child plugin that
  *     declares {@code requires org.elasticsearch.xpack.esql.datasource.compress} will
- *     automatically read the three transitively-required auto-modules without having
+ *     automatically read the two transitively-required auto-modules without having
  *     to {@code requires} each of them itself.</li>
  * </ul>
- * Both paths produce the same runtime contract as before this plugin became a named
- * module: extending plugins keep seeing {@code com.github.luben.zstd},
- * {@code org.xerial.snappy}, and {@code io.airlift.compress} types.
+ *
+ * <p>The previous {@code requires transitive com.github.luben.zstd_jni} clause was removed
+ * once both the {@code .csv.zst} / {@code .ndjson.zstd} streaming codec and Parquet's cold
+ * {@code byte[]} decompressor were ported to Panama FFI's libzstd binding (see
+ * {@code PanamaZstd}). zstd-jni is no longer on the production runtime classpath; the few
+ * tests that still cross-check against zstd-jni's {@code ZstdInputStream}/{@code ZstdOutputStream}
+ * pick it up via {@code testImplementation} only.
  *
  * <p><b>Adding a new native-loading compression library to this plugin requires four
  * coordinated edits</b>: (1) {@code implementation} dependency in {@code build.gradle};
@@ -47,7 +51,6 @@ module org.elasticsearch.xpack.esql.datasource.compress {
     requires org.elasticsearch.server;
     requires org.elasticsearch.nativeaccess;
 
-    requires transitive com.github.luben.zstd_jni;
     requires transitive snappy.java;
     requires transitive aircompressor;
 

@@ -59,6 +59,7 @@ import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
@@ -392,6 +393,7 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
      */
     protected void copyRouting(RequestWrapper<?> request, String routing) {
         request.setRouting(routing);
+        request.setRoutingFromSlice(mainRequest.getSearchRequest().isRoutingFromSlice());
     }
 
     /**
@@ -1062,6 +1064,8 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
 
         String getRouting();
 
+        void setRoutingFromSlice(boolean routingFromSlice);
+
         void setSource(Map<String, Object> source);
 
         Map<String, Object> getSource();
@@ -1123,6 +1127,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         @Override
         public String getRouting() {
             return request.routing();
+        }
+
+        @Override
+        public void setRoutingFromSlice(boolean routingFromSlice) {
+            request.setRoutingFromSlice(routingFromSlice);
         }
 
         @Override
@@ -1205,6 +1214,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         }
 
         @Override
+        public void setRoutingFromSlice(boolean routingFromSlice) {
+            request.setRoutingFromSlice(routingFromSlice);
+        }
+
+        @Override
         public Map<String, Object> getSource() {
             throw new UnsupportedOperationException("unable to get source from action request [" + request.getClass() + "]");
         }
@@ -1275,6 +1289,11 @@ public abstract class AbstractAsyncBulkByPaginatedSearchAction<
         }
 
         protected abstract CtxMap<T> execute(PaginatedHitSource.Hit doc, Map<String, Object> source);
+
+        protected Runnable buildCancellationCheck() {
+            BulkByPaginatedSearchTask task = taskWorker.getTask();
+            return () -> { if (task.isCancelled()) throw new TaskCancelledException(task.getReasonCancelled()); };
+        }
 
         protected abstract void updateRequest(RequestWrapper<?> request, T metadata);
 

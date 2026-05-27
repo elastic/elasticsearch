@@ -9,6 +9,7 @@
 
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
+import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.sdk.common.CompletableResultCode;
 
 import org.elasticsearch.common.settings.MockSecureSettings;
@@ -60,6 +61,20 @@ public class OtelSdkExportMeterSupplierTests extends ESTestCase {
         secureSettings.setString("telemetry.api_key", "xyz");
         Settings settings = Settings.builder().setSecureSettings(secureSettings).build();
         assertThat(OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings), equalTo("ApiKey xyz"));
+    }
+
+    public void testGetMeterProviderBeforeInitReturnsNoop() {
+        assertSame(MeterProvider.noop(), new OtelSdkExportMeterSupplier(Settings.EMPTY).getMeterProvider());
+    }
+
+    public void testGetMeterProviderAfterGetReturnsSdkProvider() {
+        String bogusUrl = "http://127.0.0.1:9/v1/metrics";
+        Settings settings = Settings.builder().put(OtelSdkSettings.TELEMETRY_OTEL_METRICS_ENDPOINT.getKey(), bogusUrl).build();
+        OtelSdkExportMeterSupplier supplier = new OtelSdkExportMeterSupplier(settings);
+        supplier.get();
+        assertNotSame(MeterProvider.noop(), supplier.getMeterProvider());
+        assertThat(supplier.getMeterProvider(), org.hamcrest.Matchers.instanceOf(io.opentelemetry.sdk.metrics.SdkMeterProvider.class));
+        supplier.close();
     }
 
     public void testCloseWithoutGetDoesNotThrow() {

@@ -183,6 +183,18 @@ public class OtelSdkExportMeterSupplier implements MeterSupplier {
         return result;
     }
 
+    /**
+     * Returns the system {@link MeterProvider} for wiring SDK self-monitoring into other exporters
+     * (e.g. the span exporter). Returns {@link MeterProvider#noop()} when resources have not yet
+     * been initialized (i.e. before the first {@link #get()} call).
+     */
+    @Override
+    public MeterProvider getMeterProvider() {
+        synchronized (mutex) {
+            return resources != null ? resources.systemMeterProvider() : MeterProvider.noop();
+        }
+    }
+
     @Override
     public void close() {
         synchronized (mutex) {

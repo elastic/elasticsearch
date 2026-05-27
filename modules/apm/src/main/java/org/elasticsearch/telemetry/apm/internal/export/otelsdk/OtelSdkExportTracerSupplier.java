@@ -10,12 +10,14 @@
 package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
 import io.opentelemetry.context.propagation.ContextPropagators;
 import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
 import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporterBuilder;
 import io.opentelemetry.sdk.OpenTelemetrySdk;
 import io.opentelemetry.sdk.common.CompletableResultCode;
+import io.opentelemetry.sdk.common.InternalTelemetryVersion;
 import io.opentelemetry.sdk.trace.SdkTracerProvider;
 import io.opentelemetry.sdk.trace.export.BatchSpanProcessor;
 
@@ -37,6 +39,10 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
     private final OpenTelemetrySdk openTelemetrySdk;
 
     public OtelSdkExportTracerSupplier(Settings settings) {
+        this(settings, MeterProvider.noop());
+    }
+
+    public OtelSdkExportTracerSupplier(Settings settings, MeterProvider meterProvider) {
         String endpoint = OtelSdkSettings.TELEMETRY_OTEL_TRACES_ENDPOINT.get(settings);
         if (endpoint == null || endpoint.isEmpty()) {
             throw new IllegalStateException(
@@ -46,7 +52,10 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
 
         TimeValue interval = OtelSdkSettings.TELEMETRY_OTEL_TRACES_INTERVAL.get(settings);
 
-        OtlpHttpSpanExporterBuilder builder = OtlpHttpSpanExporter.builder().setEndpoint(endpoint);
+        OtlpHttpSpanExporterBuilder builder = OtlpHttpSpanExporter.builder()
+            .setEndpoint(endpoint)
+            .setMeterProvider(meterProvider)
+            .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST);
         String authHeader = OtelSdkExportMeterSupplier.buildOtlpAuthorizationHeader(settings);
         if (authHeader != null) {
             builder.addHeader("Authorization", authHeader);
@@ -54,6 +63,8 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
         OtlpHttpSpanExporter exporter = builder.build();
 
         BatchSpanProcessor processor = BatchSpanProcessor.builder(exporter)
+            .setMeterProvider(meterProvider)
+            .setInternalTelemetryVersion(InternalTelemetryVersion.LATEST)
             .setScheduleDelay(interval.millis(), TimeUnit.MILLISECONDS)
             .build();
 

@@ -10,6 +10,7 @@
 package org.elasticsearch.telemetry.apm.internal.tracing;
 
 import io.opentelemetry.api.OpenTelemetry;
+import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanBuilder;
 import io.opentelemetry.api.trace.SpanKind;
@@ -113,7 +114,11 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
 
     public APMTracer(Settings settings) {
-        this(settings, traceSupplierFor(settings), otelTracesEnabled(), initialMaxTraceDepth(settings));
+        this(settings, MeterProvider.noop());
+    }
+
+    public APMTracer(Settings settings, MeterProvider meterProvider) {
+        this(settings, traceSupplierFor(settings, meterProvider), otelTracesEnabled(), initialMaxTraceDepth(settings));
     }
 
     // package-private for testing
@@ -135,8 +140,8 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
         return Booleans.parseBoolean(System.getProperty(OTEL_TRACES_ENABLED_SYSTEM_PROPERTY, "false"));
     }
 
-    private static TraceSupplier traceSupplierFor(Settings settings) {
-        return otelTracesEnabled() ? new OtelSdkExportTracerSupplier(settings) : new AgentExportTracerSupplier(settings);
+    private static TraceSupplier traceSupplierFor(Settings settings, MeterProvider meterProvider) {
+        return otelTracesEnabled() ? new OtelSdkExportTracerSupplier(settings, meterProvider) : new AgentExportTracerSupplier(settings);
     }
 
     private static int initialMaxTraceDepth(Settings settings) {

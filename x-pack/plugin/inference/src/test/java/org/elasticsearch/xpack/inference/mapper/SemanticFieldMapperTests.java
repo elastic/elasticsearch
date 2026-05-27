@@ -67,4 +67,46 @@ public class SemanticFieldMapperTests extends MapperServiceTestCase {
             b.endObject();
         }));
     }
+
+    public void testSemanticFieldMappingUpdateNotSupportedOnOldIndices() throws IOException {
+        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
+
+        IndexVersion oldVersion = IndexVersionUtils.randomPreviousCompatibleVersion(IndexVersions.SEMANTIC_FIELD_TYPE);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), oldVersion).build();
+
+        var mapperService = createMapperService(oldVersion, settings, mapping(b -> {}));
+
+        var ex = expectThrows(MapperParsingException.class, () -> merge(mapperService, mapping(b -> {
+            b.startObject("my_field");
+            b.field("type", SemanticFieldMapper.CONTENT_TYPE);
+            b.field("inference_id", "test_model");
+            b.endObject();
+        })));
+        assertThat(ex.getMessage(), containsString("[" + SemanticFieldMapper.CONTENT_TYPE + "]"));
+        assertThat(ex.getMessage(), containsString("is not supported on indices created before version"));
+        assertThat(ex.getMessage(), containsString(IndexVersions.SEMANTIC_FIELD_TYPE.toString()));
+    }
+
+    public void testSemanticFieldMappingUpdateSupportedOnNewIndices() throws IOException {
+        assumeTrue("Semantic field feature flag is enabled", SemanticFieldMapper.SEMANTIC_FIELD_FEATURE_FLAG.isEnabled());
+
+        IndexVersion newVersion = IndexVersionUtils.randomVersionOnOrAfter(IndexVersions.SEMANTIC_FIELD_TYPE);
+        Settings settings = Settings.builder().put(IndexMetadata.SETTING_INDEX_VERSION_CREATED.getKey(), newVersion).build();
+
+        var mapperService = createMapperService(newVersion, settings, mapping(b -> {}));
+
+        // Should not throw; model_settings provided to avoid consulting the model registry
+        merge(mapperService, mapping(b -> {
+            b.startObject("my_field");
+            b.field("type", SemanticFieldMapper.CONTENT_TYPE);
+            b.field("inference_id", "test_model");
+            b.startObject("model_settings");
+            b.field("task_type", "embedding");
+            b.field("dimensions", 128);
+            b.field("similarity", "cosine");
+            b.field("element_type", "float");
+            b.endObject();
+            b.endObject();
+        }));
+    }
 }

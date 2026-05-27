@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchOperator;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCounter;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
@@ -61,6 +62,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Les
 import org.elasticsearch.xpack.esql.inference.InferenceSettings;
 import org.elasticsearch.xpack.esql.plan.IndexPattern;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
+import org.elasticsearch.xpack.esql.plan.logical.Dedup;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
@@ -1204,6 +1206,44 @@ public class StatementParserTests extends AbstractStatementParserTests {
             FROM foo
             | LIMIT -1 + 5 BY languages
             """));
+    }
+
+    public void testDedup() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("FROM foo | DEDUP");
+        Dedup dedup = as(plan, Dedup.class);
+        UnresolvedRelation relation = as(dedup.child(), UnresolvedRelation.class);
+        assertThat(relation.indexPattern().indexPattern(), equalTo("foo"));
+    }
+
+    public void testDedupAfterProcessingCommands() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("FROM foo | EVAL x = a + 1 | WHERE b > 0 | DEDUP");
+        Dedup dedup = as(plan, Dedup.class);
+        as(dedup.child(), Filter.class);
+    }
+
+    public void testDedupChained() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        LogicalPlan plan = query("FROM foo | DEDUP | LIMIT 10");
+        Limit limit = as(plan, Limit.class);
+        as(limit.child(), Dedup.class);
+    }
+
+    public void testDedupOnRow() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        assertEqualsIgnoringIds(new Dedup(EMPTY, PROCESSING_CMD_INPUT), processingCommand("DEDUP"));
+    }
+
+    public void testDedupRejectsArguments() {
+        assumeTrue("requires snapshot build", Build.current().isSnapshot());
+        expectThrows(ParsingException.class, containsString("extraneous input 'a' expecting"), () -> query("FROM foo | DEDUP a"));
+        expectThrows(ParsingException.class, containsString("extraneous input '*' expecting"), () -> query("FROM foo | DEDUP *"));
+    }
+
+    public void testDedupNotInReleaseBuild() {
+        assumeFalse("only runs on release build", Build.current().isSnapshot());
+        expectThrows(ParsingException.class, containsString("mismatched input 'DEDUP'"), () -> query("FROM foo | DEDUP"));
     }
 
     public void testBasicSortCommand() {
@@ -4442,7 +4482,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         try (XContentBuilder report = JsonXContent.contentBuilder().humanReadable(true).prettyPrint().lfAtEnd()) {
             report.startObject();
             List<String> namesAndAliases = new ArrayList<>(DataType.namesAndAliases());
-            if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V5.isEnabled() == false) {
+            if (EsqlCapabilities.Cap.DATE_RANGE_FIELD_TYPE_V6.isEnabled() == false) {
                 // Some types do not have a converter function if the capability is disabled
                 namesAndAliases.removeAll(List.of("date_range"));
             }
@@ -4459,6 +4499,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
                     (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
                 assertThat(functionCall.dataType(), equalTo(expectedType));
                 report.field(nameOrAlias, registry.snapshotRegistry().functionName(functionCall.getClass()).toLowerCase(Locale.ROOT));
+            }
+            if (EsqlCapabilities.Cap.TO_COUNTER.isEnabled()) {
+                // counter is a virtual cast target — not a real DataType — so it is not in namesAndAliases()
+                LogicalPlan plan = TEST_PARSER.parseQuery("ROW a = 1::" + DataType.COUNTER_CAST_NAME);
+                Row row = as(plan, Row.class);
+                assertThat(row.fields(), hasSize(1));
+                org.elasticsearch.xpack.esql.core.expression.function.Function functionCall =
+                    (org.elasticsearch.xpack.esql.core.expression.function.Function) row.fields().get(0).child();
+                assertThat(functionCall, instanceOf(ToCounter.class));
+                report.field(DataType.COUNTER_CAST_NAME, ToCounter.DEFINITION.name());
             }
             report.endObject();
             String rendered = Strings.toString(report);

@@ -53,8 +53,7 @@ public class StatelessReshardMixedOperationsIT extends StatelessReshardDisruptio
     public void testMixedOperationsDuringSplit() throws Exception {
         runTest(NoDisruptionExecutor::new, Disruptor.NOOP);
     }
-
-    @TestLogging(reason = "debug", value = "org.elasticsearch.indices.breaker:TRACE")
+    
     public void testMixedOperationsDuringSplitWithDisruption() throws Exception {
         var disruptor = new Disruptor() {
             private final AtomicBoolean stop = new AtomicBoolean(false);

@@ -1228,3 +1228,114 @@ sort by histogram:
       esql.query:
         body:
           query: 'from idx_histogram | sort h | limit 3'
+
+---
+PromQL label matcher with named param:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_label_matcher_params]
+      reason: "PromQL label matcher params support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum by (k8s.pod.name) (rate(k8s.pod.network.tx{k8s.pod.name=?_name}[1m]))) | SORT step, k8s.pod.name | LIMIT 5'
+          params: [{"_name": "cat"}]
+
+  - match: {columns.0.name: "tx_rate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.1.name: "step"}
+  - match: {columns.1.type: "date"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 2}
+  - match: {values.0.2: "cat"}
+  - match: {values.1.2: "cat"}
+
+---
+PromQL label matcher with positional param:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_label_matcher_params]
+      reason: "PromQL label matcher params support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum by (k8s.pod.name) (rate(k8s.pod.network.tx{k8s.pod.name=?1}[1m]))) | SORT step, k8s.pod.name | LIMIT 5'
+          params: ["dog"]
+
+  - match: {columns.0.name: "tx_rate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 2}
+  - match: {values.0.2: "dog"}
+  - match: {values.1.2: "dog"}
+
+---
+PromQL label matcher with regex multi-value param:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_label_matcher_params]
+      reason: "PromQL label matcher params support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum by (k8s.pod.name) (rate(k8s.pod.network.tx{k8s.pod.name=~?_names}[1m]))) | SORT step, k8s.pod.name | LIMIT 10'
+          params: [{"_names": ["cat", "dog"]}]
+
+  - match: {columns.0.name: "tx_rate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 4}
+
+---
+PromQL label matcher multi-value with exact matcher promotes to regex:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_label_matcher_params]
+      reason: "PromQL label matcher params support"
+  - do:
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum by (k8s.pod.name) (rate(k8s.pod.network.tx{k8s.pod.name=?_names}[1m]))) | SORT step, k8s.pod.name | LIMIT 10'
+          params: [{"_names": ["cat", "dog"]}]
+
+  - match: {columns.0.name: "tx_rate"}
+  - match: {columns.0.type: "double"}
+  - match: {columns.2.name: "k8s.pod.name"}
+  - match: {columns.2.type: "keyword"}
+  - length: {values: 4}
+
+---
+PromQL label matcher unknown param error:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [promql_label_matcher_params]
+      reason: "PromQL label matcher params support"
+  - do:
+      catch: /Parameter \[\?_unknown\] value not found/
+      esql.query:
+        body:
+          query: 'PROMQL index=test step=1m tx_rate=(sum(rate(k8s.pod.network.tx{k8s.pod.name=?_unknown}[1m])))'
+          params: []

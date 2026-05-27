@@ -8,6 +8,9 @@
       },
       "description": {
         "type": "keyword"
+      },
+      "event_dates": {
+        "type": "date"
       }
     }
   }

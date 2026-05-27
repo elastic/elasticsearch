@@ -82,7 +82,7 @@ public class DatasetRewriterTests extends ESTestCase {
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
         assertThat(tablePathString(out), equalTo("s3://logs/*.parquet"));
-        assertThat(paramValue(out, "region"), equalTo("us-east-1"));
+        assertThat(datasourceParamValue(out, "region"), equalTo("us-east-1"));
         assertThat(paramValue(out, "format"), equalTo("parquet"));
     }
 
@@ -206,7 +206,7 @@ public class DatasetRewriterTests extends ESTestCase {
         ProjectMetadata project = projectWith(Map.of("s3_parent", parent), Map.of("logs", dataset));
 
         LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
-        assertThat(paramValue((UnresolvedExternalRelation) rewritten, "region"), equalTo("us-east-1"));
+        assertThat(datasourceParamValue((UnresolvedExternalRelation) rewritten, "region"), equalTo("us-east-1"));
     }
 
     // ---- Pattern expansion (parity with FROM <index> patterns via IndexNameExpressionResolver) ----
@@ -315,9 +315,9 @@ public class DatasetRewriterTests extends ESTestCase {
 
         assertThat(rewritten, instanceOf(UnresolvedExternalRelation.class));
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
-        assertThat(out.config().get("max_connections"), equalTo((Object) 50));
-        assertThat(out.config().get("request_timeout_ms"), equalTo((Object) 30000L));
-        assertThat(out.config().get("use_compression"), equalTo((Object) Boolean.TRUE));
+        assertThat(datasourceParamValue(out, "max_connections"), equalTo(50));
+        assertThat(datasourceParamValue(out, "request_timeout_ms"), equalTo(30000L));
+        assertThat(datasourceParamValue(out, "use_compression"), equalTo(Boolean.TRUE));
         assertThat(out.config().get("format"), equalTo((Object) "parquet"));
     }
 
@@ -331,7 +331,7 @@ public class DatasetRewriterTests extends ESTestCase {
         LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
 
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
-        Object accessKey = out.config().get("access_key");
+        Object accessKey = datasourceParamValue(out, "access_key");
         assertThat(accessKey, instanceOf(String.class));
         assertThat(accessKey, equalTo("AKIAEXAMPLE_SECRET_VALUE"));
     }
@@ -349,7 +349,7 @@ public class DatasetRewriterTests extends ESTestCase {
         LogicalPlan rewritten = DatasetRewriter.rewrite(relationOf("logs"), project, RESOLVER);
 
         UnresolvedExternalRelation out = (UnresolvedExternalRelation) rewritten;
-        Object accessKey = out.config().get("access_key");
+        Object accessKey = datasourceParamValue(out, "access_key");
         assertThat("encrypted secret stays an EncryptedData carrier on the live config map", accessKey, instanceOf(EncryptedData.class));
         assertSame("carrier is forwarded by reference", carrier, accessKey);
     }
@@ -583,5 +583,14 @@ public class DatasetRewriterTests extends ESTestCase {
     private static String paramValue(UnresolvedExternalRelation relation, String key) {
         Object value = relation.config().get(key);
         return value instanceof BytesRef br ? BytesRefs.toString(br) : String.valueOf(value);
+    }
+
+    @SuppressWarnings("unchecked")
+    private static Object datasourceParamValue(UnresolvedExternalRelation relation, String key) {
+        Object sub = relation.config().get(ExternalSourceResolver.DATASOURCE_CONFIG_KEY);
+        if (sub instanceof Map<?, ?> subMap) {
+            return ((Map<String, Object>) subMap).get(key);
+        }
+        return null;
     }
 }

@@ -235,17 +235,24 @@ public final class DatasetRewriter {
     }
 
     /**
-     * Parent settings overlaid by dataset settings. A secret's raw value forwards as-is — an encrypted
-     * secret carries an {@code EncryptedData} the data-node decryption step recognizes by type; non-secrets
-     * and null secrets pass through.
+     * Dataset format settings at the top level; data-source auth/connection settings stored under
+     * {@link ExternalSourceResolver#DATASOURCE_CONFIG_KEY} so they are kept separate from format
+     * options. {@link ExternalSourceResolver#storageConfig} flattens the sub-map before passing
+     * settings to a storage provider; {@link ExternalSourceResolver#planConfig} strips it before
+     * embedding config in plan nodes (avoiding serialization of credential objects). A secret forwards
+     * its raw value — an encrypted secret carries an {@code EncryptedData} the data-node decryption step
+     * recognizes by type.
      */
     private static Map<String, Object> mergeSettings(DataSource parent, Dataset dataset) {
         Map<String, Object> merged = new HashMap<>();
-        for (Map.Entry<String, DataSourceSetting> e : parent.settings()) {
-            DataSourceSetting s = e.getValue();
-            merged.put(e.getKey(), s.secret() ? s.rawValue() : s.nonSecretValue());
-        }
         merged.putAll(dataset.settings());
+        if (parent.settings().isEmpty() == false) {
+            Map<String, Object> dsSettings = new HashMap<>();
+            for (Map.Entry<String, DataSourceSetting> e : parent.settings()) {
+                dsSettings.put(e.getKey(), e.getValue().secret() ? e.getValue().rawValue() : e.getValue().nonSecretValue());
+            }
+            merged.put(ExternalSourceResolver.DATASOURCE_CONFIG_KEY, dsSettings);
+        }
         return merged;
     }
 }

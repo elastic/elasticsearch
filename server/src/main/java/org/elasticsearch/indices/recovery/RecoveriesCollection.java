@@ -53,6 +53,7 @@ public class RecoveriesCollection {
     }
 
     private void notifyRecoverySchedulingListeners() {
+        assert Thread.holdsLock(onGoingRecoveries) == false;
         for (RecoverySchedulingListener listener : recoverySchedulingListeners) {
             try {
                 listener.onRecoverySchedulingChange();
@@ -85,6 +86,7 @@ public class RecoveriesCollection {
             listener
         );
         startRecoveryInternal(recoveryTarget);
+        notifyRecoverySchedulingListeners();
         return recoveryTarget.recoveryId();
     }
 
@@ -98,7 +100,6 @@ public class RecoveriesCollection {
             recoveryTarget.recoveryId()
         );
         recoveryTarget.indexShard().recoveryStats().incCurrentAsTarget();
-        notifyRecoverySchedulingListeners();
     }
 
     /**
@@ -123,6 +124,7 @@ public class RecoveriesCollection {
                 newRecoveryTarget = oldRecoveryTarget.retryCopy();
                 startRecoveryInternal(newRecoveryTarget);
             }
+            notifyRecoverySchedulingListeners();
 
             // Closes the current recovery target
             boolean successfulReset = oldRecoveryTarget.resetRecovery(newRecoveryTarget.cancellableThreads());

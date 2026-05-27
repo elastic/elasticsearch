@@ -313,6 +313,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
     private final List<String> extensions;
     private final List<Attribute> resolvedSchema;
     private final int schemaSampleSize;
+    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
+    // shared across the parallel {@link CsvBatchIterator} segments spawned by {@link #read}.
+    private final CsvReaderCounters counters;
     /**
      * ErrorPolicy used by the planning-time {@link #metadata} call (which has no per-query
      * {@link FormatReadContext}). Resolved from the {@code WITH} options in {@link #withConfig}
@@ -381,6 +384,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
         this.schemaSampleSize = schemaSampleSize;
         this.effectivePolicy = effectivePolicy;
         this.canonicalConfig = canonicalConfig;
+        this.counters = new CsvReaderCounters(format);
         this.sharedCsvMapper = createMapper(options);
     }
 
@@ -1053,8 +1057,18 @@ public class CsvFormatReader implements SegmentableFormatReader {
             cacheable ? object : null,
             cacheable ? stream : null,
             pinnedMtimeMillis,
-            chunkMode
+            chunkMode,
+            counters
         );
+    }
+
+    /**
+     * Returns an immutable typed snapshot of the CSV reader's counters for the operator-status
+     * envelope. Zero-valued counters when no batches have run.
+     */
+    @Override
+    public CsvReaderStatus statusSnapshot() {
+        return counters.snapshot();
     }
 
     @Override
@@ -1084,11 +1098,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Quoting contract mirrors {@link #findNextRecordBoundaryQuotedFieldsOnly}: {@code quoteChar}
-     * toggles {@code inQuotes}, doubled quote is a literal, {@code \n} outside quotes terminates.
-     * An unpaired opening quote leaves {@code inQuotes == true} for the rest of the buffer, so
-     * any {@code \n} inside the unterminated tail is skipped and the returned offset stays before
-     * the open region — the open-tail rule the segmentator's grow loop requires.
+     * Quoting rule mirrors the tokenizer {@link #readCsvRecord}: a {@code quoteChar} opens a quoted field
+     * only at field start (after an unquoted {@code delimiter} or {@code \n}, optionally past field-leading
+     * whitespace); a mid-field {@code quoteChar} is a literal and does not toggle quote state.
+     * <p>
+     * Best-effort/open-tail contract: the scan assumes the buffer begins at a record boundary and advances
+     * {@code lastBoundary} only on a true unquoted {@code \n}. So a chunk the segmentator cut mid-record
+     * yields no boundary inside that leading partial, and a genuinely unterminated quoted field keeps
+     * {@code inQuotes == true} so its trailing {@code \n}s are skipped — the rule the grow loop requires.
      */
     private int findLastRecordBoundaryQuotedFieldsOnly(byte[] buf, int length) {
         if (length <= 0) {
@@ -1096,22 +1113,32 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         int lastBoundary = -1;
         boolean inQuotes = false;
+        boolean fieldHasNonWhitespace = false;
         byte quoteAsByte = (byte) options.quoteChar();
+        byte delimAsByte = (byte) options.delimiter();
         for (int i = 0; i < length; i++) {
             byte b = buf[i];
-            if (b == quoteAsByte) {
-                if (inQuotes) {
+            if (inQuotes) {
+                if (b == quoteAsByte) {
                     if (i + 1 < length && buf[i + 1] == quoteAsByte) {
                         // Doubled quote inside a quoted field — RFC 4180 literal, stay in quotes.
                         i++;
                     } else {
                         inQuotes = false;
                     }
-                } else {
-                    inQuotes = true;
                 }
-            } else if (b == '\n' && inQuotes == false) {
+                continue;
+            }
+            if (b == '\n') {
+                // only true unquoted '\n's advance the boundary (see open-tail contract above)
                 lastBoundary = i;
+                fieldHasNonWhitespace = false;
+            } else if (b == delimAsByte) {
+                fieldHasNonWhitespace = false;
+            } else if (b == quoteAsByte && fieldHasNonWhitespace == false) {
+                inQuotes = true;
+            } else if (isAsciiCsvFieldLeadingWhitespace(b & 0xff) == false) {
+                fieldHasNonWhitespace = true;
             }
         }
         return lastBoundary;
@@ -1237,16 +1264,32 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * Returns the next byte without consuming it (or {@code -1} at EOF). Encapsulates the single-byte
+     * {@code mark}/{@code read}/{@code reset} so callers cannot invalidate the mark with a second read.
+     */
+    private static int peekByte(BufferedInputStream bis) throws IOException {
+        bis.mark(1);
+        int b = bis.read();
+        bis.reset();
+        return b;
+    }
+
+    /**
      * Per-byte scan over a {@link BufferedInputStream} — no per-call bulk read buffer is allocated;
      * an existing {@link BufferedInputStream} input is reused, otherwise the stream is wrapped once.
-     * Mirrors the structure of {@link #findNextRecordBoundaryBracketCommaMvc} for the no-bracket-MVC
-     * quoting contract.
+     * Applies the same field-start quoting rule as the actual tokenizer {@link #readCsvRecord} and as
+     * {@link #findNextRecordBoundaryBracketCommaMvc}: a {@code quoteChar} opens a quoted field only at
+     * field start (optionally after field-leading whitespace); a mid-field {@code quoteChar} is a
+     * literal and does not toggle quote state. Returns the byte count up to and including the first
+     * record-terminating {@code \n} that is outside a quoted field, or {@code -1} at EOF.
      */
     private long findNextRecordBoundaryQuotedFieldsOnly(InputStream stream) throws IOException {
         BufferedInputStream bis = stream instanceof BufferedInputStream b ? b : new BufferedInputStream(stream);
         long consumed = 0;
         boolean inQuotes = false;
+        boolean fieldHasNonWhitespace = false;
         byte quoteAsByte = (byte) options.quoteChar();
+        byte delimAsByte = (byte) options.delimiter();
         while (true) {
             int ib = bis.read();
             if (ib == -1) {
@@ -1254,26 +1297,28 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             consumed++;
             byte b = (byte) ib;
-            if (b == quoteAsByte) {
-                if (inQuotes) {
-                    int next = bis.read();
-                    if (next == -1) {
-                        return -1;
-                    }
-                    consumed++;
-                    if ((byte) next == quoteAsByte) {
-                        // Doubled quote inside a quoted field — RFC 4180 literal, stay in quotes.
+            if (inQuotes) {
+                if (b == quoteAsByte) {
+                    // A doubled "" is a literal (stay in quotes); a lone " closes the field. peekByte
+                    // leaves the non-doubled byte in the stream to be re-read by the next iteration.
+                    if ((byte) peekByte(bis) == quoteAsByte) {
+                        bis.read(); // consume the second quote of the doubled pair
+                        consumed++;
                         continue;
                     }
                     inQuotes = false;
-                    if (next == '\n') {
-                        return consumed;
-                    }
-                } else {
-                    inQuotes = true;
                 }
-            } else if (b == '\n' && inQuotes == false) {
+                continue;
+            }
+            if (b == '\n') {
                 return consumed;
+            }
+            if (b == delimAsByte) {
+                fieldHasNonWhitespace = false;
+            } else if (b == quoteAsByte && fieldHasNonWhitespace == false) {
+                inQuotes = true;
+            } else if (isAsciiCsvFieldLeadingWhitespace(ib & 0xff) == false) {
+                fieldHasNonWhitespace = true;
             }
         }
     }
@@ -1768,6 +1813,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
         /** True for parallel-parsing chunks — close-time publish carries the partial-chunk marker. */
         private final boolean chunkMode;
 
+        // Reader-level counters shared across this iterator and any sibling segments.
+        private final CsvReaderCounters counters;
+
         CsvBatchIterator(
             BufferedReader reader,
             InputStream stream,
@@ -1779,7 +1827,8 @@ public class CsvFormatReader implements SegmentableFormatReader {
             StorageObject cacheableObject,
             org.elasticsearch.xpack.esql.datasources.cache.CountingInputStream byteCounter,
             long pinnedMtimeMillis,
-            boolean chunkMode
+            boolean chunkMode,
+            CsvReaderCounters counters
         ) {
             this.reader = reader;
             this.stream = stream;
@@ -1799,6 +1848,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
             this.byteCounter = byteCounter;
             this.pinnedMtimeMillis = pinnedMtimeMillis;
             this.chunkMode = chunkMode;
+            this.counters = counters;
             this.skipWarnings = SkipWarnings.of(
                 errorPolicy,
                 "CSV read from ["
@@ -1817,6 +1867,9 @@ public class CsvFormatReader implements SegmentableFormatReader {
             if (nextPage != null) {
                 return true;
             }
+            long startNanos = System.nanoTime();
+            long startTotal = totalRowCount;
+            long startError = errorCount;
             try {
                 nextPage = readNextBatch();
                 if (nextPage == null) {
@@ -1826,6 +1879,12 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 return true;
             } catch (IOException e) {
                 throw new RuntimeException("Failed to read CSV batch", e);
+            } finally {
+                long deltaTotal = totalRowCount - startTotal;
+                long deltaErrors = errorCount - startError;
+                counters.addRowsEmitted(deltaTotal - deltaErrors);
+                counters.addParseErrors(deltaErrors);
+                counters.addReadNanos(System.nanoTime() - startNanos);
             }
         }
 
@@ -1962,6 +2021,7 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     if (headerLine == null) {
                         return null;
                     }
+                    counters.markHeaderDetected();
                     schema = parseSchema(headerLine);
                     if (schema == null) {
                         schema = inferSchemaFromBatchReader(headerLine);

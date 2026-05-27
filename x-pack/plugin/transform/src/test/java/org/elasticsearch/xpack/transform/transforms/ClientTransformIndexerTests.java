@@ -818,7 +818,14 @@ public class ClientTransformIndexerTests extends ESTestCase {
                 lastOpenPitRequest.set(openPitRequest);
                 if (pitSupported) {
                     pitContextCounter.incrementAndGet();
-                    OpenPointInTimeResponse response = new OpenPointInTimeResponse(new BytesArray("the_pit_id"), 1, 1, 0, 0);
+                    OpenPointInTimeResponse response = new OpenPointInTimeResponse(
+                        new BytesArray("the_pit_id"),
+                        1,
+                        1,
+                        0,
+                        0,
+                        SearchResponse.Clusters.EMPTY
+                    );
                     listener.onResponse((Response) response);
                 } else {
                     listener.onFailure(new ActionNotFoundTransportException("_pit"));

@@ -97,6 +97,9 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
      * contribution matches the coordinator's cache entry across JVMs. Empty until {@link #withConfig}.
      */
     private final String canonicalConfig;
+    // Mutable reader-level counters surfaced as a Map<String, Object> via {@link #statusSnapshot()};
+    // shared across the parallel {@link NdJsonPageDecoder} segments spawned by {@link #read}.
+    private final NdJsonReaderCounters counters = new NdJsonReaderCounters();
 
     public NdJsonFormatReader(Settings settings, BlockFactory blockFactory, List<Attribute> resolvedSchema) {
         this(settings, blockFactory, resolvedSchema, schemaSampleSize(settings), segmentSize(settings), "");
@@ -433,8 +436,18 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             pinnedMtimeMillis,
             // The fingerprint is the node-stable canonical config; the iterator's schema arg is ignored.
             cacheable ? ignoredSchema -> computeConfigFingerprint() : null,
-            chunkMode
+            chunkMode,
+            counters
         );
+    }
+
+    /**
+     * Returns an immutable typed snapshot of the NDJSON reader's counters for the operator-status
+     * envelope. Zeroed counters when no decoders have run.
+     */
+    @Override
+    public NdJsonReaderStatus statusSnapshot() {
+        return counters.snapshot();
     }
 
     @Override

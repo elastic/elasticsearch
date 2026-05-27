@@ -86,9 +86,11 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         StorageObject cacheableObject,
         long pinnedMtimeMillis,
         java.util.function.Function<List<Attribute>, String> fingerprinter,
-        boolean chunkMode
+        boolean chunkMode,
+        NdJsonReaderCounters counters
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
+        Check.isTrue(counters != null, "counters must not be null");
         this.cacheableObject = cacheableObject;
         this.pinnedMtimeMillis = pinnedMtimeMillis;
         this.fingerprinter = fingerprinter;
@@ -119,7 +121,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                 batchSize,
                 blockFactory,
                 errorPolicy,
-                this.sourceLocation
+                this.sourceLocation,
+                counters
             );
         } else {
             // Wrap on the streaming path so close-time bytesRead works for stream-only sources
@@ -135,7 +138,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                 batchSize,
                 blockFactory,
                 errorPolicy,
-                this.sourceLocation
+                this.sourceLocation,
+                counters
             );
         }
     }

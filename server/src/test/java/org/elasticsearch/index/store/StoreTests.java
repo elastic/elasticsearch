@@ -62,6 +62,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.test.DummyShardLock;
@@ -1217,6 +1218,55 @@ public class StoreTests extends ESTestCase {
             SegmentInfos segmentInfos = Lucene.readSegmentInfos(store.directory());
             assertThat(segmentInfos.getUserData(), hasKey(Engine.ES_VERSION));
             assertThat(segmentInfos.getUserData().get(Engine.ES_VERSION), is(equalTo(IndexVersion.current().toString())));
+        }
+    }
+
+    public void testCheckAndPatchLocalCheckpoint() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        try (Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
+            store.createEmpty();
+            final long maxSeqNo = randomLongBetween(1, 100);
+            final long laggedCheckpoint = randomLongBetween(0, maxSeqNo - 1);
+
+            // write a commit with local_checkpoint < max_seq_no
+            store.bootstrapNewHistory(laggedCheckpoint, maxSeqNo);
+
+            SegmentInfos before = Lucene.readSegmentInfos(store.directory());
+            assertThat(Long.parseLong(before.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)), equalTo(laggedCheckpoint));
+            assertThat(Long.parseLong(before.getUserData().get(SequenceNumbers.MAX_SEQ_NO)), equalTo(maxSeqNo));
+
+            store.checkAndPatchLocalCheckpoint();
+
+            SegmentInfos after = Lucene.readSegmentInfos(store.directory());
+            assertThat(Long.parseLong(after.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)), equalTo(maxSeqNo));
+            assertThat(Long.parseLong(after.getUserData().get(SequenceNumbers.MAX_SEQ_NO)), equalTo(maxSeqNo));
+        }
+    }
+
+    public void testCheckAndPatchLocalCheckpointNoOpWhenAlreadyEqual() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        try (Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
+            store.createEmpty();
+            final long seqNo = randomLongBetween(0, 100);
+            store.bootstrapNewHistory(seqNo, seqNo);
+
+            final long generationBefore = Lucene.readSegmentInfos(store.directory()).getGeneration();
+            store.checkAndPatchLocalCheckpoint();
+            // no new commit written
+            assertThat(Lucene.readSegmentInfos(store.directory()).getGeneration(), equalTo(generationBefore));
+        }
+    }
+
+    public void testCheckAndPatchLocalCheckpointNoOpForEmptyShard() throws IOException {
+        final ShardId shardId = new ShardId("index", "_na_", 1);
+        try (Store store = new Store(shardId, INDEX_SETTINGS, StoreTests.newDirectory(random()), new DummyShardLock(shardId))) {
+            store.createEmpty();
+            store.bootstrapNewHistory(SequenceNumbers.NO_OPS_PERFORMED, SequenceNumbers.NO_OPS_PERFORMED);
+
+            final long generationBefore = Lucene.readSegmentInfos(store.directory()).getGeneration();
+            store.checkAndPatchLocalCheckpoint();
+            // already equal: no new commit written
+            assertThat(Lucene.readSegmentInfos(store.directory()).getGeneration(), equalTo(generationBefore));
         }
     }
 

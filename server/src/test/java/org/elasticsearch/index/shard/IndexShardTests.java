@@ -17,6 +17,7 @@ import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexableField;
+import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.ReferenceManager;
 import org.apache.lucene.search.TermQuery;
@@ -40,6 +41,7 @@ import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.AllocationId;
@@ -58,6 +60,7 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -81,6 +84,7 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.engine.CommitStats;
 import org.elasticsearch.index.engine.DocIdSeqNoAndSource;
@@ -154,6 +158,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -6006,6 +6011,36 @@ public class IndexShardTests extends IndexShardTestCase {
         public void advance(int ticks) {
             currentRelativeTime.addAndGet(ticks * tickLength.nanos());
         }
+    }
+
+    public void testBootstrapPatchesLocalCheckpointForReadOnlyVerifiedShard() throws IOException {
+        final Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersions.V_7_17_0)
+            .put(IndexMetadata.SETTING_BLOCKS_WRITE, true)
+            .put(MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING.getKey(), true)
+            .build();
+        final IndexShard shard = newShard(true, settings);
+        final long maxSeqNo = randomLongBetween(1, 100);
+        final long laggedCheckpoint = randomLongBetween(0, maxSeqNo - 1);
+        // Use Lucene's IndexWriter directly to bypass Store.assertIndexWriter, which blocks
+        // IndexWriter use for indices with compatibility version < MINIMUM_COMPATIBLE (8.0).
+        try (IndexWriter writer = new IndexWriter(shard.store().directory(), newIndexWriterConfig())) {
+            final Map<String, String> commitData = new HashMap<>();
+            commitData.put(Engine.HISTORY_UUID_KEY, UUIDs.randomBase64UUID());
+            commitData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(laggedCheckpoint));
+            commitData.put(SequenceNumbers.MAX_SEQ_NO, Long.toString(maxSeqNo));
+            commitData.put(Engine.MAX_UNSAFE_AUTO_ID_TIMESTAMP_COMMIT_ID, "-1");
+            writer.setLiveCommitData(commitData.entrySet());
+            writer.commit();
+        }
+
+        StoreRecovery.bootstrap(shard, shard.store());
+
+        final SegmentInfos si = Lucene.readSegmentInfos(shard.store().directory());
+        assertThat(Long.parseLong(si.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)), equalTo(maxSeqNo));
+        assertThat(Long.parseLong(si.getUserData().get(SequenceNumbers.MAX_SEQ_NO)), equalTo(maxSeqNo));
+        assertThat(si.getUserData().get(Engine.HISTORY_UUID_KEY), notNullValue());
+        closeShards(shard);
     }
 
     private static void blockingCallRelocated(

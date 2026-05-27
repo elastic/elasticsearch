@@ -1494,6 +1494,44 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     }
 
     /**
+     * If the shard commit has {@code local_checkpoint < max_seq_no} — which can happen when a snapshot
+     * was taken while the index was receiving writes — patches the commit user data to set
+     * {@code local_checkpoint = max_seq_no}. This is needed for read-only restored shards because the
+     * normal no-op fill-up path requires a writable engine.
+     * <p>
+     * Uses {@link SegmentInfos#commit} directly rather than {@link IndexWriter} to avoid the version
+     * compatibility assertion in {@link #newTemporaryIndexWriterConfig}: this operation only rewrites
+     * the {@code segments_N} metadata file and never touches segment data files.
+     *
+     * @throws NumberFormatException if the commit user data is missing the {@code local_checkpoint}
+     *                               or {@code max_seq_no} keys; this should never happen for
+     *                               Elasticsearch-managed indices (both keys are written at every flush
+     *                               since 6.0), but indicates a corrupt or foreign index if it does.
+     */
+    public void checkAndPatchLocalCheckpoint() throws IOException {
+        metadataLock.writeLock().lock();
+        try {
+            final SegmentInfos si = readLastCommittedSegmentsInfo();
+            final long maxSeqNo = Long.parseLong(si.getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+            final long localCheckpoint = Long.parseLong(si.getUserData().get(SequenceNumbers.LOCAL_CHECKPOINT_KEY));
+            if (localCheckpoint != maxSeqNo) {
+                logger.info(
+                    "shard commit has local_checkpoint [{}] != max_seq_no [{}]; patching before opening read-only engine",
+                    localCheckpoint,
+                    maxSeqNo
+                );
+                final Map<String, String> newUserData = new HashMap<>(si.userData);
+                newUserData.put(SequenceNumbers.LOCAL_CHECKPOINT_KEY, Long.toString(maxSeqNo));
+                si.userData = newUserData;
+                si.changed();
+                si.commit(directory);
+            }
+        } finally {
+            metadataLock.writeLock().unlock();
+        }
+    }
+
+    /**
      * Force bakes the given translog generation as recovery information in the lucene index. This is
      * used when recovering from a snapshot or peer file based recovery where a new empty translog is
      * created and the existing lucene index needs should be changed to use it.

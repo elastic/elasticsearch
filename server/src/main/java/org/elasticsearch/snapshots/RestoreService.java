@@ -530,8 +530,6 @@ public final class RestoreService implements ClusterStateApplier {
             projectBuilder = ProjectMetadata.builder(projectId);
             metadataBuilder.put(projectBuilder);
         }
-        final IndexVersion minIndexCompatibilityVersion = clusterService.state().getNodes().getMinSupportedIndexVersion();
-        final IndexVersion minReadOnlyIndexCompatibilityVersion = clusterService.state().getNodes().getMinReadOnlySupportedIndexVersion();
         for (IndexId indexId : repositoryData.resolveIndices(requestedIndicesIncludingSystem).values()) {
             IndexMetadata snapshotIndexMetaData = repository.getSnapshotIndexMetaData(repositoryData, snapshotId, indexId);
             // Update the snapshot index metadata before adding it to the metadata
@@ -541,14 +539,6 @@ public final class RestoreService implements ClusterStateApplier {
                     explicitlyRequestedSystemIndices.add(indexId.getName());
                 }
             }
-            verifyReadOnlyRestoreSafety(
-                repository,
-                snapshot,
-                indexId,
-                snapshotIndexMetaData,
-                minIndexCompatibilityVersion,
-                minReadOnlyIndexCompatibilityVersion
-            );
             projectBuilder.put(snapshotIndexMetaData, false);
         }
 
@@ -1848,6 +1838,8 @@ public final class RestoreService implements ClusterStateApplier {
      * Skipped for indices that don't need auto-marking; see {@link #needsReadOnlyRestorePreparation}. Throws
      * {@link SnapshotRestoreException} on any violation, including when the repository can't be inspected
      * (non-blob-store) or when shard userdata can't be read.
+     * <p>
+     * No longer called from the main restore path; retained for informational and future reference.
      */
     static void verifyReadOnlyRestoreSafety(
         Repository repository,
@@ -1929,8 +1921,7 @@ public final class RestoreService implements ClusterStateApplier {
      * verified read-only. This handles the case where a snapshot was created on an older version (e.g. 7.x) without
      * going through the intermediate upgrade step (e.g. 8.x) that would normally set these flags via the add-block API.
      * <p>
-     * Only applies when {@link #needsReadOnlyRestorePreparation} returns {@code true}. Callers must have already
-     * verified per-shard quiescence via {@link #verifyReadOnlyRestoreSafety}.
+     * Only applies when {@link #needsReadOnlyRestorePreparation} returns {@code true}.
      */
     static IndexMetadata prepareForReadOnlyRestore(
         IndexMetadata indexMetadata,

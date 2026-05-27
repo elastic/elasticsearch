@@ -57,6 +57,7 @@ import org.elasticsearch.xpack.stateless.cache.reader.CacheBlobReaderService;
 import org.elasticsearch.xpack.stateless.cache.reader.MeteringCacheBlobReader;
 import org.elasticsearch.xpack.stateless.cache.reader.MutableObjectStoreUploadTracker;
 import org.elasticsearch.xpack.stateless.cache.reader.ObjectStoreCacheBlobReader;
+import org.elasticsearch.xpack.stateless.cluster.coordination.StatelessClusterConsistencyService;
 import org.elasticsearch.xpack.stateless.commits.BatchedCompoundCommit;
 import org.elasticsearch.xpack.stateless.commits.BlobFile;
 import org.elasticsearch.xpack.stateless.commits.BlobFileRanges;
@@ -478,6 +479,7 @@ public class GenerationalDocValuesIT extends AbstractStatelessPluginIntegTestCas
                 .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
                 // Need at least 2 threads as we will block two
                 .put("thread_pool." + ThreadPool.Names.MERGE + ".max", randomIntBetween(2, 4))
+                .put(StatelessClusterConsistencyService.DELAYED_CLUSTER_CONSISTENCY_INTERVAL_SETTING.getKey(), "100ms")
                 .build()
         );
 

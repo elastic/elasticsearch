@@ -30,6 +30,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.common.oauth2.OAuth2Secrets.CLIENT_SECRET_FIELD;
 import static org.elasticsearch.xpack.inference.common.parser.StringParser.extractStringList;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.extractOptionalString;
 
@@ -107,6 +108,14 @@ public class OAuth2Settings implements ToXContentFragment, Writeable {
         }
 
         return ValidationResult.success(new OAuth2Settings(clientId, scopes));
+    }
+
+    public static String clientSecretRequiredError(String requiredFields) {
+        return Strings.format(
+            "To use OAuth2 the [%1$s] field must be set, either remove fields [%2$s], or provide the [%1$s] field.",
+            CLIENT_SECRET_FIELD,
+            requiredFields
+        );
     }
 
     public static boolean hasAnyOAuth2Fields(Map<String, Object> map) {

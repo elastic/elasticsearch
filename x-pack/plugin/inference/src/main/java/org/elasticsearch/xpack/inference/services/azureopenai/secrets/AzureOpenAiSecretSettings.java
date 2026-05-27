@@ -18,10 +18,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.Map;
-import java.util.Objects;
-import java.util.function.Function;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.inference.ModelConfigurations.SERVICE_SETTINGS;
@@ -136,25 +133,4 @@ public abstract class AzureOpenAiSecretSettings implements SecretSettings {
 
     /** Apply a non-empty update; subclasses enforce which fields they allow. */
     protected abstract AzureOpenAiSecretSettings updated(Map<String, SecureString> provided);
-
-    /**
-     * Single-field update: return {@code this} when {@code allowedField} is unchanged, build a new
-     * instance via {@code factory} when it differs, throw if any other field is present.
-     */
-    protected final AzureOpenAiSecretSettings updateOnlyField(
-        String allowedField,
-        SecureString currentValue,
-        Map<String, SecureString> provided,
-        Function<SecureString, AzureOpenAiSecretSettings> factory
-    ) {
-        if (provided.size() > 1 || provided.containsKey(allowedField) == false) {
-            var disallowed = new HashSet<>(provided.keySet());
-            disallowed.remove(allowedField);
-            throw new ValidationException().addValidationError(
-                format("[service_settings] only [%s] can be updated for this secret, received: %s", allowedField, disallowed)
-            );
-        }
-        var newValue = provided.get(allowedField);
-        return Objects.equals(newValue, currentValue) ? this : factory.apply(newValue);
-    }
 }

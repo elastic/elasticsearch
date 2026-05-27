@@ -2927,8 +2927,8 @@ public abstract class ESIntegTestCase extends ESTestCase {
 
                     if (randomBoolean()) {
                         LOGGER.info("randomly setting [index.mapping.use_colulmnar_id_mode_by_default] to [true]");
+                        additionalSettings.put("index.mapping.use_colulmnar_id_mode_by_default", true);
                     }
-                    additionalSettings.put("index.mapping.use_colulmnar_id_mode_by_default", true);
                 }
             );
         }

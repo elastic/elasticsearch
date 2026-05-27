@@ -531,9 +531,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148190
-- class: org.elasticsearch.reindex.management.ListTasksRelocationIT
-  method: testListTasksShowsOriginalIdentityAfterRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/149776
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionWithSecurityIT
   method: testCanTransitionIndex
   issue: https://github.com/elastic/elasticsearch/issues/149770

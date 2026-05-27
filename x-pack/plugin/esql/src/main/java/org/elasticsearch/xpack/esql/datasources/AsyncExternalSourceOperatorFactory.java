@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.RangeAwareFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.RangeReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.SourceMetadata;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SplittableDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
@@ -329,9 +330,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
         private ExternalSliceQueue sliceQueue;
         private ErrorPolicy errorPolicy;
         private int parsingParallelism = 1;
-        // Mirrors the default of QueryPragmas#MAX_CONCURRENT_OPEN_SEGMENTS; production always sets this
-        // explicitly from the pragma via LocalExecutionPlanner.
-        private int maxConcurrentOpenSegments = 4;
+        // Production sets this from the max_concurrent_open_segments pragma via LocalExecutionPlanner; this
+        // is the test/internal fallback, sourced from the single source of truth.
+        private int maxConcurrentOpenSegments = SourceOperatorContext.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS;
         private List<Expression> pushedExpressions;
         private FilterPushdownSupport pushdownSupport;
         private Closeable onClose;
@@ -1707,6 +1708,9 @@ public class AsyncExternalSourceOperatorFactory implements SourceOperator.Source
                 );
             }
             case STREAM_ONLY_COMPRESSED -> {
+                // No open-segment cap here, unlike SEGMENTABLE_UNCOMPRESSED: a compressed file is read as a
+                // single serial decompressing stream in bounded (~1 MiB) chunks, so it has natural
+                // back-pressure and never fans out into many concurrent per-segment streams/buffers.
                 CompressionDelegatingFormatReader cdr = (CompressionDelegatingFormatReader) reader;
                 SegmentableFormatReader seg = resolveSegmentableReader(reader);
                 DecompressionCodec codec = cdr.codec();

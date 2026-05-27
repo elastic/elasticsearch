@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReadContext;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
 
 import java.io.Closeable;
@@ -51,11 +52,11 @@ public final class ParallelParsingCoordinator {
     private static final Logger logger = LogManager.getLogger(ParallelParsingCoordinator.class);
 
     /**
-     * Fallback per-file cap on concurrently-open segment streams, used by overloads that don't resolve
-     * the {@code max_concurrent_open_segments} pragma (tests and internal callers). Production reads the
-     * pragma default via {@code QueryPragmas#MAX_CONCURRENT_OPEN_SEGMENTS}; keep the two in sync.
+     * Fallback per-file cap on concurrently-open segment streams, used by overloads that don't resolve the
+     * {@code max_concurrent_open_segments} pragma (tests and internal callers). Sourced from the single
+     * source of truth {@link SourceOperatorContext#DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS}.
      */
-    static final int DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS = 4;
+    static final int DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS = SourceOperatorContext.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS;
 
     private ParallelParsingCoordinator() {}
 
@@ -262,7 +263,7 @@ public final class ParallelParsingCoordinator {
             return parallelReader.read(storageObject, baseCtx);
         }
 
-        return new OrderedParallelIterator(
+        OrderedParallelIterator iterator = new OrderedParallelIterator(
             parallelReader,
             storageObject,
             projectedColumns,
@@ -274,6 +275,9 @@ public final class ParallelParsingCoordinator {
             splitIncludesFileLeader,
             readSchema
         );
+        // Fully constructed and published before any worker is dispatched — see OrderedParallelIterator#start.
+        iterator.start();
+        return iterator;
     }
 
     /**
@@ -393,13 +397,21 @@ public final class ParallelParsingCoordinator {
             for (int i = 0; i < segments.size(); i++) {
                 segmentQueues.add(new ArrayBlockingQueue<>(16));
             }
+            // Work is dispatched by start(), not here, so no parser thread can observe a partially
+            // constructed instance — the constructor fully publishes before any worker runs.
+        }
 
-            // Sliding-window dispatch: submit the first maxConcurrentSegments; each segment on completion
-            // submits the one that many positions ahead (see parseSegment's finally). Bounds open streams
-            // without stalling the in-order consumer, which runs on the driver thread so the head segment
-            // always progresses. A permit acquired inside parseSegment would instead deadlock: a later
-            // segment could hold it while blocked on a full queue, starving the head the consumer waits on.
-            int initial = Math.min(this.maxConcurrentSegments, segments.size());
+        /**
+         * Begins the sliding-window dispatch: submit the first {@code maxConcurrentSegments} segments; each
+         * segment, on completion, submits the one that many positions ahead (see parseSegment's finally).
+         * This bounds open streams without stalling the in-order consumer, which runs on the driver thread,
+         * so the head segment always progresses. Called once by {@link #parallelRead} after construction —
+         * keeping it out of the constructor avoids leaking {@code this} to worker threads. A permit acquired
+         * inside parseSegment would instead deadlock: a later segment could hold it while blocked on a full
+         * queue, starving the head segment the consumer is waiting on.
+         */
+        void start() {
+            int initial = Math.min(maxConcurrentSegments, segments.size());
             for (int i = 0; i < initial; i++) {
                 submitSegment(i);
             }

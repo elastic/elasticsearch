@@ -51,7 +51,7 @@ public class RepositoryS3ContentIntegrityRestIT extends AbstractRepositoryS3Rest
         protected HttpHandler createHandler() {
             final var delegate = asInstanceOf(S3HttpHandler.class, super.createHandler());
             return exchange -> {
-                delegate.assertSha256ContentHeader(exchange, equalTo("STREAMING-AWS4-HMAC-SHA256-PAYLOAD"));
+                delegate.assertContentSha256Header(exchange, equalTo("STREAMING-AWS4-HMAC-SHA256-PAYLOAD"));
                 delegate.handle(exchange);
             };
         }

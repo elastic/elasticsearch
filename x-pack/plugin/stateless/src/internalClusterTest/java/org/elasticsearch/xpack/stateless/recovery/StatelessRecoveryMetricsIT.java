@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -25,7 +26,7 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCommitService;
 import org.elasticsearch.xpack.stateless.engine.IndexEngine;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreTestUtils;
-import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -44,7 +45,7 @@ import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 
-public class RecoveryMetricsIT extends AbstractStatelessPluginIntegTestCase {
+public class StatelessRecoveryMetricsIT extends AbstractStatelessPluginIntegTestCase {
 
     @Override
     protected boolean addMockFsRepository() {
@@ -357,13 +358,13 @@ public class RecoveryMetricsIT extends AbstractStatelessPluginIntegTestCase {
 
         var warmedFromObjectStoreMetric = getSingleRecordedMetric(
             plugin::getLongCounterMeasurement,
-            RecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_OBJECT_STORE_METRIC
+            StatelessRecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_OBJECT_STORE_METRIC
         );
         assertMetricAttributes(warmedFromObjectStoreMetric, true);
 
         var readFromObjectStoreMetric = getSingleRecordedMetric(
             plugin::getLongCounterMeasurement,
-            RecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_OBJECT_STORE_METRIC
+            StatelessRecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_OBJECT_STORE_METRIC
         );
         assertMetricAttributes(readFromObjectStoreMetric, true);
 
@@ -440,7 +441,7 @@ public class RecoveryMetricsIT extends AbstractStatelessPluginIntegTestCase {
         {
             var metric = getSingleRecordedMetric(
                 plugin::getLongCounterMeasurement,
-                RecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC
+                StatelessRecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC
             );
             warmedBytes = metric.getLong() > 0;
             assertMetricAttributes(metric, false);
@@ -448,7 +449,7 @@ public class RecoveryMetricsIT extends AbstractStatelessPluginIntegTestCase {
         {
             var metric = getSingleRecordedMetric(
                 plugin::getLongCounterMeasurement,
-                RecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_INDEXING_METRIC
+                StatelessRecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_INDEXING_METRIC
             );
             readBytes = metric.getLong() > 0;
             assertMetricAttributes(metric, false);

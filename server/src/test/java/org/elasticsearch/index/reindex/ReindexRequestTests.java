@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
@@ -49,7 +50,7 @@ import static org.junit.Assert.assertArrayEquals;
 /**
  * Tests some of the validation of {@linkplain ReindexRequest}. See reindex's rest tests for much more.
  */
-public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<ReindexRequest> {
+public class ReindexRequestTests extends AbstractBulkByPaginatedSearchRequestTestCase<ReindexRequest> {
 
     private final BytesReference matchAll = new BytesArray("{ \"foo\" : \"bar\" }");
 
@@ -215,7 +216,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
             )
         );
         // Enable automatic slicing with an automatically chosen number of slices (like setting the slices URL parameter to "auto"):
-        reindex.setSlices(AbstractBulkByScrollRequest.AUTO_SLICES);
+        reindex.setSlices(AbstractBulkByPaginatedSearchRequest.AUTO_SLICES);
         ActionRequestValidationException e = reindex.validate();
         assertEquals(
             "Validation Failed: 1: reindex from remote sources doesn't support slices > 1 but was [" + reindex.getSlices() + "];",
@@ -290,6 +291,30 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
         );
         ActionRequestValidationException e = reindex.validate();
         assertEquals("Validation Failed: 1: reindex from remote source included password but not username;", e.getMessage());
+    }
+
+    public void testCreateOpTypeWithExternalVersioningIsRejected() {
+        ReindexRequest reindex = newRequest();
+        reindex.setDestOpType("create");
+        reindex.setDestVersionType(VersionType.EXTERNAL);
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals("Validation Failed: 1: create operations only support internal versioning. use index instead;", e.getMessage());
+    }
+
+    public void testCreateOpTypeWithExternalGteVersioningIsRejected() {
+        ReindexRequest reindex = newRequest();
+        reindex.setDestOpType("create");
+        reindex.setDestVersionType(VersionType.EXTERNAL_GTE);
+        ActionRequestValidationException e = reindex.validate();
+        assertEquals("Validation Failed: 1: create operations only support internal versioning. use index instead;", e.getMessage());
+    }
+
+    public void testCreateOpTypeWithInternalVersioningIsAccepted() {
+        ReindexRequest reindex = newRequest();
+        reindex.setDestOpType("create");
+        reindex.setDestVersionType(VersionType.INTERNAL);
+        ActionRequestValidationException e = reindex.validate();
+        assertNull(e);
     }
 
     public void testNoSliceBuilderSetWithSlicedRequest() {
@@ -561,7 +586,7 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
     /** Verifies that the {@code from} parameter is rejected when not using PIT. */
     public void testFromParameterRejectedWhenNotUsingPit() {
         ReindexRequest request = newRequest();
-        request.getSearchRequest().scroll(null);  // avoid SearchRequest's scroll+from error; we test AbstractBulkByScrollRequest only
+        request.getSearchRequest().scroll(null);  // avoid SearchRequest's scroll+from error; we test AbstractBulkBySearchRequest only
         request.getSearchRequest().source().from(1);
         ActionRequestValidationException validationException = request.validate();
         assertNotNull(validationException);
@@ -667,14 +692,14 @@ public class ReindexRequestTests extends AbstractBulkByScrollRequestTestCase<Rei
     public void testCreateTask_notEligibleForRelocationOnShutdown() throws IOException {
         ReindexRequest request = parseRequestWithSourceIndices("source");
         Task task = request.createTask(randomTaskId(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
-        assertThat(asInstanceOf(BulkByScrollTask.class, task).isEligibleForRelocationOnShutdown(), is(false));
+        assertThat(asInstanceOf(BulkByPaginatedSearchTask.class, task).isEligibleForRelocationOnShutdown(), is(false));
     }
 
     public void testCreateTask_eligibleForRelocationOnShutdown() throws IOException {
         ReindexRequest request = parseRequestWithSourceIndices("source");
         request.setEligibleForRelocationOnShutdown(true);
         Task task = request.createTask(randomTaskId(), "transport", ReindexAction.NAME, TaskId.EMPTY_TASK_ID, Map.of());
-        assertThat(asInstanceOf(BulkByScrollTask.class, task).isEligibleForRelocationOnShutdown(), is(true));
+        assertThat(asInstanceOf(BulkByPaginatedSearchTask.class, task).isEligibleForRelocationOnShutdown(), is(true));
     }
 
     public void testProjectRoutingParsing() throws IOException {

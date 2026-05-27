@@ -433,4 +433,15 @@ public class InferenceStringTests extends AbstractBWCSerializationTestCase<Infer
     public static boolean isAudioVideoOrPdf(InferenceString testInstance) {
         return testInstance.isAudio() || testInstance.isVideo() || testInstance.isPdf();
     }
+
+    public static DataType randomDataTypeSupportingBase64() {
+        var dataTypesSupportingBase64 = Arrays.stream(DataType.values())
+            .filter(type -> type.getSupportedFormats().contains(DataFormat.BASE64))
+            .collect(Collectors.toSet());
+        return randomFrom(dataTypesSupportingBase64);
+    }
+
+    public static String randomDataURI() {
+        return TEST_DATA_URI + randomAlphanumericOfLength(5);
+    }
 }

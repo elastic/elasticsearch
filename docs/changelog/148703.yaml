@@ -1,0 +1,5 @@
+area: Infra/Plugins
+issues: []
+pr: 148703
+summary: Add `config.name` mapping to fleet-agents index
+type: enhancement

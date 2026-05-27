@@ -63,6 +63,7 @@ import java.nio.ByteOrder;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Objects;
 import java.util.function.Consumer;
 import java.util.function.IntUnaryOperator;
 
@@ -86,6 +87,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     private final boolean doPrecondition;
     // field for slicing, null for no slicing
     private final String sliceField;
+    private final IvfFlushConfigSource flushConfigSource;
+    private final IvfMergeConfigResolver mergeConfigResolver;
 
     public ESNextDiskBBQVectorsWriter(
         SegmentWriteState state,
@@ -100,7 +103,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         int blockDimension,
         boolean doPrecondition,
         int flatVectorThreshold,
-        String sliceField
+        String sliceField,
+        IvfFlushConfigSource flushConfigSource,
+        IvfMergeConfigResolver mergeConfigResolver
     ) throws IOException {
         super(
             state,
@@ -123,6 +128,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         this.blockDimension = blockDimension;
         this.doPrecondition = doPrecondition;
         this.sliceField = sliceField;
+        this.flushConfigSource = flushConfigSource != null ? flushConfigSource : IvfFlushConfigSource.empty();
+        this.mergeConfigResolver = mergeConfigResolver != null ? mergeConfigResolver : IvfMergeConfigResolver.useCodecDefault();
         if (sliceField != null) {
             Sort sort = state.segmentInfo.getIndexSort();
             if (sort == null || sort.getSort().length == 0) {
@@ -139,8 +146,25 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    protected Preconditioner inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
-        if (doPrecondition) {
+    protected IvfSegmentConfig beginIvfFieldFlush(FieldInfo fieldInfo) throws IOException {
+        IvfSegmentConfig codec = IvfSegmentConfig.fromCodecDefaults(quantEncoding, doPrecondition);
+        return flushConfigSource.load(segmentWriteState, fieldInfo).orElse(codec);
+    }
+
+    @Override
+    protected IvfSegmentConfig beginIvfFieldMerge(FieldInfo fieldInfo, MergeState mergeState) throws IOException {
+        IvfSegmentConfig codec = IvfSegmentConfig.fromCodecDefaults(quantEncoding, doPrecondition);
+        return mergeConfigResolver.resolve(fieldInfo, mergeState, codec);
+    }
+
+    private static IvfSegmentConfig requireSegmentConfig(IvfSegmentConfig cfg) {
+        return Objects.requireNonNull(cfg, "ivf segment config must not be null");
+    }
+
+    @Override
+    protected Preconditioner inheritPreconditioner(FieldInfo fieldInfo, MergeState mergeState, IvfSegmentConfig fieldWritingContext)
+        throws IOException {
+        if (requireSegmentConfig(fieldWritingContext).usePrecondition()) {
             for (KnnVectorsReader reader : mergeState.knnVectorsReaders) {
                 if (reader instanceof VectorPreconditioner) {
                     Preconditioner preconditioner = ((VectorPreconditioner) reader).getPreconditioner(fieldInfo);
@@ -150,14 +174,14 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 }
             }
             // else
-            return createPreconditioner(fieldInfo.getVectorDimension());
+            return createPreconditioner(fieldInfo.getVectorDimension(), fieldWritingContext);
         }
         return null;
     }
 
     @Override
-    protected Preconditioner createPreconditioner(int dimension) {
-        if (doPrecondition) {
+    protected Preconditioner createPreconditioner(int dimension, IvfSegmentConfig ivfSegmentConfig) {
+        if (requireSegmentConfig(ivfSegmentConfig).usePrecondition()) {
             return Preconditioner.createPreconditioner(dimension, blockDimension);
         } else {
             return null;
@@ -172,9 +196,9 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    protected Consumer<List<float[]>> preconditionVectors(Preconditioner preconditioner) {
+    protected Consumer<List<float[]>> preconditionVectors(Preconditioner preconditioner, IvfSegmentConfig fieldWritingContext) {
         return (vectors) -> {
-            if (doPrecondition == false || vectors.isEmpty()) {
+            if (requireSegmentConfig(fieldWritingContext).usePrecondition() == false || vectors.isEmpty()) {
                 return;
             }
             if (preconditioner == null) {
@@ -190,8 +214,12 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
     }
 
     @Override
-    protected FloatVectorValues preconditionVectors(Preconditioner preconditioner, FloatVectorValues vectors) {
-        if (doPrecondition == false) {
+    protected FloatVectorValues preconditionVectors(
+        Preconditioner preconditioner,
+        FloatVectorValues vectors,
+        IvfSegmentConfig fieldWritingContext
+    ) {
+        if (requireSegmentConfig(fieldWritingContext).usePrecondition() == false) {
             return vectors;
         }
         if (preconditioner == null) {
@@ -249,8 +277,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         IndexOutput postingsOutput,
         long fileOffset,
         int[] assignments,
-        int[] overspillAssignments
+        int[] overspillAssignments,
+        IvfSegmentConfig fieldWritingContext
     ) throws IOException {
+        final IvfSegmentConfig segmentConfig = requireSegmentConfig(fieldWritingContext);
+        final ESNextDiskBBQVectorsFormat.QuantEncoding effectiveQuantEncoding = segmentConfig.quantEncoding();
         KMeansResult centroidClusters = centroidSupplier.secondLevelClusters();
         int[] centroidVectorCount = new int[centroidSupplier.size()];
         for (int i = 0; i < assignments.length; i++) {
@@ -284,11 +315,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         // write the posting lists
         final PackedLongValues.Builder offsets = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
         final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
-        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(quantEncoding.bits(), BULK_SIZE, postingsOutput, true, true);
+        DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(effectiveQuantEncoding.bits(), BULK_SIZE, postingsOutput, true, true);
         OnHeapQuantizedVectors onHeapQuantizedVectors = new OnHeapQuantizedVectors(
             floatVectorValues,
             fieldInfo.getVectorSimilarityFunction(),
-            quantEncoding,
+            effectiveQuantEncoding,
             fieldInfo.getVectorDimension(),
             new OptimizedScalarQuantizer(fieldInfo.getVectorSimilarityFunction())
         );
@@ -349,8 +380,11 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         long fileOffset,
         MergeState mergeState,
         int[] assignments,
-        int[] overspillAssignments
+        int[] overspillAssignments,
+        IvfSegmentConfig fieldWritingContext
     ) throws IOException {
+        final IvfSegmentConfig segmentConfig = requireSegmentConfig(fieldWritingContext);
+        final ESNextDiskBBQVectorsFormat.QuantEncoding effectiveQuantEncoding = segmentConfig.quantEncoding();
         // first, quantize all the vectors into a temporary file
         var vectorSimilarityFunction = fieldInfo.getVectorSimilarityFunction();
         KMeansResult centroidClusters = centroidSupplier.secondLevelClusters();
@@ -364,8 +398,8 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         ) {
             quantizedVectorsTempName = quantizedVectorsTemp.getName();
             OptimizedScalarQuantizer quantizer = new OptimizedScalarQuantizer(vectorSimilarityFunction);
-            int[] quantized = new int[quantEncoding.discretizedDimensions(fieldInfo.getVectorDimension())];
-            byte[] binary = new byte[quantEncoding.getDocPackedLength(fieldInfo.getVectorDimension())];
+            int[] quantized = new int[effectiveQuantEncoding.discretizedDimensions(fieldInfo.getVectorDimension())];
+            byte[] binary = new byte[effectiveQuantEncoding.getDocPackedLength(fieldInfo.getVectorDimension())];
             float[] scratch = new float[fieldInfo.getVectorDimension()];
             for (int i = 0; i < assignments.length; i++) {
                 int c = assignments[i];
@@ -377,7 +411,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                     vector,
                     scratch,
                     quantized,
-                    quantEncoding.bits(),
+                    effectiveQuantEncoding.bits(),
                     centroid
                 );
                 if (parentCentroid != null) {
@@ -391,14 +425,14 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                         result.quantizedComponentSum()
                     );
                 }
-                quantEncoding.pack(quantized, binary);
+                effectiveQuantEncoding.pack(quantized, binary);
                 writeQuantizedValue(quantizedVectorsTemp, binary, result);
                 if (overspill) {
                     int s = overspillAssignments[i];
                     float[] overspillCentroid = centroidSupplier.centroid(s);
                     float[] overspillParentCentroid = centroidClusters.getCentroid(s);
                     // write the overspill vector as well
-                    result = quantizer.scalarQuantize(vector, scratch, quantized, quantEncoding.bits(), overspillCentroid);
+                    result = quantizer.scalarQuantize(vector, scratch, quantized, effectiveQuantEncoding.bits(), overspillCentroid);
                     if (overspillParentCentroid != null) {
                         float additionalCorrection = vectorSimilarityFunction == VectorSimilarityFunction.EUCLIDEAN
                             ? ESVectorUtil.squareDistance(vector, overspillParentCentroid)
@@ -410,7 +444,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                             result.quantizedComponentSum()
                         );
                     }
-                    quantEncoding.pack(quantized, binary);
+                    effectiveQuantEncoding.pack(quantized, binary);
                     writeQuantizedValue(quantizedVectorsTemp, binary, result);
                 } else {
                     // write a zero vector for the overspill
@@ -463,10 +497,16 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
             final PackedLongValues.Builder lengths = PackedLongValues.monotonicBuilder(PackedInts.COMPACT);
             OffHeapQuantizedVectors offHeapQuantizedVectors = new OffHeapQuantizedVectors(
                 quantizedVectorsInput,
-                quantEncoding,
+                effectiveQuantEncoding,
                 fieldInfo.getVectorDimension()
             );
-            DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(quantEncoding.bits(), BULK_SIZE, postingsOutput, true, true);
+            DiskBBQBulkWriter bulkWriter = DiskBBQBulkWriter.fromBitSize(
+                effectiveQuantEncoding.bits(),
+                BULK_SIZE,
+                postingsOutput,
+                true,
+                true
+            );
             // write the posting lists
             final int[] docIds = new int[maxPostingListSize];
             final int[] docDeltas = new int[maxPostingListSize];
@@ -608,10 +648,12 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
         long preconditionerOffset,
         long preconditionerLength,
         int numberOfSlices,
-        int maxSliceSize
+        int maxSliceSize,
+        IvfSegmentConfig ivfSegmentConfig
     ) throws IOException {
+        final IvfSegmentConfig segmentConfig = requireSegmentConfig(ivfSegmentConfig);
         metaOutput.writeInt(ES940OSQVectorsScorer.BULK_SIZE);
-        metaOutput.writeInt(quantEncoding.id());
+        metaOutput.writeInt(segmentConfig.quantEncoding().id());
         metaOutput.writeLong(preconditionerLength);
         if (preconditionerLength > 0) {
             metaOutput.writeLong(preconditionerOffset);
@@ -625,6 +667,7 @@ public class ESNextDiskBBQVectorsWriter extends IVFVectorsWriter {
                 metaOutput.writeVInt(maxSliceSize);
             }
         }
+        metaOutput.writeInt(Float.floatToIntBits(segmentConfig.rescoreOversample()));
     }
 
     @Override

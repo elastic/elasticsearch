@@ -83,6 +83,7 @@ import static org.elasticsearch.test.ClusterServiceUtils.createClusterService;
 import static org.hamcrest.Matchers.arrayWithSize;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -426,8 +427,8 @@ public class TransportWriteActionTests extends ESTestCase {
 
             testAction.shardOperationOnPrimary(task, request, indexShard, future);
             mockLog.assertAllExpectationsMatched();
+            assertThat(testAction.getIndexingPressure().stats().getTotalCancelledOps(), is(1L));
         }
-
     }
 
     private class TestAction extends TransportWriteAction<TestRequest, TestRequest, TestResponse> {
@@ -540,6 +541,10 @@ public class TransportWriteActionTests extends ESTestCase {
                 }
                 return replicaResult;
             });
+        }
+
+        protected IndexingPressure getIndexingPressure() {
+            return this.indexingPressure;
         }
     }
 

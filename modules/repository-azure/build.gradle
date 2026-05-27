@@ -86,6 +86,7 @@ dependencies {
 
   testImplementation project(':test:fixtures:azure-fixture')
   yamlRestTestImplementation project(':test:fixtures:azure-fixture')
+  yamlRestTestImplementation project(':test:fixtures:tls-utils')
 }
 
 restResources {

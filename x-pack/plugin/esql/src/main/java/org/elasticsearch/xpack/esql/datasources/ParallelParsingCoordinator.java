@@ -270,7 +270,8 @@ public final class ParallelParsingCoordinator {
             batchSize,
             segments,
             executor,
-            Math.max(1, Math.min(parallelism, maxConcurrentOpenSegments)),
+            parallelism,
+            maxConcurrentOpenSegments,
             effectivePolicy,
             splitIncludesFileLeader,
             readSchema
@@ -376,7 +377,8 @@ public final class ParallelParsingCoordinator {
             int batchSize,
             List<long[]> segments,
             Executor executor,
-            int maxConcurrentSegments,
+            int parallelism,
+            int maxConcurrentOpenSegments,
             ErrorPolicy errorPolicy,
             boolean splitIncludesFileLeader,
             List<Attribute> readSchema
@@ -390,7 +392,9 @@ public final class ParallelParsingCoordinator {
             this.readSchema = readSchema;
             this.segments = segments;
             this.executor = executor;
-            this.maxConcurrentSegments = Math.max(1, Math.min(maxConcurrentSegments, segments.size()));
+            // Single clamp site for the effective window: the configured cap, never more than the parser
+            // thread pool can run nor more segments than exist, floored at 1.
+            this.maxConcurrentSegments = Math.max(1, Math.min(maxConcurrentOpenSegments, Math.min(parallelism, segments.size())));
             this.allDone = new CountDownLatch(segments.size());
 
             this.segmentQueues = new ArrayList<>(segments.size());

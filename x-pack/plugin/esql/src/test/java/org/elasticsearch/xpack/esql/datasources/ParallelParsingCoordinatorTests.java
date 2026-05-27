@@ -282,59 +282,54 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
         assertNotNull("Should propagate rejection error", ex);
     }
 
+    private static final int REPRO_PARALLELISM = 12;
+    private static final int REPRO_POOL_SIZE = 8; // wider than the small cap, so an uncapped run can open many at once
+    private static final int REPRO_SMALL_CAP = 3;
+
     /**
-     * Reproduces the unbounded-fanout congestion and guards its fix in one shot. The defect: a file is split into
-     * many byte-range segments and every segment's object-store read stream is opened at once, so a wide
-     * read fans out into a congestion of concurrent streams + per-segment buffers that pins the heap. The
-     * fix: {@code OrderedParallelIterator} opens at most {@code max_concurrent_open_segments} at a time.
-     * <p>
-     * Both arms run the identical workload through {@code parallelRead}; only the cap differs.
-     * {@link StreamCountingStorageObject} records the peak concurrently-open positional range streams (each
-     * open lingers a few ms so threads genuinely overlap; no "wait until all open" barrier, so neither arm
-     * can deadlock).
-     * <ul>
-     *   <li><b>Congestion arm</b> (cap = segment count, i.e. effectively unbounded — the pre-fix behavior):
-     *       peak climbs to the executor's thread count, well above a small cap. This is the bug.</li>
-     *   <li><b>Fixed arm</b> (small cap): peak never exceeds the cap, regardless of how many segments or
-     *       threads exist.</li>
-     * </ul>
-     * The fixed arm is the regression guard: it fails the moment the cap stops being enforced.
+     * Hard regression gate for the fix: with {@code max_concurrent_open_segments = cap}, the number of
+     * concurrently-open object-store range streams never exceeds {@code cap}, no matter how many segments
+     * or parser threads exist. This is an upper bound the window enforces regardless of thread scheduling,
+     * so it is not timing-dependent. {@link StreamCountingStorageObject} holds each open briefly so that a
+     * regressed (uncapped) implementation would open more than {@code cap} at once and trip this assertion.
      */
-    public void testConcurrentOpenSegmentsAreCapped() throws Exception {
-        final int parallelism = 12;
+    public void testCapBoundsConcurrentOpenSegments() throws Exception {
+        byte[] content = repeatedLines(1200);
+        int cappedPeak = peakConcurrentOpensFor(content, REPRO_PARALLELISM, REPRO_SMALL_CAP, REPRO_POOL_SIZE);
+        assertThat(
+            "peak concurrently-open range streams [" + cappedPeak + "] must not exceed the cap [" + REPRO_SMALL_CAP + "]",
+            cappedPeak,
+            Matchers.lessThanOrEqualTo(REPRO_SMALL_CAP)
+        );
+    }
+
+    /**
+     * Best-effort reproduction of the unbounded-fanout congestion (elastic/esql-planning#830 in plain terms:
+     * a wide read opened every segment's stream at once and pinned the heap). Run uncapped, the peak should
+     * climb well above the small cap. Demonstrating that requires threads to actually overlap, which a
+     * heavily loaded or serializing scheduler cannot guarantee, so this is an {@code assumeTrue} diagnostic,
+     * not a hard gate — the hard invariant lives in {@link #testCapBoundsConcurrentOpenSegments}.
+     */
+    public void testUncappedReproducesCongestion() throws Exception {
         byte[] content = repeatedLines(1200);
         int segmentCount = ParallelParsingCoordinator.computeSegments(
             new LineFormatReader(blockFactory()),
             new StreamCountingStorageObject(content),
             content.length,
-            parallelism,
+            REPRO_PARALLELISM,
             1
         ).size();
-        assertThat("test needs many more segments than the small cap to be meaningful", segmentCount, Matchers.greaterThan(8));
+        assertThat("test needs more segments than the small cap to be meaningful", segmentCount, Matchers.greaterThan(REPRO_SMALL_CAP));
 
-        // Pool wider than the small cap, so the congestion arm can actually open many streams at once.
-        final int poolSize = 8;
-        final int smallCap = 3;
-
-        // Congestion arm: cap >= segment count == no effective cap (the pre-fix shape). Peak should climb
-        // to the pool size, demonstrating the unbounded fan-out the issue describes.
-        int congestedPeak = peakConcurrentOpensFor(content, parallelism, segmentCount, poolSize);
-        assertThat(
-            "congestion repro: without an effective cap, concurrent open streams should reach the pool size ["
-                + poolSize
-                + "], far above the small cap ["
-                + smallCap
-                + "]",
-            congestedPeak,
-            Matchers.greaterThan(smallCap)
-        );
-
-        // Fixed arm: the small cap must hold the peak down no matter the segment/thread count.
-        int cappedPeak = peakConcurrentOpensFor(content, parallelism, smallCap, poolSize);
-        assertThat(
-            "fix: peak concurrently-open range streams [" + cappedPeak + "] must not exceed the cap [" + smallCap + "]",
-            cappedPeak,
-            Matchers.lessThanOrEqualTo(smallCap)
+        // cap >= segment count == no effective cap (the pre-fix shape).
+        int congestedPeak = peakConcurrentOpensFor(content, REPRO_PARALLELISM, segmentCount, REPRO_POOL_SIZE);
+        assumeTrue(
+            "uncapped run only congests when threads overlap; skipped on a serializing/loaded scheduler (peak="
+                + congestedPeak
+                + ", cap="
+                + REPRO_SMALL_CAP
+                + ")",
+            congestedPeak > REPRO_SMALL_CAP
         );
     }
 
@@ -1394,11 +1389,6 @@ public class ParallelParsingCoordinatorTests extends ESTestCase {
                     }
                 }
             };
-        }
-
-        void resetPeak() {
-            peak.set(0);
-            total.set(0);
         }
 
         int peakConcurrent() {

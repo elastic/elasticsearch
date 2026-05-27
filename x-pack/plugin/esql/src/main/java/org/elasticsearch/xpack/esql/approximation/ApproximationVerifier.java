@@ -150,7 +150,7 @@ public class ApproximationVerifier {
      * It makes no sense to approximate stats on a limited result set, and
      * furthermore it breaks the estimation of the sample probability.
      */
-    private static final Set<Class<? extends LogicalPlan>> LIMITING_COMMANDS = Set.of(
+    static final Set<Class<? extends LogicalPlan>> LIMITING_COMMANDS = Set.of(
         ChangePoint.class,
         Limit.class,
         LimitBy.class,

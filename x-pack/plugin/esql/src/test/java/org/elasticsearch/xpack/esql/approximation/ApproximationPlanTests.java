@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.approximation;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -40,8 +41,10 @@ public class ApproximationPlanTests extends ApproximationTestCase {
     }
 
     public void testApproximationPlan_createsConfidenceInterval_withoutGrouping() {
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan("FROM test | STATS COUNT(), SUM(emp_no)");
         LogicalPlan approximationPlan = ApproximationPlan.get(
-            ApproximationTests.getLogicalPlan("FROM test | STATS COUNT(), SUM(emp_no)"),
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
             ApproximationSettings.DEFAULT
         );
 
@@ -53,8 +56,10 @@ public class ApproximationPlanTests extends ApproximationTestCase {
     }
 
     public void testApproximationPlan_createsConfidenceInterval_withGrouping() {
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan("FROM test | STATS COUNT(), SUM(emp_no) BY emp_no");
         LogicalPlan approximationPlan = ApproximationPlan.get(
-            ApproximationTests.getLogicalPlan("FROM test | STATS COUNT(), SUM(emp_no) BY emp_no"),
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
             ApproximationSettings.DEFAULT
         );
 
@@ -66,10 +71,12 @@ public class ApproximationPlanTests extends ApproximationTestCase {
     }
 
     public void testApproximationPlan_dependentConfidenceIntervals() {
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan(
+            "FROM test | STATS x=SUM(emp_no) | EVAL a=x*x, b=7, c=TO_STRING(x), d=MV_APPEND(x, 1::LONG), e=a+POW(b, 2)"
+        );
         LogicalPlan approximationPlan = ApproximationPlan.get(
-            ApproximationTests.getLogicalPlan(
-                "FROM test | STATS x=SUM(emp_no) | EVAL a=x*x, b=7, c=TO_STRING(x), d=MV_APPEND(x, 1::LONG), e=a+POW(b, 2)"
-            ),
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
             ApproximationSettings.DEFAULT
         );
 
@@ -89,10 +96,12 @@ public class ApproximationPlanTests extends ApproximationTestCase {
     }
 
     public void testApproximationPlan_withFork() {
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan(
+            "FROM test | FORK (STATS sum=SUM(emp_no)) (KEEP emp_no) (WHERE emp_no < 10 | STATS max=MAX(emp_no))"
+        );
         LogicalPlan approximationPlan = ApproximationPlan.get(
-            ApproximationTests.getLogicalPlan(
-                "FROM test | FORK (STATS sum=SUM(emp_no)) (KEEP emp_no) (WHERE emp_no < 10 | STATS max=MAX(emp_no))"
-            ),
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
             ApproximationSettings.DEFAULT
         );
         assertThat(
@@ -101,9 +110,26 @@ public class ApproximationPlanTests extends ApproximationTestCase {
         );
     }
 
-    public void testColumnMetadata() {
+    public void testApproximationPlan_withGoodAndBadSubqueries() {
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan(
+            "FROM (FROM test | LIMIT 1 | STATS bad = COUNT(*)), (FROM test | STATS good = COUNT(*))"
+        );
         LogicalPlan approximationPlan = ApproximationPlan.get(
-            ApproximationTests.getLogicalPlan("FROM test | STATS count=COUNT(), sum=SUM(emp_no)"),
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
+            ApproximationSettings.DEFAULT
+        );
+        assertThat(
+            approximationPlan.output().stream().map(Attribute::name).toList(),
+            contains("bad", "good", "_approximation_confidence_interval(good)", "_approximation_certified(good)")
+        );
+    }
+
+    public void testColumnMetadata() {
+        LogicalPlan originalPlan = ApproximationTests.getLogicalPlan("FROM test | STATS count=COUNT(), sum=SUM(emp_no)");
+        LogicalPlan approximationPlan = ApproximationPlan.get(
+            originalPlan,
+            ApproximationVerifier.verifyPlanOrThrow(originalPlan, TransportVersion.current()),
             ApproximationSettings.DEFAULT
         );
 

@@ -633,6 +633,7 @@ public final class StreamingParallelParsingCoordinator {
                 if (grown.length == len) {
                     return new GrowResult(grown, -1);
                 }
+                // Rescans the whole grown buffer each iteration; total work is O(n^2), bounded by maxRecordBytes.
                 int boundary = reader.findLastRecordBoundary(grown, grown.length);
                 if (boundary >= 0) {
                     return new GrowResult(grown, boundary);

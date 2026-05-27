@@ -34,6 +34,7 @@ import static org.elasticsearch.rest.RestRequest.Method.POST;
  */
 @ServerlessScope(value = Scope.PUBLIC)
 public class RestExplainAction extends BaseRestHandler {
+    private static final String SINGLE_SLICE_ONLY_ERROR = "[_slice] must be a single value for explain requests";
 
     @Override
     public List<Route> routes() {
@@ -47,6 +48,7 @@ public class RestExplainAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
+        validateSliceParamForExplain(request);
         final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseRoutingOrSliceWithProvenance(request);
         ExplainRequest explainRequest = new ExplainRequest(request.param("index"), request.param("id"));
         explainRequest.routing(parsedRouting.routing()).setRoutingFromSlice(parsedRouting.fromSlice());
@@ -80,5 +82,15 @@ public class RestExplainAction extends BaseRestHandler {
         explainRequest.fetchSourceContext(FetchSourceContext.parseFromRestRequest(request));
 
         return channel -> client.explain(explainRequest, new RestToXContentListener<>(channel, ExplainResponse::status));
+    }
+
+    private static void validateSliceParamForExplain(RestRequest request) {
+        final String slice = request.param(SliceIndexing.PARAM_NAME);
+        if (slice == null || SliceIndexing.SLICE_FEATURE_FLAG.isEnabled() == false) {
+            return;
+        }
+        if (SliceIndexing.SLICE_ALL.equals(slice) || Strings.splitStringByCommaToArray(slice).length != 1) {
+            throw new IllegalArgumentException(SINGLE_SLICE_ONLY_ERROR);
+        }
     }
 }

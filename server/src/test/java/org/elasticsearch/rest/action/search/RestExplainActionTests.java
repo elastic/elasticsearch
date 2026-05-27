@@ -88,7 +88,7 @@ public class RestExplainActionTests extends RestActionTestCase {
             IllegalArgumentException.class,
             () -> action.prepareRequest(explainRequest, mock(NodeClient.class))
         );
-        assertThat(e.getMessage(), containsString("invalid [_slice] value"));
+        assertThat(e.getMessage(), containsString("[_slice] must be a single value for explain requests"));
     }
 
     public void testSliceParamRejectedWhenCommaDelimited() {
@@ -101,6 +101,6 @@ public class RestExplainActionTests extends RestActionTestCase {
             IllegalArgumentException.class,
             () -> action.prepareRequest(explainRequest, mock(NodeClient.class))
         );
-        assertThat(e.getMessage(), containsString("invalid [_slice] value"));
+        assertThat(e.getMessage(), containsString("[_slice] must be a single value for explain requests"));
     }
 }

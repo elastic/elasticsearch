@@ -471,8 +471,206 @@ public class ResolveViewShadowTests extends ESTestCase {
         assertWarnings(NO_LIMIT_WARNING);
     }
 
+    // ── Nested view chain tests ───────────────────────────────────────────────────────────────────
+
+    /**
+     * Three-level nested view chain: {@code view1 → view2 → view3 → index1}.
+     * Only the <em>outermost</em> view ({@code view1}) has a matching remote index on
+     * {@code remote1}.
+     *
+     * <p>Processing order ({@code transformUp} = bottom-up):
+     * <ol>
+     *   <li>{@code view3}'s {@link ViewUnionAll}: shadow unresolved → dropped; single-survivor
+     *       collapses to {@code EsRelation("index1")}.</li>
+     *   <li>{@code view2}'s {@link ViewUnionAll}: shadow unresolved → dropped; single-survivor
+     *       collapses to {@code EsRelation("index1")}.</li>
+     *   <li>{@code view1}'s {@link ViewUnionAll}: shadow resolves → {@code EsRelation("view1"[remote1])};
+     *       {@code remote1} excluded from the view1 body's {@code EsRelation("index1")}.</li>
+     * </ol>
+     *
+     * <p>Expected final plan: {@code ViewUnionAll(EsRelation("index1")[local], EsRelation("view1")[remote1])}.
+     */
+    public void testNestedViewsOutermostShadowed() {
+        var mapping = LoadMapping.loadMapping("mapping-one-field.json");
+        EsIndex index1 = new EsIndex(
+            "index1",
+            mapping,
+            Map.of("index1", IndexMode.STANDARD, "remote1:index1", IndexMode.STANDARD),
+            Map.of("", List.of("index1"), "remote1", List.of("index1")),
+            Map.of("", List.of("index1"), "remote1", List.of("index1"))
+        );
+        EsIndex shadowView1 = new EsIndex(
+            "view1",
+            mapping,
+            Map.of("remote1:view1", IndexMode.STANDARD),
+            Map.of("remote1", List.of("view1")),
+            Map.of("remote1", List.of("view1"))
+        );
+        // Only view1 has a lenient-shadow resolution; view2 and view3 are absent.
+        var analyzer = analyzer().addIndex(index1).addLenientShadow(shadowView1).buildAnalyzer();
+
+        // Nested structure mirrors ViewResolver output: each view body is a ViewUnionAll whose
+        // non-shadow branch is the next level's ViewUnionAll.
+        ViewUnionAll view3Vua = viewUnionAllOf("view3", strictUR("index1"), new ViewShadowRelation(EMPTY, "view3", List.of()));
+        ViewUnionAll view2Vua = viewUnionAllOf("view2", view3Vua, new ViewShadowRelation(EMPTY, "view2", List.of()));
+        ViewUnionAll view1Vua = viewUnionAllOf("view1", view2Vua, new ViewShadowRelation(EMPTY, "view1", List.of()));
+
+        LogicalPlan plan = analyzer.analyze(view1Vua);
+
+        var limit = as(plan, Limit.class);
+        var unionAll = as(limit.child(), ViewUnionAll.class);
+        assertEquals("expected two branches: view1 body + view1 shadow", 2, unionAll.children().size());
+
+        EsRelation bodyRel = findRelByPattern(unionAll, "index1");
+        EsRelation shadowRel = findRelByPattern(unionAll, "view1");
+        assertNotNull("expected view1 body EsRelation for index1", bodyRel);
+        assertNotNull("expected view1 shadow EsRelation for view1", shadowRel);
+
+        assertFalse("remote1 must be excluded from index1 (view1 shadow covers it)", bodyRel.concreteIndices().containsKey("remote1"));
+        assertTrue("local cluster must remain in index1", bodyRel.concreteIndices().containsKey(""));
+        assertTrue("view1 shadow must retain remote1", shadowRel.concreteIndices().containsKey("remote1"));
+
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    /**
+     * Three-level nested view chain: {@code view1 → view2 → view3 → index1}.
+     * Only the <em>middle</em> view ({@code view2}) has a matching remote index on
+     * {@code remote1}.
+     *
+     * <p>Processing order ({@code transformUp} = bottom-up):
+     * <ol>
+     *   <li>{@code view3}'s {@link ViewUnionAll}: shadow unresolved → dropped; collapses to
+     *       {@code EsRelation("index1")[local, remote1]}.</li>
+     *   <li>{@code view2}'s {@link ViewUnionAll}: shadow resolves → {@code EsRelation("view2"[remote1])};
+     *       {@code remote1} excluded from the view2 body's {@code EsRelation("index1")}.</li>
+     *   <li>{@code view1}'s {@link ViewUnionAll}: shadow unresolved → dropped; single-survivor
+     *       collapses directly to the already-resolved view2 {@link ViewUnionAll}.</li>
+     * </ol>
+     *
+     * <p>Expected final plan: {@code ViewUnionAll(EsRelation("index1")[local], EsRelation("view2")[remote1])}.
+     */
+    public void testNestedViewsMiddleShadowed() {
+        var mapping = LoadMapping.loadMapping("mapping-one-field.json");
+        EsIndex index1 = new EsIndex(
+            "index1",
+            mapping,
+            Map.of("index1", IndexMode.STANDARD, "remote1:index1", IndexMode.STANDARD),
+            Map.of("", List.of("index1"), "remote1", List.of("index1")),
+            Map.of("", List.of("index1"), "remote1", List.of("index1"))
+        );
+        EsIndex shadowView2 = new EsIndex(
+            "view2",
+            mapping,
+            Map.of("remote1:view2", IndexMode.STANDARD),
+            Map.of("remote1", List.of("view2")),
+            Map.of("remote1", List.of("view2"))
+        );
+        // Only view2 has a lenient-shadow resolution; view1 and view3 are absent.
+        var analyzer = analyzer().addIndex(index1).addLenientShadow(shadowView2).buildAnalyzer();
+
+        ViewUnionAll view3Vua = viewUnionAllOf("view3", strictUR("index1"), new ViewShadowRelation(EMPTY, "view3", List.of()));
+        ViewUnionAll view2Vua = viewUnionAllOf("view2", view3Vua, new ViewShadowRelation(EMPTY, "view2", List.of()));
+        ViewUnionAll view1Vua = viewUnionAllOf("view1", view2Vua, new ViewShadowRelation(EMPTY, "view1", List.of()));
+
+        LogicalPlan plan = analyzer.analyze(view1Vua);
+
+        // view3 shadow dropped → view3 collapses; view2 shadow resolves → remote1 excluded from
+        // index1 body; view1 shadow dropped → view1 collapses, surfacing the view2 ViewUnionAll.
+        var limit = as(plan, Limit.class);
+        var unionAll = as(limit.child(), ViewUnionAll.class);
+        assertEquals("expected two branches: view2 body + view2 shadow", 2, unionAll.children().size());
+
+        EsRelation bodyRel = findRelByPattern(unionAll, "index1");
+        EsRelation shadowRel = findRelByPattern(unionAll, "view2");
+        assertNotNull("expected view2 body EsRelation for index1", bodyRel);
+        assertNotNull("expected view2 shadow EsRelation for view2", shadowRel);
+
+        assertFalse("remote1 must be excluded from index1 (view2 shadow covers it)", bodyRel.concreteIndices().containsKey("remote1"));
+        assertTrue("local cluster must remain in index1", bodyRel.concreteIndices().containsKey(""));
+        assertTrue("view2 shadow must retain remote1", shadowRel.concreteIndices().containsKey("remote1"));
+
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
+    /**
+     * Three-level nested view chain: {@code view1 → view2 → view3 → index1}.
+     * Only the <em>innermost</em> view ({@code view3}) has a matching remote index on
+     * {@code remote1}.
+     *
+     * <p>Processing order ({@code transformUp} = bottom-up):
+     * <ol>
+     *   <li>{@code view3}'s {@link ViewUnionAll}: shadow resolves → {@code EsRelation("view3"[remote1])};
+     *       {@code remote1} excluded from the view3 body's {@code EsRelation("index1")}.</li>
+     *   <li>{@code view2}'s {@link ViewUnionAll}: shadow unresolved → dropped; single-survivor
+     *       collapses directly to the already-resolved view3 {@link ViewUnionAll}.</li>
+     *   <li>{@code view1}'s {@link ViewUnionAll}: shadow unresolved → dropped; single-survivor
+     *       collapses directly to the same view3 {@link ViewUnionAll}.</li>
+     * </ol>
+     *
+     * <p>Expected final plan: {@code ViewUnionAll(EsRelation("index1")[local], EsRelation("view3")[remote1])}.
+     */
+    public void testNestedViewsInnermostShadowed() {
+        var mapping = LoadMapping.loadMapping("mapping-one-field.json");
+        EsIndex index1 = new EsIndex(
+            "index1",
+            mapping,
+            Map.of("index1", IndexMode.STANDARD, "remote1:index1", IndexMode.STANDARD),
+            Map.of("", List.of("index1"), "remote1", List.of("index1")),
+            Map.of("", List.of("index1"), "remote1", List.of("index1"))
+        );
+        EsIndex shadowView3 = new EsIndex(
+            "view3",
+            mapping,
+            Map.of("remote1:view3", IndexMode.STANDARD),
+            Map.of("remote1", List.of("view3")),
+            Map.of("remote1", List.of("view3"))
+        );
+        // Only view3 has a lenient-shadow resolution; view1 and view2 are absent.
+        var analyzer = analyzer().addIndex(index1).addLenientShadow(shadowView3).buildAnalyzer();
+
+        ViewUnionAll view3Vua = viewUnionAllOf("view3", strictUR("index1"), new ViewShadowRelation(EMPTY, "view3", List.of()));
+        ViewUnionAll view2Vua = viewUnionAllOf("view2", view3Vua, new ViewShadowRelation(EMPTY, "view2", List.of()));
+        ViewUnionAll view1Vua = viewUnionAllOf("view1", view2Vua, new ViewShadowRelation(EMPTY, "view1", List.of()));
+
+        LogicalPlan plan = analyzer.analyze(view1Vua);
+
+        // view3 shadow resolves → remote1 excluded from index1; view2 and view1 shadows dropped
+        // → both outer ViewUnionAlls collapse, surfacing the view3 ViewUnionAll at the top.
+        var limit = as(plan, Limit.class);
+        var unionAll = as(limit.child(), ViewUnionAll.class);
+        assertEquals("expected two branches: view3 body + view3 shadow", 2, unionAll.children().size());
+
+        EsRelation bodyRel = findRelByPattern(unionAll, "index1");
+        EsRelation shadowRel = findRelByPattern(unionAll, "view3");
+        assertNotNull("expected view3 body EsRelation for index1", bodyRel);
+        assertNotNull("expected view3 shadow EsRelation for view3", shadowRel);
+
+        assertFalse("remote1 must be excluded from index1 (view3 shadow covers it)", bodyRel.concreteIndices().containsKey("remote1"));
+        assertTrue("local cluster must remain in index1", bodyRel.concreteIndices().containsKey(""));
+        assertTrue("view3 shadow must retain remote1", shadowRel.concreteIndices().containsKey("remote1"));
+
+        assertWarnings(NO_LIMIT_WARNING);
+    }
+
     private static UnresolvedRelation strictUR(String pattern) {
         return new UnresolvedRelation(EMPTY, new IndexPattern(EMPTY, pattern), false, List.of(), IndexMode.STANDARD, null, "FROM");
+    }
+
+    /**
+     * Finds the first {@link EsRelation} whose {@link EsRelation#indexPattern()} equals
+     * {@code pattern} among the direct children of {@code unionAll}, unwrapping any
+     * analyzer-inserted {@link org.elasticsearch.xpack.esql.plan.logical.Project} wrapper.
+     * Returns {@code null} if no child matches.
+     */
+    private static EsRelation findRelByPattern(ViewUnionAll unionAll, String pattern) {
+        for (LogicalPlan child : unionAll.children()) {
+            LogicalPlan unwrapped = unwrapProject(child);
+            if (unwrapped instanceof EsRelation rel && pattern.equals(rel.indexPattern())) {
+                return rel;
+            }
+        }
+        return null;
     }
 
     /**

@@ -12,7 +12,6 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.AutomatonQuery;
-import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.PrefixQuery;
 import org.apache.lucene.search.Query;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.unit.Fuzziness;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.query.AutomatonQueryWithDescription;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.lucene.search.FuzzyQueries;
 import org.elasticsearch.lucene.search.cost.AutomatonQueryCostEstimator;
 
 import java.util.Map;
@@ -85,22 +85,16 @@ public abstract class StringFieldType extends TermBasedFieldType {
             );
         }
         failIfNotIndexed();
-        return rewriteMethod == null
-            ? new FuzzyQuery(
-                new Term(name(), indexedValueForSearch(value)),
-                fuzziness.asDistance(BytesRefs.toString(value)),
-                prefixLength,
-                maxExpansions,
-                transpositions
-            )
-            : new FuzzyQuery(
-                new Term(name(), indexedValueForSearch(value)),
-                fuzziness.asDistance(BytesRefs.toString(value)),
-                prefixLength,
-                maxExpansions,
-                transpositions,
-                rewriteMethod
-            );
+        return FuzzyQueries.create(
+            new Term(name(), indexedValueForSearch(value)),
+            fuzziness.asDistance(BytesRefs.toString(value)),
+            prefixLength,
+            maxExpansions,
+            transpositions,
+            rewriteMethod,
+            context,
+            name()
+        );
     }
 
     @Override

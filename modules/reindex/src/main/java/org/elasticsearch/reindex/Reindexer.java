@@ -56,6 +56,7 @@ import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.VersionType;
+import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.reindex.BulkByPaginatedSearchTask;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.PaginatedSearchFailure;
@@ -68,7 +69,7 @@ import org.elasticsearch.index.reindex.ResumeBulkByScrollResponse;
 import org.elasticsearch.index.reindex.ResumeInfo;
 import org.elasticsearch.index.reindex.ResumeReindexAction;
 import org.elasticsearch.index.reindex.TaskRelocatedException;
-import org.elasticsearch.index.reindex.WorkerBulkByScrollTaskState;
+import org.elasticsearch.index.reindex.WorkerBulkByPaginatedSearchTaskState;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.ShutdownPrepareService;
 import org.elasticsearch.reindex.remote.RemotePitPaginatedHitSource;
@@ -79,6 +80,8 @@ import org.elasticsearch.script.ReindexMetadata;
 import org.elasticsearch.script.ReindexScript;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -279,6 +282,7 @@ public class Reindexer {
                 Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
                 executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, null);
             } else {
+                normalizeRequestOnOpeningPit(request);
                 openPitAndExecute(task, request, bulkClient, responseListener);
             }
         }
@@ -338,6 +342,25 @@ public class Reindexer {
             remoteVersion,
             workerAction
         );
+    }
+
+    /// Performs normalization required on the `ReindexRequest` when using PIT.
+    private void normalizeRequestOnOpeningPit(ReindexRequest request) {
+        SearchSourceBuilder source = request.getSearchRequest().source();
+        // If we are performing a sliced operation and not sharing a PIT between slices, we have to disable some optimizations to guarantee
+        // consistency. This applies for manually sliced operations, when source.slice() is non-null on the request when we open the PIT.
+        // It does not apply for automatically sliced operations, which share a PIT: for the parent request, source.slice() will be null;
+        // for the children, we will not call this method because the PIT was already opened for the parent.
+        if (source != null && source.slice() != null) {
+            // If the user has not specified a slicing field, use _id (instead of Lucene ID, the default for PIT slicing) for ensure
+            // consistency if document updates occur between slices:
+            if (source.slice().getField() == null) {
+                source.slice(new SliceBuilder(IdFieldMapper.NAME, source.slice().getId(), source.slice().getMax()));
+            }
+            // We also have to disable slicing by shard to maintain slice consistency in the presence of resharding, which can cause
+            // the set of documents on a shard to change between slices when PIT is not shared.
+            source.slice(SliceBuilder.withoutShardOptimization(source.slice()));
+        }
     }
 
     /**
@@ -496,7 +519,7 @@ public class Reindexer {
         }, e -> {
             logger.warn("Failed to close remote PIT (rejected)", e);
             closeRestClientAndRun(restClient, () -> listener.onResponse(null));
-        }), threadPool, restClient);
+        }), threadPool, restClient, requestBreaker, reindexSettings.getMemoryAccountingThresholdInBytes());
     }
 
     /**
@@ -534,6 +557,7 @@ public class Reindexer {
                         Consumer<Version> workerActionWithClosePit = createWorkerAction(task, request, bulkClient, listenerWithClosePit);
                         executePaginatedSearch(task, request, listenerWithClosePit, workerActionWithClosePit, version);
                     } else {
+                        normalizeRequestOnOpeningPit(request);
                         openRemotePitAndExecute(task, request, bulkClient, listener, restClient, version);
                     }
                 }
@@ -559,7 +583,9 @@ public class Reindexer {
             exponentialBackoff(request.getRetryBackoffInitialTime(), request.getMaxRetries()),
             threadPool,
             restClient,
-            rejectAwareListener
+            rejectAwareListener,
+            requestBreaker,
+            reindexSettings.getMemoryAccountingThresholdInBytes()
         );
     }
 
@@ -593,7 +619,7 @@ public class Reindexer {
         },
             e -> closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e)),
             e -> closeRestClientAndRun(restClient, () -> listenerWithRelocations.onFailure(e))
-        ), threadPool, restClient);
+        ), threadPool, restClient, requestBreaker, reindexSettings.getMemoryAccountingThresholdInBytes());
     }
 
     /**
@@ -1041,7 +1067,9 @@ public class Reindexer {
                         remoteInfo,
                         searchRequest,
                         remoteVersion,
-                        searchContextKeepaliveDeadline
+                        searchContextKeepaliveDeadline,
+                        getCircuitBreaker(),
+                        reindexSettings.getMemoryAccountingThresholdInBytes()
                     );
                 }
                 return new RemoteScrollablePaginatedHitSource(
@@ -1055,7 +1083,9 @@ public class Reindexer {
                     remoteInfo,
                     searchRequest,
                     remoteVersion,
-                    searchContextKeepaliveDeadline
+                    searchContextKeepaliveDeadline,
+                    getCircuitBreaker(),
+                    reindexSettings.getMemoryAccountingThresholdInBytes()
                 );
             }
             return super.buildScrollableResultSource(backoffPolicy, searchRequest);
@@ -1194,7 +1224,7 @@ public class Reindexer {
             private ReindexScript.Factory reindex;
 
             ReindexScriptApplier(
-                WorkerBulkByScrollTaskState taskWorker,
+                WorkerBulkByPaginatedSearchTaskState taskWorker,
                 ScriptService scriptService,
                 Script script,
                 Map<String, Object> params,
@@ -1219,7 +1249,9 @@ public class Reindexer {
                         nowInMillisSupplier.getAsLong()
                     )
                 );
-                reindex.newInstance(params, ctxMap).execute();
+                ReindexScript instance = reindex.newInstance(params, ctxMap);
+                instance._setCancellationCheck(buildCancellationCheck());
+                instance.execute();
                 return ctxMap;
             }
 

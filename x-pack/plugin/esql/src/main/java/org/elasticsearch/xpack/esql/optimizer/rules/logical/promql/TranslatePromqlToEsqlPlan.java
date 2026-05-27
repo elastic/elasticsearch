@@ -932,25 +932,47 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             return Literal.fromBoolean(source, false);
         }
 
-        // Try to extract the exact match
-        String exactMatch = AutomatonUtils.matchesExact(matcher.automaton());
         Expression condition;
-        if (exactMatch != null) {
-            condition = new Equals(source, field, Literal.keyword(source, exactMatch));
-        } else {
-            // Try to extract disjoint patterns (handles mixed prefix/suffix/exact)
-            List<AutomatonUtils.PatternFragment> fragments = AutomatonUtils.extractFragments(matcher.value());
-            if (fragments != null && fragments.isEmpty() == false) {
-                condition = translateDisjointPatterns(source, field, fragments);
+
+        if (matcher.isMultiValue()) {
+            var expressions = new ArrayList<Expression>(matcher.values().size());
+            if (matcher.matcher().isRegex()) {
+                // Each value is a regex, combine with OR
+                for (var v : matcher.values()) {
+                    expressions.add(new RLike(source, field, new RLikePattern(v)));
+                }
+                condition = Predicates.combineOr(expressions);
             } else {
-                // Fallback to RLIKE with the full automaton pattern
-                // Note: We need to ensure the pattern is properly anchored for PromQL semantics
-                condition = new RLike(source, field, new RLikePattern(matcher.toString()));
+                // Each value is a plain literal, match exact with the IN clause
+                for (var v : matcher.values()) {
+                    expressions.add(Literal.keyword(source, v));
+                }
+                condition = new In(source, field, expressions);
             }
             if (matcher.isNegation()) {
                 condition = new Not(source, condition);
             }
+        } else {
+            // Single value exact match
+            var m = AutomatonUtils.matchesExact(matcher.automaton());
+            if (m != null) {
+                condition = new Equals(source, field, Literal.keyword(source, m));
+            } else {
+                // Try to extract disjoint patterns (handles mixed prefix/suffix/exact)
+                var fragments = AutomatonUtils.extractFragments(matcher.getFirstValue());
+                if (fragments != null && fragments.isEmpty() == false) {
+                    condition = translateDisjointPatterns(source, field, fragments);
+                } else {
+                    // Fallback to RLIKE with the full automaton pattern
+                    // Note: We need to ensure the pattern is properly anchored for PromQL semantics
+                    condition = new RLike(source, field, new RLikePattern(matcher.getFirstValue()));
+                }
+                if (matcher.isNegation()) {
+                    condition = new Not(source, condition);
+                }
+            }
         }
+
         // PromQL spec: absent labels are treated as having value "". If the matcher's automaton
         // accepts the empty string (e.g. {label=""} or {label!="foo"}), series where the label
         // field is NULL (absent) must also match.

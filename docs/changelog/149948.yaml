@@ -1,0 +1,6 @@
+area: ES|QL
+issues:
+  - 149838
+pr: 149948
+summary: Prevent StackOverflowError for deeply nested RLIKE patterns
+type: bug

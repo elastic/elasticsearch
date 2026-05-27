@@ -193,7 +193,7 @@ import org.elasticsearch.xpack.stateless.recovery.TransportRegisterCommitForReco
 import org.elasticsearch.xpack.stateless.recovery.TransportSendRecoveryCommitRegistrationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryRelocationAction;
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
-import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
+import org.elasticsearch.xpack.stateless.recovery.metering.StatelessRecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationIndexListener;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.SearchShardInformationMetricsCollector;
 import org.elasticsearch.xpack.stateless.recovery.shardinfo.TransportFetchSearchShardInformationAction;
@@ -498,7 +498,7 @@ public class StatelessPlugin extends Plugin
     private final SetOnce<RefreshManagerService> refreshManagerService = new SetOnce<>();
     private final SetOnce<HollowShardsService> hollowShardsService = new SetOnce<>();
     private final SetOnce<RecoveryCommitRegistrationHandler> recoveryCommitRegistrationHandler = new SetOnce<>();
-    private final SetOnce<RecoveryMetricsCollector> recoveryMetricsCollector = new SetOnce<>();
+    private final SetOnce<StatelessRecoveryMetricsCollector> recoveryMetricsCollector = new SetOnce<>();
     private final SetOnce<DocumentParsingProvider> documentParsingProvider = new SetOnce<>();
     private final SetOnce<BlobCacheMetrics> blobCacheMetrics = new SetOnce<>();
     private final SetOnce<IndicesService> indicesService = new SetOnce<>();
@@ -941,7 +941,7 @@ public class StatelessPlugin extends Plugin
                 new BlobStoreHealthIndicator(settings, clusterService, electionStrategy.get(), threadPool::relativeTimeInMillis).init()
             )
         );
-        components.add(setAndGet(recoveryMetricsCollector, new RecoveryMetricsCollector(services.telemetryProvider())));
+        components.add(setAndGet(recoveryMetricsCollector, new StatelessRecoveryMetricsCollector(services.telemetryProvider())));
         documentParsingProvider.set(services.documentParsingProvider());
         skipMerges.set(new ShouldSkipMerges(indicesService));
         if (hasMasterRole && USE_INDEX_REFRESH_BLOCK_SETTING.get(settings)) {
@@ -1553,13 +1553,8 @@ public class StatelessPlugin extends Plugin
                     false // translog is replicated to the object store, no need fsync that
                 );
 
-                var internalRefreshListeners = config.getInternalRefreshListener();
-                if (internalRefreshListeners == null) {
-                    internalRefreshListeners = List.of();
-                }
-
-                internalRefreshListeners = Stream.concat(
-                    internalRefreshListeners.stream(),
+                var internalRefreshListeners = Stream.concat(
+                    config.getInternalRefreshListener().stream(),
                     Stream.of(getUpdateMetricsRefreshListener(config))
                 ).toList();
 
@@ -1595,41 +1590,15 @@ public class StatelessPlugin extends Plugin
                     indexEngineDeletionPolicyCommitsListener = null;
                 }
 
-                EngineConfig newConfig = new EngineConfig(
-                    config.getShardId(),
-                    config.getThreadPool(),
-                    config.getThreadPoolMergeExecutorService(),
-                    config.getIndexSettings(),
-                    config.getWarmer(),
-                    config.getStore(),
-                    getMergePolicy(config),
-                    config.getAnalyzer(),
-                    config.getSimilarity(),
-                    getCodecProvider(config),
-                    config.getEventListener(),
-                    config.getQueryCache(),
-                    config.getQueryCachingPolicy(),
-                    newTranslogConfig,
-                    config.getFlushMergesAfter(),
-                    config.getExternalRefreshListener(),
-                    internalRefreshListeners,
-                    config.getIndexSort(),
-                    config.getCircuitBreakerService(),
-                    config.getGlobalCheckpointSupplier(),
-                    config.retentionLeasesSupplier(),
-                    config.getPrimaryTermSupplier(),
-                    config.getSnapshotCommitSupplier(),
-                    config.getLeafSorter(),
-                    config.getRelativeTimeInNanosSupplier(),
-                    config.getIndexCommitListener(),
-                    config.isPromotableToPrimary(),
-                    config.getMapperService(),
-                    config.getEngineResetLock(),
-                    config.getMergeMetrics(),
+                EngineConfig newConfig = EngineConfig.builder(config)
+                    .mergePolicy(getMergePolicy(config))
+                    .codecProvider(getCodecProvider(config))
+                    .translogConfig(newTranslogConfig)
+                    .internalRefreshListener(internalRefreshListeners)
                     // Here we pass an index deletion policy wrapper to the engine. This is the only way we have to pass the
                     // LocalCommitsRefs and the listener to the IndexWriter's policy, because the IndexWriter is created during
                     // InternalEngine construction, before IndexEngine class attributes are set.
-                    policy -> {
+                    .indexDeletionPolicyWrapper(policy -> {
                         if (hollowShardsEnabled) {
                             // If there is no default policy, we assume it is an hollow index engine
                             if (policy instanceof CombinedDeletionPolicy combinedDeletionPolicy) {
@@ -1645,8 +1614,8 @@ public class StatelessPlugin extends Plugin
                         } else {
                             return policy;
                         }
-                    }
-                );
+                    })
+                    .build();
 
                 final Engine engine = newHollowOrIndexEngine(indexSettings, newConfig);
 

@@ -134,6 +134,7 @@ toc:
                   - file: esql/commands/sort.md
                   - file: esql/commands/stats-by.md
                   - file: esql/commands/ts-info.md
+                  - file: esql/commands/ts_collapse.md
                   - file: esql/commands/user-agent.md
                   - file: esql/commands/uri-parts.md
                   - file: esql/commands/where.md
@@ -337,6 +338,7 @@ toc:
                   - file: esql/functions-operators/type-conversion-functions/to_boolean.md
                   - file: esql/functions-operators/type-conversion-functions/to_cartesianpoint.md
                   - file: esql/functions-operators/type-conversion-functions/to_cartesianshape.md
+                  - file: esql/functions-operators/type-conversion-functions/to_counter.md
                   - file: esql/functions-operators/type-conversion-functions/to_dateperiod.md
                   - file: esql/functions-operators/type-conversion-functions/to_datetime.md
                   - file: esql/functions-operators/type-conversion-functions/to_date_nanos.md

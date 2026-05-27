@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.datasource.gzip.GzipDecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.glob.GlobExpander;
+import org.elasticsearch.xpack.esql.datasources.spi.DecompressionCodec;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.ExternalSplit;
 import org.elasticsearch.xpack.esql.datasources.spi.FileList;
@@ -2316,7 +2317,7 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
         CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new StubSplittableCodec());
         byte[] payload = "{\"a\":1}\n".repeat(20).getBytes(StandardCharsets.UTF_8);
-        assertNull(factory.openWithParallelism(cdr, bytesStorageObject(payload), List.of("a"), ErrorPolicy.STRICT, false, true));
+        assertNull(factory.openWithParallelism(cdr, bytesStorageObject(payload), List.of("a"), ErrorPolicy.STRICT, false, true, null));
     }
 
     public void testOpenWithParallelismGzipCompressedReturnsIterator() throws IOException {
@@ -2337,13 +2338,41 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 List.of("a"),
                 ErrorPolicy.STRICT,
                 false,
-                true
+                true,
+                null
             );
             assertNotNull(iterator);
             iterator.close();
         } finally {
             exec.shutdownNow();
         }
+    }
+
+    /**
+     * Regression guard: if stream-only decompression fails after opening the raw object stream,
+     * cleanup must abort (not drain) the underlying connection.
+     */
+    public void testOpenWithParallelismGzipDecompressFailureAbortsRawStream() throws IOException {
+        AsyncExternalSourceOperatorFactory factory = factoryForOpenParallelismStreamingTests(
+            dummyFormatReaderForOpenParallelismTests(),
+            Runnable::run
+        );
+        SegmentableFormatReader inner = mockInnerForParallelDescribeAndOpen();
+        CompressionDelegatingFormatReader cdr = new CompressionDelegatingFormatReader(inner, new FailingStreamOnlyCodec());
+
+        byte[] plain = "{\"a\":1}\n".repeat(100).getBytes(StandardCharsets.UTF_8);
+        byte[] gzipped = gzipCompress(plain);
+
+        DrainSimulatingStorageObject.Tracking tracking = new DrainSimulatingStorageObject.Tracking();
+        StorageObject object = DrainSimulatingStorageObject.create(gzipped, tracking);
+
+        IOException thrown = expectThrows(
+            IOException.class,
+            () -> factory.openWithParallelism(cdr, object, List.of("a"), ErrorPolicy.STRICT, false, true, null)
+        );
+        assertEquals("decompress failed", thrown.getMessage());
+        assertTrue("raw stream must be aborted when decompression fails", tracking.aborted.get());
+        assertEquals("abortStream must be invoked exactly once", 1, tracking.abortCalls.get());
     }
 
     public void testOpenWithParallelismBareSegmentableReturnsIterator() throws IOException {
@@ -2362,7 +2391,8 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
                 List.of("a"),
                 ErrorPolicy.STRICT,
                 false,
-                true
+                true,
+                null
             );
             assertNotNull(iterator);
             iterator.close();
@@ -2398,6 +2428,26 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
         @Override
         public InputStream decompressRange(StorageObject object, long blockStart, long nextBlockStart) throws IOException {
             return new ByteArrayInputStream(new byte[0]);
+        }
+    }
+
+    /** Stream-only codec that fails during {@link #decompress(InputStream)} for abort-path tests. */
+    private static final class FailingStreamOnlyCodec implements DecompressionCodec {
+        private final GzipDecompressionCodec delegate = new GzipDecompressionCodec();
+
+        @Override
+        public String name() {
+            return delegate.name();
+        }
+
+        @Override
+        public List<String> extensions() {
+            return delegate.extensions();
+        }
+
+        @Override
+        public InputStream decompress(InputStream raw) throws IOException {
+            throw new IOException("decompress failed");
         }
     }
 
@@ -2524,6 +2574,54 @@ public class AsyncExternalSourceOperatorFactoryTests extends ESTestCase {
             gz.write(uncompressed);
         }
         return bos.toByteArray();
+    }
+
+    /**
+     * UBN: query projection includes a column missing from this file. The helper drops the
+     * missing name so the reader is only asked for columns the file actually has. Without
+     * this narrowing, CsvFormatReader.initProjection throws "Column not found".
+     */
+    public void testPerFileQueryProjectionDropsColumnsMissingFromFile() {
+        List<Attribute> fileSchema = List.of(attr("name", DataType.KEYWORD), attr("age", DataType.INTEGER));
+        List<String> queryProjection = List.of("name", "age", "city");
+        List<String> result = AsyncExternalSourceOperatorFactory.perFileQueryProjection(queryProjection, fileSchema);
+        assertEquals(List.of("name", "age"), result);
+    }
+
+    /**
+     * UBN: file's natural column order differs from the unified projection order. The helper
+     * preserves the file's natural order so the adapter's ColumnMapping (which indexes into
+     * the file's natural schema) lines up with the reader's output.
+     */
+    public void testPerFileQueryProjectionPreservesFileNaturalOrder() {
+        List<Attribute> fileSchema = List.of(attr("age", DataType.LONG), attr("name", DataType.KEYWORD), attr("city", DataType.KEYWORD));
+        List<String> queryProjection = List.of("name", "city");
+        List<String> result = AsyncExternalSourceOperatorFactory.perFileQueryProjection(queryProjection, fileSchema);
+        assertEquals(List.of("name", "city"), result);
+    }
+
+    /**
+     * Null read schema (no coordinator pin) is a pass-through: the helper returns the original
+     * projection unchanged so behavior matches the pre-UBN state.
+     */
+    public void testPerFileQueryProjectionPassesThroughWhenReadSchemaNull() {
+        List<String> queryProjection = List.of("a", "b", "c");
+        assertSame(queryProjection, AsyncExternalSourceOperatorFactory.perFileQueryProjection(queryProjection, null));
+    }
+
+    /**
+     * Identity case (every projected column is present in the file): the helper returns the
+     * projection ordered by the file's natural layout. Confirms FFW/STRICT behavior is unchanged.
+     */
+    public void testPerFileQueryProjectionIdentityWhenFileHasEveryProjectedColumn() {
+        List<Attribute> fileSchema = List.of(attr("name", DataType.KEYWORD), attr("age", DataType.LONG), attr("city", DataType.KEYWORD));
+        List<String> queryProjection = List.of("name", "age", "city");
+        List<String> result = AsyncExternalSourceOperatorFactory.perFileQueryProjection(queryProjection, fileSchema);
+        assertEquals(List.of("name", "age", "city"), result);
+    }
+
+    private static Attribute attr(String name, DataType type) {
+        return new FieldAttribute(Source.EMPTY, name, new EsField(name, type, Map.of(), true, EsField.TimeSeriesFieldType.NONE));
     }
 
     /**

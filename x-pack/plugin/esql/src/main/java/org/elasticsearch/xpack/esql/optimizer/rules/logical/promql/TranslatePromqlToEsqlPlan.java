@@ -139,13 +139,6 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
     // TODO make configurable via lookback_delta parameter and (cluster?) setting
     public static final Duration DEFAULT_LOOKBACK = Duration.ofMinutes(5);
 
-    /**
-     * Always {@code false}: collapsing is controlled through {@link org.elasticsearch.xpack.esql.plan.logical.TimeSeriesCollapse},
-     * not via {@link TimeSeriesAggregate}{@code #collapsed}.
-     * The flag is a leftover and will be removed from {@link TimeSeriesAggregate}.
-     */
-    private static final boolean TIME_SERIES_AGGREGATE_COLLAPSED = false;
-
     public TranslatePromqlToEsqlPlan() {
         super(OptimizerRules.TransformDirection.UP);
     }
@@ -456,13 +449,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             ctx.stepAttr(),
             ctx.optimizerContext().configuration()
         );
-        Expression function = PromqlFunctionRegistry.INSTANCE.buildEsqlFunction(
-            scalarFunction.functionName(),
-            scalarFunction.source(),
-            null,
-            promqlCtx,
-            List.of()
-        );
+        Expression function = scalarFunction.buildEsqlFunction(promqlCtx);
 
         return new TranslationResult(currentPlan, function);
     }
@@ -668,7 +655,7 @@ public final class TranslatePromqlToEsqlPlan extends OptimizerRules.Parameterize
             }
         }
 
-        return new TimeSeriesAggregate(source, plan, groupings, aggregates, null, command.timestamp(), TIME_SERIES_AGGREGATE_COLLAPSED);
+        return new TimeSeriesAggregate(source, plan, groupings, aggregates, null, command.timestamp());
     }
 
     private static boolean hasTSGrouping(List<Attribute> groupings) {

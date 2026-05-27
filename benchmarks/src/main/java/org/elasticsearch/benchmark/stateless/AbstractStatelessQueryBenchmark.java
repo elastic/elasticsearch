@@ -20,6 +20,7 @@ import org.apache.lucene.store.IOContext;
 import org.apache.lucene.store.IndexInput;
 import org.elasticsearch.benchmark.Utils;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.xpack.stateless.lucene.StatelessDirectoryFactory;
 import org.openjdk.jmh.annotations.AuxCounters;
@@ -94,9 +95,26 @@ public abstract class AbstractStatelessQueryBenchmark {
 
     @Setup(Level.Trial)
     public final void setupTrial() throws IOException {
-        dataPath = Files.createTempDirectory("stateless-bench-data");
+        String cacheKey = indexCacheKey();
+        if (cacheKey == null) {
+            dataPath = Files.createTempDirectory("stateless-bench-data");
+            buildIndexInto(dataPath);
+        } else {
+            dataPath = Path.of(System.getProperty("java.io.tmpdir"), "stateless-bench-index", cacheKey);
+            Files.createDirectories(dataPath);
+            Path marker = dataPath.resolve("_built");
+            if (Files.exists(marker) == false) {
+                buildIndexInto(dataPath);
+                Files.createFile(marker);
+            }
+        }
         workPath = Files.createTempDirectory("stateless-bench-work");
-        try (Directory d = FSDirectory.open(dataPath); IndexWriter w = new IndexWriter(d, indexWriterConfig())) {
+        prepareQuery();
+    }
+
+    private void buildIndexInto(Path path) throws IOException {
+        System.err.println("[stateless-bench] building index at " + path);
+        try (Directory d = FSDirectory.open(path); IndexWriter w = new IndexWriter(d, indexWriterConfig())) {
             buildIndex(w);
             w.commit();
         }
@@ -107,7 +125,7 @@ public abstract class AbstractStatelessQueryBenchmark {
         System.setProperty(StatelessDirectoryFactory.FIRST_BYTE_LATENCY_MS_PROP, Long.toString(firstByteLatencyMs));
         deleteRecursively(workPath);
         Files.createDirectories(workPath);
-        directory = StatelessDirectoryFactory.create(dataPath, workPath);
+        directory = StatelessDirectoryFactory.create(dataPath, workPath, extraNodeSettings());
         if (cacheState == CacheState.HOT) {
             preWarm(directory);
         }
@@ -124,7 +142,9 @@ public abstract class AbstractStatelessQueryBenchmark {
 
     @TearDown(Level.Trial)
     public final void tearDownTrial() throws IOException {
-        deleteRecursively(dataPath);
+        if (indexCacheKey() == null) {
+            deleteRecursively(dataPath);
+        }
         deleteRecursively(workPath);
     }
 
@@ -145,11 +165,33 @@ public abstract class AbstractStatelessQueryBenchmark {
     /** Subclass hook: the {@link IndexWriterConfig} (codec, merge policy) used to build the index. */
     protected abstract IndexWriterConfig indexWriterConfig();
 
-    /** Subclass hook: write documents into the index. Called once per trial. */
+    /** Subclass hook: write documents into the index. Called once per trial (skipped when a cached index is reused). */
     protected abstract void buildIndex(IndexWriter writer) throws IOException;
 
     /** Subclass hook: execute the query. Returns a value that JMH can consume to prevent dead-code elimination. */
     protected abstract Object runQuery(IndexSearcher searcher) throws IOException;
+
+    /**
+     * Subclass hook: stable identifier for the index built by {@link #buildIndex(IndexWriter)} given the current
+     * {@code @Param} values. When non-null, the index is built on-disk at a stable location and reused across trials
+     * whose params produce the same key (e.g. cold vs. hot for the same {@code dims}/{@code numDocs}). Return null
+     * to keep the default behavior of building a fresh index per trial.
+     */
+    protected String indexCacheKey() {
+        return null;
+    }
+
+    /** Subclass hook: populate query-side state. Runs once per trial, after the (possibly cached) index is ready. */
+    protected void prepareQuery() throws IOException {}
+
+    /**
+     * Subclass hook: extra node settings to merge into the simulated directory's configuration on every invocation.
+     * Caller-supplied keys override the factory defaults. Sample use is to set {@code node.roles}, for example to
+     * {@code search} when the benchmark needs to exercise code paths gated on {@code hasSearchRole}.
+     */
+    protected Settings extraNodeSettings() {
+        return Settings.EMPTY;
+    }
 
     private static void preWarm(Directory dir) throws IOException {
         byte[] buf = new byte[64 * 1024];

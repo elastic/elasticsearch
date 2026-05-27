@@ -543,6 +543,7 @@ public final class DocumentParser {
 
     private static void parseObject(final DocumentParserContext context, String currentFieldName) throws IOException {
         assert currentFieldName != null;
+        var prev = context.getImmediateXContentParent();
         context.setImmediateXContentParent(context.parser().currentToken());
         Mapper objectMapper = context.getMapper(currentFieldName);
         if (objectMapper != null) {
@@ -550,6 +551,7 @@ public final class DocumentParser {
         } else {
             parseObjectDynamic(context, currentFieldName);
         }
+        context.setImmediateXContentParent(prev);
     }
 
     private static void doParseObject(DocumentParserContext context, String currentFieldName, Mapper objectMapper) throws IOException {

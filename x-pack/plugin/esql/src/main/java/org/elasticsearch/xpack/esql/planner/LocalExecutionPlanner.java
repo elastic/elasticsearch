@@ -1710,6 +1710,7 @@ public class LocalExecutionPlanner {
             .partitionColumnNames(virtualColumnNames)
             .sliceQueue(sliceQueue)
             .parsingParallelism(context.queryPragmas().parsingParallelism())
+            .maxRecordBytes(Math.toIntExact(context.queryPragmas().maxRecordSize().getBytes()))
             .parallelism(instanceCount)
             .build();
 

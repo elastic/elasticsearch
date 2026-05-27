@@ -12,6 +12,18 @@ package org.elasticsearch.indices.recovery;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 
 public interface RecoveryListener {
+    RecoveryListener NOOP = new RecoveryListener() {
+        @Override
+        public void onRecoveryDone(
+            RecoveryState state,
+            ShardLongFieldRange timestampMillisFieldRange,
+            ShardLongFieldRange eventIngestedMillisFieldRange
+        ) {}
+
+        @Override
+        public void onRecoveryFailure(RecoveryFailedException e, boolean sendShardFailure) {}
+    };
+
     /**
      * Called when recovery finishes successfully.
      */

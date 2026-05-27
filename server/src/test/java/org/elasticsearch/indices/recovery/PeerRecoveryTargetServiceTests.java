@@ -712,7 +712,7 @@ public class PeerRecoveryTargetServiceTests extends IndexShardTestCase {
         recoveryStateIndex.addFileDetail(storeFileMetadata.name(), storeFileMetadata.length(), false);
         recoveryStateIndex.setFileDetailsComplete();
 
-        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, 0L, snapshotFilesProvider, () -> {}, null);
+        RecoveryTarget recoveryTarget = new RecoveryTarget(shard, null, 0L, snapshotFilesProvider, () -> {}, RecoveryListener.NOOP);
 
         String repository = "repo";
         IndexId indexId = new IndexId("index", "uuid");

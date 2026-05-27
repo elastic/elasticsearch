@@ -24,9 +24,13 @@ This page covers remote clusters and {{ccs}}, which are not available in {{serve
 * {{esql}} {{ccs}} is not supported in {{serverless-short}}.
 * For full {{ccs}} capabilities, the local and remote clusters must be on the same [subscription level](https://www.elastic.co/subscriptions).
 * The local coordinating node must have the [`remote_cluster_client`](docs-content://deploy-manage/distributed-architecture/clusters-nodes-shards/node-roles.md#remote-node) node role.
-* The remote clusters must be connected using **API key authentication**. For setup instructions across all deployment types, refer to [Add remote clusters using API key authentication](docs-content://deploy-manage/remote-clusters/remote-clusters-api-key.md).
-  
-  To verify which security model is in use, run `GET _remote/info`. With API key authentication, the response includes a `"cluster_credentials"` key.
+* [Remote clusters](docs-content://deploy-manage/remote-clusters.md) must be configured before running {{esql}} across clusters.
+
+    The destination cluster must be configured as a remote cluster on the local cluster, and the remote cluster connection must be correctly established. For setup instructions, refer to [Set up remote clusters](docs-content://deploy-manage/remote-clusters.md#setup).
+
+* {{esql}} across clusters requires the remote cluster connection to use the [API key-based security model](docs-content://deploy-manage/remote-clusters/security-models.md#api-key).
+
+    To verify which security model is active, run `GET _remote/info`. When API key authentication is in use, the response includes `"cluster_credentials"`.
 * For supported version pairings, see [Supported {{ccs}} configurations](docs-content://explore-analyze/cross-cluster-search.md#ccs-supported-configurations).
 
 
@@ -82,7 +86,9 @@ POST /_security/user/remote_user
 }
 ```
 
-All cross-cluster requests from the local cluster are bound by the cross-cluster API key’s privileges, which are controlled by the remote cluster’s administrator.
+::::{note}
+All cross-cluster requests from the local cluster are bound by the cross-cluster API key's privileges, which are controlled by the remote cluster's administrator. Local roles can only further reduce these permissions; they cannot increase access beyond what the API key allows.
+::::
 
 ## Query across multiple clusters [ccq-from]
 

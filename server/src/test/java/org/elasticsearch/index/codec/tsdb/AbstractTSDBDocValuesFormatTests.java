@@ -2464,10 +2464,16 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             }
         }
     }
-
+    
     public void testRangeQueryNoFalsePositiveAtLastDoc() throws IOException {
         final String field = "dense_value";
-        final int numDocs = 4097; // DenseConjunctionBulkScorer.WINDOW_SIZE + 1
+        // numDocs > DenseConjunctionBulkScorer.WINDOW_SIZE (4096) so that a second window starts
+        // exactly at doc 4096 — the position where the intoBitSet bug leaves iterDoc after the
+        // first window. Using indexedField gives a RANGE skip index so tryRangeIterator uses the
+        // skipper path, whose docIDRunEnd can claim a large run and trigger collectRange.
+        // Almost all docs match so that cost >= maxDoc / DENSITY_THRESHOLD_INVERSE (= maxDoc/32),
+        // which is required for DenseConjunctionBulkScorer to be selected at all.
+        final int numDocs = 4097;
         final long matchValue = 42L;
         final long otherValue = 99L;
 
@@ -2475,8 +2481,8 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
             for (int i = 0; i < numDocs; i++) {
                 var d = new Document();
-                // Doc 1 is the sole match; position 1 is not a block boundary.
-                d.add(new SortedNumericDocValuesField(field, i == 1 ? matchValue : otherValue));
+                // Doc at the window boundary (4096) is the sole non-match.
+                d.add(SortedNumericDocValuesField.indexedField(field, i == 4096 ? otherValue : matchValue));
                 iw.addDocument(d);
             }
             iw.forceMerge(1);

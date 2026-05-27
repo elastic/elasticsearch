@@ -93,7 +93,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     }
 
     @Override
-    public void start(Model model, TimeValue timeout, ActionListener<Boolean> finalListener) {
+    public void start(Model model, TimeValue timeout, ActionListener<Void> finalListener) {
         if (model instanceof ElasticsearchInternalModel esModel) {
             if (supportedTaskTypes().contains(model.getTaskType()) == false) {
                 finalListener.onFailure(
@@ -104,7 +104,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
 
             if (esModel.usesExistingDeployment()) {
                 // don't start a deployment
-                finalListener.onResponse(Boolean.TRUE);
+                finalListener.onResponse(null);
                 return;
             }
 
@@ -131,7 +131,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                     .withSuccess()
                     .withProductContext(productContext)
                     .record(timer.elapsedMillis());
-                finalListener.onResponse(started);
+                finalListener.onResponse(null);
             }, e -> {
                 if (e instanceof ElasticsearchTimeoutException) {
                     var timeoutException = new ModelDeploymentTimeoutException(

@@ -16,6 +16,8 @@ import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.network.InetAddresses;
+import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.DateFormatters;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockUtils;
@@ -49,16 +51,19 @@ import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.Reader;
 import java.nio.charset.Charset;
+import java.time.DateTimeException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
+import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.BitSet;
@@ -162,6 +167,109 @@ public class CsvFormatReader implements SegmentableFormatReader {
 
     /** Sentinel passed to {@link CsvBatchIterator#onRowError} when the offending row could not be tokenised. */
     private static final String[] EMPTY_ROW = new String[0];
+
+    /**
+     * Reused {@link DateFormatter} that delegates to ES's hand-rolled
+     * {@code Iso8601DateTimeParser}: covers the {@code YYYY-MM-DDTHH:MM:SS[.fff][Z|+HH:MM]} family
+     * (plus date-only inputs like {@code YYYY-MM-DD}) without the {@link DateTimeFormatter}
+     * {@code Parsed} HashMap allocation and copy that dominates {@code tryParseDatetime} on
+     * datetime-heavy queries. Space-separated {@code YYYY-MM-DD HH:MM:SS} inputs are NOT
+     * accepted by this parser and are handled separately by
+     * {@link #tryParseSpaceSeparatedDatetimeMillis(String)}.
+     * <p>
+     * Note: deliberately not chained with {@code .withZone(UTC)} (unlike
+     * {@code DateUtils.UTC_DATE_TIME_FORMATTER}). The downstream {@code DateFormatters.from} call
+     * already defaults to {@link ZoneOffset#UTC} when the parsed accessor carries no zone, so the
+     * extra {@code withZone} call would only allocate a second {@link DateFormatter} for no
+     * behavioural difference on this hot path.
+     */
+    private static final DateFormatter ISO_DATETIME_FAST_FORMATTER = DateFormatter.forPattern("strict_date_optional_time");
+
+    /**
+     * Sentinel returned by {@link #tryParseSpaceSeparatedDatetimeMillis(String)} when the input
+     * does not match the supported space-separated template. {@link Long#MIN_VALUE} is chosen
+     * because it cannot be produced by a legal {@code YYYY-MM-DD HH:MM:SS} value (the
+     * {@link LocalDateTime} range tops out billions of years before that millisecond).
+     */
+    static final long FAST_PATH_MISS = Long.MIN_VALUE;
+
+    /**
+     * Hand-rolled fast parser for {@code YYYY-MM-DD HH:MM:SS} (length 19) and
+     * {@code YYYY-MM-DD HH:MM:SS.fff} (length 23). Returns the epoch millisecond value, or
+     * {@link #FAST_PATH_MISS} if {@code value} does not match the supported template (caller
+     * then falls through to the general-purpose parser).
+     * <p>
+     * This is the documented hot path on datetime-heavy queries that filter, sort or group by
+     * a space-separated DATETIME column: the JDK {@link DateTimeFormatter} builds a {@code Parsed}
+     * intermediate (HashMap keyed by {@code TemporalField}) and copies it during resolve,
+     * accounting for ~16% of CPU on profiled CSV scans even though the input is fixed-width and
+     * can be parsed in a constant number of digit comparisons.
+     * <p>
+     * Only inputs that yield the same epoch milliseconds as
+     * {@link DateUtils#asDateTime(String)} are accepted; any rejected input still goes through
+     * the original parser, preserving the existing surface contract.
+     */
+    static long tryParseSpaceSeparatedDatetimeMillis(String value) {
+        int len = value.length();
+        if (len != 19 && len != 23) {
+            return FAST_PATH_MISS;
+        }
+        if (value.charAt(4) != '-'
+            || value.charAt(7) != '-'
+            || value.charAt(10) != ' '
+            || value.charAt(13) != ':'
+            || value.charAt(16) != ':') {
+            return FAST_PATH_MISS;
+        }
+        int year = parseFixedDigits(value, 0, 4);
+        int month = parseFixedDigits(value, 5, 2);
+        int day = parseFixedDigits(value, 8, 2);
+        int hour = parseFixedDigits(value, 11, 2);
+        int minute = parseFixedDigits(value, 14, 2);
+        int second = parseFixedDigits(value, 17, 2);
+        if ((year | month | day | hour | minute | second) < 0) {
+            return FAST_PATH_MISS;
+        }
+        int millis = 0;
+        if (len == 23) {
+            if (value.charAt(19) != '.') {
+                return FAST_PATH_MISS;
+            }
+            millis = parseFixedDigits(value, 20, 3);
+            if (millis < 0) {
+                return FAST_PATH_MISS;
+            }
+        }
+        // LocalDateTime.of validates calendar bounds (month 1..12, day-of-month per month, leap
+        // years etc.). Trapping the DateTimeException here keeps the fast path side-effect-free on
+        // invalid dates: the caller falls through to the general-purpose Stage 3 parser, which
+        // preserves the existing DateUtils.asDateTime semantics (including the user-facing
+        // "Failed to parse" error message it produces for genuinely invalid inputs).
+        try {
+            LocalDateTime ldt = LocalDateTime.of(year, month, day, hour, minute, second);
+            return ldt.toInstant(ZoneOffset.UTC).toEpochMilli() + millis;
+        } catch (DateTimeException e) {
+            return FAST_PATH_MISS;
+        }
+    }
+
+    /**
+     * Parses {@code count} consecutive ASCII decimal digits starting at {@code offset} and
+     * returns the integer value, or {@code -1} if any character is outside {@code '0'..'9'}.
+     * Used by the datetime fast path so a non-digit triggers a fall-through instead of an
+     * exception.
+     */
+    private static int parseFixedDigits(String value, int offset, int count) {
+        int result = 0;
+        for (int i = 0; i < count; i++) {
+            char c = value.charAt(offset + i);
+            if (c < '0' || c > '9') {
+                return -1;
+            }
+            result = result * 10 + (c - '0');
+        }
+        return result;
+    }
 
     static final String CONFIG_DELIMITER = "delimiter";
     static final String CONFIG_QUOTE = "quote";
@@ -449,10 +557,15 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     private List<Attribute> readSchema(StorageObject object) throws IOException {
-        try (
-            InputStream stream = object.newStream();
-            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE)
-        ) {
+        InputStream stream = object.newStream();
+        // Abort rather than close: providers like S3 drain remaining bytes on close() to reuse
+        // the connection. We read only the schema prefix of what may be a multi-GB file, so
+        // draining would block for the full object transfer time. Schema results are cached,
+        // so discarding the connection here is acceptable. The abort is wrapped in a Closeable
+        // so try-with-resources attaches any abort-time error as a suppressed exception on the
+        // primary failure rather than replacing it.
+        try (Closeable abortOnExit = () -> object.abortStream(stream)) {
+            BufferedReader reader = new BufferedReader(new InputStreamReader(stream, options.encoding()), READER_BUFFER_SIZE);
             if (options.headerRow() == false) {
                 return inferSchemaWithSyntheticNames(reader);
             }
@@ -849,11 +962,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
-     * Quoting contract mirrors {@link #findNextRecordBoundaryQuotedFieldsOnly}: {@code quoteChar}
-     * toggles {@code inQuotes}, doubled quote is a literal, {@code \n} outside quotes terminates.
-     * An unpaired opening quote leaves {@code inQuotes == true} for the rest of the buffer, so
-     * any {@code \n} inside the unterminated tail is skipped and the returned offset stays before
-     * the open region — the open-tail rule the segmentator's grow loop requires.
+     * Quoting rule mirrors the tokenizer {@link #readCsvRecord}: a {@code quoteChar} opens a quoted field
+     * only at field start (after an unquoted {@code delimiter} or {@code \n}, optionally past field-leading
+     * whitespace); a mid-field {@code quoteChar} is a literal and does not toggle quote state.
+     * <p>
+     * Best-effort/open-tail contract: the scan assumes the buffer begins at a record boundary and advances
+     * {@code lastBoundary} only on a true unquoted {@code \n}. So a chunk the segmentator cut mid-record
+     * yields no boundary inside that leading partial, and a genuinely unterminated quoted field keeps
+     * {@code inQuotes == true} so its trailing {@code \n}s are skipped — the rule the grow loop requires.
      */
     private int findLastRecordBoundaryQuotedFieldsOnly(byte[] buf, int length) {
         if (length <= 0) {
@@ -861,22 +977,32 @@ public class CsvFormatReader implements SegmentableFormatReader {
         }
         int lastBoundary = -1;
         boolean inQuotes = false;
+        boolean fieldHasNonWhitespace = false;
         byte quoteAsByte = (byte) options.quoteChar();
+        byte delimAsByte = (byte) options.delimiter();
         for (int i = 0; i < length; i++) {
             byte b = buf[i];
-            if (b == quoteAsByte) {
-                if (inQuotes) {
+            if (inQuotes) {
+                if (b == quoteAsByte) {
                     if (i + 1 < length && buf[i + 1] == quoteAsByte) {
                         // Doubled quote inside a quoted field — RFC 4180 literal, stay in quotes.
                         i++;
                     } else {
                         inQuotes = false;
                     }
-                } else {
-                    inQuotes = true;
                 }
-            } else if (b == '\n' && inQuotes == false) {
+                continue;
+            }
+            if (b == '\n') {
+                // only true unquoted '\n's advance the boundary (see open-tail contract above)
                 lastBoundary = i;
+                fieldHasNonWhitespace = false;
+            } else if (b == delimAsByte) {
+                fieldHasNonWhitespace = false;
+            } else if (b == quoteAsByte && fieldHasNonWhitespace == false) {
+                inQuotes = true;
+            } else if (isAsciiCsvFieldLeadingWhitespace(b & 0xff) == false) {
+                fieldHasNonWhitespace = true;
             }
         }
         return lastBoundary;
@@ -1002,16 +1128,32 @@ public class CsvFormatReader implements SegmentableFormatReader {
     }
 
     /**
+     * Returns the next byte without consuming it (or {@code -1} at EOF). Encapsulates the single-byte
+     * {@code mark}/{@code read}/{@code reset} so callers cannot invalidate the mark with a second read.
+     */
+    private static int peekByte(BufferedInputStream bis) throws IOException {
+        bis.mark(1);
+        int b = bis.read();
+        bis.reset();
+        return b;
+    }
+
+    /**
      * Per-byte scan over a {@link BufferedInputStream} — no per-call bulk read buffer is allocated;
      * an existing {@link BufferedInputStream} input is reused, otherwise the stream is wrapped once.
-     * Mirrors the structure of {@link #findNextRecordBoundaryBracketCommaMvc} for the no-bracket-MVC
-     * quoting contract.
+     * Applies the same field-start quoting rule as the actual tokenizer {@link #readCsvRecord} and as
+     * {@link #findNextRecordBoundaryBracketCommaMvc}: a {@code quoteChar} opens a quoted field only at
+     * field start (optionally after field-leading whitespace); a mid-field {@code quoteChar} is a
+     * literal and does not toggle quote state. Returns the byte count up to and including the first
+     * record-terminating {@code \n} that is outside a quoted field, or {@code -1} at EOF.
      */
     private long findNextRecordBoundaryQuotedFieldsOnly(InputStream stream) throws IOException {
         BufferedInputStream bis = stream instanceof BufferedInputStream b ? b : new BufferedInputStream(stream);
         long consumed = 0;
         boolean inQuotes = false;
+        boolean fieldHasNonWhitespace = false;
         byte quoteAsByte = (byte) options.quoteChar();
+        byte delimAsByte = (byte) options.delimiter();
         while (true) {
             int ib = bis.read();
             if (ib == -1) {
@@ -1019,26 +1161,28 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
             consumed++;
             byte b = (byte) ib;
-            if (b == quoteAsByte) {
-                if (inQuotes) {
-                    int next = bis.read();
-                    if (next == -1) {
-                        return -1;
-                    }
-                    consumed++;
-                    if ((byte) next == quoteAsByte) {
-                        // Doubled quote inside a quoted field — RFC 4180 literal, stay in quotes.
+            if (inQuotes) {
+                if (b == quoteAsByte) {
+                    // A doubled "" is a literal (stay in quotes); a lone " closes the field. peekByte
+                    // leaves the non-doubled byte in the stream to be re-read by the next iteration.
+                    if ((byte) peekByte(bis) == quoteAsByte) {
+                        bis.read(); // consume the second quote of the doubled pair
+                        consumed++;
                         continue;
                     }
                     inQuotes = false;
-                    if (next == '\n') {
-                        return consumed;
-                    }
-                } else {
-                    inQuotes = true;
                 }
-            } else if (b == '\n' && inQuotes == false) {
+                continue;
+            }
+            if (b == '\n') {
                 return consumed;
+            }
+            if (b == delimAsByte) {
+                fieldHasNonWhitespace = false;
+            } else if (b == quoteAsByte && fieldHasNonWhitespace == false) {
+                inQuotes = true;
+            } else if (isAsciiCsvFieldLeadingWhitespace(ib & 0xff) == false) {
+                fieldHasNonWhitespace = true;
             }
         }
     }
@@ -1459,12 +1603,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
         }
         if (inQuotes) {
-            throw new MalformedRowException("Unclosed quoted field in line [" + CsvErrorMessages.summarizeAround(line, quoteOpenAt) + "]");
+            throw MalformedRowException.unclosedQuotedField(line, quoteOpenAt);
         }
         if (bracketDepth > 0) {
-            throw new MalformedRowException(
-                "Unclosed bracket cell in line [" + CsvErrorMessages.summarizeAround(line, bracketOpenAt) + "]"
-            );
+            throw MalformedRowException.unclosedBracketCell(line, bracketOpenAt);
         }
         if (current.length() > 0) {
             entries.add(emitField(current));
@@ -1974,6 +2116,11 @@ public class CsvFormatReader implements SegmentableFormatReader {
             StringBuilder current = new StringBuilder();
             boolean inQuotes = false;
             int bracketDepth = 0;
+            // Remember where the parser entered the unclosed state so error messages can anchor on
+            // the actual fault site instead of head/tail-truncating a long line and hiding it.
+            // Mirrors the offset tracking in splitCommaDelimiterBracketAwareFields.
+            int quoteOpenAt = -1;
+            int bracketOpenAt = -1;
             int fieldIndex = 0;
             boolean fieldHasNonWhitespace = false;
             boolean trailingFieldHasContent = false;
@@ -2025,12 +2172,14 @@ public class CsvFormatReader implements SegmentableFormatReader {
                 } else if (c == quote && fieldHasNonWhitespace == false) {
                     trailingFieldHasContent = true;
                     inQuotes = true;
+                    quoteOpenAt = i;
                     numericValid = false;
                     i++;
                 } else if (c == '[' && fieldHasNonWhitespace == false) {
                     trailingFieldHasContent = true;
                     if (hasMvcBracketClose(line, i)) {
                         bracketDepth = 1;
+                        bracketOpenAt = i;
                     }
                     if (isProjected) current.append(c);
                     numericValid = false;
@@ -2096,10 +2245,10 @@ public class CsvFormatReader implements SegmentableFormatReader {
             }
 
             if (inQuotes) {
-                throw new MalformedRowException("Unclosed quoted field in line [" + CsvErrorMessages.summarize(line) + "]");
+                throw MalformedRowException.unclosedQuotedField(line, quoteOpenAt);
             }
             if (bracketDepth > 0) {
-                throw new MalformedRowException("Unclosed bracket cell in line [" + CsvErrorMessages.summarize(line) + "]");
+                throw MalformedRowException.unclosedBracketCell(line, bracketOpenAt);
             }
 
             int totalFields = trailingFieldHasContent ? fieldIndex + 1 : fieldIndex;
@@ -2366,7 +2515,33 @@ public class CsvFormatReader implements SegmentableFormatReader {
                     return null;
                 }
             }
-            // Handles ISO-8601 with zone, zone-less timestamps, date-only, and whitespace-separated date-times
+            // Stage 1: ES's hand-rolled ISO-8601 parser (T-separator, date-only, zones, fractions)
+            // avoids the DateTimeFormatter Parsed-HashMap allocation that dominates DateUtils.asDateTime.
+            // tryParse returns null on mismatch so we don't pay an exception per missed input.
+            // Iso8601Parser only checks loose bounds (month <= 12, day <= 31) and defers month-length
+            // validation to LocalDate.of(...) inside DateFormatters.from(...). That call can throw two
+            // distinct unchecked exceptions: a DateTimeException for calendar-invalid inputs like
+            // 2021-02-30T10:00:00, and an IllegalArgumentException for the fallthrough branch in
+            // DateFormatters.from when the parsed accessor cannot be converted to a zoned date-time.
+            // Catch both and fall through so the slow Stage 3 path handles the input instead of
+            // propagating an uncaught exception and aborting the batch.
+            TemporalAccessor parsed = ISO_DATETIME_FAST_FORMATTER.tryParse(value);
+            if (parsed != null) {
+                try {
+                    return DateFormatters.from(parsed).toInstant().toEpochMilli();
+                } catch (DateTimeException | IllegalArgumentException e) {
+                    // fall through to Stage 2 / 3
+                }
+            }
+            // Stage 2: hot path for `YYYY-MM-DD HH:MM:SS[.fff]` (space-separated, no zone), which the
+            // ISO parser does not accept. Returns FAST_PATH_MISS on any mismatch.
+            long spaceMillis = tryParseSpaceSeparatedDatetimeMillis(value);
+            if (spaceMillis != FAST_PATH_MISS) {
+                return spaceMillis;
+            }
+            // Stage 3: full DateUtils.asDateTime fallback for the long tail (space-separated with zone,
+            // lowercase `t`, non-millisecond fractional precision, etc.). Same exception-based path as
+            // before — only reached when neither fast path matched.
             try {
                 return DateUtils.asDateTime(value).toInstant().toEpochMilli();
             } catch (DateTimeParseException e) {

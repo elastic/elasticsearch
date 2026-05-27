@@ -22,9 +22,9 @@ import java.util.Set;
 
 /**
  * Pushes {@link PotentiallyUnmappedKeywordEsField} attributes down into {@link EsRelation} outputs so block
- * loaders know to fetch from {@code _source}. Only PUKs not yet declared in any {@link EsRelation} output
+ * loaders know to fetch from {@code _source}. Only those not yet declared in any {@link EsRelation} output
  * are propagated — the gate is structural, not command-specific, so any future feature that introduces
- * above-relation PUKs is handled automatically. Today that is only {@code INSIST}.
+ * them above a relation is handled automatically. Today that is only {@code INSIST}.
  * <p>
  * N.B. When INSIST is sunset, this rule can be removed.
  */
@@ -34,14 +34,11 @@ public class PropagateUnmappedFields extends Rule<LogicalPlan, LogicalPlan> {
         if (logicalPlan instanceof EsRelation) {
             return logicalPlan;
         }
-        var fields = collectUnpropagatedPuks(logicalPlan);
-        if (fields.isEmpty()) {
-            return logicalPlan;
-        }
-        return logicalPlan.transformUp(EsRelation.class, er -> er.withAddedFields(fields));
+        var fields = collectAttributesToPropagate(logicalPlan);
+        return fields.isEmpty() ? logicalPlan : logicalPlan.transformUp(EsRelation.class, er -> er.withAddedFields(fields));
     }
 
-    private static List<Attribute> collectUnpropagatedPuks(LogicalPlan plan) {
+    private static List<Attribute> collectAttributesToPropagate(LogicalPlan plan) {
         Set<String> alreadyPropagated = new HashSet<>();
         plan.forEachDown(EsRelation.class, er -> {
             for (Attribute a : er.output()) {

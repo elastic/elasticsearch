@@ -1255,14 +1255,17 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, String side) {
             List<Attribute> resolved = new ArrayList<>(cols.size());
             for (Attribute col : cols) {
-                var ua = (UnresolvedAttribute) col;
-                Attribute resolvedField = maybeResolveAttribute(ua, output);
-                if (resolvedField instanceof UnresolvedAttribute ucol) {
-                    String message = ua.unresolvedMessage();
-                    String match = "column [" + ucol.name() + "]";
-                    resolvedField = ucol.withUnresolvedMessage(message.replace(match, match + " in " + side + " side of join"));
+                if (col instanceof UnresolvedAttribute ua) {
+                    Attribute resolvedField = maybeResolveAttribute(ua, output);
+                    if (resolvedField instanceof UnresolvedAttribute ucol) {
+                        String message = ua.unresolvedMessage();
+                        String match = "column [" + ucol.name() + "]";
+                        resolvedField = ucol.withUnresolvedMessage(message.replace(match, match + " in " + side + " side of join"));
+                    }
+                    resolved.add(resolvedField);
+                } else {
+                    resolved.add(col);
                 }
-                resolved.add(resolvedField);
             }
             return resolved;
         }

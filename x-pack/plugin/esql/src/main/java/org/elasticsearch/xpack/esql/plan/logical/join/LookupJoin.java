@@ -71,10 +71,7 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan, TelemetryA
         Set<String> leftOutputNames = new HashSet<>(Expressions.names(left().output()));
         Set<String> allOutputNames = new HashSet<>(leftOutputNames);
         allOutputNames.addAll(Expressions.names(right().output()));
-        return name -> {
-            if (leftKeyNames.contains(name)) return leftOutputNames.contains(name);
-            return allOutputNames.contains(name);
-        };
+        return name -> leftKeyNames.contains(name) ? leftOutputNames.contains(name) : allOutputNames.contains(name);
     }
 
     /**

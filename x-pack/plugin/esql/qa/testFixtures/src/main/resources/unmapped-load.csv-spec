@@ -100,7 +100,6 @@ FROM partial_mapping_sample_data
 ;
 
 loadLookupJoin_mappedKeyViaEval
-required_capability: optional_fields_v5
 required_capability: optional_fields_load_with_lookup_join
 
 SET unmapped_fields="load"\;
@@ -118,10 +117,9 @@ FROM partial_mapping_sample_data
 ;
 
 loadLookupJoin_unmappedKeyMatchesKeywordLookup
-required_capability: optional_fields_v5
 required_capability: optional_fields_load_with_lookup_join
 
-// language_code is unmapped in primary; load() adds it as KEYWORD from _source; types match in lookup
+// In load mode, language_code (unmapped in primary) is read from _source as keyword and matches the lookup key.
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
 | LOOKUP JOIN keyword_languages_lookup ON language_code
@@ -137,10 +135,9 @@ FROM partial_mapping_sample_data
 ;
 
 loadLookupJoin_keepBeforeJoin_unmappedKey
-required_capability: optional_fields_v5
 required_capability: optional_fields_load_with_lookup_join
 
-// language_code is unmapped; KEEP before the join causes load() to fire at the Project node
+// In load mode, KEEP before the join binds the unmapped key to the primary, not the lookup output.
 SET unmapped_fields="load"\;
 FROM partial_mapping_sample_data
 | KEEP language_code

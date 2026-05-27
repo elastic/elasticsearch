@@ -8,21 +8,27 @@
 package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
+import org.elasticsearch.xpack.esql.TestAnalyzer;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.hamcrest.Matchers.is;
 
 /**
  * ENRICH + unmapped_fields mode tests.
  *
  * Unlike LOOKUP JOIN, ENRICH has no bilateral key resolution: {@code load()} is orthogonal
- * to the ENRICH itself and simply adds PUK fields to the primary EsRelation when needed.
+ * to the ENRICH itself and simply adds PotentiallyUnmappedKeyword fields to the primary EsRelation when needed.
  */
-public class AnalyzerUnmapped_Enrich_Tests extends AnalyzerUnmappedTestBase {
+public class AnalyzerUnmappedEnrichTests extends AnalyzerUnmappedTestBase {
 
-    public void testLoad_allMapped_succeeds() {
+    private static TestAnalyzer testWithLanguagesEnrich() {
+        return test().addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json");
+    }
+
+    public void testLoad_allMapped_doesNotThrow() {
         // Baseline: all fields mapped, ENRICH works normally under load mode.
-        test().addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
+        testWithLanguagesEnrich()
             .statement(
                 setUnmappedLoad(
                     "FROM test | EVAL language_code = languages | ENRICH languages ON language_code | KEEP emp_no, language_name"
@@ -31,26 +37,26 @@ public class AnalyzerUnmapped_Enrich_Tests extends AnalyzerUnmappedTestBase {
     }
 
     public void testLoad_mappedKey_unmappedFieldAfter_loadedAsKeyword() {
-        // load() is orthogonal to ENRICH — downstream unmapped fields still get PUK treatment.
-        var plan = test().addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
+        // load() is orthogonal to ENRICH — downstream unmapped fields still get PotentiallyUnmappedKeyword treatment.
+        var plan = testWithLanguagesEnrich()
             .statement(
                 setUnmappedLoad("FROM test | EVAL language_code = languages | ENRICH languages ON language_code | EVAL x = does_not_exist")
             );
-        var x = plan.output().stream().filter(a -> "x".equals(a.name())).findFirst().orElseThrow();
+        var x = singleValue(plan.output().stream().filter(a -> "x".equals(a.name())).toList());
         assertThat(x.dataType(), is(DataType.KEYWORD));
     }
 
-    public void testLoad_unmappedKey_loadedAsKeyword_succeeds() {
+    public void testLoad_unmappedKey_loadedAsKeyword_doesNotThrow() {
         // load() promotes absent key to KEYWORD; MATCH-type enrich policy accepts keyword fields.
-        var plan = test().addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
+        var plan = testWithLanguagesEnrich()
             .statement(setUnmappedLoad("FROM test | ENRICH languages ON language_code | KEEP emp_no, language_name"));
-        var languageName = plan.output().stream().filter(a -> "language_name".equals(a.name())).findFirst().orElseThrow();
+        var languageName = singleValue(plan.output().stream().filter(a -> "language_name".equals(a.name())).toList());
         assertThat(languageName.dataType(), is(DataType.KEYWORD));
     }
 
-    public void testNullify_allMapped_succeeds() {
+    public void testNullify_allMapped_doesNotThrow() {
         // Baseline: all fields mapped, ENRICH works normally under nullify mode.
-        test().addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
+        testWithLanguagesEnrich()
             .statement(
                 setUnmappedNullify(
                     "FROM test | EVAL language_code = languages | ENRICH languages ON language_code | KEEP emp_no, language_name"
@@ -61,9 +67,9 @@ public class AnalyzerUnmapped_Enrich_Tests extends AnalyzerUnmappedTestBase {
     public void testNullify_unmappedKey_nullifiedMatchField_analysisSucceeds() {
         // nullify() sets key type to NULL; resolveEnrich() skips type-validation for NULL-typed keys.
         // Analysis succeeds, but the key is always null at runtime → ENRICH produces no matches.
-        var plan = test().addEnrichPolicy(EnrichPolicy.MATCH_TYPE, "languages", "language_code", "languages_idx", "mapping-languages.json")
+        var plan = testWithLanguagesEnrich()
             .statement(setUnmappedNullify("FROM test | ENRICH languages ON language_code | KEEP emp_no, language_name"));
-        var languageName = plan.output().stream().filter(a -> "language_name".equals(a.name())).findFirst().orElseThrow();
+        var languageName = singleValue(plan.output().stream().filter(a -> "language_name".equals(a.name())).toList());
         assertThat(languageName.dataType(), is(DataType.KEYWORD));
     }
 }

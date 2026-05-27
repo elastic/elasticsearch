@@ -215,7 +215,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                     containsString("line 2:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
                     containsString("line 5:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
                     containsString("line 7:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
-                    not(containsString("LOOKUP JOIN is not supported")),
                     not(containsString("FORK is not supported"))
                 )
             );
@@ -440,14 +439,8 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
         }
     }
 
-    /**
-     * Regression test for #142026: when an unmapped field elsewhere in the query (outside the join) triggers a second
-     * analysis iteration in NULLIFY mode, {@code resolveLookupJoin()} must not panic on the already-resolved join.
-     * Before the fix this threw "Surprised to discover column already resolved when resolving JOIN keys".
-     */
+    // Regression for #142026.
     public void testNullifyUnmappedFieldOutsideLookupJoinDoesNotPanic() {
-        // language_code (join key) is resolved in iteration 1; does_not_exist gets nullified, triggering iteration 2.
-        // In iteration 2, resolveLookupJoin() must recognise the keys are already resolved and skip re-resolution.
         test().addLanguagesLookup()
             .statement(
                 setUnmappedNullify(
@@ -456,20 +449,26 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
             );
     }
 
-    /**
-     * Regression test for #142026: two sequential LOOKUP JOINs where the first join's key is unknown
-     * (not in the primary index) force a second analysis iteration. The second join's keys are already
-     * resolved, so {@code resolveLookupJoin()} must return it unchanged rather than panicking.
-     * Before the fix this threw "Surprised to discover column already resolved when resolving JOIN keys".
-     */
+    // Regression for #142026.
     public void testTwoLookupJoinsWhereFirstKeyUnknownDoesNotPanic() {
-        // JOIN-1: unknown_field not in test → stays unresolved, forces iteration 2
-        // JOIN-2: language_code created by EVAL → resolved in iteration 1, must pass through in iteration 2
         test().addLanguagesLookup()
             .statementError(
                 "FROM test | LOOKUP JOIN languages_lookup ON unknown_field | EVAL language_code = languages"
                     + " | LOOKUP JOIN languages_lookup ON language_code",
                 containsString("Unknown column [unknown_field] in left side of join")
+            );
+    }
+
+    // Regression: multi-key LOOKUP JOIN where one key resolves and another doesn't in iteration 1.
+    // Iteration 2 entered resolveUsingColumns with [resolved, unresolved] and crashed on the cast.
+    public void testMultiKeyLookupJoinWithMixedResolution_doesNotPanic() {
+        test().addLanguagesLookup()
+            .statement(
+                setUnmappedNullify(
+                    "FROM test | EVAL language_code = languages "
+                        + "| LOOKUP JOIN languages_lookup ON language_code, language_name "
+                        + "| EVAL x = does_not_exist"
+                )
             );
     }
 
@@ -494,8 +493,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                     """),
                 allOf(
                     containsString("Found 1 problem"),
-                    containsString("FORK is not supported with unmapped_fields=\"load\""),
-                    not(containsString("LOOKUP JOIN is not supported"))
+                    containsString("FORK is not supported with unmapped_fields=\"load\"")
                 )
             );
     }
@@ -585,8 +583,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 """,
             allOf(
                 containsString("Found 1 problem"),
-                containsString("line 2:5: Subqueries and views are not supported with unmapped_fields=\"load\""),
-                not(containsString("LOOKUP JOIN is not supported"))
+                containsString("line 2:5: Subqueries and views are not supported with unmapped_fields=\"load\"")
             )
         );
     }
@@ -973,8 +970,7 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                                 + "field, which was either not present in the source index, "
                                 + "or has been dropped or renamed; the [unmapped_fields] "
                                 + "setting does not apply to the implicit @timestamp reference"
-                        ),
-                        not(containsString("LOOKUP JOIN is not supported"))
+                        )
                     )
                 );
         }
@@ -1113,7 +1109,6 @@ public class AnalyzerUnmappedTests extends AnalyzerUnmappedTestBase {
                 """,
             allOf(
                 containsString("Found 1 problem"),
-                not(containsString("LOOKUP JOIN is not supported")),
                 containsString(
                     "line 4:12: Loading subfield [field.languages] when parent [field] is of flattened field type is not supported with "
                         + "unmapped_fields=\"load\""

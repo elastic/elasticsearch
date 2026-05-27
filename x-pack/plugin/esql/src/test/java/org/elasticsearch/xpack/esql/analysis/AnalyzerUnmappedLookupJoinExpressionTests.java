@@ -22,12 +22,16 @@ import static org.hamcrest.Matchers.containsString;
  * anchor {@code unmapped_event_duration > message_type} to satisfy the parser's requirement for
  * at least one cross-index condition.
  */
-public class AnalyzerUnmapped_LookupJoinExpression_Tests extends AnalyzerUnmappedTestBase {
+public class AnalyzerUnmappedLookupJoinExpressionTests extends AnalyzerUnmappedTestBase {
+
+    @Override
+    public void setUp() throws Exception {
+        super.setUp();
+    }
 
     // ── Same-side left filter (error) ─────────────────────────────────────────
 
     public void testNullify_leftSide_mappedField_literal_errors() {
-        assumeTrue("requires LOOKUP JOIN ON boolean expression", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
         partialMappingTest().statementError(
             setUnmappedNullify(
                 "FROM partial_mapping_sample_data"
@@ -38,7 +42,6 @@ public class AnalyzerUnmapped_LookupJoinExpression_Tests extends AnalyzerUnmappe
     }
 
     public void testLoad_leftSide_unmappedField_literal_errors() {
-        assumeTrue("requires LOOKUP JOIN ON boolean expression", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
         partialMappingTest().statementError(
             setUnmappedLoad(
                 "FROM partial_mapping_sample_data"
@@ -51,7 +54,7 @@ public class AnalyzerUnmapped_LookupJoinExpression_Tests extends AnalyzerUnmappe
 
     // ── Right-side-only filter, KEEP mapped field (succeeds) ──────────────────
 
-    public void testNullify_rightSide_literal_keepMapped_succeeds() {
+    public void testNullify_rightSide_literal_keepMapped_doesNotThrow() {
         assumeTrue(
             "requires LOOKUP JOIN with full-text function support",
             EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION_BUGFIX.isEnabled()
@@ -68,7 +71,6 @@ public class AnalyzerUnmapped_LookupJoinExpression_Tests extends AnalyzerUnmappe
     }
 
     public void testNullify_rightSide_selfComp_keepMapped_errors() {
-        assumeTrue("requires LOOKUP JOIN ON boolean expression", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
         partialMappingTest().statementError(
             setUnmappedNullify(
                 "FROM partial_mapping_sample_data"
@@ -80,7 +82,7 @@ public class AnalyzerUnmapped_LookupJoinExpression_Tests extends AnalyzerUnmappe
         );
     }
 
-    public void testLoad_rightSide_literal_keepMapped_succeeds() {
+    public void testLoad_rightSide_literal_keepMapped_doesNotThrow() {
         assumeTrue(
             "requires LOOKUP JOIN with full-text function support",
             EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION_BUGFIX.isEnabled()
@@ -97,7 +99,6 @@ public class AnalyzerUnmapped_LookupJoinExpression_Tests extends AnalyzerUnmappe
     }
 
     public void testLoad_rightSide_selfComp_keepMapped_errors() {
-        assumeTrue("requires LOOKUP JOIN ON boolean expression", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
         partialMappingTest().statementError(
             setUnmappedLoad(
                 "FROM partial_mapping_sample_data"
@@ -111,7 +112,7 @@ public class AnalyzerUnmapped_LookupJoinExpression_Tests extends AnalyzerUnmappe
 
     // ── Right-side-only filter, KEEP unmapped field (succeeds / errors) ───────
 
-    public void testNullify_rightSide_literal_keepUnmapped_succeeds() {
+    public void testNullify_rightSide_literal_keepUnmapped_doesNotThrow() {
         assumeTrue(
             "requires LOOKUP JOIN with full-text function support",
             EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION_BUGFIX.isEnabled()
@@ -129,7 +130,6 @@ public class AnalyzerUnmapped_LookupJoinExpression_Tests extends AnalyzerUnmappe
     }
 
     public void testNullify_rightSide_selfComp_keepUnmapped_errors() {
-        assumeTrue("requires LOOKUP JOIN ON boolean expression", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
         partialMappingTest().statementError(
             setUnmappedNullify(
                 "FROM partial_mapping_sample_data"
@@ -142,7 +142,7 @@ public class AnalyzerUnmapped_LookupJoinExpression_Tests extends AnalyzerUnmappe
         );
     }
 
-    public void testLoad_rightSide_literal_keepUnmapped_succeeds() {
+    public void testLoad_rightSide_literal_keepUnmapped_doesNotThrow() {
         assumeTrue(
             "requires LOOKUP JOIN with full-text function support",
             EsqlCapabilities.Cap.LOOKUP_JOIN_WITH_FULL_TEXT_FUNCTION_BUGFIX.isEnabled()
@@ -160,7 +160,6 @@ public class AnalyzerUnmapped_LookupJoinExpression_Tests extends AnalyzerUnmappe
     }
 
     public void testLoad_rightSide_selfComp_keepUnmapped_errors() {
-        assumeTrue("requires LOOKUP JOIN ON boolean expression", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
         partialMappingTest().statementError(
             setUnmappedLoad(
                 "FROM partial_mapping_sample_data"
@@ -176,7 +175,6 @@ public class AnalyzerUnmapped_LookupJoinExpression_Tests extends AnalyzerUnmappe
     // ── Cross-side comparison ─────────────────────────────────────────────────
 
     public void testNullify_crossSide_longVsKeyword_typeMismatch_errors() {
-        assumeTrue("requires LOOKUP JOIN ON boolean expression", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
         partialMappingTest().statementError(
             setUnmappedNullify(
                 "FROM partial_mapping_sample_data" + " | LOOKUP JOIN partial_message_types_lookup ON event_duration > message_type"
@@ -185,12 +183,8 @@ public class AnalyzerUnmapped_LookupJoinExpression_Tests extends AnalyzerUnmappe
         );
     }
 
-    /**
-     * In nullify mode the unmapped field is null-typed; null vs keyword is type-compatible for a
-     * cross-side comparison, so the analyzer accepts it without error.
-     */
-    public void testNullify_crossSide_unmappedField_succeeds() {
-        assumeTrue("requires LOOKUP JOIN ON boolean expression", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
+    // nullify makes the unmapped field null-typed; null vs keyword is type-compatible, so analyzer accepts.
+    public void testNullify_crossSide_unmappedField_doesNotThrow() {
         partialMappingTest().statement(
             setUnmappedNullify(
                 "FROM partial_mapping_sample_data"
@@ -201,7 +195,6 @@ public class AnalyzerUnmapped_LookupJoinExpression_Tests extends AnalyzerUnmappe
     }
 
     public void testLoad_crossSide_longVsKeyword_typeMismatch_errors() {
-        assumeTrue("requires LOOKUP JOIN ON boolean expression", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
         partialMappingTest().statementError(
             setUnmappedLoad(
                 "FROM partial_mapping_sample_data" + " | LOOKUP JOIN partial_message_types_lookup ON event_duration > message_type"
@@ -210,12 +203,8 @@ public class AnalyzerUnmapped_LookupJoinExpression_Tests extends AnalyzerUnmappe
         );
     }
 
-    /**
-     * In load mode the unmapped field becomes a PUK (KEYWORD), which is type-compatible with
-     * the lookup's KEYWORD field — the cross-side comparison succeeds.
-     */
-    public void testLoad_crossSide_unmappedPuk_keywordVsKeyword_succeeds() {
-        assumeTrue("requires LOOKUP JOIN ON boolean expression", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
+    // load promotes the unmapped field to PotentiallyUnmappedKeyword (KEYWORD), which is type-compatible with the lookup's KEYWORD.
+    public void testLoad_crossSide_unmappedPuk_keywordVsKeyword_doesNotThrow() {
         partialMappingTest().statement(
             setUnmappedLoad(
                 "FROM partial_mapping_sample_data"
@@ -228,7 +217,6 @@ public class AnalyzerUnmapped_LookupJoinExpression_Tests extends AnalyzerUnmappe
     // ── Nonexistent field in ON expression (error) ────────────────────────────
 
     public void testNullify_nonexistentField_errors() {
-        assumeTrue("requires LOOKUP JOIN ON boolean expression", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
         partialMappingTest().statementError(
             setUnmappedNullify(
                 "FROM partial_mapping_sample_data"
@@ -239,7 +227,6 @@ public class AnalyzerUnmapped_LookupJoinExpression_Tests extends AnalyzerUnmappe
     }
 
     public void testLoad_nonexistentField_errors() {
-        assumeTrue("requires LOOKUP JOIN ON boolean expression", EsqlCapabilities.Cap.LOOKUP_JOIN_ON_BOOLEAN_EXPRESSION.isEnabled());
         partialMappingTest().statementError(
             setUnmappedLoad(
                 "FROM partial_mapping_sample_data"

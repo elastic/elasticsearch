@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.analysis;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.singleValue;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
@@ -23,15 +24,15 @@ import static org.hamcrest.Matchers.is;
  * a join that would otherwise fail.
  *
  * Key contrast: row testLoad_unmapped_mapped vs testNullify_unmapped_mapped — identical
- * mapping setup but load fires PUK and succeeds while nullify dies with a left-side error.
+ * mapping setup but load fires PotentiallyUnmappedKeyword and succeeds while nullify dies with a left-side error.
  */
-public class AnalyzerUnmapped_KeepJoin_Tests extends AnalyzerUnmappedTestBase {
+public class AnalyzerUnmappedKeepJoinTests extends AnalyzerUnmappedTestBase {
 
     // -------------------------------------------------------------------------
     // load mode
     // -------------------------------------------------------------------------
 
-    public void testLoad_mapped_mapped_succeeds() {
+    public void testLoad_mapped_mapped_doesNotThrow() {
         test().addLanguagesLookup()
             .statement(
                 setUnmappedLoad(
@@ -48,15 +49,15 @@ public class AnalyzerUnmapped_KeepJoin_Tests extends AnalyzerUnmappedTestBase {
             );
     }
 
-    public void testLoad_unmapped_mapped_pukFires_succeeds() {
-        // KEEP forces load() to fire at the Project node before the join — message becomes PUK (KEYWORD).
+    public void testLoad_unmapped_mapped_pukFires_doesNotThrow() {
+        // KEEP forces load() to fire at the Project node before the join — message becomes PotentiallyUnmappedKeyword (KEYWORD).
         assumeTrue(
             "requires optional_fields_load_with_lookup_join",
             EsqlCapabilities.Cap.OPTIONAL_FIELDS_LOAD_WITH_LOOKUP_JOIN.isEnabled()
         );
         var plan = test().addLookupIndex("message_lookup", messageLookupIndex())
             .statement(setUnmappedLoad("FROM test | KEEP message | LOOKUP JOIN message_lookup ON message"));
-        var message = plan.output().stream().filter(a -> "message".equals(a.name())).findFirst().orElseThrow();
+        var message = singleValue(plan.output().stream().filter(a -> "message".equals(a.name())).toList());
         assertThat(message.dataType(), is(DataType.KEYWORD));
     }
 
@@ -70,10 +71,10 @@ public class AnalyzerUnmapped_KeepJoin_Tests extends AnalyzerUnmappedTestBase {
     }
 
     // -------------------------------------------------------------------------
-    // nullify mode — no PUK is inserted, so outcomes differ only for unmapped primary keys
+    // nullify mode — no PotentiallyUnmappedKeyword is inserted, so outcomes differ only for unmapped primary keys
     // -------------------------------------------------------------------------
 
-    public void testNullify_mapped_mapped_succeeds() {
+    public void testNullify_mapped_mapped_doesNotThrow() {
         test().addLanguagesLookup()
             .statement(
                 setUnmappedNullify(
@@ -90,9 +91,9 @@ public class AnalyzerUnmapped_KeepJoin_Tests extends AnalyzerUnmappedTestBase {
             );
     }
 
-    public void testNullify_unmapped_mapped_nullifiedKey_succeeds() {
+    public void testNullify_unmapped_mapped_nullifiedKey_doesNotThrow() {
         // KEEP places the key at a Project before the join; nullify fires there → key = NULL.
-        // Analysis succeeds but no rows match at runtime (contrast with load which uses PUK).
+        // Analysis succeeds but no rows match at runtime (contrast with load which uses PotentiallyUnmappedKeyword).
         test().addLanguagesLookup()
             .statement(setUnmappedNullify("FROM test | KEEP language_code | LOOKUP JOIN languages_lookup ON language_code"));
     }

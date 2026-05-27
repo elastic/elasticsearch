@@ -179,6 +179,7 @@ public class EsRelation extends LeafPlan {
     }
 
     public EsRelation withAddedFields(List<? extends Attribute> additionalFields) {
+        // LOOKUP relations have their own mapping; primary-side additions must not leak into them.
         if (indexMode == IndexMode.LOOKUP || additionalFields.isEmpty()) {
             return this;
         }

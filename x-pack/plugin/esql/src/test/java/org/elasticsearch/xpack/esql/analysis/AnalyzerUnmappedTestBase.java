@@ -23,48 +23,27 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.analyzer;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTests.withInlinestatsWarning;
 
-/**
- * Shared infrastructure for the AnalyzerUnmapped_* focused test classes.
- */
 abstract class AnalyzerUnmappedTestBase extends ESTestCase {
 
-    /** Returns a TestAnalyzer pre-loaded with the employees ("test") index. */
-    protected static TestAnalyzer test() {
+    static TestAnalyzer test() {
         return analyzer().addEmployees("test");
     }
 
-    /**
-     * Wraps a query with {@code SET unmapped_fields="load";}.
-     * Skips the test if the OPTIONAL_FIELDS_V5 capability is not available.
-     */
-    protected static String setUnmappedLoad(String query) {
+    static String setUnmappedLoad(String query) {
         assumeTrue("Requires OPTIONAL_FIELDS_V5", EsqlCapabilities.Cap.OPTIONAL_FIELDS_V5.isEnabled());
         return "SET unmapped_fields=\"load\"; " + query;
     }
 
-    /**
-     * Wraps a query with {@code SET unmapped_fields="nullify";}.
-     * Skips the test if the OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW capability is not available.
-     */
-    protected static String setUnmappedNullify(String query) {
+    static String setUnmappedNullify(String query) {
         assumeTrue("Requires OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW", EsqlCapabilities.Cap.OPTIONAL_FIELDS_NULLIFY_TECH_PREVIEW.isEnabled());
         return "SET unmapped_fields=\"nullify\"; " + query;
     }
 
-    protected static EsField keywordField(String name) {
+    static EsField keywordField(String name) {
         return new EsField(name, DataType.KEYWORD, Map.of(), true, EsField.TimeSeriesFieldType.NONE);
     }
 
-    /**
-     * Builds the {@code custom_lookup} index used for non-key field semantic tests.
-     * Fields:
-     * <ul>
-     *   <li>{@code language_code} (INTEGER) — join key</li>
-     *   <li>{@code salary} (KEYWORD) — same name as primary's INTEGER salary; lookup type wins</li>
-     *   <li>{@code lookup_only} (KEYWORD) — present only in lookup, absent from primary</li>
-     * </ul>
-     */
-    protected static IndexResolution lookupIndexWithOverlappingFields() {
+    static IndexResolution lookupIndexWithOverlappingFields() {
         Map<String, EsField> mapping = Map.of(
             "language_code",
             new EsField("language_code", DataType.INTEGER, Map.of(), true, EsField.TimeSeriesFieldType.NONE),
@@ -76,11 +55,7 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
         return IndexResolution.valid(new EsIndex("custom_lookup", mapping, Map.of("custom_lookup", IndexMode.LOOKUP), Map.of(), Map.of()));
     }
 
-    /**
-     * Builds a lookup index with {@code language_code} mapped as KEYWORD.
-     * Used to test the unmapped-left / mapped-right case where types are compatible with load mode (PUK is always keyword).
-     */
-    protected static IndexResolution keywordLanguagesLookup() {
+    static IndexResolution keywordLanguagesLookup() {
         return IndexResolution.valid(
             new EsIndex(
                 "keyword_languages_lookup",
@@ -92,22 +67,12 @@ abstract class AnalyzerUnmappedTestBase extends ESTestCase {
         );
     }
 
-    /**
-     * Returns a TestAnalyzer pre-loaded with partial_mapping_sample_data (dynamic:false — only
-     * {@code @timestamp}, {@code client_ip}, {@code event_duration}, {@code message} are in the
-     * mapping) and partial_message_types_lookup ({@code message}, {@code message_type}).
-     * Used for expression-based LOOKUP JOIN tests.
-     */
-    protected static TestAnalyzer partialMappingTest() {
+    static TestAnalyzer partialMappingTest() {
         return analyzer().addIndex("partial_mapping_sample_data", "mapping-partial_mapping_sample_data.json")
             .addLookupIndex("partial_message_types_lookup", "mapping-partial_message_types_lookup.json");
     }
 
-    /**
-     * Builds the {@code message_lookup} index used for KEEP-before-join tests.
-     * The primary employees index has no {@code message} field; this lookup does.
-     */
-    protected static IndexResolution messageLookupIndex() {
+    static IndexResolution messageLookupIndex() {
         return IndexResolution.valid(
             new EsIndex(
                 "message_lookup",

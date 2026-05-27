@@ -90,7 +90,11 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
 
     public abstract boolean expressionsResolved();
 
-    /** Plans with structural child asymmetry should override this. */
+    /**
+     * Returns a predicate testing whether a name could resolve via this plan's children. The default treats
+     * all children's outputs as equally available. Override when children play asymmetric roles — for example,
+     * {@code LookupJoin} restricts join keys to its left child's output.
+     */
     public Predicate<String> childResolvabilityPredicate() {
         Set<String> names = new HashSet<>();
         for (LogicalPlan child : children()) {

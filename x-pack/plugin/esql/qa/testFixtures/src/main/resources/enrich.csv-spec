@@ -907,10 +907,6 @@ x:integer | y:null | language_name:keyword
 1         | null   | null
 ;
 
-
-// Tests for ENRICH with unmapped_fields="load".
-// See https://github.com/elastic/elasticsearch/issues/142026
-
 // An unmapped field in _source is loaded from the primary index downstream of ENRICH.
 // Rows from sample_data have no unmapped_message in _source (null);
 // the row from partial_mapping_sample_data has it (real value).

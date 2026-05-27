@@ -81,14 +81,6 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
             );
         }
 
-        /**
-         * Add a new resolved expression.
-         * @param expression       the expression you want to add.
-         */
-        public void addExpression(ResolvedIndexExpression expression) {
-            expressions.add(expression);
-        }
-
         public void addRemoteExpressions(String original, Set<String> remoteExpressions) {
             Objects.requireNonNull(original);
             Objects.requireNonNull(remoteExpressions);
@@ -110,11 +102,18 @@ public record ResolvedIndexExpressions(List<ResolvedIndexExpression> expressions
         public void excludeFromLocalExpressions(Set<String> expressionsToExclude) {
             Objects.requireNonNull(expressionsToExclude);
             if (expressionsToExclude.isEmpty() == false) {
-                final var iter = expressions.iterator();
+                final var iter = expressions.listIterator();
                 while (iter.hasNext()) {
                     final ResolvedIndexExpression current = iter.next();
                     if (expressionsToExclude.contains(current.original())) {
-                        iter.remove();
+                        if (current.remoteExpressions().isEmpty()) {
+                            iter.remove();
+                        } else {
+                            // Preserve any remote expressions associated with the original entry; only the local side is excluded.
+                            // Without this, qualified origin index exclusions like "shared,_origin:-shared" would incorrectly drop
+                            // the linked copy "linked:shared" carried on the original "shared" entry.
+                            iter.set(new ResolvedIndexExpression(current.original(), LocalExpressions.NONE, current.remoteExpressions()));
+                        }
                         continue;
                     }
                     final Set<String> localExpressions = current.localExpressions().indices();

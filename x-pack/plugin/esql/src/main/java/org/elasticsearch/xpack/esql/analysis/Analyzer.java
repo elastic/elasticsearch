@@ -1565,24 +1565,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 );
             }
             List<NamedExpression> resolved = keepResolver(keep.projections(), keep.child().output());
-            // Provenance for the external-metadata surfacing rule: when an explicit KEEP names an
-            // engine-synthesized virtual column (external metadata: _file.*, _index, ...), keep the
-            // result as a Keep node — NOT a bare Project — so planWithoutSyntheticAttributes can tell
-            // "the user kept this virtual column" apart from "a DROP carried it forward". A DROP
-            // resolves to a plain Project (resolveDrop) and a KEEP * routes through
-            // excludeExternalMetadata, so neither produces a Keep that lists a VirtualAttribute.
-            //
-            // This Keep node is emitted ONLY when a virtual column was explicitly kept; every other
-            // KEEP (the overwhelmingly common regular-index case) still resolves to a plain Project,
-            // so the regular-index plan shape — and its golden snapshots — are unchanged.
-            boolean keptVirtual = false;
-            for (NamedExpression ne : resolved) {
-                if (ne instanceof VirtualAttribute) {
-                    keptVirtual = true;
-                    break;
-                }
-            }
-            return keptVirtual ? new Keep(keep.source(), keep.child(), resolved) : new Project(keep.source(), keep.child(), resolved);
+            // Always a plain Project: external metadata surfacing no longer depends on Keep-node
+            // provenance (requested metadata surfaces by default; see planWithoutSyntheticAttributes),
+            // so the regular-index plan shape and its golden snapshots are preserved.
+            return new Project(keep.source(), keep.child(), resolved);
         }
 
         // Engine-synthesized columns (today: {@code _file.*}) are never expanded by {@code KEEP *}
@@ -2729,20 +2715,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
         }
 
         private static LogicalPlan planWithoutSyntheticAttributes(LogicalPlan plan) {
-            // Virtual columns (today: _file.* and the standard metadata names on external datasets)
-            // are kept out of default output, the same way the implicit `*` expansion drops them via
-            // excludeExternalMetadata. But once the user names one explicitly — KEEP _index,
-            // KEEP _file.path — it must reach the result, even when later commands (SORT, LIMIT, ...)
-            // sit above the KEEP and make the relation's output, not the projection, the plan's top
-            // node. We therefore strip a virtual attribute only when no explicit KEEP named it.
+            // Strip only engine-internal synthetic union-type field attributes from the final output.
             //
-            // Provenance matters: a DROP also resolves to a Project that carries surviving virtual
-            // columns forward via childOutput, but that is NOT the user keeping them — so we scan
-            // only Keep nodes (resolveKeep emits a Keep; resolveDrop emits a plain Project). A
-            // `KEEP *` runs its projections through excludeExternalMetadata, so its Keep node never
-            // lists a virtual column either. This is why we key off the Keep node identity rather
-            // than the namespace of the column name.
-            Set<String> explicitlyKept = explicitlyKeptVirtualNames(plan);
+            // External metadata columns (_file.*, the standard metadata names on datasets) are NOT
+            // stripped here: like regular-index metadata requested via METADATA, a column named in
+            // METADATA surfaces in default output as an ordinary column, subject to KEEP / DROP. The
+            // leak that motivated the earlier auto-attach removal is prevented by the request-driven
+            // model (the column is absent from the relation output unless METADATA names it), not by
+            // hiding requested columns from output. `KEEP *` still excludes them via
+            // excludeExternalMetadata, matching the "* matches data fields" convention.
             List<Attribute> output = plan.output();
             List<Attribute> newOutput = new ArrayList<>(output.size());
             for (Attribute attr : output) {
@@ -2750,37 +2731,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 if (attr.synthetic() && attr != NO_FIELDS.getFirst()) {
                     continue;
                 }
-                if (attr instanceof VirtualAttribute && explicitlyKept.contains(attr.name()) == false) {
-                    continue;
-                }
                 newOutput.add(attr);
             }
 
             return newOutput.size() == output.size() ? plan : new Project(Source.EMPTY, plan, newOutput);
-        }
-
-        /**
-         * Names of every {@link VirtualAttribute} that appears in the projections of some
-         * {@link Keep} node — i.e. the virtual columns the user pulled in by name
-         * (KEEP _index, KEEP _file.path). Used to decide which virtual columns survive into the
-         * final output instead of being hidden as default-output noise.
-         * <p>
-         * Scanning {@link Keep} specifically (not every {@link Project}) is the provenance gate: a
-         * DROP resolves to a plain {@link Project} that carries surviving virtual columns forward —
-         * that must not count as "the user kept it". {@code resolveKeep} emits {@link Keep};
-         * {@code resolveDrop} emits {@link Project}. A {@code KEEP *} expansion routes through
-         * {@code excludeExternalMetadata}, so its {@link Keep} lists no {@link VirtualAttribute}.
-         */
-        private static Set<String> explicitlyKeptVirtualNames(LogicalPlan plan) {
-            Set<String> names = new HashSet<>();
-            plan.forEachDown(Keep.class, keep -> {
-                for (NamedExpression projection : keep.projections()) {
-                    if (projection instanceof VirtualAttribute) {
-                        names.add(projection.name());
-                    }
-                }
-            });
-            return names;
         }
     }
 

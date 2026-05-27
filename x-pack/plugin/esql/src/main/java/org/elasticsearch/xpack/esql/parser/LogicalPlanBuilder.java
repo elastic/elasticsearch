@@ -909,6 +909,12 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         // columns through DROP / wildcard).
         List<NamedExpression> metadataFields = new ArrayList<>(FileMetadataColumns.NAMES.size());
         for (String name : FileMetadataColumns.NAMES) {
+            // _file.record_ref is a new, FROM-only request-driven column (it drives _id and forces the
+            // reader to emit the row-position channel). The legacy EXTERNAL auto-attach is limited to
+            // the historical per-file constant _file.* columns, so it is deliberately excluded here.
+            if (FileMetadataColumns.RECORD_REF.equals(name)) {
+                continue;
+            }
             metadataFields.add(new UnresolvedAttribute(source, name));
         }
         return new UnresolvedExternalRelation(source, tablePath, config, metadataFields);

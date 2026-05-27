@@ -97,6 +97,7 @@ import org.elasticsearch.painless.lookup.PainlessInstanceBinding;
 import org.elasticsearch.painless.lookup.PainlessLookupUtility;
 import org.elasticsearch.painless.lookup.PainlessMethod;
 import org.elasticsearch.painless.lookup.def;
+import org.elasticsearch.painless.spi.annotation.CancellationAwareAnnotation;
 import org.elasticsearch.painless.symbol.FunctionTable.LocalFunction;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCAllEscape;
 import org.elasticsearch.painless.symbol.IRDecorations.IRCCancellationCheck;
@@ -1885,6 +1886,15 @@ public class DefaultIRTreeToASMBytesPhase implements IRTreeVisitor<WriteScope> {
 
         if (irInvokeCallNode.getBox().isPrimitive()) {
             methodWriter.box(MethodWriter.getType(irInvokeCallNode.getBox()));
+        }
+
+        // @cancellation_aware augmentations resolved to the cancellation-aware overload take a
+        // synthetic leading PainlessScript parameter that the user can't pass. Push the script
+        // receiver (aload 0) before the user args so the augmentation body can fetch the cancel
+        // runnable via _getCancellationCheck(). See PainlessLookupBuilder.addPainlessMethod
+        // for how the annotation drives this resolution.
+        if (irInvokeCallNode.getMethod().annotations().containsKey(CancellationAwareAnnotation.class)) {
+            methodWriter.loadThis();
         }
 
         for (ExpressionNode irArgumentNode : irInvokeCallNode.getArgumentNodes()) {

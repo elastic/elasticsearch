@@ -10,6 +10,7 @@
 package org.elasticsearch.painless.api;
 
 import org.elasticsearch.common.hash.MessageDigests;
+import org.elasticsearch.painless.PainlessScript;
 
 import java.nio.charset.StandardCharsets;
 import java.time.DayOfWeek;
@@ -40,6 +41,14 @@ import java.util.stream.Stream;
 
 /** Additional methods added to classes. These must be static methods with receiver as first argument */
 public class Augmentation {
+
+    /**
+     * Iteration count between {@code Runnable.run()} invocations for {@code @cancellation_aware}
+     * augmentation methods.  Matches the compiler's loop-back-edge / function-entry poll
+     * interval so users see one consistent polling cadence whether the loop is in user code
+     * or inside an augmentation.
+     */
+    private static final int CANCELLATION_POLL_INTERVAL = 1000;
 
     // static methods only!
     private Augmentation() {}
@@ -108,6 +117,32 @@ public class Augmentation {
     /** Iterates through an Iterable, passing each item to the given consumer. */
     public static <T> Object each(Iterable<T> receiver, Consumer<T> consumer) {
         receiver.forEach(consumer);
+        return receiver;
+    }
+
+    /**
+     * Cancellation-aware overload of {@link #each(Iterable, Consumer)} resolved by the lookup
+     * builder in script contexts whose base class supports cancellation.  Invokes the script's
+     * cancel runnable every {@link #CANCELLATION_POLL_INTERVAL} iterations so the search
+     * timeout can interrupt a long iteration even when the consumer body is trivial or
+     * non-Painless.  When {@code _getCancellationCheck()} returns null (script context didn't
+     * wire a cancel runnable) the fast path delegates straight to {@link Iterable#forEach}
+     * with zero per-iteration overhead.
+     */
+    public static <T> Object each(Iterable<T> receiver, PainlessScript script, Consumer<T> consumer) {
+        Runnable cancel = script._getCancellationCheck();
+        if (cancel == null) {
+            receiver.forEach(consumer);
+            return receiver;
+        }
+        int poll = CANCELLATION_POLL_INTERVAL;
+        for (T t : receiver) {
+            consumer.accept(t);
+            if (--poll <= 0) {
+                cancel.run();
+                poll = CANCELLATION_POLL_INTERVAL;
+            }
+        }
         return receiver;
     }
 

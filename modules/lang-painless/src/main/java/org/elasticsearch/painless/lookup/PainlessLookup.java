@@ -38,6 +38,8 @@ public final class PainlessLookup {
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
     private final Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings;
 
+    private final Set<String> cancellationAwareMethodNames;
+
     PainlessLookup(
         Map<String, Class<?>> javaClassNamesToClasses,
         Map<String, Class<?>> canonicalClassNamesToClasses,
@@ -45,7 +47,8 @@ public final class PainlessLookup {
         Map<Class<?>, Set<Class<?>>> classesToDirectSubClasses,
         Map<String, PainlessMethod> painlessMethodKeysToImportedPainlessMethods,
         Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings,
-        Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings
+        Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings,
+        Set<String> cancellationAwareMethodNames
     ) {
         this.javaClassNamesToClasses = Map.copyOf(javaClassNamesToClasses);
         this.canonicalClassNamesToClasses = Map.copyOf(canonicalClassNamesToClasses);
@@ -55,6 +58,20 @@ public final class PainlessLookup {
         this.painlessMethodKeysToImportedPainlessMethods = Map.copyOf(painlessMethodKeysToImportedPainlessMethods);
         this.painlessMethodKeysToPainlessClassBindings = Map.copyOf(painlessMethodKeysToPainlessClassBindings);
         this.painlessMethodKeysToPainlessInstanceBindings = Map.copyOf(painlessMethodKeysToPainlessInstanceBindings);
+
+        this.cancellationAwareMethodNames = Set.copyOf(cancellationAwareMethodNames);
+    }
+
+    /**
+     * Returns {@code true} when at least one whitelisted method registered with this lookup
+     * carries the {@code @cancellation_aware} annotation under the given user-visible method
+     * name.  Consulted at every def call site in a cancellation-aware function to decide
+     * whether the script receiver ({@code aload 0}) needs to be pushed ahead of the user
+     * args — most def calls (e.g. {@code toString}, {@code get}, etc.) do not have any
+     * cancellation-aware overload and skip the push entirely.
+     */
+    public boolean hasCancellationAwareMethodName(String methodName) {
+        return cancellationAwareMethodNames.contains(methodName);
     }
 
     public Class<?> javaClassNameToClass(String javaClassName) {

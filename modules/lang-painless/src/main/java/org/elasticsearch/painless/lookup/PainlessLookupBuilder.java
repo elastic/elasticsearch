@@ -12,6 +12,8 @@ package org.elasticsearch.painless.lookup;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.painless.Def;
+import org.elasticsearch.painless.PainlessScript;
+import org.elasticsearch.painless.ScriptClassInfo;
 import org.elasticsearch.painless.spi.Whitelist;
 import org.elasticsearch.painless.spi.WhitelistClass;
 import org.elasticsearch.painless.spi.WhitelistClassBinding;
@@ -21,6 +23,7 @@ import org.elasticsearch.painless.spi.WhitelistInstanceBinding;
 import org.elasticsearch.painless.spi.WhitelistMethod;
 import org.elasticsearch.painless.spi.annotation.AliasAnnotation;
 import org.elasticsearch.painless.spi.annotation.AugmentedAnnotation;
+import org.elasticsearch.painless.spi.annotation.CancellationAwareAnnotation;
 import org.elasticsearch.painless.spi.annotation.CompileTimeOnlyAnnotation;
 import org.elasticsearch.painless.spi.annotation.InjectConstantAnnotation;
 import org.elasticsearch.painless.spi.annotation.NoImportAnnotation;
@@ -62,10 +65,18 @@ public final class PainlessLookupBuilder {
 
     public static PainlessLookup buildFromWhitelists(
         List<Whitelist> whitelists,
+        Class<?> scriptBaseClass,
         Map<Object, Object> dedup,
         Map<PainlessMethod, PainlessMethod> filteredMethodCache
     ) {
-        PainlessLookupBuilder painlessLookupBuilder = new PainlessLookupBuilder();
+        // Cancellation-aware augmentation overloads (the ones with a leading PainlessScript
+        // parameter) are only resolved when the script context's base class supports
+        // cancellation. In contexts that do not, the @cancellation_aware annotation on a
+        // whitelist line is silently ignored and the call resolves to whatever the line
+        // would have resolved to without it (an existing augmentation overload, or the
+        // direct JDK method).
+        boolean supportsCancellation = ScriptClassInfo.supportsCancellation(scriptBaseClass);
+        PainlessLookupBuilder painlessLookupBuilder = new PainlessLookupBuilder(supportsCancellation);
         String origin = "internal error";
 
         try {
@@ -183,7 +194,15 @@ public final class PainlessLookupBuilder {
     private final Map<String, PainlessClassBinding> painlessMethodKeysToPainlessClassBindings;
     private final Map<String, PainlessInstanceBinding> painlessMethodKeysToPainlessInstanceBindings;
 
-    public PainlessLookupBuilder() {
+    // User-visible names of whitelisted methods carrying @cancellation_aware, used by def call
+    // sites to gate the script-this push to only the calls that might resolve to a cancellation-
+    // aware overload. Populated only when the current script context's base class supports
+    // cancellation; empty otherwise so non-cancellation-aware contexts skip the push entirely.
+    private final Set<String> cancellationAwareMethodNames;
+
+    private final boolean supportsCancellation;
+
+    public PainlessLookupBuilder(boolean supportsCancellation) {
         javaClassNamesToClasses = new HashMap<>();
         canonicalClassNamesToClasses = new HashMap<>();
         classesToPainlessClassBuilders = new HashMap<>();
@@ -192,6 +211,9 @@ public final class PainlessLookupBuilder {
         painlessMethodKeysToImportedPainlessMethods = new HashMap<>();
         painlessMethodKeysToPainlessClassBindings = new HashMap<>();
         painlessMethodKeysToPainlessInstanceBindings = new HashMap<>();
+
+        cancellationAwareMethodNames = new HashSet<>();
+        this.supportsCancellation = supportsCancellation;
     }
 
     private Class<?> canonicalTypeNameToType(String canonicalTypeName) {
@@ -614,12 +636,36 @@ public final class PainlessLookupBuilder {
             );
         }
 
+        // @cancellation_aware overrides the whitelist line in cancellation-aware contexts:
+        // resolve to an augmentation overload that takes a leading PainlessScript parameter
+        // (after the receiver) so the augmentation body can call _getCancellationCheck() and
+        // poll the runnable from inside its own iteration loop. In non-cancellation-aware
+        // contexts the annotation is silently dropped — the whitelist line resolves the way
+        // it would have without the annotation, paying zero overhead.
+        boolean isCancellationAware = annotations.containsKey(CancellationAwareAnnotation.class) && supportsCancellation;
+        if (annotations.containsKey(CancellationAwareAnnotation.class) && augmentedClass == null) {
+            throw lookupException(
+                "[@%s] requires the whitelist line to declare an augmentation class for method [[%s], [%s], %s]",
+                CancellationAwareAnnotation.NAME,
+                targetCanonicalClassName,
+                methodName,
+                typesToCanonicalTypeNames(typeParameters)
+            );
+        }
+
         int typeParametersSize = typeParameters.size();
         int augmentedParameterOffset = augmentedClass == null ? 0 : 1;
-        List<Class<?>> javaTypeParameters = new ArrayList<>(typeParametersSize + augmentedParameterOffset);
+        List<Class<?>> javaTypeParameters = new ArrayList<>(typeParametersSize + augmentedParameterOffset + (isCancellationAware ? 1 : 0));
 
         if (augmentedClass != null) {
             javaTypeParameters.add(targetClass);
+        }
+
+        if (isCancellationAware) {
+            // Insert PainlessScript after the receiver; the augmentation body uses it to fetch
+            // the cancel runnable. Invisible to user-visible typeParameters (which still
+            // describe the script-facing signature without the synthetic slot).
+            javaTypeParameters.add(PainlessScript.class);
         }
 
         for (Class<?> typeParameter : typeParameters) {
@@ -676,13 +722,30 @@ public final class PainlessLookupBuilder {
             } catch (NoSuchMethodException nsme) {
                 throw lookupException(
                     nsme,
-                    "reflection object not found for method [[%s], [%s], %s] with augmented class [%s]",
+                    isCancellationAware
+                        ? "[@"
+                            + CancellationAwareAnnotation.NAME
+                            + "] requires augmented class [%4$s] to declare an overload of method [[%1$s], [%2$s], %3$s] "
+                            + "with a leading [org.elasticsearch.painless.PainlessScript] parameter"
+                        : "reflection object not found for method [[%s], [%s], %s] with augmented class [%s]",
                     targetCanonicalClassName,
                     methodName,
                     typesToCanonicalTypeNames(typeParameters),
                     typeToCanonicalTypeName(augmentedClass)
                 );
             }
+        }
+
+        // In non-cancellation-aware contexts a whitelist line with @cancellation_aware resolved
+        // to the fallback (non-PainlessScript) overload above. Strip the annotation from the
+        // map so PainlessMethod.annotations().containsKey(CancellationAwareAnnotation.class)
+        // returns false at call sites and the compiler doesn't emit a stray loadThis() push.
+        if (annotations.containsKey(CancellationAwareAnnotation.class) && isCancellationAware == false) {
+            Map<Class<?>, Object> stripped = new HashMap<>(annotations);
+            stripped.remove(CancellationAwareAnnotation.class);
+            annotations = Map.copyOf(stripped);
+        } else if (isCancellationAware) {
+            cancellationAwareMethodNames.add(methodName);
         }
 
         // injections alter the type parameters required for the user to call this method, since some are injected by compiler
@@ -1710,7 +1773,8 @@ public final class PainlessLookupBuilder {
             classesToDirectSubClasses,
             painlessMethodKeysToImportedPainlessMethods,
             painlessMethodKeysToPainlessClassBindings,
-            painlessMethodKeysToPainlessInstanceBindings
+            painlessMethodKeysToPainlessInstanceBindings,
+            cancellationAwareMethodNames
         );
     }
 

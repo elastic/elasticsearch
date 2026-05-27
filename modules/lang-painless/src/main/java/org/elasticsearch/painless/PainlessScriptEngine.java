@@ -71,7 +71,12 @@ public final class PainlessScriptEngine implements ScriptEngine {
         final Map<PainlessMethod, PainlessMethod> filteredMethodCache = new HashMap<>();
         for (Map.Entry<ScriptContext<?>, List<Whitelist>> entry : contexts.entrySet()) {
             ScriptContext<?> context = entry.getKey();
-            PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(entry.getValue(), dedup, filteredMethodCache);
+            PainlessLookup lookup = PainlessLookupBuilder.buildFromWhitelists(
+                entry.getValue(),
+                context.instanceClazz,
+                dedup,
+                filteredMethodCache
+            );
             mutableContextsToCompilers.put(
                 context,
                 new Compiler(context.instanceClazz, context.factoryClazz, context.statefulFactoryClazz, lookup)

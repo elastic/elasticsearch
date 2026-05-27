@@ -27,6 +27,7 @@ import static org.elasticsearch.painless.ScriptTestCase.PAINLESS_BASE_WHITELIST;
 public class DefBootstrapTests extends ESTestCase {
     private final PainlessLookup painlessLookup = PainlessLookupBuilder.buildFromWhitelists(
         PAINLESS_BASE_WHITELIST,
+        Object.class,
         new HashMap<>(),
         new HashMap<>()
     );

@@ -107,6 +107,7 @@ import org.junit.Before;
 import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -164,13 +165,19 @@ public abstract class CcrIntegTestCase extends ESTestCase {
         }
 
         stopClusters();
-        Collection<Class<? extends Plugin>> mockPlugins = Arrays.asList(
-            ESIntegTestCase.TestSeedPlugin.class,
-            MockHttpTransport.TestPlugin.class,
-            MockTransportService.TestPlugin.class,
-            InternalSettingsPlugin.class,
-            getTestTransportPlugin()
+        Collection<Class<? extends Plugin>> mockPlugins = new ArrayList<>(
+            Arrays.asList(
+                ESIntegTestCase.TestSeedPlugin.class,
+                MockHttpTransport.TestPlugin.class,
+                MockTransportService.TestPlugin.class,
+                InternalSettingsPlugin.class,
+                getTestTransportPlugin()
+            )
         );
+
+        if (ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled()) {
+            mockPlugins.add(ESIntegTestCase.RandomizeColumnarIdModePlugin.class);
+        }
 
         InternalTestCluster leaderCluster = new InternalTestCluster(
             randomLong(),
@@ -570,13 +577,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
 
     protected boolean sourceEnabled;
 
-    protected boolean columnarId;
-
-    @Before
-    public void setupColumnarId() {
-        columnarId = ProvidedIdFieldMapper.ID_FIELD_MODE_FEATURE_FLAG.isEnabled() && randomBoolean();
-    }
-
     protected String getIndexSettings(final int numberOfShards, final int numberOfReplicas) throws IOException {
         return getIndexSettings(numberOfShards, numberOfReplicas, Collections.emptyMap());
     }
@@ -617,11 +617,6 @@ public abstract class CcrIntegTestCase extends ESTestCase {
                         if (sourceEnabled == false) {
                             builder.startObject("_source");
                             builder.field("enabled", false);
-                            builder.endObject();
-                        }
-                        if (columnarId) {
-                            builder.startObject("_id");
-                            builder.field("mode", "columnar");
                             builder.endObject();
                         }
                     }

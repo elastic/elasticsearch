@@ -1812,11 +1812,6 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                             }
                         }
                         builder.endObject();
-                        if (columnarId) {
-                            builder.startObject("_id");
-                            builder.field("mode", "columnar");
-                            builder.endObject();
-                        }
                     }
                     builder.endObject();
                 }
@@ -1872,11 +1867,6 @@ public class IndexFollowingIT extends CcrIntegTestCase {
                             builder.endObject();
                         }
                         builder.endObject();
-                        if (columnarId) {
-                            builder.startObject("_id");
-                            builder.field("mode", "columnar");
-                            builder.endObject();
-                        }
                     }
                     builder.endObject();
                 }

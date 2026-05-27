@@ -16,7 +16,6 @@ import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.search.join.BitSetProducer;
 import org.apache.lucene.util.BitSet;
-import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
@@ -41,7 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Function;
 
-import static org.elasticsearch.lucene.search.uhighlight.CustomUnifiedHighlighter.MULTIVAL_SEP_CHAR;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOffsetsFieldName;
 
 class SemanticFieldValueFetcher implements ValueFetcher {
@@ -120,21 +118,36 @@ class SemanticFieldValueFetcher implements ValueFetcher {
     }
 
     private List<Object> fetchTextChunks(Source source, int doc, DocIdSetIterator it) throws IOException {
-        Map<String, String> originalValueMap = new HashMap<>();
+        Map<String, SemanticFieldContent> fieldValueMap = new HashMap<>();
         List<Object> chunks = new ArrayList<>();
 
         iterateChildDocs(doc, it, offset -> {
-            if (offset.inputIndex() != null) {
-                // TODO: Implement input index handling
-                throw new UnsupportedOperationException("Input index-based text extraction is not supported");
-            }
-            var rawValue = originalValueMap.computeIfAbsent(offset.field(), k -> {
+            SemanticFieldContent semanticFieldContent = fieldValueMap.computeIfAbsent(offset.field(), k -> {
                 var valueObj = XContentMapValues.extractValue(offset.field(), source.source(), null);
-                var values = SemanticTextUtils.nodeStringValues(offset.field(), valueObj);
-                return Strings.collectionToDelimitedString(values, String.valueOf(MULTIVAL_SEP_CHAR));
+                return new SemanticFieldContent(valueObj);
             });
 
-            chunks.add(rawValue.substring(offset.start(), offset.end()));
+            final Object chunk;
+            if (offset.inputIndex() != null) {
+                chunk = semanticFieldContent.getMapValue(offset.inputIndex());
+                if (chunk == null) {
+                    throw new IllegalStateException(
+                        "Invalid content detected for field ["
+                            + offset.field()
+                            + "]: missing object value at index ["
+                            + offset.inputIndex()
+                            + "]"
+                    );
+                }
+            } else {
+                try {
+                    chunk = semanticFieldContent.getChunkText(offset.start(), offset.end());
+                } catch (IndexOutOfBoundsException e) {
+                    throw new IllegalStateException("Invalid content detected for field [" + offset.field() + "]", e);
+                }
+            }
+
+            chunks.add(chunk);
         });
 
         return chunks;

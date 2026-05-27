@@ -15,7 +15,6 @@ import software.amazon.awssdk.core.exception.SdkServiceException;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.AbortMultipartUploadRequest;
-import software.amazon.awssdk.services.s3.model.ChecksumAlgorithm;
 import software.amazon.awssdk.services.s3.model.CompleteMultipartUploadRequest;
 import software.amazon.awssdk.services.s3.model.CompletedPart;
 import software.amazon.awssdk.services.s3.model.CopyObjectRequest;
@@ -574,8 +573,7 @@ class S3BlobContainer extends AbstractBlobContainer {
             .key(blobName)
             .contentLength(contentLength)
             .storageClass(s3BlobStore.getStorageClass())
-            .acl(s3BlobStore.getCannedACL())
-            .checksumAlgorithm(ChecksumAlgorithm.SHA256 /* TODO NOCOMMIT make this user-configurable */);
+            .acl(s3BlobStore.getCannedACL());
         if (s3BlobStore.serverSideEncryption()) {
             putRequestBuilder.serverSideEncryption(ServerSideEncryption.AES256);
         }

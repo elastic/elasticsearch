@@ -58,7 +58,7 @@ public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCas
         protected HttpHandler createHandler() {
             final var delegate = asInstanceOf(S3HttpHandler.class, super.createHandler());
             return exchange -> {
-                delegate.assertSha256ContentHeader(exchange, equalTo("STREAMING-UNSIGNED-PAYLOAD-TRAILER"));
+                delegate.assertSha256ContentHeader(exchange, equalTo("UNSIGNED-PAYLOAD"));
                 delegate.handle(exchange);
             };
         }
@@ -72,8 +72,6 @@ public class RepositoryS3OverHttpsRestIT extends AbstractRepositoryS3RestTestCas
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
         .setting("s3.client." + CLIENT + ".disable_chunked_encoding", () -> randomFrom("true", "false"), ignored -> randomBoolean())
         .setting("s3.client." + CLIENT + ".path_style_access", "true")
-        .systemProperty("es.insecure_network_trace_enabled", "true")
-        .setting("logger.org.apache.http.wire", "TRACE")
         .apply(builder -> trustStore.apply(builder, true))
         .build();
 

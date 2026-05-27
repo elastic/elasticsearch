@@ -19,21 +19,18 @@ import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.DoubleHistogram;
 import org.elasticsearch.telemetry.metric.LongCounter;
-import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.stateless.lucene.BlobStoreCacheDirectory;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 
 import java.util.Map;
 
-public class RecoveryMetricsCollector implements IndexEventListener {
+/// Collects stateless-specific recovery metrics (object store bytes, relocation phases).
+/// General-purpose recovery metrics are emitted by [org.elasticsearch.indices.recovery.RecoveryMetricsCollector].
+public class StatelessRecoveryMetricsCollector implements IndexEventListener {
 
-    private static final Logger logger = LogManager.getLogger(RecoveryMetricsCollector.class);
+    private static final Logger logger = LogManager.getLogger(StatelessRecoveryMetricsCollector.class);
 
-    public static final String RECOVERY_TOTAL_COUNT_METRIC = "es.recovery.shard.count.total";
-    public static final String RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS = "es.recovery.shard.total.time";
-    public static final String RECOVERY_INDEX_TIME_METRIC_IN_SECONDS = "es.recovery.shard.index.time";
-    public static final String RECOVERY_TRANSLOG_TIME_METRIC_IN_SECONDS = "es.recovery.shard.translog.time";
     public static final String RECOVERY_BYTES_READ_FROM_INDEXING_METRIC = "es.recovery.shard.indexing_node.bytes_read.total";
     public static final String RECOVERY_BYTES_READ_FROM_OBJECT_STORE_METRIC = "es.recovery.shard.object_store.bytes_read.total";
     public static final String RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC = "es.recovery.shard.indexing_node.bytes_warmed.total";
@@ -53,12 +50,8 @@ public class RecoveryMetricsCollector implements IndexEventListener {
     public static final String RELOCATION_TARGET_OPEN_ENGINE_TIME_METRIC_IN_SECONDS =
         "es.recovery.shard.primary.relocation.target.open_engine.time";
 
-    public static final RecoveryMetricsCollector NOOP = new RecoveryMetricsCollector(TelemetryProvider.NOOP);
+    public static final StatelessRecoveryMetricsCollector NOOP = new StatelessRecoveryMetricsCollector(TelemetryProvider.NOOP);
 
-    private final LongCounter shardRecoveryTotalMetric;
-    private final LongHistogram shardRecoveryTotalTimeMetric;
-    private final LongHistogram shardRecoveryIndexTimeMetric;
-    private final LongHistogram shardRecoveryTranslogTimeMetric;
     private final LongCounter shardRecoveryTotalBytesReadFromIndexingMetric;
     private final LongCounter shardRecoveryTotalBytesReadFromObjectStoreMetric;
     private final LongCounter shardRecoveryTotalBytesWarmedFromIndexingMetric;
@@ -71,28 +64,8 @@ public class RecoveryMetricsCollector implements IndexEventListener {
     private final DoubleHistogram relocationTargetReadIndexingShardStateDurationMetric;
     private final DoubleHistogram relocationTargetOpenEngineDurationMetric;
 
-    public RecoveryMetricsCollector(TelemetryProvider telemetryProvider) {
+    public StatelessRecoveryMetricsCollector(TelemetryProvider telemetryProvider) {
         final MeterRegistry meterRegistry = telemetryProvider.getMeterRegistry();
-        shardRecoveryTotalMetric = meterRegistry.registerLongCounter(
-            RECOVERY_TOTAL_COUNT_METRIC,
-            "Number of times shard recovery has happened",
-            "unit"
-        );
-        shardRecoveryTotalTimeMetric = meterRegistry.registerLongHistogram(
-            RECOVERY_TOTAL_TIME_METRIC_IN_SECONDS,
-            "Total elapsed shard recovery time in seconds",
-            "seconds"
-        );
-        shardRecoveryIndexTimeMetric = meterRegistry.registerLongHistogram(
-            RECOVERY_INDEX_TIME_METRIC_IN_SECONDS,
-            "Elapsed shard index (stage) recovery time in seconds",
-            "seconds"
-        );
-        shardRecoveryTranslogTimeMetric = meterRegistry.registerLongHistogram(
-            RECOVERY_TRANSLOG_TIME_METRIC_IN_SECONDS,
-            "Elapsed shard translog (stage) recovery time in seconds",
-            "seconds"
-        );
         shardRecoveryTotalBytesReadFromIndexingMetric = meterRegistry.registerLongCounter(
             RECOVERY_BYTES_READ_FROM_INDEXING_METRIC,
             "Bytes read from indexing node during the shard recovery",
@@ -185,11 +158,7 @@ public class RecoveryMetricsCollector implements IndexEventListener {
                 final RecoveryState recoveryState = indexShard.recoveryState();
                 assert recoveryState != null;
                 if (recoveryState.getStage() == RecoveryState.Stage.DONE) {
-                    shardRecoveryTotalMetric.increment();
                     final Map<String, Object> metricLabels = recoveryMetricLabels(indexShard);
-                    shardRecoveryTotalTimeMetric.record(recoveryState.getTimer().time() / 1000, metricLabels);
-                    shardRecoveryIndexTimeMetric.record(recoveryState.getIndex().time() / 1000, metricLabels);
-                    shardRecoveryTranslogTimeMetric.record(recoveryState.getTranslog().time() / 1000, metricLabels);
 
                     final Store store = indexShard.store();
                     // TODO: ideally read/warmed metrics should be emitted right after corresponding operation is finished (ES-8709)
@@ -217,7 +186,7 @@ public class RecoveryMetricsCollector implements IndexEventListener {
                 }
             }
         } catch (Exception e) {
-            logger.warn("Unexpected error during pushing index recovery metrics", e);
+            logger.warn("Unexpected error during pushing stateless index recovery metrics", e);
         } finally {
             listener.onResponse(null);
         }

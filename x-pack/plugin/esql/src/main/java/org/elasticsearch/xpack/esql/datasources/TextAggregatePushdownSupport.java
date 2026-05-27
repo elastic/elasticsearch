@@ -35,6 +35,7 @@ import java.util.Set;
 public class TextAggregatePushdownSupport implements AggregatePushdownSupport {
 
     private static final Set<DataType> MIN_MAX_TYPES = EnumSet.of(
+        DataType.BOOLEAN,
         DataType.INTEGER,
         DataType.LONG,
         DataType.DOUBLE,

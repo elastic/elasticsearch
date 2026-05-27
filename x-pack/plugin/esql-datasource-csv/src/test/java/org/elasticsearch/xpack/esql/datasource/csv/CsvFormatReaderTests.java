@@ -528,6 +528,74 @@ public class CsvFormatReaderTests extends ESTestCase {
         }
     }
 
+    public void testMultiValueBracketsIp() throws IOException {
+        // brackets: an [ip,ip] cell on an :ip column parses into two IP values.
+        String csv = "id:integer,addrs:ip\n1,\"[1.1.1.1,8.8.8.8]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = mvcReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            BytesRefBlock addrs = (BytesRefBlock) page.getBlock(1);
+            assertEquals(2, addrs.getValueCount(0));
+            int idx = addrs.getFirstValueIndex(0);
+            assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("1.1.1.1"))), addrs.getBytesRef(idx, new BytesRef()));
+            assertEquals(new BytesRef(InetAddressPoint.encode(InetAddresses.forString("8.8.8.8"))), addrs.getBytesRef(idx + 1, new BytesRef()));
+        }
+    }
+
+    public void testIpNoneReadsBracketsLiterallyAndFailsParse() {
+        // none: the same cell is the literal string "[1.1.1.1,8.8.8.8]", which is not a valid IP, so the
+        // strict policy surfaces a parse error rather than silently producing a multi-value.
+        String csv = "id:integer,addrs:ip\n1,\"[1.1.1.1,8.8.8.8]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        ParsingException e = expectThrows(ParsingException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            }
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("Failed to parse CSV value") && e.getMessage().contains("[IP]"));
+    }
+
+    public void testMultiValueBracketsDateNanos() throws IOException {
+        // brackets: a [date_nanos,date_nanos] cell parses into two nanosecond timestamps.
+        String csv = "id:integer,ts:date_nanos\n1,\"[2024-01-15T12:34:56.123456789Z,2024-01-15T12:35:00.000000000Z]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = mvcReader(blockFactory);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            LongBlock ts = (LongBlock) page.getBlock(1);
+            assertEquals(2, ts.getValueCount(0));
+            int idx = ts.getFirstValueIndex(0);
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:34:56.123456789Z"), ts.getLong(idx));
+            assertEquals(EsqlDataTypeConverter.dateNanosToLong("2024-01-15T12:35:00.000000000Z"), ts.getLong(idx + 1));
+        }
+    }
+
+    public void testDateNanosNoneReadsBracketsLiterallyAndFailsParse() {
+        // none: the same cell is the literal string, which is not a valid date_nanos, so the strict policy
+        // surfaces a parse error rather than a multi-value.
+        String csv = "id:integer,ts:date_nanos\n1,\"[2024-01-15T12:34:56.123456789Z,2024-01-15T12:35:00.000000000Z]\"\n";
+        StorageObject object = createStorageObject(csv);
+        CsvFormatReader reader = noMvcReader(blockFactory);
+        ParsingException e = expectThrows(ParsingException.class, () -> {
+            try (CloseableIterator<Page> iterator = reader.read(object, null, 10)) {
+                while (iterator.hasNext()) {
+                    iterator.next();
+                }
+            }
+        });
+        assertTrue(e.getMessage(), e.getMessage().contains("Failed to parse CSV date_nanos value"));
+    }
+
     public void testMultiValueSyntaxDefaultsToNone() {
         // Standard CSV (RFC 4180) has no array/multi-value concept; the default must be NONE so a
         // bracketed cell is literal text, not a parsed multi-value. BRACKETS is opt-in.

@@ -294,15 +294,23 @@ final class PlainCompressionCodecFactory implements CompressionCodecFactory {
         @Override
         public BytesInput decompress(BytesInput bytes, int decompressedSize) throws IOException {
             byte[] out = UninitializedArrays.newByteArray(decompressedSize);
+            int written;
             try {
                 // BytesInput.toByteArray() may copy or alias depending on the BytesInput
                 // implementation; we accept whatever parquet-mr hands us. The
                 // PanamaZstd.decompressHeap downcall is critical(true), so the heap segments
                 // cross into libzstd with no off-heap staging copy — same behavior as zstd-jni's
                 // GetPrimitiveArrayCritical path, minus the G1 region pinning.
-                panamaZstd.decompressHeap(out, bytes.toByteArray());
+                written = panamaZstd.decompressHeap(out, bytes.toByteArray());
             } catch (RuntimeException e) {
                 throw new IOException("Zstd decompression failed", e);
+            }
+            // Guard against silent corruption: out is allocated via UninitializedArrays so any
+            // shortfall would leak uninitialized bytes into the BytesInput we hand back.
+            if (written != decompressedSize) {
+                throw new IOException(
+                    "Zstd decompression produced " + written + " bytes, expected " + decompressedSize + " from page header"
+                );
             }
             return BytesInput.from(out);
         }

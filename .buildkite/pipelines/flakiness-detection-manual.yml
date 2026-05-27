@@ -1,0 +1,21 @@
+# Manually-triggered flakiness check.
+#
+# Required build env vars:
+#   FLAKINESS_CLASSES — newline- or comma-separated list of fully-qualified Java
+#                       class names (optionally Class.method or Class."test {yaml=...}")
+#                       to run with flakiness detection.
+#
+# Optional build env vars:
+#   FLAKINESS_ITERS   — positive integer overriding the iteration count for
+#                       unit tests (-Dtests.iters), internalClusterTest
+#                       (-Dtests.iters), and REST batches (repeat-rest-test.sh
+#                       loop). Applied uniformly across all kinds.
+#
+# See .buildkite/scripts/flakiness-detection/entrypoints/manual.ts for behavior.
+steps:
+  - label: "detect tests from FLAKINESS_CLASSES"
+    command: |
+      npm install -g bun@1.3.13
+      bun .buildkite/scripts/flakiness-detection/entrypoints/manual.ts
+    timeout_in_minutes: 10
+    soft_fail: false

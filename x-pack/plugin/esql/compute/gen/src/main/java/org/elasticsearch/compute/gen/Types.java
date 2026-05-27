@@ -113,6 +113,7 @@ public class Types {
     public static final TypeName LIST_AGG_FUNC_DESC = ParameterizedTypeName.get(ClassName.get(List.class), INTERMEDIATE_STATE_DESC);
 
     public static final ClassName DRIVER_CONTEXT = ClassName.get(OPERATOR_PACKAGE, "DriverContext");
+    public static final ClassName CONSTANT_METHOD_RESULT_SPECIALIZER = ClassName.get(OPERATOR_PACKAGE, "ConstantMethodResultSpecializer");
     public static final ClassName GROUPING_AGGREGATOR_EVALUATOR_CONTEXT = ClassName.get(
         AGGREGATION_PACKAGE,
         "GroupingAggregatorEvaluationContext"

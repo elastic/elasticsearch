@@ -2465,6 +2465,31 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
         }
     }
 
+    public void testRangeQueryNoFalsePositiveAtLastDoc() throws IOException {
+        final String field = "dense_value";
+        final int numDocs = 4097; // DenseConjunctionBulkScorer.WINDOW_SIZE + 1
+        final long matchValue = 42L;
+        final long otherValue = 99L;
+
+        var config = new IndexWriterConfig().setCodec(getCodec());
+        try (var dir = newDirectory(); var iw = new IndexWriter(dir, config)) {
+            for (int i = 0; i < numDocs; i++) {
+                var d = new Document();
+                // Doc 1 is the sole match; position 1 is not a block boundary.
+                d.add(new SortedNumericDocValuesField(field, i == 1 ? matchValue : otherValue));
+                iw.addDocument(d);
+            }
+            iw.forceMerge(1);
+
+            try (var reader = DirectoryReader.open(iw)) {
+                assertEquals(1, reader.leaves().size());
+                var leafReader = reader.leaves().getFirst().reader();
+                var searcher = new IndexSearcher(reader);
+                assertRangeQuerySearcher(leafReader, field, searcher, numDocs, matchValue, matchValue);
+            }
+        }
+    }
+
     private Set<Integer> matchingDocs(LeafReader leafReader, String field, long lower, long upper) throws IOException {
         Set<Integer> expected = new HashSet<>();
         var brute = getBaseDenseNumericValues(leafReader, field);
@@ -2548,7 +2573,10 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
             assertEquals("intoBitSet single window [" + lower + "," + upper + "]", expected, collectBitSet(bitSet, numDocs, 0));
         }
 
-        // Pass 2: four partial windows, verifying that repeated intoBitSet calls combine correctly
+        // Pass 2: repeated partial windows — also verifies the intoBitSet position contract:
+        // after intoBitSet(upTo), docID() must be the first matching doc >= upTo or NO_MORE_DOCS.
+        // Violating this (e.g. leaving iterDoc = upTo when upTo is not a match) causes
+        // DenseConjunctionBulkScorer to misinterpret docIDRunEnd() and collect false positives.
         {
             var ndv = getBaseDenseNumericValues(leafReader, field);
             var iter = ndv.tryRangeIterator(lower, upper);
@@ -2565,6 +2593,33 @@ public abstract class AbstractTSDBDocValuesFormatTests extends BaseDocValuesForm
                 int upTo = pos + windowSize;
                 iter.intoBitSet(upTo, bitSet, 0);
                 doc = iter.docID();
+                if (doc != DocIdSetIterator.NO_MORE_DOCS) {
+                    assertTrue("after intoBitSet(upTo=" + upTo + "), docID=" + doc + " must be >= upTo", doc >= upTo);
+                    assertTrue(
+                        "after intoBitSet(upTo=" + upTo + "), docID=" + doc + " must be a match for range [" + lower + "," + upper + "]",
+                        expected.contains(doc)
+                    );
+                    int runEnd = iter.docIDRunEnd();
+                    assertTrue("docIDRunEnd=" + runEnd + " must be > docID=" + doc + " after intoBitSet(upTo=" + upTo + ")", runEnd > doc);
+                    for (int d = doc + 1; d < runEnd; d++) {
+                        assertTrue(
+                            "doc "
+                                + d
+                                + " in run ["
+                                + doc
+                                + ","
+                                + runEnd
+                                + ") must be a match for range ["
+                                + lower
+                                + ","
+                                + upper
+                                + "] after intoBitSet(upTo="
+                                + upTo
+                                + ")",
+                            expected.contains(d)
+                        );
+                    }
+                }
                 pos = upTo;
             }
             assertEquals("intoBitSet partial windows [" + lower + "," + upper + "]", expected, collectBitSet(bitSet, numDocs, 0));

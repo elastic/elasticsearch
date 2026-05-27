@@ -349,7 +349,8 @@ public class NdJsonFormatReader implements SegmentableFormatReader {
             skipFirstLine,
             trimLastPartialLine,
             effectiveSchema,
-            errorPolicy
+            errorPolicy,
+            context.splitStartByte()
         );
     }
 

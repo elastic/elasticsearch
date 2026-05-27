@@ -15,6 +15,7 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.datasources.spi.ColumnExtractor;
 import org.elasticsearch.xpack.esql.datasources.spi.ErrorPolicy;
 import org.elasticsearch.xpack.esql.datasources.spi.FormatReader;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
@@ -61,19 +62,27 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
         boolean skipFirstLine,
         boolean trimLastPartialLine,
         List<Attribute> resolvedAttributes,
-        ErrorPolicy errorPolicy
+        ErrorPolicy errorPolicy,
+        long splitStartByte
     ) throws IOException {
         Check.isTrue(errorPolicy != null, "errorPolicy must not be null");
         String sourceLocation = object.path().toString();
         InputStream inputStream = object.newStream();
-        if (skipFirstLine) {
-            skipToNextLine(inputStream);
-        }
+        // File-global byte offset of the first byte the decoder will read. When this split starts
+        // mid-record (skipFirstLine), the leading partial record is dropped here, so the first full
+        // record begins splitStartByte + (skipped bytes) — folding the skip in keeps the emitted
+        // _rowPosition / _file.record_ref file-global-correct and split-invariant.
+        long skipped = skipFirstLine ? Math.max(0L, skipToNextLine(inputStream)) : 0L;
+        long recordOffsetBase = splitStartByte + skipped;
         if (trimLastPartialLine) {
             inputStream = trimLastPartialLine(inputStream, errorPolicy, sourceLocation);
         }
         this.rowLimit = rowLimit;
-        if (canUseByteArrayFastPath(object)) {
+        // When _rowPosition is projected, force the byte[] path: it maintains parserSliceStart across
+        // parse-error recovery, so record offsets stay exact, whereas the streaming path resets the
+        // parser's byte baseline on recovery. All split/segment/chunk reads already slurp.
+        boolean needsRowPosition = projectedColumns != null && projectedColumns.contains(ColumnExtractor.ROW_POSITION_COLUMN);
+        if (needsRowPosition || canUseByteArrayFastPath(object)) {
             byte[] data;
             try (InputStream toClose = inputStream) {
                 data = toClose.readAllBytes();
@@ -100,6 +109,7 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
                 sourceLocation
             );
         }
+        this.pageDecoder.setRecordOffsetBase(recordOffsetBase);
     }
 
     /**
@@ -200,8 +210,8 @@ final class NdJsonPageIterator implements CloseableIterator<Page> {
      * uniformly; in practice the codec's finish-current-line always ends on {@code '\n'}, so
      * only the LF branch fires, but routing through one implementation removes the coupling.
      */
-    static void skipToNextLine(InputStream stream) throws IOException {
-        NdJsonFormatReader.scanForTerminator(stream);
+    static long skipToNextLine(InputStream stream) throws IOException {
+        return NdJsonFormatReader.scanForTerminator(stream).consumed();
     }
 
     /**

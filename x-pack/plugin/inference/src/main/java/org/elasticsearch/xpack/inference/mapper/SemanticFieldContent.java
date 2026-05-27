@@ -21,30 +21,22 @@ import java.util.List;
 import java.util.Map;
 
 public class SemanticFieldContent {
-    private final List<Object> originalValues;
     private final List<String> textValues;
     private final Map<Integer, Map<?, ?>> mapValues;
 
     public SemanticFieldContent(Object fieldValue) {
         if (fieldValue == null) {
-            this.originalValues = List.of();
             this.textValues = List.of();
             this.mapValues = Map.of();
         } else if (fieldValue instanceof List<?> list) {
-            this.originalValues = new ArrayList<>(list.size());
             this.textValues = new ArrayList<>(list.size());
             this.mapValues = new HashMap<>(list.size());
-            parseFieldValues(list, originalValues, textValues, mapValues);
+            parseFieldValues(list, textValues, mapValues);
         } else {
-            this.originalValues = new ArrayList<>(1);
             this.textValues = new ArrayList<>(1);
             this.mapValues = new HashMap<>(1);
-            parseFieldValues(List.of(fieldValue), originalValues, textValues, mapValues);
+            parseFieldValues(List.of(fieldValue), textValues, mapValues);
         }
-    }
-
-    public List<Object> getOriginalValues() {
-        return Collections.unmodifiableList(originalValues);
     }
 
     public String getChunkText(int startOffset, int endOffset) {
@@ -98,25 +90,16 @@ public class SemanticFieldContent {
         return parseInferenceStringValue(mapValue);
     }
 
-    private static void parseFieldValues(
-        List<?> fieldValues,
-        List<Object> originalValues,
-        List<String> textValues,
-        Map<Integer, Map<?, ?>> mapValues
-    ) {
+    private static void parseFieldValues(List<?> fieldValues, List<String> textValues, Map<Integer, Map<?, ?>> mapValues) {
         int valueIndex = 0;
         for (Object value : fieldValues) {
-            final Object parsedValue;
             if (value instanceof Map<?, ?> map) {
-                parsedValue = map;
                 mapValues.put(valueIndex, map);
             } else {
                 // TODO: Null value handling
-                parsedValue = value.toString();
-                textValues.add((String) parsedValue);
+                textValues.add(value.toString());
             }
 
-            originalValues.add(parsedValue);
             valueIndex++;
         }
     }

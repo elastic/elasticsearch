@@ -172,17 +172,16 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
         int end = Math.min(counts.length(), slotForTimestamp(endMillis - 1) + 1);
         long total = 0;
         for (int slot = start; slot < end; slot++) {
-            total = addSaturating(total, counts.get(slot));
+            long result;
+            long right = counts.get(slot);
+            try {
+                result = Math.addExact(total, right);
+            } catch (ArithmeticException e) {
+                result = total > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
+            }
+            total = result;
         }
         return total;
-    }
-
-    private static long addSaturating(long left, long right) {
-        try {
-            return Math.addExact(left, right);
-        } catch (ArithmeticException e) {
-            return left > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
-        }
     }
 
     /**

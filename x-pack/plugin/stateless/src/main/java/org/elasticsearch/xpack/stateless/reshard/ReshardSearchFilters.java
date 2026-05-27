@@ -84,13 +84,7 @@ public final class ReshardSearchFilters implements Closeable {
         // and resharding metadata will very likely not exist or differ for the same reason.
         IndexMetadata adjustedMetadata = adjustMetadataForPitRelocation(currentIndexMetadata, relocatedReshardingMetadata);
 
-        return maybeWrapDirectoryReader(
-            reader,
-            shardId,
-            relocatedSplitShardCountSummary,
-            adjustedMetadata,
-            mapperService
-        );
+        return maybeWrapDirectoryReader(reader, shardId, relocatedSplitShardCountSummary, adjustedMetadata, mapperService);
     }
 
     // visible for testing

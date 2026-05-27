@@ -2541,16 +2541,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
             return false;
         }
 
-        long countCachedRegions(Predicate<KeyType> predicate) {
-            long[] count = { 0L };
-            keyMapping.forEach((regionKey, entry) -> {
-                if (predicate.test(regionKey.file())) {
-                    count[0]++;
-                }
-            });
-            return count[0];
-        }
-
         private void computeDecay() {
             long now = threadPool.rawRelativeTimeInMillis();
             long afterLock;

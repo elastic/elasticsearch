@@ -99,6 +99,7 @@ import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.lucene.StatelessCommitRef;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
+import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 import org.elasticsearch.xpack.stateless.reshard.ReshardUnownedBitsetCache;
 import org.junit.Before;
 
@@ -416,7 +417,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 ReshardUnownedBitsetCache.CACHE_SIZE_SETTING
             )
         );
-        ReshardUnownedBitsetCache reshardUnownedBitsetCache = new ReshardUnownedBitsetCache(Settings.EMPTY);
+        ReshardSearchFilters reshardSearchFilters = new ReshardSearchFilters(Settings.EMPTY);
         return new SearchEngine(
             searchConfig,
             new ClosedShardService(),
@@ -424,7 +425,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             clusterSettings,
             DIRECT_EXECUTOR_SERVICE,
             new SearchCommitPrefetcherDynamicSettings(clusterSettings),
-            reshardUnownedBitsetCache
+            reshardSearchFilters
         ) {
             @Override
             public void close() throws IOException {
@@ -432,7 +433,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                     super.close();
                 } finally {
                     searchConfig.getStore().decRef();
-                    IOUtils.close(reshardUnownedBitsetCache);
+                    IOUtils.close(reshardSearchFilters);
                 }
             }
         };
@@ -579,7 +580,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                 ReshardUnownedBitsetCache.CACHE_SIZE_SETTING
             )
         );
-        ReshardUnownedBitsetCache reshardUnownedBitsetCache = new ReshardUnownedBitsetCache(Settings.EMPTY);
+        ReshardSearchFilters reshardSearchFilters = new ReshardSearchFilters(Settings.EMPTY);
         return new SearchEngine(
             searchConfig,
             new ClosedShardService(),
@@ -587,14 +588,14 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
             clusterSettings,
             DIRECT_EXECUTOR_SERVICE,
             new SearchCommitPrefetcherDynamicSettings(clusterSettings),
-            reshardUnownedBitsetCache
+            reshardSearchFilters
         ) {
             @Override
             public void close() throws IOException {
                 try {
                     super.close();
                 } finally {
-                    IOUtils.close(searchConfig.getStore()::decRef, nodeEnvironment, reshardUnownedBitsetCache);
+                    IOUtils.close(searchConfig.getStore()::decRef, nodeEnvironment, reshardSearchFilters);
                 }
             }
         };

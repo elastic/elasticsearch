@@ -287,7 +287,9 @@ public class ReshardSearchFiltersTests extends ESTestCase {
         iw.commit();
 
         Settings cacheSettings = Settings.builder().put(ReshardUnownedBitsetCache.CACHE_SIZE_SETTING.getKey(), "256mb").build();
-        ReshardUnownedBitsetCache cache = new ReshardUnownedBitsetCache(cacheSettings);
+        ReshardSearchFilters reshardSearchFilters = new ReshardSearchFilters(cacheSettings);
+        ReshardUnownedBitsetCache cache = reshardSearchFilters.unownedBitsetCache();
+        assertNotNull(cache);
 
         try (
             DirectoryReader directoryReader1 = ElasticsearchDirectoryReader.wrap(
@@ -337,7 +339,7 @@ public class ReshardSearchFiltersTests extends ESTestCase {
                 cache.verifyInternalConsistency();
             }
         } finally {
-            cache.close();
+            reshardSearchFilters.close();
         }
     }
 

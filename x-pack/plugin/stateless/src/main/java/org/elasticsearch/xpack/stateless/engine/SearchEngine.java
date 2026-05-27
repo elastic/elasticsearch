@@ -62,7 +62,6 @@ import org.elasticsearch.xpack.stateless.commits.StatelessCompoundCommit;
 import org.elasticsearch.xpack.stateless.lucene.SearchDirectory;
 import org.elasticsearch.xpack.stateless.objectstore.ObjectStoreService;
 import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
-import org.elasticsearch.xpack.stateless.reshard.ReshardUnownedBitsetCache;
 
 import java.io.Closeable;
 import java.io.FileNotFoundException;
@@ -114,7 +113,7 @@ public class SearchEngine extends Engine {
     private final CompletionStatsCache completionStatsCache;
     private final SearchCommitPrefetcher commitPrefetcher;
     private final SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings;
-    private final ReshardUnownedBitsetCache reshardUnownedBitsetCache;
+    private final ReshardSearchFilters reshardSearchFilters;
     // task runner used to process commit notifications and incoming PIT metadata merges sequentially
     private final ThrottledTaskRunner processCommitTaskRunner;
 
@@ -139,11 +138,11 @@ public class SearchEngine extends Engine {
         ClusterSettings clusterSettings,
         Executor prefetchExecutor,
         SearchCommitPrefetcherDynamicSettings prefetcherDynamicSettings,
-        ReshardUnownedBitsetCache reshardUnownedBitsetCache
+        ReshardSearchFilters reshardSearchFilters
     ) {
         super(config);
         assert config.isPromotableToPrimary() == false;
-        this.reshardUnownedBitsetCache = reshardUnownedBitsetCache;
+        this.reshardSearchFilters = reshardSearchFilters;
         this.closedShardService = closedShardService;
         var refreshExecutor = config.getThreadPool().executor(ThreadPool.Names.REFRESH);
         // we limit to one task to force sequential execution of enqueued tasks
@@ -153,14 +152,13 @@ public class SearchEngine extends Engine {
             relocatedPITReader -> acquireSearcherSupplier(
                 relocatedPITReader.wrapper,
                 SearcherScope.EXTERNAL,
-                r -> ReshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
+                r -> reshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
                     r,
                     shardId,
                     engineConfig.getIndexSettings().getIndexMetadata(),
                     engineConfig.getMapperService(),
                     relocatedPITReader.reshardingMetadata,
-                    relocatedPITReader.splitShardCountSummary,
-                    reshardUnownedBitsetCache
+                    relocatedPITReader.splitShardCountSummary
                 ),
                 relocatedPITReader.pitReaderManager
             )
@@ -753,13 +751,12 @@ public class SearchEngine extends Engine {
 
     @Override
     protected DirectoryReader wrapExternalDirectoryReader(DirectoryReader reader, SplitShardCountSummary summary) throws IOException {
-        return ReshardSearchFilters.maybeWrapDirectoryReader(
+        return reshardSearchFilters.maybeWrapDirectoryReader(
             reader,
             shardId,
             summary,
             engineConfig.getIndexSettings().getIndexMetadata(),
-            engineConfig.getMapperService(),
-            reshardUnownedBitsetCache
+            engineConfig.getMapperService()
         );
     }
 

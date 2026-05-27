@@ -21,24 +21,54 @@ import org.elasticsearch.cluster.metadata.IndexReshardingMetadata;
 import org.elasticsearch.cluster.metadata.IndexReshardingState;
 import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.lucene.index.SequentialStoredFieldsLeafReader;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
 import org.elasticsearch.lucene.util.MatchAllBitSet;
 
+import java.io.Closeable;
 import java.io.IOException;
 import java.util.concurrent.ExecutionException;
 
-public class ReshardSearchFilters {
-    public static DirectoryReader maybeWrapDirectoryReaderForPitRelocation(
+/**
+ * Applies search-time directory reader filters during index resharding (split) so shards only expose owned documents.
+ * Owns a node-scoped {@link ReshardUnownedBitsetCache} for bitset reuse across reader wraps.
+ */
+public final class ReshardSearchFilters implements Closeable {
+
+    @Nullable
+    private final ReshardUnownedBitsetCache unownedBitsetCache;
+
+    public ReshardSearchFilters(Settings settings) {
+        this(new ReshardUnownedBitsetCache(settings));
+    }
+
+    // visible for testing
+    ReshardSearchFilters(@Nullable ReshardUnownedBitsetCache unownedBitsetCache) {
+        this.unownedBitsetCache = unownedBitsetCache;
+    }
+
+    @Override
+    public void close() {
+        IOUtils.closeWhileHandlingException(unownedBitsetCache);
+    }
+
+    // visible for testing
+    @Nullable
+    ReshardUnownedBitsetCache unownedBitsetCache() {
+        return unownedBitsetCache;
+    }
+
+    public DirectoryReader maybeWrapDirectoryReaderForPitRelocation(
         DirectoryReader reader,
         ShardId shardId,
         IndexMetadata currentIndexMetadata,
         MapperService mapperService,
         IndexReshardingMetadata relocatedReshardingMetadata,
-        SplitShardCountSummary relocatedSplitShardCountSummary,
-        @Nullable ReshardUnownedBitsetCache unownedBitsetCache
+        SplitShardCountSummary relocatedSplitShardCountSummary
     ) throws IOException {
         if (relocatedReshardingMetadata == null) {
             // This is a common case.
@@ -59,8 +89,7 @@ public class ReshardSearchFilters {
             shardId,
             relocatedSplitShardCountSummary,
             adjustedMetadata,
-            mapperService,
-            unownedBitsetCache
+            mapperService
         );
     }
 
@@ -100,13 +129,12 @@ public class ReshardSearchFilters {
      * @return a wrapped directory reader, or the original reader if no filtering is needed
      * @throws IOException if there is an error constructing the wrapped reader
      */
-    public static DirectoryReader maybeWrapDirectoryReader(
+    public DirectoryReader maybeWrapDirectoryReader(
         DirectoryReader reader,
         ShardId shardId,
         SplitShardCountSummary summary,
         IndexMetadata indexMetadata,
-        MapperService mapperService,
-        @Nullable ReshardUnownedBitsetCache unownedBitsetCache
+        MapperService mapperService
     ) throws IOException {
         if (shouldFilter(summary, indexMetadata, shardId) == false) {
             return reader;

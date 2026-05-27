@@ -144,7 +144,7 @@ import org.elasticsearch.xpack.stateless.recovery.TransportStatelessPrimaryReloc
 import org.elasticsearch.xpack.stateless.recovery.TransportStatelessUnpromotableRelocationAction;
 import org.elasticsearch.xpack.stateless.recovery.metering.RecoveryMetricsCollector;
 import org.elasticsearch.xpack.stateless.reshard.ReshardIndexService;
-import org.elasticsearch.xpack.stateless.reshard.ReshardUnownedBitsetCache;
+import org.elasticsearch.xpack.stateless.reshard.ReshardSearchFilters;
 import org.elasticsearch.xpack.stateless.reshard.SplitSourceService;
 import org.elasticsearch.xpack.stateless.reshard.SplitTargetService;
 import org.elasticsearch.xpack.stateless.utils.SearchShardSizeCollector;
@@ -1113,7 +1113,7 @@ public class StatelessSnapshotResiliencyTests extends SnapshotResiliencyTests {
                         clusterService.getClusterSettings(),
                         mock(SearchCommitPrefetcher.PrefetchExecutor.class), // prefetch is disabled
                         new SearchCommitPrefetcherDynamicSettings(clusterService.getClusterSettings()),
-                        new ReshardUnownedBitsetCache(Settings.EMPTY)
+                        new ReshardSearchFilters(Settings.EMPTY)
                     );
                 }
             });

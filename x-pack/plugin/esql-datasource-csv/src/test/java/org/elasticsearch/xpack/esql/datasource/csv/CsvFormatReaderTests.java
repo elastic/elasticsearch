@@ -605,10 +605,7 @@ public class CsvFormatReaderTests extends ESTestCase {
         // boundaries. Guards against value misassembly or cardinality drift at batch edges.
         int rows = 60;
         String[] ipPool = { "1.1.1.1", "8.8.8.8", "10.0.0.1" };
-        String[] dnPool = {
-            "2024-01-15T12:34:56.123456789Z",
-            "2024-02-20T00:00:00.000000000Z",
-            "2024-03-30T23:59:59.999999999Z" };
+        String[] dnPool = { "2024-01-15T12:34:56.123456789Z", "2024-02-20T00:00:00.000000000Z", "2024-03-30T23:59:59.999999999Z" };
         StringBuilder csv = new StringBuilder("id:integer,ints:integer,kws:keyword,addrs:ip,dns:date_nanos\n");
         for (int i = 1; i <= rows; i++) {
             int c = (i - 1) % 3 + 1; // 1, 2, 3
@@ -624,10 +621,18 @@ public class CsvFormatReaderTests extends ESTestCase {
                 dns.append(sep).append(dnPool[k]);
             }
             csv.append(i)
-                .append(",\"[").append(ints).append("]\"")
-                .append(",\"[").append(kws).append("]\"")
-                .append(",\"[").append(addrs).append("]\"")
-                .append(",\"[").append(dns).append("]\"")
+                .append(",\"[")
+                .append(ints)
+                .append("]\"")
+                .append(",\"[")
+                .append(kws)
+                .append("]\"")
+                .append(",\"[")
+                .append(addrs)
+                .append("]\"")
+                .append(",\"[")
+                .append(dns)
+                .append("]\"")
                 .append('\n');
         }
         StorageObject object = createStorageObject(csv.toString());

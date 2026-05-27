@@ -2351,6 +2351,7 @@ public class Security extends Plugin
     public RestInterceptor getRestHandlerInterceptor(ThreadContext threadContext) {
         return new SecurityRestFilter(
             enabled,
+            HTTP_SSL_ENABLED.get(settings),
             threadContext,
             secondayAuthc.get(),
             auditTrailService.get(),

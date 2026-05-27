@@ -72,8 +72,10 @@ final class RemoteResponseParsers {
                  */
                 try (XContentBuilder b = XContentBuilder.builder(c.xContentType().xContent())) {
                     b.copyCurrentStructure(p);
+                    BytesReference source = BytesReference.bytes(b);
+                    c.accountHit(source.length());
                     // a hack but this lets us get the right xcontent type to go with the source
-                    return new Tuple<>(BytesReference.bytes(b), c.xContentType());
+                    return new Tuple<>(source, c.xContentType());
                 }
             } catch (IOException e) {
                 throw new ParsingException(p.getTokenLocation(), "[hit] failed to parse [_source]", e);
@@ -127,14 +129,7 @@ final class RemoteResponseParsers {
                 return p.longValue();
             }
         }, new ParseField("total"), ValueType.OBJECT_OR_NUMBER);
-        HITS_PARSER.declareObjectArray(constructorArg(), (p, c) -> {
-            BasicHit hit = HIT_PARSER.parse(p, c);
-            BytesReference source = hit.getSource();
-            if (source != null) {
-                c.accountHit(source.length());
-            }
-            return hit;
-        }, new ParseField("hits"));
+        HITS_PARSER.declareObjectArray(constructorArg(), HIT_PARSER, new ParseField("hits"));
     }
 
     /**

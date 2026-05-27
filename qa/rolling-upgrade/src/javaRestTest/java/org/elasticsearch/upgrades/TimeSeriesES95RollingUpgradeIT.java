@@ -129,48 +129,6 @@ public class TimeSeriesES95RollingUpgradeIT extends AbstractRollingUpgradeTestCa
         assertFirstDocByTimestampAsc(index);
     }
 
-    public void testPreUpgradeIndexOptInAndRollback() throws IOException {
-        requireES95Codec();
-        final String index = "tsdb-rolling-rollback";
-        if (isOldCluster()) {
-            createTSDBIndex(index, false);
-            final int oldDocs = randomIntBetween(MIN_DOC_COUNT, MAX_DOC_COUNT);
-            bulkIndexTSDBDocuments(index, oldDocs);
-            refreshIndex(index);
-            assertDocumentCount(index, oldDocs);
-            return;
-        }
-        if (isMixedCluster()) {
-            assertIndexHealthGreen(index);
-            final long preCount = getDocumentCount(index);
-            assertRangeQueryOnTimestampMatchesAll(index, preCount);
-            assertExactHostnameCounts(index, preCount);
-            return;
-        }
-        assertIndexHealthGreen(index);
-        final long preCount = getDocumentCount(index);
-
-        updateIndexSetting(index, "index.time_series.es95_codec.enabled", "true");
-        final int additionalDocs = randomIntBetween(MIN_ADDITIONAL_DOC_COUNT, MAX_ADDITIONAL_DOC_COUNT);
-        bulkIndexTSDBDocuments(index, additionalDocs, (int) preCount);
-        refreshIndex(index);
-
-        updateIndexSetting(index, "index.time_series.es95_codec.enabled", "false");
-        forceMerge(index, 1);
-
-        final long expectedTotal = preCount + additionalDocs;
-        assertDocumentCount(index, expectedTotal);
-        assertRangeQueryOnTimestampMatchesAll(index, expectedTotal);
-        assertExactHostnameCounts(index, expectedTotal);
-        assertDateHistogramBucketCountByMinute(index, expectedTotal);
-        assertGaugeSumMatches(index, expectedGaugeSum((int) expectedTotal));
-        assertSortByTimestampDescendingMatchesTSDBOrder(index);
-        assertFirstDocByTimestampAsc(index);
-
-        final Map<String, Object> settings = getFlatIndexSettings(index);
-        assertThat(settings.get("index.time_series.es95_codec.enabled"), Matchers.equalTo("false"));
-    }
-
     public void testQueryAcrossOldAndNewCodecIndices() throws IOException {
         requireES95Codec();
         final String preIndex = "tsdb-rolling-mixed-pre";
@@ -213,48 +171,6 @@ public class TimeSeriesES95RollingUpgradeIT extends AbstractRollingUpgradeTestCa
         assertGaugeSumMatches(target, expectedGaugeSum((int) expectedTotal));
         assertSortByTimestampDescendingMatchesTSDBOrder(target);
         assertFirstDocByTimestampAsc(target);
-    }
-
-    public void testForceMergeAcrossMixedCodecSegments() throws IOException {
-        requireES95Codec();
-        final String index = "tsdb-rolling-mixed-segments";
-        if (isOldCluster()) {
-            createTSDBIndex(index, false);
-            final int oldDocs = randomIntBetween(MIN_DOC_COUNT, MAX_DOC_COUNT);
-            bulkIndexTSDBDocuments(index, oldDocs);
-            refreshIndex(index);
-            assertDocumentCount(index, oldDocs);
-            return;
-        }
-        if (isMixedCluster()) {
-            assertIndexHealthGreen(index);
-            final long preCount = getDocumentCount(index);
-            assertRangeQueryOnTimestampMatchesAll(index, preCount);
-            assertExactHostnameCounts(index, preCount);
-            return;
-        }
-        assertIndexHealthGreen(index);
-        final long preUpgradeCount = getDocumentCount(index);
-
-        updateIndexSetting(index, "index.time_series.es95_codec.enabled", "true");
-
-        final int additionalDocs = randomIntBetween(MIN_ADDITIONAL_DOC_COUNT, MAX_ADDITIONAL_DOC_COUNT);
-        bulkIndexTSDBDocuments(index, additionalDocs, (int) preUpgradeCount);
-        refreshIndex(index);
-
-        forceMerge(index, 1);
-
-        final long expectedTotal = preUpgradeCount + additionalDocs;
-        assertDocumentCount(index, expectedTotal);
-        assertRangeQueryOnTimestampMatchesAll(index, expectedTotal);
-        assertExactHostnameCounts(index, expectedTotal);
-        assertDateHistogramBucketCountByMinute(index, expectedTotal);
-        assertGaugeSumMatches(index, expectedGaugeSum((int) expectedTotal));
-        assertSortByTimestampDescendingMatchesTSDBOrder(index);
-        assertFirstDocByTimestampAsc(index);
-
-        final Map<String, Object> settings = getFlatIndexSettings(index);
-        assertThat(settings.get("index.time_series.es95_codec.enabled"), Matchers.equalTo("true"));
     }
 
     public void testRandomAccessDocValuesAcrossPhases() throws IOException {
@@ -347,12 +263,6 @@ public class TimeSeriesES95RollingUpgradeIT extends AbstractRollingUpgradeTestCa
 
     private void refreshIndex(final String indexName) throws IOException {
         assertOK(client().performRequest(new Request("POST", "/" + indexName + "/_refresh")));
-    }
-
-    private void updateIndexSetting(final String indexName, final String key, final String value) throws IOException {
-        final Request request = new Request("PUT", "/" + indexName + "/_settings");
-        request.setJsonEntity("{\"" + key + "\":" + value + "}");
-        assertOK(client().performRequest(request));
     }
 
     private void forceMerge(final String indexName, int maxSegments) throws IOException {

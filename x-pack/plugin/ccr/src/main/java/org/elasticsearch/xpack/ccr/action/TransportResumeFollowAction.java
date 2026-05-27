@@ -537,7 +537,6 @@ public class TransportResumeFollowAction extends AcknowledgedTransportMasterNode
         MergeSchedulerConfig.MAX_MERGE_COUNT_SETTING,
         MergeSchedulerConfig.MAX_THREAD_COUNT_SETTING,
         EngineConfig.INDEX_CODEC_SETTING,
-        IndexSettings.TIME_SERIES_ES95_CODEC_ENABLED_SETTING,
         DataTier.TIER_PREFERENCE_SETTING,
         IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING,
         MetadataIndexStateService.VERIFIED_READ_ONLY_SETTING,

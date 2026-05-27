@@ -627,3 +627,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {csv-spec:conditional.docsCaseColumnExpression}
   issue: https://github.com/elastic/elasticsearch/issues/149953
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {csv-spec:conditional.docsCaseHourlyErrorRate}
+  issue: https://github.com/elastic/elasticsearch/issues/149954

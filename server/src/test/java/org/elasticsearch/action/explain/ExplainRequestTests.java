@@ -51,6 +51,7 @@ public class ExplainRequestTests extends ESTestCase {
             request.query(QueryBuilders.termQuery("field", "value"));
             request.storedFields(new String[] { "field1", "field2" });
             request.routing("some_routing");
+            request.setRoutingFromSlice(true);
             request.writeTo(output);
             try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
                 ExplainRequest readRequest = new ExplainRequest(in);
@@ -60,8 +61,16 @@ public class ExplainRequestTests extends ESTestCase {
                 assertEquals(request.query(), readRequest.query());
                 assertEquals(request.routing(), readRequest.routing());
                 assertEquals(request.fetchSourceContext(), readRequest.fetchSourceContext());
+                assertTrue(readRequest.isRoutingFromSlice());
             }
         }
+    }
+
+    public void testRoutingFromSliceSetter() {
+        ExplainRequest request = new ExplainRequest("index", "id");
+        assertFalse(request.isRoutingFromSlice());
+        request.setRoutingFromSlice(true);
+        assertTrue(request.isRoutingFromSlice());
     }
 
     public void testValidation() {

@@ -369,8 +369,8 @@ public class NvidiaServiceTests extends InferenceServiceTestCase {
             var topN = randomNonNegativeInt();
             var returnDocuments = randomBoolean();
             var request = new RerankRequest(
-                List.of(new InferenceString(DataType.TEXT, inputOne), new InferenceString(DataType.TEXT, inputTwo)),
-                new InferenceString(DataType.TEXT, query),
+                List.of(InferenceString.ofText(inputOne), InferenceString.ofText(inputTwo)),
+                InferenceString.ofText(query),
                 topN,
                 returnDocuments,
                 new HashMap<>()

@@ -292,7 +292,7 @@ public class SemiJoin extends Join implements SortPreserving, ExecutesOn.Coordin
      * Same as {@link Join#UNSUPPORTED_TYPES} but TEXT and VERSION are allowed in SemiJoin
      * because IN/NOT IN can compare these types via equality.
      */
-    private static boolean isSemiJoinUnsupported(DataType type) {
+    public static boolean isSemiJoinUnsupported(DataType type) {
         return Arrays.asList(UNSUPPORTED_TYPES).contains(type) && type != DataType.TEXT && type != DataType.VERSION;
     }
 

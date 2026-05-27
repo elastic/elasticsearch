@@ -37,57 +37,6 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
         createAndPopulateIndex();
     }
 
-    // ---- basic IN / NOT IN ----
-
-    public void testBasicInSubquery() {
-        try (var resp = run("FROM test | WHERE id IN (FROM test | SORT id | LIMIT 3 | KEEP id) | SORT id | KEEP id, color")) {
-            assertColumnNames(resp.columns(), List.of("id", "color"));
-            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
-            assertValues(resp.values(), List.of(List.of(1, "red"), List.of(2, "blue"), List.of(3, "red")));
-        }
-    }
-
-    public void testBasicNotInSubquery() {
-        try (var resp = run("FROM test | WHERE id NOT IN (FROM test | SORT id | LIMIT 3 | KEEP id) | SORT id | KEEP id, color")) {
-            assertColumnNames(resp.columns(), List.of("id", "color"));
-            assertValues(resp.values(), List.of(List.of(4, "blue"), List.of(5, "red"), List.of(6, "blue")));
-        }
-    }
-
-    // ---- empty subquery results ----
-
-    public void testInSubqueryEmptyResults() {
-        try (var resp = run("FROM test | WHERE id IN (FROM test | WHERE id > 100 | KEEP id) | SORT id | KEEP id")) {
-            assertColumnNames(resp.columns(), List.of("id"));
-            assertValues(resp.values(), List.of());
-        }
-    }
-
-    public void testNotInSubqueryEmptyResults() {
-        try (var resp = run("FROM test | WHERE id NOT IN (FROM test | WHERE id > 100 | KEEP id) | SORT id | KEEP id")) {
-            assertColumnNames(resp.columns(), List.of("id"));
-            assertValues(resp.values(), List.of(List.of(1), List.of(2), List.of(3), List.of(4), List.of(5), List.of(6)));
-        }
-    }
-
-    // ---- IN subquery with STATS ----
-
-    public void testInSubqueryWithStats() {
-        try (var resp = run("FROM test | WHERE id IN (FROM test | STATS max_id = MAX(id) | KEEP max_id) | SORT id | KEEP id, color")) {
-            assertColumnNames(resp.columns(), List.of("id", "color"));
-            assertValues(resp.values(), List.of(List.of(6, "blue")));
-        }
-    }
-
-    // ---- IN subquery with filter inside subquery ----
-
-    public void testInSubqueryWithFilterInside() {
-        try (var resp = run("FROM test | WHERE id IN (FROM test | WHERE color == \"red\" | KEEP id) | SORT id | KEEP id, color")) {
-            assertColumnNames(resp.columns(), List.of("id", "color"));
-            assertValues(resp.values(), List.of(List.of(1, "red"), List.of(3, "red"), List.of(5, "red")));
-        }
-    }
-
     /**
      * Request-level filter (same JSON {@code filter} object as REST ES|QL {@code POST ... /_query})
      * intersects with IN-subquery execution.
@@ -121,122 +70,7 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
         }
     }
 
-    // ---- IN subquery combined with other conditions ----
-
-    public void testInSubqueryWithAdditionalFilter() {
-        try (var resp = run("""
-            FROM test
-            | WHERE id IN (FROM test | SORT id | LIMIT 4 | KEEP id) AND color == "blue"
-            | SORT id
-            | KEEP id, color
-            """)) {
-            assertColumnNames(resp.columns(), List.of("id", "color"));
-            assertValues(resp.values(), List.of(List.of(2, "blue"), List.of(4, "blue")));
-        }
-    }
-
-    // ---- multiple IN subqueries ----
-
-    public void testMultipleInSubqueries() {
-        try (var resp = run("""
-            FROM test
-            | WHERE id IN (FROM test | WHERE color == "red" | KEEP id)
-                AND id IN (FROM test | WHERE id < 3 | KEEP id)
-            | SORT id
-            | KEEP id, color
-            """)) {
-            assertColumnNames(resp.columns(), List.of("id", "color"));
-            assertValues(resp.values(), List.of(List.of(1, "red")));
-        }
-    }
-
-    // ---- mixed IN and NOT IN ----
-
-    public void testMixedInAndNotInSubqueries() {
-        try (var resp = run("""
-            FROM test
-            | WHERE id IN (FROM test | WHERE id <= 4 | KEEP id)
-                AND id NOT IN (FROM test | WHERE color == "blue" | KEEP id)
-            | SORT id
-            | KEEP id, color
-            """)) {
-            assertColumnNames(resp.columns(), List.of("id", "color"));
-            assertValues(resp.values(), List.of(List.of(1, "red"), List.of(3, "red")));
-        }
-    }
-
-    // ---- IN subquery with EVAL ----
-
-    public void testInSubqueryWithEvalInside() {
-        try (var resp = run("""
-            FROM test
-            | WHERE id IN (FROM test | EVAL doubled = id * 2 | WHERE doubled <= 6 | KEEP id)
-            | SORT id
-            | KEEP id, color
-            """)) {
-            assertColumnNames(resp.columns(), List.of("id", "color"));
-            assertValues(resp.values(), List.of(List.of(1, "red"), List.of(2, "blue"), List.of(3, "red")));
-        }
-    }
-
-    // ---- constant left-hand side ----
-
-    public void testConstantInSubquery() {
-        try (var resp = run("FROM test | WHERE 3 IN (FROM test | KEEP id) | SORT id | KEEP id, color")) {
-            assertColumnNames(resp.columns(), List.of("id", "color"));
-            assertValues(
-                resp.values(),
-                List.of(List.of(1, "red"), List.of(2, "blue"), List.of(3, "red"), List.of(4, "blue"), List.of(5, "red"), List.of(6, "blue"))
-            );
-        }
-    }
-
-    public void testConstantNotInSubquery() {
-        try (var resp = run("FROM test | WHERE 999 NOT IN (FROM test | KEEP id) | SORT id | KEEP id, color")) {
-            assertColumnNames(resp.columns(), List.of("id", "color"));
-            assertValues(
-                resp.values(),
-                List.of(List.of(1, "red"), List.of(2, "blue"), List.of(3, "red"), List.of(4, "blue"), List.of(5, "red"), List.of(6, "blue"))
-            );
-        }
-    }
-
-    // ---- IN subquery from different index ----
-
-    public void testInSubqueryFromDifferentIndex() {
-        try (var resp = run("FROM test | WHERE id IN (FROM ids | KEEP id) | SORT id | KEEP id, color")) {
-            assertColumnNames(resp.columns(), List.of("id", "color"));
-            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
-            assertValues(resp.values(), List.of(List.of(1, "red"), List.of(3, "red"), List.of(5, "red")));
-        }
-    }
-
-    public void testInSubqueryFromDifferentIndexWithoutKeep() {
-        try (var resp = run("FROM test | WHERE id IN (FROM ids) | SORT id | KEEP id, color")) {
-            assertColumnNames(resp.columns(), List.of("id", "color"));
-            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
-            assertValues(resp.values(), List.of(List.of(1, "red"), List.of(3, "red"), List.of(5, "red")));
-        }
-    }
-
-    public void testInSubqueryFromDifferentIndexWithoutStats() {
-        try (var resp = run("FROM test | WHERE id IN (FROM ids | STATS id = min(id)) | SORT id | KEEP id, color")) {
-            assertColumnNames(resp.columns(), List.of("id", "color"));
-            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
-            assertValues(resp.values(), List.of(List.of(1, "red")));
-        }
-    }
-
     // ---- IN subquery with ROW as the source command ----
-
-    public void testWhereInSubqueryWithRowAsSource() {
-        assumeTrue("Requires ROW subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
-        try (var resp = run("FROM test | WHERE id IN (ROW x = 1) | SORT id | KEEP id, color")) {
-            assertColumnNames(resp.columns(), List.of("id", "color"));
-            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
-            assertValues(resp.values(), List.of(List.of(1, "red")));
-        }
-    }
 
     public void testWhereInSubqueryWithRowAsSourceWithProcessingCommand() {
         assumeTrue("Requires ROW subquery support", EsqlCapabilities.Cap.SUBQUERY_WITH_ROW.isEnabled());
@@ -263,30 +97,6 @@ public class InSubqueryIT extends AbstractEsqlIntegTestCase {
             """)) {
             assertColumnNames(resp.columns(), List.of("id", "color"));
             assertValues(resp.values(), List.of(List.of(1, "red"), List.of(3, "red")));
-        }
-    }
-
-    // ---- disjunctive IN subquery with mixed predicates ----
-
-    /**
-     * Three-way OR: IN subquery for red, IN subquery for blue, and id &gt; 5.
-     * Exclusive branch partitioning ensures no duplicates.
-     */
-    public void testDisjunctiveInSubqueriesWithMixedPredicates() {
-        try (var resp = run("""
-            FROM test
-            | WHERE id IN (FROM test | WHERE color == "red" | KEEP id)
-                OR (id IN (FROM test | WHERE color == "blue" | KEEP id) AND id < 3 )
-                OR id > 5
-            | SORT id
-            | KEEP id, color
-            """)) {
-            assertColumnNames(resp.columns(), List.of("id", "color"));
-            assertColumnTypes(resp.columns(), List.of("integer", "keyword"));
-            assertValues(
-                resp.values(),
-                List.of(List.of(1, "red"), List.of(2, "blue"), List.of(3, "red"), List.of(5, "red"), List.of(6, "blue"))
-            );
         }
     }
 

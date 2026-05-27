@@ -28,7 +28,7 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRule
 
 /**
  * Checks {@link ParameterizedQueryExec} nodes to see if the conditions for the bulk lookup optimization are met.
- * Sets the useBulkLookup flag when they are.
+ * Sets {@code bulkLookupLeft} and {@code bulkLookupRight} when they are.
  */
 public class LuceneBulkLookup extends PhysicalOptimizerRules.ParameterizedOptimizerRule<PhysicalPlan, LookupPhysicalOptimizerContext> {
 

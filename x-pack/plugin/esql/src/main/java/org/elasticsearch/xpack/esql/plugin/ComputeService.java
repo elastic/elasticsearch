@@ -108,6 +108,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Function;
+import java.util.function.LongSupplier;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.IncludeExecutionMetadata.ALWAYS;
@@ -1133,7 +1134,7 @@ public class ComputeService {
         ActionListener<DriverCompletionInfo> listener
     ) {
         var shardContexts = context.searchContexts().map(ComputeSearchContext::shardContext);
-        var directoryBytesRead = searchService.getIndicesService()::currentStoreBytesRead;
+        LongSupplier directoryBytesRead = searchService.getIndicesService()::currentStoreBytesRead;
         // Snapshot per-thread Lucene directory bytes counter so we can attribute planner-time I/O
         // (query rewriting, weight construction, SearchStats lookups, sort builders, etc.) that
         // happens on this SEARCH thread before drivers are dispatched to the ESQL_WORKER pool.

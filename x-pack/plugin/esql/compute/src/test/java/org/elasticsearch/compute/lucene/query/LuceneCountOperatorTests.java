@@ -272,7 +272,8 @@ public class LuceneCountOperatorTests extends SourceOperatorTestCase {
             1,
             between(1, 8),
             testCase.tagTypes(),
-            limit
+            limit,
+            () -> 0L
         );
     }
 

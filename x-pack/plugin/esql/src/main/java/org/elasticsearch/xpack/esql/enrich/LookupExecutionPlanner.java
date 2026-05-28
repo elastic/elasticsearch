@@ -387,7 +387,8 @@ public class LookupExecutionPlanner {
                     true,
                     docChannel,
                     PlannerSettings.SOURCE_RESERVATION_FACTOR.get(Settings.EMPTY),
-                    PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY)
+                    PlannerSettings.DOC_SEQUENCE_BYTES_REF_FIELD_THRESHOLD.getDefault(Settings.EMPTY),
+                    () -> 0L
                 );
             }
 

@@ -15,9 +15,9 @@ import org.elasticsearch.core.Nullable;
 import java.io.IOException;
 
 /**
- * Interface that provides shared functionality from type specific doc value implementations.
+ * Interface that provides shared functionality for the elasticsearch doc values classes.
  */
-public interface DocValues {
+public interface ProcessedDocValues {
 
     /** Advance the iterator to exactly {@code target} and return whether
      *  {@code target} has a value.

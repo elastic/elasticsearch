@@ -8,11 +8,11 @@
 package org.elasticsearch.xpack.core.exponentialhistogram.fielddata;
 
 import org.elasticsearch.exponentialhistogram.ExponentialHistogram;
-import org.elasticsearch.index.fielddata.DocValues;
+import org.elasticsearch.index.fielddata.ProcessedDocValues;
 
 import java.io.IOException;
 
-public interface ExponentialHistogramValuesReader extends DocValues {
+public interface ExponentialHistogramValuesReader extends ProcessedDocValues {
 
     /**
      * Returns the histogram value for the current document. Must be called only after a successful call to {@link #advanceExact(int)}.

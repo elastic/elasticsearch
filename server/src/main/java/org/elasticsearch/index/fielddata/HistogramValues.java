@@ -14,7 +14,7 @@ import java.io.IOException;
 /**
  * Per-segment histogram values.
  */
-public abstract class HistogramValues implements DocValues {
+public abstract class HistogramValues implements ProcessedDocValues {
 
     /**
      * Get the {@link HistogramValue} associated with the current document.

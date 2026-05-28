@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.downsample;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.internal.hppc.IntArrayList;
 import org.elasticsearch.action.downsample.DownsampleConfig;
-import org.elasticsearch.index.fielddata.DocValues;
 import org.elasticsearch.index.fielddata.IndexFieldData;
+import org.elasticsearch.index.fielddata.ProcessedDocValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -28,7 +28,7 @@ import static org.elasticsearch.index.mapper.TimeSeriesParams.MetricType.POSITIO
 /**
  * Base class that reads fields from the source index and produces their downsampled values
  */
-abstract class AbstractFieldDownsampler<T extends DocValues> implements DownsampleFieldSerializer {
+abstract class AbstractFieldDownsampler<T extends ProcessedDocValues> implements DownsampleFieldSerializer {
 
     private final String name;
     protected State state;

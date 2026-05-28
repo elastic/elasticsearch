@@ -21,7 +21,7 @@ import java.io.IOException;
 /**
  * Clone of {@link SortedNumericDocValues} for double values.
  */
-public abstract class SortedNumericDoubleValues implements org.elasticsearch.index.fielddata.DocValues {
+public abstract class SortedNumericDoubleValues implements ProcessedDocValues {
 
     private final boolean isSingleton;
     private final DocIdSetIterator docIdSetIterator;

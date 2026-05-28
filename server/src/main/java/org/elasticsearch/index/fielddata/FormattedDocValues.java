@@ -11,7 +11,7 @@ package org.elasticsearch.index.fielddata;
 
 import java.io.IOException;
 
-public interface FormattedDocValues extends DocValues {
+public interface FormattedDocValues extends ProcessedDocValues {
 
     /**
      * Load and format the next value.

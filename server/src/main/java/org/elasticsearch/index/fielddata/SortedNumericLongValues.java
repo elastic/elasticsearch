@@ -20,7 +20,7 @@ import java.io.IOException;
 /**
  * Clone of {@link SortedNumericDocValues} for long values.
  */
-public abstract class SortedNumericLongValues implements org.elasticsearch.index.fielddata.DocValues {
+public abstract class SortedNumericLongValues implements ProcessedDocValues {
 
     private final boolean isSingleton;
     private final DocIdSetIterator docIdSetIterator;

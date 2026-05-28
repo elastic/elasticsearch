@@ -1045,17 +1045,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
         }
 
         /**
-         * Advises the OS about the expected access pattern for this region's backing IO.
-         * Skips the syscall if the advice already matches.
-         */
-        void adviseRegion(int advice) {
-            SharedBytes.IO ioRef = nonVolatileIO();
-            if (ioRef != null) {
-                ioRef.madvise(advice);
-            }
-        }
-
-        /**
          * Optimistically try to load the data from the region into main memory using madvise system call.
          * @return true if successful, i.e., not evicted and data available, false if evicted or mmap is not used underneath.
          */
@@ -1369,23 +1358,6 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         public KeyType getCacheKey() {
             return cacheKey;
-        }
-
-        /**
-         * Advises the OS about the expected access pattern for all regions backing the given byte range.
-         * Regions that already carry the requested advice are skipped (no syscall).
-         */
-        public void adviseRegions(long offset, long length, int advice) {
-            final int startRegion = getRegion(offset);
-            final int endRegion = getEndingRegion(offset + length);
-            for (int region = startRegion; region <= endRegion; region++) {
-                try {
-                    var fileRegion = cache.get(cacheKey, this.length, region);
-                    fileRegion.chunk.adviseRegion(advice);
-                } catch (AlreadyClosedException e) {
-                    // region not available, skip
-                }
-            }
         }
 
         public boolean tryPrefetch(long offset, long length) throws IOException {

@@ -35,27 +35,7 @@ public class BlobStoreCacheDirectoryHintTests extends ESTestCase {
 
     private static final int REGION_SIZE = 16 * 1024 * 1024; // 16MB
 
-    // --- BlobStoreCacheDirectory hint injection tests ---
-
-    public void testVecFileGetsRandomAccessHint() throws IOException {
-        var capturedContext = new AtomicReference<IOContext>();
-        var dir = createCapturingDirectory(capturedContext);
-        dir.updateMetadata(Map.of("_0.vec", createBlobFileRanges(1L, 0L, 0, 1024)), 1024L);
-
-        dir.openInput("_0.vec", IOContext.DEFAULT);
-
-        assertTrue(capturedContext.get().hints().contains(DataAccessHint.RANDOM));
-    }
-
-    public void testNonVecFileDoesNotGetHint() throws IOException {
-        var capturedContext = new AtomicReference<IOContext>();
-        var dir = createCapturingDirectory(capturedContext);
-        dir.updateMetadata(Map.of("_0.doc", createBlobFileRanges(1L, 0L, 0, 1024)), 1024L);
-
-        dir.openInput("_0.doc", IOContext.DEFAULT);
-
-        assertFalse(capturedContext.get().hints().contains(DataAccessHint.RANDOM));
-    }
+    // --- BlobStoreCacheDirectory hint pass-through tests ---
 
     public void testExplicitHintIsPreserved() throws IOException {
         var capturedContext = new AtomicReference<IOContext>();

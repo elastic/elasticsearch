@@ -299,11 +299,13 @@ public class VerifierMetricsTests extends ESTestCase {
     public void testPromql() {
         Counters c = esql("""
             PROMQL index=k8s step=5m sum(network.cost)""");
-        assertMetrics(
-            c,
-            Map.of(PROMQL, 1L, TS, 1L, EVAL, 1L, WHERE, 1L),
-            Map.of("sum", 1L, "last_over_time", 1L, "to_double", 1L, "tstep", 1L)
-        );
+        var expectedFeatures = Map.of(PROMQL, 1L, TS, 1L, EVAL, 1L, WHERE, 1L);
+        if (EsqlCapabilities.Cap.TSTEP.isEnabled()) {
+            // TSTEP is snapshot only
+            assertMetrics(c, expectedFeatures, Map.of("sum", 1L, "last_over_time", 1L, "to_double", 1L, "tstep", 1L));
+        } else {
+            assertMetrics(c, expectedFeatures, Map.of("sum", 1L, "last_over_time", 1L, "to_double", 1L));
+        }
     }
 
     private void assertMetrics(Counters c, Map<FeatureMetric, Long> expectedFeatures) {

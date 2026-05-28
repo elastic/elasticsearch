@@ -96,6 +96,8 @@ import org.elasticsearch.xpack.core.security.action.user.DeleteUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.PutUserAction;
 import org.elasticsearch.xpack.core.security.action.user.PutUserRequest;
 import org.elasticsearch.xpack.core.security.action.user.SetEnabledRequest;
+import org.elasticsearch.xpack.core.security.audit.AuditEventContext;
+import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationToken;
@@ -349,8 +351,9 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     private static final Marker AUDIT_MARKER = MarkerManager.getMarker("org.elasticsearch.xpack.security.audit");
 
     private final Logger logger;
-    protected final ThreadContext threadContext;
+    private final ThreadContext threadContext;
     private final SecurityContext securityContext;
+    private final AuditLogCustomizer customizer;
     final EventFilterPolicyRegistry eventFilterPolicyRegistry;
     // package for testing
     volatile EnumSet<AuditLevel> events;
@@ -364,10 +367,19 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     }
 
     public LoggingAuditTrail(Settings settings, ClusterService clusterService, ThreadPool threadPool) {
-        this(settings, clusterService, LogManager.getLogger(LoggingAuditTrail.class), threadPool.getThreadContext());
+        this(settings, clusterService, threadPool, AuditLogCustomizer.NOOP);
+    }
+
+    public LoggingAuditTrail(Settings settings, ClusterService clusterService, ThreadPool threadPool, AuditLogCustomizer customizer) {
+        this(settings, clusterService, LogManager.getLogger(LoggingAuditTrail.class), threadPool.getThreadContext(), customizer);
     }
 
     LoggingAuditTrail(Settings settings, ClusterService clusterService, Logger logger, ThreadContext threadContext) {
+        this(settings, clusterService, logger, threadContext, AuditLogCustomizer.NOOP);
+    }
+
+    LoggingAuditTrail(Settings settings, ClusterService clusterService, Logger logger, ThreadContext threadContext, AuditLogCustomizer customizer) {
+        this.customizer = customizer;
         this.logger = logger;
         this.events = parse(INCLUDE_EVENT_SETTINGS.get(settings), EXCLUDE_EVENT_SETTINGS.get(settings));
         this.includeRequestBody = INCLUDE_REQUEST_BODY.get(settings);
@@ -475,7 +487,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void authenticationSuccess(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_SUCCESS)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            if (shouldSuppressEntry(indices.orElse(null))) return;
+            final var ctx = new AuditEventContext(indices.orElse(null));
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
@@ -495,6 +508,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withAuthentication(authentication)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .withThreadContext(threadContext)
                     .build();
             }
@@ -505,7 +519,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void anonymousAccessDenied(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(ANONYMOUS_ACCESS_DENIED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            if (shouldSuppressEntry(indices.orElse(null))) return;
+            final var ctx = new AuditEventContext(indices.orElse(null));
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices, Optional.of(action))) == false) {
                 new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
@@ -515,6 +530,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .withThreadContext(threadContext)
                     .build();
             }
@@ -539,7 +555,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void authenticationFailed(String requestId, AuthenticationToken token, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            if (shouldSuppressEntry(indices.orElse(null))) return;
+            final var ctx = new AuditEventContext(indices.orElse(null));
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.empty(), indices, Optional.of(action))) == false) {
                 final LogEntryBuilder logEntryBuilder = new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
@@ -550,6 +567,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .withThreadContext(threadContext);
                 if (token instanceof ServiceAccountToken) {
                     logEntryBuilder.with(SERVICE_TOKEN_NAME_FIELD_NAME, ((ServiceAccountToken) token).getTokenName());
@@ -576,7 +594,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void authenticationFailed(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            if (shouldSuppressEntry(indices.orElse(null))) return;
+            final var ctx = new AuditEventContext(indices.orElse(null));
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices, Optional.of(action))) == false) {
                 new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
@@ -586,6 +605,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .withThreadContext(threadContext)
                     .build();
             }
@@ -621,7 +641,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     ) {
         if (events.contains(REALM_AUTHENTICATION_FAILED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            if (shouldSuppressEntry(indices.orElse(null))) return;
+            final var ctx = new AuditEventContext(indices.orElse(null));
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.of(token), Optional.of(realm), indices, Optional.of(action))) == false) {
                 new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
@@ -634,6 +655,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .withThreadContext(threadContext)
                     .build();
             }
@@ -670,7 +692,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         final boolean isSystem = user instanceof InternalUser;
         if ((isSystem && events.contains(SYSTEM_ACCESS_GRANTED)) || ((isSystem == false) && events.contains(ACCESS_GRANTED))) {
             final Optional<String[]> indices = Optional.ofNullable(indices(msg));
-            if (shouldSuppressEntry(indices.orElse(null)) == false
+            final var ctx = new AuditEventContext(indices.orElse(null));
+            if (customizer.suppress(ctx) == false
                 && eventFilterPolicyRegistry.ignorePredicate()
                     .test(
                         new AuditEventMetaInfo(
@@ -690,6 +713,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withAuthentication(authentication)
                     .withRestOrTransportOrigin(msg, threadContext)
                     .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .withThreadContext(threadContext)
                     .with(authorizationInfo.asMap())
                     .build();
@@ -812,7 +836,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             eventType = SYSTEM_ACCESS_GRANTED;
         }
         if (events.contains(eventType)) {
-            if (shouldSuppressEntry(indices)) return;
+            final var ctx = new AuditEventContext(indices);
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
@@ -831,6 +856,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withAuthentication(authentication)
                     .withIndices(indices)
+                    .withContext(ctx)
                     .withThreadContext(threadContext)
                     .with(authorizationInfo.asMap());
                 final InetSocketAddress restAddress = RemoteHostHeader.restRemoteAddress(threadContext);
@@ -856,7 +882,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     ) {
         if (events.contains(ACCESS_DENIED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            if (shouldSuppressEntry(indices.orElse(null))) return;
+            final var ctx = new AuditEventContext(indices.orElse(null));
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
@@ -876,6 +903,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withAuthentication(authentication)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .with(authorizationInfo.asMap())
                     .withThreadContext(threadContext)
                     .build();
@@ -900,7 +928,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void tamperedRequest(String requestId, String action, TransportRequest transportRequest) {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            if (shouldSuppressEntry(indices.orElse(null))) return;
+            final var ctx = new AuditEventContext(indices.orElse(null));
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(new AuditEventMetaInfo(Optional.empty(), Optional.empty(), indices, Optional.of(action))) == false) {
                 new LogEntryBuilder().with(EVENT_TYPE_FIELD_NAME, TRANSPORT_ORIGIN_FIELD_VALUE)
@@ -910,6 +939,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRequestId(requestId)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .withThreadContext(threadContext)
                     .build();
             }
@@ -920,7 +950,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     public void tamperedRequest(String requestId, Authentication authentication, String action, TransportRequest transportRequest) {
         if (events.contains(TAMPERED_REQUEST)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            if (shouldSuppressEntry(indices.orElse(null))) return;
+            final var ctx = new AuditEventContext(indices.orElse(null));
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
@@ -940,6 +971,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withAuthentication(authentication)
                     .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .withThreadContext(threadContext)
                     .build();
             }
@@ -990,7 +1022,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     ) {
         if (events.contains(RUN_AS_GRANTED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            if (shouldSuppressEntry(indices.orElse(null))) return;
+            final var ctx = new AuditEventContext(indices.orElse(null));
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
@@ -1010,6 +1043,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRunAsSubject(authentication)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .with(authorizationInfo.asMap())
                     .withThreadContext(threadContext)
                     .build();
@@ -1027,7 +1061,8 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     ) {
         if (events.contains(RUN_AS_DENIED)) {
             final Optional<String[]> indices = Optional.ofNullable(indices(transportRequest));
-            if (shouldSuppressEntry(indices.orElse(null))) return;
+            final var ctx = new AuditEventContext(indices.orElse(null));
+            if (customizer.suppress(ctx)) return;
             if (eventFilterPolicyRegistry.ignorePredicate()
                 .test(
                     new AuditEventMetaInfo(
@@ -1047,6 +1082,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
                     .withRunAsSubject(authentication)
                     .withRestOrTransportOrigin(transportRequest, threadContext)
                     .withIndices(indices.orElse(null))
+                    .withContext(ctx)
                     .with(authorizationInfo.asMap())
                     .withThreadContext(threadContext)
                     .build();
@@ -1095,24 +1131,6 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         return includeRequestBody;
     }
 
-    /**
-     * Hook for subclasses to suppress an audit log entry entirely.
-     * @param indices the indices array associated with the auditable action, or {@code null} if the action involves no indices
-     */
-    protected boolean shouldSuppressEntry(String[] indices) {
-        return false;
-    }
-
-    /**
-     * Hook for subclasses to mutate an audit log entry just before it is emitted. Subclasses may
-     * use this to transform or enrich the log
-     *
-     * @param logEntry the entry being built;
-     */
-    protected void finalizeEntry(StringMapMessage logEntry) {
-        // no-op
-    }
-
     private LogEntryBuilder securityChangeLogEntryBuilder(String requestId) {
         return new LogEntryBuilder(false).with(EVENT_TYPE_FIELD_NAME, SECURITY_CHANGE_ORIGIN_FIELD_VALUE).withRequestId(requestId);
     }
@@ -1120,6 +1138,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
     private class LogEntryBuilder {
 
         private final StringMapMessage logEntry;
+        private AuditEventContext eventContext = AuditEventContext.EMPTY;
 
         LogEntryBuilder() {
             this(true);
@@ -1802,6 +1821,11 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
             return this;
         }
 
+        LogEntryBuilder withContext(AuditEventContext ctx) {
+            this.eventContext = ctx;
+            return this;
+        }
+
         LogEntryBuilder with(Map<String, Object> map) {
             for (Entry<String, Object> entry : map.entrySet()) {
                 Object value = entry.getValue();
@@ -1815,7 +1839,7 @@ public class LoggingAuditTrail implements AuditTrail, ClusterStateListener {
         }
 
         void build() {
-            finalizeEntry(logEntry);
+            customizer.enrich(eventContext, new StringMapAuditEntry(logEntry));
             logger.info(AUDIT_MARKER, logEntry);
         }
 

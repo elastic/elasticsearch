@@ -301,8 +301,8 @@ import org.elasticsearch.xpack.security.action.user.TransportHasPrivilegesAction
 import org.elasticsearch.xpack.security.action.user.TransportPutUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportQueryUserAction;
 import org.elasticsearch.xpack.security.action.user.TransportSetEnabledAction;
+import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.security.audit.AuditTrail;
-import org.elasticsearch.xpack.security.audit.AuditTrailFactory;
 import org.elasticsearch.xpack.security.audit.AuditTrailService;
 import org.elasticsearch.xpack.security.audit.logfile.LoggingAuditTrail;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
@@ -626,7 +626,6 @@ public class Security extends Plugin
     private final SetOnce<Transport> transportReference = new SetOnce<>();
     private final SetOnce<ScriptService> scriptServiceReference = new SetOnce<>();
     private final SetOnce<OperatorOnlyRegistry> operatorOnlyRegistry = new SetOnce<>();
-    private final SetOnce<AuditTrailFactory> auditTrailFactory = new SetOnce<>();
     private final SetOnce<PutRoleRequestBuilderFactory> putRoleRequestBuilderFactory = new SetOnce<>();
     private final SetOnce<BulkPutRoleRequestBuilderFactory> bulkPutRoleRequestBuilderFactory = new SetOnce<>();
     private final SetOnce<CreateApiKeyRequestBuilderFactory> createApiKeyRequestBuilderFactory = new SetOnce<>();
@@ -987,16 +986,12 @@ public class Security extends Plugin
         if (samlAuthenticateResponseHandlerFactory.get() == null) {
             samlAuthenticateResponseHandlerFactory.set(new SamlAuthenticateResponseHandler.DefaultFactory());
         }
-        if (auditTrailFactory.get() == null) {
-            Supplier<AuditTrailFactory> supp = () -> (settings, cs, tp, systemIndices, pResolver) -> new LoggingAuditTrail(
-                settings,
-                cs,
-                tp
-            );
-            auditTrailFactory.set(supp.get());
-        }
-        final AuditTrail auditTrail = auditTrailFactory.get()
-            .create(settings, clusterService, threadPool, coreSystemIndices, projectResolver);
+        final AuditLogCustomizer auditLogCustomizer = securityExtensions.stream()
+            .map(ext -> ext.getAuditLogCustomizer(extensionComponents, coreSystemIndices))
+            .filter(c -> c != AuditLogCustomizer.NOOP)
+            .findFirst()
+            .orElse(AuditLogCustomizer.NOOP);
+        final AuditTrail auditTrail = new LoggingAuditTrail(settings, clusterService, threadPool, auditLogCustomizer);
         final AuditTrailService auditTrailService = new AuditTrailService(auditTrail, getLicenseState(), clusterService);
         components.add(auditTrailService);
         this.auditTrailService.set(auditTrailService);
@@ -2587,7 +2582,6 @@ public class Security extends Plugin
     public void loadExtensions(ExtensionLoader loader) {
         securityExtensions.addAll(loader.loadExtensions(SecurityExtension.class));
         loadSingletonExtensionAndSetOnce(loader, operatorOnlyRegistry, OperatorOnlyRegistry.class);
-        loadSingletonExtensionAndSetOnce(loader, auditTrailFactory, AuditTrailFactory.class);
         loadSingletonExtensionAndSetOnce(loader, putRoleRequestBuilderFactory, PutRoleRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, bulkPutRoleRequestBuilderFactory, BulkPutRoleRequestBuilderFactory.class);
         loadSingletonExtensionAndSetOnce(loader, getBuiltinPrivilegesResponseTranslator, GetBuiltinPrivilegesResponseTranslator.class);

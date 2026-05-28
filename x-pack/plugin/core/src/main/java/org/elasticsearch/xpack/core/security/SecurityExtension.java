@@ -12,9 +12,11 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.watcher.ResourceWatcherService;
+import org.elasticsearch.xpack.core.security.audit.AuditLogCustomizer;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationFailureHandler;
 import org.elasticsearch.xpack.core.security.authc.CustomAuthenticator;
 import org.elasticsearch.xpack.core.security.authc.Realm;
@@ -149,6 +151,10 @@ public interface SecurityExtension {
      */
     default AuthorizationEngine getAuthorizationEngine(Settings settings) {
         return null;
+    }
+
+    default AuditLogCustomizer getAuditLogCustomizer(SecurityComponents components, SystemIndices systemIndices) {
+        return AuditLogCustomizer.NOOP;
     }
 
     default String extensionName() {

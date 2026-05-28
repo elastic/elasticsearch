@@ -74,33 +74,29 @@ public final class ReshardSearchFilters implements Closeable {
             // There was no resharding in progress when this PIT was opened and no additional logic is necessary.
             return reader;
         }
+        // Number of shards could change due to another resharding operation that was executed while this PIT was open.
+        // Resharding metadata will very likely not exist or differ for the same reason.
+        // But this PIT is only using the shards that existed when it was opened so we should route accordingly.
+        // This number of shards is equal to the "after" number of shards in the resharding metadata
+        // since the metadata is added in the same cluster state update as the number of shards is changed.
+        int numberOfShardsUsedInPIT = relocatedReshardingMetadata.shardCountAfter();
 
-        if (IndexRouting.shouldUseShardCountModRouting(currentIndexMetadata.getCreationVersion())) {
+        if (shouldFilter(shardId, relocatedSplitShardCountSummary, numberOfShardsUsedInPIT, relocatedReshardingMetadata) == false) {
+            return reader;
+        }
+
+        if (IndexRouting.shouldUseShardCountModRouting(currentIndexMetadata.getCreationVersion()) == false) {
             assert false : "Resharding is not supported for indices that use legacy routing";
             throw new IllegalStateException("Resharding is not supported for indices that use legacy routing");
         }
-
-        // Number of shards could change due to another resharding operation that was executed while this PIT was open.
-        // and resharding metadata will very likely not exist or differ for the same reason.
-        // But this PIT is only using the shards that existed when it was opened so we should route accordingly.
-        // This number of shards is equal to the "after" number of shards in the resharding metadata by definition.
-        int numberOfShardsForRouting = relocatedReshardingMetadata.shardCountAfter();
-        RoutingFunction routingFunction = RoutingFunction.moduloNumberOfShards(numberOfShardsForRouting);
+        RoutingFunction routingFunction = RoutingFunction.moduloNumberOfShards(numberOfShardsUsedInPIT);
         IndexRouting customRouting = IndexRouting.reshardingCustom(currentIndexMetadata, routingFunction, relocatedReshardingMetadata);
-
-        // This is a hack.
-        // Things like ShardSplittingQuery currently specifically depend on IndexMetadata class (and even our code below does).
-        // So to adhere to that contract we will adjust the current metadata
-        // that has possibly diverged by now to be similar to its state when the PIT was opened.
-        // Specifically the number of shards could change due to another resharding operation
-        // and resharding metadata will very likely not exist or differ for the same reason.
-        IndexMetadata adjustedMetadata = adjustMetadataForPitRelocation(currentIndexMetadata, relocatedReshardingMetadata);
 
         boolean routingRequired = currentIndexMetadata.mapping() == null ? false : currentIndexMetadata.mapping().routingRequired();
         var shardSplittingQuery = new ShardSplittingQuery(
             currentIndexMetadata.getIndex(),
             shardId.id(),
-            numberOfShardsForRouting,
+            numberOfShardsUsedInPIT,
             customRouting,
             currentIndexMetadata.getCreationVersion(),
             currentIndexMetadata.isRoutingPartitionedIndex(),
@@ -109,24 +105,6 @@ public final class ReshardSearchFilters implements Closeable {
         );
 
         return wrapReader(reader, shardSplittingQuery);
-    }
-
-    // visible for testing
-    static IndexMetadata adjustMetadataForPitRelocation(
-        IndexMetadata currentIndexMetadata,
-        IndexReshardingMetadata relocatedReshardingMetadata
-    ) {
-        var builder = IndexMetadata.builder(currentIndexMetadata);
-
-        // This assumes that resharding-shrink doesn't exist and so number of shards can only increase.
-        assert currentIndexMetadata.getNumberOfShards() >= relocatedReshardingMetadata.shardCountAfter();
-        if (currentIndexMetadata.getNumberOfShards() > relocatedReshardingMetadata.shardCountAfter()) {
-            builder = builder.reshardRemoveShards(relocatedReshardingMetadata.shardCountAfter());
-        } else if (currentIndexMetadata.getNumberOfShards() < relocatedReshardingMetadata.shardCountAfter()) {
-            throw new IllegalStateException("Number of shards decreased over time");
-        }
-
-        return builder.reshardingMetadata(relocatedReshardingMetadata).build();
     }
 
     /**

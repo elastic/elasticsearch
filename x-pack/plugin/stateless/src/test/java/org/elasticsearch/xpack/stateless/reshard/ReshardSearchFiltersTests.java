@@ -28,6 +28,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.IdFieldMapper;
+import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardSplittingQuery;
@@ -39,6 +40,9 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
+
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class ReshardSearchFiltersTests extends ESTestCase {
     private Directory directory;
@@ -381,11 +385,97 @@ public class ReshardSearchFiltersTests extends ESTestCase {
         }
     }
 
+    public void testWrappingForPitRelocation() throws IOException {
+        var indexMetadata = IndexMetadata.builder("index").settings(indexSettings(IndexVersion.current(), 4, 0)).build();
+        var latestRouting = IndexRouting.fromIndexMetadata(indexMetadata);
+
+        IndexWriter iw = new IndexWriter(directory, newIndexWriterConfig().setMergePolicy(NoMergePolicy.INSTANCE).setMaxBufferedDocs(100));
+
+        // Place a document in every shard.
+        // Later when we test with PIT that uses two shards, there should be two documents per shard.
+        for (int i = 0; i < 4; i++) {
+            var id = ReshardingTestHelpers.makeIdThatRoutesToShard(latestRouting, i);
+            var document = new Document();
+            document.add(new StringField(IdFieldMapper.NAME, Uid.encodeId(id), Field.Store.NO));
+            iw.addDocument(document);
+        }
+        iw.commit();
+
+        // We are emulating a 1 -> 2 split that was in progress when PIT was opened.
+        ShardId sourceShardId = new ShardId(new Index("index", "_na_"), 0);
+        ShardId targetShardId = new ShardId(new Index("index", "_na_"), 1);
+
+        var relocatedReshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(1, 2);
+
+        try (DirectoryReader directoryReader = ElasticsearchDirectoryReader.wrap(DirectoryReader.open(iw), sourceShardId); iw) {
+            var mapperService = mock(MapperService.class);
+            when(mapperService.hasNested()).thenReturn(false);
+
+            var noReshardingMetadataSource = ReshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
+                directoryReader,
+                sourceShardId,
+                indexMetadata,
+                mapperService,
+                null,
+                SplitShardCountSummary.UNSET
+            );
+            // No relocated resharding metadata so no filtering needed.
+            assertEquals(directoryReader, noReshardingMetadataSource);
+
+            var olderSummary = ReshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
+                directoryReader,
+                sourceShardId,
+                indexMetadata,
+                mapperService,
+                relocatedReshardingMetadata,
+                SplitShardCountSummary.fromInt(1)
+            );
+            // The summary is older based on relocated resharding metadata so no filtering is applied (all documents come from the source
+            // shard).
+            assertEquals(directoryReader, olderSummary);
+
+            var currentSummarySource = ReshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
+                directoryReader,
+                sourceShardId,
+                indexMetadata,
+                mapperService,
+                relocatedReshardingMetadata,
+                SplitShardCountSummary.fromInt(2)
+            );
+            // The summary is current based on relocated resharding metadata so filters should be applied.
+            assertNotEquals(directoryReader, currentSummarySource);
+            var sourceLiveDocs = currentSummarySource.leaves().get(0).reader().getLiveDocs();
+            assertEquals(4, sourceLiveDocs.length());
+            // We get documents that route to current shard 0 and current shard 2 since we "reversed" the emulated split 2 -> 4.
+            assertTrue(sourceLiveDocs.get(0));
+            assertTrue(sourceLiveDocs.get(2));
+
+            var currentSummaryTarget = ReshardSearchFilters.maybeWrapDirectoryReaderForPitRelocation(
+                directoryReader,
+                targetShardId,
+                indexMetadata,
+                mapperService,
+                relocatedReshardingMetadata,
+                SplitShardCountSummary.fromInt(2)
+            );
+            assertNotEquals(directoryReader, currentSummaryTarget);
+            var targetLiveDocs = currentSummaryTarget.leaves().get(0).reader().getLiveDocs();
+            assertEquals(4, targetLiveDocs.length());
+            // We get documents that route to current shard 1 and current shard 3 since we "reversed" the emulated split 2 -> 4.
+            assertTrue(targetLiveDocs.get(1));
+            assertTrue(targetLiveDocs.get(3));
+        }
+    }
+
     // lower level tests that search filter decision-making is as expected
 
     // to be removed when all callers of acquireSearcherSupplier provide the appropriate summary
     public void testShouldFilterAllowsUnsetSummary() {
         assertFalse(ReshardSearchFilters.shouldFilter(testShardId(0), SplitShardCountSummary.UNSET, 128, null));
+    }
+
+    public void testShouldFilterAllowsIrrelevantSummary() {
+        assertFalse(ReshardSearchFilters.shouldFilter(testShardId(0), SplitShardCountSummary.IRRELEVANT, 128, null));
     }
 
     // if there is no split in progress and the request and the shard agree on summary, don't filter
@@ -537,57 +627,6 @@ public class ReshardSearchFiltersTests extends ESTestCase {
         assertFalse(
             ReshardSearchFilters.shouldFilter(testShardId(sourceShard), SplitShardCountSummary.fromInt(newShardCount), newShardCount, null)
         );
-    }
-
-    public void testAdjustMetadataForPitRelocation() {
-        var relocatedReshardingMetadata = IndexReshardingMetadata.newSplitByMultiple(2, 2);
-
-        var noReshardingMetadata = IndexMetadata.builder("index")
-            .settings(indexSettings(IndexVersion.current(), 4, randomIntBetween(0, 8)))
-            .build();
-        var noReshardingMetadataAdjusted = ReshardSearchFilters.adjustMetadataForPitRelocation(
-            noReshardingMetadata,
-            relocatedReshardingMetadata
-        );
-        assertEquals(4, noReshardingMetadataAdjusted.getNumberOfShards());
-        assertEquals(relocatedReshardingMetadata, noReshardingMetadataAdjusted.getReshardingMetadata());
-
-        var noReshardingMetadataOneSplitAhead = IndexMetadata.builder("index")
-            .settings(indexSettings(IndexVersion.current(), 8, randomIntBetween(0, 8)))
-            .build();
-        var noReshardingMetadataOneSplitAheadAdjusted = ReshardSearchFilters.adjustMetadataForPitRelocation(
-            noReshardingMetadataOneSplitAhead,
-            relocatedReshardingMetadata
-        );
-        assertEquals(4, noReshardingMetadataOneSplitAheadAdjusted.getNumberOfShards());
-        assertEquals(relocatedReshardingMetadata, noReshardingMetadataOneSplitAheadAdjusted.getReshardingMetadata());
-
-        var noReshardingMetadataMultipleSplitsAhead = IndexMetadata.builder("index")
-            .settings(indexSettings(IndexVersion.current(), 32, randomIntBetween(0, 8)))
-            .build();
-        var noReshardingMetadataMultipleSplitsAheadAdjusted = ReshardSearchFilters.adjustMetadataForPitRelocation(
-            noReshardingMetadataMultipleSplitsAhead,
-            relocatedReshardingMetadata
-        );
-        assertEquals(4, noReshardingMetadataMultipleSplitsAheadAdjusted.getNumberOfShards());
-        assertEquals(relocatedReshardingMetadata, noReshardingMetadataMultipleSplitsAheadAdjusted.getReshardingMetadata());
-
-        var anotherSplitInProgress = IndexMetadata.builder("index")
-            .settings(indexSettings(IndexVersion.current(), 16, randomIntBetween(0, 8)))
-            .reshardingMetadata(IndexReshardingMetadata.newSplitByMultiple(8, 16))
-            .build();
-        var anotherSplitInProgressAdjusted = ReshardSearchFilters.adjustMetadataForPitRelocation(
-            anotherSplitInProgress,
-            relocatedReshardingMetadata
-        );
-        assertEquals(4, anotherSplitInProgressAdjusted.getNumberOfShards());
-        assertEquals(relocatedReshardingMetadata, anotherSplitInProgressAdjusted.getReshardingMetadata());
-    }
-
-    private static void assertLiveDocsMatchShardOwnership(Bits liveDocs, int totalDocs, Set<String> ownedIds) {
-        for (int i = 0; i < totalDocs; i++) {
-            assertEquals(ownedIds.contains(Integer.toString(i)), liveDocs.get(i));
-        }
     }
 
     private ShardId testShardId(int shardNumber) {

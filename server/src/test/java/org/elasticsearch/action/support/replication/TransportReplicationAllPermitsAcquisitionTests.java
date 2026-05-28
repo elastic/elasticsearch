@@ -30,6 +30,7 @@ import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
@@ -670,7 +671,7 @@ public class TransportReplicationAllPermitsAcquisitionTests extends IndexShardTe
         }
 
         Request(ShardId shardId) {
-            super(shardId);
+            super(shardId, SplitShardCountSummary.UNSET);
         }
 
         @Override

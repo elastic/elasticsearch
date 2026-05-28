@@ -37,6 +37,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -1534,7 +1535,7 @@ public class TransportReplicationActionTests extends ESTestCase {
         }
 
         Request(@Nullable ShardId shardId) {
-            super(shardId);
+            super(shardId, SplitShardCountSummary.UNSET);
             this.waitForActiveShards = ActiveShardCount.NONE;
             // keep things simple
         }

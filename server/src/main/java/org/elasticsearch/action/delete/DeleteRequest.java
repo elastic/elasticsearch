@@ -15,6 +15,7 @@ import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.support.replication.ReplicatedWriteRequest;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -71,7 +72,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
     }
 
     public DeleteRequest() {
-        super(NO_SHARD_ID);
+        super(NO_SHARD_ID, SplitShardCountSummary.UNSET);
     }
 
     /**
@@ -79,7 +80,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      * must be set.
      */
     public DeleteRequest(String index) {
-        super(NO_SHARD_ID);
+        super(NO_SHARD_ID, SplitShardCountSummary.UNSET);
         this.index = index;
     }
 
@@ -90,7 +91,7 @@ public class DeleteRequest extends ReplicatedWriteRequest<DeleteRequest>
      * @param id    The id of the document
      */
     public DeleteRequest(String index, String id) {
-        super(NO_SHARD_ID);
+        super(NO_SHARD_ID, SplitShardCountSummary.UNSET);
         this.index = index;
         this.id = id;
     }

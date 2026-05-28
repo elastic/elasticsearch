@@ -202,7 +202,8 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
                 request.versionType(),
                 request.fetchSourceContext(),
                 request.isForceSyntheticSource(),
-                request.getSplitShardCountSummary()
+                request.getSplitShardCountSummary(),
+                request.refresh()
             );
         return new GetResponse(result);
     }
@@ -237,7 +238,7 @@ public class TransportGetAction extends TransportSingleShardAction<GetRequest, G
         throws IOException {
         if (request.refresh()) {
             logger.trace("send refresh action for shard {}", shardId);
-            var refreshRequest = new BasicReplicationRequest(shardId);
+            var refreshRequest = new BasicReplicationRequest(shardId, request.getSplitShardCountSummary());
             refreshRequest.setParentTask(request.getParentTask());
             client.executeLocally(
                 TransportShardRefreshAction.TYPE,

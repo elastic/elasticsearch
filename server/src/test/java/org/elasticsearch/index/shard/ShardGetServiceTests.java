@@ -280,7 +280,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET
+                SplitShardCountSummary.IRRELEVANT,
+                false
             );
         if (testGet2.sourceRef() == null) {
             assertThat("", equalTo(expectedResult));
@@ -309,7 +310,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET
+                SplitShardCountSummary.IRRELEVANT,
+                false
             );
         if (testGet2.sourceRef() == null) {
             assertThat("", equalTo(expectedResult));
@@ -371,7 +373,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET
+                SplitShardCountSummary.IRRELEVANT,
+                false
             );
         assertNull(getResult);
         var lastUnsafeGeneration = engine.getLastUnsafeSegmentGenerationForGets();
@@ -397,7 +400,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET
+                SplitShardCountSummary.IRRELEVANT,
+                false
             );
         assertNull(getResult);
         // But normal get would still work!
@@ -411,7 +415,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET
+                SplitShardCountSummary.IRRELEVANT,
+                false
             );
         assertNotNull(getResult);
         assertTrue(getResult.isExists());
@@ -431,7 +436,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET
+                SplitShardCountSummary.IRRELEVANT,
+                false
             );
         assertTrue(getResult.isExists());
         assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), lastUnsafeGeneration);
@@ -444,7 +450,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET
+                SplitShardCountSummary.IRRELEVANT,
+                false
             );
         assertNull(getResult);
         assertEquals(engine.getLastUnsafeSegmentGenerationForGets(), lastUnsafeGeneration);
@@ -471,7 +478,8 @@ public class ShardGetServiceTests extends IndexShardTestCase {
                 VersionType.INTERNAL,
                 FetchSourceContext.FETCH_SOURCE,
                 false,
-                SplitShardCountSummary.UNSET
+                SplitShardCountSummary.IRRELEVANT,
+                false
             );
         assertNull(getResult);
         var lastUnsafeGeneration2 = engine.getLastUnsafeSegmentGenerationForGets();

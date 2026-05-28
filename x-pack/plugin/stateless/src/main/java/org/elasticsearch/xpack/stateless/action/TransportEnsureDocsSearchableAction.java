@@ -143,7 +143,7 @@ public class TransportEnsureDocsSearchableAction extends TransportSingleShardAct
 
             if (docsFoundInLiveVersionMap) {
                 logger.debug("refreshing index shard [{}] due to mtv_eds", shardId);
-                BasicReplicationRequest refreshRequest = new BasicReplicationRequest(shardId);
+                BasicReplicationRequest refreshRequest = new BasicReplicationRequest(shardId, request.getSplitShardCountSummary());
                 refreshRequest.waitForActiveShards(ActiveShardCount.NONE);
                 // We call the transport action (instead of refreshing the index shard) to also update the unpromotable shards.
                 final var originClient = new OriginSettingClient(client, ENSURE_DOCS_SEARCHABLE_ORIGIN);

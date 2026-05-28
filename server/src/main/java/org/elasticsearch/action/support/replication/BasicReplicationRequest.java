@@ -23,14 +23,6 @@ import java.io.IOException;
  */
 public class BasicReplicationRequest extends ReplicationRequest<BasicReplicationRequest> {
     /**
-     * Creates a new request with resolved shard id
-     */
-    // TODO: Check if callers of this need to be modified to pass in shardCountSummary and eventually remove this constructor
-    public BasicReplicationRequest(ShardId shardId) {
-        super(shardId);
-    }
-
-    /**
      * Creates a new request with resolved shard id and SplitShardCountSummary (used
      * to determine if the request needs to be executed on a split shard not yet seen by the
      * coordinator that sent the request)

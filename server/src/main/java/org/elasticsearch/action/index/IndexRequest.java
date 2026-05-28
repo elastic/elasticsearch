@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.cluster.routing.SplitShardCountSummary;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -217,7 +218,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
     }
 
     public IndexRequest() {
-        super(NO_SHARD_ID);
+        super(NO_SHARD_ID, SplitShardCountSummary.UNSET);
         this.indexSource = new IndexSource();
     }
 
@@ -226,7 +227,7 @@ public class IndexRequest extends ReplicatedWriteRequest<IndexRequest> implement
      * {@link #source(byte[], XContentType)} must be set.
      */
     public IndexRequest(String index) {
-        super(NO_SHARD_ID);
+        super(NO_SHARD_ID, SplitShardCountSummary.UNSET);
         this.index = index;
         this.indexSource = new IndexSource();
     }

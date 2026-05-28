@@ -85,8 +85,10 @@ public class DisableSimulationRebalancingDeciderTests extends ESAllocationTestCa
         var clusterSettings = new ClusterSettings(Settings.EMPTY, settingsSet);
         var decider = new DisableSimulationRebalancingDecider(clusterSettings);
 
-        // Initially ALWAYS (default)
+        // Initially SEARCH_ONLY (default)
         assertCanRebalance(decider, simulatingAllocation(), searchOnlyShard(), Decision.Type.YES);
+        assertCanRebalance(decider, simulatingAllocation(), indexOnlyShard(), Decision.Type.NO);
+        assertCanRebalance(decider, simulatingAllocation(), Decision.Type.YES);
 
         // Update to NEVER
         clusterSettings.applySettings(
@@ -94,7 +96,8 @@ public class DisableSimulationRebalancingDeciderTests extends ESAllocationTestCa
                 .put(SIMULATION_REBALANCING_ENABLED.getKey(), DisableSimulationRebalancingDecider.RebalancingEnabled.NEVER)
                 .build()
         );
-        assertCanRebalance(decider, simulatingAllocation(), searchOnlyShard(), Decision.Type.NO);
+        assertCanRebalance(decider, simulatingAllocation(), randomFrom(indexOnlyShard(), searchOnlyShard()), Decision.Type.NO);
+        assertCanRebalance(decider, simulatingAllocation(), Decision.Type.NO);
 
         // Update back to ALWAYS
         clusterSettings.applySettings(
@@ -102,7 +105,8 @@ public class DisableSimulationRebalancingDeciderTests extends ESAllocationTestCa
                 .put(SIMULATION_REBALANCING_ENABLED.getKey(), DisableSimulationRebalancingDecider.RebalancingEnabled.ALWAYS)
                 .build()
         );
-        assertCanRebalance(decider, simulatingAllocation(), searchOnlyShard(), Decision.Type.YES);
+        assertCanRebalance(decider, simulatingAllocation(), randomFrom(indexOnlyShard(), searchOnlyShard()), Decision.Type.YES);
+        assertCanRebalance(decider, simulatingAllocation(), Decision.Type.YES);
     }
 
     private static DisableSimulationRebalancingDecider createDecider(DisableSimulationRebalancingDecider.RebalancingEnabled setting) {
@@ -138,6 +142,14 @@ public class DisableSimulationRebalancingDeciderTests extends ESAllocationTestCa
             ShardRoutingState.STARTED,
             ShardRouting.Role.SEARCH_ONLY
         );
+    }
+
+    private static void assertCanRebalance(
+        DisableSimulationRebalancingDecider decider,
+        RoutingAllocation allocation,
+        Decision.Type expected
+    ) {
+        assertThat(decider.canRebalance(allocation).type(), equalTo(expected));
     }
 
     private static void assertCanRebalance(

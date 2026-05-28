@@ -156,8 +156,8 @@ public class Earliest extends AggregateFunction implements OnlySurrogateExpressi
             "exponential_histogram",
             "ip",
             "string",
-            "numeric except counter types",
-            "tdigest"
+            "tdigest",
+            "numeric except counter types"
         ).and(
             isType(
                 timestamp,

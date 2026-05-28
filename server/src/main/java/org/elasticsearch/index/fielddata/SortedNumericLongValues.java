@@ -162,6 +162,25 @@ public abstract class SortedNumericLongValues {
             }
 
             @Override
+            public LongValues asLongValues() {
+                if (singleton != null) {
+                    return new LongValues() {
+                        @Override
+                        public long longValue() throws IOException {
+                            return singleton.longValue();
+                        }
+
+                        @Override
+                        public boolean advanceExact(int doc) throws IOException {
+                            return singleton.advanceExact(doc);
+                        }
+                    };
+                } else {
+                    return null;
+                }
+            }
+
+            @Override
             public int docValueCount() {
                 return singleton != null ? 1 : values.docValueCount();
             }

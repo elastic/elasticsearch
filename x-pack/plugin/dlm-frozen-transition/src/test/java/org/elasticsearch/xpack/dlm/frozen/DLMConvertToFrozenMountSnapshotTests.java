@@ -12,8 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequest;
-import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.indices.delete.DeleteIndexRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -76,9 +74,6 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
     private AtomicReference<DeleteIndexRequest> capturedDeleteRequest;
     private AtomicReference<RestoreSnapshotResponse> mockMountResponse;
     private AtomicReference<Exception> mockMountFailure;
-    private AtomicReference<ClusterHealthRequest> capturedHealthRequest;
-    private AtomicReference<ClusterHealthResponse> mockHealthResponse;
-    private AtomicReference<Exception> mockHealthFailure;
     private NoOpClient client;
 
     @Before
@@ -96,9 +91,6 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         capturedDeleteRequest = new AtomicReference<>();
         mockMountResponse = new AtomicReference<>();
         mockMountFailure = new AtomicReference<>();
-        capturedHealthRequest = new AtomicReference<>();
-        mockHealthResponse = new AtomicReference<>(new ClusterHealthResponse()); // default: non-timed-out
-        mockHealthFailure = new AtomicReference<>();
         client = createMockClient();
     }
 
@@ -129,15 +121,6 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
                 } else if (request instanceof DeleteIndexRequest deleteRequest) {
                     capturedDeleteRequest.set(deleteRequest);
                     listener.onResponse((Response) AcknowledgedResponse.TRUE);
-                } else if (request instanceof ClusterHealthRequest healthRequest) {
-                    capturedHealthRequest.set(healthRequest);
-                    if (mockHealthFailure.get() != null) {
-                        listener.onFailure(mockHealthFailure.get());
-                    } else if (mockHealthResponse.get() != null) {
-                        listener.onResponse((Response) mockHealthResponse.get());
-                    } else {
-                        fail("No mock health response or failure configured");
-                    }
                 } else {
                     fail("Unexpected request type [" + request.getClass().getName() + "] for action [" + action.name() + "]");
                 }
@@ -165,7 +148,6 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
         convert.maybeMountSearchableSnapshot(indexName);
 
         assertNull(capturedMountRequest.get());
-        assertThat(capturedHealthRequest.get(), is(nullValue()));
     }
 
     public void testMountRequestHasCorrectParameters() throws InterruptedException {
@@ -295,7 +277,6 @@ public class DLMConvertToFrozenMountSnapshotTests extends ESTestCase {
 
         convert.waitForMountedIndexToBeAvailable();
 
-        assertThat(capturedHealthRequest.get(), is(nullValue()));
         assertThat(capturedMountRequest.get(), is(nullValue()));
         assertThat(capturedDeleteRequest.get(), is(nullValue()));
     }

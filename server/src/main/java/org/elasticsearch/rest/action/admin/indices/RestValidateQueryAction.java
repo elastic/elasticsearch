@@ -16,6 +16,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -58,6 +59,11 @@ public class RestValidateQueryAction extends BaseRestHandler {
         validateQueryRequest.explain(request.paramAsBoolean("explain", false));
         validateQueryRequest.rewrite(request.paramAsBoolean("rewrite", false));
         validateQueryRequest.allShards(request.paramAsBoolean("all_shards", false));
+        final SliceIndexing.ParsedRouting parsedRouting = SliceIndexing.parseSearchRoutingOrSliceWithProvenance(request);
+        validateQueryRequest.routing(parsedRouting.routing())
+            .searchSlice(
+                parsedRouting.fromSlice() ? (parsedRouting.routing() == null ? SliceIndexing.SLICE_ALL : parsedRouting.routing()) : null
+            );
 
         Exception bodyParsingException = null;
         try {

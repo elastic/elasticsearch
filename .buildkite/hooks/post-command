@@ -17,6 +17,8 @@ if [[ -f build/task-status.json ]]; then
 
   echo "+++ Overall job status"
   cd .buildkite
+  pwd
+  ls -alh node_modules/
   node scripts/smart-retry/summarize-task-status.ts build/task-status.json
 fi
 

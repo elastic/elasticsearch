@@ -74,7 +74,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
 
     /**
      * Creates a fixed array of {@code pastSlots + futureSlots} atomic slot counts, one per time slot of
-     * {@code granularity}, anchored at the current time.
+     * {@code granularity}, anchored at the current time. The anchor slot counts towards {@code pastSlots}.
      * <p>
      * Example ({@code pastSlots=4}, {@code futureSlots=2}, 1h granularity, clock at 12:00):
      * <pre>

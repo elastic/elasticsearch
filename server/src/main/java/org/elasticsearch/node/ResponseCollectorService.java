@@ -95,9 +95,9 @@ public final class ResponseCollectorService implements ClusterStateListener {
      *       collection tick (~10 s) from live maps; zero overhead between ticks.</li>
      *   <li><b>es.ars.nodes.warming.current</b> (gauge) — nodes whose observation count is
      *       above zero but still below the warmup threshold.</li>
-     *   <li><b>es.ars.nodes.probing.duration</b> (histogram) — milliseconds a node spent in
+     *   <li><b>es.ars.nodes.probing.time</b> (histogram) — milliseconds a node spent in
      *       the probing state, recorded when its first ARS observation arrives.</li>
-     *   <li><b>es.ars.nodes.warming.duration</b> (histogram) — milliseconds a node spent in
+     *   <li><b>es.ars.nodes.warming.time</b> (histogram) — milliseconds a node spent in
      *       the warming state, recorded when it graduates to warm.</li>
      * </ul>
      */
@@ -116,12 +116,12 @@ public final class ResponseCollectorService implements ClusterStateListener {
             this::countWarmingNodes
         );
         probingDurationHistogram = meterRegistry.registerLongHistogram(
-            "es.ars.nodes.probing.duration",
+            "es.ars.nodes.probing.time",
             "Milliseconds from a data/search node joining the cluster to this coordinator's first ARS observation for it",
             "ms"
         );
         warmingDurationHistogram = meterRegistry.registerLongHistogram(
-            "es.ars.nodes.warming.duration",
+            "es.ars.nodes.warming.time",
             "Time in milliseconds from the first ARS observation for a node until it accumulates enough observations to graduate to warm",
             "ms"
         );

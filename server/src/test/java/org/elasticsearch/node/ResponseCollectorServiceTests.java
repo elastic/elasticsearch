@@ -280,7 +280,7 @@ public class ResponseCollectorServiceTests extends ESTestCase {
     }
 
     /**
-     * Verifies that {@code es.ars.nodes.probing.duration} records a non-negative millisecond
+     * Verifies that {@code es.ars.nodes.probing.time} records a non-negative millisecond
      * value when the first ARS observation is received for a node whose join event was seen
      * via {@link ResponseCollectorService#clusterChanged}.
      */
@@ -298,14 +298,14 @@ public class ResponseCollectorServiceTests extends ESTestCase {
             // First observation for that node ends the probing phase → histogram records
             svc.addNodeStatistics("newNode", 1, 100, 10);
 
-            var measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.ars.nodes.probing.duration");
+            var measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.ars.nodes.probing.time");
             assertThat(measurements, hasSize(1));
             assertThat(measurements.getFirst().getLong(), greaterThanOrEqualTo(0L));
         }
     }
 
     /**
-     * Verifies that {@code es.ars.nodes.warming.duration} records a non-negative millisecond
+     * Verifies that {@code es.ars.nodes.warming.time} records a non-negative millisecond
      * value when a node accumulates {@code warmupSamples} observations and graduates from
      * warming to warm.
      */
@@ -328,7 +328,7 @@ public class ResponseCollectorServiceTests extends ESTestCase {
             svc.addNodeStatistics("newNode", 1, 100, 10);
             svc.addNodeStatistics("newNode", 1, 100, 10);
 
-            var measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.ars.nodes.warming.duration");
+            var measurements = meterRegistry.getRecorder().getMeasurements(InstrumentType.LONG_HISTOGRAM, "es.ars.nodes.warming.time");
             assertThat(measurements, hasSize(1));
             assertThat(measurements.getFirst().getLong(), greaterThanOrEqualTo(0L));
         }

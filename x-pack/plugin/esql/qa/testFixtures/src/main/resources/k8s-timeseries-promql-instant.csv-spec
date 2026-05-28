@@ -1,0 +1,110 @@
+// Instant-query coverage for PromQL specific behavior.
+// Keep this separate from the range-query spec so the test intent is obvious.
+
+instant_time_scalar_at_0003
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_time
+
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" result=(time());
+
+result:double | step:datetime   
+1.71529938E9  | 2024-05-10T00:03:00.000Z
+;
+
+instant_time_scalar_at_0010
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+required_capability: promql_time
+
+PROMQL index=k8s time="2024-05-10T00:10:00.000Z" result=(time());
+
+result:double | step:datetime
+1.7152998E9   | 2024-05-10T00:10:00.000Z
+;
+
+instant_first_over_time_clients
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" clients=(avg by (cluster) (first_over_time(network.eth0.currently_connected_clients[1m])))
+| SORT cluster;
+
+clients:double | step:datetime            | cluster:keyword
+659.5          | 2024-05-10T00:03:00.000Z | prod
+565.0          | 2024-05-10T00:03:00.000Z | qa
+426.5          | 2024-05-10T00:03:00.000Z | staging
+;
+
+instant_last_over_time_clients
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" clients=(avg by (cluster) (last_over_time(network.eth0.currently_connected_clients[1m])))
+| SORT cluster;
+
+clients:double | step:datetime            | cluster:keyword
+632.5          | 2024-05-10T00:03:00.000Z | prod
+565.0          | 2024-05-10T00:03:00.000Z | qa
+205.0          | 2024-05-10T00:03:00.000Z | staging
+;
+
+instant_first_over_time_bytes
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(avg by (cluster) (first_over_time(network.bytes_in[1m])))
+| SORT cluster;
+
+bytes:double | step:datetime            | cluster:keyword
+588.0        | 2024-05-10T00:03:00.000Z | prod
+749.0        | 2024-05-10T00:03:00.000Z | qa
+450.5        | 2024-05-10T00:03:00.000Z | staging
+;
+
+instant_last_over_time_bytes
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+
+PROMQL index=k8s time="2024-05-10T00:03:00.000Z" bytes=(avg by (cluster) (last_over_time(network.bytes_in[1m])))
+| SORT cluster;
+
+bytes:double | step:datetime            | cluster:keyword
+612.0        | 2024-05-10T00:03:00.000Z | prod
+749.0        | 2024-05-10T00:03:00.000Z | qa
+382.5        | 2024-05-10T00:03:00.000Z | staging
+;
+
+instant_last_over_time_filtered_bytes
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+
+PROMQL index=k8s time="2024-05-10T00:20:00.000Z" tx=(sum by (cluster) (last_over_time(network.bytes_in{pod="one"}[10m])))
+| SORT cluster;
+
+tx:double | step:datetime            | cluster:keyword
+542.0     | 2024-05-10T00:20:00.000Z | prod
+187.0     | 2024-05-10T00:20:00.000Z | qa
+4.0       | 2024-05-10T00:20:00.000Z | staging
+;
+
+instant_empty_result_outside_window
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+
+PROMQL index=k8s time="2026-01-01T00:10:00.000Z" clients=(avg by (cluster) (last_over_time(network.eth0.currently_connected_clients[1m])))
+| SORT cluster;
+
+clients:double | step:datetime | cluster:keyword
+;
+
+# AwaitsFix: https://github.com/elastic/elasticsearch/issues/149791
+instant_binary_mixed_lookbacks-Ignore
+required_capability: promql_command_v0
+required_capability: promql_instant_query
+
+PROMQL index=k8s time="2024-05-10T00:20:00.000Z" result=(sum(avg_over_time(network.cost[1m]) + avg_over_time(network.cost[5m])));
+
+result:double | step:datetime
+98.39583333333334 | 2024-05-10T00:20:00.000Z
+;

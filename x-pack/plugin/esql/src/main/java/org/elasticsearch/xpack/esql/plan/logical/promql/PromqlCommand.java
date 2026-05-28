@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.TimestampAware;
 import org.elasticsearch.xpack.esql.expression.function.TimestampBoundsAware;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Bucket;
+import org.elasticsearch.xpack.esql.expression.promql.function.PromqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.promql.PromqlLogicalPlanBuilder;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
@@ -52,6 +53,7 @@ import static org.elasticsearch.xpack.esql.common.Failure.fail;
  * Gets eliminated by the analyzer once the query is validated.
  */
 public class PromqlCommand extends UnaryPlan implements TelemetryAware, TimestampAware, TimestampBoundsAware.OfLogicalPlan {
+    private static final PromqlFunctionRegistry PROMQL_FUNCTION_REGISTRY = new PromqlFunctionRegistry();
 
     /**
      * The name of the column containing the step value (aka time bucket) in range queries.
@@ -377,7 +379,7 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
         LogicalPlan p = promqlPlan();
         boolean hasStep = step.value() != null;
         boolean hasRangeAndBuckets = start.value() != null && end.value() != null && buckets.value() != null;
-        if (hasStep == false && hasRangeAndBuckets == false) {
+        if (isInstantQuery() == false && hasStep == false && hasRangeAndBuckets == false) {
             failures.add(
                 fail(
                     this,
@@ -389,11 +391,6 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
                     sourceText()
                 )
             );
-            return;
-        }
-        // TODO(sidosera): Remove once instant query support is added.
-        if (isInstantQuery()) {
-            failures.add(fail(p, "instant queries are not supported at this time [{}]", sourceText()));
             return;
         }
 
@@ -509,11 +506,30 @@ public class PromqlCommand extends UnaryPlan implements TelemetryAware, Timestam
     }
 
     /**
-     * Returns the maximum explicit range-selector window across all function calls in the PromQL plan.
-     * Implicit placeholders are resolved to {@code max(step, scrape_interval)}.
-     * Returns {@link Duration#ZERO} when there are no range selectors.
+     * Returns the source-side timestamp lookback window.
+     * Explicit and implicit range selectors contribute their requested window.
+     * Instant queries extend that window to at least the Prometheus lookback delta.
      */
-    public Duration maxRangeSelectorWindow() {
+    public Duration sourceFilterWindow() {
+        Duration window = maxRangeSelectorWindow();
+        if (isInstantQuery() && DEFAULT_LOOKBACK.compareTo(window) > 0) {
+            window = DEFAULT_LOOKBACK;
+        }
+        return window;
+    }
+
+    /**
+     * Returns the TSTEP bucket step for instant queries: the max range-selector window,
+     * falling back to {@link #DEFAULT_LOOKBACK} only when no range selectors are present.
+     * Unlike {@link #sourceFilterWindow()}, this does not floor explicit windows up to
+     * DEFAULT_LOOKBACK.
+     */
+    public Duration resolveInstantQueryWindow() {
+        Duration window = maxRangeSelectorWindow();
+        return window.isZero() ? DEFAULT_LOOKBACK : window;
+    }
+
+    private Duration maxRangeSelectorWindow() {
         Duration window = Duration.ZERO;
         for (var selector : promqlPlan().collect(RangeSelector.class)) {
             var r = selector.range();

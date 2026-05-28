@@ -727,7 +727,6 @@ public class ActionModule extends AbstractModule {
         actions.register(FlushAction.INSTANCE, TransportFlushAction.class);
         actions.register(ForceMergeAction.INSTANCE, TransportForceMergeAction.class);
         actions.register(TransportClearIndicesCacheAction.TYPE, TransportClearIndicesCacheAction.class);
-        actions.register(CancelRecoveriesAction.TYPE, TransportCancelRecoveriesAction.class);
         actions.register(GetAliasesAction.INSTANCE, TransportGetAliasesAction.class);
         actions.register(GetSettingsAction.INSTANCE, TransportGetSettingsAction.class);
 
@@ -807,6 +806,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportShardRefreshAction.TYPE, TransportShardRefreshAction.class);
         actions.register(TransportPrevalidateShardPathAction.TYPE, TransportPrevalidateShardPathAction.class);
         actions.register(TransportAwaitClusterStateVersionAppliedAction.TYPE, TransportAwaitClusterStateVersionAppliedAction.class);
+        actions.register(CancelRecoveriesAction.TYPE, TransportCancelRecoveriesAction.class);
 
         // desired nodes
         actions.register(GetDesiredNodesAction.INSTANCE, TransportGetDesiredNodesAction.class);

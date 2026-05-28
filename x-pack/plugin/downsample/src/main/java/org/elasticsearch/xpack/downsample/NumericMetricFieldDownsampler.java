@@ -235,13 +235,13 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
         }
 
         public void reset() {
+            isEmpty = true;
             if (temporalityCollector != null) {
                 temporalityCollector.reset();
             }
         }
 
         public void tsidReset() {
-            reset();
             if (temporalityCollector != null) {
                 temporalityCollector.tsidReset();
                 temporalityCollector = null;
@@ -312,7 +312,7 @@ abstract sealed class NumericMetricFieldDownsampler extends AbstractFieldDownsam
 
             @Override
             public void tsidReset() {
-                // nothing to do here
+                reset();
             }
         }
 

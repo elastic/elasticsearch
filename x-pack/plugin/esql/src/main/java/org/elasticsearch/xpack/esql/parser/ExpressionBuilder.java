@@ -796,13 +796,14 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
     }
 
     private Expression castToType(Source source, ParseTree parseTree, EsqlBaseParser.DataTypeContext dataTypeCtx) {
-        // gauge maps to the plain numeric variant of the input's counter type (counter_long→long, etc.).
         if (dataTypeCtx instanceof EsqlBaseParser.ToDataTypeContext toDataType) {
             String typeName = visitIdentifier(toDataType.identifier()).toLowerCase(Locale.ROOT);
+            Expression expr = expression(parseTree);
+            // counter and gauge are virtual cast targets — not real DataTypes.
             if (DataType.COUNTER_CAST_NAME.equals(typeName)) {
-                return new ToCounter(source, expression(parseTree));
+                return new ToCounter(source, expr);
             } else if (DataType.GAUGE_CAST_NAME.equals(typeName)) {
-                return new ToGauge(source, expression(parseTree));
+                return new ToGauge(source, expr);
             }
         }
         DataType dataType = typedParsing(this, dataTypeCtx, DataType.class);

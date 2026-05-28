@@ -723,6 +723,7 @@ public class StatelessPlugin extends Plugin
             throw new IllegalArgumentException("Directly setting [" + nodeMemoryAttrName + "] is not permitted - it is reserved.");
         }
         settings.put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false);
+        // Default values for the GroupSetting
         settings.put(Settings.builder().loadFromSource("""
             {
               "level0": { "age": "1d", "search_power": 200},

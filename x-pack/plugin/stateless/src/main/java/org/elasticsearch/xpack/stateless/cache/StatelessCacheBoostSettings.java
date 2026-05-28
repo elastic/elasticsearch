@@ -49,20 +49,15 @@ public class StatelessCacheBoostSettings {
 
         public static BoostConfiguration parseFromString(String name, String configString) {
             final var settings = Settings.builder().loadFromSource(configString, XContentType.JSON).build();
-
-            final var levels = buildBoostLevelsFromSettings(settings);
-
-            return new BoostConfiguration(name, levels);
+            return new BoostConfiguration(name, buildBoostLevelsFromSettings(settings));
         }
 
         private static List<BoostLevel> buildBoostLevelsFromSettings(Settings settings) {
             return settings.getAsGroups().entrySet().stream().map(entry -> {
-                final var levelName = entry.getKey();
                 final var levelSettings = entry.getValue();
-                return new BoostLevel(levelName, LEVEL_AGE.get(levelSettings), LEVEL_SP.get(levelSettings));
+                return new BoostLevel(entry.getKey(), LEVEL_AGE.get(levelSettings), LEVEL_SP.get(levelSettings));
             }).toList();
         }
-
     }
 
     private static final Logger logger = LogManager.getLogger(StatelessCacheBoostSettings.class);

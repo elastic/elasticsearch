@@ -57,8 +57,9 @@ public class LuceneCountOperator extends LuceneOperator {
             super(
                 contexts,
                 queryFunction,
-                // don't enable doc-partitioning for count see #partitioningStrategyForCount
-                dataPartitioning == DataPartitioning.DOC ? DataPartitioning.AUTO : dataPartitioning,
+                // DOC partitioning is now safe for count — see #count(LuceneScorer) which suppresses
+                // the Weight.count() shortcut for sub-segment slices.
+                dataPartitioning,
                 LuceneCountOperator::partitioningStrategyForCount,
                 docThresholdForAutoStrategy,
                 taskConcurrency,
@@ -147,17 +148,24 @@ public class LuceneCountOperator extends LuceneOperator {
         PerTagsState state = tagsToState.computeIfAbsent(scorer.tags(), t -> new PerTagsState());
         Weight weight = scorer.weight();
         var leafReaderContext = scorer.leafReaderContext();
-        int leafCount = weight.count(leafReaderContext);
-        if (leafCount != -1) {
-            var count = Math.min(leafCount, remainingDocs);
-            state.totalHits += count;
-            remainingDocs -= count;
-            scorer.markAsDone();
-        } else {
-            // could not apply shortcut, trigger the search
-            // TODO: avoid iterating all documents in multiple calls to make cancellation more responsive.
-            scorer.scoreNextRange(state, leafReaderContext.reader().getLiveDocs(), remainingDocs);
+        // The Weight.count(leaf) shortcut returns the leaf-wide count, which is correct only when
+        // this driver owns the full leaf. For DOC-partitioned slices the shortcut would over-count:
+        // every sibling driver would apply the same leaf-total to its own range. Fall through to
+        // iteration in that case; BulkScorer.score respects [position, maxPosition) and is safe
+        // under the Lucene query cache (cached DocIdSet iterators honor the supplied doc range).
+        if (scorer.coversFullLeaf()) {
+            int leafCount = weight.count(leafReaderContext);
+            if (leafCount != -1) {
+                var count = Math.min(leafCount, remainingDocs);
+                state.totalHits += count;
+                remainingDocs -= count;
+                scorer.markAsDone();
+                return;
+            }
         }
+        // could not apply shortcut, trigger the search
+        // TODO: avoid iterating all documents in multiple calls to make cancellation more responsive.
+        scorer.scoreNextRange(state, leafReaderContext.reader().getLiveDocs(), remainingDocs);
     }
 
     private Page buildResult() {

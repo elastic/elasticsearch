@@ -68,6 +68,8 @@ public final class AsyncExternalSourceBuffer {
      * {@code SchemaCacheEntry}.
      */
     private final ConcurrentMap<String, List<Map<String, Object>>> capturedSourceMetadata = new ConcurrentHashMap<>();
+    private volatile Map<String, List<Map<String, Object>>> cachedMetadataSnapshot = Map.of();
+    private volatile int cachedMetadataPathCount = 0;
 
     private volatile FormatReaderStatus formatReaderStatus = null;
     // LongAdder (rather than the AtomicLong used for {@link #bytesInBuffer}) because every read
@@ -96,16 +98,29 @@ public final class AsyncExternalSourceBuffer {
      * via {@link AsyncExternalSourceOperator#status()}. Returning an unmodifiable view defends
      * against downstream callers mutating the snapshot in place, which would silently lose stats
      * before they reach the coordinator's reconciler.
+     * <p>
+     * The snapshot is cached and rebuilt only when the number of tracked file paths grows or when
+     * the buffer reaches completion. In-flight status calls during execution may therefore see a
+     * slightly stale view of the per-file contribution lists (e.g. missing a later parallel-parsing
+     * chunk for an already-tracked path). The final snapshot taken after {@link #finish} is always
+     * rebuilt in full so {@code DriverCompletionInfo} captures all contributions.
      */
     Map<String, List<Map<String, Object>>> capturedSourceMetadataSnapshot() {
-        if (capturedSourceMetadata.isEmpty()) {
+        int currentSize = capturedSourceMetadata.size();
+        if (currentSize == 0) {
             return Map.of();
         }
-        HashMap<String, List<Map<String, Object>>> snapshot = new HashMap<>(capturedSourceMetadata.size());
+        if (currentSize == cachedMetadataPathCount && isFinished() == false) {
+            return cachedMetadataSnapshot;
+        }
+        HashMap<String, List<Map<String, Object>>> snapshot = new HashMap<>(currentSize);
         for (var entry : capturedSourceMetadata.entrySet()) {
             snapshot.put(entry.getKey(), List.copyOf(entry.getValue()));
         }
-        return Collections.unmodifiableMap(snapshot);
+        Map<String, List<Map<String, Object>>> result = Collections.unmodifiableMap(snapshot);
+        cachedMetadataPathCount = currentSize;
+        cachedMetadataSnapshot = result;
+        return result;
     }
 
     /**

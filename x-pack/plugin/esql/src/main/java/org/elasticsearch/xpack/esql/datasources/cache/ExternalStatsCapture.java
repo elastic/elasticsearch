@@ -7,11 +7,12 @@
 
 package org.elasticsearch.xpack.esql.datasources.cache;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * Thread-bound sink for captured per-file source statistics. The text-format iterators' close
@@ -48,7 +49,7 @@ public final class ExternalStatsCapture {
         }
         ConcurrentMap<String, List<Map<String, Object>>> sink = ACTIVE.get();
         if (sink != null) {
-            sink.computeIfAbsent(filePath, k -> new CopyOnWriteArrayList<>()).add(Map.copyOf(stats));
+            sink.computeIfAbsent(filePath, k -> Collections.synchronizedList(new ArrayList<>())).add(stats);
         }
     }
 

@@ -1,0 +1,5 @@
+area: "ES|QL, Infra/Logging"
+issues: []
+pr: 150127
+summary: Add query filter to more query types
+type: enhancement

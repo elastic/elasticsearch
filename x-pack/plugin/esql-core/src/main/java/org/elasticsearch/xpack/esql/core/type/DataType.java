@@ -575,7 +575,13 @@ public enum DataType {
     }
 
     public static boolean isSortable(DataType t) {
-        return false == (t == SOURCE || isCounter(t) || isSpatial(t) || t == AGGREGATE_METRIC_DOUBLE);
+        return false == (t == SOURCE
+            || isCounter(t)
+            || isSpatial(t)
+            || t == AGGREGATE_METRIC_DOUBLE
+            || t == DATE_PERIOD
+            || t == TIME_DURATION
+            || t == TSID_DATA_TYPE);
     }
 
     public String nameUpper() {

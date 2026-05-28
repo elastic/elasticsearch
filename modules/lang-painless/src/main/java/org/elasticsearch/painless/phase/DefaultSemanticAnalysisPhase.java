@@ -2382,7 +2382,13 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
         semanticScope.setCondition(userBlockNode, LastSource.class);
         visit(userBlockNode, lambdaScope);
 
-        if (lambdaScope.usesInstanceMethod()) {
+        // A static lambda in a cancellation-aware script needs the script receiver captured so its
+        // body can fetch _getCancellationCheck() and decrement $cancelPoll — the same wire effect as
+        // a lambda that calls an instance method. Reuse the instance-capture machinery to push the
+        // script receiver as a synthetic leading capture in that case too.
+        boolean needsScriptCapture = lambdaScope.usesInstanceMethod() || scriptScope.getScriptClassInfo().supportsCancellation();
+
+        if (needsScriptCapture) {
             semanticScope.setCondition(userLambdaNode, InstanceCapturingLambda.class);
         }
 
@@ -2405,7 +2411,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
 
         // desugar lambda body into a synthetic method
         String name = scriptScope.getNextSyntheticName("lambda");
-        boolean isStatic = lambdaScope.usesInstanceMethod() == false;
+        boolean isStatic = needsScriptCapture == false;
         scriptScope.getFunctionTable().addFunction(name, returnType, typeParametersWithCaptures, true, isStatic);
 
         Class<?> valueType;
@@ -2414,7 +2420,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
             valueType = String.class;
             semanticScope.putDecoration(
                 userLambdaNode,
-                EncodingDecoration.of(true, lambdaScope.usesInstanceMethod(), "this", name, capturedVariables.size())
+                EncodingDecoration.of(true, needsScriptCapture, "this", name, capturedVariables.size())
             );
         } else {
             FunctionRef ref = FunctionRef.create(
@@ -2426,7 +2432,7 @@ public class DefaultSemanticAnalysisPhase extends UserTreeBaseVisitor<SemanticSc
                 name,
                 capturedVariables.size(),
                 scriptScope.getCompilerSettings().asMap(),
-                lambdaScope.usesInstanceMethod()
+                needsScriptCapture
             );
             valueType = targetType.targetType();
             semanticScope.putDecoration(userLambdaNode, new ReferenceDecoration(ref));

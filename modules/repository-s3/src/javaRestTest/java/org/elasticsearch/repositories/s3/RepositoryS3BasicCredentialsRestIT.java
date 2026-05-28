@@ -38,6 +38,7 @@ public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3Rest
     private static final Supplier<String> regionSupplier = new DynamicRegionSupplier();
     private static final S3HttpFixture s3Fixture = new S3HttpFixture(
         true,
+        null,
         BUCKET,
         BASE_PATH,
         S3ConsistencyModel::randomConsistencyModel,
@@ -50,8 +51,6 @@ public class RepositoryS3BasicCredentialsRestIT extends AbstractRepositoryS3Rest
         .keystore("s3.client." + CLIENT + ".access_key", ACCESS_KEY)
         .keystore("s3.client." + CLIENT + ".secret_key", SECRET_KEY)
         .setting("s3.client." + CLIENT + ".endpoint", s3Fixture::getAddress)
-        .systemProperty("es.insecure_network_trace_enabled", "true")
-        .setting("logger.org.apache.http.headers", "TRACE")
         .setting("s3.client." + CLIENT + ".disable_chunked_encoding", () -> randomFrom("true", "false"), ignored -> randomBoolean())
         .build();
 

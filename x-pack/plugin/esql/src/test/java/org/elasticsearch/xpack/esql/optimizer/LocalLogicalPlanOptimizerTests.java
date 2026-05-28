@@ -1885,7 +1885,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
                 new Alias(EMPTY, "i", new Increase(EMPTY, fieldAttr, Literal.TRUE, AggregateFunction.NO_WINDOW, timestampAttr, null))
             ),
             null,
-            timestampAttr
+            timestampAttr,
+            TimeSeriesAggregate.Origin.TS_COMMAND
         );
 
         var searchStats = new EsqlTestUtils.TestSearchStats() {
@@ -1933,7 +1934,8 @@ public class LocalLogicalPlanOptimizerTests extends AbstractLocalLogicalPlanOpti
             List.of(),
             List.of(new Alias(EMPTY, "merged", new HistogramMerge(EMPTY, histogramAttr, Literal.TRUE, AggregateFunction.NO_WINDOW))),
             null,
-            timestampAttr
+            timestampAttr,
+            TimeSeriesAggregate.Origin.TS_COMMAND
         );
 
         var searchStats = new EsqlTestUtils.TestSearchStats() {

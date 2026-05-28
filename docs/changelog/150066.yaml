@@ -1,0 +1,5 @@
+area: Vector Search
+issues: []
+pr: 150066
+summary: Advise MADV_RANDOM on blob cache regions backing vector data files
+type: feature

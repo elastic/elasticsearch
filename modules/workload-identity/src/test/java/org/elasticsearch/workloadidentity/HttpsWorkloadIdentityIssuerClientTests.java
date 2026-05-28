@@ -65,6 +65,7 @@ import java.util.function.Consumer;
 
 import javax.net.ssl.KeyManager;
 import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLParameters;
 import javax.net.ssl.SSLPeerUnverifiedException;
 import javax.net.ssl.TrustManager;
 import javax.net.ssl.X509ExtendedKeyManager;
@@ -622,21 +623,29 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
     }
 
     /**
-     * A short-lived token is evicted at {@code expiresAt - refresh_before_expiry}, after which
-     * the next caller pays the cost of a fresh HTTP fetch.
+     * A token is evicted at {@code expiresAt - refresh_before_expiry}, after which the next
+     * caller pays the cost of a fresh HTTP fetch.
+     *
+     * <p>Eviction timing is decoupled from token lifetime: the token is long-lived so
+     * {@code validateExpiry}'s {@code expiresAt < now} check cannot race a slow CI worker, and
+     * {@code refresh_before_expiry} sits just below the lifetime so eviction still fires ~50ms
+     * after the response.
      */
     public void testCachedTokenIsEvictedNearExpiry() throws Exception {
         final AtomicInteger callCount = new AtomicInteger();
+        final int tokenTtlSeconds = 60;
+        final long expiresAtSeconds = (System.currentTimeMillis() / 1000) + tokenTtlSeconds;
 
         try (
             ClientHarness harness = new ClientHarness(
-                clientSettingsWithIssuerUrl()
-                    // Aggressive refresh window so the test runs in ~1 second of wall-clock time.
-                    .put(WorkloadIdentityIssuerSettings.TOKEN_CACHE_REFRESH_BEFORE_EXPIRY.getKey(), TimeValue.timeValueMillis(50))
-                    .build()
+                clientSettingsWithIssuerUrl().put(
+                    WorkloadIdentityIssuerSettings.TOKEN_CACHE_REFRESH_BEFORE_EXPIRY.getKey(),
+                    TimeValue.timeValueMillis(tokenTtlSeconds * 1000L - 50)
+                ).build()
             )
         ) {
-            handler = exchange -> respondWithToken(exchange, (System.currentTimeMillis() / 1000) + 1, callCount);
+            // Capture expiresAt once so a slow second handler call can't race validateExpiry either.
+            handler = exchange -> respondWithToken(exchange, expiresAtSeconds, callCount);
             final IssueTokenRequest request = new IssueTokenRequest("aud");
             awaitToken(harness, request);
             assertEquals(1, callCount.get());
@@ -1177,7 +1186,14 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
         @Override
         public void configure(HttpsParameters params) {
             // Match the production "mTLS required" contract: reject connections without a valid client cert.
-            params.setNeedClientAuth(true);
+            // Apply via setSSLParameters rather than setNeedClientAuth: with the BouncyCastle JSSE
+            // provider used in FIPS, the legacy HttpsParameters.setNeedClientAuth path requests the
+            // client cert during the handshake but the resulting peer chain is not exposed on the
+            // server-side SSLSession; routing the same flag through SSLParameters fixes that without
+            // weakening the need-vs-want contract that testHandshakeFailsWithoutClientCert relies on.
+            final SSLParameters sslParameters = getSSLContext().getDefaultSSLParameters();
+            sslParameters.setNeedClientAuth(true);
+            params.setSSLParameters(sslParameters);
         }
     }
 }

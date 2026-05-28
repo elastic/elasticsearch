@@ -11,15 +11,49 @@ package org.elasticsearch.index.codec.vectors.diskbbq.next.calibrate;
 
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues.DocIndexIterator;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
+import org.elasticsearch.simdvec.ESVectorUtil;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.List;
 
 import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
+import static org.hamcrest.Matchers.closeTo;
 
 public class CalibrationUtilsTests extends ESTestCase {
+
+    public void testNormalizeInPlacePrefix() {
+        float[] v = { 3f, 4f, 99f, 99f };
+        CalibrationUtils.normalizeInPlace(v, 2);
+        assertArrayEquals(new float[] { 0.6f, 0.8f, 99f, 99f }, v, 1e-5f);
+    }
+
+    public void testNormalizeInPlaceZeroVector() {
+        float[] v = { 0f, 0f, 0f };
+        CalibrationUtils.normalizeInPlace(v, v.length);
+        assertArrayEquals(new float[] { 0f, 0f, 0f }, v, 0f);
+    }
+
+    public void testNormalizeFullLengthMatchesLucene() {
+        float[] v = { 1f, 2f, 3f };
+        float[] expected = v.clone();
+        VectorUtil.l2normalize(expected);
+        CalibrationUtils.normalizeInPlace(v, v.length);
+        assertArrayEquals(expected, v, 1e-5f);
+    }
+
+    public void testDotMatchesESVectorUtil() {
+        int dim = 16;
+        float[] a = new float[dim];
+        float[] b = new float[dim];
+        for (int i = 0; i < dim; i++) {
+            a[i] = randomFloat();
+            b[i] = randomFloat();
+        }
+        assertThat(CalibrationUtils.dot(dim, a, b), closeTo(ESVectorUtil.dotProduct(a, b), 1e-5));
+    }
 
     public void testToHeapDenseRoundTrip() throws IOException {
         float[][] data = { { 1f, 2f, 3f }, { 4f, 5f, 6f }, { 7f, 8f, 9f } };

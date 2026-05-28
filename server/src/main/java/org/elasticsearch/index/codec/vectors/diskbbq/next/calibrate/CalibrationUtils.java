@@ -12,6 +12,7 @@ package org.elasticsearch.index.codec.vectors.diskbbq.next.calibrate;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.KnnVectorValues.DocIndexIterator;
 import org.apache.lucene.index.VectorSimilarityFunction;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.codec.vectors.cluster.KMeansFloatVectorValues;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
@@ -43,6 +44,20 @@ public final class CalibrationUtils {
      */
     public record SampledData(int[] queryOrdinals, int[] corpusOrdinals) {}
 
+    /**
+     * Dot product of the first {@code dim} components of {@code x} and {@code y}.
+     * Uses {@link ESVectorUtil#dotProduct(float[], float[])} when both arrays have length {@code dim}.
+     */
+    static double dot(int dim, float[] x, float[] y) {
+        if (dim == x.length && dim == y.length) {
+            return ESVectorUtil.dotProduct(x, y);
+        }
+        double sum = 0;
+        for (int i = 0; i < dim; i++) {
+            sum += (double) x[i] * y[i];
+        }
+        return sum;
+    }
 
     /**
      * L2-normalize a single vector in place.
@@ -53,16 +68,35 @@ public final class CalibrationUtils {
 
     /**
      * L2-normalize the first {@code len} components of {@code v} in place.
+     * When {@code len == v.length}, delegates to {@link VectorUtil#l2normalize(float[])} for non-zero vectors.
+     * When {@code len &lt; v.length}, only the prefix is scaled; trailing components are untouched (Neyshabur query lift).
      */
     public static void normalizeInPlace(float[] v, int len) {
-        double norm = 0;
-        for (int j = 0; j < len; j++) {
-            norm += (double) v[j] * v[j];
+        if (len <= 0) {
+            return;
         }
-        norm = Math.sqrt(norm);
-        if (norm == 0) norm = 1;
+        if (len < v.length) {
+            normalizePrefixInPlace(v, len);
+            return;
+        }
+        if (len != v.length) {
+            throw new IllegalArgumentException("len [" + len + "] must be <= v.length [" + v.length + "]");
+        }
+        VectorUtil.l2normalize(v);
+    }
+
+    private static void normalizePrefixInPlace(float[] v, int len) {
+        double normSq = 0;
         for (int j = 0; j < len; j++) {
-            v[j] = (float) (v[j] / norm);
+            double t = v[j];
+            normSq += t * t;
+        }
+        if (normSq == 0) {
+            return;
+        }
+        double invNorm = 1.0 / Math.sqrt(normSq);
+        for (int j = 0; j < len; j++) {
+            v[j] = (float) (v[j] * invNorm);
         }
     }
 
@@ -146,12 +180,7 @@ public final class CalibrationUtils {
         @Override
         public float[] vectorValue(int ord) throws IOException {
             float[] v = delegate.vectorValue(ord);
-            double normSq = 0;
-            for (int j = 0; j < dim; j++) {
-                float t = v[j];
-                buffer[j] = t;
-                normSq += (double) t * t;
-            }
+            double normSq = ESVectorUtil.dotProduct(v, v);
             buffer[dim] = (float) Math.sqrt(Math.max(0.0, maxNormSq - normSq));
             return buffer;
         }

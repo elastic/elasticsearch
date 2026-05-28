@@ -833,6 +833,67 @@ public class CsvFormatReaderTests extends ESTestCase {
         assertEquals("before\t[line1\nline2\nline3]\tafter\n".length(), boundary);
     }
 
+    public void testTsvFindNextRecordBoundaryNestedBracketMvcWithEmbeddedNewlines() throws IOException {
+        // TSV counterpart to testFindNextRecordBoundaryNestedBracketMvcWithEmbeddedNewlines: nested
+        // brackets across a tab delimiter with newlines inside. The depth-tracking state machine
+        // must not bail at the inner closing bracket.
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("delimiter", "\t", "multi_value_syntax", "brackets")
+        );
+        byte[] data = "a\t[[cell\ninner]]\tb\nz\n".getBytes(StandardCharsets.UTF_8);
+        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        assertEquals("a\t[[cell\ninner]]\tb\n".length(), boundary);
+    }
+
+    public void testTsvFindNextRecordBoundaryMultiValueSyntaxNoneDoesNotTreatBracketsAsMvc() throws IOException {
+        // TSV counterpart to the CSV version: under multi_value_syntax: none with a tab delimiter,
+        // brackets are literal and a newline inside [..] terminates the record at the first newline.
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("delimiter", "\t", "multi_value_syntax", "none")
+        );
+        byte[] data = "before\t[not\nmvc]\tafter\nnext\n".getBytes(StandardCharsets.UTF_8);
+        long boundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        assertEquals("before\t[not\n".length(), boundary);
+    }
+
+    public void testTsvFindNextRecordBoundaryTwoRecordsStateMachineReset() throws IOException {
+        // After the first record-boundary returns, asking for the next must reset state correctly:
+        // the second [..] cell with an embedded newline should also be honored as a single record.
+        // Guards against a state-machine reset bug in the bracket-aware scanner.
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("delimiter", "\t", "multi_value_syntax", "brackets")
+        );
+        byte[] data = "a\t[x\ny]\tb\nc\t[m\nn]\td\n".getBytes(StandardCharsets.UTF_8);
+        long firstBoundary = reader.findNextRecordBoundary(new ByteArrayInputStream(data));
+        assertEquals("a\t[x\ny]\tb\n".length(), firstBoundary);
+        // Now scan the second record from its own buffer; ensures the scanner is stateless across calls.
+        byte[] tail = "c\t[m\nn]\td\n".getBytes(StandardCharsets.UTF_8);
+        long secondBoundary = reader.findNextRecordBoundary(new ByteArrayInputStream(tail));
+        assertEquals(tail.length, secondBoundary);
+    }
+
+    public void testTsvFusedPathWithNestedBrackets() throws IOException {
+        // Fused fast path (splitAndConvertProjected) on TSV with nested-bracket content. The element
+        // splitter inside [..] is a flat comma split, not a depth-tracking parser — so [a,[b,c]]
+        // yields three values ("a", "[b", "c]"). The point of the test isn't to validate a parser
+        // design choice; it's to confirm the fused path on TSV behaves identically to CSV on this
+        // edge case (no delimiter-coupled divergence introduced by the refactor).
+        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
+            Map.of("delimiter", "\t", "multi_value_syntax", "brackets")
+        );
+        String tsv = "id:long\ttags:keyword\n1\t[a,[b,c]]\n";
+        StorageObject object = createStorageObject(tsv);
+
+        try (CloseableIterator<Page> iterator = reader.read(object, List.of("id", "tags"), 10)) {
+            assertTrue(iterator.hasNext());
+            Page page = iterator.next();
+            assertEquals(1, page.getPositionCount());
+            assertEquals(1L, ((LongBlock) page.getBlock(0)).getLong(0));
+            BytesRefBlock tagsBlock = (BytesRefBlock) page.getBlock(1);
+            assertEquals(3, tagsBlock.getValueCount(0));
+        }
+    }
+
     public void testSchemaWithDateNanosType() throws IOException {
         String csv = """
             event:keyword,ts:date_nanos

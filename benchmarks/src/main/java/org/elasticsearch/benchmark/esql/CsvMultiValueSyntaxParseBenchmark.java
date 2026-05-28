@@ -29,6 +29,7 @@ import org.openjdk.jmh.annotations.Scope;
 import org.openjdk.jmh.annotations.Setup;
 import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.annotations.Warmup;
+import org.openjdk.jmh.infra.Blackhole;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -62,29 +63,34 @@ public class CsvMultiValueSyntaxParseBenchmark {
 
     private BlockFactory blockFactory;
     private byte[] csvData;
+    private CsvFormatReader reader;
 
     @Setup(Level.Trial)
     public void setup() {
         Utils.configureBenchmarkLogging();
         blockFactory = BlockFactory.builder(BigArrays.NON_RECYCLING_INSTANCE).breaker(new NoopCircuitBreaker("bench")).build();
         csvData = generateStandardCsv(rowCount);
+        // Reader (and its CsvMapper) constructed once per trial so the measurement loop reflects
+        // only per-stream parse cost, not per-invocation mapper construction. In production the
+        // mapper is shared via sharedCsvMapper, so this also matches the realistic call pattern.
+        reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(Map.of("multi_value_syntax", multiValueSyntax));
     }
 
     @Benchmark
-    public long readAll() throws IOException {
-        CsvFormatReader reader = (CsvFormatReader) new CsvFormatReader(blockFactory).withConfig(
-            Map.of("multi_value_syntax", multiValueSyntax)
-        );
+    public void readAll(Blackhole bh) throws IOException {
         StorageObject obj = createStorageObject(csvData);
-        long totalRows = 0;
         try (CloseableIterator<Page> iter = reader.read(obj, FormatReadContext.builder().batchSize(1000).build())) {
             while (iter.hasNext()) {
                 Page page = iter.next();
-                totalRows += page.getPositionCount();
+                // Consume every block so escape analysis can't elide typed conversion / BlockBuilder
+                // appends on the cheaper (none / Jackson) arm.
+                for (int i = 0; i < page.getBlockCount(); i++) {
+                    bh.consume(page.getBlock(i));
+                }
+                bh.consume(page.getPositionCount());
                 page.releaseBlocks();
             }
         }
-        return totalRows;
     }
 
     private static byte[] generateStandardCsv(int rows) {

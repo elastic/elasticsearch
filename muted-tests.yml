@@ -594,6 +594,3 @@ tests:
 - class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
   method: testDataVisibility
   issue: https://github.com/elastic/elasticsearch/issues/150028
-- class: org.elasticsearch.workloadidentity.HttpsWorkloadIdentityIssuerClientTests
-  method: testSuccessfulTokenIssuance
-  issue: https://github.com/elastic/elasticsearch/issues/150038

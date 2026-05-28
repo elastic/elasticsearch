@@ -50,7 +50,10 @@ public class DatafeedJobBuilder {
     private final boolean remoteClusterClient;
     private final ClusterService clusterService;
     private final CrossProjectModeDecider crossProjectModeDecider;
-    private final CloudCredentialManager cloudCredentialManager;
+    // Supplied lazily because the real serverless CloudCredentialManager is installed via SPI
+    // after MachineLearning.createComponents() runs. Eager capture would freeze a Noop value
+    // here and silently strip the cloud token from the datafeed runner's field_caps probe.
+    private final Supplier<CloudCredentialManager> cloudCredentialManagerSupplier;
 
     private volatile long delayedDataCheckFreq;
     private volatile int ccsStabilizationCycles;
@@ -65,7 +68,7 @@ public class DatafeedJobBuilder {
         JobResultsPersister jobResultsPersister,
         Settings settings,
         ClusterService clusterService,
-        CloudCredentialManager cloudCredentialManager
+        Supplier<CloudCredentialManager> cloudCredentialManagerSupplier
     ) {
         this.client = client;
         this.xContentRegistry = Objects.requireNonNull(xContentRegistry);
@@ -79,7 +82,7 @@ public class DatafeedJobBuilder {
         this.ccsStabilizationFloorMs = CCS_STABILIZATION_FLOOR.get(settings).millis();
         this.clusterService = Objects.requireNonNull(clusterService);
         this.crossProjectModeDecider = new CrossProjectModeDecider(settings);
-        this.cloudCredentialManager = Objects.requireNonNull(cloudCredentialManager);
+        this.cloudCredentialManagerSupplier = Objects.requireNonNull(cloudCredentialManagerSupplier);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(DELAYED_DATA_CHECK_FREQ, this::setDelayedDataCheckFreq);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(CCS_STABILIZATION_CYCLES, v -> this.ccsStabilizationCycles = v);
         clusterService.getClusterSettings()
@@ -179,7 +182,7 @@ public class DatafeedJobBuilder {
 
         DataExtractorFactory.create(
             parentTaskAssigningClient,
-            cloudCredentialManager,
+            cloudCredentialManagerSupplier.get(),
             effectiveDatafeedConfig,
             null,
             job,

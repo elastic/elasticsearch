@@ -1231,7 +1231,7 @@ public class MachineLearning extends Plugin
             jobResultsPersister,
             settings,
             clusterService,
-            machineLearningExtension.get().getCloudCredentialManager()
+            () -> machineLearningExtension.get().getCloudCredentialManager()
         );
         DatafeedContextProvider datafeedContextProvider = new DatafeedContextProvider(
             jobConfigProvider,

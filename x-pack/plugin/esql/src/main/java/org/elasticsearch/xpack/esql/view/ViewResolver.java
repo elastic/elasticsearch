@@ -344,7 +344,9 @@ public class ViewResolver {
                         var isCurrentProject = clusterAndPattern[0] == null || clusterAndPattern[0].contains("*");
                         var isConcreteExpression = clusterAndPattern[1].contains("*") == false;
                         if (isConcreteExpression) {
-                            if (clusterAndPattern[0] == null) { // expression is flat
+                            var isFlat = clusterAndPattern[0] == null;
+                            var isRequiredOnEveryProject = clusterAndPattern[0] != null && clusterAndPattern[0].contains("*");
+                            if (isFlat) {
                                 var pattern = new ArrayList<String>();
                                 pattern.add(view.name());
                                 pattern.addAll(collectExclusionsAfterPosition(patternPosition, urPatterns));
@@ -357,7 +359,7 @@ public class ViewResolver {
                                         String.join(",", pattern)
                                     )
                                 );
-                            } else if (clusterAndPattern[0].contains("*")) { // expression requires resource on every project
+                            } else if (isRequiredOnEveryProject) {
                                 var pattern = new ArrayList<String>();
                                 pattern.add(urPatterns[patternPosition]);
                                 pattern.add("-_origin:*");

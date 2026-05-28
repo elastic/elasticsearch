@@ -2,6 +2,7 @@
 * [`TO_BOOLEAN`](../../functions-operators/type-conversion-functions/to_boolean.md)
 * [`TO_CARTESIANPOINT`](../../functions-operators/type-conversion-functions/to_cartesianpoint.md)
 * [`TO_CARTESIANSHAPE`](../../functions-operators/type-conversion-functions/to_cartesianshape.md)
+* [`TO_COUNTER`](../../functions-operators/type-conversion-functions/to_counter.md) {applies_to}`stack: ga 9.5`
 * [`TO_DATEPERIOD`](../../functions-operators/type-conversion-functions/to_dateperiod.md)
 * [`TO_DATETIME`](../../functions-operators/type-conversion-functions/to_datetime.md)
 * [`TO_DATE_NANOS`](../../functions-operators/type-conversion-functions/to_date_nanos.md)

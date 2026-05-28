@@ -9,7 +9,6 @@
 
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
-import org.apache.logging.log4j.Level;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.ActionListener;
@@ -22,7 +21,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -455,7 +453,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
                 config,
                 getElserModelVerificationActionListener(elserServiceSettings, criticalWarning, warnWarning, false)
             );
-            assertWarnings(true, new DeprecationWarning(DeprecationLogger.CRITICAL, criticalWarning));
+            assertWarnings(criticalWarning);
         }
 
         // Invalid service settings
@@ -735,11 +733,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         boolean expectChunkingSettings
     ) {
         return ActionListener.wrap(model -> {
-            assertWarnings(
-                true,
-                new DeprecationWarning(DeprecationLogger.CRITICAL, criticalWarning),
-                new DeprecationWarning(Level.WARN, warnWarning)
-            );
+            assertWarnings(criticalWarning, warnWarning);
 
             assertThat(model, instanceOf(ElserInternalModel.class));
             ElserInternalModel elserInternalModel = (ElserInternalModel) model;
@@ -1082,7 +1076,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
             model,
             new RerankRequest(
                 InferenceString.fromStringList(inputs),
-                new InferenceString(DataType.TEXT, randomAlphaOfLength(10)),
+                InferenceString.ofText(randomAlphaOfLength(10)),
                 topN,
                 randomOptionalBoolean(),
                 Map.of()
@@ -2079,7 +2073,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         );
 
         try (var service = createService(client)) {
-            var actionListener = new PlainActionFuture<Boolean>();
+            var actionListener = new PlainActionFuture<Void>();
             service.start(model, TimeValue.timeValueSeconds(30), actionListener);
             var exception = expectThrows(
                 ElasticsearchStatusException.class,
@@ -2102,7 +2096,7 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         );
 
         try (var service = createService(client)) {
-            var actionListener = new PlainActionFuture<Boolean>();
+            var actionListener = new PlainActionFuture<Void>();
             service.start(model, TimeValue.timeValueSeconds(30), actionListener);
             var exception = expectThrows(
                 ModelDeploymentTimeoutException.class,
@@ -2134,9 +2128,9 @@ public class ElasticsearchInternalServiceTests extends InferenceServiceTestCase 
         });
 
         try (var service = createService(client)) {
-            var actionListener = new PlainActionFuture<Boolean>();
+            var actionListener = new PlainActionFuture<Void>();
             service.start(model, TimeValue.timeValueSeconds(30), actionListener);
-            assertTrue(actionListener.actionGet(TimeValue.timeValueSeconds(30)));
+            assertNull(actionListener.actionGet(TimeValue.timeValueSeconds(30)));
 
             verify(mockDeploymentDurationHistogram).record(anyLong(), assertArg(attributes -> {
                 assertNotNull(attributes);

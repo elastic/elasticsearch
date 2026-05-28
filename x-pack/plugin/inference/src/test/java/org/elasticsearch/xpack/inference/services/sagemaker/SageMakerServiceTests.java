@@ -207,13 +207,7 @@ public class SageMakerServiceTests extends InferenceServiceTestCase {
         var topN = randomNonNegativeIntOrNull();
         sageMakerService.rerankInfer(
             model,
-            new RerankRequest(
-                InferenceString.fromStringList(INPUT),
-                new InferenceString(DataType.TEXT, QUERY),
-                topN,
-                returnDocuments,
-                null
-            ),
+            new RerankRequest(InferenceString.fromStringList(INPUT), InferenceString.ofText(QUERY), topN, returnDocuments, null),
             THIRTY_SECONDS,
             assertNoFailureListener(ignored -> {
                 verify(schemas, only()).schemaFor(eq(model));

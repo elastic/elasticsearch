@@ -125,6 +125,7 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.recovery.PeerRecoveryTargetService;
+import org.elasticsearch.indices.recovery.RecoveryMetricsCollector;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.indices.recovery.SnapshotFilesProvider;
 import org.elasticsearch.indices.recovery.plan.PeerOnlyRecoveryPlannerService;
@@ -758,7 +759,8 @@ public class SnapshotResiliencyTestHelper {
                     indicesService,
                     clusterService,
                     recoverySettings,
-                    PeerOnlyRecoveryPlannerService.INSTANCE
+                    PeerOnlyRecoveryPlannerService.INSTANCE,
+                    RecoveryMetricsCollector.NOOP
                 );
 
                 final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService, MeterRegistry.NOOP);
@@ -796,7 +798,8 @@ public class SnapshotResiliencyTestHelper {
                         )
                     ),
                     RetentionLeaseSyncer.EMPTY,
-                    client
+                    client,
+                    RecoveryMetricsCollector.NOOP
                 );
                 final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
                 final MetadataCreateIndexService metadataCreateIndexService = new MetadataCreateIndexService(

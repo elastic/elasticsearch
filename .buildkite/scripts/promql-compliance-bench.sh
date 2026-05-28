@@ -1,272 +1,165 @@
 #!/usr/bin/env bash
+set -euo pipefail
 
-set -Eeuo pipefail
+prog=${0##*/}
+job=${prog%.sh}
+work=/tmp/$job
+input=$work/input
+output=/tmp/$job-output
+cache=$work/.cache
+artifact=promcheck.tar.gz
+control=
 
-readonly JOB_NAME="${JOB_NAME:-promql-compliance-bench}"
-readonly SCRIPT_PATH="${SCRIPT_PATH:-.buildkite/scripts/${JOB_NAME}.sh}"
-readonly SETUP_STEP_KEY="${SETUP_STEP_KEY:-promql-compliance-bench-setup}"
+die() { printf '%s: %s\n' "$prog" "$*" >&2; exit 1; }
+log() { printf -- '--- %s\n' "$*" >&2; }
 
-readonly INPUT_DIR="${INPUT_DIR:-${JOB_NAME}-input}"
-readonly OUTPUT_DIR="${OUTPUT_DIR:-/tmp/${JOB_NAME}-output}"
-readonly PIPELINE_FILE="${PIPELINE_FILE:-/tmp/${JOB_NAME}-pipeline.yml}"
-
-readonly REPO="${BENCH_REPO:-elastic/grafana-dashboards-analysis}"
-readonly REPO_DIR="${REPO_DIR:-/tmp/${JOB_NAME}-repo}"
-readonly INPUT_SUBDIR="${INPUT_SUBDIR:-results}"
-readonly INPUT_GLOB="${INPUT_GLOB:-*_raw_queries_simple.csv}"
-
-readonly GRADLE_TASK="${GRADLE_TASK:-:x-pack:plugin:esql:analyzePromqlQueries}"
-
-readonly STEP_TIMEOUT_MINUTES="${STEP_TIMEOUT_MINUTES:-120}"
-readonly RETRY_LIMIT="${RETRY_LIMIT:-2}"
-
-readonly AGENT_PROVIDER="${AGENT_PROVIDER:-gcp}"
-readonly AGENT_IMAGE="${AGENT_IMAGE:-family/elasticsearch-ubuntu-2404}"
-readonly AGENT_MACHINE_TYPE="${AGENT_MACHINE_TYPE:-n1-standard-8}"
-readonly AGENT_BUILD_DIRECTORY="${AGENT_BUILD_DIRECTORY:-/dev/shm/bk}"
-
-log() {
-  echo "--- $*"
+counts() {
+	awk -F'|' '
+		function trim(s) { gsub(/[[:space:]]/, "", s); return s }
+		/^\|[[:space:]]*executed\.success[[:space:]]*\|/ { ok = trim($3) }
+		/^\|[[:space:]]*executed\.failure[[:space:]]*\|/ { fail = trim($3) }
+		/^\|[[:space:]]*executed\.error[[:space:]]*\|/   { err = trim($3) }
+		/^\|[[:space:]]*executed\.total[[:space:]]*\|/   { total = trim($3) }
+		END {
+			if (ok !~ /^[0-9]+$/ || fail !~ /^[0-9]+$/ || err !~ /^[0-9]+$/ || total !~ /^[0-9]+$/)
+				exit 1
+			skip = total - ok - fail - err
+			if (skip < 0)
+				exit 2
+			print ok, fail, err, skip, total
+		}
+	' "$1" || die "failed to parse summary from $1"
 }
 
-die() {
-  echo "ERROR: $*" >&2
-  exit 1
+cleanup() {
+	[[ $control ]] || return
+	git worktree remove --force "$control" >/dev/null 2>&1 || true
+	rm -rf -- "$control"
 }
 
-require_cmd() {
-  command -v "$1" >/dev/null 2>&1 || die "missing required command: $1"
+main() {
+	local dataset=${1:?missing dataset}
+	local token=${GH_TOKEN:-${GITHUB_TOKEN:-}}
+	local version=${PROMCHECK_VER:?missing required env: PROMCHECK_VER}
+	local test_instance_timeout=${PROMCHECK_TEST_INSTANCE_TIMEOUT:?missing required env: PROMCHECK_TEST_INSTANCE_TIMEOUT}
+	local python_version=3.14
+	local seed=${PROMCHECK_SEED:?missing required env: PROMCHECK_SEED}
+	local branch=${BUILDKITE_PULL_REQUEST_BASE_BRANCH:?missing required env: BUILDKITE_PULL_REQUEST_BASE_BRANCH}
+	local job_id=${BUILDKITE_JOB_ID:?missing required env: BUILDKITE_JOB_ID}
+	local tag=v$version release url
+	local data=$work/promcheck-data.tar.gz
+	local pkg=$work/$artifact
+	local data_dir=$work/data
+	local csv=$input/$dataset.csv
+	local control_log=$output/@$dataset-control.log
+	local test_log=$output/@$dataset-test.log
+	local src dst n=0 rc
+	local c_ok c_fail c_err c_skip c_total
+	local t_ok t_fail t_err t_skip t_total
+	local delta status
+
+	for cmd in buildkite-agent curl find git jq tar tee uv; do
+		command -v "$cmd" >/dev/null || die "missing: $cmd"
+	done
+	[[ $token ]] || die 'missing GH_TOKEN or GITHUB_TOKEN'
+	[[ $seed =~ ^[0-9]+$ ]] || die "PROMCHECK_SEED must be an integer: $seed"
+	[[ $test_instance_timeout =~ ^[0-9]+$ ]] || die "PROMCHECK_TEST_INSTANCE_TIMEOUT must be an integer: $test_instance_timeout"
+	((test_instance_timeout > 0)) || die "PROMCHECK_TEST_INSTANCE_TIMEOUT must be greater than 0: $test_instance_timeout"
+
+	rm -rf -- "$work" "$output"
+	mkdir -p -- "$input" "$output"
+
+	release=$(
+		curl -fsSL --retry 3 --retry-delay 2 \
+			-H 'Accept: application/vnd.github+json' \
+			-H "Authorization: Bearer $token" \
+			"https://api.github.com/repos/elastic/promcheck/releases/tags/$tag"
+	) || die "failed to fetch release metadata: elastic/promcheck@$tag"
+
+	log "downloading: elastic/promcheck@$tag/promcheck-data-$version.tar.gz"
+
+	url=$(jq -er --arg name "promcheck-data-$version.tar.gz" '.assets[] | select(.name == $name) | .url' <<<"$release") \
+		|| die "release asset not found: promcheck-data-$version.tar.gz"
+	curl -fsSL --retry 3 --retry-delay 2 \
+		-H "Authorization: Bearer $token" \
+		-H 'Accept: application/octet-stream' \
+		"$url" -o "$data" \
+		|| die "can't download asset: promcheck-data-$version.tar.gz"
+	mkdir -p -- "$data_dir"
+	tar -xzf "$data" -C "$data_dir"
+
+	log "downloading: elastic/promcheck@$tag/promcheck-$version.tar.gz"
+	url=$(jq -er --arg name "promcheck-$version.tar.gz" '.assets[] | select(.name == $name) | .url' <<<"$release") \
+		|| die "release asset not found: promcheck-$version.tar.gz"
+	curl -fsSL --retry 3 --retry-delay 2 \
+		-H "Authorization: Bearer $token" \
+		-H 'Accept: application/octet-stream' \
+		"$url" -o "$pkg" \
+		|| die "can't download asset: promcheck-$version.tar.gz"
+
+	while IFS= read -r -d '' src; do
+		dst=$input/${src##*/}
+		[[ ! -e $dst ]] || die "duplicate query corpus filename: ${src##*/}"
+		cp -- "$src" "$dst"
+		((n += 1))
+	done < <(find "$data_dir" -type f -path '*/data/results/*' -name '*.csv' -print0)
+
+	((n)) || die "can't find query corpus files under data/results"
+	[[ -f $csv ]] || die "query corpus file not found: $dataset.csv"
+	[[ -f $pkg ]] || die "promcheck artifact not found: $pkg"
+
+	trap cleanup EXIT
+
+	log "fetching: $branch"
+	git fetch --no-tags --depth=1 origin "$branch"
+	control=$(mktemp -d "/tmp/$job-control-XXXXXX")
+	git worktree add --detach "$control" "origin/$branch"
+	uv python install "$python_version"
+
+	buildkite-agent meta-data set "tests-seed-$job_id" "$seed" >/dev/null 2>&1 || true
+
+	log 'running control'
+	set +e
+	NO_COLOR=1 uv run --cache-dir "$cache" --python "$python_version" --with "$pkg" promcheck \
+		--rng-seed "$seed" \
+		--granularity 15s \
+		--test-instance-timeout "$test_instance_timeout" \
+		--workspace "$control" \
+		"$csv" 2>&1 | tee "$control_log"
+	rc=${PIPESTATUS[0]}
+	set -e
+	if ((rc != 0 && rc != 1)); then
+		die 'control run failed'
+	fi
+
+	log 'running test'
+	set +e
+	NO_COLOR=1 uv run --cache-dir "$cache" --python "$python_version" --with "$pkg" promcheck \
+		--rng-seed "$seed" \
+		--granularity 15s \
+		--test-instance-timeout "$test_instance_timeout" \
+		--workspace "$PWD" \
+		"$csv" 2>&1 | tee "$test_log"
+	rc=${PIPESTATUS[0]}
+	set -e
+	if ((rc != 0 && rc != 1)); then
+		die 'test run failed'
+	fi
+
+	read -r c_ok c_fail c_err c_skip c_total < <(counts "$control_log")
+	read -r t_ok t_fail t_err t_skip t_total < <(counts "$test_log")
+
+	delta=$((t_ok - c_ok))
+	if ((delta < 0)); then
+		status=regression
+	elif ((delta > 0)); then
+		status=improvement
+	else
+		status=stable
+	fi
+
+	log "$status: ok=$c_ok fail=$c_fail err=$c_err skip=$c_skip total=$c_total -> ok=$t_ok fail=$t_fail err=$t_err skip=$t_skip total=$t_total delta_ok=${delta:+$delta}"
+	((delta >= 0))
 }
 
-cleanup_dir() {
-  local dir="$1"
-  [[ -n "${dir}" && -d "${dir}" ]] || return 0
-  rm -rf "${dir}"
-}
-
-setup_requirements() {
-  require_cmd git
-  require_cmd find
-  require_cmd sort
-  require_cmd jq
-  require_cmd buildkite-agent
-}
-
-clone_repo() {
-  [[ -n "${GH_TOKEN:-}" ]] || die "GH_TOKEN is required"
-
-  log "Cloning ${REPO}"
-  cleanup_dir "${REPO_DIR}"
-
-  git clone \
-    --depth 1 \
-    --single-branch \
-    "https://${GH_TOKEN}@github.com/${REPO}.git" \
-    "${REPO_DIR}"
-}
-
-find_input_files() {
-  local root="${REPO_DIR}/${INPUT_SUBDIR}"
-
-  [[ -d "${root}" ]] || die "input directory does not exist: ${root}"
-
-  # The analyzer expects one query per line in the form "<dashboardId>;<query>".
-  # The dashboards-analysis repo exports that shape as *_raw_queries_simple.csv;
-  # the other CSVs are summaries and spreadsheet-oriented reports.
-  mapfile -d '' -t INPUT_FILES < <(find "${root}" -type f -name "${INPUT_GLOB}" -print0 | sort -z)
-
-  (( ${#INPUT_FILES[@]} > 0 )) || die "no CSV files matching ${INPUT_GLOB} found in ${root}"
-
-  log "found ${#INPUT_FILES[@]} input files"
-}
-
-upload_artifacts() {
-  log "uploading input files"
-
-  cleanup_dir "${INPUT_DIR}"
-  mkdir -p "${INPUT_DIR}"
-
-  local f
-  for f in "${INPUT_FILES[@]}"; do
-    cp "${f}" "${INPUT_DIR}/"
-  done
-
-  buildkite-agent artifact upload "${INPUT_DIR}/*.csv"
-}
-
-step_key_for_dataset() {
-  local dataset="$1"
-  local normalized
-
-  normalized="$(echo "${dataset}" | tr '[:upper:]' '[:lower:]' | tr -cs 'a-z0-9' '-')"
-  normalized="${normalized#-}"
-  normalized="${normalized%-}"
-
-  [[ -n "${normalized}" ]] || normalized="dataset"
-
-  echo "${JOB_NAME}-${normalized}"
-}
-
-generate_pipeline() {
-  log "generating dynamic pipeline"
-
-  {
-    echo "steps:"
-
-    local f name step_key
-    for f in "${INPUT_FILES[@]}"; do
-      name="$(basename "${f}" .csv)"
-      step_key="$(step_key_for_dataset "${name}")"
-
-      cat <<EOF
-  - label: "${JOB_NAME} / ${name}"
-    key: "${step_key}"
-    command: ${SCRIPT_PATH} run "${name}"
-    depends_on: "${SETUP_STEP_KEY}"
-    timeout_in_minutes: ${STEP_TIMEOUT_MINUTES}
-    retry:
-      automatic:
-        - exit_status: -1
-          limit: ${RETRY_LIMIT}
-        - exit_status: 137
-          limit: ${RETRY_LIMIT}
-    agents:
-      provider: ${AGENT_PROVIDER}
-      image: ${AGENT_IMAGE}
-      machineType: ${AGENT_MACHINE_TYPE}
-      buildDirectory: ${AGENT_BUILD_DIRECTORY}
-    artifact_paths:
-      - "${OUTPUT_DIR}/*"
-EOF
-    done
-  } > "${PIPELINE_FILE}"
-
-  cat "${PIPELINE_FILE}"
-  buildkite-agent pipeline upload "${PIPELINE_FILE}"
-}
-
-cmd_setup() {
-  setup_requirements
-  clone_repo
-  find_input_files
-  upload_artifacts
-  generate_pipeline
-}
-
-download_input_file() {
-  local filename="$1"
-  local local_root="/tmp/${INPUT_DIR}"
-
-  mkdir -p "${local_root}"
-
-  log "downloading input file ${filename}.csv"
-
-  buildkite-agent artifact download "${INPUT_DIR}/${filename}.csv" /tmp/
-
-  DOWNLOADED_INPUT_FILE="${local_root}/${filename}.csv"
-
-  [[ -f "${DOWNLOADED_INPUT_FILE}" ]] || die "file not found: ${DOWNLOADED_INPUT_FILE}"
-}
-
-fetch_control_branch() {
-  local branch="${BUILDKITE_PULL_REQUEST_BASE_BRANCH:-}"
-
-  [[ -n "${branch}" ]] || die "BUILDKITE_PULL_REQUEST_BASE_BRANCH is required"
-
-  log "fetching control branch ${branch}"
-
-  git fetch --no-tags --depth=1 origin "${branch}"
-  CONTROL_REF="origin/${branch}"
-}
-
-create_control_worktree() {
-  log "creating control worktree"
-
-  CONTROL_WORKTREE="$(mktemp -d "/tmp/${JOB_NAME}-control-XXXXXX")"
-
-  git worktree add --detach "${CONTROL_WORKTREE}" "${CONTROL_REF}"
-}
-
-cleanup_worktree() {
-  if [[ -n "${CONTROL_WORKTREE:-}" && -d "${CONTROL_WORKTREE}" ]]; then
-    git worktree remove --force "${CONTROL_WORKTREE}" >/dev/null 2>&1 || true
-    rm -rf "${CONTROL_WORKTREE}" || true
-  fi
-}
-
-run_analyzer() {
-  local workspace="$1"
-  local input_file="$2"
-  local output_file="$3"
-
-  (
-    cd "${workspace}"
-
-    WORKSPACE="${workspace}" GRADLEW="./gradlew" \
-      .ci/scripts/run-gradle.sh "${GRADLE_TASK}" \
-        -PqueriesFile="${input_file}" \
-        -PoutputFile="${output_file}" \
-        -PoutputFormat=json \
-        -Pverbose=false \
-        --quiet
-  )
-}
-
-cmd_run() {
-  local filename="${1:?missing filename}"
-
-  setup_requirements
-
-  mkdir -p "${OUTPUT_DIR}"
-
-  trap cleanup_worktree EXIT
-
-  download_input_file "${filename}"
-
-  fetch_control_branch
-  create_control_worktree
-
-  local control_report="${OUTPUT_DIR}/${filename}_control.json"
-  local test_report="${OUTPUT_DIR}/${filename}_test.json"
-
-  log "running analyzer on control branch"
-
-  run_analyzer "${CONTROL_WORKTREE}" "${DOWNLOADED_INPUT_FILE}" "${control_report}" || die "control analyzer failed"
-
-  log "running analyzer on test branch"
-
-  run_analyzer "$(pwd)" "${DOWNLOADED_INPUT_FILE}" "${test_report}" || die "test analyzer failed"
-
-  log "comparing results"
-
-  local control_success test_success control_total test_total diff
-
-  control_success="$(jq -r '.successful' "${control_report}")"
-  test_success="$(jq -r '.successful' "${test_report}")"
-  control_total="$(jq -r '.total' "${control_report}")"
-  test_total="$(jq -r '.total' "${test_report}")"
-
-  diff=$(( test_success - control_success ))
-
-  if (( diff < 0 )); then
-    log "regression: ${control_success}/${control_total} -> ${test_success}/${test_total} delta=${diff}"
-    exit 1
-  elif (( diff > 0 )); then
-    log "improvement: ${control_success}/${control_total} -> ${test_success}/${test_total} delta=+${diff}"
-  else
-    log "stable: ${control_success}/${control_total} -> ${test_success}/${test_total} delta=0"
-  fi
-}
-
-case "${1:-}" in
-  setup)
-    cmd_setup
-    ;;
-  run)
-    cmd_run "${2:-}"
-    ;;
-  *)
-    echo "Usage: $0 {setup | run <dataset>}" >&2
-    exit 2
-    ;;
-esac
+main "$@"

@@ -224,7 +224,6 @@ class ConcurrentMultiPartUploadsMockFsRepository extends FsRepository {
                                             format("[%d] bytes copied for writing part, expecting [%d] bytes", bytesCopied, partSize)
                                         );
                                     }
-
                                 }));
                                 remaining -= partSize;
                                 assert 0 <= remaining : remaining;
@@ -244,7 +243,9 @@ class ConcurrentMultiPartUploadsMockFsRepository extends FsRepository {
                             if (assertion.getCause() instanceof ExecutionException ee && ee.getCause() instanceof IOException ioe) {
                                 throw ioe;
                             }
-                            throw assertion;
+                            // For all other cases, consumers of writeBlobAtomic expect IOExceptions,
+                            // not AssertionErrors, so convert here to meet that contract.
+                            throw new IOException("multipart upload failed", assertion);
                         }
 
                         if (bytesWritten.get() != blobSize) {

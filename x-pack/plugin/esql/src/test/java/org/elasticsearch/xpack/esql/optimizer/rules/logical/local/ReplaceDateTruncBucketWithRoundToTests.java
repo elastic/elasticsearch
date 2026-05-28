@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical.local;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.TestOptimizer;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -286,6 +287,8 @@ public class ReplaceDateTruncBucketWithRoundToTests extends AbstractLocalLogical
      * eval path uses the wrapped {@code Rounding.Prepared} directly.
      */
     public void testRightClosedBucketIsNotSubstituted() {
+        assumeTrue("TSTEP requires corresponding capability", EsqlCapabilities.Cap.TSTEP.isEnabled());
+        assumeTrue("TSTEP explicit bounds requires corresponding capability", EsqlCapabilities.Cap.TSTEP_EXPLICIT_BOUNDS.isEnabled());
         String query = """
             FROM sample_data
             | WHERE @timestamp >= "2023-10-23T12:00:00Z" AND @timestamp <= "2023-10-23T14:00:00Z"

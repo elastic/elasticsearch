@@ -135,7 +135,6 @@ import static org.elasticsearch.xpack.esql.expression.predicate.Predicates.combi
  * </ul>
  */
 public final class TranslatePromqlToEsqlPlan extends OptimizerRules.ParameterizedOptimizerRule<PromqlCommand, LogicalOptimizerContext> {
-
     // Sentinel bounds for open-ended range queries (PROMQL step=X without explicit start/end).
     // TStep requires explicit lower and upper bounds, so we pass the widest representable range.
     // Use Instant.EPOCH / MAX_MILLIS_BEFORE_9999 instead of Long.MIN/MAX to avoid time boundary handling in the engine.

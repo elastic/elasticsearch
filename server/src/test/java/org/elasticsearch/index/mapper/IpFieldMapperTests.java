@@ -606,7 +606,7 @@ public class IpFieldMapperTests extends MapperTestCase {
         );
     }
 
-    public void testHighCardinalityRejectedForIndexSortField() throws IOException {
+    public void testHighCardinalityRejectedForIndexSortField() {
         assumeTrue("feature under test must be enabled", FieldMapper.DocValuesParameter.EXTENDED_DOC_VALUES_PARAMS_FF.isEnabled());
         Settings settings = Settings.builder()
             .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB.name())

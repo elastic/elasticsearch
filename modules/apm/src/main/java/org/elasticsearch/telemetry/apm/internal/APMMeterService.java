@@ -69,9 +69,10 @@ public class APMMeterService extends AbstractLifecycleComponent {
 
     /**
      * Returns the underlying {@link MeterProvider} for wiring SDK self-monitoring into other exporters.
+     * Not intended for general metric recording; use {@link #getMeterRegistry()} for that.
      * Returns {@link MeterProvider#noop()} when the OTel SDK path is not active.
      */
-    public MeterProvider getMeterProvider() {
+    MeterProvider getMeterProvider() {
         return otelMeterSupplier.getMeterProvider();
     }
 

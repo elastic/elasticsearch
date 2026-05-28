@@ -11,6 +11,7 @@ package org.elasticsearch.telemetry.apm.internal.export.otelsdk;
 
 import io.opentelemetry.api.metrics.MeterProvider;
 import io.opentelemetry.sdk.metrics.SdkMeterProvider;
+import io.opentelemetry.sdk.metrics.data.MetricData;
 import io.opentelemetry.sdk.testing.exporter.InMemoryMetricReader;
 
 import org.elasticsearch.common.settings.Settings;
@@ -63,7 +64,7 @@ public class OtelSdkExportTracerSupplierTests extends ESTestCase {
             var span = supplier.get().getTracer("test").spanBuilder("test").startSpan();
             span.end();
 
-            var metricNames = reader.collectAllMetrics().stream().map(m -> m.getName()).toList();
+            var metricNames = reader.collectAllMetrics().stream().map(MetricData::getName).toList();
             assertThat(
                 "expected otel.sdk.processor.span.queue.capacity to appear in the health meter provider",
                 metricNames,

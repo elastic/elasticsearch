@@ -53,6 +53,7 @@ public class OtelSdkExportTracerSupplier implements TraceSupplier {
 
         TimeValue interval = OtelSdkSettings.TELEMETRY_OTEL_TRACES_INTERVAL.get(settings);
 
+        // InternalTelemetryVersion is @Internal but is the only way to opt into stable SemConv names in 1.62.0.
         OtlpHttpSpanExporterBuilder builder = OtlpHttpSpanExporter.builder()
             .setEndpoint(endpoint)
             .setMeterProvider(meterProvider)

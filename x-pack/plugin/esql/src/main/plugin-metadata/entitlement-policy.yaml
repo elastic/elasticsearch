@@ -2,3 +2,5 @@ ALL-UNNAMED:
   - manage_threads
   - outbound_network
   - set_https_connection_properties
+org.elasticsearch.compute:
+  - create_class_loader

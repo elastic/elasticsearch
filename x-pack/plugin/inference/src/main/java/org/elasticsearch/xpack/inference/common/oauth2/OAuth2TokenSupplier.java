@@ -10,12 +10,8 @@ package org.elasticsearch.xpack.inference.common.oauth2;
 import org.elasticsearch.action.ActionListener;
 
 /**
- * Fetches a fresh OAuth2 bearer token asynchronously. Implementations capture the
- * endpoint-specific configuration (token URL, client ID, client secret, scopes).
- *
- * <p>Mirrors the shape of {@code OAuth2TokenSupplier} in
- * <a href="https://github.com/elastic/elasticsearch/pull/149217">#149217</a> so
- * that PR's cache implementation can drop in without touching consumers.
+ * Fetches a fresh OAuth2 bearer token asynchronously. Implementations capture the endpoint-specific configuration (token URL, client ID,
+ * client secret, scopes).
  */
 @FunctionalInterface
 public interface OAuth2TokenSupplier {

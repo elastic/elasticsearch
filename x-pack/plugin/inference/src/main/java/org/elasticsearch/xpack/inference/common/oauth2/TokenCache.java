@@ -12,12 +12,6 @@ import org.elasticsearch.xpack.inference.common.InferenceIdAndProject;
 
 /**
  * Surface for an OAuth2 bearer-token cache shared across the inference plugin.
- *
- * <p>This is a temporary seam: when
- * <a href="https://github.com/elastic/elasticsearch/pull/149217">#149217</a>
- * merges, its {@code OAuth2TokenCache} class adds {@code implements TokenCache}
- * and the {@link NoopTokenCache} implementation is deleted. Method signatures
- * here match #149217 exactly.
  */
 public interface TokenCache {
 

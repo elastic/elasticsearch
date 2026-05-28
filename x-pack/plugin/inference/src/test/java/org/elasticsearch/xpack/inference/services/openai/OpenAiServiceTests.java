@@ -865,11 +865,7 @@ public class OpenAiServiceTests extends InferenceServiceTestCase {
             service.embeddingInfer(
                 model,
                 new EmbeddingRequest(
-                    List.of(
-                        new InferenceStringGroup(
-                            List.of(new InferenceString(DataType.TEXT, "abc"), new InferenceString(DataType.TEXT, "def"))
-                        )
-                    ),
+                    List.of(new InferenceStringGroup(List.of(InferenceString.ofText("abc"), InferenceString.ofText("def")))),
                     InputType.UNSPECIFIED,
                     Map.of()
                 ),

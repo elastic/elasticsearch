@@ -14,26 +14,37 @@ import java.time.Instant;
 
 public class CachedTokenTests extends ESTestCase {
 
-    private static final String TEST_BEARER = "bearer";
+    private static final String TEST_BEARER_VALUE = "bearer";
 
     public void testIsExpiringSoon_ReturnsFalseWhenExpiresAfterSkew() {
         var now = Instant.now();
         var skew = Duration.ofSeconds(60);
-        var token = new CachedToken(TEST_BEARER, now.plus(skew).plusSeconds(1));
-        assertFalse(token.isExpiringSoon(now, skew));
+        // expires after now+skew so the token should be valid
+        var token = new CachedToken(TEST_BEARER_VALUE, now.plus(skew).plusSeconds(1));
+        assertFalse(token.isExpiringSoonHelper(now, skew));
     }
 
     public void testIsExpiringSoon_ReturnsTrueWhenExpiresBeforeSkew() {
         var now = Instant.now();
         var skew = Duration.ofSeconds(60);
-        var token = new CachedToken(TEST_BEARER, now.plus(skew).minusSeconds(1));
-        assertTrue(token.isExpiringSoon(now, skew));
+        // expires before now+skew → too close, treat as expiring soon
+        var token = new CachedToken(TEST_BEARER_VALUE, now.plus(skew).minusSeconds(1));
+        assertTrue(token.isExpiringSoonHelper(now, skew));
     }
 
-    public void testIsExpiringSoon_ReturnsTrueAtExactExpiry() {
+    public void testIsExpiringSoon_ReturnsTrueWhenExpiresExactlyAtSkewBoundary() {
         var now = Instant.now();
         var skew = Duration.ofSeconds(60);
-        var token = new CachedToken(TEST_BEARER, now.plus(skew));
-        assertTrue(token.isExpiringSoon(now, skew));
+        // expires exactly at now+skew → not strictly after, so expiring soon
+        var token = new CachedToken(TEST_BEARER_VALUE, now.plus(skew));
+        assertTrue(token.isExpiringSoonHelper(now, skew));
+    }
+
+    public void testIsExpiringSoon_ReturnsTrueWhenAlreadyExpired() {
+        var now = Instant.now();
+        var skew = Duration.ofSeconds(60);
+        // already in the past
+        var token = new CachedToken(TEST_BEARER_VALUE, now.minusSeconds(1));
+        assertTrue(token.isExpiringSoonHelper(now, skew));
     }
 }

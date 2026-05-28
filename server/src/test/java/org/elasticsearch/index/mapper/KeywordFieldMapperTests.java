@@ -1729,4 +1729,81 @@ public class KeywordFieldMapperTests extends MapperTestCase {
             b.field("@timestamp", Instant.now().toEpochMilli());
         }), containsString("\"field\":[\"" + v2 + "\",\"" + v1 + "\",\"" + v3 + "\",\"" + v2 + "\"]"));
     }
+
+    /**
+     * An array of objects mixing a scalar value with an inner array must preserve both. This means that we must record offsets for every
+     * value regardless of whether they're in an immediate array or not.
+     */
+    public void testColumnarKeywordArrayOfObjectsWithMixedScalarAndInnerArrayValues() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = columnarKeywordMapper("obj.field");
+
+        String result = syntheticSource(mapper, b -> {
+            b.startArray("obj");
+            b.startObject().field("field", "a").endObject();
+            b.startObject().startArray("field").value("b").value("c").endArray().endObject();
+            b.endArray();
+        });
+        assertThat(result, containsString("\"obj.field\":[\"a\",\"b\",\"c\"]"));
+    }
+
+    /**
+     * A scalar value at the root must round-trip as a scalar; it should not be reshaped into a single-element array.
+     */
+    public void testColumnarKeywordSingleScalarStaysScalar() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = columnarKeywordMapper("field");
+
+        String value = randomAlphanumericOfLength(4);
+        String result = syntheticSource(mapper, b -> b.field("field", value));
+        assertThat(result, containsString("\"field\":\"" + value + "\""));
+        assertThat(result, Matchers.not(containsString("\"field\":[")));
+    }
+
+    /**
+     * This tests the single-valued optimization path.
+     */
+    public void testColumnarKeywordSingleElementArrayIsReshapedToScalar() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = columnarKeywordMapper("field");
+
+        String value = randomAlphanumericOfLength(4);
+        String result = syntheticSource(mapper, b -> b.array("field", value));
+        assertThat(result, containsString("\"field\":\"" + value + "\""));
+        assertThat(result, Matchers.not(containsString("\"field\":[")));
+    }
+
+    /**
+     * Insertion order in a multi-value array must be preserved. Without the offsets table the sorted-set fallback would reorder this
+     * to {@code [a, b, c]}; the offsets entry survives the new write gate because it carries more than one slot.
+     */
+    public void testColumnarKeywordReverseSortedArrayPreservesOrder() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = columnarKeywordMapper("field");
+
+        String result = syntheticSource(mapper, b -> b.array("field", "c", "b", "a"));
+        assertThat(result, containsString("\"field\":[\"c\",\"b\",\"a\"]"));
+    }
+
+    /**
+     * A single-element null array must round-trip as {@code [null]}. This test is a complement to
+     * {@link #testColumnarKeywordSingleElementArrayIsReshapedToScalar}. The doc values are empty for nulls, meaning we have nothing to
+     * reconstruct the source from. This is why offsets are important - they tell us that a null element was present.
+     */
+    public void testColumnarSingleElementArrayNullRoundTrip() throws IOException {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+        DocumentMapper mapper = columnarKeywordMapper("field");
+
+        String result = syntheticSource(mapper, b -> {
+            b.startArray("field");
+            b.nullValue();
+            b.endArray();
+        });
+        assertThat(result, containsString("\"field\":[null]"));
+    }
+
+    private DocumentMapper columnarKeywordMapper(String fieldName) throws IOException {
+        Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), IndexMode.COLUMNAR.getName()).build();
+        return createMapperService(settings, mapping(b -> b.startObject(fieldName).field("type", "keyword").endObject())).documentMapper();
+    }
 }

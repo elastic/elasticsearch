@@ -132,9 +132,11 @@ class BulkByPaginatedSearchParallelizationHelper {
         int configuredSlices = request.getResumeInfo().map(ResumeInfo::getTotalSlices).orElse(request.getSlices());
         assert request.getResumeInfo().isEmpty() || configuredSlices != AUTO_SLICES : "Resumed tasks can't have auto slices";
         if (configuredSlices == AUTO_SLICES) {
+            SearchRequest searchRequest = request.getSearchRequest();
             client.execute(
                 TransportClusterSearchShardsAction.TYPE,
-                new ClusterSearchShardsRequest(request.getTimeout(), request.getSearchRequest().indices()),
+                new ClusterSearchShardsRequest(request.getTimeout(), searchRequest.indices()).routing(searchRequest.routing())
+                    .searchSlice(searchRequest.searchSlice()),
                 listener.safeMap(response -> {
                     setWorkerCount(request, task, countSlicesBasedOnShards(response));
                     return null;

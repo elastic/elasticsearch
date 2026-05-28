@@ -102,7 +102,11 @@ import static org.junit.Assert.assertTrue;
  * and partially re-written to satisfy the above requirements.
  */
 public abstract class DocsV3Support {
-    public record Param(DataType dataType, List<FunctionAppliesTo> appliesTo) {}
+    public record Param(DataType dataType, List<FunctionAppliesTo> appliesTo, boolean preview) {
+        public Param(DataType dataType, List<FunctionAppliesTo> appliesTo) {
+            this(dataType, appliesTo, false);
+        }
+    }
 
     public record TypeSignature(List<DocsV3Support.Param> argTypes, DataType returnType) {}
 
@@ -1621,7 +1625,7 @@ public abstract class DocsV3Support {
             } else {
                 b.append(param.dataType().esNameIfPossible());
                 if (param.appliesTo() != null) {
-                    b.append(FunctionDocsSupport.makeAppliesToText(param.appliesTo(), false, true));
+                    b.append(FunctionDocsSupport.makeAppliesToText(param.appliesTo(), param.preview(), true));
                 }
             }
             b.append(" | ");

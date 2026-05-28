@@ -98,6 +98,11 @@
                     "profile": {
                       "dynamic": true,
                       "type": "object"
+                    },
+                    "filter": {
+                      "type": "keyword",
+                      "index": false,
+                      "ignore_above": 32765
                     }
                   }
                 },

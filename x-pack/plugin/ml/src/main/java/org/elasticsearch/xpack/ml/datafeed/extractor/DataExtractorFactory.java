@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.datafeed.extractor;
 
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -33,20 +32,9 @@ public interface DataExtractorFactory {
 
     /**
      * Creates a {@code DataExtractorFactory} for the given datafeed-job combination.
-     */
-    static void create(
-        Client client,
-        DatafeedConfig datafeed,
-        Job job,
-        NamedXContentRegistry xContentRegistry,
-        DatafeedTimingStatsReporter timingStatsReporter,
-        ActionListener<DataExtractorFactory> listener
-    ) {
-        create(client, datafeed, null, job, xContentRegistry, timingStatsReporter, listener);
-    }
-
-    /**
-     * Creates a {@code DataExtractorFactory} for the given datafeed-job combination.
+     * <p>
+     * Note: Callers should apply cross-project search (CPS) mode to the datafeed's IndicesOptions
+     * before calling this method using {@link DatafeedConfig#withCrossProjectModeIfEnabled}.
      */
     static void create(
         Client client,
@@ -96,10 +84,9 @@ public interface DataExtractorFactory {
             }
             if (isComposite) {
                 String[] indices = datafeed.getIndices().toArray(new String[0]);
-                IndicesOptions indicesOptions = datafeed.getIndicesOptions();
                 AggregatedSearchRequestBuilder aggregatedSearchRequestBuilder = hasRollup
-                    ? RollupDataExtractorFactory.requestBuilder(client, indices, indicesOptions)
-                    : AggregationDataExtractorFactory.requestBuilder(client, indices, indicesOptions);
+                    ? RollupDataExtractorFactory.requestBuilder(client, indices)
+                    : AggregationDataExtractorFactory.requestBuilder(client, indices);
                 final DataExtractorFactory dataExtractorFactory = new CompositeAggregationDataExtractorFactory(
                     client,
                     datafeed,

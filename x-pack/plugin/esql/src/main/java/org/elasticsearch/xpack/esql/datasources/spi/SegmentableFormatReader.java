@@ -32,6 +32,16 @@ public interface SegmentableFormatReader extends FormatReader {
     int DEFAULT_MAX_RECORD_BYTES = 64 * 1024 * 1024;
 
     /**
+     * Returns the record-boundary splitter for this reader.
+     */
+    default RecordSplitter recordSplitter() {
+        return new DelegatingRecordSplitter(this);
+    }
+
+    // TODO(phase-1.2): once recordSplitter() is the canonical entry point, remove these legacy
+    // find* methods and route callers through recordSplitter().
+
+    /**
      * Scans forward from the current position in the stream to find the start of
      * the next complete record. Returns the number of bytes consumed (skipped)
      * to reach that boundary.

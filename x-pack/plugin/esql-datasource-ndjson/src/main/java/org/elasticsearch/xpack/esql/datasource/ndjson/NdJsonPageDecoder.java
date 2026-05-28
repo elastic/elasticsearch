@@ -42,6 +42,7 @@ import org.elasticsearch.xpack.esql.datasources.spi.SkipWarnings;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.CharBuffer;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.HashMap;
@@ -602,7 +603,7 @@ public class NdJsonPageDecoder implements Closeable {
      * delegates to {@link org.elasticsearch.common.util.BytesRefArray#append(BytesRef)} and copies
      * before returning); the next call to this method overwrites the scratch.
      */
-    private BytesRef toScratchBytesRef(String value) {
+    private BytesRef toScratchBytesRef(CharSequence value) {
         int maxLen = UnicodeUtil.maxUTF8Length(value.length());
         if (keywordScratch.bytes.length < maxLen) {
             keywordScratch.bytes = new byte[maxLen];
@@ -835,13 +836,8 @@ public class NdJsonPageDecoder implements Closeable {
                     }
                 }
                 case KEYWORD -> {
-                    // Be lenient, this is a catch-all type
-                    var str = parser.getValueAsString();
-                    if (str != null) {
-                        ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(toScratchBytesRef(str));
-                    } else {
-                        unexpectedValue(blockBuilder, parser, inArray);
-                    }
+                    var chars = CharBuffer.wrap(parser.getTextCharacters(), parser.getTextOffset(), parser.getTextLength());
+                    ((BytesRefBlock.Builder) blockBuilder).appendBytesRef(toScratchBytesRef(chars));
                 }
                 default -> throw new IllegalArgumentException("Unsupported data type: " + dataType);
             }

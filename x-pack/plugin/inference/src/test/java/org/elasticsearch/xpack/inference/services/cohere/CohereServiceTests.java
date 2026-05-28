@@ -901,7 +901,7 @@ public class CohereServiceTests extends InferenceServiceTestCase {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();
             service.rerankInfer(
                 model,
-                new RerankRequest(fromStringList(inputs), new InferenceString(DataType.TEXT, queryString), topN, returnDocuments, null),
+                new RerankRequest(fromStringList(inputs), InferenceString.ofText(queryString), topN, returnDocuments, null),
                 null,
                 listener
             );

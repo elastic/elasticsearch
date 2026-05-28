@@ -29,7 +29,6 @@ import org.junit.Before;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.inference.DataType.TEXT;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityExecutors;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
 import static org.hamcrest.Matchers.isA;
@@ -78,15 +77,7 @@ public class ModelValidatorBuilderTests extends ESTestCase {
 
         verify(mockService, times(1)).rerankInfer(
             any(),
-            eq(
-                new RerankRequest(
-                    InferenceString.fromStringList(List.of("how big")),
-                    new InferenceString(TEXT, "test query"),
-                    1,
-                    true,
-                    null
-                )
-            ),
+            eq(new RerankRequest(InferenceString.fromStringList(List.of("how big")), InferenceString.ofText("test query"), 1, true, null)),
             any(),
             any()
         );

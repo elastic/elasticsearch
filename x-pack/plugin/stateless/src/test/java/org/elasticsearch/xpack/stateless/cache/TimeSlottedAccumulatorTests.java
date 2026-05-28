@@ -47,7 +47,7 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
             IllegalArgumentException.class,
             () -> new TimeSlottedAccumulator(TimeValue.timeValueMillis(overflowingGranularityMillis), 3, 0, timeProvider)
         );
-        assertThat(TimeSlottedAccumulator.MAX_TOTAL_SLOTS, equalTo((int) (ByteSizeValue.ofGb(4).getBytes() / Long.BYTES)));
+        assertThat(TimeSlottedAccumulator.MAX_TOTAL_SLOTS, equalTo((int) (ByteSizeValue.ofGb(4).getBytes() / Integer.BYTES)));
         int maxTotalSlots = TimeSlottedAccumulator.MAX_TOTAL_SLOTS;
         expectThrows(IllegalArgumentException.class, () -> new TimeSlottedAccumulator(randomGranularity(), maxTotalSlots, 1, timeProvider));
         expectThrows(IllegalArgumentException.class, () -> new TimeSlottedAccumulator(randomGranularity(), 1, maxTotalSlots, timeProvider));
@@ -83,7 +83,7 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
 
         long anchorSlot = alignToSlot(anchorMillis, granularityMillis);
         long pastTimestamp = anchorSlot - (long) slotsBack * granularityMillis;
-        long delta = randomNonZeroDelta();
+        int delta = randomNonZeroDelta();
         assertThat(accumulator.accumulate(pastTimestamp, delta), equalTo(delta));
         assertThat(accumulator.sum(pastTimestamp, pastTimestamp + granularityMillis), equalTo(delta));
     }
@@ -99,17 +99,17 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         int futureSlots = randomFutureSlotCount();
         TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, timeProvider);
 
-        long delta1 = randomNonZeroDelta();
+        int delta1 = randomNonZeroDelta();
         assertThat(accumulator.accumulate(timeProvider.absoluteTimeInMillis(), delta1), equalTo(delta1));
         assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(delta1));
 
-        long delta2 = randomNonZeroDelta();
+        int delta2 = randomNonZeroDelta();
         long midSlotTimestamp = anchorSlot + randomLongBetween(1, granularityMillis - 1);
         assertThat(accumulator.accumulate(midSlotTimestamp, delta2), equalTo(delta1 + delta2));
         assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(delta1 + delta2));
 
         long nextSlot = anchorSlot + granularityMillis;
-        long delta3 = randomNonZeroDelta();
+        int delta3 = randomNonZeroDelta();
         if (futureSlots == 0) {
             // timestamps at or beyond the next slot clamp to the head (anchor) slot
             assertThat(accumulator.accumulate(nextSlot, delta3), equalTo(delta1 + delta2 + delta3));
@@ -121,7 +121,7 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         }
 
         long tailSlot = anchorSlot - (long) (pastSlots - 1) * granularityMillis;
-        long delta4 = randomNonZeroDelta();
+        int delta4 = randomNonZeroDelta();
         assertThat(accumulator.accumulate(tailSlot, delta4), equalTo(delta4));
         assertThat(accumulator.sum(tailSlot, tailSlot + granularityMillis), equalTo(delta4));
     }
@@ -137,14 +137,14 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, timeProvider);
 
         long timestamp = clockSlot + randomLongBetween(1, granularityMillis - 1);
-        long delta1 = randomLongBetween(1, 100);
-        long delta2 = randomLongBetween(1, 100);
+        int delta1 = randomIntBetween(1, 100);
+        int delta2 = randomIntBetween(1, 100);
         assertThat(accumulator.accumulate(timestamp, delta1), equalTo(delta1));
         assertThat(accumulator.accumulate(timestamp, delta2), equalTo(delta1 + delta2));
         assertThat(accumulator.sum(clockSlot, clockSlot + granularityMillis), equalTo(delta1 + delta2));
 
-        long total = delta1 + delta2;
-        long removeDelta = randomLongBetween(1, total);
+        int total = delta1 + delta2;
+        int removeDelta = randomIntBetween(1, total);
         assertThat(accumulator.accumulate(timestamp, -removeDelta), equalTo(total - removeDelta));
         assertThat(accumulator.sum(clockSlot, clockSlot + granularityMillis), equalTo(total - removeDelta));
     }
@@ -157,15 +157,15 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
         TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
-        long firstDelta = randomLongBetween(1, 100);
-        long secondDelta = randomLongBetween(1, 100);
+        int firstDelta = randomIntBetween(1, 100);
+        int secondDelta = randomIntBetween(1, 100);
         assertThat(accumulator.accumulate(anchorSlot, firstDelta), equalTo(firstDelta));
         assertThat(accumulator.accumulate(anchorSlot, secondDelta), equalTo(firstDelta + secondDelta));
         assertThat(accumulator.accumulate(anchorSlot, 0), equalTo(firstDelta + secondDelta));
 
-        long overSubtract = randomLongBetween(firstDelta + secondDelta + 1, firstDelta + secondDelta + 100);
-        long slotCount = accumulator.accumulate(anchorSlot, -overSubtract);
-        assertThat(slotCount, lessThan(0L));
+        int overSubtract = randomIntBetween(firstDelta + secondDelta + 1, firstDelta + secondDelta + 100);
+        int slotCount = accumulator.accumulate(anchorSlot, -overSubtract);
+        assertThat(slotCount, lessThan(0));
         assertThat(slotCount, equalTo(firstDelta + secondDelta - overSubtract));
         assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(slotCount));
     }
@@ -201,7 +201,7 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
             }
             start.countDown();
             assertTrue(done.await(30, TimeUnit.SECONDS));
-            assertThat(accumulator.sum(timestamp, timestamp + granularityMillis), equalTo((long) threads * iterations));
+            assertThat(accumulator.sum(timestamp, timestamp + granularityMillis), equalTo(threads * iterations));
         } finally {
             terminate(executor);
         }
@@ -220,7 +220,7 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         int addThreads = randomIntBetween(2, 4);
         int sumThreads = randomIntBetween(2, 4);
         int iterations = randomIntBetween(100, 500);
-        long expectedTotal = (long) addThreads * iterations;
+        int expectedTotal = addThreads * iterations;
         AtomicLong completedAdds = new AtomicLong();
         ExecutorService executor = Executors.newFixedThreadPool(addThreads + sumThreads);
         try {
@@ -248,9 +248,9 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
                     try {
                         start.await();
                         for (int i = 0; i < iterations; i++) {
-                            long sum = accumulator.sum(windowStart, windowEnd);
-                            long completed = completedAdds.get();
-                            assertThat(sum, greaterThanOrEqualTo(0L));
+                            int sum = accumulator.sum(windowStart, windowEnd);
+                            int completed = (int) completedAdds.get();
+                            assertThat(sum, greaterThanOrEqualTo(0));
                             assertThat(sum, lessThanOrEqualTo(completed));
                             assertThat(sum, lessThanOrEqualTo(expectedTotal));
                         }
@@ -263,7 +263,7 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
             }
             start.countDown();
             assertTrue(done.await(30, TimeUnit.SECONDS));
-            assertThat(completedAdds.get(), equalTo(expectedTotal));
+            assertThat((int) completedAdds.get(), equalTo(expectedTotal));
             assertThat(accumulator.sum(windowStart, windowEnd), equalTo(expectedTotal));
         } finally {
             terminate(executor);
@@ -305,7 +305,7 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
             }
             start.countDown();
             assertTrue(done.await(30, TimeUnit.SECONDS));
-            assertThat(accumulator.sum(windowStart, windowEnd), equalTo(0L));
+            assertThat(accumulator.sum(windowStart, windowEnd), equalTo(0));
         } finally {
             terminate(executor);
         }
@@ -322,23 +322,23 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
 
         int futureSlotOffset = randomIntBetween(1, futureSlots);
         long futureSlot = anchorSlot + (long) futureSlotOffset * granularityMillis;
-        long futureDelta = randomNonZeroDelta();
+        int futureDelta = randomNonZeroDelta();
         accumulator.accumulate(futureSlot, futureDelta);
         assertThat(accumulator.sum(futureSlot, futureSlot + granularityMillis), equalTo(futureDelta));
-        assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(0L));
+        assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(0));
 
         // timestamps beyond the configured future window clamp to the head slot
         long headSlot = anchorSlot + (long) futureSlots * granularityMillis;
         long beyondHeadTimestamp = headSlot + randomLongBetween(granularityMillis * 2, granularityMillis * 20);
-        long headDelta = randomNonZeroDelta();
+        int headDelta = randomNonZeroDelta();
         accumulator.accumulate(beyondHeadTimestamp, headDelta);
-        long expectedHeadSum = headDelta + (futureSlot == headSlot ? futureDelta : 0);
+        int expectedHeadSum = headDelta + (futureSlot == headSlot ? futureDelta : 0);
         assertThat(accumulator.sum(headSlot, headSlot + granularityMillis), equalTo(expectedHeadSum));
-        assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(0L));
+        assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(0));
 
         long queryStart = headSlot + randomLongBetween(granularityMillis * 2, granularityMillis * 20);
         long queryEnd = queryStart + randomLongBetween(granularityMillis, granularityMillis * 10);
-        assertThat(accumulator.sum(queryStart, queryEnd), equalTo(0L));
+        assertThat(accumulator.sum(queryStart, queryEnd), equalTo(0));
     }
 
     public void testPastTimestampClampingAndSumBeforeTailZero() {
@@ -350,15 +350,15 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
         long tailSlot = anchorSlot - (long) (pastSlots - 1) * granularityMillis;
-        long clampedDelta = randomNonZeroDelta();
+        int clampedDelta = randomNonZeroDelta();
         long beforeTail = tailSlot - granularityMillis;
         long timestampBeforeTail = beforeTail < 0 ? beforeTail : randomLongBetween(0, beforeTail);
         accumulator.accumulate(timestampBeforeTail, clampedDelta);
         assertThat(accumulator.sum(tailSlot, tailSlot + granularityMillis), equalTo(clampedDelta));
 
-        long delta = randomNonZeroDelta();
+        int delta = randomNonZeroDelta();
         accumulator.accumulate(tailSlot + granularityMillis, delta);
-        assertThat(accumulator.sum(0, tailSlot), equalTo(0L));
+        assertThat(accumulator.sum(0, tailSlot), equalTo(0));
     }
 
     public void testSumWithNoEventsReturnsZero() {
@@ -372,7 +372,7 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
 
         long windowStart = anchorSlot - (long) (pastSlots - 1) * granularityMillis;
         long windowEnd = anchorSlot + (long) futureSlots * granularityMillis + granularityMillis;
-        assertThat(accumulator.sum(windowStart, windowEnd), equalTo(0L));
+        assertThat(accumulator.sum(windowStart, windowEnd), equalTo(0));
     }
 
     public void testZeroDeltaAccumulateIsNoOp() {
@@ -383,7 +383,7 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
         TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
-        long delta = randomNonZeroDelta();
+        int delta = randomNonZeroDelta();
         assertThat(accumulator.accumulate(anchorSlot, delta), equalTo(delta));
         assertThat(accumulator.accumulate(anchorSlot, 0), equalTo(delta));
         assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(delta));
@@ -397,11 +397,11 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
         TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
-        long delta = randomNonZeroDelta();
+        int delta = randomNonZeroDelta();
         accumulator.accumulate(anchorSlot, delta);
 
-        assertThat(accumulator.sum(anchorSlot, anchorSlot), equalTo(0L));
-        assertThat(accumulator.sum(anchorSlot + granularityMillis, anchorSlot), equalTo(0L));
+        assertThat(accumulator.sum(anchorSlot, anchorSlot), equalTo(0));
+        assertThat(accumulator.sum(anchorSlot + granularityMillis, anchorSlot), equalTo(0));
         assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(delta));
     }
 
@@ -414,11 +414,11 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
         long previousSlot = anchorSlot - granularityMillis;
-        long high = Long.MAX_VALUE / 2 + 1;
-        long low = Long.MAX_VALUE / 2;
+        int high = Integer.MAX_VALUE / 2 + 1;
+        int low = Integer.MAX_VALUE / 2;
         accumulator.accumulate(previousSlot, high);
         accumulator.accumulate(anchorSlot, low);
-        assertThat(accumulator.sum(previousSlot, anchorSlot + granularityMillis), equalTo(Long.MAX_VALUE));
+        assertThat(accumulator.sum(previousSlot, anchorSlot + granularityMillis), equalTo(Integer.MAX_VALUE));
     }
 
     public void testSumSaturatesOnUnderflow() {
@@ -430,11 +430,11 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
         long previousSlot = anchorSlot - granularityMillis;
-        long low = Long.MIN_VALUE / 2 - 1;
-        long high = Long.MIN_VALUE / 2;
+        int low = Integer.MIN_VALUE / 2 - 1;
+        int high = Integer.MIN_VALUE / 2;
         accumulator.accumulate(previousSlot, low);
         accumulator.accumulate(anchorSlot, high);
-        assertThat(accumulator.sum(previousSlot, anchorSlot + granularityMillis), equalTo(Long.MIN_VALUE));
+        assertThat(accumulator.sum(previousSlot, anchorSlot + granularityMillis), equalTo(Integer.MIN_VALUE));
     }
 
     public void testSumAcrossMultipleSlots() {
@@ -448,10 +448,10 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
 
         long tailSlot = anchorSlot - (long) (pastSlots - 1) * granularityMillis;
         long headSlot = anchorSlot + (long) futureSlots * granularityMillis;
-        long tailDelta = randomNonZeroDelta();
-        long middleDelta = randomNonZeroDelta();
-        long anchorDelta = randomNonZeroDelta();
-        long headDelta = randomNonZeroDelta();
+        int tailDelta = randomNonZeroDelta();
+        int middleDelta = randomNonZeroDelta();
+        int anchorDelta = randomNonZeroDelta();
+        int headDelta = randomNonZeroDelta();
         accumulator.accumulate(tailSlot, tailDelta);
         accumulator.accumulate(anchorSlot - granularityMillis, middleDelta);
         accumulator.accumulate(anchorSlot, anchorDelta);
@@ -470,7 +470,7 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
         TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, timeProvider);
 
-        long delta = randomNonZeroDelta();
+        int delta = randomNonZeroDelta();
         accumulator.accumulate(anchorSlot, delta);
 
         long tailSlot = anchorSlot - (long) (pastSlots - 1) * granularityMillis;
@@ -489,8 +489,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
         long previousSlot = anchorSlot - granularityMillis;
-        long previousDelta = randomNonZeroDelta();
-        long anchorDelta = randomNonZeroDelta();
+        int previousDelta = randomNonZeroDelta();
+        int anchorDelta = randomNonZeroDelta();
         accumulator.accumulate(previousSlot, previousDelta);
         accumulator.accumulate(anchorSlot, anchorDelta);
 
@@ -507,8 +507,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
         long firstSlot = anchorSlot - granularityMillis;
-        long firstDelta = randomNonZeroDelta();
-        long secondDelta = randomNonZeroDelta();
+        int firstDelta = randomNonZeroDelta();
+        int secondDelta = randomNonZeroDelta();
         accumulator.accumulate(firstSlot, firstDelta);
         accumulator.accumulate(anchorSlot, secondDelta);
 
@@ -524,7 +524,7 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         TimeProvider timeProvider = fixedAbsoluteTime(randomLongBetween(-1_000_000, -1));
         TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
-        long delta = randomNonZeroDelta();
+        int delta = randomNonZeroDelta();
         accumulator.accumulate(0, delta);
         assertThat(accumulator.sum(0, granularityMillis), equalTo(delta));
         assertThat(accumulator.sum(-granularityMillis, granularityMillis), equalTo(delta));
@@ -538,8 +538,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         return randomIntBetween(1, 24);
     }
 
-    private static long randomNonZeroDelta() {
-        long abs = randomLongBetween(1, 1000);
+    private static int randomNonZeroDelta() {
+        int abs = randomIntBetween(1, 1000);
         return randomBoolean() ? abs : -abs;
     }
 

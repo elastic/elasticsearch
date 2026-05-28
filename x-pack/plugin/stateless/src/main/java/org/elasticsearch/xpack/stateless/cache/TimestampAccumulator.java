@@ -14,6 +14,8 @@ package org.elasticsearch.xpack.stateless.cache;
  * quota tracking (expected totals from shard data, and actual totals from cache residency).
  * Callers pass arbitrary deltas via {@link #accumulate}.
  * Implementations are agnostic to what is being counted (the expectation is that it is cache regions).
+ * Counts use {@code int} because the expected total of 16MiB cache regions is orders of magnitude below
+ * {@link Integer#MAX_VALUE}.
  */
 public interface TimestampAccumulator {
 
@@ -22,11 +24,11 @@ public interface TimestampAccumulator {
      *
      * @return the slot count after applying {@code delta}. E.g., to assert it is not negative.
      */
-    long accumulate(long timestampMillis, long delta);
+    int accumulate(long timestampMillis, int delta);
 
     /**
      * Returns the sum of counts in the interval {@code [startMillis, endMillis)}.
      * The query range may be clamped to the implementation's retained history before summing.
      */
-    long sum(long startMillis, long endMillis);
+    int sum(long startMillis, long endMillis);
 }

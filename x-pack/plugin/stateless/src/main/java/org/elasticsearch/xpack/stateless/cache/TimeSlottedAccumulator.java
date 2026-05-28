@@ -13,7 +13,7 @@ import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
-import java.util.concurrent.atomic.AtomicLongArray;
+import java.util.concurrent.atomic.AtomicIntegerArray;
 
 /**
  * A {@link TimestampAccumulator} implementation backed by a fixed array of time slots.
@@ -30,7 +30,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
     static final long MAX_COUNTS_ARRAY_BYTES = ByteSizeValue.ofGb(4).getBytes();
 
     /** Maximum length of the per-slot counts array. */
-    static final int MAX_TOTAL_SLOTS = (int) (MAX_COUNTS_ARRAY_BYTES / Long.BYTES);
+    static final int MAX_TOTAL_SLOTS = (int) (MAX_COUNTS_ARRAY_BYTES / Integer.BYTES);
 
     public static final Setting<TimeValue> TIME_SLOTS_GRANULARITY_SETTING = Setting.timeSetting(
         "stateless.cache_boost_preference.time_slots.granularity",
@@ -57,7 +57,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
 
     private final long granularityMillis;
 
-    private final AtomicLongArray counts;
+    private final AtomicIntegerArray counts;
 
     /** Start of the oldest retained slot (i.e., the tail at index 0), in epoch milliseconds. Fixed at construction,
      *  computed from granularity and pastSlots.
@@ -123,7 +123,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
             );
         }
         this.granularityMillis = granularity.millis();
-        this.counts = new AtomicLongArray(totalSlots);
+        this.counts = new AtomicIntegerArray(totalSlots);
         long anchorSlotStartMillis = toSlotStartMillis(timeProvider.absoluteTimeInMillis());
         try {
             long minAnchorSlotStartMillis = Math.multiplyExact(pastSlots - 1, granularityMillis);
@@ -168,7 +168,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
      * @return the slot count after applying {@code delta}
      */
     @Override
-    public long accumulate(long timestampMillis, long delta) {
+    public int accumulate(long timestampMillis, int delta) {
         int slot = slotForTimestamp(timestampMillis);
         return counts.addAndGet(slot, delta);
     }
@@ -178,8 +178,8 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
      * The query range is clamped to {@code [tailSlot, headSlot + granularity)} before summing.
      * Counts are stored per granularity slot: any overlap with a slot includes that slot's full count,
      * not a fraction proportional to how much of the slot lies inside the query range.
-     * If the sum overflows or underflows {@code long}, the result saturates to {@link Long#MAX_VALUE}
-     * or {@link Long#MIN_VALUE}.
+     * If the sum overflows or underflows {@code int}, the result saturates to {@link Integer#MAX_VALUE}
+     * or {@link Integer#MIN_VALUE}.
      * <p>
      * Example (1h slots, range {@code [10:37, 13:00)}):
      * <pre>
@@ -188,7 +188,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
      * </pre>
      */
     @Override
-    public long sum(long startMillis, long endMillis) {
+    public int sum(long startMillis, long endMillis) {
         if (endMillis <= startMillis) {
             return 0;
         }
@@ -199,14 +199,14 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
         }
         int startSlot = Math.max(0, slotForTimestamp(startMillis));
         int endSlot = Math.min(counts.length(), slotForTimestamp(endMillis - 1) + 1);
-        long total = 0;
+        int total = 0;
         for (int slot = startSlot; slot < endSlot; slot++) {
-            long result;
-            long right = counts.get(slot);
+            int result;
+            int right = counts.get(slot);
             try {
                 result = Math.addExact(total, right);
             } catch (ArithmeticException e) {
-                return right > 0 ? Long.MAX_VALUE : Long.MIN_VALUE;
+                return right > 0 ? Integer.MAX_VALUE : Integer.MIN_VALUE;
             }
             total = result;
         }

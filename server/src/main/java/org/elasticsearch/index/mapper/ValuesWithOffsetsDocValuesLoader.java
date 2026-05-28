@@ -178,6 +178,9 @@ final class ValuesWithOffsetsDocValuesLoader implements SourceLoader.SyntheticFi
                 var encodedValue = offsetDocValues.lookupOrd(offsetOrd);
                 scratch.reset(encodedValue.bytes, encodedValue.offset, encodedValue.length);
                 offsetToOrd = FieldArrayContext.parseOffsetArray(scratch);
+                if (offsetToOrd.length == 0 && hasValue) {
+                    offsetToOrd = null;
+                }
             } else {
                 offsetToOrd = null;
             }

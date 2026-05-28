@@ -31,6 +31,8 @@ import org.elasticsearch.client.HeapBufferedAsyncResponseConsumer;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.BackoffPolicy;
 import org.elasticsearch.common.ParsingException;
+import org.elasticsearch.common.breaker.CircuitBreaker;
+import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.FileSystemUtils;
@@ -258,7 +260,9 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
                     remoteInfo(),
                     request,
                     Version.CURRENT,
-                    keepaliveDeadline()
+                    keepaliveDeadline(),
+                    new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                    1024L
                 )
             );
         }
@@ -355,7 +359,9 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             remoteInfo,
             searchRequest,
             Version.CURRENT,
-            keepaliveDeadline()
+            keepaliveDeadline(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
         hitSource.cleanup(() -> cleanupCallbackCalled.set(true));
         verify(client).close();
@@ -379,7 +385,9 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             remoteInfo,
             searchRequest,
             Version.CURRENT,
-            keepaliveDeadline()
+            keepaliveDeadline(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
         hitSource.cleanup(() -> cleanupCallbackCalled.set(true));
         verify(client).close();
@@ -548,7 +556,9 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             remoteInfo(),
             searchRequest,
             Version.CURRENT,
-            keepaliveDeadline()
+            keepaliveDeadline(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
     }
 
@@ -614,7 +624,9 @@ public class RemotePitPaginatedHitSourceTests extends ESTestCase {
             remoteInfo(),
             searchRequest,
             Version.CURRENT,
-            keepaliveDeadline()
+            keepaliveDeadline(),
+            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+            1024L
         );
     }
 

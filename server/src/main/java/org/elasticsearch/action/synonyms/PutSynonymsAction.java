@@ -48,19 +48,18 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
         private final boolean append;
 
         public static final ParseField SYNONYMS_SET_FIELD = new ParseField(SynonymsManagementAPIService.SYNONYMS_SET_FIELD);
-        private static final ParseField APPEND_FIELD = new ParseField("append");
 
-        private record ParsedBody(List<SynonymRule> rules, Boolean append) {}
-
-        private static final ConstructingObjectParser<ParsedBody, Void> PARSER = new ConstructingObjectParser<>("synonyms_set", args -> {
-            @SuppressWarnings("unchecked")
-            List<SynonymRule> rules = (List<SynonymRule>) args[0];
-            return new ParsedBody(rules, (Boolean) args[1]);
-        });
+        private static final ConstructingObjectParser<List<SynonymRule>, Void> PARSER = new ConstructingObjectParser<>(
+            "synonyms_set",
+            args -> {
+                @SuppressWarnings("unchecked")
+                List<SynonymRule> rules = (List<SynonymRule>) args[0];
+                return rules;
+            }
+        );
 
         static {
             PARSER.declareObjectArray(ConstructingObjectParser.constructorArg(), (p, c) -> SynonymRule.fromXContent(p), SYNONYMS_SET_FIELD);
-            PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), APPEND_FIELD);
         }
 
         private static final TransportVersion SYNONYMS_REFRESH_PARAM = TransportVersion.fromName("synonyms_refresh_param");
@@ -82,13 +81,14 @@ public class PutSynonymsAction extends ActionType<SynonymUpdateResponse> {
             }
         }
 
-        public Request(String synonymsSetId, boolean refresh, BytesReference content, XContentType contentType) throws IOException {
+        public Request(String synonymsSetId, boolean refresh, boolean append, BytesReference content, XContentType contentType)
+            throws IOException {
             this.synonymsSetId = synonymsSetId;
             this.refresh = refresh;
+            this.append = append;
             try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, content, contentType)) {
-                ParsedBody parsed = PARSER.apply(parser, null);
-                this.synonymRules = parsed.rules().toArray(new SynonymRule[0]);
-                this.append = Objects.requireNonNullElse(parsed.append(), false);
+                List<SynonymRule> rules = PARSER.apply(parser, null);
+                this.synonymRules = rules.toArray(new SynonymRule[0]);
             } catch (Exception e) {
                 throw new IllegalArgumentException("Failed to parse: " + content.utf8ToString(), e);
             }

@@ -104,17 +104,21 @@ teardown:
 ---
 "Append to non-existent set creates it":
   - requires:
-      cluster_features: [ "synonyms.append" ]
-      reason: "synonyms append body field support needed"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{id}
+          capabilities: [ synonyms_append_param ]
+      reason: "synonyms append param support needed"
 
   - do:
       synonyms.put_synonym:
         id: test-append-synonyms
+        append: true
         body:
           synonyms_set:
             - synonyms: "hello, hi"
               id: "rule-1"
-          append: true
 
   - match: { result: "created" }
 
@@ -128,8 +132,12 @@ teardown:
 ---
 "Append adds rules without removing existing ones":
   - requires:
-      cluster_features: [ "synonyms.append" ]
-      reason: "synonyms append body field support needed"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{id}
+          capabilities: [ synonyms_append_param ]
+      reason: "synonyms append param support needed"
 
   - do:
       synonyms.put_synonym:
@@ -146,11 +154,11 @@ teardown:
   - do:
       synonyms.put_synonym:
         id: test-append-synonyms
+        append: true
         body:
           synonyms_set:
             - synonyms: "good, great"
               id: "rule-3"
-          append: true
 
   - match: { result: "updated" }
 
@@ -163,8 +171,12 @@ teardown:
 ---
 "Append with matching ID overwrites existing rule":
   - requires:
-      cluster_features: [ "synonyms.append" ]
-      reason: "synonyms append body field support needed"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{id}
+          capabilities: [ synonyms_append_param ]
+      reason: "synonyms append param support needed"
 
   - do:
       synonyms.put_synonym:
@@ -179,11 +191,11 @@ teardown:
   - do:
       synonyms.put_synonym:
         id: test-append-synonyms
+        append: true
         body:
           synonyms_set:
             - synonyms: "hello, hi, hey"
               id: "rule-1"
-          append: true
 
   - match: { result: "updated" }
 
@@ -197,8 +209,12 @@ teardown:
 ---
 "Put without append replaces existing rules":
   - requires:
-      cluster_features: [ "synonyms.append" ]
-      reason: "synonyms append body field support needed"
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /_synonyms/{id}
+          capabilities: [ synonyms_append_param ]
+      reason: "synonyms append param support needed"
 
   - do:
       synonyms.put_synonym:

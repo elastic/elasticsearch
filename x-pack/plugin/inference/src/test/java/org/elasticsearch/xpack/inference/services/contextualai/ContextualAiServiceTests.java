@@ -58,7 +58,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class ContextualAiServiceTests extends InferenceServiceTestCase {
 
@@ -93,8 +92,8 @@ public class ContextualAiServiceTests extends InferenceServiceTestCase {
             var topN = randomNonNegativeIntOrNull();
             var returnDocuments = randomOptionalBoolean();
             var request = new RerankRequest(
-                List.of(new InferenceString(DataType.TEXT, inputOne), new InferenceString(DataType.TEXT, inputTwo)),
-                new InferenceString(DataType.TEXT, query),
+                List.of(InferenceString.ofText(inputOne), InferenceString.ofText(inputTwo)),
+                InferenceString.ofText(query),
                 topN,
                 returnDocuments,
                 new HashMap<>()
@@ -158,7 +157,6 @@ public class ContextualAiServiceTests extends InferenceServiceTestCase {
     private void testRerankInfer_ThrowsError_WithNonTextInputOrQuery(List<InferenceString> inputs, InferenceString query)
         throws IOException {
         var model = mock(ContextualAiRerankModel.class);
-        when(model.getTaskType()).thenReturn(TaskType.RERANK);
 
         try (var service = createInferenceService()) {
             TestPlainActionFuture<InferenceServiceResults> listener = new TestPlainActionFuture<>();

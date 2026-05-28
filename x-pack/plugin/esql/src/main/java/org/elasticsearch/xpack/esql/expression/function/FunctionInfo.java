@@ -40,6 +40,12 @@ public @interface FunctionInfo {
     boolean preview() default false;
 
     /**
+     * Whether this function is compatible with the {@code TS} command. By default,
+     * this is {@code true} and not rendered in the docs.
+     */
+    boolean tsdbCompatible() default true;
+
+    /**
      * Whether this function applies to particular versions of Elasticsearch.
      */
     FunctionAppliesTo[] appliesTo() default {};

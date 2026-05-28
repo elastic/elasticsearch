@@ -30,6 +30,7 @@ module org.elasticsearch.server {
     requires org.elasticsearch.plugin.analysis;
     requires org.elasticsearch.grok;
     requires org.elasticsearch.useragent.api;
+    requires org.elasticsearch.iplocation.api;
     requires org.elasticsearch.tdigest;
     requires org.elasticsearch.exponentialhistogram;
     requires org.elasticsearch.simdvec;
@@ -228,6 +229,7 @@ module org.elasticsearch.server {
     exports org.elasticsearch.common.xcontent;
     exports org.elasticsearch.common.xcontent.support;
     exports org.elasticsearch.discovery;
+    exports org.elasticsearch.eirf;
     exports org.elasticsearch.env;
     exports org.elasticsearch.features;
     exports org.elasticsearch.gateway;
@@ -298,6 +300,8 @@ module org.elasticsearch.server {
     exports org.elasticsearch.lucene.analysis.miscellaneous;
     exports org.elasticsearch.lucene.grouping;
     exports org.elasticsearch.lucene.queries;
+    exports org.elasticsearch.lucene.search;
+    exports org.elasticsearch.lucene.search.cost;
     exports org.elasticsearch.lucene.search.uhighlight;
     exports org.elasticsearch.lucene.search.vectorhighlight;
     exports org.elasticsearch.lucene.similarity;

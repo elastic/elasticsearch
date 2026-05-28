@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.CloseableIterator;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
@@ -92,6 +93,44 @@ public final class StreamingParallelParsingCoordinator {
         Executor executor,
         ErrorPolicy errorPolicy
     ) throws IOException {
+        return parallelRead(
+            reader,
+            decompressedStream,
+            projectedColumns,
+            batchSize,
+            parallelism,
+            executor,
+            errorPolicy,
+            null,
+            SegmentableFormatReader.DEFAULT_MAX_RECORD_BYTES
+        );
+    }
+
+    /**
+     * Variant that propagates the planner-resolved {@code readSchema}. Mirrors the same parameter on
+     * {@link ParallelParsingCoordinator#parallelRead}; the streaming path must thread it so multi-file
+     * globs over gzip/zstd/bz2 inputs honor the planner's typing instead of re-inferring per file.
+     * Pass {@code null} when no read schema is bound.
+     */
+    public static CloseableIterator<Page> parallelRead(
+        SegmentableFormatReader reader,
+        InputStream decompressedStream,
+        List<String> projectedColumns,
+        int batchSize,
+        int parallelism,
+        Executor executor,
+        ErrorPolicy errorPolicy,
+        @Nullable List<Attribute> readSchema,
+        int maxRecordBytes
+    ) throws IOException {
+        if (logger.isDebugEnabled()) {
+            logger.debug(
+                "streaming parallelRead: readSchema={}, parallelism={}, projection={}",
+                readSchema == null ? "null" : "present(" + readSchema.size() + ")",
+                parallelism,
+                projectedColumns == null ? "null" : projectedColumns.size()
+            );
+        }
         ErrorPolicy effectivePolicy = errorPolicy != null ? errorPolicy : ErrorPolicy.STRICT;
 
         if (parallelism <= 1) {
@@ -99,6 +138,7 @@ public final class StreamingParallelParsingCoordinator {
                 .projectedColumns(projectedColumns)
                 .batchSize(batchSize)
                 .errorPolicy(effectivePolicy)
+                .readSchema(readSchema)
                 .build();
             return reader.read(new InputStreamStorageObject(decompressedStream), ctx);
         }
@@ -110,7 +150,9 @@ public final class StreamingParallelParsingCoordinator {
             batchSize,
             parallelism,
             executor,
-            effectivePolicy
+            effectivePolicy,
+            readSchema,
+            maxRecordBytes
         );
     }
 
@@ -132,6 +174,9 @@ public final class StreamingParallelParsingCoordinator {
         private final List<String> projectedColumns;
         private final int batchSize;
         private final ErrorPolicy errorPolicy;
+        /** See {@link FormatReadContext#readSchema()}. {@code null} = per-file inference. */
+        @Nullable
+        private final List<Attribute> readSchema;
 
         private final ArrayBlockingQueue<byte[]> bufferPool;
         private final ArrayBlockingQueue<Chunk> chunkQueue;
@@ -140,6 +185,11 @@ public final class StreamingParallelParsingCoordinator {
         /** Length of {@link #pageQueues}; must match {@link #bufferPoolSize} so chunk index modulo never collides. */
         private final int pageQueueRingSize;
         private final int chunkSize;
+        /**
+         * Grow-loop bound. In production it comes from the {@code max_record_size} pragma (default
+         * {@link SegmentableFormatReader#DEFAULT_MAX_RECORD_BYTES}); overridable for tests.
+         */
+        private final int maxRecordBytes;
         private final ArrayBlockingQueue<Page>[] pageQueues;
 
         private final AtomicReference<Throwable> firstError = new AtomicReference<>();
@@ -184,12 +234,16 @@ public final class StreamingParallelParsingCoordinator {
             int batchSize,
             int parallelism,
             Executor executor,
-            ErrorPolicy errorPolicy
+            ErrorPolicy errorPolicy,
+            @Nullable List<Attribute> readSchema,
+            int maxRecordBytes
         ) {
             this.reader = reader;
             this.projectedColumns = projectedColumns;
             this.batchSize = batchSize;
             this.errorPolicy = errorPolicy;
+            this.readSchema = readSchema;
+            this.maxRecordBytes = maxRecordBytes;
             this.bufferPoolSize = parallelism + 1;
             this.pageQueueRingSize = parallelism + 1;
 
@@ -469,6 +523,7 @@ public final class StreamingParallelParsingCoordinator {
                     .firstSplit(chunk.index == 0)
                     .lastSplit(true)
                     .recordAligned(true)
+                    .readSchema(readSchema)
                     .build();
                 try (CloseableIterator<Page> pages = reader.read(chunkObj, ctx)) {
                     while (pages.hasNext()) {
@@ -558,11 +613,27 @@ public final class StreamingParallelParsingCoordinator {
         private GrowResult growUntilRecordBoundary(InputStream stream, byte[] existing, int existingLen, int growBy) throws IOException {
             byte[] buf = existing;
             int len = existingLen;
+            // Bound the grow loop: a record past maxRecordBytes means the scanner won't find a boundary
+            // (a format/quoting mismatch), so fail rather than read the input without bound.
             while (true) {
+                if (len + growBy > maxRecordBytes) {
+                    throw new IOException(
+                        "no record boundary found within "
+                            + len
+                            + " bytes (max record size "
+                            + maxRecordBytes
+                            + ") for format ["
+                            + reader.formatName()
+                            + "]: the record-boundary scanner is not reporting a boundary, which usually "
+                            + "means a format/quoting mismatch (e.g. a misconfigured delimiter or quote "
+                            + "character). Aborting to avoid an unbounded read of the input stream."
+                    );
+                }
                 byte[] grown = growUntilNewline(stream, buf, len, growBy);
                 if (grown.length == len) {
                     return new GrowResult(grown, -1);
                 }
+                // Rescans the whole grown buffer each iteration; total work is O(n^2), bounded by maxRecordBytes.
                 int boundary = reader.findLastRecordBoundary(grown, grown.length);
                 if (boundary >= 0) {
                     return new GrowResult(grown, boundary);

@@ -469,13 +469,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             assertRollUpJob("rollup-job-test");
 
         } else {
-
-            final Request clusterHealthRequest = new Request("GET", "/_cluster/health");
-            clusterHealthRequest.addParameter("wait_for_status", "yellow");
-            clusterHealthRequest.addParameter("wait_for_no_relocating_shards", "true");
-            clusterHealthRequest.addParameter("wait_for_no_initializing_shards", "true");
-            Map<String, Object> clusterHealthResponse = entityAsMap(client().performRequest(clusterHealthRequest));
-            assertThat(clusterHealthResponse.get("timed_out"), equalTo(Boolean.FALSE));
+            ensureYellowAndNoInitializingShards("", null);
 
             assertRollUpJob("rollup-job-test");
         }
@@ -710,13 +704,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     private void waitForYellow(String indexName) throws IOException {
-        Request request = new Request("GET", "/_cluster/health/" + indexName);
-        request.addParameter("wait_for_status", "yellow");
-        request.addParameter("timeout", "30s");
-        request.addParameter("wait_for_no_relocating_shards", "true");
-        request.addParameter("wait_for_no_initializing_shards", "true");
-        Map<String, Object> response = entityAsMap(client().performRequest(request));
-        assertThat(response.get("timed_out"), equalTo(Boolean.FALSE));
+        ensureYellowAndNoInitializingShards(indexName, "30s");
     }
 
     private void waitForHits(String indexName, int expectedHits) throws Exception {

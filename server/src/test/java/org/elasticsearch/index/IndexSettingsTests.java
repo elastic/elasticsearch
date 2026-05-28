@@ -1283,6 +1283,33 @@ public class IndexSettingsTests extends ESTestCase {
         );
     }
 
+    public void testDynamicStringsAutoTextDefaultByIndexMode() {
+        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
+
+        // COLUMNAR and LOGSDB_COLUMNAR default to false (keyword, high-cardinality)
+        for (IndexMode columnarMode : List.of(IndexMode.COLUMNAR, IndexMode.LOGSDB_COLUMNAR)) {
+            Settings settings = Settings.builder().put(IndexSettings.MODE.getKey(), columnarMode.getName()).build();
+            IndexSettings indexSettings = new IndexSettings(newIndexMeta(columnarMode.getName() + "-index", settings), Settings.EMPTY);
+            assertFalse(
+                "dynamic_strings.auto_text should default to false for " + columnarMode.getName() + " mode",
+                indexSettings.getDynamicStringsAutoText()
+            );
+        }
+
+        // All other modes default to true (text + keyword subfield)
+        for (IndexMode otherMode : List.of(IndexMode.STANDARD, IndexMode.LOGSDB, IndexMode.TIME_SERIES)) {
+            Settings.Builder builder = Settings.builder().put(IndexSettings.MODE.getKey(), otherMode.getName());
+            if (otherMode == IndexMode.TIME_SERIES) {
+                builder.put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo");
+            }
+            IndexSettings indexSettings = new IndexSettings(newIndexMeta(otherMode.getName() + "-index", builder.build()), Settings.EMPTY);
+            assertTrue(
+                "dynamic_strings.auto_text should default to true for " + otherMode.getName() + " mode",
+                indexSettings.getDynamicStringsAutoText()
+            );
+        }
+    }
+
     public void testBloomFilterSettingsFromScopedSettings() {
         int numHashFunctions = randomIntBetween(1, ES94BloomFilterDocValuesFormat.MAX_NUM_HASH_FUNCTIONS);
         int smallMaxDocs = randomIntBetween(1, 999);

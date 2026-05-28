@@ -18,7 +18,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkInferenceInput;
 import org.elasticsearch.inference.ChunkedInference;
 import org.elasticsearch.inference.ChunkingSettings;
-import org.elasticsearch.inference.DataType;
 import org.elasticsearch.inference.EmbeddingRequest;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -56,6 +55,7 @@ import static org.elasticsearch.inference.TaskType.EMBEDDING;
 import static org.elasticsearch.inference.TaskType.SPARSE_EMBEDDING;
 import static org.elasticsearch.inference.TaskType.TEXT_EMBEDDING;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidTaskTypeException;
+import static org.elasticsearch.xpack.inference.services.ServiceUtils.createUnsupportedMultimodalRerankException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrThrowIfNull;
@@ -159,7 +159,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
             );
 
             throwIfNotEmptyMap(config, name());
-            throwIfNotEmptyMap(serviceSettingsMap, name());
+            if (usesParserForServiceSettings() == false) {
+                throwIfNotEmptyMap(serviceSettingsMap, name());
+            }
             if (usesParserForTaskSettings() == false) {
                 throwIfNotEmptyMap(taskSettingsMap, name());
             }
@@ -243,7 +245,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
 
                 validationException.throwIfValidationErrorsExist();
                 yield new QueryAndDocsInputs(
-                    new InferenceString(DataType.TEXT, query),
+                    InferenceString.ofText(query),
                     InferenceString.fromStringList(input),
                     returnDocuments,
                     topN,
@@ -336,15 +338,9 @@ public abstract class SenderService<M extends Model> implements InferenceService
     @Override
     public void rerankInfer(Model model, RerankRequest request, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         try {
-            var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, model.getTaskType());
             if (supportsMultimodalRerank() == false
                 && (request.query().isNonText() || request.inputs().stream().anyMatch(InferenceString::isNonText))) {
-                listener.onFailure(
-                    new ElasticsearchStatusException(
-                        Strings.format("The %s service does not support rerank with non-text inputs or queries", name()),
-                        RestStatus.BAD_REQUEST
-                    )
-                );
+                listener.onFailure(createUnsupportedMultimodalRerankException(name()));
                 return;
             }
 
@@ -352,6 +348,7 @@ public abstract class SenderService<M extends Model> implements InferenceService
             validateRerankParameters(request.returnDocuments(), request.topN(), validationException);
             validationException.throwIfValidationErrorsExist();
 
+            var resolvedInferenceTimeout = resolveInferenceTimeout(timeout, InputType.UNSPECIFIED, clusterService, model.getTaskType());
             doRerankInfer(model, request, resolvedInferenceTimeout, listener);
         } catch (Exception e) {
             listener.onFailure(e);
@@ -445,8 +442,8 @@ public abstract class SenderService<M extends Model> implements InferenceService
     );
 
     @Override
-    public void start(Model model, @Nullable TimeValue timeout, ActionListener<Boolean> listener) {
-        listener.onResponse(Boolean.TRUE);
+    public void start(Model model, @Nullable TimeValue timeout, ActionListener<Void> listener) {
+        listener.onResponse(null);
     }
 
     @Override

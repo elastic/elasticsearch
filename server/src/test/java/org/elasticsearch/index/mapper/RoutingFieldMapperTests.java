@@ -17,6 +17,8 @@ import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.SliceIndexing;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.lookup.Source;
@@ -207,5 +209,68 @@ public class RoutingFieldMapperTests extends MetadataMapperTestCase {
                 assertEquals(List.of("abcd"), valueFetcher.fetchValues(Source.empty(XContentType.JSON), 0, new ArrayList<>()));
             }
         );
+    }
+
+    public void testSliceEnabledWritesRoutingOnNestedDocuments() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+
+        Settings settings = Settings.builder().put(getIndexSettings()).put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("n");
+            b.field("type", "nested");
+            b.startObject("properties");
+            b.startObject("k").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("1", b -> {
+            b.startArray("n");
+            b.startObject().field("k", "v1").endObject();
+            b.startObject().field("k", "v2").endObject();
+            b.endArray();
+        }, "routing_value"));
+
+        assertEquals("expected nested docs and one root doc", 3, doc.docs().size());
+        for (LuceneDocument luceneDocument : doc.docs()) {
+            assertRoutingStoredAsDocValues(luceneDocument, "routing_value");
+        }
+    }
+
+    public void testSliceEnabledIncludeInParentDoesNotDuplicateRootRouting() throws Exception {
+        assumeTrue("slice indexing feature flag must be enabled", SliceIndexing.SLICE_FEATURE_FLAG.isEnabled());
+
+        Settings settings = Settings.builder().put(getIndexSettings()).put(IndexSettings.SLICE_ENABLED.getKey(), true).build();
+        MapperService mapperService = createMapperService(settings, mapping(b -> {
+            b.startObject("n");
+            b.field("type", "nested");
+            b.field("include_in_parent", true);
+            b.startObject("properties");
+            b.startObject("k").field("type", "keyword").endObject();
+            b.endObject();
+            b.endObject();
+        }));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source("1", b -> {
+            b.startArray("n");
+            b.startObject().field("k", "v1").endObject();
+            b.startObject().field("k", "v2").endObject();
+            b.endArray();
+        }, "routing_value"));
+
+        for (int i = 0; i < doc.docs().size() - 1; i++) {
+            assertRoutingStoredAsDocValues(doc.docs().get(i), "routing_value");
+        }
+        assertRoutingStoredAsDocValues(doc.rootDoc(), "routing_value");
+    }
+
+    private static void assertRoutingStoredAsDocValues(LuceneDocument document, String routing) {
+        List<IndexableField> routingFields = document.getFields(RoutingFieldMapper.NAME);
+        assertEquals("expected exactly one _routing field", 1, routingFields.size());
+        IndexableField routingField = routingFields.get(0);
+        assertEquals("routing value mismatch", routing, routingField.binaryValue().utf8ToString());
+        assertEquals("doc values type must be SORTED", DocValuesType.SORTED, routingField.fieldType().docValuesType());
+        assertEquals("must have no inverted index", IndexOptions.NONE, routingField.fieldType().indexOptions());
+        assertFalse("must not be stored", routingField.fieldType().stored());
     }
 }

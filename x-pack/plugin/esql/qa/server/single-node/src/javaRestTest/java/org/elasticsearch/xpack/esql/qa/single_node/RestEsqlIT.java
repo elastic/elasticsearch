@@ -833,36 +833,39 @@ public class RestEsqlIT extends RestEsqlTestCase {
      */
     private void doTestSuggestedCast(String queryFormat, String castedQueryFormat) throws IOException {
         // TODO: Figure out how best to make sure we don't leave out new types
-        Map<DataType, String> typesAndValues = Map.ofEntries(
-            Map.entry(DataType.BOOLEAN, "\"true\""),
-            Map.entry(DataType.LONG, "-1234567890234567"),
-            Map.entry(DataType.INTEGER, "123"),
-            Map.entry(DataType.UNSIGNED_LONG, "1234567890234567"),
-            Map.entry(DataType.DOUBLE, "12.4"),
-            Map.entry(DataType.KEYWORD, "\"keyword\""),
-            Map.entry(DataType.TEXT, "\"some text\""),
-            Map.entry(DataType.DATE_NANOS, "\"2015-01-01T12:10:30.123456789Z\""),
-            Map.entry(DataType.DATETIME, "\"2015-01-01T12:10:30Z\""),
-            Map.entry(DataType.IP, "\"192.168.30.1\""),
-            Map.entry(DataType.VERSION, "\"8.19.0\""),
-            Map.entry(DataType.GEO_POINT, "[-71.34, 41.12]"),
-            Map.entry(DataType.GEO_SHAPE, """
-                {
-                  "type": "Point",
-                  "coordinates": [-77.03653, 38.897676]
-                }
-                """),
-            Map.entry(DataType.FLATTENED, """
+        Map<DataType, String> typesAndValues = new HashMap<>(
+            Map.ofEntries(
+                Map.entry(DataType.BOOLEAN, "\"true\""),
+                Map.entry(DataType.LONG, "-1234567890234567"),
+                Map.entry(DataType.INTEGER, "123"),
+                Map.entry(DataType.UNSIGNED_LONG, "1234567890234567"),
+                Map.entry(DataType.DOUBLE, "12.4"),
+                Map.entry(DataType.KEYWORD, "\"keyword\""),
+                Map.entry(DataType.TEXT, "\"some text\""),
+                Map.entry(DataType.DATE_NANOS, "\"2015-01-01T12:10:30.123456789Z\""),
+                Map.entry(DataType.DATETIME, "\"2015-01-01T12:10:30Z\""),
+                Map.entry(DataType.IP, "\"192.168.30.1\""),
+                Map.entry(DataType.VERSION, "\"8.19.0\""),
+                Map.entry(DataType.GEO_POINT, "[-71.34, 41.12]"),
+                Map.entry(DataType.GEO_SHAPE, """
+                    {
+                      "type": "Point",
+                      "coordinates": [-77.03653, 38.897676]
+                    }
+                    """)
+            )
+        );
+        if (EsqlCapabilities.Cap.FLATTENED_DATATYPE.isEnabled()) {
+            typesAndValues.put(DataType.FLATTENED, """
                 {
                   "foo": "a",
                   "o": {
                     "bar": "b"
                   }
                 }
-                """)
-        );
+                """);
+        }
         if (EsqlCapabilities.Cap.AGGREGATE_METRIC_DOUBLE_V0.isEnabled()) {
-            typesAndValues = new HashMap<>(typesAndValues);
             typesAndValues.put(DataType.AGGREGATE_METRIC_DOUBLE, """
                 {
                   "max": 14983.1
@@ -1259,7 +1262,10 @@ public class RestEsqlIT extends RestEsqlTestCase {
             .entry("operators", instanceOf(List.class))
             .entry("sleeps", matchesMap().extraOk())
             .entry("documents_found", greaterThanOrEqualTo(0))
-            .entry("values_loaded", greaterThanOrEqualTo(0));
+            .entry("values_loaded", greaterThanOrEqualTo(0))
+            .entry("rows_emitted", greaterThanOrEqualTo(0L))
+            .entry("bytes_read", greaterThanOrEqualTo(0L))
+            .entry("read_nanos", greaterThanOrEqualTo(0L));
     }
 
     public void testProfileConditionalBlockLoader() throws IOException {
@@ -1415,6 +1421,9 @@ public class RestEsqlIT extends RestEsqlTestCase {
         profile.put("iterations", ((Number) profile.get("iterations")).longValue());
         profile.put("cpu_nanos", ((Number) profile.get("cpu_nanos")).longValue());
         profile.put("took_nanos", ((Number) profile.get("took_nanos")).longValue());
+        profile.put("rows_emitted", ((Number) profile.get("rows_emitted")).longValue());
+        profile.put("bytes_read", ((Number) profile.get("bytes_read")).longValue());
+        profile.put("read_nanos", ((Number) profile.get("read_nanos")).longValue());
     }
 
     static String signature(Map<String, Object> o) {

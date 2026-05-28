@@ -23,6 +23,8 @@ import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.regex.WildcardPattern;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Contains;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.regex.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.Range;
@@ -842,6 +844,354 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         }
     }
 
+    public void testNotStartsWithExcludesNulls() {
+        // TVL: NOT(NULL STARTS_WITH x) is UNKNOWN -> null row must NOT survive.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("banana"));
+            builder.appendBytesRef(new BytesRef("application"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression notSw = new Not(
+                Source.EMPTY,
+                new StartsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("app"), DataType.KEYWORD))
+            );
+            // Survivors: "banana" (index 2). "apple" and "application" match the predicate; null is UNKNOWN.
+            assertSurvivors(new ParquetPushedExpressions(List.of(notSw)), blocks, 4, reusable, new int[] { 2 });
+        }
+    }
+
+    // ---- EndsWith ----
+
+    public void testEndsWithBasic() {
+        // Block: ["apple", "pineapple", "banana"]
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendBytesRef(new BytesRef("pineapple"));
+            builder.appendBytesRef(new BytesRef("banana"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            // ENDS_WITH(s, "apple") -> positions [0, 1]
+            Expression ew = new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("apple"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(ew)), blocks, 3, reusable, new int[] { 0, 1 });
+        }
+    }
+
+    public void testEndsWithSuffixLongerThanValue() {
+        try (var builder = blockFactory.newBytesRefBlockBuilder(2)) {
+            builder.appendBytesRef(new BytesRef("hi"));
+            builder.appendBytesRef(new BytesRef("hey"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression ew = new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("hello_world"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(ew)), blocks, 2, reusable, new int[] {});
+        }
+    }
+
+    public void testEndsWithNullValueDoesNotSurvive() {
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("banana"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression ew = new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("le"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(ew)), blocks, 3, reusable, new int[] { 0 });
+        }
+    }
+
+    public void testEndsWithOrdinalDictionaryShortCircuit() {
+        // Pinning the dictionary short-circuit path: pattern repeated to satisfy
+        // OrdinalBytesRefBlock#isDense (rows >= 2 * dictSize).
+        String[] dict = { "apple", "application", "banana", "pineapple" };
+        int[] pattern = { 0, 1, 2, 3, 0, 2 };
+        int[] ordinals = repeatPattern(pattern, 24);
+        Block block = ordinalBlock(dict, ordinals, null);
+        try (block) {
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+            // ENDS_WITH(s, "apple") matches dict entries 0 (apple) and 3 (pineapple)
+            int[] expected = positionsWithOrdinalIn(ordinals, 0, 3);
+            Expression ew = new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("apple"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(ew)), blocks, ordinals.length, reusable, expected);
+        }
+    }
+
+    public void testEndsWithOrdinalAndScalarAgree() {
+        // Cross-check the dictionary short-circuit against the per-row scalar path.
+        // Mirrors testWildcardLikeOrdinalAndScalarAgree.
+        String[] dict = { "the", "quick", "brown", "fox.log", "jumps.tar.gz", "over.log", "lazy.dog" };
+        int rowCount = 200;
+        int[] randomOrdinals = new int[rowCount];
+        for (int i = 0; i < rowCount; i++) {
+            randomOrdinals[i] = randomIntBetween(0, dict.length - 1);
+        }
+        Block ordinalsBlock = ordinalBlock(dict, randomOrdinals, null);
+        Block plainBlock = plainBytesRefBlock(dict, randomOrdinals);
+        try (ordinalsBlock; plainBlock) {
+            Expression ew = new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef(".log"), DataType.KEYWORD));
+
+            WordMask ordinalMask = new ParquetPushedExpressions(List.of(ew)).evaluateFilter(
+                Map.of("s", ordinalsBlock),
+                rowCount,
+                new WordMask()
+            );
+            WordMask plainMask = new ParquetPushedExpressions(List.of(ew)).evaluateFilter(
+                Map.of("s", plainBlock),
+                rowCount,
+                new WordMask()
+            );
+            if (ordinalMask == null) {
+                assertNull("ordinal returned null (all survive); plain must also", plainMask);
+            } else {
+                assertNotNull("ordinal produced a mask; plain must too", plainMask);
+                assertArrayEquals(
+                    "EndsWith ordinal and plain masks must agree",
+                    plainMask.survivingPositions(),
+                    ordinalMask.survivingPositions()
+                );
+            }
+        }
+    }
+
+    public void testNotEndsWithOnOrdinalDictionaryAgreesWithScalar() {
+        // NOT(EndsWith) on an OrdinalBytesRefBlock with null rows must agree with the per-row
+        // scalar path: dictionary scatter + ordinal-mode null fixup must produce the same
+        // TVL-correct survivor mask as the scalar loop. Mirrors
+        // testWildcardLikeContainsLiteralNotOnOrdinalDictionaryAgreesWithAutomaton.
+        String[] dict = { "apple", "application", "banana", "pineapple" };
+        int[] pattern = { 0, 1, 2, 3, 0, 2 };
+        int[] ordinals = repeatPattern(pattern, 24);
+        boolean[] nulls = repeatBoolPattern(new boolean[] { false, true, false, false, false, true }, 24);
+        Block ordinalsBlock = ordinalBlock(dict, ordinals, nulls);
+        // Build the equivalent plain block (with nulls) to compare against.
+        try (var plainBuilder = blockFactory.newBytesRefBlockBuilder(ordinals.length)) {
+            for (int i = 0; i < ordinals.length; i++) {
+                if (nulls[i]) {
+                    plainBuilder.appendNull();
+                } else {
+                    plainBuilder.appendBytesRef(new BytesRef(dict[ordinals[i]]));
+                }
+            }
+            Block plainBlock = plainBuilder.build();
+            try (ordinalsBlock; plainBlock) {
+                Expression notEw = new Not(
+                    Source.EMPTY,
+                    new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("apple"), DataType.KEYWORD))
+                );
+
+                WordMask ordinalMask = new ParquetPushedExpressions(List.of(notEw)).evaluateFilter(
+                    Map.of("s", ordinalsBlock),
+                    ordinals.length,
+                    new WordMask()
+                );
+                WordMask plainMask = new ParquetPushedExpressions(List.of(notEw)).evaluateFilter(
+                    Map.of("s", plainBlock),
+                    ordinals.length,
+                    new WordMask()
+                );
+                if (ordinalMask == null) {
+                    assertNull("ordinal returned null (all survive); plain must also", plainMask);
+                } else {
+                    assertNotNull("ordinal produced a mask; plain must too", plainMask);
+                    assertArrayEquals(
+                        "NOT(EndsWith) ordinal and plain masks must agree under TVL",
+                        plainMask.survivingPositions(),
+                        ordinalMask.survivingPositions()
+                    );
+                }
+            }
+        }
+    }
+
+    public void testNotEndsWithExcludesNulls() {
+        // TVL: NOT(NULL ENDS_WITH x) is UNKNOWN -> null row must NOT survive.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("banana"));
+            builder.appendBytesRef(new BytesRef("pineapple"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression notEw = new Not(
+                Source.EMPTY,
+                new EndsWith(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("apple"), DataType.KEYWORD))
+            );
+            // Survivors: "banana" (index 2). "apple" and "pineapple" match the predicate; null is UNKNOWN.
+            assertSurvivors(new ParquetPushedExpressions(List.of(notEw)), blocks, 4, reusable, new int[] { 2 });
+        }
+    }
+
+    // ---- Contains ----
+
+    public void testContainsBasic() {
+        // Block: ["apple", "pineapple", "banana"]
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendBytesRef(new BytesRef("pineapple"));
+            builder.appendBytesRef(new BytesRef("banana"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            // CONTAINS(s, "app") -> positions [0, 1] ("apple" and "pineapple")
+            Expression c = new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("app"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(c)), blocks, 3, reusable, new int[] { 0, 1 });
+        }
+    }
+
+    public void testContainsSubstrLongerThanValue() {
+        try (var builder = blockFactory.newBytesRefBlockBuilder(2)) {
+            builder.appendBytesRef(new BytesRef("hi"));
+            builder.appendBytesRef(new BytesRef("hey"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression c = new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("hello_world"), DataType.KEYWORD));
+            assertSurvivors(new ParquetPushedExpressions(List.of(c)), blocks, 2, reusable, new int[] {});
+        }
+    }
+
+    public void testContainsNullValueDoesNotSurvive() {
+        try (var builder = blockFactory.newBytesRefBlockBuilder(3)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("banana"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression c = new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("an"), DataType.KEYWORD));
+            // "apple" does not contain "an"; "banana" does; null does not survive.
+            assertSurvivors(new ParquetPushedExpressions(List.of(c)), blocks, 3, reusable, new int[] { 2 });
+        }
+    }
+
+    public void testContainsOrdinalDictionaryShortCircuit() {
+        // Dictionary mixing long entries (above SIMD activation threshold) and short ones —
+        // mirrors testWildcardLikeContainsLiteralOrdinalDictionaryAgreesWithAutomaton.
+        String[] dict = {
+            "https://www.google.com/search?q=elasticsearch",
+            "https://www.bing.com/search?q=opensearch",
+            "https://duckduckgo.com/?q=lucene",
+            "https://www.google.com/maps/place/London",
+            "google" };
+        int rowCount = 200;
+        int[] randomOrdinals = new int[rowCount];
+        for (int i = 0; i < rowCount; i++) {
+            randomOrdinals[i] = randomIntBetween(0, dict.length - 1);
+        }
+        Block ordinalsBlock = ordinalBlock(dict, randomOrdinals, null);
+        Block plainBlock = plainBytesRefBlock(dict, randomOrdinals);
+        try (ordinalsBlock; plainBlock) {
+            Expression c = new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("google"), DataType.KEYWORD));
+
+            WordMask ordinalMask = new ParquetPushedExpressions(List.of(c)).evaluateFilter(
+                Map.of("s", ordinalsBlock),
+                rowCount,
+                new WordMask()
+            );
+            WordMask plainMask = new ParquetPushedExpressions(List.of(c)).evaluateFilter(Map.of("s", plainBlock), rowCount, new WordMask());
+            if (ordinalMask == null) {
+                assertNull("ordinal returned null (all survive); plain must also", plainMask);
+            } else {
+                assertNotNull("ordinal produced a mask; plain must too", plainMask);
+                assertArrayEquals(plainMask.survivingPositions(), ordinalMask.survivingPositions());
+            }
+        }
+    }
+
+    public void testNotContainsOnOrdinalDictionaryAgreesWithScalar() {
+        // NOT(Contains) on an OrdinalBytesRefBlock with null rows must agree with the per-row
+        // scalar path under TVL.
+        String[] dict = { "apple", "application", "banana", "pineapple" };
+        int[] pattern = { 0, 1, 2, 3, 0, 2 };
+        int[] ordinals = repeatPattern(pattern, 24);
+        boolean[] nulls = repeatBoolPattern(new boolean[] { false, true, false, false, false, true }, 24);
+        Block ordinalsBlock = ordinalBlock(dict, ordinals, nulls);
+        try (var plainBuilder = blockFactory.newBytesRefBlockBuilder(ordinals.length)) {
+            for (int i = 0; i < ordinals.length; i++) {
+                if (nulls[i]) {
+                    plainBuilder.appendNull();
+                } else {
+                    plainBuilder.appendBytesRef(new BytesRef(dict[ordinals[i]]));
+                }
+            }
+            Block plainBlock = plainBuilder.build();
+            try (ordinalsBlock; plainBlock) {
+                Expression notC = new Not(
+                    Source.EMPTY,
+                    new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("app"), DataType.KEYWORD))
+                );
+
+                WordMask ordinalMask = new ParquetPushedExpressions(List.of(notC)).evaluateFilter(
+                    Map.of("s", ordinalsBlock),
+                    ordinals.length,
+                    new WordMask()
+                );
+                WordMask plainMask = new ParquetPushedExpressions(List.of(notC)).evaluateFilter(
+                    Map.of("s", plainBlock),
+                    ordinals.length,
+                    new WordMask()
+                );
+                if (ordinalMask == null) {
+                    assertNull("ordinal returned null (all survive); plain must also", plainMask);
+                } else {
+                    assertNotNull("ordinal produced a mask; plain must too", plainMask);
+                    assertArrayEquals(
+                        "NOT(Contains) ordinal and plain masks must agree under TVL",
+                        plainMask.survivingPositions(),
+                        ordinalMask.survivingPositions()
+                    );
+                }
+            }
+        }
+    }
+
+    public void testNotContainsExcludesNulls() {
+        // TVL: NOT(NULL CONTAINS x) is UNKNOWN -> null row must NOT survive.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("banana"));
+            builder.appendBytesRef(new BytesRef("pineapple"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            WordMask reusable = new WordMask();
+
+            Expression notC = new Not(
+                Source.EMPTY,
+                new Contains(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("app"), DataType.KEYWORD))
+            );
+            // "banana" is the only non-null row that does not contain "app"; null is UNKNOWN.
+            assertSurvivors(new ParquetPushedExpressions(List.of(notC)), blocks, 4, reusable, new int[] { 2 });
+        }
+    }
+
+    public void testContainsPredicateColumnNamesIncludesField() {
+        Expression c = new Contains(Source.EMPTY, attr("url", DataType.KEYWORD), lit(new BytesRef("google"), DataType.KEYWORD));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(c));
+        assertEquals(java.util.Set.of("url"), pushed.predicateColumnNames());
+    }
+
+    public void testEndsWithPredicateColumnNamesIncludesField() {
+        Expression ew = new EndsWith(Source.EMPTY, attr("path", DataType.KEYWORD), lit(new BytesRef(".log"), DataType.KEYWORD));
+        ParquetPushedExpressions pushed = new ParquetPushedExpressions(List.of(ew));
+        assertEquals(java.util.Set.of("path"), pushed.predicateColumnNames());
+    }
+
     // ---- Test 8: Missing predicate column (null-constant block) ----
 
     public void testMissingPredicateColumnWithConstantNullBlock() {
@@ -1256,34 +1606,9 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         assertEquals(java.util.Set.of("url"), pushed.predicateColumnNames());
     }
 
-    public void testExtractContainsLiteralRecognizesPureContainsShape() {
-        // Pins the exact set of patterns that take the SIMD-accelerated contains() path. Anything
-        // not on this list falls back to the per-byte ByteRunAutomaton; that is correct, but a silent
-        // regression here would dial back the dictionary fast-path on URL/path columns and is the
-        // single most expensive perf bug this change can introduce.
-        assertEquals(new BytesRef("google"), ParquetPushedExpressions.extractContainsLiteral("*google*"));
-        // Single-character literal — minimum recognized length is 3 ("*x*").
-        assertEquals(new BytesRef("a"), ParquetPushedExpressions.extractContainsLiteral("*a*"));
-        // UTF-8 multi-byte: helper must commit to bytes, not codepoints, because the runtime matcher
-        // operates on bytes.
-        assertEquals(new BytesRef("café"), ParquetPushedExpressions.extractContainsLiteral("*café*"));
-    }
-
-    public void testExtractContainsLiteralRejectsNonContainsShapes() {
-        // "**" -> middle is empty AND length<3 -> not recognized; the matchesAll automaton fast-path
-        // already handles "*", and "**" is equivalent at the automaton level.
-        assertNull(ParquetPushedExpressions.extractContainsLiteral("**"));
-        // No leading wildcard -> StartsWith territory, not contains.
-        assertNull(ParquetPushedExpressions.extractContainsLiteral("google*"));
-        // No trailing wildcard -> EndsWith territory, not contains.
-        assertNull(ParquetPushedExpressions.extractContainsLiteral("*google"));
-        // Embedded '*' -> two-segment pattern; the simple substring check would be wrong.
-        assertNull(ParquetPushedExpressions.extractContainsLiteral("*foo*bar*"));
-        // Embedded '?' -> single-char wildcard; the simple substring check would be wrong.
-        assertNull(ParquetPushedExpressions.extractContainsLiteral("*foo?bar*"));
-        // Embedded escape '\\' -> the literal would need un-escaping; keep on the automaton path.
-        assertNull(ParquetPushedExpressions.extractContainsLiteral("*fo\\*o*"));
-    }
+    // Shape-detection unit tests live in WildcardLikeShapeTests now that the parser is a shared
+    // utility. The evaluator tests below cross-check that ParquetPushedExpressions actually
+    // dispatches through the shared shape on representative LIKE patterns.
 
     public void testWildcardLikeContainsLiteralOrdinalDictionaryAgreesWithAutomaton() {
         // Cross-checks the SIMD contains path against the per-row scalar path on a dictionary
@@ -1307,9 +1632,22 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
         Block ordinalsBlock = ordinalBlock(dict, randomOrdinals, null);
         Block plainBlock = plainBytesRefBlock(dict, randomOrdinals);
         try (ordinalsBlock; plainBlock) {
-            // *google* takes the SIMD path; *go?gle* (single-char wildcard) falls back to the
-            // automaton. They must agree on every row.
-            for (String pattern : new String[] { "*google*", "*google.com*", "*xyz*", "*go?gle*" }) {
+            // Each entry exercises a distinct WildcardLikeShape branch through the affix-contains
+            // dispatch (or its automaton fallback). The shape is a pre-existing cache key so the
+            // dispatch is exercised end-to-end for every pattern; ordinal vs plain must agree on
+            // every row, every pattern.
+            for (String pattern : new String[] {
+                "*google*",         // *literal*
+                "*google.com*",     // *literal*
+                "*xyz*",            // *literal* with no match anywhere
+                "https*",           // prefix*
+                "*lucene",          // *suffix
+                "https*lucene",     // prefix*suffix (both ends fixed, no middle literal)
+                "https*google*",    // prefix*literal*
+                "*google*com",      // *literal*suffix
+                "https*google*com", // prefix*literal*suffix (full affix-contains)
+                "*go?gle*"          // automaton fallback (single-char wildcard)
+            }) {
                 Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern(pattern));
 
                 WordMask ordinalMask = new ParquetPushedExpressions(List.of(like)).evaluateFilter(
@@ -1350,6 +1688,127 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
             Map<String, Block> blocks = Map.of("s", block);
             Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern("*google*"));
             assertSurvivors(new ParquetPushedExpressions(List.of(like)), blocks, 5, new WordMask(), new int[] { 0, 1 });
+        }
+    }
+
+    public void testStringEqualsRoutesThroughByteMatchers() {
+        // Sanity-pin: Equals on KEYWORD now dispatches via ByteMatchers#equals (Arrays#equals
+        // intrinsic + length pre-check) rather than BytesRef#compareTo. The functional answer must
+        // not change. Mixed-length values exercise the length pre-check fast path.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendBytesRef(new BytesRef("application")); // longer — length pre-check rejects
+            builder.appendBytesRef(new BytesRef("appl")); // shorter — length pre-check rejects
+            builder.appendBytesRef(new BytesRef("apple")); // equal again
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            Expression eq = new Equals(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("apple"), DataType.KEYWORD), null);
+            assertSurvivors(new ParquetPushedExpressions(List.of(eq)), blocks, 4, new WordMask(), new int[] { 0, 3 });
+        }
+    }
+
+    public void testStringLessThanOnPlainBytesRefBlockUsesCompareTo() {
+        // The Equals/NotEquals refactor introduced a Predicate-based dispatch in the BytesRefBlock
+        // path; ordered comparisons (LT, LE, GT, GE) must keep the lex-order semantics of
+        // BytesRef#compareTo. Pin the wire-up on a plain (non-dictionary) block — the existing
+        // testOrdinalLessThanComparesDictionaryEntries only covers the dictionary path.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(5)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendBytesRef(new BytesRef("banana"));
+            builder.appendBytesRef(new BytesRef("cherry"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("aardvark")); // sorts before "apple"
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            // s < "banana" -> matches "apple" (0) and "aardvark" (4); null (3) excluded by SQL TVL.
+            Expression lt = new LessThan(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("banana"), DataType.KEYWORD), null);
+            assertSurvivors(new ParquetPushedExpressions(List.of(lt)), blocks, 5, new WordMask(), new int[] { 0, 4 });
+        }
+    }
+
+    public void testStringNotEqualsRoutesThroughByteMatchers() {
+        // Cross-pin: NotEquals must agree with the inverse of Equals on the same data, including
+        // the SQL-TVL null exclusion (nulls are not survivors of either Equals or NotEquals).
+        try (var builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendBytesRef(new BytesRef("apple"));
+            builder.appendBytesRef(new BytesRef("banana"));
+            builder.appendNull();
+            builder.appendBytesRef(new BytesRef("cherry"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            Expression ne = new NotEquals(Source.EMPTY, attr("s", DataType.KEYWORD), lit(new BytesRef("apple"), DataType.KEYWORD), null);
+            // Index 2 is null — must NOT survive (SQL TVL).
+            assertSurvivors(new ParquetPushedExpressions(List.of(ne)), blocks, 4, new WordMask(), new int[] { 1, 3 });
+        }
+    }
+
+    public void testWildcardLikeAffixContainsFullShape() {
+        // Pins the prefix*literal*suffix dispatch end-to-end with a known survivor set. The
+        // pattern carries all three components; rows are designed so each fails in a distinct way:
+        // index 0 matches all three, index 1 fails the prefix, index 2 fails the suffix, index 3
+        // fails the middle literal. Without affixContains routing the literal to the middle slice,
+        // the substring scan would spuriously accept index 4 (literal lives in the prefix region).
+        try (var builder = blockFactory.newBytesRefBlockBuilder(5)) {
+            builder.appendBytesRef(new BytesRef("https://www.google.com")); // 0: matches everything
+            builder.appendBytesRef(new BytesRef("ftp://www.google.com")); // 1: prefix mismatch
+            builder.appendBytesRef(new BytesRef("https://www.google.org")); // 2: suffix mismatch
+            builder.appendBytesRef(new BytesRef("https://www.bing.com")); // 3: middle mismatch
+            builder.appendBytesRef(new BytesRef("googleSurprise.com")); // 4: middle 'google' lives in prefix region — must NOT match
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern("https*google*com"));
+            assertSurvivors(new ParquetPushedExpressions(List.of(like)), blocks, 5, new WordMask(), new int[] { 0 });
+        }
+    }
+
+    public void testWildcardLikePrefixOnlyShapeUsesByteMatchers() {
+        // Functional pin for the prefix*-shape dispatch through the WildcardLikeShape decomposition.
+        // Equivalent semantics to a plain StartsWith but reaches the affix-contains path through
+        // WildcardLike, exercising the shared ByteMatchers#startsWith primitive on both prefixes
+        // shorter and longer than the JDK partial-inline window.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendBytesRef(new BytesRef("https://www.google.com"));
+            builder.appendBytesRef(new BytesRef("https://github.com/"));
+            builder.appendBytesRef(new BytesRef("ftp://example.com"));
+            builder.appendBytesRef(new BytesRef("https"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern("https://*"));
+            // Index 3 ("https") is shorter than the prefix and must be rejected by the length pre-check.
+            assertSurvivors(new ParquetPushedExpressions(List.of(like)), blocks, 4, new WordMask(), new int[] { 0, 1 });
+        }
+    }
+
+    public void testWildcardLikeSuffixOnlyShapeUsesByteMatchers() {
+        // Functional pin for the *suffix-shape dispatch — there was no EndsWith evaluator before
+        // this change, so this is the first time the suffix-only LIKE shape gets a typed fast path.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(4)) {
+            builder.appendBytesRef(new BytesRef("photo.jpg"));
+            builder.appendBytesRef(new BytesRef("ARCHIVE.JPG")); // case mismatch — must NOT match
+            builder.appendBytesRef(new BytesRef("doc.pdf"));
+            builder.appendBytesRef(new BytesRef(".jpg"));
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern("*.jpg"));
+            // Index 3 (".jpg") is exactly the suffix — endsWith on a value of equal length is true.
+            assertSurvivors(new ParquetPushedExpressions(List.of(like)), blocks, 4, new WordMask(), new int[] { 0, 3 });
+        }
+    }
+
+    public void testWildcardLikePrefixSuffixShapeUsesByteMatchers() {
+        // prefix*suffix has both ends fixed and no middle literal. Dispatch must rely on
+        // startsWith + endsWith, with the combined-length guard preventing prefix and suffix
+        // from overlapping inside a too-short value.
+        try (var builder = blockFactory.newBytesRefBlockBuilder(5)) {
+            builder.appendBytesRef(new BytesRef("https://www.example.com")); // 0: full match
+            builder.appendBytesRef(new BytesRef("https://example.org")); // 1: wrong suffix
+            builder.appendBytesRef(new BytesRef("ftp://example.com")); // 2: wrong prefix
+            builder.appendBytesRef(new BytesRef("https://com")); // 3: prefix+suffix exactly fill the value (length 11) — match
+            builder.appendBytesRef(new BytesRef("https:/")); // 4: shorter than prefix — combined-length guard rejects
+            Block block = builder.build();
+            Map<String, Block> blocks = Map.of("s", block);
+            Expression like = new WildcardLike(Source.EMPTY, attr("s", DataType.KEYWORD), new WildcardPattern("https://*com"));
+            assertSurvivors(new ParquetPushedExpressions(List.of(like)), blocks, 5, new WordMask(), new int[] { 0, 3 });
         }
     }
 
@@ -1417,7 +1876,7 @@ public class ParquetPushedExpressionsEvaluatorTests extends ESTestCase {
     }
 
     public void testWildcardLikeContainsLiteralEscapeStillCorrect() {
-        // *foo\*bar* (literal "foo*bar") must NOT take the SIMD path — extractContainsLiteral
+        // *foo\*bar* (literal "foo*bar") must NOT take the SIMD path — WildcardLikeShape.of
         // returns null when the middle contains '\\'. The automaton fallback still produces the
         // right answer; this test pins that behavior so a future "smarter" un-escape doesn't
         // regress correctness.

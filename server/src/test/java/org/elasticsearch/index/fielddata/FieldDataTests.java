@@ -44,7 +44,7 @@ public class FieldDataTests extends ESTestCase {
         LongValues values = new DummyValues(valueBits);
 
         SortedNumericDoubleValues asMultiDoubles = FieldData.sortableLongBitsToDoubles(SortedNumericLongValues.singleton(values));
-        DoubleValues asDoubles = FieldData.unwrapSingleton(asMultiDoubles);
+        DoubleValues asDoubles = SortedNumericDoubleValues.unwrapSingleton(asMultiDoubles);
         assertNotNull(asDoubles);
         assertTrue(asDoubles.advanceExact(0));
         assertEquals(value, asDoubles.doubleValue(), 0);
@@ -54,7 +54,7 @@ public class FieldDataTests extends ESTestCase {
         LongValues backToLongs = SortedNumericLongValues.unwrapSingleton(FieldData.toSortableLongBits(asMultiDoubles));
         assertSame(values, backToLongs);
 
-        SortedNumericLongValues multiValues = new SortedNumericLongValues() {
+        SortedNumericLongValues multiValues = new SortedNumericLongValues(null) {
 
             @Override
             public boolean advanceExact(int target) {
@@ -99,7 +99,7 @@ public class FieldDataTests extends ESTestCase {
         assertTrue(asLongs.advanceExact(0));
         assertEquals(valueBits, asLongs.longValue());
 
-        SortedNumericDoubleValues multiValues = new SortedNumericDoubleValues() {
+        SortedNumericDoubleValues multiValues = new SortedNumericDoubleValues(null) {
             @Override
             public double nextValue() {
                 return value;

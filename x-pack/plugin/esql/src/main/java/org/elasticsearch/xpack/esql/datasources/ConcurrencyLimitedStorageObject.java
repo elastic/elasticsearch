@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.datasources;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.xpack.esql.datasources.spi.StorageObject;
+import org.elasticsearch.xpack.esql.datasources.spi.StorageObjectMetrics;
 import org.elasticsearch.xpack.esql.datasources.spi.StoragePath;
 
 import java.io.FilterInputStream;
@@ -95,6 +96,25 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
     }
 
     @Override
+    public void abortStream(InputStream stream) throws IOException {
+        if (stream instanceof PermitReleasingInputStream wrapper) {
+            // Route the abort through to the wrapped inner stream so the delegate (and
+            // eventually the storage provider) can do a non-draining abort. Calling
+            // wrapper.close() instead would cascade super.close() → in.close() and trigger
+            // exactly the close-time drain we are trying to avoid on providers like S3.
+            try {
+                delegate.abortStream(wrapper.inner());
+            } finally {
+                wrapper.markReleased();
+            }
+            return;
+        }
+        // Not a stream we produced — should be unreachable since the SPI contract requires
+        // the exact instance returned from newStream(). Fall back to the SPI default.
+        stream.close();
+    }
+
+    @Override
     public int readBytes(long position, ByteBuffer target) throws IOException {
         acquirePermit();
         try {
@@ -153,6 +173,11 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
         return delegate.supportsNativeAsync();
     }
 
+    @Override
+    public StorageObjectMetrics metrics() {
+        return delegate.metrics();
+    }
+
     private void acquirePermit() {
         try {
             limiter.acquire();
@@ -169,11 +194,27 @@ class ConcurrencyLimitedStorageObject implements StorageObject {
      */
     private static class PermitReleasingInputStream extends FilterInputStream {
         private final ConcurrencyLimiter limiter;
-        private boolean released;
+        private volatile boolean released;
 
         PermitReleasingInputStream(InputStream in, ConcurrencyLimiter limiter) {
             super(in);
             this.limiter = limiter;
+        }
+
+        InputStream inner() {
+            return in;
+        }
+
+        /**
+         * Releases the permit without closing the wrapped stream. Used by
+         * {@link ConcurrencyLimitedStorageObject#abortStream(InputStream)} after the inner
+         * stream has been aborted directly via the delegate, so we don't double-close.
+         */
+        void markReleased() {
+            if (released == false) {
+                released = true;
+                limiter.release();
+            }
         }
 
         @Override

@@ -2121,9 +2121,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         int frequency = entry.freq;
                         boolean evicted = entry.chunk.forceEvict();
                         if (evicted && entry.chunk.volatileIO() != null) {
-                            unlink(entry);
-                            keyMapping.remove(entry.chunk.regionKey.file.shardId(), entry.chunk.regionKey, entry);
-                            evictionPolicy.onEvicted(entry.chunk);
+                            unlinkAndRemoveForEviction(entry);
                             evictedCount++;
                             if (frequency > 0) {
                                 nonZeroFrequencyEvictedCount++;
@@ -2138,6 +2136,13 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
         private boolean removeKeyMappingForEntry(LFUCacheEntry entry) {
             return keyMapping.remove(entry.chunk.regionKey.file().shardId(), entry.chunk.regionKey, entry);
+        }
+
+        private void unlinkAndRemoveForEviction(LFUCacheEntry entry) {
+            assert Thread.holdsLock(SharedBlobCacheService.this);
+            unlink(entry);
+            removeKeyMappingForEntry(entry);
+            evictionPolicy.onEvicted(entry.chunk);
         }
 
         @Override
@@ -2177,10 +2182,8 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                         int frequency = entry.freq;
                         boolean evicted = entry.chunk.forceEvict();
                         if (evicted && entry.chunk.volatileIO() != null) {
-                            unlink(entry);
                             assert shard.equals(entry.chunk.regionKey.file.shardId());
-                            keyMapping.remove(shard, entry.chunk.regionKey, entry);
-                            evictionPolicy.onEvicted(entry.chunk);
+                            unlinkAndRemoveForEviction(entry);
                             evictedCount++;
                             if (frequency > 0) {
                                 nonZeroFrequencyEvictedCount++;
@@ -2467,9 +2470,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
                                     return ioRef;
                                 }
                             } finally {
-                                unlink(entry);
-                                removeKeyMappingForEntry(entry);
-                                evictionPolicy.onEvicted(entry.chunk);
+                                unlinkAndRemoveForEviction(entry);
                             }
                         }
                     } finally {
@@ -2512,9 +2513,7 @@ public class SharedBlobCacheService<KeyType extends SharedBlobCacheService.KeyBa
 
                     boolean evicted = entry.chunk.tryEvict();
                     if (evicted && entry.chunk.volatileIO() != null) {
-                        unlink(entry);
-                        removeKeyMappingForEntry(entry);
-                        evictionPolicy.onEvicted(entry.chunk);
+                        unlinkAndRemoveForEviction(entry);
                         return true;
                     }
                 }

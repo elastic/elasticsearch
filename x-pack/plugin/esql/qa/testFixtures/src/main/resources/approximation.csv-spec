@@ -1397,6 +1397,7 @@ value:double           | sv:integer | _approximation_confidence_interval(value):
 Subqueries with non-approximable stats
 required_capability: approximation_v7
 required_capability: approximation_fork
+required_capability: approximation_fix_non_approximable_fork_branches
 required_capability: subquery_in_from_command
 request_stored: skip
 

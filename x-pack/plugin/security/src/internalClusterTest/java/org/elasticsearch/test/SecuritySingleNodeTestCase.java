@@ -104,7 +104,7 @@ public abstract class SecuritySingleNodeTestCase extends ESSingleNodeTestCase {
     }
 
     @After
-    public void teardownSecurity() throws Exception {
+    public void cleanupSecurity() throws Exception {
         awaitSecurityMigration();
         if (resetNodeAfterTest()) {
             tearDownRestClient();

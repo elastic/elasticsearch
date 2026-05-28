@@ -83,7 +83,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
     }
 
     @After
-    public void teardownRepository() throws Exception {
+    public void cleanupRepository() throws Exception {
         deleteAndAssertEmpty(getRepository().basePath());
         clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, TEST_REPO_NAME).get();
     }

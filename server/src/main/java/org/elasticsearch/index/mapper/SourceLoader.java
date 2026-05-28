@@ -11,8 +11,6 @@ package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
-import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
@@ -22,7 +20,6 @@ import org.elasticsearch.index.fieldvisitor.LeafStoredFieldLoader;
 import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.search.lookup.SourceFilter;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.ByteArrayOutputStream;
@@ -113,81 +110,6 @@ public interface SourceLoader {
         @Override
         public Set<String> requiredStoredFields() {
             return Set.of();
-        }
-    }
-
-    /**
-     * Loads {@code _source} for a {@link SourceFieldMapper.Mode#COLUMNAR_STORED} index from the single
-     * whole-document entry stored in {@code _ignored_source} at index time.
-     */
-    class ColumnarStored implements SourceLoader {
-        @Nullable
-        private final SourceFilter filter;
-        private final IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat;
-
-        ColumnarStored(@Nullable SourceFilter filter, IgnoredSourceFieldMapper.IgnoredSourceFormat ignoredSourceFormat) {
-            this.filter = filter;
-            this.ignoredSourceFormat = ignoredSourceFormat;
-        }
-
-        @Override
-        public boolean reordersFieldValues() {
-            return false;
-        }
-
-        @Override
-        public Set<String> requiredStoredFields() {
-            if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
-                return Set.of();
-            }
-            return Set.of(IgnoredSourceFieldMapper.NAME);
-        }
-
-        @Override
-        public Leaf leaf(LeafReader reader, int[] docIdsInLeaf) throws IOException {
-            final MultiValuedSortedBinaryDocValues docValues;
-            if (ignoredSourceFormat == IgnoredSourceFieldMapper.IgnoredSourceFormat.DOC_VALUES_IGNORED_SOURCE) {
-                docValues = Objects.requireNonNull(MultiValuedSortedBinaryDocValues.fromMultiValued(reader, IgnoredSourceFieldMapper.NAME));
-            } else {
-                docValues = null;
-            }
-            return new Leaf() {
-                @Override
-                public Source source(LeafStoredFieldLoader storedFields, int docId) throws IOException {
-                    BytesRef encoded = findSourceEntry(storedFields, docId);
-                    if (encoded == null) {
-                        return Source.empty(XContentType.JSON);
-                    }
-                    XContentType type = XContentDataHelper.getXContentType(encoded);
-                    BytesReference sourceBytes = new BytesArray(encoded.bytes, encoded.offset + 1, encoded.length - 1);
-                    Source source = Source.fromBytes(sourceBytes, type);
-                    return filter == null ? source : source.filter(filter);
-                }
-
-                @Override
-                public void write(LeafStoredFieldLoader storedFields, int docId, XContentBuilder b) throws IOException {
-                    Source source = source(storedFields, docId);
-                    b.rawValue(source.internalSourceRef().streamInput(), source.sourceContentType());
-                }
-
-                private BytesRef findSourceEntry(LeafStoredFieldLoader storedFields, int docId) throws IOException {
-                    Map<String, List<IgnoredSourceFieldMapper.NameValue>> ignoredFields = ignoredSourceFormat.loadIgnoredFields(
-                        null,
-                        storedFields.storedFields(),
-                        docId,
-                        docValues
-                    );
-                    List<IgnoredSourceFieldMapper.NameValue> rootEntries = ignoredFields.get(MapperService.SINGLE_MAPPING_NAME);
-                    if (rootEntries != null) {
-                        for (var nv : rootEntries) {
-                            if (SourceFieldMapper.NAME.equals(nv.name())) {
-                                return nv.value();
-                            }
-                        }
-                    }
-                    return null;
-                }
-            };
         }
     }
 

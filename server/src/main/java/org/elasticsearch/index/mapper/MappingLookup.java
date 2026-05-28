@@ -533,11 +533,13 @@ public final class MappingLookup {
      * Build something to load source {@code _source}.
      */
     public SourceLoader newSourceLoader(@Nullable SourceFilter filter, SourceFieldMetrics metrics) {
-        if (isSourceSynthetic()) {
-            return new SourceLoader.Synthetic(filter, () -> mapping.syntheticFieldLoader(filter), metrics, mapping.ignoredSourceFormat());
-        }
-        if (isSourceColumnarStored()) {
-            return new SourceLoader.ColumnarStored(filter, mapping.ignoredSourceFormat());
+        if (isSourceSynthetic() || isSourceColumnarStored()) {
+            return new SourceLoader.Synthetic(
+                filter,
+                () -> mapping.syntheticFieldLoader(filter, isSourceColumnarStored()),
+                metrics,
+                mapping.ignoredSourceFormat()
+            );
         }
         var syntheticVectorsLoader = mapping.syntheticVectorsLoader(filter);
         if (syntheticVectorsLoader != null) {

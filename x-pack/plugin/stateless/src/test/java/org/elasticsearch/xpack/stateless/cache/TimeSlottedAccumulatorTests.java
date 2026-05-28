@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -26,33 +27,33 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class TimeSlottedAccumulatorTests extends ESTestCase {
 
     public void testInvalidConstructorArgs() {
-        AtomicLong clock = new AtomicLong(randomLongBetween(0, 1_000_000));
-        expectThrows(IllegalArgumentException.class, () -> new TimeSlottedAccumulator(TimeValue.ZERO, 1, 0, clock::get));
-        expectThrows(IllegalArgumentException.class, () -> new TimeSlottedAccumulator(randomGranularity(), 0, 0, clock::get));
+        TimeProvider timeProvider = fixedAbsoluteTime(randomLongBetween(0, 1_000_000));
+        expectThrows(IllegalArgumentException.class, () -> new TimeSlottedAccumulator(TimeValue.ZERO, 1, 0, timeProvider));
+        expectThrows(IllegalArgumentException.class, () -> new TimeSlottedAccumulator(randomGranularity(), 0, 0, timeProvider));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new TimeSlottedAccumulator(randomGranularity(), 1, randomIntBetween(-10, -1), clock::get)
+            () -> new TimeSlottedAccumulator(randomGranularity(), 1, randomIntBetween(-10, -1), timeProvider)
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new TimeSlottedAccumulator(randomGranularity(), Integer.MAX_VALUE, 1, clock::get)
+            () -> new TimeSlottedAccumulator(randomGranularity(), Integer.MAX_VALUE, 1, timeProvider)
         );
         expectThrows(
             IllegalArgumentException.class,
-            () -> new TimeSlottedAccumulator(randomGranularity(), Integer.MAX_VALUE, Integer.MAX_VALUE, clock::get)
+            () -> new TimeSlottedAccumulator(randomGranularity(), Integer.MAX_VALUE, Integer.MAX_VALUE, timeProvider)
         );
         long overflowingGranularityMillis = Long.MAX_VALUE / 2 + 1;
         expectThrows(
             IllegalArgumentException.class,
-            () -> new TimeSlottedAccumulator(TimeValue.timeValueMillis(overflowingGranularityMillis), 3, 0, clock::get)
+            () -> new TimeSlottedAccumulator(TimeValue.timeValueMillis(overflowingGranularityMillis), 3, 0, timeProvider)
         );
         assertThat(TimeSlottedAccumulator.MAX_TOTAL_SLOTS, equalTo((int) (ByteSizeValue.ofGb(4).getBytes() / Long.BYTES)));
         int maxTotalSlots = TimeSlottedAccumulator.MAX_TOTAL_SLOTS;
-        expectThrows(IllegalArgumentException.class, () -> new TimeSlottedAccumulator(randomGranularity(), maxTotalSlots, 1, clock::get));
-        expectThrows(IllegalArgumentException.class, () -> new TimeSlottedAccumulator(randomGranularity(), 1, maxTotalSlots, clock::get));
+        expectThrows(IllegalArgumentException.class, () -> new TimeSlottedAccumulator(randomGranularity(), maxTotalSlots, 1, timeProvider));
+        expectThrows(IllegalArgumentException.class, () -> new TimeSlottedAccumulator(randomGranularity(), 1, maxTotalSlots, timeProvider));
         expectThrows(
             IllegalArgumentException.class,
-            () -> new TimeSlottedAccumulator(randomGranularity(), maxTotalSlots / 2 + 1, maxTotalSlots / 2 + 1, clock::get)
+            () -> new TimeSlottedAccumulator(randomGranularity(), maxTotalSlots / 2 + 1, maxTotalSlots / 2 + 1, timeProvider)
         );
     }
 
@@ -65,8 +66,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
             .put(TimeSlottedAccumulator.TIME_SLOTS_PAST_COUNT_SETTING.getKey(), pastCount)
             .put(TimeSlottedAccumulator.TIME_SLOTS_FUTURE_COUNT_SETTING.getKey(), futureCount)
             .build();
-        AtomicLong clock = new AtomicLong(randomLongBetween(0, 1_000_000));
-        TimeSlottedAccumulator accumulator = (TimeSlottedAccumulator) TimeSlottedAccumulator.createFromSettings(settings, clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(randomLongBetween(0, 1_000_000));
+        TimeSlottedAccumulator accumulator = (TimeSlottedAccumulator) TimeSlottedAccumulator.createFromSettings(settings, timeProvider);
         assertThat(accumulator.granularity(), equalTo(granularity));
         assertThat(accumulator.slots(), equalTo(pastCount + futureCount));
     }
@@ -77,8 +78,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         int pastSlots = randomIntBetween(10, 500);
         int slotsBack = randomIntBetween(1, Math.min(pastSlots - 1, 100));
         long anchorMillis = randomLongBetween(granularityMillis * pastSlots, granularityMillis * pastSlots * 10);
-        AtomicLong clock = new AtomicLong(anchorMillis);
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorMillis);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
         long anchorSlot = alignToSlot(anchorMillis, granularityMillis);
         long pastTimestamp = anchorSlot - (long) slotsBack * granularityMillis;
@@ -94,12 +95,12 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         long anchorSlot = randomLongBetween(granularityMillis * pastSlots, granularityMillis * pastSlots * 10);
         anchorSlot = alignToSlot(anchorSlot, granularityMillis);
         long offsetInSlot = randomLongBetween(1, granularityMillis - 1);
-        AtomicLong clock = new AtomicLong(anchorSlot + offsetInSlot);
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot + offsetInSlot);
         int futureSlots = randomFutureSlotCount();
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, clock::get);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, timeProvider);
 
         long delta1 = randomNonZeroDelta();
-        assertThat(accumulator.accumulate(clock.get(), delta1), equalTo(delta1));
+        assertThat(accumulator.accumulate(timeProvider.absoluteTimeInMillis(), delta1), equalTo(delta1));
         assertThat(accumulator.sum(anchorSlot, anchorSlot + granularityMillis), equalTo(delta1));
 
         long delta2 = randomNonZeroDelta();
@@ -132,8 +133,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
         int futureSlots = randomPositiveFutureSlotCount();
         long clockSlot = anchorSlot + granularityMillis;
-        AtomicLong clock = new AtomicLong(clockSlot);
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(clockSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, timeProvider);
 
         long timestamp = clockSlot + randomLongBetween(1, granularityMillis - 1);
         long delta1 = randomLongBetween(1, 100);
@@ -153,8 +154,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         long granularityMillis = granularity.millis();
         int pastSlots = randomIntBetween(3, 10);
         long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
-        AtomicLong clock = new AtomicLong(anchorSlot);
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
         long firstDelta = randomLongBetween(1, 100);
         long secondDelta = randomLongBetween(1, 100);
@@ -174,9 +175,9 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         long granularityMillis = granularity.millis();
         int pastSlots = randomIntBetween(10, 48);
         long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
-        AtomicLong clock = new AtomicLong(anchorSlot);
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
-        long timestamp = clock.get();
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
+        long timestamp = timeProvider.absoluteTimeInMillis();
         int threads = randomIntBetween(2, 8);
         int iterations = randomIntBetween(100, 1000);
         ExecutorService executor = Executors.newFixedThreadPool(threads);
@@ -211,8 +212,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         long granularityMillis = granularity.millis();
         int pastSlots = randomIntBetween(24, 48);
         long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
-        AtomicLong clock = new AtomicLong(anchorSlot);
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
         long windowStart = anchorSlot;
         int slotsInWindow = randomIntBetween(3, 6);
         long windowEnd = anchorSlot + (long) slotsInWindow * granularityMillis;
@@ -274,8 +275,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         long granularityMillis = granularity.millis();
         int pastSlots = randomIntBetween(24, 48);
         long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
-        AtomicLong clock = new AtomicLong(anchorSlot);
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
         int slotsInWindow = randomIntBetween(3, 6);
         long windowStart = anchorSlot;
         long windowEnd = anchorSlot + (long) slotsInWindow * granularityMillis;
@@ -316,8 +317,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         int pastSlots = randomIntBetween(2, 5);
         int futureSlots = randomPositiveFutureSlotCount();
         long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
-        AtomicLong clock = new AtomicLong(anchorSlot);
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, timeProvider);
 
         int futureSlotOffset = randomIntBetween(1, futureSlots);
         long futureSlot = anchorSlot + (long) futureSlotOffset * granularityMillis;
@@ -345,8 +346,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         long granularityMillis = granularity.millis();
         int pastSlots = randomIntBetween(10, 48);
         long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
-        AtomicLong clock = new AtomicLong(anchorSlot);
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
         long tailSlot = anchorSlot - (long) (pastSlots - 1) * granularityMillis;
         long clampedDelta = randomNonZeroDelta();
@@ -365,8 +366,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         int pastSlots = randomIntBetween(5, 10);
         int futureSlots = randomFutureSlotCount();
         long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
-        AtomicLong clock = new AtomicLong(anchorSlot);
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, timeProvider);
 
         long windowStart = anchorSlot - (long) (pastSlots - 1) * granularityMillis;
         long windowEnd = anchorSlot + (long) futureSlots * granularityMillis + granularityMillis;
@@ -378,8 +379,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         long granularityMillis = granularity.millis();
         int pastSlots = randomIntBetween(3, 10);
         long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
-        AtomicLong clock = new AtomicLong(anchorSlot);
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
         long delta = randomNonZeroDelta();
         assertThat(accumulator.accumulate(anchorSlot, delta), equalTo(delta));
@@ -392,8 +393,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         long granularityMillis = granularity.millis();
         int pastSlots = randomIntBetween(3, 10);
         long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
-        AtomicLong clock = new AtomicLong(anchorSlot);
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
         long delta = randomNonZeroDelta();
         accumulator.accumulate(anchorSlot, delta);
@@ -408,8 +409,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         long granularityMillis = granularity.millis();
         int pastSlots = randomIntBetween(3, 6);
         long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
-        AtomicLong clock = new AtomicLong(anchorSlot);
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
         long previousSlot = anchorSlot - granularityMillis;
         long high = Long.MAX_VALUE / 2 + 1;
@@ -424,8 +425,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         long granularityMillis = granularity.millis();
         int pastSlots = randomIntBetween(3, 6);
         long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
-        AtomicLong clock = new AtomicLong(anchorSlot);
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
         long previousSlot = anchorSlot - granularityMillis;
         long low = Long.MIN_VALUE / 2 - 1;
@@ -441,8 +442,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         int pastSlots = randomIntBetween(4, 8);
         int futureSlots = randomPositiveFutureSlotCount();
         long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
-        AtomicLong clock = new AtomicLong(anchorSlot);
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, timeProvider);
 
         long tailSlot = anchorSlot - (long) (pastSlots - 1) * granularityMillis;
         long headSlot = anchorSlot + (long) futureSlots * granularityMillis;
@@ -465,8 +466,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         int pastSlots = randomIntBetween(5, 10);
         int futureSlots = randomPositiveFutureSlotCount();
         long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
-        AtomicLong clock = new AtomicLong(anchorSlot);
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, futureSlots, timeProvider);
 
         long delta = randomNonZeroDelta();
         accumulator.accumulate(anchorSlot, delta);
@@ -483,8 +484,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         long granularityMillis = granularity.millis();
         int pastSlots = randomIntBetween(3, 6);
         long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
-        AtomicLong clock = new AtomicLong(anchorSlot);
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
         long previousSlot = anchorSlot - granularityMillis;
         long previousDelta = randomNonZeroDelta();
@@ -501,8 +502,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         long granularityMillis = granularity.millis();
         int pastSlots = randomIntBetween(4, 8);
         long anchorSlot = randomAnchorSlot(granularityMillis, pastSlots);
-        AtomicLong clock = new AtomicLong(anchorSlot);
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(anchorSlot);
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
         long firstSlot = anchorSlot - granularityMillis;
         long firstDelta = randomNonZeroDelta();
@@ -519,8 +520,8 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
         TimeValue granularity = randomGranularity();
         long granularityMillis = granularity.millis();
         int pastSlots = randomIntBetween(3, 6);
-        AtomicLong clock = new AtomicLong(randomLongBetween(-1_000_000, -1));
-        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), clock::get);
+        TimeProvider timeProvider = fixedAbsoluteTime(randomLongBetween(-1_000_000, -1));
+        TimestampAccumulator accumulator = new TimeSlottedAccumulator(granularity, pastSlots, randomFutureSlotCount(), timeProvider);
 
         long delta = randomNonZeroDelta();
         accumulator.accumulate(0, delta);
@@ -563,5 +564,29 @@ public class TimeSlottedAccumulatorTests extends ESTestCase {
 
     private static long alignToSlot(long timestampMillis, long granularityMillis) {
         return Math.floorDiv(timestampMillis, granularityMillis) * granularityMillis;
+    }
+
+    private static TimeProvider fixedAbsoluteTime(long absoluteTimeMillis) {
+        return new TimeProvider() {
+            @Override
+            public long relativeTimeInMillis() {
+                return absoluteTimeMillis;
+            }
+
+            @Override
+            public long relativeTimeInNanos() {
+                return TimeUnit.MILLISECONDS.toNanos(absoluteTimeMillis);
+            }
+
+            @Override
+            public long rawRelativeTimeInMillis() {
+                return absoluteTimeMillis;
+            }
+
+            @Override
+            public long absoluteTimeInMillis() {
+                return absoluteTimeMillis;
+            }
+        };
     }
 }

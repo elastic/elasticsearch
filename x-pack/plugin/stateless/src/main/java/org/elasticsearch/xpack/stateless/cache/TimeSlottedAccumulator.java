@@ -9,11 +9,11 @@ package org.elasticsearch.xpack.stateless.cache;
 
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 
 import java.util.concurrent.atomic.AtomicLongArray;
-import java.util.function.LongSupplier;
 
 /**
  * A {@link TimestampAccumulator} implementation backed by a fixed array of time slots.
@@ -92,7 +92,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
      * @param futureSlots number of future slots retained beyond the anchor slot
      * @param timeProvider source of time in milliseconds
      */
-    public TimeSlottedAccumulator(TimeValue granularity, int pastSlots, int futureSlots, LongSupplier timeProvider) {
+    public TimeSlottedAccumulator(TimeValue granularity, int pastSlots, int futureSlots, TimeProvider timeProvider) {
         if (granularity.millis() <= 0) {
             throw new IllegalArgumentException("granularity must be positive");
         }
@@ -124,7 +124,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
         }
         this.granularityMillis = granularity.millis();
         this.counts = new AtomicLongArray(totalSlots);
-        long anchorSlotStartMillis = toSlotStartMillis(Math.max(0, timeProvider.getAsLong()));
+        long anchorSlotStartMillis = toSlotStartMillis(Math.max(0, timeProvider.absoluteTimeInMillis()));
         try {
             this.tailSlotStartMillis = Math.subtractExact(anchorSlotStartMillis, Math.multiplyExact(pastSlots - 1, granularityMillis));
             this.headSlotStartMillis = Math.addExact(anchorSlotStartMillis, Math.multiplyExact(futureSlots, granularityMillis));
@@ -134,7 +134,7 @@ public final class TimeSlottedAccumulator implements TimestampAccumulator {
         }
     }
 
-    public static TimestampAccumulator createFromSettings(Settings settings, LongSupplier timeProvider) {
+    public static TimestampAccumulator createFromSettings(Settings settings, TimeProvider timeProvider) {
         return new TimeSlottedAccumulator(
             TIME_SLOTS_GRANULARITY_SETTING.get(settings),
             TIME_SLOTS_PAST_COUNT_SETTING.get(settings),

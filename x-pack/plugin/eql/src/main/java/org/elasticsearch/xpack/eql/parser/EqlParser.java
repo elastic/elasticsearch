@@ -103,7 +103,9 @@ public class EqlParser {
                         case EqlBaseLexer.LP -> depth++;
                         case EqlBaseLexer.RP -> depth--;
                         case EqlBaseLexer.NOT, EqlBaseLexer.MINUS, EqlBaseLexer.PLUS -> prefixChain++;
-                        default -> { if (token.getChannel() == Token.DEFAULT_CHANNEL) prefixChain = 0; }
+                        default -> {
+                            if (token.getChannel() == Token.DEFAULT_CHANNEL) prefixChain = 0;
+                        }
                     }
                     if (depth + prefixChain > MAX_EXPRESSION_DEPTH) {
                         throw new ParsingException(

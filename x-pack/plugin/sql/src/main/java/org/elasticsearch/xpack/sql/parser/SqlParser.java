@@ -140,7 +140,9 @@ public class SqlParser {
                         case SqlBaseLexer.LP -> depth++;
                         case SqlBaseLexer.RP -> depth--;
                         case SqlBaseLexer.NOT, SqlBaseLexer.MINUS, SqlBaseLexer.PLUS -> prefixChain++;
-                        default -> { if (token.getChannel() == Token.DEFAULT_CHANNEL) prefixChain = 0; }
+                        default -> {
+                            if (token.getChannel() == Token.DEFAULT_CHANNEL) prefixChain = 0;
+                        }
                     }
                     if (depth + prefixChain > MAX_EXPRESSION_DEPTH) {
                         throw new ParsingException(DEPTH_EXCEEDED_MSG, MAX_EXPRESSION_DEPTH);

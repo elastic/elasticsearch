@@ -34,3 +34,42 @@ count:long | gender:keyword
 57         | "M"
 10         | null
 ;
+
+// ---- File-metadata projections under multi-file glob (relocated from external-multifile.csv-spec) ----
+// CSV-side coverage of the _file.* metadata columns under a glob read. brackets opt-in carries from
+// the same fixture having bracket-MV columns; only scalar/metadata columns are projected.
+
+multiFileDistinctFileCount
+required_capability: external_command
+required_capability: external_source_file_metadata_columns
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+| STATS names = COUNT_DISTINCT(`_file.name`);
+
+names:long
+3
+;
+
+multiFileGroupByFile
+required_capability: external_command
+required_capability: external_source_file_metadata_columns
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+| STATS count = COUNT(*) BY `_file.name`
+| STATS files = COUNT(*), total = SUM(count);
+
+files:long | total:long
+3          | 100
+;
+
+multiFileMetadataSizePositive
+required_capability: external_command
+required_capability: external_source_file_metadata_columns
+
+EXTERNAL "{{employees_multifile_split}}" WITH {"multi_value_syntax": "brackets"}
+| WHERE `_file.size` > 0
+| STATS count = COUNT(*);
+
+count:long
+100
+;

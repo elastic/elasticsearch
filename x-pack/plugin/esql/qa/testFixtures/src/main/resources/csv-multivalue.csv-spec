@@ -54,6 +54,24 @@ c:long
 10
 ;
 
+// Silent-drift case: a quoted bracket cell ("[a,b,c]") under multi_value_syntax: none does NOT
+// misalign columns (the quotes contain the commas), so the row parses cleanly — but the cell is
+// a literal string [a,b,c], not an array. No warning fires. This is the failure mode users will
+// hit if they upgrade and assumed brackets parsing was on by default.
+csvNoneOnQuotedBracketIsLiteralNoWarning
+required_capability: external_command
+
+EXTERNAL "{{mv_sample_quoted}}" WITH {"multi_value_syntax": "none"}
+| EVAL cnt = MV_COUNT(tags)
+| KEEP id, tags, cnt
+| SORT id
+;
+
+id:integer | tags:keyword         | cnt:integer
+1          | [alpha,beta,gamma]   | 1
+2          | solo                 | 1
+;
+
 // ---- Relocated from external-basic.csv-spec ----
 // These queries assert ES|QL multi-value behavior on the bracket-MV employees fixture.
 // multi_value_syntax: brackets is declared explicitly per query so the spec carries its

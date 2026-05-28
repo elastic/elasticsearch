@@ -688,7 +688,7 @@ public class CsvFlattenedKeywordIT extends CsvIT {
             // the rewriter declined to wrap, and why. Aggregated by (site, field) so a body that
             // mentions the same field twice surfaces a single line.
             logRewriterSkipEvents(result.skipEvents());
-            if (Booleans.parseBoolean(LOG_REWRITTEN_QUERIES_PROPERTY)) {
+            if (Booleans.parseBoolean(System.getProperty(LOG_REWRITTEN_QUERIES_PROPERTY, "false"))) {
                 logger.info("keyword→flattened: rewritten query:\n{}", result.rewrittenQuery());
             }
             return result.rewrittenQuery();

@@ -81,7 +81,7 @@ public final class SilencedFlattenedFindings {
          * not write.
          */
         FIELD_EXTRACT_MULTIVALUE_NULL(
-            "TBD-F1",
+            "https://github.com/elastic/esql-planning/issues/850",
             "field_extract returns null and emits a runtime warning on multi-value flattened input; the function is single-valued by design"
         ),
 
@@ -94,7 +94,7 @@ public final class SilencedFlattenedFindings {
          * see the wrapper instead of the original list.
          */
         BARE_ATTRIBUTE_COMMAND_ON_FLATTENED(
-            "TBD-F2",
+            "https://github.com/elastic/esql-planning/issues/852",
             "MV_EXPAND/KEEP/RENAME/DROP operate on the flattened wrapper {\"v\": [...]} instead of the inner values "
                 + "because their grammar accepts only an attribute, not field_extract(...)"
         ),
@@ -110,7 +110,7 @@ public final class SilencedFlattenedFindings {
          * exercise these tests at all.
          */
         MATCH_FAMILY_REJECTS_FIELD_EXTRACT(
-            "TBD-A2",
+            "https://github.com/elastic/esql-planning/issues/853",
             "MATCH/MatchPhrase/KQL/KNN function family and the `:` match-operator reject field_extract(...) "
                 + "as an argument; verifier requires a direct mapped-field reference"
         ),
@@ -123,7 +123,7 @@ public final class SilencedFlattenedFindings {
          * before any rewrite can run.
          */
         ENRICH_ON_REJECTS_FLATTENED(
-            "TBD-A4",
+            "https://github.com/elastic/esql-planning/issues/854",
             "ENRICH ... ON does not accept flattened match fields; the verifier rejects them with "
                 + "'Unsupported type [flattened] for enrich matching field'"
         ),
@@ -139,7 +139,7 @@ public final class SilencedFlattenedFindings {
          * [...] of type [KEYWORD]".
          */
         LOOKUP_JOIN_TYPE_MISMATCH(
-            "TBD-A5",
+            "https://github.com/elastic/esql-planning/issues/855",
             "LOOKUP JOIN rejects flattened/keyword type mismatch when the join key is converted to flattened "
                 + "by an upstream EVAL on one side of the join"
         );
@@ -184,8 +184,6 @@ public final class SilencedFlattenedFindings {
         Map<String, Finding> m = new HashMap<>();
 
         m.put("date.dateDiffTestWarnings", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("dedup.dedupMultivalueGroupKey", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("dissect.multivalueInput", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("docs.docsRound", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("docs.docsSortDesc", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("docs.docsSortTie", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
@@ -195,8 +193,6 @@ public final class SilencedFlattenedFindings {
         m.put("fork.forkAfterMvExpand", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("fork.forkBeforeMvExpand", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("fork.forkBranchWithMvExpand", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("grok.multivalueInput", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("grok.optionalMatchMv", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("inlinestats.byMultivaluedMvExpand", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("inlinestats.byMvExpand", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("inlinestats.groupingFilterIsAlwaysFalse", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
@@ -209,30 +205,18 @@ public final class SilencedFlattenedFindings {
         m.put("ints.convertStringToBaseIndexGroup7", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("ip.cdirMatchEqualsInsOrs", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("ip.cidrMatchEqualsInsOrsIPs", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("keep.projectMultiValueKeywords", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("keep.whereWithEvalGeneratedValue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("kql-function.kqlWithBoostOption", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("kql-function.kqlWithCaseInsensitiveOption", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("kql-function.kqlWithDefaultFieldOption", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("kql-function.kqlWithMultipleOptions", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("limit.limitByMultivalueGroupKey", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("limit.sortLimitByMultipleMultivalueGroupKeys", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("limit.sortLimitByMultivalueGroupKey", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("limit.sortLimitByMultivalueGroupKeyFiltered", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("limit.sortLimitByMultivalueGroupKeyWithIntersection", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("mv_difference.mvDifference_from_keyword", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("rename.renameIntertwinedWithSort", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("spatial.simpleLoad", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("stats.filterOrdinalValues", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("stats.groupingFilterIsAlwaysFalse", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("stats.groupingFilterIsAlwaysTrue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("stats.groupingFilterSometimesMatches", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("stats.shadowingTheGroup", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("stats_first_last.Test passing foldables in the sort field", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("stats_first_last.Test passing int foldables in the sort field", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("string.concatOfText", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("string.containsWarnings", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.convertFromString", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("string.equalToMultivalue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("string.equalToOrEqualToMultivalue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("string.greaterThanMultivalue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
@@ -242,13 +226,9 @@ public final class SilencedFlattenedFindings {
         m.put("string.lengthOfText", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("string.lessThanMultivalue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("string.locateWarnings", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.mvAppendStrings", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.mvAppendStringsWhere", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("string.mvKeywordEqualsMultiValueConstant", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("string.mvKeywordNotEqualsMultiValueConstant", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("string.mvKeyword_IN_MultiValueConstant", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.mvSortEmp", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("string.mvZipEmp", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("string.notEqualToMultivalue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("string.notGreaterThanMultivalue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("string.notLessThanMultivalue", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
@@ -258,9 +238,7 @@ public final class SilencedFlattenedFindings {
         m.put("string.spaceNegative", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("string.startsWithText", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("string.substringOfText", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("topN.complexMultiSortingFields_SameFieldAscAndDesc", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("topN.sortingOnNumbersFromStrings", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
-        m.put("views.airportsLookupJoin", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("where-like.multiValueLike", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
         m.put("where-like.multiValueRLike", Finding.FIELD_EXTRACT_MULTIVALUE_NULL);
 

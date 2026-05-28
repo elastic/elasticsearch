@@ -90,7 +90,7 @@ POST _reindex
 
 If the request contains `wait_for_completion=false`, {{es}} performs some preflight checks, launches the request, and returns a task ID you can use to [manage](#monitor-reindex-tasks) the operation.
 
-For long-running reindexes, prefer async reindexes. Synchronous reindex keeps a client waiting on the node that received the request, and this will time out.
+For long-running reindexes, prefer async reindexes. Synchronous reindex keeps a client waiting on the node that received the request and this will time out.
 
 ## Reindex multiple indices sequentially [docs-reindex-multiple-sequentially]
 
@@ -121,7 +121,7 @@ Requests are throttled by padding each batch with a wait time.
 To turn off throttling, set `requests_per_second` to `-1`.
 
 The throttling is done by waiting between batches.
-Set the underlying search keep-alive long enough that a slower batch does not expire the context before the next read (see the following note).
+Set the underlying search keep-alive long enough that a slower batch does not expire the context before the next read.
 
 :::::{note}
 **`scroll` query parameter versus PIT keep-alive**
@@ -157,13 +157,13 @@ The value of `requests_per_second` can be changed on a running reindex using the
 POST _reindex/r1A2WoRbTwKZ516z6NEs5A:36619/_rethrottle?requests_per_second=-1
 ```
 
-Use the `task` ID returned from the call to `POST _reindex`, or find it using the [management](#monitor-reindex-tasks) APIs.
+Use the `task` ID returned from the call to `POST _reindex` or find it using the [management](#monitor-reindex-tasks) APIs.
 
-Similarly to setting `requests_per_second` in the `_reindex` request,  `requests_per_second` can be either `-1` to turn off throttling, or any decimal number like `1.7` or `12` to throttle to that level.
+Similarly to setting `requests_per_second` in the `_reindex` request,  `requests_per_second` can be either `-1` to turn off throttling or any decimal number like `1.7` or `12` to throttle to that level.
 Rethrottling that speeds up the query takes effect immediately, but rethrottling that slows down the query will take effect after completing the current batch.
 This prevents the underlying search context used between batches from timing out.
 
-The same `scroll` versus point-in-time keep-alive rules apply, see the note under [Reindex with throttling](#docs-reindex-throttle).
+The same `scroll` versus point-in-time keep-alive rules apply. Refer to the note under [Reindex with throttling](#docs-reindex-throttle).
 
 ## Reindex with slicing [docs-reindex-slice]
 
@@ -273,7 +273,7 @@ If there are multiple sources, it will choose the number of slices based on the 
 
 Adding `slices` to the reindex API just automates the manual process used in the section above, creating sub-requests which means it has some quirks:
 
-* {applies_to}`stack: ga` You can view these requests in the [task management APIs](https://www.elastic.co/docs/api/doc/elasticsearch/group/endpoint-tasks). These sub-requests are "child" tasks of the task for the request with `slices`.
+* {applies_to}`stack: ga` You can view these requests in the [task management APIs]({{es-apis}}group/endpoint-tasks). These sub-requests are "child" tasks of the task for the request with `slices`.
 * Fetching the status of the task for the request with `slices` only contains the status of completed slices.
 * These sub-requests are individually addressable for things like cancellation and rethrottling.
 * Rethrottling the request with `slices` will rethrottle the unfinished sub-request proportionally.

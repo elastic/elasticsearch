@@ -51,7 +51,11 @@ public class DisableSimulationRebalancingDecider extends AllocationDecider {
         "Rebalancing of search shards is enabled"
     );
 
-    private static final Decision SOME_REBALANCING_ENABLED = new Decision.Single(Decision.Type.YES, NAME, "Some rebalancing is enabled");
+    private static final Decision SEARCH_OR_INDEX_TIER_REBALANCING_ENABLED = new Decision.Single(
+        Decision.Type.YES,
+        NAME,
+        "Either search or index tier rebalancing is enabled"
+    );
 
     private static final Decision NO_REBALANCE = new Decision.Single(Decision.Type.NO, NAME, "Rebalancing is disabled");
 
@@ -70,10 +74,19 @@ public class DisableSimulationRebalancingDecider extends AllocationDecider {
         },
         NEVER {
             @Override
+            Decision canRebalance() {
+                return NO_REBALANCE;
+            }
+
+            @Override
             Decision canRebalance(ShardRouting shardRouting) {
                 return NO_REBALANCE;
             }
         };
+
+        Decision canRebalance() {
+            return SEARCH_OR_INDEX_TIER_REBALANCING_ENABLED;
+        }
 
         abstract Decision canRebalance(ShardRouting shardRouting);
     }
@@ -101,13 +114,7 @@ public class DisableSimulationRebalancingDecider extends AllocationDecider {
 
     @Override
     public Decision canRebalance(RoutingAllocation allocation) {
-        if (allocation.isSimulating() == false) {
-            return RECONCILIATION_BALANCING_ALLOWED;
-        }
-        if (rebalancingEnabled == RebalancingEnabled.NEVER) {
-            return NO_REBALANCE;
-        }
-        return SOME_REBALANCING_ENABLED;
+        return allocation.isSimulating() ? rebalancingEnabled.canRebalance() : RECONCILIATION_BALANCING_ALLOWED;
     }
 
     @Override

@@ -766,7 +766,7 @@ public class WriteLoadConstraintDeciderIT extends ESIntegTestCase {
             .addRequestHandlingBehavior(
                 TransportNodeUsageStatsForThreadPoolsAction.NAME + "[n]",
                 (handler, request, channel, task) -> channel.sendResponse(
-                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(node, nodeUsageStats)
+                    new NodeUsageStatsForThreadPoolsAction.NodeResponse(node, nodeUsageStats, Map.of())
                 )
             );
     }

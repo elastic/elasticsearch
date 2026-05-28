@@ -23,6 +23,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TestTransportChannel;
 
 import java.util.Collection;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -147,7 +148,8 @@ public class NodeUsageStatsForThreadPoolsCollectorIT extends ESIntegTestCase {
                                     maxThreadPoolQueueLatencyMillis
                                 )
                             )
-                        )
+                        ),
+                        Map.of()
                     )
                 );
             }

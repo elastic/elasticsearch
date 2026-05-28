@@ -16,6 +16,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.ExponentiallyWeightedMovingRate;
 import org.elasticsearch.common.metrics.MeanMetric;
+import org.elasticsearch.common.util.ThreadUtilizationTracker;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
@@ -38,9 +39,13 @@ final class InternalIndexingStats implements IndexingOperationListener {
     private final LongSupplier relativeTimeInNanosSupplier;
     private final StatsHolder totalStats;
 
-    InternalIndexingStats(LongSupplier relativeTimeInNanosSupplier, IndexingStatsSettings settings) {
+    InternalIndexingStats(LongSupplier relativeTimeInNanosSupplier, IndexingStatsSettings settings, int numIndexingThreads) {
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
-        this.totalStats = new StatsHolder(relativeTimeInNanosSupplier.getAsLong(), settings.getRecentWriteLoadHalfLifeForNewShards());
+        this.totalStats = new StatsHolder(
+            relativeTimeInNanosSupplier.getAsLong(),
+            settings.getRecentWriteLoadHalfLifeForNewShards(),
+            numIndexingThreads
+        );
     }
 
     /**
@@ -67,6 +72,13 @@ final class InternalIndexingStats implements IndexingOperationListener {
             recentIndexingLoadAtShardStarted
         );
         return new IndexingStats(total);
+    }
+
+    /**
+     * Returns the average thread utilization since the last time this method was called, as a value between 0 and 1 (inclusive).
+     */
+    double pollUtilization() {
+        return totalStats.indexingUtilizationTracker.pollUtilization(totalStats.totalExecutionTime);
     }
 
     long totalIndexingTimeInNanos() {
@@ -100,6 +112,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
                     long took = result.getTook();
                     totalStats.indexMetric.inc(took);
                     totalStats.recentIndexMetric.addIncrement(took, relativeTimeInNanosSupplier.getAsLong());
+                    totalStats.totalExecutionTime.add(took);
                     totalStats.indexCurrent.dec();
                 }
                 break;
@@ -187,7 +200,10 @@ final class InternalIndexingStats implements IndexingOperationListener {
         private final CounterMetric deleteCurrent = new CounterMetric();
         private final CounterMetric noopUpdates = new CounterMetric();
 
-        StatsHolder(long startTimeInNanos, TimeValue recentWriteLoadHalfLife) {
+        private LongAdder totalExecutionTime = new LongAdder();
+        private ThreadUtilizationTracker indexingUtilizationTracker;
+
+        StatsHolder(long startTimeInNanos, TimeValue recentWriteLoadHalfLife, int numIndexingThreads) {
             double lambdaInInverseNanos = Math.log(2.0) / recentWriteLoadHalfLife.nanos();
             logger.debug(
                 "Initialized stats for new shard calculating recent indexing load with half-life {} (decay parameter {} ns^-1)",
@@ -196,6 +212,7 @@ final class InternalIndexingStats implements IndexingOperationListener {
             );
             this.recentIndexMetric = new ExponentiallyWeightedMovingRate(lambdaInInverseNanos, startTimeInNanos);
             this.peakIndexMetric = new AtomicReference<>(0.0);
+            this.indexingUtilizationTracker = new ThreadUtilizationTracker(numIndexingThreads);
         }
 
         IndexingStats.Stats stats(

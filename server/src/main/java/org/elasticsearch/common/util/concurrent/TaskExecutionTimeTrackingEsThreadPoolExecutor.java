@@ -11,6 +11,7 @@ package org.elasticsearch.common.util.concurrent;
 
 import org.elasticsearch.common.ExponentiallyWeightedMovingAverage;
 import org.elasticsearch.common.metrics.ExponentialBucketHistogram;
+import org.elasticsearch.common.util.ThreadUtilizationTracker;
 import org.elasticsearch.common.util.concurrent.EsExecutors.HotThreadsOnLargeQueueConfig;
 import org.elasticsearch.common.util.concurrent.EsExecutors.TaskTrackingConfig;
 import org.elasticsearch.core.TimeValue;
@@ -59,8 +60,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         ALLOCATION,
     }
 
-    private final UtilizationTracker apmUtilizationTracker = new UtilizationTracker();
-    private final UtilizationTracker allocationUtilizationTracker = new UtilizationTracker();
+    private final ThreadUtilizationTracker apmUtilizationTracker;
+    private final ThreadUtilizationTracker allocationUtilizationTracker;
 
     TaskExecutionTimeTrackingEsThreadPoolExecutor(
         String name,
@@ -93,6 +94,8 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
         this.executionEWMA = new ExponentiallyWeightedMovingAverage(trackingConfig.getExecutionTimeEwmaAlpha(), 0);
         this.trackOngoingTasks = trackingConfig.trackOngoingTasks();
         this.trackMaxQueueLatency = trackingConfig.trackMaxQueueLatency();
+        this.apmUtilizationTracker = new ThreadUtilizationTracker(getMaximumPoolSize());
+        this.allocationUtilizationTracker = new ThreadUtilizationTracker(getMaximumPoolSize());
     }
 
     public List<Instrument> setupMetrics(MeterRegistry meterRegistry, String threadPoolName) {
@@ -215,9 +218,9 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     public double pollUtilization(UtilizationTrackingPurpose utilizationTrackingPurpose) {
         switch (utilizationTrackingPurpose) {
             case APM:
-                return apmUtilizationTracker.pollUtilization();
+                return apmUtilizationTracker.pollUtilization(totalExecutionTime);
             case ALLOCATION:
-                return allocationUtilizationTracker.pollUtilization();
+                return allocationUtilizationTracker.pollUtilization(totalExecutionTime);
             default:
                 throw new IllegalStateException("No operation defined for [" + utilizationTrackingPurpose + "]");
         }
@@ -302,32 +305,5 @@ public final class TaskExecutionTimeTrackingEsThreadPoolExecutor extends EsThrea
     // Used for testing
     public boolean trackingMaxQueueLatency() {
         return trackMaxQueueLatency;
-    }
-
-    /**
-     * Supports periodic polling for thread pool utilization. Tracks state since the last polling request so that the average utilization
-     * since the last poll can be calculated for the next polling request.
-     *
-     * Uses the difference of {@link #totalExecutionTime} since the last polling request to determine how much activity has occurred.
-     */
-    private class UtilizationTracker {
-        long lastPollTime = System.nanoTime();
-        long lastTotalExecutionTime = 0;
-
-        public synchronized double pollUtilization() {
-            final long currentTotalExecutionTimeNanos = totalExecutionTime.sum();
-            final long currentPollTimeNanos = System.nanoTime();
-
-            final long totalExecutionTimeSinceLastPollNanos = currentTotalExecutionTimeNanos - lastTotalExecutionTime;
-            final long timeSinceLastPoll = currentPollTimeNanos - lastPollTime;
-
-            final long maximumExecutionTimeSinceLastPollNanos = timeSinceLastPoll * getMaximumPoolSize();
-            final double utilizationSinceLastPoll = (double) totalExecutionTimeSinceLastPollNanos / maximumExecutionTimeSinceLastPollNanos;
-
-            lastTotalExecutionTime = currentTotalExecutionTimeNanos;
-            lastPollTime = currentPollTimeNanos;
-
-            return utilizationSinceLastPoll;
-        }
     }
 }

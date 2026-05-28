@@ -20,6 +20,8 @@ import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetr
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.util.concurrent.TaskExecutionTimeTrackingEsThreadPoolExecutor;
+import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.telemetry.metric.LongWithAttributes;
@@ -28,6 +30,7 @@ import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -50,6 +53,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
 
     private final ThreadPool threadPool;
     private final ClusterService clusterService;
+    private final IndicesService indicesService;
     private final AtomicLong lastMaxQueueLatencyMillis = new AtomicLong(NO_VALUE);
 
     @Inject
@@ -57,6 +61,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
+        IndicesService indicesService,
         ActionFilters actionFilters,
         DesiredBalanceMetrics desiredBalanceMetrics
     ) {
@@ -70,6 +75,7 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
         );
         this.threadPool = threadPool;
         this.clusterService = clusterService;
+        this.indicesService = indicesService;
         desiredBalanceMetrics.registerWriteLoadDeciderMaxLatencyGauge(this::getMaxQueueLatencyMetric);
     }
 
@@ -118,8 +124,23 @@ public class TransportNodeUsageStatsForThreadPoolsAction extends TransportNodesA
 
         return new NodeUsageStatsForThreadPoolsAction.NodeResponse(
             localNode,
-            new NodeUsageStatsForThreadPools(localNode.getId(), Map.of(ThreadPool.Names.WRITE, threadPoolUsageStats))
+            new NodeUsageStatsForThreadPools(localNode.getId(), Map.of(ThreadPool.Names.WRITE, threadPoolUsageStats)),
+            clusterService.state().getMinTransportVersion().supports(NodeUsageStatsForThreadPoolsAction.NodeResponse.ADD_SHARD_WRITE_LOADS)
+                ? getShardWriteLoads(indicesService)
+                : Map.of()
         );
+    }
+
+    private Map<ShardId, Double> getShardWriteLoads(IndicesService indicesService) {
+        final var result = new HashMap<ShardId, Double>();
+        for (var indexService : indicesService) {
+            for (var indexShard : indexService) {
+                if (indexShard.routingEntry().active()) {
+                    result.put(indexShard.shardId(), indexShard.pollWriteLoadUtilization());
+                }
+            }
+        }
+        return result;
     }
 
     private Collection<LongWithAttributes> getMaxQueueLatencyMetric() {

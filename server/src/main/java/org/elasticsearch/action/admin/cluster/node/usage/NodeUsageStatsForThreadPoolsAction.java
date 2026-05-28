@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.usage;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
@@ -18,6 +19,7 @@ import org.elasticsearch.cluster.NodeUsageStatsForThreadPools;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.transport.AbstractTransportRequest;
 
 import java.io.IOException;
@@ -104,21 +106,35 @@ public class NodeUsageStatsForThreadPoolsAction {
      * A {@link NodeUsageStatsForThreadPools} response from a single cluster node.
      */
     public static class NodeResponse extends BaseNodeResponse {
+        public static final TransportVersion ADD_SHARD_WRITE_LOADS = TransportVersion.fromName("add_shard_write_loads");
+
         private final NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools;
+        private final Map<ShardId, Double> shardWriteLoads;
 
         protected NodeResponse(StreamInput in, DiscoveryNode node) throws IOException {
             super(in, node);
             this.nodeUsageStatsForThreadPools = new NodeUsageStatsForThreadPools(in);
+            this.shardWriteLoads = in.readMap(ShardId::new, StreamInput::readDouble);
         }
 
-        public NodeResponse(DiscoveryNode node, NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools) {
+        public NodeResponse(
+            DiscoveryNode node,
+            NodeUsageStatsForThreadPools nodeUsageStatsForThreadPools,
+            Map<ShardId, Double> shardWriteLoads
+        ) {
             super(node);
             this.nodeUsageStatsForThreadPools = nodeUsageStatsForThreadPools;
+            this.shardWriteLoads = shardWriteLoads;
         }
 
         public NodeResponse(StreamInput in) throws IOException {
             super(in);
             this.nodeUsageStatsForThreadPools = new NodeUsageStatsForThreadPools(in);
+            if (in.getTransportVersion().supports(ADD_SHARD_WRITE_LOADS)) {
+                this.shardWriteLoads = in.readMap(ShardId::new, StreamInput::readDouble);
+            } else {
+                this.shardWriteLoads = Map.of();
+            }
         }
 
         public NodeUsageStatsForThreadPools getNodeUsageStatsForThreadPools() {
@@ -129,6 +145,9 @@ public class NodeUsageStatsForThreadPoolsAction {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             nodeUsageStatsForThreadPools.writeTo(out);
+            if (out.getTransportVersion().supports(ADD_SHARD_WRITE_LOADS)) {
+                out.writeMap(shardWriteLoads, (o, v) -> v.writeTo(o), StreamOutput::writeDouble);
+            }
         }
 
         @Override
@@ -138,6 +157,8 @@ public class NodeUsageStatsForThreadPoolsAction {
                 + getNode().getId()
                 + ", nodeUsageStatsForThreadPools="
                 + nodeUsageStatsForThreadPools
+                + ", shardWriteLoads="
+                + shardWriteLoads
                 + "}";
         }
     }

@@ -283,7 +283,8 @@ public class ClusterInfoWriteLoadForecasterIT extends ESIntegTestCase {
                                         utilizationThreshold,
                                         hotspot
                                     )
-                                )
+                                ),
+                                Map.of()
                             )
                         );
                     })),

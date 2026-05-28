@@ -69,12 +69,23 @@ public class WorkloadIdentityPlugin extends Plugin implements ExtensiblePlugin {
         final WorkloadIdentityIssuerClient client;
 
         if (WorkloadIdentityIssuerSettings.isEnabled(settings)) {
-            final WorkloadIdentitySslConfig sslConfig = new WorkloadIdentitySslConfig(settings, services.environment());
+            final WorkloadIdentitySslConfig sslConfig = new WorkloadIdentitySslConfig(
+                settings,
+                services.environment(),
+                services.resourceWatcherService()
+            );
             final WorkloadIdentityHttpClientManager manager = new WorkloadIdentityHttpClientManager(
                 settings,
                 sslConfig,
                 services.threadPool()
             );
+            // Wire the manager's in-place SSL rotation to the SSL config's reload event: the
+            // manager swaps the SSLIOSessionStrategy registered against "https" on the connection
+            // manager rather than rebuilding the HC client, so in-flight requests are undisturbed
+            // and the next TLS handshake picks up the rotated material. Wired before start() so
+            // the listener is in place no later than the first request can be served; the
+            // listener itself short-circuits if start() has not yet run.
+            sslConfig.addReloadListener(manager::reload);
             // Construct the issuer client (which validates the configured URL) before starting the
             // manager, so a malformed workload_identity.issuer.url throws without booting the IO
             // reactor thread and the periodic eviction task. Once that synchronous validation has

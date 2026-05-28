@@ -10,18 +10,23 @@
 package org.elasticsearch.workloadidentity;
 
 import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
 
 import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.sameInstance;
 
 /**
@@ -38,6 +43,7 @@ import static org.hamcrest.Matchers.sameInstance;
 public class WorkloadIdentityHttpClientManagerTests extends ESTestCase {
 
     private ThreadPool threadPool;
+    private ResourceWatcherService resourceWatcher;
     private WorkloadIdentitySslConfig sslConfig;
     private Settings settings;
 
@@ -48,12 +54,19 @@ public class WorkloadIdentityHttpClientManagerTests extends ESTestCase {
         // actually open a socket, so trust/key material is irrelevant.
         this.settings = Settings.builder().put("path.home", createTempDir()).build();
         final Environment environment = TestEnvironment.newEnvironment(settings);
-        this.sslConfig = new WorkloadIdentitySslConfig(settings, environment);
         this.threadPool = new TestThreadPool(getTestName());
+        // ENABLED=false suppresses background polling; reload-on-file-change is not exercised by
+        // these manager-level tests, but the watcher is a required collaborator on the SSL config.
+        this.resourceWatcher = new ResourceWatcherService(
+            Settings.builder().put(ResourceWatcherService.ENABLED.getKey(), false).build(),
+            threadPool
+        );
+        this.sslConfig = new WorkloadIdentitySslConfig(settings, environment, resourceWatcher);
     }
 
     @After
     public void shutdownThreadPool() {
+        resourceWatcher.close();
         ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
     }
 
@@ -119,6 +132,86 @@ public class WorkloadIdentityHttpClientManagerTests extends ESTestCase {
         final IllegalStateException ex = expectThrows(IllegalStateException.class, manager::getHttpClient);
         // "closed" takes precedence over "not started" because the closed-check runs first in
         // getHttpClient(); pin that ordering so future refactors don't silently flip it.
+        assertThat(ex.getMessage(), containsString("is closed"));
+    }
+
+    /**
+     * Core invariant of the reload model: {@link WorkloadIdentityHttpClientManager#reload()
+     * reload()} swaps the underlying {@link SSLIOSessionStrategy} on the registered
+     * {@link ReloadableSchemeIoSessionStrategy} <em>without</em> replacing the Apache HC client.
+     * Existing dispatched requests therefore complete on the same client; only the next TLS
+     * handshake observes the new strategy.
+     */
+    public void testReloadSwapsSchemeDelegateWithoutReplacingHttpClient() {
+        try (WorkloadIdentityHttpClientManager manager = new WorkloadIdentityHttpClientManager(settings, sslConfig, threadPool)) {
+            manager.start();
+            final CloseableHttpAsyncClient clientBefore = manager.getHttpClient();
+            final SSLIOSessionStrategy delegateBefore = manager.getSslStrategy().getDelegate();
+            final int epochBefore = manager.getSslStrategy().currentEpoch();
+            assertNotNull(clientBefore);
+            assertNotNull(delegateBefore);
+
+            manager.reload();
+
+            assertThat(
+                "reload must NOT replace the HC client — in-flight requests must be preserved",
+                manager.getHttpClient(),
+                sameInstance(clientBefore)
+            );
+            assertThat(
+                "reload must publish a new SSLIOSessionStrategy to the scheme wrapper",
+                manager.getSslStrategy().getDelegate(),
+                not(sameInstance(delegateBefore))
+            );
+            // The rotation epoch must advance so RotationAwareReuseStrategy can identify
+            // connections established under the previous delegate as stale and close them on
+            // their next response (the load-shape-independent drain pathway).
+            assertThat(
+                "reload must advance the rotation epoch so stale connections can be drained",
+                manager.getSslStrategy().currentEpoch(),
+                greaterThan(epochBefore)
+            );
+        }
+    }
+
+    public void testReloadBeforeStartIsNoOp() {
+        try (WorkloadIdentityHttpClientManager manager = new WorkloadIdentityHttpClientManager(settings, sslConfig, threadPool)) {
+            final SSLIOSessionStrategy delegateAtConstruction = manager.getSslStrategy().getDelegate();
+            final int epochAtConstruction = manager.getSslStrategy().currentEpoch();
+            manager.reload();
+            assertThat(
+                "reload before start must leave the construction-time delegate in place",
+                manager.getSslStrategy().getDelegate(),
+                sameInstance(delegateAtConstruction)
+            );
+            assertThat(
+                "reload before start must not advance the epoch",
+                manager.getSslStrategy().currentEpoch(),
+                equalTo(epochAtConstruction)
+            );
+            manager.start();
+            assertNotNull(manager.getHttpClient());
+        }
+    }
+
+    public void testReloadAfterCloseIsNoOp() {
+        final WorkloadIdentityHttpClientManager manager = new WorkloadIdentityHttpClientManager(settings, sslConfig, threadPool);
+        manager.start();
+        final SSLIOSessionStrategy delegateBeforeClose = manager.getSslStrategy().getDelegate();
+        final int epochBeforeClose = manager.getSslStrategy().currentEpoch();
+        manager.close();
+        manager.reload();
+        assertThat(
+            "reload after close must not publish a new delegate",
+            manager.getSslStrategy().getDelegate(),
+            sameInstance(delegateBeforeClose)
+        );
+        assertThat(
+            "reload after close must not advance the epoch (no stale connections to drain)",
+            manager.getSslStrategy().currentEpoch(),
+            equalTo(epochBeforeClose)
+        );
+        final IllegalStateException ex = expectThrows(IllegalStateException.class, manager::getHttpClient);
         assertThat(ex.getMessage(), containsString("is closed"));
     }
 }

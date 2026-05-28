@@ -14,6 +14,8 @@ import com.sun.net.httpserver.HttpsExchange;
 import com.sun.net.httpserver.HttpsParameters;
 import com.sun.net.httpserver.HttpsServer;
 
+import org.apache.http.impl.nio.client.CloseableHttpAsyncClient;
+import org.apache.http.nio.conn.ssl.SSLIOSessionStrategy;
 import org.apache.logging.log4j.Level;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -36,6 +38,7 @@ import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient.IssueTokenRequest;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient.IssueTokenResponse;
 import org.elasticsearch.workloadidentity.spi.WorkloadIdentityIssuerClient.WorkloadIdentityIssuerException;
@@ -48,7 +51,9 @@ import java.io.OutputStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -898,15 +903,25 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
         final ThreadPool threadPool = new TestThreadPool(HttpsWorkloadIdentityIssuerClientTests.class.getSimpleName());
         try {
             final Environment environment = TestEnvironment.newEnvironment(settings);
-            final WorkloadIdentitySslConfig sslConfig = new WorkloadIdentitySslConfig(settings, environment);
-            final WorkloadIdentityHttpClientManager manager = new WorkloadIdentityHttpClientManager(settings, sslConfig, threadPool);
+            // ENABLED=false: this code path never reaches a successful client construction, let
+            // alone a request, so file-watch polling would never be exercised even if enabled.
+            final ResourceWatcherService resourceWatcher = new ResourceWatcherService(
+                Settings.builder().put(ResourceWatcherService.ENABLED.getKey(), false).build(),
+                threadPool
+            );
             try {
-                return expectThrows(
-                    IllegalArgumentException.class,
-                    () -> new HttpsWorkloadIdentityIssuerClient(settings, manager, threadPool)
-                );
+                final WorkloadIdentitySslConfig sslConfig = new WorkloadIdentitySslConfig(settings, environment, resourceWatcher);
+                final WorkloadIdentityHttpClientManager manager = new WorkloadIdentityHttpClientManager(settings, sslConfig, threadPool);
+                try {
+                    return expectThrows(
+                        IllegalArgumentException.class,
+                        () -> new HttpsWorkloadIdentityIssuerClient(settings, manager, threadPool)
+                    );
+                } finally {
+                    manager.close();
+                }
             } finally {
-                manager.close();
+                resourceWatcher.close();
             }
         } finally {
             ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
@@ -950,6 +965,184 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
             final ExecutionException ex2 = expectThrows(ExecutionException.class, () -> second.get(10, TimeUnit.SECONDS));
 
             assertNotSame("synchronous failures must not be cached", ex1.getCause(), ex2.getCause());
+        }
+    }
+
+    /**
+     * End-to-end test of the SSL reload drain. Stages a writable copy of the CA material under
+     * {@code createTempDir()} so the test does not mutate the shared classpath resource, stands
+     * up the full production wiring (a {@link org.elasticsearch.watcher.ResourceWatcherService}
+     * with auto-polling disabled, a {@link WorkloadIdentitySslConfig} watching the staged CA
+     * file, and the manager subscribed to the SSL config's reload event), then walks the entire
+     * three-request rotation drain — pre-rotation issuance, rotation tick, post-rotation reuse
+     * of the stale-stamped connection, and a subsequent fresh handshake — asserting at each
+     * step the precise log line the corresponding code path produces.
+     */
+    public void testTokenIssuanceSurvivesSslReload() throws Exception {
+        final AtomicInteger callCount = new AtomicInteger();
+        final long farFutureEpochSecond = (System.currentTimeMillis() / 1000) + 3_600;
+        installCountingHandlerOver(callCount, farFutureEpochSecond);
+
+        // Stage a writable copy of the CA so the test mutates a temp file rather than the shared
+        // classpath resource. Other SSL material is still loaded from the classpath; only the CA
+        // is on the FileWatcher's watchlist (it's the file we mutate below).
+        final Path workDir = createTempDir();
+        final Path watchedCa = workDir.resolve("ca.crt");
+        Files.copy(getDataPath("ca.crt"), watchedCa, StandardCopyOption.REPLACE_EXISTING);
+
+        final MockSecureSettings secureSettings = new MockSecureSettings();
+        secureSettings.setString(WorkloadIdentitySslConfig.SETTING_PREFIX + "secure_key_passphrase", "client-password");
+        final Settings settings = Settings.builder()
+            .put("path.home", createTempDir())
+            .put(WorkloadIdentityIssuerSettings.ISSUER_URL_SETTING.getKey(), issuerBaseUrl())
+            .putList(WorkloadIdentitySslConfig.SETTING_PREFIX + "certificate_authorities", watchedCa.toString())
+            .put(WorkloadIdentitySslConfig.SETTING_PREFIX + "certificate", getDataPath("node/node.crt").toString())
+            .put(WorkloadIdentitySslConfig.SETTING_PREFIX + "key", getDataPath("node/node.key").toString())
+            .setSecureSettings(secureSettings)
+            .build();
+        final Environment environment = TestEnvironment.newEnvironment(settings);
+        final ThreadPool threadPool = new TestThreadPool(getTestName());
+        // ENABLED=false so the polling thread does not race with notifyNow; the test drives
+        // reload deterministically.
+        final ResourceWatcherService resourceWatcher = new ResourceWatcherService(
+            Settings.builder().put(ResourceWatcherService.ENABLED.getKey(), false).build(),
+            threadPool
+        );
+
+        // The handshake-stamp and stale-connection-retire logs live at DEBUG (low-volume in
+        // production, but useful when triaging a rotation). Bump those two loggers to DEBUG for
+        // the duration of this test and restore them in the finally below.
+        final Logger stampLogger = LogManager.getLogger(ReloadableSchemeIoSessionStrategy.class);
+        final Logger reuseLogger = LogManager.getLogger(RotationAwareReuseStrategy.class);
+        final Level previousStampLevel = stampLogger.getLevel();
+        final Level previousReuseLevel = reuseLogger.getLevel();
+        Loggers.setLevel(stampLogger, Level.DEBUG);
+        Loggers.setLevel(reuseLogger, Level.DEBUG);
+
+        try {
+            final WorkloadIdentitySslConfig sslConfig = new WorkloadIdentitySslConfig(settings, environment, resourceWatcher);
+            try (WorkloadIdentityHttpClientManager manager = new WorkloadIdentityHttpClientManager(settings, sslConfig, threadPool)) {
+                // Mirror the production wiring: swap the scheme strategy delegate on SSL reload.
+                sslConfig.addReloadListener(manager::reload);
+                manager.start();
+                final HttpsWorkloadIdentityIssuerClient client = new HttpsWorkloadIdentityIssuerClient(settings, manager, threadPool);
+
+                try (
+                    MockLog mockLog = MockLog.capture(
+                        WorkloadIdentitySslConfig.class,
+                        WorkloadIdentityHttpClientManager.class,
+                        ReloadableSchemeIoSessionStrategy.class,
+                        RotationAwareReuseStrategy.class
+                    )
+                ) {
+                    // The whole drain emits five distinct log events across four loggers. Register
+                    // them all up-front: each expectation owns its own latch and counts down the
+                    // first time the matching event fires, regardless of order against the other
+                    // expectations.
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
+                            "first TLS handshake stamped at epoch 0",
+                            ReloadableSchemeIoSessionStrategy.class.getCanonicalName(),
+                            Level.DEBUG,
+                            "*stamped new workload-identity TLS connection*epoch [0]*"
+                        )
+                    );
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
+                            "ssl config reloaded",
+                            WorkloadIdentitySslConfig.class.getCanonicalName(),
+                            Level.INFO,
+                            "reloaded workload-identity SSL context"
+                        )
+                    );
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
+                            "manager rotated SSL material",
+                            WorkloadIdentityHttpClientManager.class.getCanonicalName(),
+                            Level.INFO,
+                            "*rotated workload-identity SSL material*"
+                        )
+                    );
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
+                            "stale-epoch connection retired",
+                            RotationAwareReuseStrategy.class.getCanonicalName(),
+                            Level.DEBUG,
+                            "*retiring workload-identity HTTP connection: stamped epoch [0] differs from current [1]*"
+                        )
+                    );
+                    mockLog.addExpectation(
+                        new MockLog.SeenEventExpectation(
+                            "post-rotation handshake stamped at epoch 1",
+                            ReloadableSchemeIoSessionStrategy.class.getCanonicalName(),
+                            Level.DEBUG,
+                            "*stamped new workload-identity TLS connection*epoch [1]*"
+                        )
+                    );
+
+                    // --- Phase 1: first issuance warms up the pool. The TLS handshake fires the
+                    // "stamped...epoch [0]" log. After the response, the reuse strategy sees
+                    // stamped==current==0 and the connection returns to the pool.
+                    final PlainActionFuture<IssueTokenResponse> firstFuture = new PlainActionFuture<>();
+                    client.issueToken(new IssueTokenRequest("aud-1"), firstFuture);
+                    assertEquals("header.payload.sig", firstFuture.get(10, TimeUnit.SECONDS).token());
+                    assertEquals("initial rotation epoch must be zero", 0, manager.getSslStrategy().currentEpoch());
+
+                    final CloseableHttpAsyncClient httpClientBefore = manager.getHttpClient();
+                    final SSLIOSessionStrategy delegateBefore = manager.getSslStrategy().getDelegate();
+
+                    // --- Phase 2: rotate. Appending a trailing newline to the watched CA fires
+                    // the FileWatcher → sslConfig.reload() → manager.reload() chain, which logs
+                    // "reloaded..." then "rotated..." and advances the wrapper epoch from 0 to 1.
+                    // The HC client instance itself is untouched, mirroring the in-place rotation
+                    // contract: in-flight requests on the previous strategy continue undisturbed.
+                    Files.writeString(watchedCa, Files.readString(watchedCa) + "\n", StandardCharsets.US_ASCII);
+                    resourceWatcher.notifyNow(ResourceWatcherService.Frequency.HIGH);
+
+                    assertSame("the HC client instance must NOT change across SSL reload", httpClientBefore, manager.getHttpClient());
+                    assertNotSame(
+                        "the scheme strategy delegate must be swapped on SSL reload",
+                        delegateBefore,
+                        manager.getSslStrategy().getDelegate()
+                    );
+                    assertEquals("rotation must advance the rotation epoch by one", 1, manager.getSslStrategy().currentEpoch());
+
+                    // --- Phase 3: post-rotation issuance. HC reuses the still-idle connection
+                    // from Phase 1 (stamped at epoch 0) because no handshake is needed. The
+                    // request completes successfully against the unchanged HC client, then the
+                    // reuse strategy compares stamped=0 against current=1, logs the retire line,
+                    // and closes the connection rather than returning it to the pool. Distinct
+                    // audience so the request bypasses the issuer-client token cache and crosses
+                    // the network.
+                    final PlainActionFuture<IssueTokenResponse> secondFuture = new PlainActionFuture<>();
+                    client.issueToken(new IssueTokenRequest("aud-2"), secondFuture);
+                    assertEquals("header.payload.sig", secondFuture.get(10, TimeUnit.SECONDS).token());
+
+                    // --- Phase 4: subsequent issuance. The pool is empty (the retire above
+                    // closed the only connection), so HC opens a fresh one. The handshake hits
+                    // the post-rotation delegate and stamps the new connection at epoch 1. This
+                    // confirms the rotation actually reached the connection-establishment path,
+                    // not just the wrapper's internal state.
+                    final PlainActionFuture<IssueTokenResponse> thirdFuture = new PlainActionFuture<>();
+                    client.issueToken(new IssueTokenRequest("aud-3"), thirdFuture);
+                    assertEquals("header.payload.sig", thirdFuture.get(10, TimeUnit.SECONDS).token());
+                    assertEquals("each distinct audience must cross the network", 3, callCount.get());
+
+                    // The retire log and the post-rotation stamp log are emitted from the IO
+                    // reactor thread, decoupled from the client-facing future completion. await
+                    // (with the framework's standard timeout) rather than assertMatched so the
+                    // test does not race their dispatch.
+                    mockLog.awaitAllExpectationsMatched();
+                }
+            }
+        } finally {
+            Loggers.setLevel(stampLogger, previousStampLevel);
+            Loggers.setLevel(reuseLogger, previousReuseLevel);
+            try {
+                resourceWatcher.close();
+            } finally {
+                ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+            }
         }
     }
 
@@ -1109,13 +1302,15 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
     }
 
     /**
-     * Encapsulates the full client wiring for a single test: SSL config (with a no-op resource
-     * watcher, since file watches are not exercised), HTTP client manager, and the
+     * Encapsulates the full client wiring for a single test: SSL config (backed by a
+     * {@link ResourceWatcherService} with auto-polling disabled, since file-watch reload is not
+     * exercised by these tests), HTTP client manager, and the
      * {@link HttpsWorkloadIdentityIssuerClient} under test. Closing the harness releases the
      * HTTP client and stops the background eviction task.
      */
     private static final class ClientHarness implements AutoCloseable {
         final ThreadPool threadPool;
+        final ResourceWatcherService resourceWatcher;
         final WorkloadIdentitySslConfig sslConfig;
         final WorkloadIdentityHttpClientManager manager;
         final HttpsWorkloadIdentityIssuerClient client;
@@ -1135,7 +1330,14 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
         ClientHarness(Settings settings, ThreadPool threadPool, int maxCacheEntries) {
             this.threadPool = threadPool;
             final Environment environment = TestEnvironment.newEnvironment(settings);
-            this.sslConfig = new WorkloadIdentitySslConfig(settings, environment);
+            // ENABLED=false: file-watch polling is not exercised here. The watcher is still a
+            // required collaborator of WorkloadIdentitySslConfig; the disabled instance is cheap
+            // (no scheduler thread, no I/O).
+            this.resourceWatcher = new ResourceWatcherService(
+                Settings.builder().put(ResourceWatcherService.ENABLED.getKey(), false).build(),
+                threadPool
+            );
+            this.sslConfig = new WorkloadIdentitySslConfig(settings, environment, resourceWatcher);
             this.manager = new WorkloadIdentityHttpClientManager(settings, sslConfig, threadPool);
             // Apache HC's async client and the connection evictor must be started explicitly
             // before requests are dispatched (mirrors the production WorkloadIdentityPlugin
@@ -1149,7 +1351,11 @@ public class HttpsWorkloadIdentityIssuerClientTests extends ESTestCase {
             try {
                 manager.close();
             } finally {
-                ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+                try {
+                    resourceWatcher.close();
+                } finally {
+                    ThreadPool.terminate(threadPool, 10, TimeUnit.SECONDS);
+                }
             }
         }
     }

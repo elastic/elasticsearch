@@ -101,8 +101,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         /**
          * Constructor that uses an empty {@link InferenceContext}
          *
-         * @param taskType          the {@link TaskType} of the inference request. May be {@link TaskType#ANY}, which will result in the task type
-         *                          being determined after parsing the stored model
+         * @param taskType          the {@link TaskType} of the inference request. May be {@link TaskType#ANY}, which will result in the
+         *                          task type being determined after parsing the stored model
          * @param inferenceEntityId the endpoint ID
          * @param input             the inputs to use for the inference request
          * @param taskSettings      the task settings to use for the inference request
@@ -126,8 +126,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         /**
          * Constructor that allows an {@link InferenceContext} to be specified
          *
-         * @param taskType          the {@link TaskType} of the inference request. May be {@link TaskType#ANY}, which will result in the task type
-         *                          being determined after parsing the stored model
+         * @param taskType          the {@link TaskType} of the inference request. May be {@link TaskType#ANY}, which will result in the
+         *                          task type being determined after parsing the stored model
          * @param inferenceEntityId the endpoint ID
          * @param input             the inputs to use for the inference request
          * @param taskSettings      the task settings to use for the inference request

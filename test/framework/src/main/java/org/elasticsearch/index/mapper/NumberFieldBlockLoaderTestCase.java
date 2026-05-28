@@ -65,9 +65,29 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
         return maybeFoldList(resultList);
     }
 
+    /**
+     * Identifies which code path the block loader uses to retrieve a value. The distinction matters
+     * because {@code NumberType.parse(XContentParser, boolean)} and
+     * {@code NumberType.parse(Object, boolean)} can differ in how they handle non-latin Unicode digits.
+     *
+     * <p>{@link #DOC_VALUES} and {@link #IGNORED_SOURCE} both use the {@code XContentParser}
+     * overload, so they share the same string-parsing behavior. {@link #STORED_SOURCE} uses the
+     * {@code Object} overload and may therefore produce different results for the same input.
+     */
     private enum ValueSource {
+        /** Values indexed into doc values via the {@code XContentParser} overload. */
         DOC_VALUES,
+        /**
+         * Synthetic source without doc values: values stored in {@code _ignored_source} and
+         * re-parsed by {@code NumberFallbackSyntheticSourceReader} using the {@code XContentParser}
+         * overload.
+         */
         IGNORED_SOURCE,
+        /**
+         * Non-synthetic source without doc values: values re-parsed from stored {@code _source} by
+         * the {@code SourceValueFetcher} returned from {@code NumberFieldType#sourceValueFetcher},
+         * using the {@code Object} overload.
+         */
         STORED_SOURCE
     }
 
@@ -83,7 +103,7 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
                     return nullValue;
                 }
                 // Attempt to parse the string as a number. If that fails, the string is malformed, so return null.
-                // The two code paths in the mapper use different parsers, so we delegate to the appropriate method.
+                // The three block loader code paths use different parsers, so we delegate to the appropriate method.
                 Number parsed = switch (valueSource) {
                     case DOC_VALUES, IGNORED_SOURCE -> tryParseString(s);
                     case STORED_SOURCE -> tryParseStringFromSource(s);
@@ -106,12 +126,13 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
     }
 
     /**
-     * Tries to parse a string as a number, matching the behavior used during indexing (and therefore
-     * what is stored in doc values or returned via synthetic source).
+     * Tries to parse a string as a number, matching the behavior used during indexing (doc values)
+     * and when reading from {@code _ignored_source} via {@code NumberFallbackSyntheticSourceReader}.
      * Returns null if the string cannot be parsed as a valid number.
      *
-     * <p>The default implementation uses {@link Double#parseDouble(String)}, which matches the
-     * coercion behavior of most numeric field mappers.
+     * <p>Both paths use {@code NumberType.parse(XContentParser, boolean)}. The default implementation
+     * uses {@link Double#parseDouble(String)}, which matches the coercion behavior of most numeric
+     * field mappers.
      */
     protected Number tryParseString(String s) {
         try {
@@ -123,10 +144,14 @@ public abstract class NumberFieldBlockLoaderTestCase<T extends Number> extends B
 
     /**
      * Tries to parse a string as a number, matching the behavior used when re-parsing from the
-     * original stored {@code _source}. Returns null if the string cannot be parsed as a valid number.
+     * original stored {@code _source} (via the {@code SourceValueFetcher} returned from
+     * {@code NumberFieldType#sourceValueFetcher}). Returns null if the string cannot be parsed as a
+     * valid number.
      *
-     * <p>This is intentionally separate from {@link #tryParseString(String)} because the indexing
-     * path and the stored-source re-parsing path can differ (see {@code LongFieldBlockLoaderTests}).
+     * <p>The stored-source path uses {@code NumberType.parse(Object, boolean)}.
+     *
+     * <p>This is intentionally separate from {@link #tryParseString(String)} because the two paths can
+     * differ (see {@code LongFieldBlockLoaderTests}).
      */
     protected Number tryParseStringFromSource(String s) {
         return tryParseString(s);

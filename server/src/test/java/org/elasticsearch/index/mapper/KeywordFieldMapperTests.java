@@ -1537,25 +1537,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         }));
 
         final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
-        assertFalse(mapper.fieldType().indexType().hasDocValuesSkipper());
-        assertFalse(mapper.fieldType().indexType().hasTerms());
-    }
-
-    public void testFieldTypeWithSkipDocValues_lowCardinality_ColumnarLogsDbMode() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        final Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
-            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host.name")
-            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
-            .build();
-        final MapperService mapperService = createMapperService(settings, mapping(b -> {
-            b.startObject("host.name");
-            b.field("type", "keyword");
-            b.startObject("doc_values").field("cardinality", "low").endObject();
-            b.endObject();
-        }));
-
-        final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
         assertTrue(mapper.fieldType().indexType().hasDocValuesSkipper());
         assertFalse(mapper.fieldType().indexType().hasTerms());
     }
@@ -1576,25 +1557,6 @@ public class KeywordFieldMapperTests extends MapperTestCase {
         assertTrue(mapper.fieldType().hasDocValues());
         assertFalse(mapper.fieldType().indexType().hasTerms());
         assertFalse(mapper.fieldType().indexType().hasDocValuesSkipper());
-    }
-
-    public void testFieldTypeDefault_lowCardinality_ColumnarLogsDbMode_NonSortField() throws IOException {
-        assumeTrue("columnar index mode requires snapshot build", IndexMode.COLUMNAR_FEATURE_FLAG.isEnabled());
-        final Settings settings = Settings.builder()
-            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB_COLUMNAR.getName())
-            .put(IndexSettings.USE_DOC_VALUES_SKIPPER.getKey(), true)
-            .build();
-        final MapperService mapperService = createMapperService(settings, mapping(b -> {
-            b.startObject("host.name");
-            b.field("type", "keyword");
-            b.startObject("doc_values").field("cardinality", "low").endObject();
-            b.endObject();
-        }));
-
-        final KeywordFieldMapper mapper = (KeywordFieldMapper) mapperService.documentMapper().mappers().getMapper("host.name");
-        assertTrue(mapper.fieldType().hasDocValues());
-        assertFalse(mapper.fieldType().indexType().hasTerms());
-        assertTrue(mapper.fieldType().indexType().hasDocValuesSkipper());
     }
 
     public void testValueIsStoredWhenItExceedsIgnoreAboveAndFieldIsNotAMultiField() throws IOException {

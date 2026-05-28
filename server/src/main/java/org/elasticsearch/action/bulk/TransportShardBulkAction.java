@@ -435,52 +435,6 @@ public class TransportShardBulkAction extends TransportWriteAction<BulkShardRequ
         }.run();
     }
 
-    static void cancelExecuteBulkItemRequest(ReplicationTask replicationTask, BulkPrimaryExecutionContext context) {
-        final DocWriteRequest.OpType opType = context.getCurrent().opType();
-
-        if (opType == DocWriteRequest.OpType.UPDATE) {
-            final UpdateRequest updateRequest = (UpdateRequest) context.getCurrent();
-            final Engine.Result result = new Engine.IndexResult(
-                replicationTask.getTaskCancelledException(),
-                updateRequest.version(),
-                updateRequest.id()
-            );
-            context.setRequestToExecute(updateRequest);
-            context.markOperationAsExecuted(result);
-            context.markAsCompleted(context.getExecutionResult());
-            return;
-        } else {
-            context.setRequestToExecute(context.getCurrent());
-        }
-
-        assert context.getRequestToExecute() != null; // also checks that we're in TRANSLATED state
-
-        final IndexShard primary = context.getPrimary();
-        final long version = context.getRequestToExecute().version();
-        final boolean isDelete = context.getRequestToExecute().opType() == DocWriteRequest.OpType.DELETE;
-        final Engine.Result result;
-
-        if (isDelete) {
-            final DeleteRequest request = context.getRequestToExecute();
-            result = new Engine.DeleteResult(
-                replicationTask.getTaskCancelledException(),
-                version,
-                primary.getOperationPrimaryTerm(),
-                request.id()
-            );
-        } else {
-            final IndexRequest request = context.getRequestToExecute();
-            result = new Engine.IndexResult(
-                replicationTask.getTaskCancelledException(),
-                version,
-                primary.getOperationPrimaryTerm(),
-                request.ifSeqNo(),
-                request.id()
-            );
-        }
-        onComplete(result, context, null);
-    }
-
     /**
      * Executes bulk item requests and handles request execution exceptions.
      * @return {@code true} if request completed on this thread and the listener was invoked, {@code false} if the request triggered

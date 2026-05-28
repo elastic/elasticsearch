@@ -24,6 +24,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.datasources.spi.SegmentableFormatReader;
+import org.elasticsearch.xpack.esql.datasources.spi.SourceOperatorContext;
 import org.elasticsearch.xpack.esql.planner.PlannerSettings;
 
 import java.io.IOException;
@@ -122,6 +123,28 @@ public final class QueryPragmas implements Writeable {
     public static final Setting<Integer> PARSING_PARALLELISM = Setting.intSetting(
         "parsing_parallelism",
         EsExecutors.allocatedProcessors(Settings.EMPTY),
+        1
+    );
+
+    /**
+     * Per-file cap on the number of intra-file byte-range segments whose object-store read streams are
+     * open at once during parallel text parsing. Each open segment holds a storage read stream (one S3
+     * {@code GetObject}) plus, for buffering readers like NDJSON, a per-segment {@code byte[]}; the
+     * consumer drains segments strictly in order, so this is a shallow read-ahead depth, not a
+     * parallelism. It is deliberately not {@code parsing_parallelism}: a file is already split into about
+     * {@code parsing_parallelism} segments and many files read concurrently, so aligning this with the
+     * thread count would fan a wide multi-file glob into far too many concurrent object-store reads.
+     * A small default bounds that fan-out independent of file count/length. Safeguard in the spirit of
+     * {@link #BRANCH_PARALLEL_DEGREE}.
+     * <p>
+     * This is a <b>per-file</b> cap. The node-wide bound on concurrently-open segment streams is roughly
+     * {@code (data-node driver instances) × max_concurrent_open_segments × (files open per driver)} — tune
+     * with that product in mind, not this value alone. The default is sourced from
+     * {@link SourceOperatorContext#DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS}.
+     */
+    public static final Setting<Integer> MAX_CONCURRENT_OPEN_SEGMENTS = Setting.intSetting(
+        "max_concurrent_open_segments",
+        SourceOperatorContext.DEFAULT_MAX_CONCURRENT_OPEN_SEGMENTS,
         1
     );
 
@@ -289,6 +312,10 @@ public final class QueryPragmas implements Writeable {
 
     public int parsingParallelism() {
         return PARSING_PARALLELISM.get(settings);
+    }
+
+    public int maxConcurrentOpenSegments() {
+        return MAX_CONCURRENT_OPEN_SEGMENTS.get(settings);
     }
 
     public ByteSizeValue maxRecordSize() {

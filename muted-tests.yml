@@ -288,9 +288,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.objectstore.AzureMultiProjectObjectStoreIT
   method: testObjectStoreSeparation
   issue: https://github.com/elastic/elasticsearch-serverless/issues/6311
-- class: org.elasticsearch.xpack.stateless.reshard.StatelessReshardDisruptionIT
-  method: testReshardWithDisruption
-  issue: https://github.com/elastic/elasticsearch/issues/147846
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testForceCommitPrefetch
   issue: https://github.com/elastic/elasticsearch/issues/147847
@@ -369,9 +366,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
   method: testCommitPrefetching
   issue: https://github.com/elastic/elasticsearch/issues/148476
-- class: org.elasticsearch.xpack.stateless.cache.SearchCommitPrefetcherIT
-  method: testSearchNodePrefetchesOnlyLatestGenerationOnFirstCommitNotifcation
-  issue: https://github.com/elastic/elasticsearch/issues/148480
 - class: org.elasticsearch.compute.data.BlockAccountingTests
   method: testBytesRefVector
   issue: https://github.com/elastic/elasticsearch/issues/148481
@@ -393,12 +387,6 @@ tests:
 - class: org.elasticsearch.xpack.stateless.commits.IndexCommitTimestampFieldRangeTests
   method: testFieldValueRangeForBatchedCompoundCommit
   issue: https://github.com/elastic/elasticsearch/issues/148961
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Start and stop old regression job}
-  issue: https://github.com/elastic/elasticsearch/issues/147516
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/90_ml_data_frame_analytics_crud/Get old regression job stats}
-  issue: https://github.com/elastic/elasticsearch/issues/147517
 - class: org.elasticsearch.xpack.stateless.snapshots.StatelessSnapshotIT
   method: testSnapshotFailsCleanlyWhenShardClosesDuringDisconnect
   issue: https://github.com/elastic/elasticsearch/issues/149032
@@ -534,9 +522,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.GenerativeRandomMappingIT
   method: test
   issue: https://github.com/elastic/elasticsearch/issues/148190
-- class: org.elasticsearch.reindex.management.ListTasksRelocationIT
-  method: testListTasksShowsOriginalIdentityAfterRelocation
-  issue: https://github.com/elastic/elasticsearch/issues/149776
 - class: org.elasticsearch.xpack.dlm.frozen.DLMFrozenTransitionWithSecurityIT
   method: testCanTransitionIndex
   issue: https://github.com/elastic/elasticsearch/issues/149770
@@ -600,3 +585,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {csv-spec:where-like.likePrefixSuffix}
   issue: https://github.com/elastic/elasticsearch/issues/149964
+- class: org.elasticsearch.xpack.esql.datasource.parquet.PageColumnReaderCorrectnessTests
+  method: testV2Zstd
+  issue: https://github.com/elastic/elasticsearch/issues/150015
+- class: org.elasticsearch.xpack.esql.datasource.parquet.PageColumnReaderCorrectnessTests
+  method: testV1Zstd
+  issue: https://github.com/elastic/elasticsearch/issues/150019
+- class: org.elasticsearch.xpack.stateless.StatelessRealTimeGetIT
+  method: testDataVisibility
+  issue: https://github.com/elastic/elasticsearch/issues/150028
+- class: org.elasticsearch.xpack.esql.CsvIT
+  method: test {csv-spec:k8s-timeseries-increase.increase_of_double_no_grouping_promql}
+  issue: https://github.com/elastic/elasticsearch/issues/150045
+- class: org.elasticsearch.xpack.stateless.allocation.EstimatedHeapUsageAllocationDeciderIT
+  method: testEstimatedHeapAllocationDecider
+  issue: https://github.com/elastic/elasticsearch/issues/150046
